@@ -12,6 +12,7 @@ import com.quantummpv.app.ui.browser.base.BaseBrowserViewModel
 import com.quantummpv.app.utils.history.RecentlyPlayedOps
 import com.quantummpv.app.utils.media.MediaLibraryEvents
 import com.quantummpv.app.utils.media.MetadataRetrieval
+import com.quantummpv.app.utils.media.PlaybackStateEvents
 import com.quantummpv.app.utils.storage.FolderViewScanner
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
@@ -98,6 +99,14 @@ class VideoListViewModel(
           loadVideos()
         }
       }
+
+    viewModelScope.launch(Dispatchers.IO) {
+      PlaybackStateEvents.changes.collectLatest {
+        if (_videos.value.isNotEmpty()) {
+          loadPlaybackInfo(_videos.value)
+        }
+      }
+    }
   }
 
   override fun refresh() {

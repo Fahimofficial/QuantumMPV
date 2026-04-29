@@ -14,6 +14,7 @@ import com.quantummpv.app.repository.MediaFileRepository
 import com.quantummpv.app.ui.browser.base.BaseBrowserViewModel
 import com.quantummpv.app.utils.media.MediaLibraryEvents
 import com.quantummpv.app.utils.media.MetadataRetrieval
+import com.quantummpv.app.utils.media.PlaybackStateEvents
 import com.quantummpv.app.utils.sort.SortUtils
 import com.quantummpv.app.utils.storage.FolderViewScanner
 import com.quantummpv.app.utils.storage.TreeViewScanner
@@ -151,6 +152,14 @@ class FileSystemBrowserViewModel(
           loadCurrentDirectory()
         }
       }
+
+    viewModelScope.launch(Dispatchers.IO) {
+      PlaybackStateEvents.changes.collectLatest {
+        if (_unsortedItems.value.isNotEmpty()) {
+          applyPlaybackState(_unsortedItems.value)
+        }
+      }
+    }
 
     // Apply sorting whenever items or sort preferences change
     // Based on Fossify's ChangeSortingDialog callback and sorting logic

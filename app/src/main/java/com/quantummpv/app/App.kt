@@ -1,6 +1,7 @@
 package com.quantummpv.app
 
 import android.app.Application
+import android.util.Log
 import com.quantummpv.app.database.repository.VideoMetadataCacheRepository
 import com.quantummpv.app.di.DatabaseModule
 import com.quantummpv.app.di.FileManagerModule
@@ -8,10 +9,16 @@ import com.quantummpv.app.di.PreferencesModule
 import com.quantummpv.app.presentation.crash.CrashActivity
 import com.quantummpv.app.presentation.crash.GlobalExceptionHandler
 import com.quantummpv.app.utils.media.MediaLibraryEvents
+import io.github.rosemoe.sora.langs.textmate.registry.FileProviderRegistry
+import io.github.rosemoe.sora.langs.textmate.registry.GrammarRegistry
+import io.github.rosemoe.sora.langs.textmate.registry.ThemeRegistry
+import io.github.rosemoe.sora.langs.textmate.registry.model.ThemeModel
+import io.github.rosemoe.sora.langs.textmate.registry.provider.AssetsFileResolver
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.launch
+import org.eclipse.tm4e.core.registry.IThemeSource
 import org.koin.android.ext.android.inject
 import org.koin.android.ext.koin.androidContext
 import org.koin.core.context.startKoin
@@ -46,6 +53,10 @@ class App : Application() {
     }
 
     applicationScope.launch {
+      initializeScriptEditorAssets()
+    }
+
+    applicationScope.launch {
       runCatching {
         triggerMediaScanOnLaunch()
       }
@@ -68,6 +79,31 @@ class App : Application() {
       android.util.Log.d("App", "Triggered media scan on app launch")
     } catch (error: Exception) {
       android.util.Log.e("App", "Failed to trigger media scan on launch", error)
+    }
+  }
+
+  private fun initializeScriptEditorAssets() {
+    runCatching {
+      FileProviderRegistry.getInstance().addFileProvider(AssetsFileResolver(assets))
+      GrammarRegistry.getInstance().loadGrammars("textmate/languages.json")
+
+      val themeRegistry = ThemeRegistry.getInstance()
+      listOf("darcula", "quietlight").forEach { themeName ->
+        val path = "textmate/$themeName.json"
+        themeRegistry.loadTheme(
+          ThemeModel(
+            IThemeSource.fromInputStream(
+              FileProviderRegistry.getInstance().tryGetInputStream(path),
+              path,
+              null,
+            ),
+            themeName,
+          ),
+        )
+      }
+      themeRegistry.setTheme("darcula")
+    }.onFailure { error ->
+      Log.w("App", "Failed to initialize script editor assets", error)
     }
   }
 }

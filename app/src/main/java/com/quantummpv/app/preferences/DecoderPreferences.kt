@@ -3,6 +3,7 @@ package com.quantummpv.app.preferences
 import com.quantummpv.app.preferences.preference.PreferenceStore
 import com.quantummpv.app.preferences.preference.getEnum
 import com.quantummpv.app.ui.player.Debanding
+import com.quantummpv.app.ui.player.HdrScreenMode
 import com.quantummpv.app.ui.player.InterpolationMode
 
 class DecoderPreferences(
@@ -13,6 +14,7 @@ class DecoderPreferences(
   val gpuNext = preferenceStore.getBoolean("gpu_next")
   val useVulkan = preferenceStore.getBoolean("use_vulkan", false)
   val hdrScreenOutput = preferenceStore.getBoolean("hdr_screen_output", false)
+  val hdrScreenMode = preferenceStore.getEnum("hdr_screen_mode", HdrScreenMode.OFF)
   val useYUV420P = preferenceStore.getBoolean("use_yuv420p", false)
 
   val debanding = preferenceStore.getEnum("debanding", Debanding.None)

@@ -37,7 +37,6 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import androidx.core.content.FileProvider
 import androidx.core.net.toUri
 import androidx.documentfile.provider.DocumentFile
@@ -45,13 +44,8 @@ import com.quantummpv.app.preferences.AdvancedPreferences
 import com.quantummpv.app.preferences.preference.collectAsState
 import com.quantummpv.app.presentation.Screen
 import com.quantummpv.app.presentation.components.ConfirmDialog
-import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.text.BasicTextField
-import androidx.compose.foundation.verticalScroll
-import androidx.compose.ui.graphics.SolidColor
-import androidx.compose.ui.text.TextStyle
-import androidx.compose.ui.text.font.FontFamily
 import com.quantummpv.app.R
+import com.quantummpv.app.ui.editor.MpvScriptEditor
 import com.quantummpv.app.ui.utils.LocalBackStack
 import com.quantummpv.app.ui.utils.popSafely
 import kotlinx.coroutines.Dispatchers
@@ -441,29 +435,20 @@ data class LuaScriptEditorScreen(
       )
       
       // Editor content with IME padding
-      val scrollState = rememberScrollState()
       Box(
         modifier = Modifier
           .fillMaxSize()
           .weight(1f)
           .imePadding()
       ) {
-        BasicTextField(
-          value = scriptContent,
-          onValueChange = {
+        MpvScriptEditor(
+          content = scriptContent,
+          onContentChange = {
             scriptContent = it
             hasUnsavedChanges = true
           },
-          modifier = Modifier
-            .fillMaxSize()
-            .verticalScroll(scrollState)
-            .padding(horizontal = 16.dp, vertical = 12.dp),
-          textStyle = TextStyle(
-            fontFamily = FontFamily.Monospace,
-            fontSize = 14.sp,
-            color = MaterialTheme.colorScheme.onSurface,
-          ),
-          cursorBrush = SolidColor(MaterialTheme.colorScheme.primary),
+          language = scriptExtension,
+          modifier = Modifier.fillMaxSize(),
         )
       }
     }

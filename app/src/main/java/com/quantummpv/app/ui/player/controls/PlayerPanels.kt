@@ -16,7 +16,9 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import com.quantummpv.app.ui.player.Panels
+import com.quantummpv.app.ui.player.PlayerViewModel
 import com.quantummpv.app.ui.player.controls.components.panels.AudioDelayPanel
+import com.quantummpv.app.ui.player.controls.components.panels.HdrScreenOutputPanel
 import com.quantummpv.app.ui.player.controls.components.panels.LuaScriptsPanel
 import com.quantummpv.app.ui.player.controls.components.panels.SubtitleDelayPanel
 import com.quantummpv.app.ui.player.controls.components.panels.SubtitleSettingsPanel
@@ -25,6 +27,7 @@ import com.quantummpv.app.ui.player.controls.components.panels.VideoSettingsPane
 @Composable
 fun PlayerPanels(
   panelShown: Panels,
+  viewModel: PlayerViewModel,
   onDismissRequest: () -> Unit,
   modifier: Modifier = Modifier,
 ) {
@@ -56,6 +59,12 @@ fun PlayerPanels(
       }
       Panels.LuaScripts -> {
         LuaScriptsPanel(onDismissRequest)
+      }
+      Panels.HdrScreenOutput -> {
+        HdrScreenOutputPanel(
+          viewModel = viewModel,
+          onDismissRequest = onDismissRequest,
+        )
       }
     }
   }
