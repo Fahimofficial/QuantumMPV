@@ -7,14 +7,10 @@ import android.widget.Toast
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.text.BasicTextField
-import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -31,20 +27,17 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
-import androidx.compose.ui.text.TextStyle
-import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import androidx.core.net.toUri
 import androidx.documentfile.provider.DocumentFile
 import com.quantummpv.app.R
 import com.quantummpv.app.preferences.AdvancedPreferences
 import com.quantummpv.app.preferences.preference.collectAsState
 import com.quantummpv.app.presentation.Screen
+import com.quantummpv.app.ui.editor.MpvScriptEditor
 import com.quantummpv.app.ui.utils.LocalBackStack
 import com.quantummpv.app.ui.utils.popSafely
 import kotlinx.coroutines.Dispatchers
@@ -83,6 +76,10 @@ data class ConfigEditorScreen(
     val screenTitle = when (configType) {
       ConfigType.MPV_CONF   -> "Edit mpv.conf"
       ConfigType.INPUT_CONF -> "Edit input.conf"
+    }
+    val editorLanguage = when (configType) {
+      ConfigType.MPV_CONF   -> "mpv.conf"
+      ConfigType.INPUT_CONF -> "input.conf"
     }
 
     var configText       by remember { mutableStateOf(initialValue) }
@@ -206,26 +203,20 @@ data class ConfigEditorScreen(
       )
       
       // Editor content with IME padding
-      val scrollState = rememberScrollState()
       Box(
         modifier = Modifier
           .fillMaxSize()
           .weight(1f)
           .imePadding()
       ) {
-        BasicTextField(
-          value = configText,
-          onValueChange = { configText = it; hasUnsavedChanges = true },
-          modifier = Modifier
-            .fillMaxSize()
-            .verticalScroll(scrollState)
-            .padding(horizontal = 16.dp, vertical = 12.dp),
-          textStyle = TextStyle(
-            fontFamily = FontFamily.Monospace,
-            fontSize = 14.sp,
-            color = MaterialTheme.colorScheme.onSurface,
-          ),
-          cursorBrush = SolidColor(MaterialTheme.colorScheme.primary),
+        MpvScriptEditor(
+          content = configText,
+          onContentChange = {
+            configText = it
+            hasUnsavedChanges = true
+          },
+          language = editorLanguage,
+          modifier = Modifier.fillMaxSize(),
         )
       }
     }
