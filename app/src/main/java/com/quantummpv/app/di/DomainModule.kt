@@ -1,6 +1,7 @@
 package com.quantummpv.app.di
 
 import com.quantummpv.app.domain.anime4k.Anime4KManager
+import com.quantummpv.app.domain.hdr.HdrToysManager
 import com.quantummpv.app.domain.thumbnail.CoilVideoThumbnailDecoder
 import com.quantummpv.app.domain.thumbnail.toThumbnailStrategy
 import com.quantummpv.app.network.AndroidCookieJar
@@ -72,6 +73,7 @@ val domainModule = module {
             .build()
     }
     single { Anime4KManager(androidContext()) }
+    single { HdrToysManager(androidContext()) }
     single { WyzieSearchRepository(androidContext(), get(), get(), get()) }
     single { IntroDbRepository(get(), get()) }
 }
