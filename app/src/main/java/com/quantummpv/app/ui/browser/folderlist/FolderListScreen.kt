@@ -184,6 +184,7 @@ object FolderListScreen : Screen {
     var isSearchLoading by remember { mutableStateOf(false) }
     val keyboardController = LocalSoftwareKeyboardController.current
     val focusRequester = remember { FocusRequester() }
+    val foldersBlacklistedMessage = stringResource(com.quantummpv.app.R.string.pref_folders_blacklisted)
 
     // Search logic
     LaunchedEffect(searchQuery, isSearching) {
@@ -412,7 +413,7 @@ object FolderListScreen : Screen {
                 viewModel.refresh()
                 android.widget.Toast.makeText(
                   context,
-                  context.getString(com.quantummpv.app.R.string.pref_folders_blacklisted),
+                  foldersBlacklistedMessage,
                   android.widget.Toast.LENGTH_SHORT,
                 ).show()
               }
