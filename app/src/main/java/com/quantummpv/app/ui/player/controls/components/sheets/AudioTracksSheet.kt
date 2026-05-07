@@ -11,6 +11,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.FilterChip
@@ -26,11 +27,11 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.unit.dp
 import com.quantummpv.app.R
 import com.quantummpv.app.preferences.AudioChannels
 import com.quantummpv.app.preferences.AudioPreferences
 import com.quantummpv.app.preferences.preference.collectAsState
+import com.quantummpv.app.presentation.components.PlayerSheet
 import com.quantummpv.app.ui.player.TrackNode
 import com.quantummpv.app.ui.theme.spacing
 import `is`.xyz.mpv.MPVLib
@@ -49,10 +50,8 @@ fun AudioTracksSheet(
   val audioPreferences = koinInject<AudioPreferences>()
   val audioChannels by audioPreferences.audioChannels.collectAsState()
 
-  GenericTracksSheet(
-    tracks,
-    onDismissRequest = onDismissRequest,
-    header = {
+  PlayerSheet(onDismissRequest) {
+    Column(modifier) {
       AddTrackRow(
         stringResource(R.string.player_sheets_add_ext_audio),
         onAddAudioTrack,
@@ -62,51 +61,53 @@ fun AudioTracksSheet(
           }
         },
       )
-    },
-    track = {
-      AudioTrackRow(
-        title = getTrackTitle(it),
-        isSelected = it.isSelected,
-        onClick = { onSelect(it) },
-      )
-    },
-    footer = {
-      Column(
-        modifier = Modifier
-          .fillMaxWidth()
-          .padding(MaterialTheme.spacing.medium)
-      ) {
-        Spacer(modifier = Modifier.height(MaterialTheme.spacing.medium))
-        Text(
-          text = stringResource(id = R.string.pref_audio_channels),
-          style = MaterialTheme.typography.titleMedium,
-          color = MaterialTheme.colorScheme.primary
-        )
-        Spacer(modifier = Modifier.height(MaterialTheme.spacing.smaller))
-        LazyRow(
-          horizontalArrangement = Arrangement.spacedBy(MaterialTheme.spacing.smaller),
-        ) {
-          items(AudioChannels.entries) {
-            FilterChip(
-              selected = audioChannels == it,
-              onClick = {
-                audioPreferences.audioChannels.set(it)
-                if (it == AudioChannels.ReverseStereo) {
-                  MPVLib.setPropertyString(AudioChannels.AutoSafe.property, AudioChannels.AutoSafe.value)
-                } else {
-                  MPVLib.setPropertyString(AudioChannels.ReverseStereo.property, "")
-                }
-                MPVLib.setPropertyString(it.property, it.value)
-              },
-              label = { Text(text = stringResource(id = it.title)) },
-              leadingIcon = null,
+
+      LazyColumn {
+        items(tracks) {
+          AudioTrackRow(
+            title = getTrackTitle(it),
+            isSelected = it.isSelected,
+            onClick = { onSelect(it) },
+          )
+        }
+        item {
+          Column(
+            modifier = Modifier
+              .fillMaxWidth()
+              .padding(MaterialTheme.spacing.medium),
+          ) {
+            Spacer(modifier = Modifier.height(MaterialTheme.spacing.medium))
+            Text(
+              text = stringResource(id = R.string.pref_audio_channels),
+              style = MaterialTheme.typography.titleMedium,
+              color = MaterialTheme.colorScheme.primary,
             )
+            Spacer(modifier = Modifier.height(MaterialTheme.spacing.smaller))
+            LazyRow(
+              horizontalArrangement = Arrangement.spacedBy(MaterialTheme.spacing.smaller),
+            ) {
+              items(AudioChannels.entries) {
+                FilterChip(
+                  selected = audioChannels == it,
+                  onClick = {
+                    audioPreferences.audioChannels.set(it)
+                    if (it == AudioChannels.ReverseStereo) {
+                      MPVLib.setPropertyString(AudioChannels.AutoSafe.property, AudioChannels.AutoSafe.value)
+                    } else {
+                      MPVLib.setPropertyString(AudioChannels.ReverseStereo.property, "")
+                    }
+                    MPVLib.setPropertyString(it.property, it.value)
+                  },
+                  label = { Text(text = stringResource(id = it.title)) },
+                  leadingIcon = null,
+                )
+              }
+            }
           }
         }
       }
-    },
-    modifier = modifier,
-  )
+    }
+  }
 }
 
 @Composable
@@ -136,7 +137,3 @@ fun AudioTrackRow(
     )
   }
 }
-
-
-
-
