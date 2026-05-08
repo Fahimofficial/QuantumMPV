@@ -24,7 +24,6 @@ import com.quantummpv.app.ui.player.controls.components.sheets.SubtitlesSheet
 import com.quantummpv.app.ui.player.controls.components.sheets.OnlineSubtitleSearchSheet
 import com.quantummpv.app.ui.player.controls.components.sheets.VideoZoomSheet
 import com.quantummpv.app.ui.player.controls.components.sheets.AmbientSheet
-import com.quantummpv.app.utils.media.MediaInfoParser
 import dev.vivvvek.seeker.Segment
 import kotlinx.collections.immutable.ImmutableList
 import kotlinx.collections.immutable.toImmutableList
@@ -141,8 +140,10 @@ fun PlayerSheets(
     Sheets.OnlineSubtitleSearch -> {
       val isSearching by viewModel.isSearchingSub.composeCollectAsState()
       val isDownloading by viewModel.isDownloadingSub.composeCollectAsState()
-      val results by viewModel.wyzieSearchResults.composeCollectAsState()
+      val results by viewModel.onlineSubtitleSearchResults.composeCollectAsState()
       val isOnlineSectionExpanded by viewModel.isOnlineSectionExpanded.composeCollectAsState()
+      val subtitlesPreferences = koinInject<com.quantummpv.app.preferences.SubtitlesPreferences>()
+      val subtitleSearchMode by subtitlesPreferences.onlineSubtitleSearchMode.collectAsState()
 
       // Media Search / Autocomplete
       val mediaResults by viewModel.mediaSearchResults.composeCollectAsState()
@@ -165,24 +166,11 @@ fun PlayerSheets(
         isOnlineSectionExpanded = isOnlineSectionExpanded,
         onToggleOnlineSection = { viewModel.toggleOnlineSection() },
         mediaTitle = viewModel.currentMediaTitle,
+        showWyzieSelection = subtitleSearchMode != com.quantummpv.app.repository.subtitle.OnlineSubtitleSearchMode.SUBHUB,
         // Autocomplete & Series Selection
         mediaSearchResults = mediaResults.toImmutableList(),
         isSearchingMedia = isSearchingMedia,
-        onSearchMedia = { query ->
-          // Parse both the user's search query and the original filename
-          val queryInfo = MediaInfoParser.parse(query)
-          val fileInfo = MediaInfoParser.parse(viewModel.currentMediaTitle)
-          
-          // Use clean title from query for TMDB search (strip S01E05 noise)
-          val searchTitle = queryInfo.title.ifBlank { query }
-          viewModel.searchMedia(searchTitle)
-          
-          // Priority: TMDB selection > query parsed > file parsed
-          val s = selectedSeason?.season_number ?: queryInfo.season ?: fileInfo.season
-          val e = selectedEpisode?.episode_number ?: queryInfo.episode ?: fileInfo.episode
-          val y = queryInfo.year ?: fileInfo.year
-          viewModel.searchSubtitles(searchTitle, s, e, y)
-        },
+        onSearchMedia = viewModel::searchOnlineSubtitles,
         onSelectMedia = { viewModel.selectMedia(it) },
         selectedTvShow = selectedTvShow,
         isFetchingTvDetails = isFetchingTvDetails,

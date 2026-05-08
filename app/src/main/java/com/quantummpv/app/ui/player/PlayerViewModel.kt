@@ -26,10 +26,14 @@ import com.quantummpv.app.preferences.SubtitlesPreferences
 import com.quantummpv.app.repository.IntroDbLookupOutcome
 import com.quantummpv.app.repository.IntroDbLookupRequest
 import com.quantummpv.app.repository.IntroDbRepository
+import com.quantummpv.app.repository.subtitle.OnlineSubtitle
+import com.quantummpv.app.repository.subtitle.OnlineSubtitleOrchestrator
+import com.quantummpv.app.repository.subtitle.OnlineSubtitleSearchRequest
+import com.quantummpv.app.repository.subtitle.OnlineSubtitleSearchMode
 import com.quantummpv.app.repository.wyzie.WyzieSearchRepository
-import com.quantummpv.app.repository.wyzie.WyzieSubtitle
 import com.quantummpv.app.utils.media.ChecksumUtils
 import com.quantummpv.app.utils.media.MediaInfoParser
+import com.quantummpv.app.utils.media.ParsedMediaInfo
 import com.quantummpv.app.utils.media.SubtitleHashUtils
 import com.quantummpv.app.utils.media.resolveSubtitleLookupDirectories
 import `is`.xyz.mpv.MPVLib
@@ -135,6 +139,7 @@ class PlayerViewModel(
   private val json: Json by inject()
   private val playbackStateDao: com.quantummpv.app.database.dao.PlaybackStateDao by inject()
   private val wyzieRepository: WyzieSearchRepository by inject()
+  private val onlineSubtitleOrchestrator: OnlineSubtitleOrchestrator by inject()
   private val introDbRepository: IntroDbRepository by inject()
   private val introMarkerCachePrefs by lazy {
     host.context.getSharedPreferences(INTRO_MARKER_CACHE_PREFS, Context.MODE_PRIVATE)
@@ -144,9 +149,8 @@ class PlayerViewModel(
   private val _playlistItems = kotlinx.coroutines.flow.MutableStateFlow<List<com.quantummpv.app.ui.player.controls.components.sheets.PlaylistItem>>(emptyList())
   val playlistItems: kotlinx.coroutines.flow.StateFlow<List<com.quantummpv.app.ui.player.controls.components.sheets.PlaylistItem>> = _playlistItems.asStateFlow()
 
-  // Wyzie Search Results
-  private val _wyzieSearchResults = MutableStateFlow<List<WyzieSubtitle>>(emptyList())
-  val wyzieSearchResults: StateFlow<List<WyzieSubtitle>> = _wyzieSearchResults.asStateFlow()
+  private val _onlineSubtitleSearchResults = MutableStateFlow<List<OnlineSubtitle>>(emptyList())
+  val onlineSubtitleSearchResults: StateFlow<List<OnlineSubtitle>> = _onlineSubtitleSearchResults.asStateFlow()
 
   private val _isDownloadingSub = MutableStateFlow(false)
   val isDownloadingSub: StateFlow<Boolean> = _isDownloadingSub.asStateFlow()
@@ -1769,6 +1773,11 @@ class PlayerViewModel(
 
   private var mediaSearchJob: Job? = null
 
+  private data class WyzieSearchPlan(
+    val request: OnlineSubtitleSearchRequest?,
+    val missingSelectionMessage: String? = null,
+  )
+
   fun searchMedia(query: String) {
     mediaSearchJob?.cancel()
     if (query.isBlank()) {
@@ -1792,18 +1801,25 @@ class PlayerViewModel(
 
   fun selectMedia(result: com.quantummpv.app.repository.wyzie.WyzieTmdbResult) {
     _mediaSearchResults.value = emptyList() // Clear results after selection
-    _wyzieSearchResults.value = emptyList() // Clear old subtitle results
+    _onlineSubtitleSearchResults.value = emptyList() // Clear old subtitle results
+    val fileInfo = MediaInfoParser.parse(currentMediaTitle)
 
     if (result.mediaType == "tv") {
-      fetchTvShowDetails(result.id)
+      fetchTvShowDetails(
+        id = result.id,
+        preferredSeason = fileInfo.season,
+        preferredEpisode = fileInfo.episode,
+      )
     } else {
-      // For movies, just search subtitles directly with the TMDB ID
-      searchSubtitles(result.title)
-      // Ideally we should pass the TMDB ID to searchSubtitles too if the API supports it
+      searchSubtitles(result.title, year = result.releaseYear ?: fileInfo.year, tmdbId = result.id)
     }
   }
 
-  private fun fetchTvShowDetails(id: Int) {
+  private fun fetchTvShowDetails(
+    id: Int,
+    preferredSeason: Int? = null,
+    preferredEpisode: Int? = null,
+  ) {
     viewModelScope.launch {
       _isFetchingTvDetails.value = true
       wyzieRepository.getTvShowDetails(id)
@@ -1812,6 +1828,12 @@ class PlayerViewModel(
           _selectedTvShow.value = details.copy(seasons = validSeasons)
           _selectedSeason.value = null
           _seasonEpisodes.value = emptyList()
+          val matchingSeason = preferredSeason?.let { wanted ->
+            validSeasons.firstOrNull { it.season_number == wanted }
+          }
+          if (matchingSeason != null) {
+            selectSeason(matchingSeason, preferredEpisode)
+          }
         }
         .onFailure {
           showToast("Failed to load series details: ${it.message}")
@@ -1820,7 +1842,10 @@ class PlayerViewModel(
     }
   }
 
-  fun selectSeason(season: com.quantummpv.app.repository.wyzie.WyzieSeason) {
+  fun selectSeason(
+    season: com.quantummpv.app.repository.wyzie.WyzieSeason,
+    preferredEpisode: Int? = null,
+  ) {
     val tvShowId = _selectedTvShow.value?.id ?: return
     _selectedSeason.value = season
 
@@ -1830,7 +1855,19 @@ class PlayerViewModel(
         .onSuccess { episodes ->
           val validEpisodes = episodes.filter { it.episode_number > 0 }.sortedBy { it.episode_number }
           _seasonEpisodes.value = validEpisodes
-          _selectedEpisode.value = null
+          val matchingEpisode = preferredEpisode?.let { wanted ->
+            validEpisodes.firstOrNull { it.episode_number == wanted }
+          }
+          _selectedEpisode.value = matchingEpisode
+          matchingEpisode?.let { episode ->
+            val tvShowName = _selectedTvShow.value?.name ?: currentMediaTitle
+            searchSubtitles(
+              query = tvShowName,
+              season = season.season_number,
+              episode = episode.episode_number,
+              tmdbId = tvShowId,
+            )
+          }
         }
         .onFailure {
           showToast("Failed to load episodes: ${it.message}")
@@ -1842,7 +1879,7 @@ class PlayerViewModel(
   fun selectEpisode(episode: com.quantummpv.app.repository.wyzie.WyzieEpisode) {
     _selectedEpisode.value = episode
     val tvShowName = _selectedTvShow.value?.name ?: currentMediaTitle
-    searchSubtitles(tvShowName, episode.season_number, episode.episode_number)
+    searchSubtitles(tvShowName, episode.season_number, episode.episode_number, tmdbId = _selectedTvShow.value?.id)
   }
 
   fun clearMediaSelection() {
@@ -1854,24 +1891,138 @@ class PlayerViewModel(
   }
 
   // --- Subtitle Search ---
-  fun searchSubtitles(query: String, season: Int? = null, episode: Int? = null, year: String? = null) {
+  fun searchOnlineSubtitles(query: String) {
+    val queryInfo = MediaInfoParser.parse(query)
+    val fileInfo = MediaInfoParser.parse(currentMediaTitle)
+    val searchTitle = queryInfo.title.ifBlank { query.trim() }.ifBlank { fileInfo.title }
+    if (searchTitle.isBlank()) return
+
+    val mode = subtitlesPreferences.onlineSubtitleSearchMode.get()
+    if (mode != OnlineSubtitleSearchMode.SUBHUB) {
+      searchMedia(searchTitle)
+    } else {
+      _mediaSearchResults.value = emptyList()
+    }
+
+    val year = queryInfo.year ?: fileInfo.year
+    val wyziePlan = buildWyzieSearchPlan(searchTitle, year, queryInfo, fileInfo)
+    val includeWyzie = mode != OnlineSubtitleSearchMode.SUBHUB && wyziePlan.request != null
+    val includeSubtitleHub = mode != OnlineSubtitleSearchMode.WYZIE
+
+    if (mode == OnlineSubtitleSearchMode.WYZIE && wyziePlan.request == null) {
+      wyziePlan.missingSelectionMessage?.let(::showToast)
+      _onlineSubtitleSearchResults.value = emptyList()
+      return
+    }
+
+    val wyzieRequest = wyziePlan.request ?: OnlineSubtitleSearchRequest(query = searchTitle, year = year)
+    searchSubtitles(
+      query = wyzieRequest.query,
+      season = wyzieRequest.season,
+      episode = wyzieRequest.episode,
+      year = wyzieRequest.year,
+      tmdbId = wyzieRequest.tmdbId,
+      includeWyzie = includeWyzie,
+      includeSubtitleHub = includeSubtitleHub,
+    )
+  }
+
+  fun searchSubtitles(
+    query: String,
+    season: Int? = null,
+    episode: Int? = null,
+    year: String? = null,
+    tmdbId: Int? = null,
+    includeWyzie: Boolean = true,
+    includeSubtitleHub: Boolean = true,
+  ) {
      viewModelScope.launch {
-         _isSearchingSub.value = true
-         wyzieRepository.search(query, season, episode, year, movieHash = _videoHash.value)
-             .onSuccess { results ->
-                 _wyzieSearchResults.value = results
+          _isSearchingSub.value = true
+          val cleanSubHubTitle = MediaInfoParser.parse(query).title.ifBlank { query.trim() }
+          val wyzieRequest =
+              OnlineSubtitleSearchRequest(
+                  query = query,
+                  tmdbId = tmdbId,
+                  season = season,
+                  episode = episode,
+                  year = year,
+                  movieHash = _videoHash.value,
+              )
+          val subtitleHubRequest =
+              OnlineSubtitleSearchRequest(
+                  query = cleanSubHubTitle,
+                  year = year,
+              )
+          onlineSubtitleOrchestrator.search(
+              wyzieRequest,
+              subtitlesPreferences.onlineSubtitleSearchMode.get(),
+              subtitleHubRequest = subtitleHubRequest,
+              includeWyzie = includeWyzie,
+              includeSubtitleHub = includeSubtitleHub,
+          )
+              .onSuccess { results ->
+                  _onlineSubtitleSearchResults.value = results
              }
              .onFailure {
                  showToast("Search failed: ${it.message}")
              }
-         _isSearchingSub.value = false
-     }
+          _isSearchingSub.value = false
+      }
+   }
+
+  private fun buildWyzieSearchPlan(
+    searchTitle: String,
+    year: String?,
+    queryInfo: ParsedMediaInfo,
+    fileInfo: ParsedMediaInfo,
+  ): WyzieSearchPlan {
+    val selectedShow = _selectedTvShow.value
+    val selectedSeason = _selectedSeason.value?.season_number
+    val selectedEpisode = _selectedEpisode.value?.episode_number
+
+    if (selectedShow != null) {
+      if (selectedSeason == null || selectedEpisode == null) {
+        return WyzieSearchPlan(
+          request = null,
+          missingSelectionMessage = "Select season and episode for Wyzie.",
+        )
+      }
+      return WyzieSearchPlan(
+        request =
+          OnlineSubtitleSearchRequest(
+            query = selectedShow.name,
+            tmdbId = selectedShow.id,
+            season = selectedSeason,
+            episode = selectedEpisode,
+            year = year,
+            movieHash = _videoHash.value,
+          ),
+      )
+    }
+
+    val detectedSeason = queryInfo.season ?: fileInfo.season
+    val detectedEpisode = queryInfo.episode ?: fileInfo.episode
+    if (detectedSeason != null || detectedEpisode != null) {
+      return WyzieSearchPlan(
+        request = null,
+        missingSelectionMessage = "Select the show, season, and episode for Wyzie.",
+      )
+    }
+
+    return WyzieSearchPlan(
+      request =
+        OnlineSubtitleSearchRequest(
+          query = searchTitle,
+          year = year,
+          movieHash = _videoHash.value,
+        ),
+    )
   }
 
-  fun downloadSubtitle(subtitle: WyzieSubtitle) {
+  fun downloadSubtitle(subtitle: OnlineSubtitle) {
       viewModelScope.launch {
           _isDownloadingSub.value = true
-          wyzieRepository.download(subtitle, currentMediaTitle)
+          onlineSubtitleOrchestrator.download(subtitle, currentMediaTitle)
               .onSuccess { uri ->
                   if (subtitle.isHashMatch) {
                     MPVLib.setPropertyDouble("sub-delay", 0.0)

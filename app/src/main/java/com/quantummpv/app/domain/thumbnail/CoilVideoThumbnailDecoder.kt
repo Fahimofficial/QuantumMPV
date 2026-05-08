@@ -57,16 +57,16 @@ class CoilVideoThumbnailDecoder(
 
     return MediaMetadataRetriever().use { retriever ->
       retriever.setDataSource(source)
+      val sourcePath = sourcePath()
 
       val embeddedPicture =
         if (strategy.prefersEmbeddedPicture()) {
-          retriever.embeddedPicture?.takeIf { it.isNotEmpty() }?.let { bytes ->
-            BitmapFactory.decodeByteArray(bytes, 0, bytes.size)
-          }
+          EmbeddedArtworkResolver.decodeEmbeddedArtwork(sourcePath, retriever)
         } else {
           null
         }
 
+      var shouldRotate = true
       val rawBitmap =
         when (strategy) {
           ThumbnailStrategy.FirstFrame -> retriever.getFrameAtTime(0)
@@ -84,16 +84,32 @@ class CoilVideoThumbnailDecoder(
             }
           }
 
-          ThumbnailStrategy.EmbeddedOrFirstFrame -> embeddedPicture ?: retriever.getFrameAtTime(0)
+          is ThumbnailStrategy.EmbeddedOrHybrid ->
+            embeddedPicture?.also { shouldRotate = false } ?: decodeHybridFrame(retriever, strategy.percentage)
+
+          ThumbnailStrategy.EmbeddedOrFirstFrame ->
+            embeddedPicture?.also { shouldRotate = false } ?: retriever.getFrameAtTime(0)
         } ?: throw IllegalStateException("Failed to decode video thumbnail")
 
-      val rotatedBitmap = rotateBitmapIfNeeded(retriever, rawBitmap)
+      val rotatedBitmap = if (shouldRotate) rotateBitmapIfNeeded(retriever, rawBitmap) else rawBitmap
       val cachedBitmap = writeToDiskCache(rotatedBitmap)
 
       DecodeResult(
         image = cachedBitmap.toDrawable(options.context.resources).asImage(),
         isSampled = false,
       )
+    }
+  }
+
+  private fun sourcePath(): String? {
+    val metadata = source.metadata
+    return when {
+      metadata is ContentMetadata -> {
+        val uri = metadata.uri.toAndroidUri()
+        if (uri.scheme == "file") uri.path else uri.toString()
+      }
+      source.fileSystem === FileSystem.SYSTEM -> source.file().toFile().path
+      else -> null
     }
   }
 
@@ -104,6 +120,19 @@ class CoilVideoThumbnailDecoder(
     val durationMs =
       retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_DURATION)?.toLongOrNull() ?: 0L
     return (durationMs * percentage.coerceIn(0f, 1f) * 1000).toLong()
+  }
+
+  private fun decodeHybridFrame(
+    retriever: MediaMetadataRetriever,
+    percentage: Float,
+  ): Bitmap? {
+    val firstFrame = retriever.getFrameAtTime(0)
+    return if (firstFrame != null && isMostlySolid(firstFrame)) {
+      firstFrame.recycle()
+      retriever.getFrameAtTime(frameTimeMicros(retriever, percentage))
+    } else {
+      firstFrame
+    }
   }
 
   private fun MediaMetadataRetriever.setDataSource(source: ImageSource) {
@@ -231,6 +260,12 @@ sealed class ThumbnailStrategy {
     val percentage: Float = 0.33f,
   ) : ThumbnailStrategy() {
     override val cacheKey: String = "hybrid_${percentage}"
+  }
+
+  data class EmbeddedOrHybrid(
+    val percentage: Float = 0.33f,
+  ) : ThumbnailStrategy() {
+    override val cacheKey: String = "embedded_or_hybrid_${percentage}"
   }
 
   data object EmbeddedOrFirstFrame : ThumbnailStrategy() {

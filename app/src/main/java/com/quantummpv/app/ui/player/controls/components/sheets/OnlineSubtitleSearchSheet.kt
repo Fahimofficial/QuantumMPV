@@ -3,7 +3,9 @@ package com.quantummpv.app.ui.player.controls.components.sheets
 import com.quantummpv.app.ui.icons.Icon
 import com.quantummpv.app.ui.icons.Icons
 
+import androidx.compose.foundation.background
 import androidx.compose.foundation.basicMarquee
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -15,22 +17,30 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import androidx.compose.ui.layout.ContentScale
 import com.quantummpv.app.R
 import com.quantummpv.app.presentation.components.PlayerSheet
-import com.quantummpv.app.repository.wyzie.WyzieSubtitle
+import com.quantummpv.app.repository.subtitle.OnlineSubtitle
+import com.quantummpv.app.repository.subtitle.subdlGroupEpisodeRange
+import com.quantummpv.app.repository.subtitle.withSelectedSubdlGroupEpisode
 import com.quantummpv.app.ui.theme.spacing
 import com.quantummpv.app.utils.media.MediaInfoParser
+import coil3.compose.AsyncImage
 import kotlinx.collections.immutable.ImmutableList
 import kotlinx.collections.immutable.toImmutableList
 
 sealed class OnlineSubtitleItem {
-  data class OnlineTrack(val subtitle: WyzieSubtitle) : OnlineSubtitleItem()
+  data class OnlineTrack(val subtitle: OnlineSubtitle) : OnlineSubtitleItem()
   data class Header(val title: String) : OnlineSubtitleItem()
   object Divider : OnlineSubtitleItem()
 }
@@ -38,14 +48,15 @@ sealed class OnlineSubtitleItem {
 @Composable
 fun OnlineSubtitleSearchSheet(
   onDismissRequest: () -> Unit,
-  onDownloadOnline: (WyzieSubtitle) -> Unit,
+  onDownloadOnline: (OnlineSubtitle) -> Unit,
   isSearching: Boolean = false,
   isDownloading: Boolean = false,
-  searchResults: ImmutableList<WyzieSubtitle> = emptyList<WyzieSubtitle>().toImmutableList(),
+  searchResults: ImmutableList<OnlineSubtitle> = emptyList<OnlineSubtitle>().toImmutableList(),
   isOnlineSectionExpanded: Boolean = true,
   onToggleOnlineSection: () -> Unit = {},
   modifier: Modifier = Modifier,
   mediaTitle: String = "",
+  showWyzieSelection: Boolean = true,
   // Autocomplete & Series Selection
   mediaSearchResults: ImmutableList<com.quantummpv.app.repository.wyzie.WyzieTmdbResult> = emptyList<com.quantummpv.app.repository.wyzie.WyzieTmdbResult>().toImmutableList(),
   isSearchingMedia: Boolean = false,
@@ -107,6 +118,13 @@ fun OnlineSubtitleSearchSheet(
           onSearchMedia(mediaInfo.title)
         }
       }
+
+      fun runSearch() {
+        val q = if (searchQuery.isNotBlank()) searchQuery else mediaInfo.title
+        searchQuery = q
+        onSearchMedia(q)
+        keyboardController?.hide()
+      }
       
       Column(
         modifier = Modifier.padding(top = MaterialTheme.spacing.medium)
@@ -136,6 +154,8 @@ fun OnlineSubtitleSearchSheet(
             )
           }
         }
+
+
         OutlinedTextField(
           value = searchQuery,
           onValueChange = { 
@@ -167,24 +187,14 @@ fun OnlineSubtitleSearchSheet(
                 CircularProgressIndicator(modifier = Modifier.size(24.dp), strokeWidth = 2.dp)
                 Spacer(Modifier.width(8.dp))
               }
-              IconButton(onClick = {
-                val q = if (searchQuery.isNotBlank()) searchQuery else mediaInfo.title
-                searchQuery = q
-                onSearchMedia(q)
-                keyboardController?.hide()
-              }) {
+              IconButton(onClick = { runSearch() }) {
                 Icon(Icons.Default.Search, null, tint = MaterialTheme.colorScheme.primary)
               }
             }
           },
           singleLine = true,
           keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
-          keyboardActions = KeyboardActions(onSearch = {
-            val q = if (searchQuery.isNotBlank()) searchQuery else mediaInfo.title
-            searchQuery = q
-            onSearchMedia(q)
-            keyboardController?.hide()
-          }),
+          keyboardActions = KeyboardActions(onSearch = { runSearch() }),
           shape = RoundedCornerShape(12.dp),
           colors = TextFieldDefaults.colors(
             focusedContainerColor = Color.Transparent,
@@ -194,20 +204,31 @@ fun OnlineSubtitleSearchSheet(
           )
         )
 
-        // Autocomplete Results
-        if (mediaSearchResults.isNotEmpty()) {
-          Card(
+        // Autocomplete Results - Horizontal Scrollable
+        if (showWyzieSelection && mediaSearchResults.isNotEmpty()) {
+          Column(
             modifier = Modifier
               .fillMaxWidth()
               .padding(horizontal = MaterialTheme.spacing.medium)
-              .heightIn(max = 200.dp),
-            shape = RoundedCornerShape(bottomStart = 12.dp, bottomEnd = 12.dp),
-            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerHigh)
           ) {
-            androidx.compose.foundation.lazy.LazyColumn {
+            Text(
+              text = "Found ${mediaSearchResults.size}",
+              style = MaterialTheme.typography.labelSmall,
+              color = MaterialTheme.colorScheme.outline,
+              modifier = Modifier
+                .padding(bottom = MaterialTheme.spacing.small)
+                .padding(start = MaterialTheme.spacing.small)
+            )
+            androidx.compose.foundation.lazy.LazyRow(
+              horizontalArrangement = Arrangement.spacedBy(MaterialTheme.spacing.small),
+              modifier = Modifier
+                .fillMaxWidth()
+                .height(160.dp),
+              contentPadding = PaddingValues(horizontal = MaterialTheme.spacing.small)
+            ) {
               items(mediaSearchResults.size) { index ->
                 val result = mediaSearchResults[index]
-                TmdbResultRow(
+                TmdbMediaCard(
                   result = result,
                   onClick = { 
                     searchQuery = result.title
@@ -215,16 +236,13 @@ fun OnlineSubtitleSearchSheet(
                     keyboardController?.hide()
                   }
                 )
-                if (index < mediaSearchResults.size - 1) {
-                  HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp))
-                }
               }
             }
           }
         }
 
         // Series / Season / Episode Selection UI
-        if (selectedTvShow != null) {
+        if (showWyzieSelection && selectedTvShow != null) {
           SeriesDetailsSection(
             tvShow = selectedTvShow,
             isFetchingSeasons = isFetchingTvDetails,
@@ -249,9 +267,9 @@ fun OnlineSubtitleSearchSheet(
         items(items) { item ->
           when (item) {
             is OnlineSubtitleItem.OnlineTrack -> {
-              WyzieSubtitleRow(
+              OnlineSubtitleRow(
                 subtitle = item.subtitle,
-                onDownload = { onDownloadOnline(item.subtitle) },
+                onDownload = onDownloadOnline,
                 modifier = Modifier.padding(horizontal = MaterialTheme.spacing.small, vertical = 2.dp),
               )
             }
@@ -296,14 +314,25 @@ fun OnlineSubtitleSearchSheet(
   }
 }
 
+
+
 @Composable
-fun WyzieSubtitleRow(
-    subtitle: WyzieSubtitle,
-    onDownload: () -> Unit,
+fun OnlineSubtitleRow(
+    subtitle: OnlineSubtitle,
+    onDownload: (OnlineSubtitle) -> Unit,
     modifier: Modifier = Modifier,
 ) {
+    val groupEpisodes = remember(subtitle) { subtitle.subdlGroupEpisodeRange()?.toList().orEmpty() }
+    var selectedGroupEpisode by remember(subtitle.id, subtitle.url, groupEpisodes.firstOrNull()) {
+        mutableStateOf(groupEpisodes.firstOrNull())
+    }
+    val subtitleForDownload =
+        selectedGroupEpisode?.let { subtitle.withSelectedSubdlGroupEpisode(it) } ?: subtitle
+
     Surface(
-        modifier = modifier.fillMaxWidth().clickable { onDownload() },
+        modifier = modifier
+            .fillMaxWidth()
+            .clickable { onDownload(subtitleForDownload) },
         shape = MaterialTheme.shapes.medium,
         color =
           if (subtitle.isHashMatch) {
@@ -313,37 +342,131 @@ fun WyzieSubtitleRow(
           }
     ) {
         Row(
-            modifier = Modifier.padding(12.dp),
+            modifier = Modifier
+                .padding(horizontal = 12.dp, vertical = 10.dp)
+                .fillMaxWidth(),
             verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.SpaceBetween
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
         ) {
-            Column(modifier = Modifier.weight(1f)) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    if (subtitle.isHashMatch) {
-                        Icon(
-                            imageVector = Icons.Default.Check,
-                            contentDescription = "Verified Sync",
-                            tint = MaterialTheme.colorScheme.primary,
-                            modifier = Modifier.size(16.dp)
-                        )
-                        Spacer(Modifier.width(6.dp))
-                    }
+            // Verification badge
+            if (subtitle.isHashMatch) {
+                Icon(
+                    imageVector = Icons.Default.Check,
+                    contentDescription = "Verified Sync",
+                    tint = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.size(18.dp)
+                )
+            }
+
+            // Main subtitle info
+            Column(
+                modifier = Modifier.weight(1f),
+                verticalArrangement = Arrangement.spacedBy(4.dp)
+            ) {
+                // Title row
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
                     Text(
                         text = subtitle.displayName,
                         style = MaterialTheme.typography.bodyMedium,
-                        fontWeight = FontWeight.Bold,
+                        fontWeight = FontWeight.SemiBold,
                         color = MaterialTheme.colorScheme.onSurface,
                         maxLines = 1,
-                        modifier = Modifier.basicMarquee()
+                        overflow = TextOverflow.Ellipsis,
+                        modifier = Modifier.weight(1f)
                     )
+
+                    // Download count badge
+                    subtitle.downloadCount?.let { count ->
+                        Surface(
+                            color = MaterialTheme.colorScheme.primary.copy(alpha = 0.15f),
+                            shape = RoundedCornerShape(4.dp),
+                            modifier = Modifier
+                                .wrapContentWidth()
+                                .height(20.dp)
+                        ) {
+                            Row(
+                                modifier = Modifier.padding(horizontal = 6.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(3.dp)
+                            ) {
+                                Icon(
+                                    Icons.Default.Download,
+                                    contentDescription = null,
+                                    modifier = Modifier.size(12.dp),
+                                    tint = MaterialTheme.colorScheme.primary
+                                )
+                                Text(
+                                    text = if (count >= 1000) "${(count / 1000f).toInt()}k" else "$count",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = MaterialTheme.colorScheme.primary,
+                                    fontWeight = FontWeight.Bold
+                                )
+                            }
+                        }
+                    }
                 }
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text(text = subtitle.displayLanguage, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.primary)
-                    subtitle.source?.let { Text(text = " • $it", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.outline) }
-                    subtitle.format?.let { Text(text = " • ${it.uppercase()}", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.outline) }
+
+                // Metadata row
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(18.dp)
+                ) {
+                    // Language
+                    Text(
+                        text = subtitle.displayLanguage,
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.primary,
+                        fontWeight = FontWeight.Bold
+                    )
+
+                    // Source
+                    subtitle.source?.let { source ->
+                        Text(
+                            text = "•",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.outlineVariant
+                        )
+                        Text(
+                            text = source,
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.outline,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                            modifier = Modifier.weight(1f)
+                        )
+                    }
+
+                    // Format
+                    subtitle.format?.let { format ->
+                        Text(
+                            text = "•",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.outlineVariant
+                        )
+                        Text(
+                            text = format.uppercase(),
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.outline,
+                            fontWeight = FontWeight.Bold
+                        )
+                    }
+
+                    // Perfect sync indicator
                     if (subtitle.isHashMatch) {
                         Text(
-                            text = " • PERFECT SYNC",
+                            text = "•",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.outlineVariant
+                        )
+                        Text(
+                            text = "SYNC",
                             style = MaterialTheme.typography.labelSmall,
                             color = MaterialTheme.colorScheme.primary,
                             fontWeight = FontWeight.Bold
@@ -351,8 +474,165 @@ fun WyzieSubtitleRow(
                     }
                 }
             }
-            IconButton(onClick = onDownload) {
-                Icon(imageVector = Icons.Default.Download, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
+
+            if (groupEpisodes.isNotEmpty()) {
+                SubdlEpisodeDropdown(
+                    episodes = groupEpisodes,
+                    selectedEpisode = selectedGroupEpisode ?: groupEpisodes.first(),
+                    onEpisodeSelected = { selectedGroupEpisode = it },
+                )
+            }
+
+            // Download button
+            IconButton(
+                onClick = { onDownload(subtitleForDownload) },
+                modifier = Modifier.size(32.dp)
+            ) {
+                Icon(
+                    imageVector = Icons.Default.Download,
+                    contentDescription = "Download",
+                    tint = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.size(20.dp)
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun SubdlEpisodeDropdown(
+    episodes: List<Int>,
+    selectedEpisode: Int,
+    onEpisodeSelected: (Int) -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    var expanded by remember { mutableStateOf(false) }
+    Box(modifier = modifier) {
+        FilledTonalButton(
+            onClick = { expanded = true },
+            modifier = Modifier
+                .height(32.dp)
+                .widthIn(min = 74.dp),
+            contentPadding = PaddingValues(horizontal = 8.dp, vertical = 0.dp),
+            shape = RoundedCornerShape(8.dp),
+        ) {
+            Text(
+                text = "Ep $selectedEpisode",
+                style = MaterialTheme.typography.labelMedium,
+                fontWeight = FontWeight.Bold,
+                maxLines = 1,
+            )
+            Icon(
+                imageVector = Icons.Default.ArrowDropDown,
+                contentDescription = null,
+                modifier = Modifier.size(18.dp),
+            )
+        }
+        DropdownMenu(
+            expanded = expanded,
+            onDismissRequest = { expanded = false },
+            modifier = Modifier.heightIn(max = 300.dp),
+            shape = RoundedCornerShape(12.dp),
+            containerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
+        ) {
+            episodes.forEach { episode ->
+                DropdownMenuItem(
+                    text = { Text("Episode $episode") },
+                    onClick = {
+                        onEpisodeSelected(episode)
+                        expanded = false
+                    },
+                )
+            }
+        }
+    }
+}
+
+@Composable
+fun TmdbMediaCard(
+    result: com.quantummpv.app.repository.wyzie.WyzieTmdbResult,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    val posterUrl = tmdbPosterUrl(result.poster, "w154")
+
+    Surface(
+        modifier = modifier
+            .width(110.dp)
+            .height(160.dp)
+            .clickable { onClick() }
+            .border(
+                width = 1.dp,
+                color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f),
+                shape = RoundedCornerShape(8.dp)
+            ),
+        shape = RoundedCornerShape(8.dp),
+        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f)
+    ) {
+        Box {
+            // Poster image
+            if (posterUrl != null) {
+                AsyncImage(
+                    model = posterUrl,
+                    contentDescription = result.title,
+                    modifier = Modifier
+                        .matchParentSize()
+                        .clip(RoundedCornerShape(8.dp)),
+                    contentScale = ContentScale.Crop,
+                    alpha = 0.9f
+                )
+            } else {
+                Icon(
+                    Icons.Default.Movie,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f),
+                    modifier = Modifier
+                        .align(Alignment.Center)
+                        .size(40.dp)
+                )
+            }
+
+            // Gradient overlay for text
+            Box(
+                modifier = Modifier
+                    .align(Alignment.BottomCenter)
+                    .fillMaxWidth()
+                    .height(60.dp)
+                    .background(
+                        Brush.verticalGradient(
+                            colors = listOf(
+                                Color.Transparent,
+                                Color.Black.copy(alpha = 0.8f)
+                            )
+                        )
+                    )
+            )
+
+            // Title + year
+            Column(
+                modifier = Modifier
+                    .align(Alignment.BottomStart)
+                    .fillMaxWidth()
+                    .padding(8.dp),
+                verticalArrangement = Arrangement.Bottom
+            ) {
+                Text(
+                    text = result.title,
+                    style = MaterialTheme.typography.labelSmall,
+                    fontWeight = FontWeight.Bold,
+                    color = Color.White,
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis,
+                    fontSize = 10.sp
+                )
+                result.releaseYear?.let {
+                    Text(
+                        text = it,
+                        style = MaterialTheme.typography.labelSmall,
+                        color = Color.White.copy(alpha = 0.7f),
+                        fontSize = 8.sp
+                    )
+                }
             }
         }
     }
@@ -364,26 +644,92 @@ fun TmdbResultRow(
     onClick: () -> Unit,
     modifier: Modifier = Modifier
 ) {
+    val posterUrl = tmdbPosterUrl(result.poster, "w92")
+
     Row(
         modifier = modifier
             .fillMaxWidth()
             .clickable { onClick() }
-            .padding(16.dp),
-        verticalAlignment = Alignment.CenterVertically
+            .padding(12.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(12.dp)
     ) {
-        Column {
+        // Poster image (2:3 aspect ratio)
+        if (posterUrl != null) {
+            Box(
+                modifier = Modifier
+                    .width(48.dp)
+                    .height(72.dp)
+                    .background(
+                        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
+                        shape = RoundedCornerShape(4.dp)
+                    ),
+                contentAlignment = Alignment.Center
+            ) {
+                AsyncImage(
+                    model = posterUrl,
+                    contentDescription = result.title,
+                    modifier = Modifier
+                        .matchParentSize()
+                        .clip(RoundedCornerShape(4.dp)),
+                    contentScale = ContentScale.Crop,
+                    alpha = 0.9f
+                )
+            }
+        } else {
+            // Placeholder when no poster
+            Box(
+                modifier = Modifier
+                    .width(48.dp)
+                    .height(72.dp)
+                    .background(
+                        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
+                        shape = RoundedCornerShape(4.dp)
+                    ),
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(
+                    Icons.Default.Movie,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f),
+                    modifier = Modifier.size(24.dp)
+                )
+            }
+        }
+
+        // Text info
+        Column(
+            modifier = Modifier.weight(1f),
+            verticalArrangement = Arrangement.SpaceBetween
+        ) {
             Text(
                 text = result.title,
-                style = MaterialTheme.typography.bodyLarge,
-                fontWeight = FontWeight.Bold
+                style = MaterialTheme.typography.bodyMedium,
+                fontWeight = FontWeight.Bold,
+                color = MaterialTheme.colorScheme.onSurface,
+                maxLines = 2,
+                overflow = TextOverflow.Ellipsis
             )
             Spacer(modifier = Modifier.height(4.dp))
             Text(
                 text = "${result.mediaType.uppercase()} ${result.releaseYear ?: ""}".trim(),
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                maxLines = 1
             )
         }
+    }
+}
+
+private fun tmdbPosterUrl(
+    path: String?,
+    size: String,
+): String? {
+    val value = path?.trim()?.takeIf { it.isNotBlank() } ?: return null
+    return when {
+        value.startsWith("http://", ignoreCase = true) || value.startsWith("https://", ignoreCase = true) -> value
+        value.startsWith("/") -> "https://image.tmdb.org/t/p/$size$value"
+        else -> "https://image.tmdb.org/t/p/$size/$value"
     }
 }
 

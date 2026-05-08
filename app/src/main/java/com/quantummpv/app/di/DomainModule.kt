@@ -7,6 +7,9 @@ import com.quantummpv.app.domain.thumbnail.toThumbnailStrategy
 import com.quantummpv.app.network.AndroidCookieJar
 import com.quantummpv.app.preferences.BrowserPreferences
 import com.quantummpv.app.repository.IntroDbRepository
+import com.quantummpv.app.repository.subtitle.OnlineSubtitleFileStore
+import com.quantummpv.app.repository.subtitle.OnlineSubtitleOrchestrator
+import com.quantummpv.app.repository.subtitlehub.MpvRxSubtitleHubRepository
 import com.quantummpv.app.repository.wyzie.WyzieSearchRepository
 import coil3.ImageLoader
 import coil3.disk.DiskCache
@@ -74,6 +77,9 @@ val domainModule = module {
     }
     single { Anime4KManager(androidContext()) }
     single { HdrToysManager(androidContext()) }
-    single { WyzieSearchRepository(androidContext(), get(), get(), get()) }
+    single { OnlineSubtitleFileStore(androidContext(), get()) }
+    single { WyzieSearchRepository(androidContext(), get(), get(), get(), get()) }
+    single { MpvRxSubtitleHubRepository(androidContext(), get(), get(), get(), get()) }
+    single { OnlineSubtitleOrchestrator(get<WyzieSearchRepository>(), get<MpvRxSubtitleHubRepository>()) }
     single { IntroDbRepository(get(), get()) }
 }

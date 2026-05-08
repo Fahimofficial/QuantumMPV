@@ -7,6 +7,7 @@ import android.util.Log
 
 import android.view.KeyCharacterMap
 import android.view.KeyEvent
+import androidx.core.view.WindowInsetsCompat
 import com.quantummpv.app.preferences.AdvancedPreferences
 import com.quantummpv.app.preferences.AudioPreferences
 import com.quantummpv.app.preferences.DecoderPreferences
@@ -205,6 +206,8 @@ class MPVView(
   }
 
   override fun postInitOptions() {
+    applyOsdSafeAreaMargins()
+
     when (decoderPreferences.debanding.get()) {
       Debanding.None -> {}
       Debanding.CPU -> MPVLib.command("vf", "add", "@deband:gradfun=radius=12")
@@ -217,6 +220,19 @@ class MPVView(
         MPVLib.command("script-binding", "stats/display-page-$it")
       }
     }
+  }
+
+  fun applyOsdSafeAreaMargins(insets: WindowInsetsCompat? = null) {
+    val cutoutInsets =
+      if (playerPreferences.safeAreaWindow.get()) {
+        insets?.getInsets(WindowInsetsCompat.Type.displayCutout())
+      } else {
+        null
+      }
+    val horizontalMargin = maxOf(cutoutInsets?.left ?: 0, cutoutInsets?.right ?: 0)
+    val verticalMargin = cutoutInsets?.top ?: 0
+    MPVLib.setOptionString("osd-margin-x", horizontalMargin.toString())
+    MPVLib.setOptionString("osd-margin-y", verticalMargin.toString())
   }
 
   @Suppress("ReturnCount", "DEPRECATION")

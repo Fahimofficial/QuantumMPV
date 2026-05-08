@@ -335,6 +335,21 @@ object PlayerPreferencesScreen : Screen {
 
               PreferenceDivider()
 
+              val safeAreaWindow by preferences.safeAreaWindow.collectAsState()
+              SwitchPreference(
+                value = safeAreaWindow,
+                onValueChange = preferences.safeAreaWindow::set,
+                title = { Text(stringResource(R.string.pref_player_safe_area_window_title)) },
+                summary = {
+                  Text(
+                    stringResource(R.string.pref_player_safe_area_window_summary),
+                    color = MaterialTheme.colorScheme.outline,
+                  )
+                },
+              )
+
+              PreferenceDivider()
+
               val reduceMotion by preferences.reduceMotion.collectAsState()
               SwitchPreference(
                 value = reduceMotion,

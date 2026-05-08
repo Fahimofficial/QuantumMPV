@@ -269,7 +269,15 @@ class ThumbnailRepository(
       return "$base|network"
     }
 
-    return "${video.size}|${video.dateModified}|${video.duration}"
+    val artworkSignature =
+      EmbeddedArtworkCandidates.forVideoPath(video.path)
+        .asSequence()
+        .map(::File)
+        .firstOrNull { it.isFile && it.canRead() }
+        ?.let { artwork -> "|art:${artwork.name}:${artwork.length()}:${artwork.lastModified()}" }
+        .orEmpty()
+
+    return "${video.size}|${video.dateModified}|${video.duration}$artworkSignature"
   }
 
   private fun buildRequest(video: Video): ImageRequest =
@@ -381,9 +389,7 @@ class ThumbnailRepository(
 
         val embeddedPicture =
           if (strategy.prefersEmbeddedPicture()) {
-            retriever.embeddedPicture?.takeIf { it.isNotEmpty() }?.let { bytes ->
-              BitmapFactory.decodeByteArray(bytes, 0, bytes.size)
-            }
+            EmbeddedArtworkResolver.decodeRetrieverArtwork(retriever)
           } else {
             null
           }
@@ -393,12 +399,15 @@ class ThumbnailRepository(
             ThumbnailStrategy.FirstFrame -> 0L
             is ThumbnailStrategy.FrameAtPercentage -> frameTimeMicros(retriever, strategy.percentage)
             is ThumbnailStrategy.Hybrid -> 0L
+            is ThumbnailStrategy.EmbeddedOrHybrid -> 0L
             ThumbnailStrategy.EmbeddedOrFirstFrame -> 0L
           }
 
+        var shouldRotate = true
         val raw =
           when (strategy) {
-            ThumbnailStrategy.EmbeddedOrFirstFrame -> embeddedPicture ?: getFrameAt(retriever, timeUs, targetWidth, targetHeight)
+            ThumbnailStrategy.EmbeddedOrFirstFrame ->
+              embeddedPicture?.also { shouldRotate = false } ?: getFrameAt(retriever, timeUs, targetWidth, targetHeight)
             ThumbnailStrategy.FirstFrame -> getFrameAt(retriever, 0L, targetWidth, targetHeight)
             is ThumbnailStrategy.FrameAtPercentage -> getFrameAt(retriever, timeUs, targetWidth, targetHeight)
             is ThumbnailStrategy.Hybrid -> {
@@ -410,9 +419,19 @@ class ThumbnailRepository(
                 first
               }
             }
+            is ThumbnailStrategy.EmbeddedOrHybrid ->
+              embeddedPicture?.also { shouldRotate = false } ?: run {
+                val first = getFrameAt(retriever, 0L, targetWidth, targetHeight) ?: return@runCatching null
+                if (isMostlySolid(first)) {
+                  first.recycle()
+                  getFrameAt(retriever, frameTimeMicros(retriever, strategy.percentage), targetWidth, targetHeight)
+                } else {
+                  first
+                }
+              }
           } ?: return@runCatching null
 
-        rotateBitmapIfNeeded(retriever, raw)
+        if (shouldRotate) rotateBitmapIfNeeded(retriever, raw) else raw
       } finally {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) retriever.close() else retriever.release()
       }

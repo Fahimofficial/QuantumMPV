@@ -144,7 +144,7 @@ enum class ThumbnailMode {
   val displayName: String
     get() =
       when (this) {
-        Smart -> "Hybrid (33%)"
+        Smart -> "Smart (embedded + 33%)"
         FirstFrame -> "First frame"
         FrameAtPosition -> "Frame position"
         EmbeddedThumbnail -> "Embedded thumbnail"

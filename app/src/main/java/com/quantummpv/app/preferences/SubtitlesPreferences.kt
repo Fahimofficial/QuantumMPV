@@ -4,6 +4,8 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.toArgb
 import com.quantummpv.app.preferences.preference.PreferenceStore
 import com.quantummpv.app.preferences.preference.getEnum
+import com.quantummpv.app.repository.subtitle.OnlineSubtitleSearchMode
+import com.quantummpv.app.repository.subtitlehub.MpvRxSubtitleHubSources
 import com.quantummpv.app.ui.player.controls.components.panels.SubtitlesBorderStyle
 import com.quantummpv.app.ui.icons.AppIcon
 import com.quantummpv.app.ui.icons.Icons
@@ -34,7 +36,7 @@ class SubtitlesPreferences(
 
   val overrideAssSubs = preferenceStore.getBoolean("sub_override_ass")
   val scaleByWindow = preferenceStore.getBoolean("sub_scale_by_window", true)
-  val blendSubtitlesWithVideo = preferenceStore.getBoolean("sub_blend_with_video", true)
+  val blendSubtitlesWithVideo = preferenceStore.getBoolean("sub_blend_with_video", false)
 
   val defaultSubDelay = preferenceStore.getInt("sub_default_delay")
   val defaultSubSpeed = preferenceStore.getFloat("sub_default_speed", 1f)
@@ -42,14 +44,39 @@ class SubtitlesPreferences(
   val pickerPath = preferenceStore.getString("sub_picker_path")
   
   val subtitleSaveFolder = preferenceStore.getString("sub_save_folder", "")
-  val subtitleSearchLanguages = preferenceStore.getStringSet("subdl_languages", setOf("en"))
+  val subdlLanguages = preferenceStore.getStringSet("subdl_languages", setOf("en"))
+  val subtitleSearchLanguages = subdlLanguages
+  val onlineSubtitleSearchMode = preferenceStore.getOnlineSubtitleSearchMode()
+  val subtitleHubSources = preferenceStore.getStringSet("subtitle_hub_sources", MpvRxSubtitleHubSources.DEFAULT)
   
   val wyzieSources = preferenceStore.getStringSet("wyzie_sources", setOf("all"))
   val wyzieFormats = preferenceStore.getStringSet("wyzie_formats", setOf("srt", "ass"))
   val wyzieEncodings = preferenceStore.getStringSet("wyzie_encodings", setOf("utf-8"))
   val wyzieHearingImpaired = preferenceStore.getBoolean("wyzie_hi", false)
   val wyzieApiKey = preferenceStore.getString("wyzie_api_key", "")
+  val wyzieRelease = preferenceStore.getString("wyzie_release", "")
+  val wyzieFile = preferenceStore.getString("wyzie_file", "")
+  val wyzieOrigin = preferenceStore.getString("wyzie_origin", "")
+  val wyzieRefresh = preferenceStore.getBoolean("wyzie_refresh", false)
 }
+
+private fun PreferenceStore.getOnlineSubtitleSearchMode() =
+  getObject(
+    key = "online_subtitle_search_mode",
+    defaultValue = OnlineSubtitleSearchMode.HYBRID,
+    serializer = { it.name },
+    deserializer = { stored ->
+      when (stored) {
+        OnlineSubtitleSearchMode.WYZIE.name -> OnlineSubtitleSearchMode.WYZIE
+        OnlineSubtitleSearchMode.SUBHUB.name,
+        "MPVRX_SUBTITLE_HUB" -> OnlineSubtitleSearchMode.SUBHUB
+        OnlineSubtitleSearchMode.HYBRID.name,
+        "HYBRID_SEQUENTIAL",
+        "HYBRID_PARALLEL" -> OnlineSubtitleSearchMode.HYBRID
+        else -> OnlineSubtitleSearchMode.HYBRID
+      }
+    },
+  )
 
 enum class SubtitleJustification(
   val value: String,

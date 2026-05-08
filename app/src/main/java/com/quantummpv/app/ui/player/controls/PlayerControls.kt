@@ -41,11 +41,14 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.WindowInsetsSides
 import androidx.compose.foundation.layout.asPaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.navigationBars
+import androidx.compose.foundation.layout.only
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBars
 import androidx.compose.foundation.layout.width
@@ -202,6 +205,13 @@ fun PlayerControls(
   val doubleTapSeekAmount = seekState.amount
   val showDoubleTapOvals by playerPreferences.showDoubleTapOvals.collectAsState()
   val showSeekTime by playerPreferences.showSeekTimeWhileSeeking.collectAsState()
+  val safeAreaWindow by playerPreferences.safeAreaWindow.collectAsState()
+  val safeAreaInsetModifier =
+    if (safeAreaWindow) {
+      Modifier.windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Top + WindowInsetsSides.Horizontal))
+    } else {
+      Modifier
+    }
   var isSeeking by remember { mutableStateOf(false) }
   var resetControlsTimestamp by remember { mutableStateOf(0L) }
   val seekText = seekState.text
@@ -314,6 +324,7 @@ fun PlayerControls(
         modifier =
           Modifier
             .align(Alignment.TopStart)
+            .then(safeAreaInsetModifier)
             .padding(top = 16.dp, start = 14.dp),
       )
     }
@@ -349,7 +360,8 @@ fun PlayerControls(
                   Pair(1f, Color.Black),
                 ),
                 alpha = transparentOverlay,
-              ),
+              )
+              .then(safeAreaInsetModifier),
         ) {
         val (topLeftControls, topRightControls) = createRefs()
         val (volumeSlider, brightnessSlider) = createRefs()

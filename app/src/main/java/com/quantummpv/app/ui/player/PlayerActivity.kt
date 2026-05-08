@@ -1059,7 +1059,13 @@ class PlayerActivity :
   private fun setupSystemBarsAutoHide() {
     ViewCompat.setOnApplyWindowInsetsListener(binding.root) { _, insets ->
       handleSystemBarsVisibility(insets)
+      binding.player.applyOsdSafeAreaMargins(insets)
       insets
+    }
+    lifecycleScope.launch {
+      playerPreferences.safeAreaWindow.changes().drop(1).collect {
+        binding.player.applyOsdSafeAreaMargins(ViewCompat.getRootWindowInsets(binding.root))
+      }
     }
     binding.root.post { ViewCompat.requestApplyInsets(binding.root) }
   }
