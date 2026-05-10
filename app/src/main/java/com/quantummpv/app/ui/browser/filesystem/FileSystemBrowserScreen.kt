@@ -81,14 +81,15 @@ import com.quantummpv.app.ui.browser.cards.VideoCard
 import com.quantummpv.app.ui.browser.cards.VideoCardUiConfig
 import com.quantummpv.app.ui.browser.components.BrowserBottomBar
 import com.quantummpv.app.ui.browser.components.BrowserTopBar
-import com.quantummpv.app.ui.browser.dialogs.AddToPlaylistDialog
-import com.quantummpv.app.ui.browser.dialogs.DeleteConfirmationDialog
-import com.quantummpv.app.ui.browser.dialogs.FileOperationProgressDialog
-import com.quantummpv.app.ui.browser.dialogs.FolderPickerDialog
-import com.quantummpv.app.ui.browser.dialogs.RenameDialog
-import com.quantummpv.app.ui.browser.dialogs.SortDialog
-import com.quantummpv.app.ui.browser.dialogs.ViewModeSelector
-import com.quantummpv.app.ui.browser.dialogs.VisibilityToggle
+ import com.quantummpv.app.ui.browser.dialogs.AddToPlaylistDialog
+ import com.quantummpv.app.ui.browser.dialogs.DeleteConfirmationDialog
+ import com.quantummpv.app.ui.browser.dialogs.FileOperationProgressDialog
+ import com.quantummpv.app.ui.browser.dialogs.FolderPickerDialog
+ import com.quantummpv.app.ui.browser.dialogs.RenameDialog
+ import com.quantummpv.app.ui.browser.dialogs.SortDialog
+ import com.quantummpv.app.ui.browser.dialogs.ViewModeSelector
+ import com.quantummpv.app.ui.browser.dialogs.VisibilityToggle
+ import com.quantummpv.app.ui.browser.dialogs.VideoCompressorOverlay
 import com.quantummpv.app.ui.browser.selection.rememberSelectionManager
 import com.quantummpv.app.ui.browser.sheets.PlayLinkSheet
 import com.quantummpv.app.ui.browser.states.EmptyState
@@ -177,10 +178,11 @@ fun FileSystemBrowserScreen(path: String? = null) {
   // UI state
   val isRefreshing = remember { mutableStateOf(false) }
   val showLinkDialog = remember { mutableStateOf(false) }
-  val sortDialogOpen = rememberSaveable { mutableStateOf(false) }
-  val deleteDialogOpen = rememberSaveable { mutableStateOf(false) }
-  val renameDialogOpen = rememberSaveable { mutableStateOf(false) }
-  val addToPlaylistDialogOpen = rememberSaveable { mutableStateOf(false) }
+   val sortDialogOpen = rememberSaveable { mutableStateOf(false) }
+   val deleteDialogOpen = rememberSaveable { mutableStateOf(false) }
+   val renameDialogOpen = rememberSaveable { mutableStateOf(false) }
+   val addToPlaylistDialogOpen = rememberSaveable { mutableStateOf(false) }
+   val compressorDialogOpen = rememberSaveable { mutableStateOf(false) }
 
   // FAB visibility for scroll-based hiding
   val isFabVisible = remember { mutableStateOf(true) }
@@ -852,30 +854,32 @@ fun FileSystemBrowserScreen(path: String? = null) {
       ),
       modifier = Modifier.align(Alignment.BottomCenter)
     ) {
-      BrowserBottomBar(
-        isSelectionMode = true,
-        onCopyClick = {
-          operationType.value = CopyPasteOps.OperationType.Copy
-          if (CopyPasteOps.canUseDirectFileOperations()) {
-            folderPickerOpen.value = true
-          } else {
-            treePickerLauncher.launch(null)
-          }
-        },
-        onMoveClick = {
-          operationType.value = CopyPasteOps.OperationType.Move
-          if (CopyPasteOps.canUseDirectFileOperations()) {
-            folderPickerOpen.value = true
-          } else {
-            treePickerLauncher.launch(null)
-          }
-        },
-        onRenameClick = { renameDialogOpen.value = true },
-        onDeleteClick = { deleteDialogOpen.value = true },
-        onAddToPlaylistClick = { addToPlaylistDialogOpen.value = true },
-        showRename = videoSelectionManager.isSingleSelection,
-        modifier = Modifier.padding(bottom = 0.dp) // Zero bottom padding - absolute bottom
-      )
+       BrowserBottomBar(
+         isSelectionMode = true,
+         onCopyClick = {
+           operationType.value = CopyPasteOps.OperationType.Copy
+           if (CopyPasteOps.canUseDirectFileOperations()) {
+             folderPickerOpen.value = true
+           } else {
+             treePickerLauncher.launch(null)
+           }
+         },
+         onMoveClick = {
+           operationType.value = CopyPasteOps.OperationType.Move
+           if (CopyPasteOps.canUseDirectFileOperations()) {
+             folderPickerOpen.value = true
+           } else {
+             treePickerLauncher.launch(null)
+           }
+         },
+         onDownscaleClick = { compressorDialogOpen.value = true },
+         onRenameClick = { renameDialogOpen.value = true },
+         onDeleteClick = { deleteDialogOpen.value = true },
+         onAddToPlaylistClick = { addToPlaylistDialogOpen.value = true },
+         showDownscale = videoSelectionManager.selectedCount > 0,
+         showRename = videoSelectionManager.isSingleSelection,
+         modifier = Modifier.padding(bottom = 0.dp) // Zero bottom padding - absolute bottom
+       )
     }
 
     // Dialogs
@@ -926,10 +930,30 @@ fun FileSystemBrowserScreen(path: String? = null) {
           itemType = "file",
           extension = if (extension != ".") extension else null,
         )
-      }
-    }
+     }
+     }
 
-    // Folder Picker Dialog
+     // Video Compressor Overlay (for file system browser)
+     if (compressorDialogOpen.value) {
+       val selectedVideos = videoSelectionManager.getSelectedItems()
+       if (selectedVideos.isNotEmpty()) {
+         VideoCompressorOverlay(
+           isOpen = true,
+           videos = selectedVideos,
+           onDismiss = {
+             compressorDialogOpen.value = false
+             videoSelectionManager.clear()
+             viewModel.refresh()
+           },
+         )
+       } else {
+         LaunchedEffect(Unit) {
+           compressorDialogOpen.value = false
+         }
+       }
+     }
+
+     // Folder Picker Dialog
     FolderPickerDialog(
       isOpen = folderPickerOpen.value,
       currentPath = currentPath,
