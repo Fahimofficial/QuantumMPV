@@ -376,6 +376,14 @@ object PermissionUtils {
           val oldFile = File(video.path)
           val newFile = File(oldFile.parentFile, newDisplayName)
 
+          if (oldFile.absolutePath == newFile.absolutePath) {
+            return@withContext Result.success(Unit)
+          }
+
+          if (newFile.exists()) {
+            return@withContext Result.failure(FileAlreadyExistsException(newFile, null, "Target file already exists"))
+          }
+
           if (oldFile.exists() && oldFile.renameTo(newFile)) {
             // Update history
             RecentlyPlayedOps.onVideoRenamed(oldFile.absolutePath, newFile.absolutePath)

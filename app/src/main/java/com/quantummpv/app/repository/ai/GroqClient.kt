@@ -1,0 +1,183 @@
+package com.quantummpv.app.repository.ai
+
+import android.util.Log
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
+import kotlinx.serialization.SerialName
+import kotlinx.serialization.Serializable
+import kotlinx.serialization.json.Json
+import okhttp3.MediaType.Companion.toMediaType
+import okhttp3.OkHttpClient
+import okhttp3.Request
+import okhttp3.RequestBody.Companion.toRequestBody
+import java.util.concurrent.TimeUnit
+
+@Serializable
+private data class GroqModel(
+  val id: String,
+  val owned_by: String? = null,
+)
+
+@Serializable
+private data class GroqModelListResponse(
+  val data: List<GroqModel> = emptyList(),
+)
+
+@Serializable
+private data class GroqMessage(
+  val role: String,
+  val content: String,
+)
+
+@Serializable
+private data class GroqChoice(
+  val message: GroqMessage? = null,
+)
+
+@Serializable
+private data class GroqUsage(
+  @SerialName("prompt_tokens")
+  val promptTokens: Int = 0,
+  @SerialName("completion_tokens")
+  val completionTokens: Int = 0,
+)
+
+@Serializable
+private data class GroqResponse(
+  val choices: List<GroqChoice>? = null,
+  val usage: GroqUsage? = null,
+)
+
+@Serializable
+private data class GroqErrorBody(
+  val error: GroqErrorDetail? = null,
+)
+
+@Serializable
+private data class GroqErrorDetail(
+  val message: String? = null,
+)
+
+class GroqClient(
+  private val client: OkHttpClient,
+  private val json: Json,
+) {
+  companion object {
+    private const val TAG = "GroqClient"
+    private const val BASE_URL = "https://api.groq.com/openai/v1"
+    private val JSON_MEDIA_TYPE = "application/json".toMediaType()
+  }
+
+  private val apiClient: OkHttpClient =
+    client.newBuilder()
+      .connectTimeout(60, TimeUnit.SECONDS)
+      .readTimeout(120, TimeUnit.SECONDS)
+      .writeTimeout(60, TimeUnit.SECONDS)
+      .build()
+
+  suspend fun fetchModels(apiKey: String): Result<List<AiModelInfo>> = withContext(Dispatchers.IO) {
+    runCatching {
+      val request = Request.Builder()
+        .url("$BASE_URL/models")
+        .header("Authorization", "Bearer $apiKey")
+        .get()
+        .build()
+
+      val response = apiClient.newCall(request).execute()
+      val body = response.body?.string() ?: throw Exception("Empty response body")
+
+      if (!response.isSuccessful) {
+        val errorMsg = parseError(body)
+        throw Exception("Groq API error ${response.code}: $errorMsg")
+      }
+
+      val parsed = json.decodeFromString<GroqModelListResponse>(body)
+      parsed.data
+        .filter { it.id.startsWith("llama") || it.id.startsWith("gemma") || it.id.startsWith("mixtral") || it.id.startsWith("deepseek") }
+        .map {
+          AiModelInfo(
+            id = it.id,
+            displayName = "${it.id} (${it.owned_by ?: "Groq"})",
+          )
+        }
+    }
+  }
+
+  suspend fun verifyKey(apiKey: String): Result<String> = withContext(Dispatchers.IO) {
+    runCatching {
+      val request = Request.Builder()
+        .url("$BASE_URL/models")
+        .header("Authorization", "Bearer $apiKey")
+        .get()
+        .build()
+
+      val response = apiClient.newCall(request).execute()
+      if (!response.isSuccessful) {
+        val body = response.body?.string() ?: ""
+        throw Exception("Invalid API key: ${response.code} $body")
+      }
+      "API key verified successfully"
+    }
+  }
+
+  suspend fun generateContent(
+    apiKey: String,
+    model: String,
+    instruction: String,
+    userInput: String,
+  ): Result<String> = withContext(Dispatchers.IO) {
+    runCatching {
+      val requestBody = json.encodeToString(
+        GroqChatRequest.serializer(),
+        GroqChatRequest(
+          model = model,
+          messages = listOf(
+            GroqMessage(role = "system", content = instruction),
+            GroqMessage(role = "user", content = userInput),
+          ),
+          temperature = 0.3,
+          maxTokens = 200,
+        ),
+      )
+
+      val request = Request.Builder()
+        .url("$BASE_URL/chat/completions")
+        .header("Authorization", "Bearer $apiKey")
+        .post(requestBody.toRequestBody(JSON_MEDIA_TYPE))
+        .build()
+
+      val response = apiClient.newCall(request).execute()
+      val body = response.body?.string() ?: throw Exception("Empty response body")
+
+      if (!response.isSuccessful) {
+        val errorMsg = parseError(body)
+        throw Exception("Groq generate error ${response.code}: $errorMsg")
+      }
+
+      val parsed = json.decodeFromString<GroqResponse>(body)
+      val text = parsed.choices
+        ?.firstOrNull()
+        ?.message
+        ?.content
+        ?.trim()
+
+      text ?: throw Exception("No response from Groq")
+    }
+  }
+
+  private fun parseError(body: String): String = try {
+    val error = json.decodeFromString<GroqErrorBody>(body)
+    error.error?.message ?: body
+  } catch (_: Exception) {
+    body.take(200)
+  }
+}
+
+@Serializable
+private data class GroqChatRequest(
+  val model: String,
+  val messages: List<GroqMessage>,
+  val temperature: Double = 0.3,
+  @SerialName("max_tokens")
+  val maxTokens: Int = 200,
+)

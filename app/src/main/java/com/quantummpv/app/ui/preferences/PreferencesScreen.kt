@@ -188,7 +188,20 @@ object PreferencesScreen : Screen {
             }
           }
 
-          // ── 6. Advanced ───────────────────────────────────────────────────
+          // ── 6. AI Integration ──────────────────────────────────────────────
+          item { PreferenceSectionHeader(title = "AI") }
+          item {
+            PreferenceCard {
+              Preference(
+                title = { Text("AI Integration") },
+                summary = { Text("AI-powered rename, subtitle formatting (Gemini/Groq)", color = MaterialTheme.colorScheme.outline) },
+                icon = { Icon(Icons.Default.AutoAwesome, contentDescription = null, tint = MaterialTheme.colorScheme.primary) },
+                onClick = { backstack.add(AiIntegrationScreen) },
+              )
+            }
+          }
+
+          // ── 7. Advanced ───────────────────────────────────────────────────
           item { PreferenceSectionHeader(title = "Advanced") }
           item {
             PreferenceCard {

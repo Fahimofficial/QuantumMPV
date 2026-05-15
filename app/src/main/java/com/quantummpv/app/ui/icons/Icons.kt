@@ -230,6 +230,7 @@ object Icons {
     val Cancel = Shared.Cancel
     val CatchingPokemon = Shared.CatchingPokemon
     val Check = Shared.Check
+    val Warning = Shared.Warning
     val ChevronLeft = Shared.ChevronLeft
     val ChevronRight = Shared.ChevronRight
     val Clear = Shared.Clear

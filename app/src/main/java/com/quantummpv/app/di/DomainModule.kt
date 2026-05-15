@@ -82,4 +82,7 @@ val domainModule = module {
     single { MpvRxSubtitleHubRepository(androidContext(), get(), get(), get(), get()) }
     single { OnlineSubtitleOrchestrator(get<WyzieSearchRepository>(), get<MpvRxSubtitleHubRepository>()) }
     single { IntroDbRepository(get(), get()) }
+    single { com.quantummpv.app.repository.ai.GeminiClient(get(), get()) }
+    single { com.quantummpv.app.repository.ai.GroqClient(get(), get()) }
+    single { com.quantummpv.app.repository.ai.AiService(get(), get(), get(), get()) }
 }

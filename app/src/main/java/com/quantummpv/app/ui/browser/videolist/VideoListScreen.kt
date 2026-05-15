@@ -403,7 +403,7 @@ data class VideoListScreen(
             onDeleteClick = { deleteDialogOpen.value = true },
             onAddToPlaylistClick = { addToPlaylistDialogOpen.value = true },
             showDownscale = selectionManager.selectedCount > 0,
-            showRename = selectionManager.isSingleSelection
+            showRename = selectionManager.selectedCount > 0
           )
         }
       }
@@ -428,19 +428,28 @@ data class VideoListScreen(
         itemNames = selectionManager.getSelectedItems().map { it.displayName },
       )
 
-      // Rename Dialog
-      if (renameDialogOpen.value && selectionManager.isSingleSelection) {
-        val video = selectionManager.getSelectedItems().firstOrNull()
-        if (video != null) {
-          val baseName = video.displayName.substringBeforeLast('.')
-          val extension = "." + video.displayName.substringAfterLast('.', "")
-          RenameDialog(
+      // Rename Dialogs
+      if (renameDialogOpen.value) {
+        if (selectionManager.isSingleSelection) {
+          val video = selectionManager.getSelectedItems().firstOrNull()
+          if (video != null) {
+            val baseName = video.displayName.substringBeforeLast('.')
+            val extension = "." + video.displayName.substringAfterLast('.', "")
+            RenameDialog(
+              isOpen = true,
+              onDismiss = { renameDialogOpen.value = false },
+              onConfirm = { newName -> selectionManager.renameSelected(newName) },
+              currentName = baseName,
+              itemType = "file",
+              extension = if (extension != ".") extension else null,
+            )
+          }
+        } else if (selectionManager.selectedCount > 1) {
+          com.quantummpv.app.ui.browser.dialogs.BulkAiRenameDialog(
             isOpen = true,
             onDismiss = { renameDialogOpen.value = false },
-            onConfirm = { newName -> selectionManager.renameSelected(newName) },
-            currentName = baseName,
-            itemType = "file",
-            extension = if (extension != ".") extension else null,
+            onConfirm = { updates -> selectionManager.renameBulk(updates) },
+            selectedVideos = selectionManager.getSelectedItems(),
           )
         }
       }

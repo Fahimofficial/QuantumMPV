@@ -128,6 +128,38 @@ class SelectionManager<T, ID>(
   }
 
   /**
+   * Rename multiple items using a map of items to their new names
+   */
+  fun renameBulk(updates: Map<T, String>) {
+    if (onRenameItem == null || updates.isEmpty()) return
+
+    scope.launch {
+      var successCount = 0
+      var failureCount = 0
+      for ((item, newName) in updates) {
+        runCatching {
+          val result = onRenameItem(item, newName)
+          if (result.isSuccess) {
+            successCount++
+          } else {
+            failureCount++
+          }
+        }.onFailure {
+          failureCount++
+        }
+      }
+      if (successCount > 0) {
+        Toast.makeText(context, "Renamed $successCount items", Toast.LENGTH_SHORT).show()
+      }
+      if (failureCount > 0) {
+        Toast.makeText(context, "Failed to rename $failureCount items", Toast.LENGTH_SHORT).show()
+      }
+      clear()
+      onOperationComplete()
+    }
+  }
+
+  /**
    * Share selected items (only for videos)
    */
   fun shareSelected() {

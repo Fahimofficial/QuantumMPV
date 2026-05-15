@@ -2,6 +2,7 @@ package com.quantummpv.app.di
 
 import com.quantummpv.app.database.MpvRxDatabase
 import com.quantummpv.app.preferences.AdvancedPreferences
+import com.quantummpv.app.preferences.AiPreferences
 import com.quantummpv.app.preferences.AppearancePreferences
 import com.quantummpv.app.preferences.AudioPreferences
 import com.quantummpv.app.preferences.BrowserPreferences
@@ -31,6 +32,7 @@ val PreferencesModule =
     singleOf(::AdvancedPreferences)
     single { BrowserPreferences(get(), androidContext()) }
     singleOf(::FoldersPreferences)
+    singleOf(::AiPreferences)
     singleOf(::SettingsManager)
   }
 

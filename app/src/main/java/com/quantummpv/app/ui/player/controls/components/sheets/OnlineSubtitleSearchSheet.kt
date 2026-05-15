@@ -1,5 +1,8 @@
 package com.quantummpv.app.ui.player.controls.components.sheets
 
+import android.widget.Toast
+import com.quantummpv.app.preferences.AiPreferences
+import com.quantummpv.app.repository.ai.AiService
 import com.quantummpv.app.ui.icons.Icon
 import com.quantummpv.app.ui.icons.Icons
 
@@ -20,6 +23,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
@@ -38,6 +42,8 @@ import com.quantummpv.app.utils.media.MediaInfoParser
 import coil3.compose.AsyncImage
 import kotlinx.collections.immutable.ImmutableList
 import kotlinx.collections.immutable.toImmutableList
+import kotlinx.coroutines.launch
+import org.koin.compose.koinInject
 
 sealed class OnlineSubtitleItem {
   data class OnlineTrack(val subtitle: OnlineSubtitle) : OnlineSubtitleItem()
@@ -96,8 +102,13 @@ fun OnlineSubtitleSearchSheet(
   PlayerSheet(onDismissRequest) {
     Column(modifier) {
       val keyboardController = LocalSoftwareKeyboardController.current
+      val context = LocalContext.current
       val mediaInfo = remember(mediaTitle) { MediaInfoParser.parse(mediaTitle) }
       var searchQuery by remember { mutableStateOf(mediaInfo.title) }
+      val aiPreferences = koinInject<AiPreferences>()
+      val aiService = koinInject<AiService>()
+      val scope = rememberCoroutineScope()
+      var isAiFormatting by remember { mutableStateOf(false) }
 
       // Build the detected info string for display
       val detectedInfo = remember(mediaInfo) {
@@ -124,6 +135,27 @@ fun OnlineSubtitleSearchSheet(
         searchQuery = q
         onSearchMedia(q)
         keyboardController?.hide()
+      }
+
+      fun formatWithAi() {
+        val input = if (searchQuery.isNotBlank()) searchQuery else mediaInfo.title
+        if (input.isBlank()) {
+          Toast.makeText(context, "Search query is empty", Toast.LENGTH_SHORT).show()
+          return
+        }
+        scope.launch {
+          isAiFormatting = true
+          aiService.formatTitleForSubtitleSearch(input)
+            .onSuccess { formatted ->
+              searchQuery = formatted
+              onSearchMedia(formatted)
+              keyboardController?.hide()
+            }
+            .onFailure { e ->
+              Toast.makeText(context, "AI format failed: ${e.message}", Toast.LENGTH_SHORT).show()
+            }
+          isAiFormatting = false
+        }
       }
       
       Column(
@@ -181,6 +213,16 @@ fun OnlineSubtitleSearchSheet(
                   onClearMediaSelection()
                 }) {
                   Icon(Icons.Default.Close, null)
+                }
+              }
+              if (aiPreferences.enabled.get() && aiPreferences.subtitleFormatWithAi.get()) {
+                if (isAiFormatting) {
+                  CircularProgressIndicator(modifier = Modifier.size(20.dp), strokeWidth = 2.dp)
+                  Spacer(Modifier.width(4.dp))
+                } else {
+                  IconButton(onClick = { formatWithAi() }) {
+                    Icon(Icons.Default.AutoAwesome, "Format with AI", tint = MaterialTheme.colorScheme.tertiary)
+                  }
                 }
               }
               if (isSearching || isDownloading || isSearchingMedia) {
