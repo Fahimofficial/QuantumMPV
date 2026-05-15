@@ -1,3 +1,5 @@
+@file:Suppress("DEPRECATION")
+
 package com.quantummpv.app.ui.player
 
 import android.annotation.SuppressLint
