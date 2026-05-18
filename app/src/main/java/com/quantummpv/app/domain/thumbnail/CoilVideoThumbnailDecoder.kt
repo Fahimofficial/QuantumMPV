@@ -34,7 +34,6 @@ import coil3.toAndroidUri
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import okio.FileSystem
-import java.nio.ByteBuffer
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
 
@@ -343,8 +342,10 @@ class CoilVideoThumbnailDecoder(
 
   private fun findSoftwareCodec(mimeType: String): MediaCodecInfo? {
     val codecList = MediaCodecList(MediaCodecList.ALL_CODECS)
+    val isAliasSupported = Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q
     for (info in codecList.codecInfos) {
-      if (info.isEncoder || !info.isAlias) continue
+      if (info.isEncoder) continue
+      if (isAliasSupported && info.isAlias) continue
       if (!info.name.startsWith("c2.android.") && !info.name.startsWith("OMX.google.")) continue
       if (info.supportedTypes.any { it.equals(mimeType, ignoreCase = true) }) return info
     }
