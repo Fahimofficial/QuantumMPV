@@ -3,6 +3,7 @@ package com.quantummpv.app.preferences
 import android.content.Context
 import android.net.Uri
 import android.util.Xml
+import com.quantummpv.app.BuildConfig
 import com.quantummpv.app.database.MpvRxDatabase
 import com.quantummpv.app.domain.network.NetworkConnection
 import com.quantummpv.app.domain.network.NetworkProtocol
@@ -80,6 +81,11 @@ class SettingsManager(
     serializer.setFeature("http://xmlpull.org/v1/doc/features.html#indent-output", true)
 
     serializer.startTag(null, TAG_ROOT)
+    serializer.attribute(
+      null,
+      ATTR_VERSION,
+      BuildConfig.VERSION_NAME,
+    )
     serializer.attribute(
       null,
       ATTR_EXPORT_DATE,

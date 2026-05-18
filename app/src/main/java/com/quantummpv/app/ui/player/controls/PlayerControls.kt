@@ -107,6 +107,7 @@ import androidx.constraintlayout.compose.ConstraintLayout
 import androidx.constraintlayout.compose.Dimension
 import com.quantummpv.app.R
 import com.quantummpv.app.preferences.AdvancedPreferences
+import com.quantummpv.app.preferences.AiPreferences
 import com.quantummpv.app.preferences.AppearancePreferences
 import com.quantummpv.app.preferences.AudioPreferences
 import com.quantummpv.app.preferences.PlayerPreferences
@@ -184,6 +185,9 @@ fun PlayerControls(
   val spacing = MaterialTheme.spacing
   val advancedPreferences = koinInject<AdvancedPreferences>()
   val appearancePreferences = koinInject<AppearancePreferences>()
+  val aiPreferences = koinInject<AiPreferences>()
+  val aiEnabled by aiPreferences.enabled.collectAsState()
+  val realtimeSubsEnabled by aiPreferences.realtimeSubsEnabled.collectAsState()
   val hideBackground by appearancePreferences.hidePlayerButtonsBackground.collectAsState()
   val playerPreferences = koinInject<PlayerPreferences>()
   val audioPreferences = koinInject<AudioPreferences>()
@@ -1338,6 +1342,8 @@ fun PlayerControls(
                 }
               },
         ) {
+          val showAiIndicators = aiEnabled
+          val showRealtimeSubs = aiEnabled && realtimeSubsEnabled
           if (isPortrait) {
             TopPlayerControlsPortrait(
               mediaTitle = mediaTitle,
@@ -1345,8 +1351,8 @@ fun PlayerControls(
               onBackPress = onBackPress,
               onOpenSheet = onOpenSheet,
               viewModel = viewModel,
-              isTranslatingSub = isTranslatingSub,
-              isRealtimeSubsActive = isRealtimeSubsActive,
+              isTranslatingSub = showAiIndicators && isTranslatingSub,
+              isRealtimeSubsActive = showRealtimeSubs && isRealtimeSubsActive,
               realtimeSubsLanguage = realtimeSubsLanguage,
               translationStatus = translationStatus,
               translatingTrackName = translatingTrackName,
@@ -1358,8 +1364,8 @@ fun PlayerControls(
               onBackPress = onBackPress,
               onOpenSheet = onOpenSheet,
               viewModel = viewModel,
-              isTranslatingSub = isTranslatingSub,
-              isRealtimeSubsActive = isRealtimeSubsActive,
+              isTranslatingSub = showAiIndicators && isTranslatingSub,
+              isRealtimeSubsActive = showRealtimeSubs && isRealtimeSubsActive,
               realtimeSubsLanguage = realtimeSubsLanguage,
               translationStatus = translationStatus,
               translatingTrackName = translatingTrackName,
