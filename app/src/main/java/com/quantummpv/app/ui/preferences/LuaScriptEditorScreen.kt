@@ -45,6 +45,7 @@ import com.quantummpv.app.preferences.preference.collectAsState
 import com.quantummpv.app.presentation.Screen
 import com.quantummpv.app.presentation.components.ConfirmDialog
 import com.quantummpv.app.R
+import com.quantummpv.app.ui.editor.MpvHelpScreen
 import com.quantummpv.app.ui.editor.MpvScriptEditor
 import com.quantummpv.app.ui.utils.LocalBackStack
 import com.quantummpv.app.ui.utils.popSafely
@@ -363,6 +364,20 @@ data class LuaScriptEditorScreen(
           }
         },
         actions = {
+          // Help button
+          IconButton(
+            onClick = { backStack.add(MpvHelpScreen()) },
+            modifier = Modifier.padding(end = 4.dp).size(40.dp),
+            colors = IconButtonDefaults.iconButtonColors(
+              contentColor = MaterialTheme.colorScheme.secondary,
+            ),
+          ) {
+            Icon(
+              imageVector = Icons.Outlined.Info,
+              contentDescription = "Help",
+            )
+          }
+
           // Share button (only for existing scripts)
           if (!isNewScript) {
             IconButton(
