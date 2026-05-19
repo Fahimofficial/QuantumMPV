@@ -4,6 +4,7 @@ import com.quantummpv.app.ui.icons.Icon
 import com.quantummpv.app.ui.icons.Icons
 
 import android.text.format.DateUtils
+import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -42,6 +43,7 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
@@ -58,6 +60,8 @@ import com.quantummpv.app.ui.player.applyAnime4KShaderChain
 import com.quantummpv.app.ui.player.applyAnime4KStabilityOptions
 import com.quantummpv.app.ui.player.clearAnime4KShaders
 import com.quantummpv.app.ui.player.selectRuntimeStableAnime4K
+import com.quantummpv.app.ui.theme.AppMotion
+import com.quantummpv.app.ui.theme.AppShapeScale
 import com.quantummpv.app.ui.theme.spacing
 import `is`.xyz.mpv.MPVLib
 import kotlinx.coroutines.Dispatchers
@@ -332,11 +336,11 @@ fun TimePickerDialog(
     properties = DialogProperties(usePlatformDefaultWidth = false),
   ) {
     Surface(
-      shape = MaterialTheme.shapes.extraLarge,
+      shape = AppShapeScale.extraLarge,
       color = MaterialTheme.colorScheme.surfaceContainerHigh,
       tonalElevation = 6.dp,
       modifier = modifier
-          .width(360.dp) // Fixed wide width to fit presets
+          .width(360.dp)
           .padding(MaterialTheme.spacing.medium),
     ) {
       Column(
