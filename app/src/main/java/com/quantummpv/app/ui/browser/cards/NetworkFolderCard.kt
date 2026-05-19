@@ -3,7 +3,6 @@ package com.quantummpv.app.ui.browser.cards
 import com.quantummpv.app.ui.icons.Icon
 import com.quantummpv.app.ui.icons.Icons
 
-import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -20,22 +19,18 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.graphicsLayer
-import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.quantummpv.app.preferences.AppearancePreferences
 import com.quantummpv.app.preferences.preference.collectAsState
 import com.quantummpv.app.domain.network.NetworkFile
 import androidx.compose.foundation.combinedClickable
-import com.quantummpv.app.ui.theme.AppMotion
 import com.quantummpv.app.ui.theme.AppShapeScale
 import org.koin.compose.koinInject
 
@@ -51,31 +46,10 @@ fun NetworkFolderCard(
   val unlimitedNameLines by appearancePreferences.unlimitedNameLines.collectAsState()
   val maxLines = if (unlimitedNameLines) Int.MAX_VALUE else 2
 
-  var isPressed by remember { mutableStateOf(false) }
-  val targetScale = if (isPressed) 0.98f else 1.0f
-  val scale by animateFloatAsState(
-    targetValue = targetScale,
-    animationSpec = AppMotion.Spatial.Expressive,
-    label = "NetworkFolderCardScale",
-  )
-
   Card(
     modifier =
       modifier
         .fillMaxWidth()
-        .graphicsLayer(scaleX = scale, scaleY = scale)
-        .pointerInput(Unit) {
-          awaitPointerEventScope {
-            while (true) {
-              val event = awaitPointerEvent()
-              if (event.changes.any { it.pressed }) {
-                isPressed = true
-              } else {
-                isPressed = false
-              }
-            }
-          }
-        }
         .combinedClickable(
           onClick = onClick,
           onLongClick = onLongClick,

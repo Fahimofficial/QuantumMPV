@@ -3,7 +3,6 @@ package com.quantummpv.app.ui.browser.cards
 import com.quantummpv.app.ui.icons.Icon
 import com.quantummpv.app.ui.icons.Icons
 
-import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
@@ -36,8 +35,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asImageBitmap
-import androidx.compose.ui.graphics.graphicsLayer
-import androidx.compose.ui.input.pointer.pointerInteropFilter
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.stringResource
@@ -53,7 +50,6 @@ import com.quantummpv.app.preferences.AppearancePreferences
 import com.quantummpv.app.preferences.BrowserPreferences
 import com.quantummpv.app.preferences.preference.collectAsState
 import androidx.compose.foundation.combinedClickable
-import com.quantummpv.app.ui.theme.AppMotion
 import com.quantummpv.app.ui.theme.AppShapeScale
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.filter
@@ -131,34 +127,11 @@ fun VideoCard(
 
   val cardShape = AppShapeScale.large
 
-  var isPressed by remember { mutableStateOf(false) }
-  val targetScale = if (isPressed) 0.98f else 1.0f
-  val scale by animateFloatAsState(
-    targetValue = targetScale,
-    animationSpec = AppMotion.Spatial.Expressive,
-    label = "VideoCardScale",
-  )
-
   Card(
     modifier = modifier
       .then(
         if (isGridMode) Modifier.fillMaxWidth() else Modifier.fillMaxWidth()
       )
-      .graphicsLayer(scaleX = scale, scaleY = scale)
-      .pointerInteropFilter { event ->
-        when (event.action) {
-          android.view.MotionEvent.ACTION_DOWN -> {
-            isPressed = true
-            false
-          }
-          android.view.MotionEvent.ACTION_UP,
-          android.view.MotionEvent.ACTION_CANCEL -> {
-            isPressed = false
-            false
-          }
-          else -> false
-        }
-      }
       .combinedClickable(
         onClick = onClick,
         onLongClick = onLongClick,
