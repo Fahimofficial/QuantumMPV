@@ -13,6 +13,7 @@ import androidx.compose.ui.res.stringResource
 import com.quantummpv.app.R
 import com.quantummpv.app.database.entities.PlaylistEntity
 import com.quantummpv.app.domain.media.model.VideoFolder
+import com.quantummpv.app.ui.theme.AppShapeScale
 
 /**
  * Card for displaying a playlist item
@@ -68,7 +69,7 @@ fun PlaylistCard(
       modifier = Modifier
         .background(
           chipBgColor,
-          androidx.compose.foundation.shape.RoundedCornerShape(8.dp)
+          AppShapeScale.small
         )
         .padding(horizontal = 8.dp, vertical = 4.dp),
       color = chipColor,
