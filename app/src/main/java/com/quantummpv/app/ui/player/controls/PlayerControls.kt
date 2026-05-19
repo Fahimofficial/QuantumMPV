@@ -224,6 +224,12 @@ fun PlayerControls(
     } else {
       Modifier
     }
+  val navigationBarBottomInsetModifier =
+    if (showSystemNavigationBar) {
+      Modifier.windowInsetsPadding(WindowInsets.navigationBars.only(WindowInsetsSides.Bottom))
+    } else {
+      Modifier
+    }
   var isSeeking by remember { mutableStateOf(false) }
   var resetControlsTimestamp by remember { mutableStateOf(0L) }
   val seekText = seekState.text
@@ -373,7 +379,8 @@ fun PlayerControls(
                 ),
                 alpha = transparentOverlay,
               )
-              .then(safeAreaInsetModifier),
+              .then(safeAreaInsetModifier)
+              .then(navigationBarBottomInsetModifier),
         ) {
         val (topLeftControls, topRightControls) = createRefs()
         val (volumeSlider, brightnessSlider) = createRefs()
