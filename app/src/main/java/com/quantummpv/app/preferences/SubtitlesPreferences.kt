@@ -58,6 +58,7 @@ class SubtitlesPreferences(
   val wyzieFile = preferenceStore.getString("wyzie_file", "")
   val wyzieOrigin = preferenceStore.getString("wyzie_origin", "")
   val wyzieRefresh = preferenceStore.getBoolean("wyzie_refresh", false)
+  val wyzieAiSubtitles = preferenceStore.getString("wyzie_ai_subtitles", "all")
 }
 
 private fun PreferenceStore.getOnlineSubtitleSearchMode() =

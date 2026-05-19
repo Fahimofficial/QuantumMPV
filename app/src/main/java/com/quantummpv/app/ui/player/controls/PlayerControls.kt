@@ -380,7 +380,7 @@ fun PlayerControls(
                 alpha = transparentOverlay,
               )
               .then(safeAreaInsetModifier)
-              .then(navigationBarBottomInsetModifier),
+              .then(navigationBarInsetModifier),
         ) {
         val (topLeftControls, topRightControls) = createRefs()
         val (volumeSlider, brightnessSlider) = createRefs()

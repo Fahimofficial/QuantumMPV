@@ -42,7 +42,8 @@ data class WyzieSubtitle(
     val matchedRelease: String? = null,
     val matchedFilter: String? = null,
     val downloadCount: Int? = null,
-    val isHashMatch: Boolean = false
+    val isHashMatch: Boolean = false,
+    val ai: Boolean = false
 ) {
     val displayName: String get() = fileName ?: release ?: media ?: "Unknown Subtitle"
     val displayLanguage: String get() = display ?: language ?: "Unknown"
@@ -125,16 +126,14 @@ data class WyzieSeasonDetails(
 object WyzieSources {
     val ALL = mapOf(
         "all" to "All",
-        "subdl" to "SubDL",
         "subf2m" to "Subf2m",
         "opensubtitles" to "OpenSubtitles",
-        "podnapisi" to "Podnapisi",
-        "gestdown" to "Gestdown",
         "animetosho" to "AnimeTosho",
         "jimaku" to "Jimaku",
         "kitsunekko" to "Kitsunekko",
+        "gestdown" to "Gestdown",
         "yify" to "YIFY",
-        "ajatttools" to "AjattTools"
+        "tvsubtitles" to "TVsubtitles"
     )
 }
 
@@ -323,10 +322,9 @@ class WyzieSearchRepository(
             
             // The Wyzie API often returns all languages regardless of query parameters.
             // We must strictly filter the results locally based on selected languages.
-            val filteredResults = if (languages != null && languages != "all") {
+            var filteredResults = if (languages != null && languages != "all") {
                 val allowedLangs = languages.split(",").map { it.trim() }
                 results.filter { sub -> 
-                    // Map the subtitle language code (which is sometimes lowercase, sometimes not)
                     val subLangCode = WyzieLanguages.ALL.entries.find { 
                         it.value.equals(sub.language, ignoreCase = true) 
                     }?.key ?: sub.language?.lowercase()
@@ -335,6 +333,14 @@ class WyzieSearchRepository(
                 }
             } else {
                 results
+            }
+
+            // Filter by AI subtitle type preference
+            val aiPreference = preferences.wyzieAiSubtitles.get()
+            filteredResults = when (aiPreference) {
+                "human" -> filteredResults.filter { !it.ai }
+                "ai" -> filteredResults.filter { it.ai }
+                else -> filteredResults
             }
             
             val sortedResults = filteredResults.sortedWith(
@@ -513,7 +519,8 @@ class WyzieSearchRepository(
 
     suspend fun getTvShowDetails(id: Int): Result<WyzieTvShowDetails> = withContext(Dispatchers.IO) {
         try {
-            val url = "$baseUrl/api/tmdb/tv/$id"
+            val apiKey = preferences.wyzieApiKey.get().trim()
+            val url = "$baseUrl/api/tmdb/tv/$id${if (apiKey.isNotBlank()) "?key=${URLEncoder.encode(apiKey, "UTF-8")}" else ""}"
             val request = Request.Builder().url(url).build()
             client.newCall(request).execute().use { response ->
                 if (!response.isSuccessful) throw IOException("Failed to get TV show details: ${response.code}")
@@ -528,7 +535,8 @@ class WyzieSearchRepository(
 
     suspend fun getSeasonEpisodes(id: Int, season: Int): Result<List<WyzieEpisode>> = withContext(Dispatchers.IO) {
         try {
-            val url = "$baseUrl/api/tmdb/tv/$id/$season"
+            val apiKey = preferences.wyzieApiKey.get().trim()
+            val url = "$baseUrl/api/tmdb/tv/$id/$season${if (apiKey.isNotBlank()) "?key=${URLEncoder.encode(apiKey, "UTF-8")}" else ""}"
             val request = Request.Builder().url(url).build()
             client.newCall(request).execute().use { response ->
                 if (!response.isSuccessful) throw IOException("Failed to get season episodes: ${response.code}")
@@ -666,6 +674,7 @@ private fun WyzieSubtitle.toOnlineSubtitle(): OnlineSubtitle =
             matchedFilter?.let { put("matchedFilter", it) }
             matchedRelease?.let { put("matchedRelease", it) }
             origin?.let { put("origin", it) }
+            put("ai", ai.toString())
         },
     )
 

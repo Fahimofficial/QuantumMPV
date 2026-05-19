@@ -104,6 +104,7 @@ object SubtitlesPreferencesScreen : Screen {
         val wyzieFormats by preferences.wyzieFormats.collectAsState()
         val wyzieEncodings by preferences.wyzieEncodings.collectAsState()
         val wyzieApiKey by preferences.wyzieApiKey.collectAsState()
+        val wyzieAiSubtitles by preferences.wyzieAiSubtitles.collectAsState()
         val onlineSubtitleSearchMode by preferences.onlineSubtitleSearchMode.collectAsState()
         val subtitleHubSources by preferences.subtitleHubSources.collectAsState()
 
@@ -343,6 +344,23 @@ object SubtitlesPreferencesScreen : Screen {
                       onValueChange = { preferences.wyzieHearingImpaired.set(it) },
                       title = { Text("Hearing-impaired friendly") },
                       summary = { Text("Only show subtitles optimized for hearing impaired") }
+                    )
+
+                    PreferenceDivider()
+
+                    val aiOptions = mapOf("all" to "All (Human + AI)", "human" to "Human only", "ai" to "AI only")
+                    MultiChoicePreference(
+                      title = { Text("AI Subtitles") },
+                      summary = {
+                        val current = aiOptions[wyzieAiSubtitles] ?: "All (Human + AI)"
+                        Text(current, color = MaterialTheme.colorScheme.outline)
+                      },
+                      values = aiOptions,
+                      selectedValues = setOf(wyzieAiSubtitles),
+                      onValuesChange = { 
+                        if (it.isNotEmpty()) preferences.wyzieAiSubtitles.set(it.first()) 
+                      },
+                      hasAllOption = false
                     )
 
                     PreferenceDivider()

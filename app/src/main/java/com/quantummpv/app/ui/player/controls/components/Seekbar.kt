@@ -1222,8 +1222,9 @@ fun StandardSeekbar(
                 drawRangeWithGaps(thumbGapEnd, size.width, chapterGaps, primaryColor.copy(alpha = disabledAlpha))
 
                 // 2. Buffered range ahead of current position
-                if (bufferPx > playedPx) {
-                    drawRangeWithGaps(playedPx, bufferPx, chapterGaps, primaryColor.copy(alpha = 0.55f))
+                val bufferRangeStart = maxOf(playedPx, thumbGapEnd)
+                if (bufferPx > bufferRangeStart) {
+                    drawRangeWithGaps(bufferRangeStart, bufferPx, chapterGaps, primaryColor.copy(alpha = 0.55f))
                 }
                 
                 // 3. Played
