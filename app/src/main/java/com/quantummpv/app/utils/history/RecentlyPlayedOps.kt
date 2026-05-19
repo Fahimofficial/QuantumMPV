@@ -116,6 +116,10 @@ object RecentlyPlayedOps {
     return repository.getRecentlyPlayed(limit)
   }
 
+  suspend fun getRecentlyPlayedCount(): Int {
+    return repository.getRecentlyPlayedCount()
+  }
+
   @OptIn(ExperimentalCoroutinesApi::class)
   fun observeLastPlayedPath(): Flow<String?> =
     repository

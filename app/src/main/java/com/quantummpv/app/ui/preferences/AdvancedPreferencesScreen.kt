@@ -72,6 +72,7 @@ import me.zhanghai.compose.preference.SwitchPreference
 import me.zhanghai.compose.preference.TwoTargetIconButtonPreference
 import org.koin.compose.koinInject
 import java.io.File
+import java.text.DecimalFormat
 import kotlin.io.path.deleteIfExists
 import kotlin.io.path.outputStream
 import kotlin.io.path.readLines
@@ -94,6 +95,8 @@ object AdvancedPreferencesScreen : Screen {
     var exportStats by remember { mutableStateOf<SettingsManager.ExportStats?>(null) }
     val playbackHistoryClearedMessage = stringResource(R.string.pref_advanced_cleared_playback_history)
     val fontsCacheClearedMessage = stringResource(R.string.pref_advanced_cleared_fonts_cache)
+    val exportFailedMessage = stringResource(R.string.pref_export_failed, "Unknown error")
+    val importFailedMessage = stringResource(R.string.pref_import_failed, "Unknown error")
 
     // Export settings launcher
     val exportLauncher =
@@ -110,7 +113,7 @@ object AdvancedPreferencesScreen : Screen {
               onFailure = { error ->
                 Toast.makeText(
                   context,
-                  "Export failed: ${error.message}",
+                  context.getString(R.string.pref_export_failed, error.message ?: "Unknown error"),
                   Toast.LENGTH_LONG,
                 ).show()
               },
@@ -134,7 +137,7 @@ object AdvancedPreferencesScreen : Screen {
               onFailure = { error ->
                 Toast.makeText(
                   context,
-                  "Import failed: ${error.message}",
+                  context.getString(R.string.pref_import_failed, error.message ?: "Unknown error"),
                   Toast.LENGTH_LONG,
                 ).show()
               },
@@ -169,7 +172,7 @@ object AdvancedPreferencesScreen : Screen {
     if (showExportDialog && exportStats != null) {
       AlertDialog(
         onDismissRequest = { showExportDialog = false },
-        title = { Text("Export Complete") },
+        title = { Text(stringResource(R.string.pref_export_complete_title)) },
         text = {
           Column(
             modifier = Modifier
@@ -177,13 +180,13 @@ object AdvancedPreferencesScreen : Screen {
               .verticalScroll(rememberScrollState()),
           ) {
             Text(
-              "Successfully exported ${exportStats?.totalExported} items!\n\n"
+              stringResource(R.string.pref_export_complete_text, exportStats?.totalExported ?: 0)
             )
           }
         },
         confirmButton = {
           TextButton(onClick = { showExportDialog = false }) {
-            Text("OK")
+            Text(stringResource(R.string.generic_ok))
           }
         },
       )
@@ -193,18 +196,20 @@ object AdvancedPreferencesScreen : Screen {
     if (showImportDialog && importStats != null) {
       AlertDialog(
         onDismissRequest = { showImportDialog = false },
-        title = { Text("Import Complete") },
+        title = { Text(stringResource(R.string.pref_import_complete_title)) },
         text = {
           Text(
-            "Successfully imported: ${importStats?.imported}\n" +
-              "Failed: ${importStats?.failed}\n" +
-              "Version: ${importStats?.version}\n\n" +
-              "Please restart the app for all changes to take effect.",
+            stringResource(
+              R.string.pref_import_complete_text,
+              importStats?.imported ?: 0,
+              importStats?.failed ?: 0,
+              importStats?.version ?: "unknown",
+            ),
           )
         },
         confirmButton = {
           TextButton(onClick = { showImportDialog = false }) {
-            Text("OK")
+            Text(stringResource(R.string.generic_ok))
           }
         },
       )
@@ -242,16 +247,16 @@ object AdvancedPreferencesScreen : Screen {
         ) {
           // Backup & Restore Section
           item {
-            PreferenceSectionHeader(title = "Backup & Restore")
+            PreferenceSectionHeader(title = stringResource(R.string.pref_section_backup_restore))
           }
           
           item {
             PreferenceCard {
               Preference(
-                title = { Text(text = "Export Settings") },
+                title = { Text(text = stringResource(R.string.pref_export_settings_title)) },
                 summary = { 
                   Text(
-                    text = "Export settings to an XML file",
+                    text = stringResource(R.string.pref_export_settings_summary),
                     color = MaterialTheme.colorScheme.outline,
                   ) 
                 },
@@ -270,10 +275,10 @@ object AdvancedPreferencesScreen : Screen {
               PreferenceDivider()
               
               Preference(
-                title = { Text(text = "Import Settings") },
+                title = { Text(text = stringResource(R.string.pref_import_settings_title)) },
                 summary = { 
                   Text(
-                    text = "Import settings from an XML file",
+                    text = stringResource(R.string.pref_import_settings_summary),
                     color = MaterialTheme.colorScheme.outline,
                   ) 
                 },
@@ -293,19 +298,19 @@ object AdvancedPreferencesScreen : Screen {
           
           // Storage Root Section
           item {
-            PreferenceSectionHeader(title = "Storage Root")
+            PreferenceSectionHeader(title = stringResource(R.string.pref_section_storage_root))
           }
           
           item {
             PreferenceCard {
               Preference(
-                title = { Text("Base Storage Folder") },
+                title = { Text(stringResource(R.string.pref_advanced_mpv_conf_storage_location)) },
                 summary = {
                   Text(
                     text = if (baseStorageFolder.isNotEmpty())
                       getSimplifiedStoragePath(baseStorageFolder)
                     else
-                      "Tap to select — creates Subtitles/, Fonts/, scripts/ subdirs",
+                      stringResource(R.string.pref_base_storage_folder_summary),
                     color = MaterialTheme.colorScheme.outline,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
@@ -318,7 +323,7 @@ object AdvancedPreferencesScreen : Screen {
               if (baseStorageFolder.isNotEmpty()) {
                 PreferenceDivider()
                 Preference(
-                  title = { Text("Clear Storage Root") },
+                  title = { Text(stringResource(R.string.pref_clear_storage_root_title)) },
                   icon = { Icon(Icons.Default.Clear, contentDescription = null, tint = MaterialTheme.colorScheme.error) },
                   onClick = {
                     foldersPreferences.baseStorageFolder.set("")
@@ -333,7 +338,7 @@ object AdvancedPreferencesScreen : Screen {
           
           // MPV Configuration Section
           item {
-            PreferenceSectionHeader(title = "MPV Configuration")
+            PreferenceSectionHeader(title = stringResource(R.string.pref_section_mpv_config))
           }
 
           item {
@@ -387,7 +392,7 @@ object AdvancedPreferencesScreen : Screen {
                   if (firstLine != null && firstLine.isNotBlank()) {
                     Text(firstLine, color = MaterialTheme.colorScheme.outline)
                   } else {
-                    Text("Tap to edit configuration", color = MaterialTheme.colorScheme.outline)
+                    Text(stringResource(R.string.pref_config_edit_summary), color = MaterialTheme.colorScheme.outline)
                   }
                 },
                 onClick = {
@@ -404,7 +409,7 @@ object AdvancedPreferencesScreen : Screen {
                   if (firstLine != null && firstLine.isNotBlank()) {
                     Text(firstLine, color = MaterialTheme.colorScheme.outline)
                   } else {
-                    Text("Tap to edit configuration", color = MaterialTheme.colorScheme.outline)
+                    Text(stringResource(R.string.pref_config_edit_summary), color = MaterialTheme.colorScheme.outline)
                   }
                 },
                 onClick = {
@@ -416,7 +421,7 @@ object AdvancedPreferencesScreen : Screen {
           
           // Scripts Section
           item {
-            PreferenceSectionHeader(title = "Scripts (Lua / JS)")
+            PreferenceSectionHeader(title = stringResource(R.string.pref_section_scripts))
           }
           
           item {
@@ -427,10 +432,10 @@ object AdvancedPreferencesScreen : Screen {
               SwitchPreference(
                 value = enableLuaScripts,
                 onValueChange = preferences.enableLuaScripts::set,
-                title = { Text("Enable scripts") },
+                title = { Text(stringResource(R.string.pref_enable_lua_scripts_title)) },
                 summary = { 
                   Text(
-                    "Load scripts from your MPV configuration directory",
+                    stringResource(R.string.pref_enable_lua_scripts_summary),
                     color = MaterialTheme.colorScheme.outline,
                   ) 
                 },
@@ -439,23 +444,23 @@ object AdvancedPreferencesScreen : Screen {
               PreferenceDivider()
               
               Preference(
-                title = { Text("Manage scripts") },
+                title = { Text(stringResource(R.string.pref_manage_lua_scripts_title)) },
                 summary = {
                   when {
                     mpvConfStorageLocation.isBlank() || !enableLuaScripts -> Text(
-                      "Set storage location and enable scripts first", 
+                      stringResource(R.string.pref_manage_scripts_summary_disabled), 
                       color = MaterialTheme.colorScheme.outline
                     )
                     selectedScripts.isEmpty() -> Text(
-                      "No scripts enabled", 
+                      stringResource(R.string.pref_manage_scripts_summary_none), 
                       color = MaterialTheme.colorScheme.outline
                     )
                     selectedScripts.size == 1 -> Text(
-                      "1 script enabled",
+                      stringResource(R.string.pref_manage_scripts_summary_singular),
                       color = MaterialTheme.colorScheme.outline
                     )
                     else -> Text(
-                      "${selectedScripts.size} scripts enabled",
+                      stringResource(R.string.pref_manage_scripts_summary_plural, selectedScripts.size),
                       color = MaterialTheme.colorScheme.outline
                     )
                   }
@@ -469,10 +474,10 @@ object AdvancedPreferencesScreen : Screen {
               PreferenceDivider()
 
               Preference(
-                title = { Text("Custom buttons") },
+                title = { Text(stringResource(R.string.pref_custom_buttons_title)) },
                 summary = {
                   Text(
-                    "Create and manage script-powered player buttons",
+                    stringResource(R.string.pref_custom_buttons_summary),
                     color = MaterialTheme.colorScheme.outline
                   )
                 },
@@ -485,7 +490,7 @@ object AdvancedPreferencesScreen : Screen {
           
           // Data & Cache Section
           item {
-            PreferenceSectionHeader(title = "Data & Cache")
+            PreferenceSectionHeader(title = stringResource(R.string.pref_section_data_cache))
           }
 
           item {
@@ -493,6 +498,17 @@ object AdvancedPreferencesScreen : Screen {
               var isConfirmDialogShown by remember { mutableStateOf(false) }
               val mpvrxDatabase = koinInject<MpvRxDatabase>()
               val enableRecentlyPlayed by preferences.enableRecentlyPlayed.collectAsState()
+              var recentlyPlayedCount by remember { mutableStateOf(0) }
+
+              LaunchedEffect(enableRecentlyPlayed) {
+                if (enableRecentlyPlayed) {
+                  recentlyPlayedCount = withContext(Dispatchers.IO) {
+                    runCatching { RecentlyPlayedOps.getRecentlyPlayedCount() }.getOrDefault(0)
+                  }
+                } else {
+                  recentlyPlayedCount = 0
+                }
+              }
 
               SwitchPreference(
                 value = enableRecentlyPlayed,
@@ -508,8 +524,27 @@ object AdvancedPreferencesScreen : Screen {
 
               PreferenceDivider()
 
+              val playbackHistorySummary = if (recentlyPlayedCount > 0) {
+                stringResource(R.string.pref_clear_playback_history_recently_played, recentlyPlayedCount)
+              } else {
+                stringResource(R.string.pref_clear_playback_history_recently_played_none)
+              }
+
               Preference(
                 title = { Text(stringResource(R.string.pref_advanced_clear_playback_history)) },
+                summary = {
+                  Column {
+                    Text(
+                      stringResource(R.string.pref_advanced_clear_playback_history_confirm_subtitle),
+                      color = MaterialTheme.colorScheme.outline,
+                    )
+                    Text(
+                      playbackHistorySummary,
+                      color = MaterialTheme.colorScheme.outline,
+                      style = MaterialTheme.typography.bodySmall,
+                    )
+                  }
+                },
                 onClick = { isConfirmDialogShown = true },
               )
 
@@ -554,14 +589,69 @@ object AdvancedPreferencesScreen : Screen {
               var mpvConf by remember { mutableStateOf(preferences.mpvConf.get()) }
               var isClearThumbsConfirmShown by remember { mutableStateOf(false) }
               val thumbnailRepository = koinInject<ThumbnailRepository>()
+              var configCacheSize by remember { mutableStateOf(0L) }
+              var thumbnailCacheSize by remember { mutableStateOf(0L) }
+              var fontsCacheSize by remember { mutableStateOf(0L) }
+              var fontsFileCount by remember { mutableStateOf(0) }
+
+              LaunchedEffect(Unit) {
+                withContext(Dispatchers.IO) {
+                  // Config cache size
+                  val mpvConfFile = File(context.filesDir, "mpv.conf")
+                  val inputConfFile = File(context.filesDir, "input.conf")
+                  configCacheSize = run {
+                    var size = 0L
+                    if (mpvConfFile.exists()) size += mpvConfFile.length()
+                    if (inputConfFile.exists()) size += inputConfFile.length()
+                    size
+                  }
+
+                  // Thumbnail cache size
+                  thumbnailCacheSize = run {
+                    var size = 0L
+                    listOf(
+                      File(context.cacheDir, "thumbnails"),
+                      File(context.filesDir, "thumbnails"),
+                      File(context.cacheDir, "image_cache"),
+                      File(context.cacheDir, "coil"),
+                    ).forEach { dir ->
+                      if (dir.exists()) {
+                        dir.walkTopDown().filter { it.isFile }.forEach { size += it.length() }
+                      }
+                    }
+                    size
+                  }
+
+                  // Fonts cache size
+                  val fontsDir = File(context.filesDir, "fonts")
+                  if (fontsDir.exists()) {
+                    val fontFiles = fontsDir.listFiles()?.filter {
+                      it.isFile && it.name.lowercase().matches(".*\\.[ot]tf$".toRegex())
+                    } ?: emptyList()
+                    fontsFileCount = fontFiles.size
+                    fontsCacheSize = fontFiles.sumOf { it.length() }
+                  } else {
+                    fontsFileCount = 0
+                    fontsCacheSize = 0
+                  }
+                }
+              }
               
               Preference(
-                title = { Text(text = "Clear config cache") },
-                summary = { 
-                  Text(
-                    text = "Clear the cached mpv.conf settings",
-                    color = MaterialTheme.colorScheme.outline,
-                  ) 
+                title = { Text(text = stringResource(R.string.pref_clear_config_cache_title)) },
+                summary = {
+                  val sizeStr = formatFileSize(configCacheSize)
+                  Column {
+                    Text(
+                      text = stringResource(R.string.pref_config_cache_summary),
+                      color = MaterialTheme.colorScheme.outline,
+                    )
+                    Text(
+                      text = stringResource(R.string.pref_config_cache_size, sizeStr),
+                      color = MaterialTheme.colorScheme.outline,
+                      style = MaterialTheme.typography.bodySmall,
+                    )
+                  }
                 },
                 onClick = {
                   scope.launch(Dispatchers.IO) {
@@ -574,7 +664,7 @@ object AdvancedPreferencesScreen : Screen {
                       Toast
                         .makeText(
                           context,
-                          "Config cache cleared",
+                          context.getString(R.string.pref_config_cache_cleared_toast),
                           Toast.LENGTH_SHORT,
                         ).show()
                     }
@@ -585,20 +675,28 @@ object AdvancedPreferencesScreen : Screen {
               PreferenceDivider()
 
               Preference(
-                title = { Text(text = "Clear thumbnail cache") },
+                title = { Text(text = stringResource(R.string.pref_clear_thumbnail_cache_title)) },
                 summary = {
-                  Text(
-                    text = "Delete all cached video thumbnails (will regenerate as you browse folders)",
-                    color = MaterialTheme.colorScheme.outline,
-                  )
+                  val sizeStr = formatFileSize(thumbnailCacheSize)
+                  Column {
+                    Text(
+                      text = stringResource(R.string.pref_thumbnail_cache_summary),
+                      color = MaterialTheme.colorScheme.outline,
+                    )
+                    Text(
+                      text = stringResource(R.string.pref_thumbnail_cache_size, sizeStr),
+                      color = MaterialTheme.colorScheme.outline,
+                      style = MaterialTheme.typography.bodySmall,
+                    )
+                  }
                 },
                 onClick = { isClearThumbsConfirmShown = true },
               )
 
               if (isClearThumbsConfirmShown) {
                 ConfirmDialog(
-                  title = "Clear thumbnail cache?",
-                  subtitle = "This will delete cached thumbnails from storage and memory.",
+                  title = stringResource(R.string.pref_thumbnail_cache_confirm_title),
+                  subtitle = stringResource(R.string.pref_thumbnail_cache_confirm_subtitle),
                   onConfirm = {
                     scope.launch(Dispatchers.IO) {
                       runCatching {
@@ -606,12 +704,12 @@ object AdvancedPreferencesScreen : Screen {
                       }.onSuccess {
                         withContext(Dispatchers.Main) {
                           isClearThumbsConfirmShown = false
-                          Toast.makeText(context, "Thumbnail cache cleared", Toast.LENGTH_SHORT).show()
+                          Toast.makeText(context, context.getString(R.string.pref_thumbnail_cache_cleared), Toast.LENGTH_SHORT).show()
                         }
                       }.onFailure { error ->
                         withContext(Dispatchers.Main) {
                           isClearThumbsConfirmShown = false
-                          Toast.makeText(context, "Failed to clear: ${error.message}", Toast.LENGTH_LONG).show()
+                          Toast.makeText(context, context.getString(R.string.pref_failed_to_clear, error.message ?: "Unknown error"), Toast.LENGTH_LONG).show()
                         }
                       }
                     }
@@ -624,11 +722,12 @@ object AdvancedPreferencesScreen : Screen {
               
               Preference(
                 title = { Text(text = stringResource(id = R.string.pref_advanced_clear_fonts_cache)) },
-                summary = { 
+                summary = {
+                  val sizeStr = formatFileSize(fontsCacheSize)
                   Text(
-                    text = "Remove all cached subtitle fonts",
+                    text = stringResource(R.string.pref_fonts_cache_size, sizeStr, fontsFileCount),
                     color = MaterialTheme.colorScheme.outline,
-                  ) 
+                  )
                 },
                 onClick = {
                   scope.launch(Dispatchers.IO) {
@@ -660,7 +759,7 @@ object AdvancedPreferencesScreen : Screen {
           }
           
           item {
-            PreferenceSectionHeader(title = "Notification")
+            PreferenceSectionHeader(title = stringResource(R.string.pref_section_notification))
           }
 
           item {
@@ -692,7 +791,7 @@ object AdvancedPreferencesScreen : Screen {
 
           // Logging Section
           item {
-            PreferenceSectionHeader(title = "Logging")
+            PreferenceSectionHeader(title = stringResource(R.string.pref_section_logging))
           }
           
           item {
@@ -748,3 +847,11 @@ object AdvancedPreferencesScreen : Screen {
 
 fun getSimplifiedPathFromUri(uri: String): String =
   File(Environment.getExternalStorageDirectory(), Uri.decode(uri).substringAfterLast(":")).canonicalPath
+
+private fun formatFileSize(bytes: Long): String {
+  return when {
+    bytes < 1024 -> "$bytes B"
+    bytes < 1024 * 1024 -> "%.1f KB".format(bytes / 1024.0)
+    else -> "%.1f MB".format(bytes / (1024.0 * 1024.0))
+  }
+}

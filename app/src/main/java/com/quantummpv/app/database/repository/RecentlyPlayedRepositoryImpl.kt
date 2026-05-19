@@ -70,6 +70,9 @@ class RecentlyPlayedRepositoryImpl(
   override suspend fun getRecentlyPlayed(limit: Int): List<RecentlyPlayedEntity> =
     recentlyPlayedDao.getRecentlyPlayed(limit)
 
+  override suspend fun getRecentlyPlayedCount(): Int =
+    recentlyPlayedDao.getRecentlyPlayedCount()
+
   override fun observeRecentlyPlayed(limit: Int): Flow<List<RecentlyPlayedEntity>> =
     recentlyPlayedDao.observeRecentlyPlayed(limit)
 

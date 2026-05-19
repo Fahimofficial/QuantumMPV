@@ -552,7 +552,7 @@ object AppearancePreferencesScreen : Screen {
 
                     // ── Animations ────────────────────────────────────────
                     item {
-                        PreferenceSectionHeader(title = "Animations")
+                        PreferenceSectionHeader(title = stringResource(R.string.pref_section_animations))
                     }
 
                     item {
@@ -563,7 +563,7 @@ object AppearancePreferencesScreen : Screen {
                                 onValueChange = playerPreferences.controlsAnimStyle::set,
                                 values = ControlsAnimationStyle.entries,
                                 valueToText = { AnnotatedString(it.displayName) },
-                                title = { Text("Controls animation style") },
+                                title = { Text(stringResource(R.string.pref_anim_controls_style_title)) },
                                 summary = { Text(controlsAnimStyle.displayName, color = MaterialTheme.colorScheme.outline) },
                             )
 
@@ -575,7 +575,7 @@ object AppearancePreferencesScreen : Screen {
                                 onValueChange = playerPreferences.videoOpenAnimation::set,
                                 values = VideoOpenAnimation.entries,
                                 valueToText = { AnnotatedString(it.displayName) },
-                                title = { Text("Video opening animation") },
+                                title = { Text(stringResource(R.string.pref_anim_video_open_title)) },
                                 summary = { Text(videoOpenAnim.displayName, color = MaterialTheme.colorScheme.outline) },
                             )
 
@@ -587,7 +587,7 @@ object AppearancePreferencesScreen : Screen {
                                 onValueChange = playerPreferences.navAnimStyle::set,
                                 values = NavigationAnimStyle.entries,
                                 valueToText = { AnnotatedString(it.displayName) },
-                                title = { Text("Tab navigation style") },
+                                title = { Text(stringResource(R.string.pref_anim_tab_nav_style_title)) },
                                 summary = { Text(navAnimStyle.displayName, color = MaterialTheme.colorScheme.outline) },
                             )
 
@@ -599,7 +599,7 @@ object AppearancePreferencesScreen : Screen {
                                 onValueChange = playerPreferences.appNavStyle::set,
                                 values = NavigationAnimStyle.entries,
                                 valueToText = { AnnotatedString(it.displayName) },
-                                title = { Text("Screen navigation style") },
+                                title = { Text(stringResource(R.string.pref_anim_screen_nav_style_title)) },
                                 summary = { Text(appNavStyle.displayName, color = MaterialTheme.colorScheme.outline) },
                             )
 
@@ -609,15 +609,15 @@ object AppearancePreferencesScreen : Screen {
                             SliderPreference(
                                 value = animSpeed,
                                 onValueChange = { playerPreferences.animationSpeed.set(it) },
-                                title = { Text("Animation speed") },
+                                title = { Text(stringResource(R.string.pref_anim_speed_title)) },
                                 valueRange = 0.25f..2.5f,
                                 summary = {
                                     val label = when {
-                                        animSpeed < 0.6f -> "Very fast  (${"%.1f".format(animSpeed)}×)"
-                                        animSpeed < 0.9f -> "Fast  (${"%.1f".format(animSpeed)}×)"
-                                        animSpeed < 1.1f -> "Normal  (${"%.1f".format(animSpeed)}×)"
-                                        animSpeed < 1.6f -> "Slow  (${"%.1f".format(animSpeed)}×)"
-                                        else             -> "Very slow  (${"%.1f".format(animSpeed)}×)"
+                                        animSpeed < 0.6f -> stringResource(R.string.pref_anim_speed_very_fast, animSpeed)
+                                        animSpeed < 0.9f -> stringResource(R.string.pref_anim_speed_fast, animSpeed)
+                                        animSpeed < 1.1f -> stringResource(R.string.pref_anim_speed_normal, animSpeed)
+                                        animSpeed < 1.6f -> stringResource(R.string.pref_anim_speed_slow, animSpeed)
+                                        else             -> stringResource(R.string.pref_anim_speed_very_slow, animSpeed)
                                     }
                                     Text(label, color = MaterialTheme.colorScheme.outline)
                                 },

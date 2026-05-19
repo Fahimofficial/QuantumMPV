@@ -131,7 +131,7 @@ object PlayerControlsPreferencesScreen : Screen {
         ) {
           // Landscape Controls Section
           item {
-            PreferenceSectionHeader(title = "Landscape Controls")
+            PreferenceSectionHeader(title = stringResource(R.string.pref_section_landscape_controls))
           }
           
           item {
@@ -168,7 +168,7 @@ object PlayerControlsPreferencesScreen : Screen {
           
           // Portrait Controls Section
           item {
-            PreferenceSectionHeader(title = "Portrait Controls")
+            PreferenceSectionHeader(title = stringResource(R.string.pref_section_portrait_controls))
           }
 
           item {
@@ -187,7 +187,7 @@ object PlayerControlsPreferencesScreen : Screen {
           
           // Seekbar Section
           item {
-            PreferenceSectionHeader(title = "Seekbar Style")
+            PreferenceSectionHeader(title = stringResource(R.string.pref_section_seekbar_style))
           }
 
           item {
@@ -228,7 +228,7 @@ object PlayerControlsPreferencesScreen : Screen {
           
           // Appearance Section
           item {
-            PreferenceSectionHeader(title = "Appearance")
+            PreferenceSectionHeader(title = stringResource(R.string.pref_section_player_controls_appearance))
           }
           
           item {
@@ -271,18 +271,18 @@ object PlayerControlsPreferencesScreen : Screen {
                 values = predefinedTimeValues + listOf(-1),
                 valueToText = { value ->
                   if (value == -1) {
-                    AnnotatedString("Custom")
+                    AnnotatedString(stringResource(R.string.pref_gesture_double_tap_custom))
                   } else {
-                    AnnotatedString("$value ms")
+                    AnnotatedString(stringResource(R.string.pref_time_ms_summary, value))
                   }
                 },
                 title = { Text(text = stringResource(R.string.pref_player_display_hide_player_control_time)) },
                 summary = {
                   Text(
                     text = if (isCustomTimeValue) {
-                      "Custom ($playerTimeToDisappear ms)"
+                      stringResource(R.string.pref_custom_time_summary_format, playerTimeToDisappear)
                     } else {
-                      "$playerTimeToDisappear ms"
+                      stringResource(R.string.pref_time_ms_summary, playerTimeToDisappear)
                     },
                   )
                 },
@@ -300,13 +300,13 @@ object PlayerControlsPreferencesScreen : Screen {
                       .verticalScroll(rememberScrollState()),
                   ) {
                     Text(
-                      text = "Enter custom hide time in milliseconds",
+                      text = stringResource(R.string.pref_custom_time_dialog_text),
                       modifier = Modifier.padding(bottom = 8.dp),
                     )
                     OutlinedTextField(
                       value = customTimeValue,
                       onValueChange = { customTimeValue = it },
-                      label = { Text("Milliseconds") },
+                      label = { Text(stringResource(R.string.pref_custom_time_label)) },
                       keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                       modifier = Modifier.fillMaxWidth(),
                       singleLine = true,
@@ -364,7 +364,7 @@ object PlayerControlsPreferencesScreen : Screen {
       IconButton(onClick = onClick) {
         Icon(
           imageVector = Icons.Outlined.Edit,
-          contentDescription = "Edit $title",
+          contentDescription = stringResource(R.string.pref_edit_region_content_desc, title),
           tint = MaterialTheme.colorScheme.onSurfaceVariant,
         )
       }
@@ -387,7 +387,7 @@ object PlayerControlsPreferencesScreen : Screen {
     ) {
       if (buttons.isEmpty()) {
         Text(
-          "None", // TODO: strings
+          stringResource(R.string.pref_none),
           style = MaterialTheme.typography.bodyMedium,
           color = MaterialTheme.colorScheme.outline,
         )

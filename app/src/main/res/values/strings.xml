@@ -112,11 +112,9 @@
   <string name="pref_player_show_buffered_range_title">Show buffered range on seek bar</string>
   <string name="pref_player_show_buffered_range_summary">Display the online buffer ahead of the playhead on the seek bar.</string>
   <string name="pref_dynamic_speed_overlay_title">Dynamic Speed Overlay</string>
-  <string name="pref_dynamic_speed_overlay_summary">Show advance overlay for speed control during long press and swipe</string>
   <string name="pref_show_navigation_bar_title">Show navigation bar with controls</string>
   <!-- Gesture Preferences Hardcoded -->
   <string name="pref_double_tap_seek_area_width_title">Double Tap Seek Area Width</string>
-  <string name="pref_double_tap_seek_area_width_summary">Current: %d%%</string>
   <!-- Advanced Preferences Hardcoded -->
   <string name="pref_export_settings_title">Export Settings</string>
   <string name="pref_export_settings_summary">Export settings to an XML file</string>
@@ -129,7 +127,7 @@
   <string name="pref_clear_config_cache_title">Clear config cache</string>
   <string name="pref_clear_config_cache_summary">Clear the cached mpv.conf settings</string>
   <string name="pref_clear_thumbnail_cache_title">Clear thumbnail cache</string>
-  <string name="pref_clear_thumbnail_cache_summary">Delete all cached video thumbnails (will regenerate as you browse folders)</string>
+  <string name="pref_clear_thumbnail_cache_summary">Delete all cached video thumbnails</string>
   <string name="pref_layout_title">Player Layout</string>
   <string name="pref_layout_summary">Customize player button layout</string>
   <string name="pref_layout_reset_default">Reset to default</string>
@@ -257,7 +255,7 @@
   <string name="pref_advanced_verbose_logging_summary">Helps in debugging but may hinder performance</string>
   <string name="pref_advanced_clear_playback_history">Clear playback history</string>
   <string name="pref_advanced_clear_playback_history_confirm_title">Are you sure you want to clear your playback history?</string>
-  <string name="pref_advanced_clear_playback_history_confirm_subtitle">This will clear all your previous media\'s playback positions, selected subtitles and audio tracks along with their delays and speeds</string>
+  <string name="pref_advanced_clear_playback_history_confirm_subtitle">This will clear all your previous media\'s playback saved settings</string>
   <string name="pref_advanced_cleared_playback_history">Cleared playback history</string>
   <string name="pref_advanced_clear_fonts_cache">Clear cached fonts</string>
   <string name="pref_advanced_cleared_fonts_cache">Cleared cached fonts</string>
@@ -487,4 +485,328 @@
   <string name="pref_player_safe_area_window_summary">Inset player controls and statistics around camera cutouts.</string>
   <string name="pref_subtitles_search_mode_title">Search mode</string>
   <string name="pref_subtitles_subhub_sources_title">SubHub sources</string>
+
+  <!-- ═══════════════════════════════════════════════════════════ -->
+  <!-- Main Settings Hub Section Headers                          -->
+  <!-- ═══════════════════════════════════════════════════════════ -->
+  <string name="pref_section_appearance">Appearance</string>
+  <string name="pref_section_playback">Playback</string>
+  <string name="pref_section_gestures_controls">Gestures &amp; Controls</string>
+  <string name="pref_section_subtitles">Subtitles</string>
+  <string name="pref_section_storage">Storage</string>
+  <string name="pref_section_storage_summary">Media paths, hidden folders</string>
+  <string name="pref_section_ai">AI</string>
+  <string name="pref_section_ai_title">AI Integration</string>
+  <string name="pref_section_ai_summary">AI rename, subtitle translation, speech-to-text, offline models (Gemini/Groq/OpenAI)</string>
+  <string name="pref_section_advanced">Advanced</string>
+  <string name="pref_section_about">About</string>
+
+  <!-- ═══════════════════════════════════════════════════════════ -->
+  <!-- Appearance - Animations Section                            -->
+  <!-- ═══════════════════════════════════════════════════════════ -->
+  <string name="pref_section_animations">Animations</string>
+  <string name="pref_anim_controls_style_title">Controls animation style</string>
+  <string name="pref_anim_controls_style_summary">Choose how player controls appear and disappear</string>
+  <string name="pref_anim_video_open_title">Video opening animation</string>
+  <string name="pref_anim_video_open_summary">Select the transition when starting playback</string>
+  <string name="pref_anim_tab_nav_style_title">Tab navigation style</string>
+  <string name="pref_anim_tab_nav_style_summary">Transition effect between bottom tabs</string>
+  <string name="pref_anim_screen_nav_style_title">Screen navigation style</string>
+  <string name="pref_anim_screen_nav_style_summary">Transition effect between settings screens</string>
+  <string name="pref_anim_speed_title">Animation speed</string>
+  <string name="pref_anim_speed_very_fast">Very fast (%.1f×)</string>
+  <string name="pref_anim_speed_fast">Fast (%.1f×)</string>
+  <string name="pref_anim_speed_normal">Normal (%.1f×)</string>
+  <string name="pref_anim_speed_slow">Slow (%.1f×)</string>
+  <string name="pref_anim_speed_very_slow">Very slow (%.1f×)</string>
+
+  <!-- ═══════════════════════════════════════════════════════════ -->
+  <!-- Player - General Section                                   -->
+  <!-- ═══════════════════════════════════════════════════════════ -->
+  <string name="pref_section_general">General</string>
+  <string name="pref_playlist_mode_title">Enable next/previous navigation</string>
+  <string name="pref_playlist_mode_summary">Show next/previous buttons for all videos in folder</string>
+  <string name="pref_playlist_mode_summary_disabled">Play videos individually (select multiple for playlist)</string>
+
+  <!-- Player - Seeking Section (additional)                      -->
+  <string name="pref_online_skip_markers_title">Use online skip markers</string>
+  <string name="pref_online_skip_markers_summary">Fetch intro, recap, outro, credits, and preview markers from the selected provider</string>
+  <string name="pref_marker_provider_title">Online marker provider</string>
+  <string name="pref_marker_provider_summary">Choose IntroDB, TIDB, or AniSkip for online intro/outro markers</string>
+  <string name="pref_chapter_detect_title">Detect intro/outro from chapter titles</string>
+  <string name="pref_chapter_detect_summary">Analyze chapter name variants like opening/ending/credits and create skip markers</string>
+  <string name="pref_auto_skip_intro_title">Auto-skip intro</string>
+  <string name="pref_auto_skip_intro_summary">Automatically skip opening markers during playback</string>
+  <string name="pref_auto_skip_outro_title">Auto-skip outro</string>
+  <string name="pref_auto_skip_outro_summary">Automatically skip ending markers during playback</string>
+
+  <!-- Player - Display & Controls Section                        -->
+  <string name="pref_section_display_controls">Display &amp; Controls</string>
+  <string name="pref_nav_bar_title">Show navigation bar with controls</string>
+  <string name="pref_nav_bar_summary">Display the Android system navigation bar over player controls</string>
+
+  <!-- Player - Gesture & Action Overlays Section                 -->
+  <string name="pref_section_overlays">Gesture &amp; Action Overlays</string>
+  <string name="pref_volume_overlay_title">Volume slider overlay</string>
+  <string name="pref_volume_overlay_summary">Show the vertical volume pill while swiping for volume</string>
+  <string name="pref_brightness_overlay_title">Brightness slider overlay</string>
+  <string name="pref_brightness_overlay_summary">Show the vertical brightness pill while swiping for brightness</string>
+  <string name="pref_hold_speed_overlay_pref_title">Hold speed overlay</string>
+  <string name="pref_hold_speed_overlay_pref_summary">Show speed badge and slider while long-pressing to boost playback speed</string>
+  <string name="pref_aspect_ratio_overlay_title">Aspect ratio feedback</string>
+  <string name="pref_aspect_ratio_overlay_summary">Show a brief pill when cycling aspect ratio (16:9, Fit, Crop…)</string>
+  <string name="pref_zoom_overlay_title">Zoom level feedback</string>
+  <string name="pref_zoom_overlay_summary">Show zoom percentage pill when pinching to zoom</string>
+  <string name="pref_repeat_shuffle_overlay_title">Repeat &amp; shuffle feedback</string>
+  <string name="pref_repeat_shuffle_overlay_summary">Show pill when toggling repeat mode or shuffle</string>
+  <string name="pref_action_feedback_overlay_title">Action feedback pills</string>
+  <string name="pref_action_feedback_overlay_summary">Show brief text pills from custom buttons, ambient toggle, subtitle drag, and Lua scripts</string>
+
+  <!-- ═══════════════════════════════════════════════════════════ -->
+  <!-- Gestures - Swipe & Speed Section                           -->
+  <!-- ═══════════════════════════════════════════════════════════ -->
+  <string name="pref_section_swipe_speed">Swipe &amp; Speed</string>
+  <string name="pref_sensitivity_low">Low</string>
+  <string name="pref_sensitivity_medium">Medium</string>
+  <string name="pref_sensitivity_high">High</string>
+  <string name="pref_swipe_sensitivity_summary">Current: %1$d/100 (%2$s)</string>
+  <string name="pref_hold_speed_summary_format">%.2fx</string>
+  <string name="pref_dynamic_speed_overlay_summary">Show advanced overlay for speed control during long-press and swipe</string>
+  <string name="pref_custom_seek_dialog_text">Enter custom seek duration in seconds (1–120)</string>
+  <string name="pref_custom_seek_label">Seconds</string>
+  <string name="pref_double_tap_seek_area_width_summary">Current: %1$d%%</string>
+  <string name="pref_custom_seek_summary_format">Custom (%1$ds)</string>
+
+  <!-- ═══════════════════════════════════════════════════════════ -->
+  <!-- Player Controls Sections                                   -->
+  <!-- ═══════════════════════════════════════════════════════════ -->
+  <string name="pref_section_landscape_controls">Landscape Controls</string>
+  <string name="pref_section_portrait_controls">Portrait Controls</string>
+  <string name="pref_section_seekbar_style">Seekbar Style</string>
+  <string name="pref_section_player_controls_appearance">Appearance</string>
+  <string name="pref_custom_time_dialog_text">Enter custom hide time in milliseconds</string>
+  <string name="pref_custom_time_label">Milliseconds</string>
+  <string name="pref_edit_region_content_desc">Edit %1$s</string>
+  <string name="pref_none">None</string>
+  <string name="pref_custom_time_summary_format">Custom (%1$d ms)</string>
+  <string name="pref_time_ms_summary">%1$d ms</string>
+
+  <!-- ═══════════════════════════════════════════════════════════ -->
+  <!-- Subtitles Preferences                                      -->
+  <!-- ═══════════════════════════════════════════════════════════ -->
+  <string name="pref_section_subtitle_search">Subtitle Search</string>
+  <string name="pref_wyzie_api_key_title">Wyzie API Key</string>
+  <string name="pref_wyzie_api_key_summary_error">Required for subtitle search</string>
+  <string name="pref_wyzie_api_key_summary_saved">Saved on this device</string>
+  <string name="pref_wyzie_api_key_dialog_text">Paste your key from sub.wyzie.io/redeem</string>
+  <string name="pref_wyzie_api_key_placeholder">wyzie-…</string>
+  <string name="pref_subtitle_sources_title">Subtitle Sources</string>
+  <string name="pref_all_sources">All</string>
+  <string name="pref_section_advanced_search_filters">Advanced Search Filters</string>
+  <string name="pref_hearing_impaired_title">Hearing-impaired friendly</string>
+  <string name="pref_hearing_impaired_summary">Only show subtitles optimized for hearing impaired</string>
+  <string name="pref_ai_subtitles_title">AI Subtitles</string>
+  <string name="pref_ai_subtitles_all">All (Human + AI)</string>
+  <string name="pref_ai_subtitles_human_only">Human only</string>
+  <string name="pref_ai_subtitles_ai_only">AI only</string>
+  <string name="pref_preferred_formats_title">Preferred Formats</string>
+  <string name="pref_preferred_encodings_title">Preferred Encodings</string>
+  <string name="pref_subtitle_search_error">Error: %1$s</string>
+  <string name="pref_subtitle_search_attribution">Subtitle Search provided by</string>
+  <string name="pref_subtitle_search_link">sub.wyzie.io</string>
+
+  <!-- ═══════════════════════════════════════════════════════════ -->
+  <!-- Advanced Preferences                                       -->
+  <!-- ═══════════════════════════════════════════════════════════ -->
+  <string name="pref_section_backup_restore">Backup &amp; Restore</string>
+  <string name="pref_export_complete_title">Export Complete</string>
+  <string name="pref_export_complete_text">Successfully exported %1$d items!</string>
+  <string name="pref_import_complete_title">Import Complete</string>
+  <string name="pref_import_complete_text">Successfully imported: %1$s\nFailed: %2$s\nVersion: %3$s\n\nPlease restart the app for all changes to take effect.</string>
+  <string name="pref_section_storage_root">Storage Root</string>
+  <string name="pref_base_storage_folder_summary">Tap to select — creates Subtitles/, Fonts/, scripts/ subdirs</string>
+  <string name="pref_clear_storage_root_title">Clear Storage Root</string>
+  <string name="pref_section_mpv_config">MPV Configuration</string>
+  <string name="pref_config_edit_summary">Tap to edit configuration</string>
+  <string name="pref_section_scripts">Scripts (Lua / JS)</string>
+  <string name="pref_manage_scripts_summary_disabled">Set storage location and enable scripts first</string>
+  <string name="pref_manage_scripts_summary_none">No scripts enabled</string>
+  <string name="pref_manage_scripts_summary_singular">1 script enabled</string>
+  <string name="pref_manage_scripts_summary_plural">%1$d scripts enabled</string>
+  <string name="pref_custom_buttons_title">Custom buttons</string>
+  <string name="pref_custom_buttons_summary">Create and manage script-powered player buttons</string>
+  <string name="pref_section_data_cache">Data &amp; Cache</string>
+  <string name="pref_config_cache_cleared_toast">Config cache cleared</string>
+  <string name="pref_thumbnail_cache_confirm_title">Clear thumbnail cache?</string>
+  <string name="pref_thumbnail_cache_confirm_subtitle">This will delete cached thumbnails from storage and memory.</string>
+  <string name="pref_section_notification">Notification</string>
+  <string name="pref_section_logging">Logging</string>
+  <string name="pref_export_failed_toast">Export failed: %1$s</string>
+  <string name="pref_import_failed_toast">Import failed: %1$s</string>
+
+  <!-- ═══════════════════════════════════════════════════════════ -->
+  <!-- AI Integration                                             -->
+  <!-- ═══════════════════════════════════════════════════════════ -->
+  <string name="pref_ai_features_section">AI Features</string>
+  <string name="pref_ai_enabled_title">Enable AI Features</string>
+  <string name="pref_ai_enabled_summary">AI features are active</string>
+  <string name="pref_ai_disabled_summary">AI features are disabled</string>
+  <string name="pref_ai_provider_section">Provider</string>
+  <string name="pref_ai_provider_title">AI Provider</string>
+  <string name="pref_hf_setup_section">Hugging Face Setup</string>
+  <string name="pref_hf_token_title">Hugging Face Token</string>
+  <string name="pref_hf_token_summary_error">Required for gated models. Get one from huggingface.co/settings/tokens</string>
+  <string name="pref_hf_token_summary_saved">Token saved on device</string>
+  <string name="pref_hf_token_dialog_text">Paste your Hugging Face token</string>
+  <string name="pref_hf_token_placeholder">hf_…</string>
+  <string name="pref_offline_models_section">Offline Models</string>
+  <string name="pref_model_picker_header">Speed-first model picker</string>
+  <string name="pref_model_picker_description">Models are ranked by how fast they feel after loading, RAM pressure, and subtitle translation quality.</string>
+  <string name="pref_filter_recommended">Recommended</string>
+  <string name="pref_filter_fastest">Fastest</string>
+  <string name="pref_filter_best_translation">Best translation</string>
+  <string name="pref_filter_downloaded">Downloaded</string>
+  <string name="pref_model_download_success">Model downloaded successfully</string>
+  <string name="pref_model_download_failed">Download failed: %1$s</string>
+  <string name="pref_model_deleted">Model deleted</string>
+  <string name="pref_model_using">Using %1$s</string>
+  <string name="pref_benchmark_saved">Benchmark saved: %1$s</string>
+  <string name="pref_benchmark_failed">Benchmark failed: %1$s</string>
+  <string name="pref_api_config_section">API Configuration</string>
+  <string name="pref_api_key_saved">API key saved on device</string>
+  <string name="pref_hide_key">Hide Key</string>
+  <string name="pref_show_key">Show Key</string>
+  <string name="pref_verify_key">Verify Key</string>
+  <string name="pref_model_section">Model</string>
+  <string name="pref_available_models_header">Available Models</string>
+  <string name="pref_fetch_models">Fetch Models</string>
+  <string name="pref_select_model_placeholder">Tap to select a model</string>
+  <string name="pref_verify_model_header">Verify Model</string>
+  <string name="pref_check_model_access">Check Model Access</string>
+  <string name="pref_general_settings_section">General Settings</string>
+  <string name="pref_show_ai_reasoning_title">Show AI Reasoning (Thinking)</string>
+  <string name="pref_show_ai_reasoning_summary">Enable this to see the model\'s internal thought process for supported models</string>
+  <string name="pref_ai_features_subsection">Features</string>
+  <string name="pref_ai_rename_title">AI-Powered Rename</string>
+  <string name="pref_ai_rename_summary">Use AI to generate clean filenames for bulk rename operations</string>
+  <string name="pref_ai_search_title">AI Search</string>
+  <string name="pref_ai_search_summary">Auto-format video titles for Wyzie/SubHub subtitle search</string>
+  <string name="pref_stt_section">Speech-to-Text [Extreme Experimental]</string>
+  <string name="pref_stt_title">Real-time Subtitle Generation</string>
+  <string name="pref_stt_summary">Generate subtitles from audio while playing video</string>
+  <string name="pref_stt_output_format_title">Default Output Format</string>
+  <string name="pref_stt_provider_title">Speech-to-Text Provider</string>
+  <string name="pref_stt_provider_summary">Used for both real-time streaming and batch subtitle generation</string>
+  <string name="pref_audio_language_title">Audio Language</string>
+  <string name="pref_audio_language_summary">Auto-detect speech language</string>
+  <string name="pref_translation_section">Subtitle Translation</string>
+  <string name="pref_enable_translation_title">Enable Translation</string>
+  <string name="pref_enable_translation_summary">Translate external subtitles using AI</string>
+  <string name="pref_custom_prompt_section">Custom Prompt</string>
+  <string name="pref_override_instructions_title">Override Default Instructions</string>
+  <string name="pref_override_instructions_enabled_summary">Custom prompt will be used instead of built-in instructions</string>
+  <string name="pref_override_instructions_disabled_summary">Built-in AI instructions will be used</string>
+  <string name="pref_custom_prompts_header">Custom Prompts</string>
+  <string name="pref_custom_prompts_description">Leave a field blank to use the built-in instruction for that task. If you have an older global prompt saved, it will be used as a fallback.</string>
+  <string name="pref_custom_rename_prompt_label">Custom rename prompt</string>
+  <string name="pref_custom_rename_prompt_placeholder">Instructions for AI file renaming…</string>
+  <string name="pref_custom_translation_prompt_label">Custom subtitle translation prompt</string>
+  <string name="pref_custom_translation_prompt_placeholder">Instructions for AI subtitle translation…</string>
+  <string name="pref_custom_format_prompt_label">Custom subtitle formatting prompt</string>
+  <string name="pref_custom_format_prompt_placeholder">Instructions for formatting subtitle search queries…</string>
+  <string name="pref_legacy_prompt_info">Legacy global prompt saved. It will be used whenever a task-specific prompt is empty.</string>
+  <string name="pref_translation_warning_title">Subtitle Translation</string>
+  <string name="pref_translation_warning_text">Subtitle translation can be a bit messy. For best results, use better models and don\'t rant that subs aren\'t working properly.</string>
+
+  <!-- AI - API Key titles/placeholders for each provider         -->
+  <string name="pref_gemini_api_key_title">Gemini API Key</string>
+  <string name="pref_gemini_api_key_hint">Get a key from aistudio.google.com</string>
+  <string name="pref_gemini_api_key_placeholder">AIza…</string>
+  <string name="pref_groq_api_key_title">Groq API Key</string>
+  <string name="pref_groq_api_key_hint">Get a key from console.groq.com</string>
+  <string name="pref_groq_api_key_placeholder">gsk_…</string>
+  <string name="pref_openai_api_key_title">OpenAI API Key</string>
+  <string name="pref_openai_api_key_hint">Get a key from platform.openai.com</string>
+  <string name="pref_openai_api_key_placeholder">sk-…</string>
+  <string name="pref_anthropic_api_key_title">Anthropic API Key</string>
+  <string name="pref_anthropic_api_key_hint">Get a key from console.anthropic.com</string>
+  <string name="pref_anthropic_api_key_placeholder">sk-ant-…</string>
+  <string name="pref_openrouter_api_key_title">OpenRouter API Key</string>
+  <string name="pref_openrouter_api_key_hint">Get a key from openrouter.ai</string>
+  <string name="pref_openrouter_api_key_placeholder">sk-or-…</string>
+  <string name="pref_together_api_key_title">Together API Key</string>
+  <string name="pref_together_api_key_hint">Get a key from api.together.ai</string>
+  <string name="pref_together_api_key_placeholder">…</string>
+
+  <!-- ═══════════════════════════════════════════════════════════ -->
+  <!-- Folders Preferences                                        -->
+  <!-- ═══════════════════════════════════════════════════════════ -->
+  <string name="pref_storage_screen_title">Storage</string>
+  <string name="pref_media_library_section">Media Library</string>
+  <string name="pref_hidden_folders_section">Hidden Folders</string>
+  <string name="pref_clear_content_desc">Clear</string>
+
+  <!-- ═══════════════════════════════════════════════════════════ -->
+  <!-- Search Index Entries (SearchablePreference.kt)             -->
+  <!-- ═══════════════════════════════════════════════════════════ -->
+  <string name="search_online_skip_markers_summary">Fetch intro, recap, outro, credits, and preview markers from an online provider</string>
+  <string name="search_marker_provider_summary">Choose IntroDB, TIDB, or AniSkip for online intro/outro markers</string>
+  <string name="search_chapter_detect_summary">Create skip markers from chapter names such as opening, ending, credits, or preview</string>
+  <string name="search_auto_skip_intro_summary">Skip opening markers automatically during playback</string>
+  <string name="search_auto_skip_outro_summary">Skip ending markers automatically during playback</string>
+  <string name="search_subtitle_save_folder_title">Subtitle Save Folder</string>
+  <string name="search_subtitle_save_folder_summary">Where downloaded subtitles are saved</string>
+  <string name="search_fonts_folder_title">Fonts Folder</string>
+  <string name="search_fonts_folder_summary">Fonts used for subtitle rendering</string>
+  <string name="search_base_storage_summary">Root folder — auto-creates Subtitles/ and Fonts/ subdirs</string>
+  <string name="search_ai_integration_summary">AI-powered rename, subtitle formatting, speech-to-text, subtitle translation, offline models</string>
+  <string name="search_ai_provider_summary">Choose Gemini, Groq, OpenAI, Anthropic, OpenRouter, Together, or offline local models</string>
+  <string name="search_api_key_config_title">API Key Configuration</string>
+  <string name="search_api_key_config_summary">Enter and verify your AI provider API key</string>
+  <string name="search_ai_model_selection_title">AI Model Selection</string>
+  <string name="search_ai_model_selection_summary">Fetch and select which AI model to use</string>
+  <string name="search_ai_reasoning_summary">Show the model\'s internal thought process for supported models</string>
+  <string name="search_ai_rename_summary">Use AI to generate clean filenames for bulk rename operations</string>
+  <string name="search_ai_search_summary">Auto-format video titles for Wyzie/SubHub subtitle search</string>
+  <string name="search_stt_title">Speech-to-Text</string>
+  <string name="search_stt_summary">Configure STT provider, real-time model, audio language, and output format</string>
+  <string name="search_translation_summary">Translate external subtitles using AI with auto-translate target languages</string>
+  <string name="search_custom_ai_prompts_title">Custom AI Prompts</string>
+  <string name="search_custom_ai_prompts_summary">Override default instructions for rename, translation, and formatting tasks</string>
+  <string name="search_offline_ai_models_title">Offline AI Models</string>
+  <string name="search_offline_ai_models_summary">Download and manage local LLMs for fully offline AI features</string>
+
+  <!-- ═══════════════════════════════════════════════════════════ -->
+  <!-- Decoder Preferences                                        -->
+  <!-- ═══════════════════════════════════════════════════════════ -->
+  <string name="pref_decoder_vulkan_experimental_suffix">(Experimental)</string>
+  <string name="pref_anime4k_link">github.com/bloc97/Anime4K</string>
+
+  <!-- ═══════════════════════════════════════════════════════════ -->
+  <!-- Dialogs & Common                                           -->
+  <!-- ═══════════════════════════════════════════════════════════ -->
+  <string name="generic_hide_key">Hide Key</string>
+  <string name="generic_show_key">Show Key</string>
+  <string name="generic_verify">Verify</string>
+  <string name="generic_fetch">Fetch</string>
+  <string name="generic_got_it">Got it</string>
+
+  <!-- ═══════════════════════════════════════════════════════════ -->
+  <!-- Advanced - Cache Sizes & Counts                            -->
+  <!-- ═══════════════════════════════════════════════════════════ -->
+  <string name="pref_clear_playback_history_summary">Clear playback positions, selected subtitles, audio tracks, delays, and speeds</string>
+  <string name="pref_clear_playback_history_recently_played">Also clears %1$d recently played item(s)</string>
+  <string name="pref_clear_playback_history_recently_played_none">No recently played items to clear</string>
+  <string name="pref_config_cache_summary">Clear the cached mpv.conf settings</string>
+  <string name="pref_config_cache_size">Size: %1$s</string>
+  <string name="pref_thumbnail_cache_summary">Delete all cached video thumbnails (will regenerate as you browse folders)</string>
+  <string name="pref_thumbnail_cache_size">Size: %1$s</string>
+  <string name="pref_fonts_cache_summary">Remove all cached subtitle fonts</string>
+  <string name="pref_fonts_cache_size">Size: %1$s · %2$d font(s)</string>
+  <string name="pref_failed_to_clear">Failed to clear: %1$s</string>
+  <string name="pref_export_failed">Export failed: %1$s</string>
+  <string name="pref_import_failed">Import failed: %1$s</string>
+  <string name="pref_size_bytes">%1$d B</string>
+  <string name="pref_size_kb">%.1f KB</string>
+  <string name="pref_size_mb">%.1f MB</string>
 </resources>

@@ -103,7 +103,7 @@ object PreferencesScreen : Screen {
           }
 
           // ── 1. Appearance ─────────────────────────────────────────────────
-          item { PreferenceSectionHeader(title = "Appearance") }
+          item { PreferenceSectionHeader(title = stringResource(R.string.pref_section_appearance)) }
           item {
             PreferenceCard {
               Preference(
@@ -116,7 +116,7 @@ object PreferencesScreen : Screen {
           }
 
           // ── 2. Playback ───────────────────────────────────────────────────
-          item { PreferenceSectionHeader(title = "Playback") }
+          item { PreferenceSectionHeader(title = stringResource(R.string.pref_section_playback)) }
           item {
             PreferenceCard {
               Preference(
@@ -143,7 +143,7 @@ object PreferencesScreen : Screen {
           }
 
           // ── 3. Gestures & Controls ────────────────────────────────────────
-          item { PreferenceSectionHeader(title = "Gestures & Controls") }
+          item { PreferenceSectionHeader(title = stringResource(R.string.pref_section_gestures_controls)) }
           item {
             PreferenceCard {
               Preference(
@@ -163,7 +163,7 @@ object PreferencesScreen : Screen {
           }
 
           // ── 4. Subtitles ──────────────────────────────────────────────────
-          item { PreferenceSectionHeader(title = "Subtitles") }
+          item { PreferenceSectionHeader(title = stringResource(R.string.pref_section_subtitles)) }
           item {
             PreferenceCard {
               Preference(
@@ -176,12 +176,12 @@ object PreferencesScreen : Screen {
           }
 
           // ── 5. Storage ────────────────────────────────────────────────────
-          item { PreferenceSectionHeader(title = "Storage") }
+          item { PreferenceSectionHeader(title = stringResource(R.string.pref_section_storage)) }
           item {
             PreferenceCard {
               Preference(
                 title = { Text(stringResource(R.string.pref_folders_title)) },
-                summary = { Text("media paths, hidden folders", color = MaterialTheme.colorScheme.outline) },
+                summary = { Text(stringResource(R.string.pref_section_storage_summary), color = MaterialTheme.colorScheme.outline) },
                 icon = { Icon(Icons.Outlined.Folder, contentDescription = null, tint = MaterialTheme.colorScheme.primary) },
                 onClick = { backstack.add(FoldersPreferencesScreen) },
               )
@@ -189,12 +189,12 @@ object PreferencesScreen : Screen {
           }
 
           // ── 6. AI Integration ──────────────────────────────────────────────
-          item { PreferenceSectionHeader(title = "AI") }
+          item { PreferenceSectionHeader(title = stringResource(R.string.pref_section_ai)) }
           item {
             PreferenceCard {
               Preference(
-                title = { Text("AI Integration") },
-                summary = { Text("AI rename, subtitle translation, speech-to-text, offline models (Gemini/Groq/OpenAI)", color = MaterialTheme.colorScheme.outline) },
+                title = { Text(stringResource(R.string.pref_section_ai_title)) },
+                summary = { Text(stringResource(R.string.pref_section_ai_summary), color = MaterialTheme.colorScheme.outline) },
                 icon = { Icon(Icons.Default.AutoAwesome, contentDescription = null, tint = MaterialTheme.colorScheme.primary) },
                 onClick = { backstack.add(AiIntegrationScreen) },
               )
@@ -202,7 +202,7 @@ object PreferencesScreen : Screen {
           }
 
           // ── 7. Advanced ───────────────────────────────────────────────────
-          item { PreferenceSectionHeader(title = "Advanced") }
+          item { PreferenceSectionHeader(title = stringResource(R.string.pref_section_advanced)) }
           item {
             PreferenceCard {
               Preference(
@@ -215,7 +215,7 @@ object PreferencesScreen : Screen {
           }
 
           // ── 7. About ──────────────────────────────────────────────────────
-          item { PreferenceSectionHeader(title = "About") }
+          item { PreferenceSectionHeader(title = stringResource(R.string.pref_section_about)) }
           item {
             PreferenceCard {
               Preference(

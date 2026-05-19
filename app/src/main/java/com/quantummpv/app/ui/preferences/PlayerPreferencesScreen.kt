@@ -76,7 +76,7 @@ object PlayerPreferencesScreen : Screen {
         ) {
 
           // ── General ───────────────────────────────────────────────────────
-          item { PreferenceSectionHeader(title = "General") }
+          item { PreferenceSectionHeader(title = stringResource(R.string.pref_section_general)) }
           item {
             PreferenceCard {
               val orientation by preferences.orientation.collectAsState()
@@ -129,11 +129,11 @@ object PlayerPreferencesScreen : Screen {
               SwitchPreference(
                 value = playlistMode,
                 onValueChange = preferences.playlistMode::set,
-                title = { Text("Enable next/previous navigation") },
+                title = { Text(stringResource(R.string.pref_playlist_mode_title)) },
                 summary = {
                   Text(
-                    if (playlistMode) "Show next/previous buttons for all videos in folder"
-                    else "Play videos individually (select multiple for playlist)",
+                    if (playlistMode) stringResource(R.string.pref_playlist_mode_summary)
+                    else stringResource(R.string.pref_playlist_mode_summary_disabled),
                     color = MaterialTheme.colorScheme.outline,
                   )
                 },
@@ -154,10 +154,10 @@ object PlayerPreferencesScreen : Screen {
               SwitchPreference(
                 value = autoPiPOnNavigation,
                 onValueChange = preferences.autoPiPOnNavigation::set,
-                title = { Text("Auto Picture-in-Picture") },
+                title = { Text(stringResource(R.string.pref_auto_pip_title)) },
                 summary = {
                   Text(
-                    "Automatically enter PiP when pressing home or back",
+                    stringResource(R.string.pref_auto_pip_summary),
                     color = MaterialTheme.colorScheme.outline,
                   )
                 },
@@ -265,10 +265,10 @@ object PlayerPreferencesScreen : Screen {
               SwitchPreference(
                 value = enableIntroDb,
                 onValueChange = preferences.enableIntroDb::set,
-                title = { Text("Use online skip markers") },
+                title = { Text(stringResource(R.string.pref_online_skip_markers_title)) },
                 summary = {
                   Text(
-                    "Fetch intro, recap, outro, credits, and preview markers from the selected provider.",
+                    stringResource(R.string.pref_online_skip_markers_summary),
                     color = MaterialTheme.colorScheme.outline,
                   )
                 },
@@ -282,14 +282,14 @@ object PlayerPreferencesScreen : Screen {
                   value = introSegmentProvider,
                   onValueChange = preferences.introSegmentProvider::set,
                   values = IntroSegmentProvider.entries,
-                  valueToText = { AnnotatedString(it.displayName) },
-                  title = { Text("Online marker provider") },
-                  summary = {
-                    Text(
-                      introSegmentProvider.displayName,
-                      color = MaterialTheme.colorScheme.outline,
-                    )
-                  },
+                valueToText = { AnnotatedString(it.displayName) },
+                title = { Text(stringResource(R.string.pref_marker_provider_title)) },
+                summary = {
+                  Text(
+                    stringResource(R.string.pref_marker_provider_summary),
+                    color = MaterialTheme.colorScheme.outline,
+                  )
+                },
                 )
               }
 
@@ -299,10 +299,10 @@ object PlayerPreferencesScreen : Screen {
               SwitchPreference(
                 value = detectFromChapters,
                 onValueChange = preferences.detectIntroOutroFromChapters::set,
-                title = { Text("Detect intro/outro from chapter titles") },
+                title = { Text(stringResource(R.string.pref_chapter_detect_title)) },
                 summary = {
                   Text(
-                    "Analyze chapter name variants like opening/ending/credits and create skip markers.",
+                    stringResource(R.string.pref_chapter_detect_summary),
                     color = MaterialTheme.colorScheme.outline,
                   )
                 },
@@ -314,7 +314,13 @@ object PlayerPreferencesScreen : Screen {
               SwitchPreference(
                 value = autoSkipIntro,
                 onValueChange = preferences.autoSkipIntro::set,
-                title = { Text("Auto-skip intro") },
+                title = { Text(stringResource(R.string.pref_auto_skip_intro_title)) },
+                summary = {
+                  Text(
+                    stringResource(R.string.pref_auto_skip_intro_summary),
+                    color = MaterialTheme.colorScheme.outline,
+                  )
+                },
               )
 
               PreferenceDivider()
@@ -323,13 +329,19 @@ object PlayerPreferencesScreen : Screen {
               SwitchPreference(
                 value = autoSkipOutro,
                 onValueChange = preferences.autoSkipOutro::set,
-                title = { Text("Auto-skip outro") },
+                title = { Text(stringResource(R.string.pref_auto_skip_outro_title)) },
+                summary = {
+                  Text(
+                    stringResource(R.string.pref_auto_skip_outro_summary),
+                    color = MaterialTheme.colorScheme.outline,
+                  )
+                },
               )
             }
           }
 
           // ── Display & Controls ────────────────────────────────────────────
-          item { PreferenceSectionHeader(title = "Display & Controls") }
+          item { PreferenceSectionHeader(title = stringResource(R.string.pref_section_display_controls)) }
           item {
             PreferenceCard {
               val showSystemStatusBar by preferences.showSystemStatusBar.collectAsState()
@@ -345,7 +357,13 @@ object PlayerPreferencesScreen : Screen {
               SwitchPreference(
                 value = showSystemNavigationBar,
                 onValueChange = preferences.showSystemNavigationBar::set,
-                title = { Text("Show navigation bar with controls") },
+                title = { Text(stringResource(R.string.pref_nav_bar_title)) },
+                summary = {
+                  Text(
+                    stringResource(R.string.pref_nav_bar_summary),
+                    color = MaterialTheme.colorScheme.outline,
+                  )
+                },
               )
 
               PreferenceDivider()
@@ -402,17 +420,17 @@ object PlayerPreferencesScreen : Screen {
           }
 
           // ── Overlays ─────────────────────────────────────────────────────
-          item { PreferenceSectionHeader(title = "Gesture & Action Overlays") }
+          item { PreferenceSectionHeader(title = stringResource(R.string.pref_section_overlays)) }
           item {
             PreferenceCard {
               val showVolumeGestureOverlay by preferences.showVolumeGestureOverlay.collectAsState()
               SwitchPreference(
                 value = showVolumeGestureOverlay,
                 onValueChange = preferences.showVolumeGestureOverlay::set,
-                title = { Text("Volume slider overlay") },
+                title = { Text(stringResource(R.string.pref_volume_overlay_title)) },
                 summary = {
                   Text(
-                    "Show the vertical volume pill while swiping for volume",
+                    stringResource(R.string.pref_volume_overlay_summary),
                     color = MaterialTheme.colorScheme.outline,
                   )
                 },
@@ -424,10 +442,10 @@ object PlayerPreferencesScreen : Screen {
               SwitchPreference(
                 value = showBrightnessGestureOverlay,
                 onValueChange = preferences.showBrightnessGestureOverlay::set,
-                title = { Text("Brightness slider overlay") },
+                title = { Text(stringResource(R.string.pref_brightness_overlay_title)) },
                 summary = {
                   Text(
-                    "Show the vertical brightness pill while swiping for brightness",
+                    stringResource(R.string.pref_brightness_overlay_summary),
                     color = MaterialTheme.colorScheme.outline,
                   )
                 },
@@ -439,10 +457,10 @@ object PlayerPreferencesScreen : Screen {
               SwitchPreference(
                 value = showHoldSpeedOverlay,
                 onValueChange = preferences.showHoldSpeedOverlay::set,
-                title = { Text("Hold speed overlay") },
+                title = { Text(stringResource(R.string.pref_hold_speed_overlay_pref_title)) },
                 summary = {
                   Text(
-                    "Show speed badge and slider while long-pressing to boost playback speed",
+                    stringResource(R.string.pref_hold_speed_overlay_pref_summary),
                     color = MaterialTheme.colorScheme.outline,
                   )
                 },
@@ -454,10 +472,10 @@ object PlayerPreferencesScreen : Screen {
               SwitchPreference(
                 value = showAspectRatioOverlay,
                 onValueChange = preferences.showAspectRatioOverlay::set,
-                title = { Text("Aspect ratio feedback") },
+                title = { Text(stringResource(R.string.pref_aspect_ratio_overlay_title)) },
                 summary = {
                   Text(
-                    "Show a brief pill when cycling aspect ratio (16:9, Fit, Crop…)",
+                    stringResource(R.string.pref_aspect_ratio_overlay_summary),
                     color = MaterialTheme.colorScheme.outline,
                   )
                 },
@@ -469,10 +487,10 @@ object PlayerPreferencesScreen : Screen {
               SwitchPreference(
                 value = showZoomLevelOverlay,
                 onValueChange = preferences.showZoomLevelOverlay::set,
-                title = { Text("Zoom level feedback") },
+                title = { Text(stringResource(R.string.pref_zoom_overlay_title)) },
                 summary = {
                   Text(
-                    "Show zoom percentage pill when pinching to zoom",
+                    stringResource(R.string.pref_zoom_overlay_summary),
                     color = MaterialTheme.colorScheme.outline,
                   )
                 },
@@ -484,10 +502,10 @@ object PlayerPreferencesScreen : Screen {
               SwitchPreference(
                 value = showRepeatShuffleOverlay,
                 onValueChange = preferences.showRepeatShuffleOverlay::set,
-                title = { Text("Repeat & shuffle feedback") },
+                title = { Text(stringResource(R.string.pref_repeat_shuffle_overlay_title)) },
                 summary = {
                   Text(
-                    "Show pill when toggling repeat mode or shuffle",
+                    stringResource(R.string.pref_repeat_shuffle_overlay_summary),
                     color = MaterialTheme.colorScheme.outline,
                   )
                 },
@@ -499,10 +517,10 @@ object PlayerPreferencesScreen : Screen {
               SwitchPreference(
                 value = showActionFeedbackOverlay,
                 onValueChange = preferences.showActionFeedbackOverlay::set,
-                title = { Text("Action feedback pills") },
+                title = { Text(stringResource(R.string.pref_action_feedback_overlay_title)) },
                 summary = {
                   Text(
-                    "Show brief text pills from custom buttons, ambient toggle, subtitle drag, and Lua scripts",
+                    stringResource(R.string.pref_action_feedback_overlay_summary),
                     color = MaterialTheme.colorScheme.outline,
                   )
                 },

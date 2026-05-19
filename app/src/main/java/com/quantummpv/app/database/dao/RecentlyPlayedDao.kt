@@ -141,6 +141,9 @@ interface RecentlyPlayedDao {
   @Query("SELECT * FROM RecentlyPlayedEntity ORDER BY timestamp DESC")
   suspend fun getAllRecentlyPlayed(): List<RecentlyPlayedEntity>
 
+  @Query("SELECT COUNT(*) FROM RecentlyPlayedEntity")
+  suspend fun getRecentlyPlayedCount(): Int
+
   @Insert(onConflict = OnConflictStrategy.REPLACE)
   suspend fun insertAll(items: List<RecentlyPlayedEntity>)
 }

@@ -26,6 +26,8 @@ interface RecentlyPlayedRepository {
 
   suspend fun getRecentlyPlayed(limit: Int = 10): List<RecentlyPlayedEntity>
 
+  suspend fun getRecentlyPlayedCount(): Int
+
   fun observeRecentlyPlayed(limit: Int = 50): Flow<List<RecentlyPlayedEntity>>
 
   suspend fun getRecentlyPlayedBySource(

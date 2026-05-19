@@ -97,7 +97,7 @@ object GesturePreferencesScreen : Screen {
               .padding(padding),
         ) {
           // ── Swipe & Speed ──────────────────────────────────────────────
-          item { PreferenceSectionHeader(title = "Swipe & Speed") }
+          item { PreferenceSectionHeader(title = stringResource(R.string.pref_section_swipe_speed)) }
           item {
             PreferenceCard {
               val brightnessGesture by playerPreferences.brightnessGesture.collectAsState()
@@ -144,8 +144,13 @@ object GesturePreferencesScreen : Screen {
                 valueRange = 0.020f..0.1f,
                 summary = {
                   val pct = (horizontalSwipeSensitivity * 1000).toInt()
+                  val level = when {
+                    pct < 30 -> stringResource(R.string.pref_sensitivity_low)
+                    pct < 55 -> stringResource(R.string.pref_sensitivity_medium)
+                    else -> stringResource(R.string.pref_sensitivity_high)
+                  }
                   Text(
-                    "Current: $pct/100 (${if (pct < 30) "Low" else if (pct < 55) "Medium" else "High"})",
+                    stringResource(R.string.pref_swipe_sensitivity_summary, pct, level),
                     color = MaterialTheme.colorScheme.outline,
                   )
                 },
@@ -164,7 +169,7 @@ object GesturePreferencesScreen : Screen {
                 summary = {
                   Text(
                     if (holdForMultipleSpeed == 0f) stringResource(R.string.generic_disabled)
-                    else "%.2fx".format(holdForMultipleSpeed),
+                    else stringResource(R.string.pref_hold_speed_summary_format, holdForMultipleSpeed),
                     color = MaterialTheme.colorScheme.outline,
                   )
                 },
@@ -178,10 +183,10 @@ object GesturePreferencesScreen : Screen {
               SwitchPreference(
                 value = showDynamicSpeedOverlay,
                 onValueChange = playerPreferences.showDynamicSpeedOverlay::set,
-                title = { Text("Dynamic Speed Overlay") },
+                title = { Text(stringResource(R.string.pref_dynamic_speed_overlay_title)) },
                 summary = {
                   Text(
-                    "Show advanced overlay for speed control during long-press and swipe",
+                    stringResource(R.string.pref_dynamic_speed_overlay_summary),
                     color = MaterialTheme.colorScheme.outline,
                   )
                 },
@@ -211,21 +216,21 @@ object GesturePreferencesScreen : Screen {
               }
             },
             values = predefinedValues + listOf(-1),
-            valueToText = { value ->
-              if (value == -1) {
-                AnnotatedString("Custom")
-              } else {
-                AnnotatedString("${value}s")
-              }
-            },
-            title = { Text(text = stringResource(id = R.string.pref_player_double_tap_seek_duration)) },
-            summary = {
-              Text(
-                text = if (isCustomValue) {
-                  "Custom (${doubleTapSeekDuration}s)"
+              valueToText = { value ->
+                if (value == -1) {
+                  AnnotatedString(stringResource(R.string.pref_gesture_double_tap_custom))
                 } else {
-                  "${doubleTapSeekDuration}s"
-                },
+                  AnnotatedString("${value}s")
+                }
+              },
+              title = { Text(text = stringResource(id = R.string.pref_player_double_tap_seek_duration)) },
+              summary = {
+                Text(
+                  text = if (isCustomValue) {
+                    stringResource(R.string.pref_custom_seek_summary_format, doubleTapSeekDuration)
+                  } else {
+                    "${doubleTapSeekDuration}s"
+                  },
                 color = MaterialTheme.colorScheme.outline,
               )
             },
@@ -240,13 +245,13 @@ object GesturePreferencesScreen : Screen {
               text = {
                 Column {
                   Text(
-                    text = "Enter custom seek duration in seconds (1-120)",
+                    text = stringResource(R.string.pref_custom_seek_dialog_text),
                     modifier = Modifier.padding(bottom = 8.dp),
                   )
                   OutlinedTextField(
                     value = customSeekValue,
                     onValueChange = { customSeekValue = it },
-                    label = { Text("Seconds") },
+                    label = { Text(stringResource(R.string.pref_custom_seek_label)) },
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                     modifier = Modifier.fillMaxWidth(),
                     singleLine = true,
@@ -282,10 +287,10 @@ object GesturePreferencesScreen : Screen {
             onValueChange = { preferences.doubleTapSeekAreaWidth.set(it) },
             values = seekAreaValues,
             valueToText = { AnnotatedString("${it}%") },
-            title = { Text(text = "Double Tap Seek Area Width") },
+            title = { Text(text = stringResource(R.string.pref_double_tap_seek_area_width_title)) },
             summary = {
               Text(
-                text = "Current: ${doubleTapSeekAreaWidth}%",
+                text = stringResource(R.string.pref_double_tap_seek_area_width_summary, doubleTapSeekAreaWidth),
                 color = MaterialTheme.colorScheme.outline,
               )
             },
