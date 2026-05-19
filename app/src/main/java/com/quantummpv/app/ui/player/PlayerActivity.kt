@@ -3269,8 +3269,18 @@ class PlayerActivity :
         viewModel.sheetShown.value == Sheets.AudioTracks
     val isNoSheetOpen = viewModel.sheetShown.value == Sheets.None
 
+    // If any modifier keys are pressed, delegate to MPVView for proper modifier handling
+    val modifierEvent = event?.takeIf {
+      it.isShiftPressed || it.isCtrlPressed || it.isAltPressed || it.isMetaPressed
+    }
+    val hasModifiers = modifierEvent != null
+
     when (keyCode) {
       KeyEvent.KEYCODE_DPAD_UP -> {
+        if (hasModifiers) {
+          player.onKey(modifierEvent)
+          return true
+        }
         return super.onKeyDown(keyCode, event)
       }
 
@@ -3278,6 +3288,12 @@ class PlayerActivity :
       KeyEvent.KEYCODE_DPAD_RIGHT,
       KeyEvent.KEYCODE_DPAD_LEFT,
         -> {
+        // If modifiers are pressed, delegate to MPVView for proper handling (e.g. sub-step)
+        if (hasModifiers) {
+          player.onKey(modifierEvent)
+          return true
+        }
+
         if (isTrackSheetOpen) {
           return super.onKeyDown(keyCode, event)
         }
@@ -3299,6 +3315,10 @@ class PlayerActivity :
       }
 
       KeyEvent.KEYCODE_DPAD_CENTER, KeyEvent.KEYCODE_ENTER -> {
+        if (hasModifiers) {
+          player.onKey(modifierEvent)
+          return true
+        }
         if (isTrackSheetOpen) {
           return super.onKeyDown(keyCode, event)
         }
@@ -3306,6 +3326,10 @@ class PlayerActivity :
       }
 
       KeyEvent.KEYCODE_SPACE -> {
+        if (hasModifiers) {
+          player.onKey(modifierEvent)
+          return true
+        }
         viewModel.pauseUnpause()
         return true
       }

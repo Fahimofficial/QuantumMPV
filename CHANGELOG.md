@@ -6,12 +6,14 @@ These notes are written in plain English and focus on what changed for real use.
 
 - **Material 3 Expressive Design** — Complete visual overhaul using Material 3 Expressive design system for a more modern, fluid, and engaging experience
 - **Smoother Animations** — Replaced rigid linear transitions with spring-based physics animations throughout the app (navigation, controls, browser, dialogs)
-- **Expressive Shapes** — Introduced an 8-level shape scale system for consistent, polished corner radii across all cards, dialogs, and panels
-- **Enhanced Typography** — Added emphasized heading styles for better visual hierarchy and readability
-- **Improved Player Controls** — Smoother gesture responses, spring-based seekbar animations, and refined play/pause morph transitions
-- **Refined Browser Cards** — Added subtle press-scale feedback (0.98x) on all video, folder, and network cards for tactile interaction feel
-- **Polished Sheets & Dialogs** — Redesigned ambient sheet sections with expandable headers and expressive preset buttons
-- **Better State Screens** — Updated loading, empty, and permission states with consistent shape tokens and refined pulsing animations
+- Added Voltage Battery Temperature And improved the style of Page 6 
+- Added Optimized Ambient Mode with Eco Battery Saver Mode who want to take feel of Ambient without much Battery Impact
+- Removed Dead Code and also Optimized some File Handling / Ui Rendering Operations
+- **Settings export now stores app version**  exported XML files include the app version, so import dialogs show the correct version instead of "unknown".
+- **HEVC 10bit thumbnails**  added a software-decoder fallback using Android's MediaCodec API. When the system can't decode a video frame (e.g. HEVC 10bit on devices without hardware support), the app now tries Google's software decoder before giving up. This means more thumbnails will show up on devices with limited codec support ( To be tested Propelry on unsupported device).
+- **Fixed app icon on Android 16**  changed the adaptive icon background from transparent to opaque black so the icon doesn't disappear on launchers that don't handle transparency well.
+- **User mpv.conf now has highest priority**  during player startup, your mpv.conf settings are re-applied after all app defaults so they always take precedence. but some of the Hardcoded things doesnt change like for example `sid, aid`.
+- 
 
 ## 1.3.6
 
@@ -27,13 +29,6 @@ These notes are written in plain English and focus on what changed for real use.
 
 - **AI features respect the master switch**  turning off AI Integration now hides all AI indicators (translation, real-time subs) and buttons (generate, translate, format) from the player view. Renamed "AI Subtitle Search Formatting" to "AI Search" for clarity.
 
-- **Settings export now stores app version**  exported XML files include the app version, so import dialogs show the correct version instead of "unknown".
-
-- **HEVC 10bit thumbnails**  added a software-decoder fallback using Android's MediaCodec API. When the system can't decode a video frame (e.g. HEVC 10bit on devices without hardware support), the app now tries Google's software decoder before giving up. This means more thumbnails will show up on devices with limited codec support.
-
-- **Fixed app icon on Android 16**  changed the adaptive icon background from transparent to opaque black so the icon doesn't disappear on launchers that don't handle transparency well.
-
-- **User mpv.conf now has highest priority**  during player startup, your mpv.conf settings are re-applied after all app defaults so they always take precedence. Whatever you put in mpv.conf will override everything else.
 
 ## 1.3.5
 

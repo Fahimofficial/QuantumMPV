@@ -285,6 +285,7 @@ class MPVView(
     mapOf(
       "pause" to MPVLib.MpvFormat.MPV_FORMAT_FLAG,
       "paused-for-cache" to MPVLib.MpvFormat.MPV_FORMAT_FLAG,
+      "demuxer-cache-time" to MPVLib.MpvFormat.MPV_FORMAT_DOUBLE,
       "video-params/aspect" to MPVLib.MpvFormat.MPV_FORMAT_DOUBLE,
       "video-params/w" to MPVLib.MpvFormat.MPV_FORMAT_INT64,
       "video-params/h" to MPVLib.MpvFormat.MPV_FORMAT_INT64,

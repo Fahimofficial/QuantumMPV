@@ -219,6 +219,21 @@ object PlayerPreferencesScreen : Screen {
 
               PreferenceDivider()
 
+              val showBufferedRange by preferences.showBufferedRange.collectAsState()
+              SwitchPreference(
+                value = showBufferedRange,
+                onValueChange = preferences.showBufferedRange::set,
+                title = { Text(stringResource(R.string.pref_player_show_buffered_range_title)) },
+                summary = {
+                  Text(
+                    stringResource(R.string.pref_player_show_buffered_range_summary),
+                    color = MaterialTheme.colorScheme.outline,
+                  )
+                },
+              )
+
+              PreferenceDivider()
+
               val usePreciseSeeking by preferences.usePreciseSeeking.collectAsState()
               SwitchPreference(
                 value = usePreciseSeeking,

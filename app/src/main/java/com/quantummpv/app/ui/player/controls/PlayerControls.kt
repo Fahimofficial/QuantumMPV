@@ -204,11 +204,19 @@ fun PlayerControls(
   val position by MPVLib.propInt["time-pos"].collectAsState()
   val precisePosition by viewModel.precisePosition.collectAsState()
   val preciseDuration by viewModel.preciseDuration.collectAsState()
+  val demuxerCacheTime by MPVLib.propDouble["demuxer-cache-time"].collectAsState()
   val playbackSpeed by MPVLib.propFloat["speed"].collectAsState()
+  val seekbarDuration = if (preciseDuration > 0) preciseDuration else duration?.toFloat() ?: 0f
+  val bufferedPosition = demuxerCacheTime?.toFloat()?.let { bufferSeconds ->
+    if (seekbarDuration > 0f) {
+      (precisePosition + bufferSeconds).coerceAtMost(seekbarDuration)
+    } else null
+  }
   val seekState by viewModel.seekState.collectAsState()
   val doubleTapSeekAmount = seekState.amount
   val showDoubleTapOvals by playerPreferences.showDoubleTapOvals.collectAsState()
   val showSeekTime by playerPreferences.showSeekTimeWhileSeeking.collectAsState()
+  val showBufferedRange by playerPreferences.showBufferedRange.collectAsState()
   val safeAreaWindow by playerPreferences.safeAreaWindow.collectAsState()
   val safeAreaInsetModifier =
     if (safeAreaWindow) {
@@ -1302,6 +1310,7 @@ fun PlayerControls(
             seekbarStyle = seekbarStyle,
             loopStart = abLoopA?.toFloat(),
             loopEnd = abLoopB?.toFloat(),
+            bufferEnd = if (showBufferedRange) bufferedPosition else null,
             isPortrait = isPortrait,
           )
         }

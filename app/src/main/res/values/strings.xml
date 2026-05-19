@@ -109,6 +109,8 @@
   <string name="pref_player_autoplay_after_screen_unlock_title">Autoplay after screen unlock</string>
   <string name="pref_player_autoplay_after_screen_unlock_summary">Resume video automatically after unlocking if it was playing before the screen locked</string>
   <string name="pref_player_autoplay_after_screen_unlock_summary_disabled">Keep video paused after the screen is unlocked</string>
+  <string name="pref_player_show_buffered_range_title">Show buffered range on seek bar</string>
+  <string name="pref_player_show_buffered_range_summary">Display the online buffer ahead of the playhead on the seek bar.</string>
   <string name="pref_dynamic_speed_overlay_title">Dynamic Speed Overlay</string>
   <string name="pref_dynamic_speed_overlay_summary">Show advance overlay for speed control during long press and swipe</string>
   <string name="pref_show_navigation_bar_title">Show navigation bar with controls</string>

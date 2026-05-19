@@ -82,6 +82,7 @@ fun SeekbarWithTimers(
   seekbarStyle: SeekbarStyle = SeekbarStyle.Wavy,
   loopStart: Float? = null,
   loopEnd: Float? = null,
+  bufferEnd: Float? = null,
   isPortrait: Boolean = false,
   modifier: Modifier = Modifier,
 ) {
@@ -126,6 +127,7 @@ fun SeekbarWithTimers(
         seekbarStyle = seekbarStyle,
         loopStart = loopStart,
         loopEnd = loopEnd,
+        bufferEnd = bufferEnd,
         onUserInteractionChange = { isUserInteracting = it },
         onUserPositionChange = { userPosition = it },
         onValueChange = onValueChange,
@@ -186,6 +188,7 @@ fun SeekbarWithTimers(
         seekbarStyle = seekbarStyle,
         loopStart = loopStart,
         loopEnd = loopEnd,
+        bufferEnd = bufferEnd,
         onUserInteractionChange = { isUserInteracting = it },
         onUserPositionChange = { userPosition = it },
         onValueChange = onValueChange,
@@ -220,6 +223,7 @@ private fun SeekbarContent(
   seekbarStyle: SeekbarStyle,
   loopStart: Float?,
   loopEnd: Float?,
+  bufferEnd: Float?,
   onUserInteractionChange: (Boolean) -> Unit,
   onUserPositionChange: (Float) -> Unit,
   onValueChange: (Float) -> Unit,
@@ -324,6 +328,7 @@ private fun SeekbarContent(
             },
             loopStart = loopStart,
             loopEnd = loopEnd,
+            bufferEnd = bufferEnd,
           )
         }
         SeekbarStyle.Wavy -> {
@@ -339,6 +344,7 @@ private fun SeekbarContent(
             onSeekFinished = { }, // Touch handled by parent
             loopStart = loopStart,
             loopEnd = loopEnd,
+            bufferEnd = bufferEnd,
           )
         }
         SeekbarStyle.Thick -> {
@@ -361,6 +367,7 @@ private fun SeekbarContent(
             },
             loopStart = loopStart,
             loopEnd = loopEnd,
+            bufferEnd = bufferEnd,
           )
         }
         SeekbarStyle.Slim -> {
@@ -372,6 +379,7 @@ private fun SeekbarContent(
             isScrubbing = isUserInteracting,
             loopStart   = loopStart,
             loopEnd     = loopEnd,
+            bufferEnd   = bufferEnd,
           )
         }
       }
@@ -441,6 +449,7 @@ private fun SquigglySeekbar(
   onSeekFinished: () -> Unit,
   loopStart: Float? = null,
   loopEnd: Float? = null,
+  bufferEnd: Float? = null,
   modifier: Modifier = Modifier,
 ) {
   val primaryColor = MaterialTheme.colorScheme.primary
@@ -659,6 +668,13 @@ private fun SquigglySeekbar(
       )
     }
 
+    if (bufferEnd != null && duration > 0f) {
+      val bufferPx = (bufferEnd / duration).coerceIn(0f, 1f) * totalWidth
+      if (bufferPx > totalProgressPx) {
+        drawPathWithGaps(totalProgressPx, bufferPx, primaryColor.copy(alpha = 0.55f))
+      }
+    }
+
     // Draw round cap
     val startAmp = kotlin.math.cos(kotlin.math.abs(waveStart) / waveLength * (2f * kotlin.math.PI.toFloat()))
     drawCircle(
@@ -728,6 +744,7 @@ private fun SlimSeekbar(
     isScrubbing: Boolean,
     loopStart: Float? = null,
     loopEnd: Float? = null,
+    bufferEnd: Float? = null,
     modifier: Modifier = Modifier,
 ) {
     val primaryColor = MaterialTheme.colorScheme.primary
@@ -789,6 +806,12 @@ private fun SlimSeekbar(
         }
         if (segCursor < totalWidth) segments.add(segCursor to totalWidth)
 
+        val bufferPx =
+            if (bufferEnd != null && duration > 0f)
+                (bufferEnd / duration).coerceIn(0f, 1f) * totalWidth
+            else
+                playedPx
+
         // Draw a rect segment with independent left/right corner radii
         fun seg(startX: Float, endX: Float, color: Color, leftR: Float, rightR: Float) {
             if (endX - startX < 0.5f) return
@@ -815,12 +838,26 @@ private fun SlimSeekbar(
 
             when {
                 sE <= playedPx -> seg(sS, sE, playedColor,   lR, rR)
-                sS >= playedPx -> seg(sS, sE, unplayedColor, lR, rR)
-                else -> {
-                    // Progress boundary is inside this segment — seamless colour join (0 inner radius)
-                    seg(sS,      playedPx, playedColor,   lR, 0f)
-                    seg(playedPx, sE,      unplayedColor, 0f, rR)
+                sS >= bufferPx -> seg(sS, sE, unplayedColor, lR, rR)
+                sE <= bufferPx -> {
+                    if (sS >= playedPx) {
+                        seg(sS, sE, primaryColor.copy(alpha = 0.55f), lR, rR)
+                    } else {
+                        seg(sS, playedPx, playedColor,   lR, 0f)
+                        seg(playedPx, sE, primaryColor.copy(alpha = 0.55f), 0f, rR)
+                    }
                 }
+                sS < playedPx && sE > bufferPx -> {
+                    seg(sS, playedPx, playedColor,   lR, 0f)
+                    seg(playedPx, bufferPx, primaryColor.copy(alpha = 0.55f), 0f, 0f)
+                    seg(bufferPx, sE, unplayedColor, 0f, rR)
+                }
+                sS < bufferPx && sE > bufferPx -> {
+                    seg(sS, playedPx, playedColor,   lR, 0f)
+                    seg(playedPx, bufferPx, primaryColor.copy(alpha = 0.55f), 0f, 0f)
+                    seg(bufferPx, sE, unplayedColor, 0f, rR)
+                }
+                else -> seg(sS, sE, unplayedColor, lR, rR)
             }
         }
 
@@ -1021,6 +1058,7 @@ fun StandardSeekbar(
     onSeekFinished: () -> Unit,
     loopStart: Float? = null,
     loopEnd: Float? = null,
+    bufferEnd: Float? = null,
     modifier: Modifier = Modifier,
 ) {
     val primaryColor = MaterialTheme.colorScheme.primary
@@ -1093,6 +1131,10 @@ fun StandardSeekbar(
                 val playedFraction = ((sliderState.value - min) / range).coerceIn(0f, 1f)
 
                 val playedPx = size.width * playedFraction
+                val bufferPx =
+                    if (bufferEnd != null && duration > 0f)
+                        ((bufferEnd / duration).coerceIn(0f, 1f) * size.width)
+                    else playedPx
                 val trackHeight = size.height
                 
                 // Radius for the outer ends of the seekbar
@@ -1178,8 +1220,13 @@ fun StandardSeekbar(
                 
                 // 1. Unplayed Background
                 drawRangeWithGaps(thumbGapEnd, size.width, chapterGaps, primaryColor.copy(alpha = disabledAlpha))
+
+                // 2. Buffered range ahead of current position
+                if (bufferPx > playedPx) {
+                    drawRangeWithGaps(playedPx, bufferPx, chapterGaps, primaryColor.copy(alpha = 0.55f))
+                }
                 
-                // 2. Played
+                // 3. Played
                 if (thumbGapStart > 0) {
                     drawRangeWithGaps(0f, thumbGapStart, chapterGaps, primaryColor)
                 }
