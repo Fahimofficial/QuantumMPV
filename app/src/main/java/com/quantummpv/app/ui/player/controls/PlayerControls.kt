@@ -1612,6 +1612,9 @@ private data class CustomStatsSnapshot(
   val networkHistory: List<Float>,
   val batteryPercentText: String,
   val batteryRateText: String,
+  val batteryWattsText: String,
+  val batteryTempText: String,
+  val hdrActive: String,
 )
 
 @Composable
@@ -1636,6 +1639,9 @@ private fun CustomStatsPageSixOverlay(
         networkHistory = emptyList(),
         batteryPercentText = "--%",
         batteryRateText = "Unknown",
+        batteryWattsText = "-- W",
+        batteryTempText = "--°C",
+        hdrActive = "--",
       ),
   ) {
     val history = ArrayDeque<Float>()
@@ -1712,6 +1718,12 @@ private fun CustomStatsPageSixOverlay(
         networkHistory    = history.toList(),
         batteryPercentText= battery.percentageText,
         batteryRateText   = battery.rateText,
+        batteryWattsText  = battery.wattsText,
+        batteryTempText   = battery.tempText,
+        hdrActive         = runCatching {
+          val hdrProp = MPVLib.getPropertyString("hdr-active")
+          if (hdrProp == "yes") "HDR Active" else "SDR"
+        }.getOrDefault("SDR"),
       )
 
       // Advance delta baselines
@@ -1733,17 +1745,23 @@ private fun CustomStatsPageSixOverlay(
     modifier =
       modifier
         .widthIn(max = 520.dp)
-        .alpha(0.84f),
-    verticalArrangement = Arrangement.spacedBy(2.dp),
+        .alpha(0.88f),
+    verticalArrangement = Arrangement.spacedBy(1.dp),
   ) {
     val textStyle =
-      MaterialTheme.typography.bodyMedium.copy(
+      MaterialTheme.typography.bodySmall.copy(
         color = Color.White,
         fontFamily = FontFamily.Monospace,
-        fontSize = 12.sp,
-        lineHeight = 14.sp,
-        shadow = Shadow(color = Color.Black, blurRadius = 4f),
+        fontSize = 10.sp,
+        lineHeight = 12.sp,
+        shadow = Shadow(
+          color = Color.Black.copy(alpha = 0.9f),
+          offset = androidx.compose.ui.geometry.Offset(1f, 1f),
+          blurRadius = 2f,
+        ),
       )
+    val headerStyle = textStyle.copy(fontWeight = FontWeight.Bold, fontSize = 10.5.sp)
+
     Text("File: ${stats.fileName}", style = textStyle)
     Text("Context: ${stats.renderContext}", style = textStyle)
     Text("Total Cache: ${stats.cache}", style = textStyle)
@@ -1751,25 +1769,28 @@ private fun CustomStatsPageSixOverlay(
     Text("Dropped Frames: ${stats.droppedFrames}", style = textStyle)
     Text("Video: ${stats.video}", style = textStyle)
     Text("Audio: ${stats.audio}", style = textStyle)
-    Text("Network Throughput: ${stats.networkText}", style = textStyle)
-    Text("Download: ${String.format("%.1f", stats.networkMbps)} Mbps", style = textStyle)
-    Text("Battery: ${stats.batteryPercentText}", style = textStyle)
-    Text("Battery Rate: ${stats.batteryRateText}", style = textStyle)
+    Text("Network: ${stats.networkText}  (${String.format("%.1f", stats.networkMbps)} Mbps)", style = textStyle)
+    Text("HDR: ${stats.hdrActive}", style = textStyle)
+    Row(
+      horizontalArrangement = Arrangement.spacedBy(8.dp),
+      verticalAlignment = Alignment.CenterVertically,
+    ) {
+      Text("Battery: ${stats.batteryPercentText}", style = textStyle)
+      Text("${stats.batteryRateText}  |  ${stats.batteryWattsText}  |  ${stats.batteryTempText}", style = textStyle)
+    }
     NetworkSparkline(
       points = stats.networkHistory,
       modifier =
         Modifier
           .fillMaxWidth()
-          .height(60.dp)
-          .padding(top = 2.dp, bottom = 4.dp),
+          .height(48.dp)
+          .padding(top = 2.dp, bottom = 2.dp),
     )
-    Spacer(modifier = Modifier.height(6.dp))
-    Text("Page 6 • Live Performance", style = textStyle.copy(fontWeight = FontWeight.Bold))
+    Spacer(modifier = Modifier.height(4.dp))
+    Text("Page 6 • Live Performance", style = headerStyle)
     LinearProgressIndicator(progress = { stats.cpuPercent / 100f }, modifier = Modifier.fillMaxWidth())
-    // cpu is process-only (getElapsedCpuTime), not system-wide — label accordingly
     Text("App CPU (this process) ${stats.cpuPercent.toInt()}%", style = textStyle)
     LinearProgressIndicator(progress = { stats.gpuEstimatePercent / 100f }, modifier = Modifier.fillMaxWidth())
-    // gpuEstimate is based on per-second frame-drop pressure, not a hardware GPU counter
     Text("Frame Pressure (drop-based est.) ${stats.gpuEstimatePercent.toInt()}%", style = textStyle)
   }
 }

@@ -931,6 +931,8 @@ private data class TimeAndNetworkStat(
 internal data class BatterySnapshot(
   val percentageText: String,
   val rateText: String,
+  val wattsText: String,
+  val tempText: String,
 )
 
 internal fun readBatterySnapshot(context: Context): BatterySnapshot {
@@ -952,6 +954,8 @@ internal fun readBatterySnapshot(context: Context): BatterySnapshot {
     ).firstOrNull { value ->
       value != null && value != Long.MIN_VALUE && value != 0L
     }
+
+  val voltageMilliVolts = batteryIntent?.getIntExtra(BatteryManager.EXTRA_VOLTAGE, -1)?.takeIf { it > 0 }
 
   val status = batteryIntent?.getIntExtra(BatteryManager.EXTRA_STATUS, BatteryManager.BATTERY_STATUS_UNKNOWN)
     ?: BatteryManager.BATTERY_STATUS_UNKNOWN
@@ -983,9 +987,27 @@ internal fun readBatterySnapshot(context: Context): BatterySnapshot {
       statusText
     }
 
+  val wattsText =
+    if (currentMilliAmps != null && voltageMilliVolts != null && voltageMilliVolts > 0) {
+      val watts = (currentMilliAmps / 1000f) * (voltageMilliVolts / 1000f)
+      String.format("%.2f W", watts)
+    } else {
+      "-- W"
+    }
+
+  val tempCelsius = batteryIntent?.getIntExtra(BatteryManager.EXTRA_TEMPERATURE, -1)?.takeIf { it > 0 }
+  val tempText =
+    if (tempCelsius != null) {
+      String.format("%.1f°C", tempCelsius / 10f)
+    } else {
+      "--°C"
+    }
+
   return BatterySnapshot(
     percentageText = percentage?.let { "$it%" } ?: "--%",
     rateText = rateText,
+    wattsText = wattsText,
+    tempText = tempText,
   )
 }
 
