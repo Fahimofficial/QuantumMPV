@@ -328,6 +328,8 @@ class PlayerViewModel(
 
   private val _currentSkippableSegment = MutableStateFlow<SkipSegment?>(null)
   val currentSkippableSegment: StateFlow<SkipSegment?> = _currentSkippableSegment.asStateFlow()
+  private var pendingIntroLookupTitle: String? = null
+
   private val _introDbStatus = MutableStateFlow(
     if (playerPreferences.enableIntroDb.get()) {
       IntroDbStatus()
@@ -491,6 +493,7 @@ class PlayerViewModel(
         if (dur != null && dur > 0) {
             _preciseDuration.value = dur.toFloat()
             mergeSkipSegments()
+            checkPendingIntroLookup()
 
             // --- AMBIENT FIX: Adapt shader to new file dimensions by @Chinna95P ---
             if (_isAmbientEnabled.value) {
@@ -1188,6 +1191,7 @@ class PlayerViewModel(
     const val SEEK_COALESCE_DELAY_MS = 60L
     const val PLAYLIST_METADATA_PREFETCH_RADIUS = 40
     const val PLAYLIST_METADATA_PREFETCH_LIMIT = 120
+    const val MIN_INTRO_MARKER_DURATION_SEC = 480.0
     const val INTRO_MARKER_CACHE_PREFS = "intro_marker_cache"
     const val INTRO_MARKER_CACHE_PREFIX = "intro_marker:"
     const val INTRO_MARKER_CACHE_MAX_ENTRIES = 200
@@ -1661,6 +1665,7 @@ class PlayerViewModel(
       currentMediaTitle = mediaTitle
       lastAutoSelectedMediaTitle = null
       introLookupJob?.cancel()
+      pendingIntroLookupTitle = null
       videoHashJob?.cancel()
       // Clear external subtitles when media changes
       _externalSubtitles.clear()
@@ -1760,10 +1765,24 @@ class PlayerViewModel(
 
   private fun lookupIntroSegments(mediaTitle: String) {
     if (!playerPreferences.enableIntroDb.get()) {
+      pendingIntroLookupTitle = null
       introDbSegments = emptyList()
       mergeSkipSegments()
       return
     }
+
+    val durationSec = currentDurationSeconds()
+    if (durationSec > 0 && durationSec < MIN_INTRO_MARKER_DURATION_SEC) {
+      pendingIntroLookupTitle = null
+      return
+    }
+
+    if (durationSec <= 0) {
+      pendingIntroLookupTitle = mediaTitle
+      return
+    }
+
+    pendingIntroLookupTitle = null
 
     val lookupKey = mediaTitle
     val provider = playerPreferences.introSegmentProvider.get()
@@ -1806,6 +1825,15 @@ class PlayerViewModel(
         mergeSkipSegments()
         playerUpdate.value = PlayerUpdates.ShowText(_introDbStatus.value.message)
       }
+  }
+
+  private fun checkPendingIntroLookup() {
+    val pendingTitle = pendingIntroLookupTitle ?: return
+    val durationSec = currentDurationSeconds()
+    if (durationSec <= 0) return
+    pendingIntroLookupTitle = null
+    if (durationSec < MIN_INTRO_MARKER_DURATION_SEC) return
+    lookupIntroSegments(pendingTitle)
   }
 
   private fun buildIntroMarkerCacheKey(request: IntroDbLookupRequest): String =

@@ -977,7 +977,7 @@ fun PlayerControls(
         }
 
         AnimatedVisibility(
-          visible = !areControlsLocked && currentSkippableSegment != null,
+          visible = controlsShown && !areControlsLocked && currentSkippableSegment != null,
           enter = fadeIn(playerControlsEnterAnimationSpec()),
           exit = fadeOut(playerControlsExitAnimationSpec()),
           modifier =
