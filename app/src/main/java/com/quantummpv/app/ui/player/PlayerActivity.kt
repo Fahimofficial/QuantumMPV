@@ -64,6 +64,7 @@ import com.quantummpv.app.preferences.PlayerPreferences
 import com.quantummpv.app.preferences.SubtitlesPreferences
 import com.quantummpv.app.preferences.VideoSortType
 import com.quantummpv.app.ui.player.controls.PlayerControls
+import com.quantummpv.app.ui.player.ytdlp.YtdlpManager
 import com.quantummpv.app.ui.theme.MpvrxTheme
 import com.quantummpv.app.utils.history.RecentlyPlayedOps
 import com.quantummpv.app.utils.media.HttpUtils
@@ -527,6 +528,14 @@ class PlayerActivity :
     setHttpHeadersFromExtras(intent.extras)
 
     getPlayableUri(intent)?.let { playableUri ->
+      // Remind user if they forgot to set up yt-dlp
+      if (playableUri.startsWith("http") && !playableUri.substringAfterLast('/').contains('.')) {
+        val ytdlDir = YtdlpManager.getYtdlDir(this)
+        if (!File(ytdlDir, "yt-dlp").exists()) {
+          viewModel.showToast(getString(R.string.toast_need_ytdl))
+        }
+      }
+
       currentPlayableUri = playableUri
       isReady = false
       viewModel.onVideoLoadStarted()
@@ -3116,6 +3125,14 @@ class PlayerActivity :
 
     // Load the new file
     getPlayableUri(intent)?.let { uri ->
+      // Remind user if they forgot to set up yt-dlp
+      if (uri.startsWith("http") && !uri.substringAfterLast('/').contains('.')) {
+        val ytdlDir = YtdlpManager.getYtdlDir(this)
+        if (!File(ytdlDir, "yt-dlp").exists()) {
+          viewModel.showToast(getString(R.string.toast_need_ytdl))
+        }
+      }
+
       currentPlayableUri = uri
       isReady = false
       viewModel.onVideoLoadStarted()

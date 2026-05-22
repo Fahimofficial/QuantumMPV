@@ -23,6 +23,7 @@ import com.quantummpv.app.ui.player.controls.components.panels.LuaScriptsPanel
 import com.quantummpv.app.ui.player.controls.components.panels.SubtitleDelayPanel
 import com.quantummpv.app.ui.player.controls.components.panels.SubtitleSettingsPanel
 import com.quantummpv.app.ui.player.controls.components.panels.VideoSettingsPanel
+import com.quantummpv.app.ui.player.controls.components.panels.YtdlpPanel
 
 @Composable
 fun PlayerPanels(
@@ -65,6 +66,9 @@ fun PlayerPanels(
           viewModel = viewModel,
           onDismissRequest = onDismissRequest,
         )
+      }
+      Panels.Ytdlp -> {
+        YtdlpPanel(onDismissRequest)
       }
     }
   }

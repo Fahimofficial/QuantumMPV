@@ -13,9 +13,11 @@ import com.quantummpv.app.preferences.AudioPreferences
 import com.quantummpv.app.preferences.DecoderPreferences
 import com.quantummpv.app.preferences.PlayerPreferences
 import com.quantummpv.app.preferences.SubtitlesPreferences
+import com.quantummpv.app.preferences.YtdlPreferences
 import com.quantummpv.app.domain.anime4k.Anime4KManager
 import com.quantummpv.app.domain.hdr.HdrToysManager
 import com.quantummpv.app.ui.player.PlayerActivity.Companion.TAG
+import com.quantummpv.app.ui.player.ytdlp.YtdlpManager
 import com.quantummpv.app.ui.player.controls.components.panels.toColorHexString
 import com.quantummpv.app.ui.preferences.VulkanUtils
 import `is`.xyz.mpv.BaseMPVView
@@ -35,6 +37,7 @@ class MPVView(
   private val decoderPreferences: DecoderPreferences by inject()
   private val advancedPreferences: AdvancedPreferences by inject()
   private val subtitlesPreferences: SubtitlesPreferences by inject()
+  private val ytdlPreferences: YtdlPreferences by inject()
   private val anime4kManager: Anime4KManager by inject()
   private val hdrToysManager: HdrToysManager by inject()
 
@@ -189,6 +192,7 @@ class MPVView(
 
     setupSubtitlesOptions()
     setupAudioOptions()
+    YtdlpManager.setupMpvOptions(context, ytdlPreferences)
   }
 
   override fun observeProperties() {
