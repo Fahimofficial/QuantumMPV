@@ -4,6 +4,7 @@ import android.content.Context
 import android.system.Os
 import android.util.Log
 import com.quantummpv.app.preferences.YtdlPreferences
+import com.quantummpv.app.preferences.SubtitlesPreferences
 import `is`.xyz.mpv.MPVLib
 import java.io.*
 import kotlinx.coroutines.Dispatchers
@@ -63,7 +64,7 @@ object YtdlpManager {
         }
     }
 
-    fun setupMpvOptions(context: Context, ytdlPreferences: YtdlPreferences) {
+    fun setupMpvOptions(context: Context, ytdlPreferences: YtdlPreferences, subtitlesPreferences: SubtitlesPreferences) {
         val nativeLibDir = context.applicationInfo.nativeLibraryDir
         val ytdlBinaryPath = File(nativeLibDir, "libytdl.so").absolutePath
         val ytdlDir = getYtdlDir(context).absolutePath
@@ -150,12 +151,14 @@ object YtdlpManager {
             rawOptsList.add("write-auto-subs=")
         }
         
-        val langs = ytdlPreferences.subLangs.get()
-        if (!langs.isNullOrBlank()) {
-            rawOptsList.add("sub-langs=\"$langs\"")
+        val preferredLangs = subtitlesPreferences.preferredLanguages.get()
+        val langs = if (!preferredLangs.isNullOrBlank()) {
+            preferredLangs
         } else {
-            rawOptsList.add("sub-langs=\"all\"")
+            val slang = runCatching { MPVLib.getPropertyString("slang") }.getOrNull()
+            if (!slang.isNullOrBlank()) slang else "all"
         }
+        rawOptsList.add("sub-langs=\"$langs\"")
 
         val customOpts = ytdlPreferences.customRawOptions.get()
         if (!customOpts.isNullOrBlank()) {

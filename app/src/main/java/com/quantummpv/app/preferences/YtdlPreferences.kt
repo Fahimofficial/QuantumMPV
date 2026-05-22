@@ -12,7 +12,6 @@ class YtdlPreferences(
   // Subtitles and advanced configurations
   val writeSubs = preferenceStore.getBoolean("ytdl_write_subs", true)
   val writeAutoSubs = preferenceStore.getBoolean("ytdl_write_auto_subs", false)
-  val subLangs = preferenceStore.getString("ytdl_sub_langs", "all")
   val customUserAgent = preferenceStore.getString("ytdl_custom_user_agent", "")
   val customRawOptions = preferenceStore.getString("ytdl_custom_raw_options", "")
 }

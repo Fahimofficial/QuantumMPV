@@ -57,7 +57,6 @@ object YtdlpSettingsScreen : Screen {
         val writeSubs by ytdlPreferences.writeSubs.collectAsState()
         val writeAutoSubs by ytdlPreferences.writeAutoSubs.collectAsState()
         
-        var subLangsText by remember { mutableStateOf(ytdlPreferences.subLangs.get()) }
         var userAgentText by remember { mutableStateOf(ytdlPreferences.customUserAgent.get()) }
         var rawOptionsText by remember { mutableStateOf(ytdlPreferences.customRawOptions.get()) }
 
@@ -283,28 +282,6 @@ object YtdlpSettingsScreen : Screen {
                             onValueChange = { ytdlPreferences.writeAutoSubs.set(it) },
                             title = { Text("Include Auto-Generated Subtitles", fontWeight = FontWeight.Medium) },
                             summary = { Text("Fetch auto-caption tracks (e.g. YouTube Speech-to-Text) when regular subs are absent.") }
-                        )
-
-                        PreferenceDivider()
-
-                        OutlinedTextField(
-                            value = subLangsText,
-                            onValueChange = { 
-                                subLangsText = it
-                                ytdlPreferences.subLangs.set(it)
-                            },
-                            label = { Text("Subtitle Language Filters") },
-                            placeholder = { Text("all, en, es, ja") },
-                            singleLine = true,
-                            shape = RoundedCornerShape(12.dp),
-                            modifier = Modifier.fillMaxWidth(),
-                            colors = OutlinedTextFieldDefaults.colors(
-                                focusedBorderColor = MaterialTheme.colorScheme.primary,
-                                unfocusedBorderColor = MaterialTheme.colorScheme.outlineVariant
-                            ),
-                            supportingText = {
-                                Text("Comma-separated list of languages or 'all' to request all available tracks from yt-dlp.")
-                            }
                         )
                     }
                 }

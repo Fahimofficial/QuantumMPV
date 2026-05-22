@@ -192,7 +192,7 @@ class MPVView(
 
     setupSubtitlesOptions()
     setupAudioOptions()
-    YtdlpManager.setupMpvOptions(context, ytdlPreferences)
+    YtdlpManager.setupMpvOptions(context, ytdlPreferences, subtitlesPreferences)
   }
 
   override fun observeProperties() {
