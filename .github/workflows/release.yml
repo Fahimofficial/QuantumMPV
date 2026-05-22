@@ -100,11 +100,11 @@ jobs:
           standard_apks=("universal" "arm64-v8a" "armeabi-v7a" "x86" "x86_64")
           for abi in "${standard_apks[@]}"; do
             src="app/build/outputs/apk/standard/release/app-standard-${abi}-release.apk"
-            dst="mpvRx-${abi}-${VERSION_TAG}.apk"
             if [ ! -f "$src" ]; then
-              echo "::error file=$src::Signed standard APK for $abi was not found"
-              exit 1
+              echo "Skipping $abi (not built)"
+              continue
             fi
+            dst="mpvRx-${abi}-${VERSION_TAG}.apk"
             cp "$src" "$dst"
             checksum=$(sha256sum "$dst" | awk '{ print $1 }')
             varname="apk_${abi//-/_}_sha256"
@@ -147,8 +147,9 @@ jobs:
           | arm64-v8a | ${apk_arm64_v8a_sha256} |
           | armeabi-v7a | ${apk_armeabi_v7a_sha256} |
           | Universal | ${apk_universal_sha256} |
-          | x86 | ${apk_x86_sha256} |
-          | x86_64 | ${apk_x86_64_sha256} |
+          | x86 | ${apk_x86_sha256:-not built} |
+          | x86_64 | ${apk_x86_64_sha256:-not built} |
+
           EOF
 
       - name: Create GitHub Release
@@ -163,6 +164,7 @@ jobs:
             mpvRx-armeabi-v7a-${{ env.VERSION_TAG }}.apk
             mpvRx-x86-${{ env.VERSION_TAG }}.apk
             mpvRx-x86_64-${{ env.VERSION_TAG }}.apk
+
           draft: false
           prerelease: false
         env:

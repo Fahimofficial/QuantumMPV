@@ -1,6 +1,9 @@
 import com.android.build.api.variant.FilterConfiguration
 import org.jetbrains.kotlin.gradle.dsl.JvmTarget
 
+val enableX86 = project.findProperty("enableX86") != "false"
+val x86Abis = if (enableX86) listOf("x86", "x86_64") else emptyList()
+
 plugins {
   alias(libs.plugins.android.application)
   alias(libs.plugins.kotlin.compose.compiler)
@@ -29,7 +32,7 @@ android {
 
     externalNativeBuild {
       cmake {
-        abiFilters += listOf("arm64-v8a", "armeabi-v7a", "x86", "x86_64")
+        abiFilters += listOf("arm64-v8a", "armeabi-v7a") + x86Abis
       }
     }
   }
@@ -60,7 +63,7 @@ android {
     abi {
       isEnable = true
       reset()
-      include("armeabi-v7a", "arm64-v8a", "x86", "x86_64")
+      include(listOf("armeabi-v7a", "arm64-v8a") + x86Abis)
       isUniversalApk = true
     }
   }
@@ -127,12 +130,14 @@ android {
 }
 
 androidComponents {
-  val abiCodes = mapOf(
+  val abiCodes = mutableMapOf(
     "armeabi-v7a" to 1,
-    "arm64-v8a" to 2,
-    "x86" to 3,
-    "x86_64" to 4
+    "arm64-v8a" to 2
   )
+  if (enableX86) {
+    abiCodes["x86"] = 3
+    abiCodes["x86_64"] = 4
+  }
 
   onVariants { variant ->
     variant.outputs.forEach { output ->

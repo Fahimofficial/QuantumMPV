@@ -128,8 +128,9 @@ jobs:
           | arm64-v8a | ${apk_arm64_v8a_sha256} |
           | armeabi-v7a | ${apk_armeabi_v7a_sha256} |
           | Universal | ${apk_universal_sha256} |
-          | x86 | ${apk_x86_sha256} |
-          | x86_64 | ${apk_x86_64_sha256} |
+          | x86 | ${apk_x86_sha256:-not built} |
+          | x86_64 | ${apk_x86_64_sha256:-not built} |
+
           EOF
 
       - name: Create GitHub pre-release
@@ -144,6 +145,7 @@ jobs:
             preview/mpvRx-preview-armeabi-v7a-${{ env.VERSION_TAG }}.apk
             preview/mpvRx-preview-x86-${{ env.VERSION_TAG }}.apk
             preview/mpvRx-preview-x86_64-${{ env.VERSION_TAG }}.apk
+
           draft: false
           prerelease: true
         env:

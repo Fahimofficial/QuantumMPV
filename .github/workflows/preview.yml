@@ -83,16 +83,16 @@ jobs:
 
           declare -a apks=("universal" "arm64-v8a" "armeabi-v7a" "x86" "x86_64")
           mkdir -p output
-          # Initialize empty array for file sizes
-          declare -a file_sizes=()
           
           for arch in "${apks[@]}"; do
             src="app/build/outputs/apk/standard/preview/app-standard-${arch}-preview.apk"
             dest="output/mpvRx-preview-r${commit_count}-${arch}.apk"
-            cp "$src" "$dest"
-          
-            # Get file size in human-readable format
-            size=$(du -h "$dest" | cut -f1)
+            if [ -f "$src" ]; then
+              cp "$src" "$dest"
+              size=$(du -h "$dest" | cut -f1)
+            else
+              size="N/A"
+            fi
             echo "${arch}_size=$size" >> $GITHUB_OUTPUT
           done
 

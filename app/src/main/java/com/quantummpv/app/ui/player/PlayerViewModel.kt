@@ -423,100 +423,7 @@ class PlayerViewModel(
   val currentVolumePercent = MutableStateFlow(systemVolumeToPercent(currentVolume.value))
   private val volumeBoostCap by MPVLib.propInt["volume-max"].collectAsState(viewModelScope)
 
-  init {
-    // Single adaptive polling loop for playback position.
-    //
-    // Previously there were TWO concurrent mechanisms writing to _precisePosition:
-    //  1. An event-driven collect on MPVLib.propInt["time-pos"]
-    //  2. This polling loop via MPVLib.getPropertyDouble("time-pos")
-    // Having both caused redundant StateFlow emissions and double recompositions of the
-    // seek bar on every MPV property event.  The polling loop alone is sufficient:
-    //  - It provides Double precision (vs integer from the observer)
-    //  - It drives maybeAutoSkipIntro() which needs sub-second accuracy
-    //  - The adaptive interval keeps CPU cost proportional to actual UI demand
-    //
-    // Intervals:
-    //   50 ms  – seek bar / controls visible (smooth scrubbing)
-    //   500 ms – uninterrupted playback (halved from original 250 ms to cut idle overhead)
-    //   500 ms – paused
-    viewModelScope.launch(playbackStateDispatcher) {
-      while (isActive) {
-        runCatching {
-          val time = MPVLib.getPropertyDouble("time-pos")
-          if (time != null) {
-            _precisePosition.value = time.toFloat()
-            maybeAutoSkipIntro(time)
-          }
-        }.onFailure { error ->
-          if (isActive) {
-            Log.w(TAG, "Playback position polling failed", error)
-          }
-        }
-        val intervalMs =
-          when {
-            paused == false && (seekBarVisibleForPolling || controlsVisibleForPolling) -> 50L
-            paused == false -> 500L   // was 250 ms — halved to reduce idle CPU wake-ups
-            else -> 500L
-          }
-        delay(intervalMs)
-      }
-    }
 
-    // ── Thermal monitor ────────────────────────────────────────────────────────
-    // Sample Android's PowerManager.getThermalHeadroom() every 10 s during active
-    // playback.  When thermal margin shrinks the ambient shader sample budget is
-    // capped automatically, preventing the device from entering hard CPU/GPU throttling
-    // which would otherwise manifest as dropped frames and accelerated battery drain.
-    viewModelScope.launch(playbackStateDispatcher) {
-      while (isActive) {
-        if (paused == false) {
-          val newHeadroom = ThermalMonitor.getHeadroom(host.context)
-          if (kotlin.math.abs(newHeadroom - thermalHeadroom) > 0.08f) {
-            thermalHeadroom = newHeadroom
-            if (_isAmbientEnabled.value) {
-              // Invalidate the shader cache so the new budget cap is applied on the
-              // next scheduled ambient update.
-              lastCompiledShaderCode = null
-              scheduleAmbientUpdate()
-            }
-            Log.d(TAG, "Thermal headroom updated: %.2f".format(newHeadroom))
-          }
-        }
-        delay(10_000L)
-      }
-    }
-
-    // Update precise duration when the integer duration changes (avoid polling)
-    viewModelScope.launch(playbackStateDispatcher) {
-      MPVLib.propInt["duration"].collect { _ ->
-        val dur = MPVLib.getPropertyDouble("duration")
-        if (dur != null && dur > 0) {
-            _preciseDuration.value = dur.toFloat()
-            mergeSkipSegments()
-            checkPendingIntroLookup()
-
-            // --- AMBIENT FIX: Adapt shader to new file dimensions by @Chinna95P ---
-            if (_isAmbientEnabled.value) {
-                lastAmbientScaleX = -1.0 // Force a complete shader rewrite
-                ambientDebounceJob?.cancel()
-                ambientDebounceJob = viewModelScope.launch(renderPrepDispatcher) {
-                    // Slight delay ensures MPV's video-params (w/h/crop) are fully populated
-                    delay(250)
-                    updateAmbientStretch()
-                }
-            }
-            // --------------------------------------------------------
-        }
-      }
-    }
-
-    viewModelScope.launch(playbackStateDispatcher) {
-      chapters
-        .collect { chapterList ->
-          refreshChapterDerivedSegments(chapterList)
-      }
-    }
-  }
 
   // UI state
   private val _controlsShown = MutableStateFlow(false)
@@ -717,7 +624,141 @@ class PlayerViewModel(
   private var ambientPreBatterySaverOpacity: Float = 1.0f
   private var batteryReceiver: BroadcastReceiver? = null
 
+  // ==================== Custom Buttons ====================
+
+  data class CustomButtonState(
+    val id: String,
+    val label: String,
+    val isLeft: Boolean,
+  )
+
+  private val _customButtons = MutableStateFlow<List<CustomButtonState>>(emptyList())
+  val customButtons: StateFlow<List<CustomButtonState>> = _customButtons.asStateFlow()
+  private var customButtonsSetupJob: Job? = null
+  private val customButtonsLoadMutex = Mutex()
+  @Volatile
+  private var isMpvReadyForCustomButtons = false
+  @Volatile
+  private var customButtonsScriptPaths: Map<CustomButtonScriptLanguage, String> = emptyMap()
+  private val legacyCustomButtonsLoadedFlagProperty = "user-data/mpvrx/custombuttons_loaded"
+  private val legacyCustomButtonsVersionProperty = "user-data/mpvrx/custombuttons_version"
+  private val customButtonScriptTargets =
+    listOf(
+      CustomButtonScriptTarget(
+        language = CustomButtonScriptLanguage.LUA,
+        fileName = "custombuttons.lua",
+        loadedFlagProperty = "user-data/mpvrx/custombuttons_lua_loaded",
+        versionProperty = "user-data/mpvrx/custombuttons_lua_version",
+      ),
+      CustomButtonScriptTarget(
+        language = CustomButtonScriptLanguage.JS,
+        fileName = "custombuttons.js",
+        loadedFlagProperty = "user-data/mpvrx/custombuttons_js_loaded",
+        versionProperty = "user-data/mpvrx/custombuttons_js_version",
+      ),
+    )
+  private val customButtonScriptTargetsByLanguage =
+    customButtonScriptTargets.associateBy { it.language }
+
+  private data class CustomButtonScriptTarget(
+    val language: CustomButtonScriptLanguage,
+    val fileName: String,
+    val loadedFlagProperty: String,
+    val versionProperty: String,
+  )
+
   init {
+    // Single adaptive polling loop for playback position.
+    //  1. An event-driven collect on MPVLib.propInt["time-pos"]
+    //  2. This polling loop via MPVLib.getPropertyDouble("time-pos")
+    // Having both caused redundant StateFlow emissions and double recompositions of the
+    // seek bar on every MPV property event.  The polling loop alone is sufficient:
+    //  - It provides Double precision (vs integer from the observer)
+    //  - It drives maybeAutoSkipIntro() which needs sub-second accuracy
+    //  - The adaptive interval keeps CPU cost proportional to actual UI demand
+    //
+    // Intervals:
+    //   50 ms  – seek bar / controls visible (smooth scrubbing)
+    //   500 ms – uninterrupted playback (halved from original 250 ms to cut idle overhead)
+    //   500 ms – paused
+    viewModelScope.launch(playbackStateDispatcher) {
+      while (isActive) {
+        runCatching {
+          val time = MPVLib.getPropertyDouble("time-pos")
+          if (time != null) {
+            _precisePosition.value = time.toFloat()
+            maybeAutoSkipIntro(time)
+          }
+        }.onFailure { error ->
+          if (isActive) {
+            Log.w(TAG, "Playback position polling failed", error)
+          }
+        }
+        val intervalMs =
+          when {
+            paused == false && (seekBarVisibleForPolling || controlsVisibleForPolling) -> 50L
+            paused == false -> 500L   // was 250 ms — halved to reduce idle CPU wake-ups
+            else -> 500L
+          }
+        delay(intervalMs)
+      }
+    }
+
+    // ── Thermal monitor ────────────────────────────────────────────────────────
+    // Sample Android's PowerManager.getThermalHeadroom() every 10 s during active
+    // playback.  When thermal margin shrinks the ambient shader sample budget is
+    // capped automatically, preventing the device from entering hard CPU/GPU throttling
+    // which would otherwise manifest as dropped frames and accelerated battery drain.
+    viewModelScope.launch(playbackStateDispatcher) {
+      while (isActive) {
+        if (paused == false) {
+          val newHeadroom = ThermalMonitor.getHeadroom(host.context)
+          if (kotlin.math.abs(newHeadroom - thermalHeadroom) > 0.08f) {
+            thermalHeadroom = newHeadroom
+            if (_isAmbientEnabled.value) {
+              // Invalidate the shader cache so the new budget cap is applied on the
+              // next scheduled ambient update.
+              lastCompiledShaderCode = null
+              scheduleAmbientUpdate()
+            }
+            Log.d(TAG, "Thermal headroom updated: %.2f".format(newHeadroom))
+          }
+        }
+        delay(10_000L)
+      }
+    }
+
+    // Update precise duration when the integer duration changes (avoid polling)
+    viewModelScope.launch(playbackStateDispatcher) {
+      MPVLib.propInt["duration"].collect { _ ->
+        val dur = MPVLib.getPropertyDouble("duration")
+        if (dur != null && dur > 0) {
+            _preciseDuration.value = dur.toFloat()
+            mergeSkipSegments()
+            checkPendingIntroLookup()
+
+            // --- AMBIENT FIX: Adapt shader to new file dimensions by @Chinna95P ---
+            if (_isAmbientEnabled.value) {
+                lastAmbientScaleX = -1.0 // Force a complete shader rewrite
+                ambientDebounceJob?.cancel()
+                ambientDebounceJob = viewModelScope.launch(renderPrepDispatcher) {
+                    // Slight delay ensures MPV's video-params (w/h/crop) are fully populated
+                    delay(250)
+                    updateAmbientStretch()
+                }
+            }
+            // --------------------------------------------------------
+        }
+      }
+    }
+
+    viewModelScope.launch(playbackStateDispatcher) {
+      chapters
+        .collect { chapterList ->
+          refreshChapterDerivedSegments(chapterList)
+      }
+    }
+
     // Track selection is now handled by TrackSelector in PlayerActivity
 
     // Restore repeat mode and shuffle state from preferences
@@ -787,49 +828,6 @@ class PlayerViewModel(
 
     setupCustomButtons()
   }
-
-  // ==================== Custom Buttons ====================
-
-  data class CustomButtonState(
-    val id: String,
-    val label: String,
-    val isLeft: Boolean,
-  )
-
-  private val _customButtons = MutableStateFlow<List<CustomButtonState>>(emptyList())
-  val customButtons: StateFlow<List<CustomButtonState>> = _customButtons.asStateFlow()
-  private var customButtonsSetupJob: Job? = null
-  private val customButtonsLoadMutex = Mutex()
-  @Volatile
-  private var isMpvReadyForCustomButtons = false
-  @Volatile
-  private var customButtonsScriptPaths: Map<CustomButtonScriptLanguage, String> = emptyMap()
-  private val legacyCustomButtonsLoadedFlagProperty = "user-data/mpvrx/custombuttons_loaded"
-  private val legacyCustomButtonsVersionProperty = "user-data/mpvrx/custombuttons_version"
-  private val customButtonScriptTargets =
-    listOf(
-      CustomButtonScriptTarget(
-        language = CustomButtonScriptLanguage.LUA,
-        fileName = "custombuttons.lua",
-        loadedFlagProperty = "user-data/mpvrx/custombuttons_lua_loaded",
-        versionProperty = "user-data/mpvrx/custombuttons_lua_version",
-      ),
-      CustomButtonScriptTarget(
-        language = CustomButtonScriptLanguage.JS,
-        fileName = "custombuttons.js",
-        loadedFlagProperty = "user-data/mpvrx/custombuttons_js_loaded",
-        versionProperty = "user-data/mpvrx/custombuttons_js_version",
-      ),
-    )
-  private val customButtonScriptTargetsByLanguage =
-    customButtonScriptTargets.associateBy { it.language }
-
-  private data class CustomButtonScriptTarget(
-    val language: CustomButtonScriptLanguage,
-    val fileName: String,
-    val loadedFlagProperty: String,
-    val versionProperty: String,
-  )
 
   fun onMpvCoreInitialized() {
     isMpvReadyForCustomButtons = true

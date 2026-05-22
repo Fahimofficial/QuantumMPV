@@ -2,6 +2,10 @@
 
 These notes are written in plain English and focus on what changed for real use.
 
+## 1.3.8
+
+- **Integrated yt-dlp** — Added full yt-dlp integration for downloading audio/video from YouTube and other supported sites directly within the app.
+
 ## 1.3.7
 
 - **Updated Wyzie subtitle API integration** — Synced with latest Wyzie API changes: added `ai` field for AI-translated subtitle detection, updated provider sources list (removed `subdl`, `podnapisi`, `ajatttools`; added `tvsubtitles`), and fixed TMDB endpoints to include API key authentication.
