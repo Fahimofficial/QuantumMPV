@@ -113,7 +113,6 @@ enum class Panels {
   VideoFilters,
   LuaScripts,
   HdrScreenOutput,
-  Ytdlp,
 }
 
 sealed class PlayerUpdates {

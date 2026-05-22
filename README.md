@@ -221,6 +221,7 @@ MpvRx pushes the mpv-android experience further with deep customization, thermal
 | **Display Cutout Mode** | Full-bleed on notch devices |
 | **Remember Brightness** | Persists brightness level set during playback |
 | **M3U Playlist Support** | Parse and play local M3U playlists |
+| **yt-dlp Integration** | High-performance streaming support for YouTube, Twitch, Bilibili, and more via a native Python bridge (SDK 29+ bypass) |
 
 </details>
 
@@ -353,6 +354,7 @@ git push origin v1.3.1-preview.1
 - [Next Player](https://github.com/anilbeesetti/nextplayer)
 - [Gramophone](https://github.com/FoedusProgramme/Gramophone)
 - [hdr-toys](https://github.com/natural-harmonia-gropius/hdr-toys)
+- [**SunnyVishnu3**](https://github.com/SunnyVishnu3) for the `yt-dlp` native integration and SDK 29+ bypass logic.
 
 ---
 

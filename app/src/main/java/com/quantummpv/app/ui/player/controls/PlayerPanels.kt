@@ -23,7 +23,6 @@ import com.quantummpv.app.ui.player.controls.components.panels.LuaScriptsPanel
 import com.quantummpv.app.ui.player.controls.components.panels.SubtitleDelayPanel
 import com.quantummpv.app.ui.player.controls.components.panels.SubtitleSettingsPanel
 import com.quantummpv.app.ui.player.controls.components.panels.VideoSettingsPanel
-import com.quantummpv.app.ui.player.controls.components.panels.YtdlpPanel
 
 @Composable
 fun PlayerPanels(
@@ -67,9 +66,6 @@ fun PlayerPanels(
           onDismissRequest = onDismissRequest,
         )
       }
-      Panels.Ytdlp -> {
-        YtdlpPanel(onDismissRequest)
-      }
     }
   }
 }
@@ -86,4 +82,3 @@ val panelCardsColors: @Composable () -> CardColors = {
     disabledContentColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.38f),
   )
 }
-
