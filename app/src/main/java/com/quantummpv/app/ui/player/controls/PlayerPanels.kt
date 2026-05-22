@@ -82,4 +82,3 @@ val panelCardsColors: @Composable () -> CardColors = {
     disabledContentColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.38f),
   )
 }
-

@@ -12,6 +12,7 @@ import com.quantummpv.app.preferences.GesturePreferences
 import com.quantummpv.app.preferences.PlayerPreferences
 import com.quantummpv.app.preferences.SettingsManager
 import com.quantummpv.app.preferences.SubtitlesPreferences
+import com.quantummpv.app.preferences.YtdlPreferences
 import com.quantummpv.app.preferences.preference.AndroidPreferenceStore
 import com.quantummpv.app.preferences.preference.PreferenceStore
 import org.koin.android.ext.koin.androidContext
@@ -33,6 +34,7 @@ val PreferencesModule =
     single { BrowserPreferences(get(), androidContext()) }
     singleOf(::FoldersPreferences)
     singleOf(::AiPreferences)
+    singleOf(::YtdlPreferences)
     singleOf(::SettingsManager)
   }
 
