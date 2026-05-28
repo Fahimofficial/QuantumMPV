@@ -126,14 +126,12 @@ data class WyzieSeasonDetails(
 object WyzieSources {
     val ALL = mapOf(
         "all" to "All",
-        "subf2m" to "Subf2m",
         "opensubtitles" to "OpenSubtitles",
-        "animetosho" to "AnimeTosho",
-        "jimaku" to "Jimaku",
-        "kitsunekko" to "Kitsunekko",
-        "gestdown" to "Gestdown",
+        "subf2m" to "Subf2m",
+        "tvsubtitles" to "TVsubtitles",
         "yify" to "YIFY",
-        "tvsubtitles" to "TVsubtitles"
+        "gestdown" to "Gestdown",
+        "kitsunekko" to "Kitsunekko"
     )
 }
 
