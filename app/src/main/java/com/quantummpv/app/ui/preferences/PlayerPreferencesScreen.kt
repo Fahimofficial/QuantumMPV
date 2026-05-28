@@ -7,14 +7,20 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalResources
 import androidx.compose.ui.res.stringResource
@@ -26,10 +32,12 @@ import com.quantummpv.app.preferences.preference.collectAsState
 import com.quantummpv.app.presentation.Screen
 import com.quantummpv.app.ui.player.PlayerOrientation
 import com.quantummpv.app.ui.player.controls.components.sheets.toFixed
+import com.quantummpv.app.ui.player.screenshot.ScreenshotFormat
 import com.quantummpv.app.ui.utils.LocalBackStack
 import com.quantummpv.app.ui.utils.popSafely
 import kotlinx.serialization.Serializable
 import me.zhanghai.compose.preference.ListPreference
+import me.zhanghai.compose.preference.Preference
 import me.zhanghai.compose.preference.ProvidePreferenceLocals
 import me.zhanghai.compose.preference.SliderPreference
 import me.zhanghai.compose.preference.SwitchPreference
@@ -45,6 +53,8 @@ object PlayerPreferencesScreen : Screen {
     val backstack = LocalBackStack.current
     val resources = LocalResources.current
     val preferences = koinInject<PlayerPreferences>()
+    var showTemplateDialog by remember { mutableStateOf(false) }
+    var templateDraft by remember { mutableStateOf("") }
     Scaffold(
       topBar = {
         TopAppBar(
@@ -419,6 +429,81 @@ object PlayerPreferencesScreen : Screen {
             }
           }
 
+          // ── Screenshots ─────────────────────────────────────────────────
+          item { PreferenceSectionHeader(title = "Screenshots") }
+          item {
+            PreferenceCard {
+              val screenshotFormat by preferences.screenshotFormat.collectAsState()
+              ListPreference(
+                value = screenshotFormat,
+                onValueChange = preferences.screenshotFormat::set,
+                values = ScreenshotFormat.entries,
+                valueToText = { AnnotatedString(it.title) },
+                title = { Text("Image format") },
+                summary = { Text("${screenshotFormat.title} .${screenshotFormat.extension}", color = MaterialTheme.colorScheme.outline) },
+              )
+
+              PreferenceDivider()
+
+              val includeSubtitles by preferences.includeSubtitlesInSnapshot.collectAsState()
+              SwitchPreference(
+                value = includeSubtitles,
+                onValueChange = preferences.includeSubtitlesInSnapshot::set,
+                title = { Text("Include subtitles in screenshots") },
+              )
+
+              PreferenceDivider()
+
+              val screenshotTemplate by preferences.screenshotTemplate.collectAsState()
+              Preference(
+                title = { Text("Filename template") },
+                summary = { Text(screenshotTemplate, color = MaterialTheme.colorScheme.outline) },
+                onClick = {
+                  templateDraft = screenshotTemplate
+                  showTemplateDialog = true
+                },
+              )
+
+              PreferenceDivider()
+
+              val screenshotQuality by preferences.screenshotQuality.collectAsState()
+              SliderPreference(
+                value = screenshotQuality.toFloat(),
+                onValueChange = { preferences.screenshotQuality.set(it.roundToInt().coerceIn(1, 100)) },
+                title = { Text("JPEG/WebP quality") },
+                valueRange = 1f..100f,
+                summary = { Text("$screenshotQuality", color = MaterialTheme.colorScheme.outline) },
+                onSliderValueChange = { preferences.screenshotQuality.set(it.roundToInt().coerceIn(1, 100)) },
+                sliderValue = screenshotQuality.toFloat(),
+              )
+
+              PreferenceDivider()
+
+              val pngCompression by preferences.screenshotPngCompression.collectAsState()
+              SliderPreference(
+                value = pngCompression.toFloat(),
+                onValueChange = { preferences.screenshotPngCompression.set(it.roundToInt().coerceIn(0, 9)) },
+                title = { Text("PNG compression") },
+                valueRange = 0f..9f,
+                summary = { Text("$pngCompression", color = MaterialTheme.colorScheme.outline) },
+                onSliderValueChange = { preferences.screenshotPngCompression.set(it.roundToInt().coerceIn(0, 9)) },
+                sliderValue = pngCompression.toFloat(),
+              )
+
+              if (screenshotFormat == ScreenshotFormat.WEBP) {
+                PreferenceDivider()
+
+                val webpLossless by preferences.screenshotWebpLossless.collectAsState()
+                SwitchPreference(
+                  value = webpLossless,
+                  onValueChange = preferences.screenshotWebpLossless::set,
+                  title = { Text("WebP lossless") },
+                  summary = { Text("Uses mpv native lossless output; Android fallback uses lossless on Android 11+.", color = MaterialTheme.colorScheme.outline) },
+                )
+              }
+            }
+          }
+
           // ── Overlays ─────────────────────────────────────────────────────
           item { PreferenceSectionHeader(title = stringResource(R.string.pref_section_overlays)) }
           item {
@@ -529,6 +614,35 @@ object PlayerPreferencesScreen : Screen {
           }
         }
       }
+    }
+    if (showTemplateDialog) {
+      AlertDialog(
+        onDismissRequest = { showTemplateDialog = false },
+        title = { Text("Filename template") },
+        text = {
+          OutlinedTextField(
+            value = templateDraft,
+            onValueChange = { templateDraft = it },
+            label = { Text("Template") },
+            supportingText = { Text("%f file name, %Y%m%d date, %H%M%S time, %p seconds, %wH.%wM.%wS.%wT wall-clock") },
+          )
+        },
+        confirmButton = {
+          TextButton(
+            onClick = {
+              preferences.screenshotTemplate.set(templateDraft)
+              showTemplateDialog = false
+            },
+          ) {
+            Text("Save")
+          }
+        },
+        dismissButton = {
+          TextButton(onClick = { showTemplateDialog = false }) {
+            Text("Cancel")
+          }
+        },
+      )
     }
   }
 }

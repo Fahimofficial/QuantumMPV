@@ -8,6 +8,7 @@ import com.quantummpv.app.ui.player.ControlsAnimationStyle
 import com.quantummpv.app.ui.player.NavigationAnimStyle
 import com.quantummpv.app.ui.player.PlayerOrientation
 import com.quantummpv.app.ui.player.RepeatMode
+import com.quantummpv.app.ui.player.screenshot.ScreenshotFormat
 import com.quantummpv.app.ui.player.VideoAspect
 import com.quantummpv.app.ui.player.VideoOpenAnimation
 
@@ -69,6 +70,11 @@ class PlayerPreferences(
   val panAndZoomEnabled = preferenceStore.getBoolean("pan_and_zoom_enabled", false)
 
   val includeSubtitlesInSnapshot = preferenceStore.getBoolean("include_subtitles_in_snapshot", false)
+  val screenshotFormat = preferenceStore.getEnum("screenshot_format", ScreenshotFormat.PNG)
+  val screenshotTemplate = preferenceStore.getString("screenshot_template", "mpv_snapshot_%Y%m%d_%H%M%S")
+  val screenshotQuality = preferenceStore.getInt("screenshot_quality", 90)
+  val screenshotPngCompression = preferenceStore.getInt("screenshot_png_compression", 7)
+  val screenshotWebpLossless = preferenceStore.getBoolean("screenshot_webp_lossless", false)
 
   val playlistMode = preferenceStore.getBoolean("playlist_mode", true)
   val playlistViewMode = preferenceStore.getBoolean("playlist_view_mode_list", true) // true = list, false = grid
