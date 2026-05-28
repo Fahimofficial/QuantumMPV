@@ -216,6 +216,12 @@ class IntroDbRepository(
             season = effectiveSeason,
             episode = effectiveEpisode,
           )
+
+        IntroSegmentProvider.HYBRID ->
+          IntroDbLookupOutcome.Error(
+            reason = "Hybrid provider cannot be resolved sequentially",
+            provider = IntroSegmentProvider.HYBRID,
+          )
       }
     }.getOrElse { error ->
       Log.w(TAG, "Online marker lookup failed for ${request.mediaTitle}", error)
@@ -651,6 +657,9 @@ class IntroDbRepository(
             malId = malId ?: error("AniSkip lookup requires a MAL id"),
             episode = episode.takeIf { useEpisodeHints } ?: error("AniSkip lookup requires an episode number"),
           )
+
+        IntroSegmentProvider.HYBRID ->
+          Result.failure(IllegalArgumentException("Hybrid provider cannot be resolved sequentially"))
       }.getOrElse { error ->
         throw error
       }
