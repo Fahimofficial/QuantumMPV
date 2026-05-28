@@ -41,6 +41,7 @@ import com.quantummpv.app.presentation.components.pullrefresh.PullRefreshBox
 import com.quantummpv.app.ui.browser.cards.NetworkFolderCard
 import com.quantummpv.app.ui.browser.cards.NetworkVideoCard
 import com.quantummpv.app.ui.browser.components.BrowserTopBar
+import com.quantummpv.app.ui.browser.playlist.PlaylistDetailScreen
 import com.quantummpv.app.ui.browser.states.EmptyState
 import com.quantummpv.app.ui.preferences.PreferencesScreen
 import com.quantummpv.app.ui.utils.LocalBackStack
@@ -82,6 +83,12 @@ data class NetworkBrowserScreen(
     // Load files when connectionId or currentPath changes
     LaunchedEffect(connectionId, currentPath) {
       viewModel.loadFiles()
+    }
+
+    LaunchedEffect(viewModel) {
+      viewModel.importedPlaylistId.collect { playlistId ->
+        backstack.add(PlaylistDetailScreen(playlistId))
+      }
     }
 
     BackHandler {
@@ -132,7 +139,7 @@ data class NetworkBrowserScreen(
           )
         },
         onVideoClick = { video ->
-          viewModel.playVideo(video)
+          viewModel.openMedia(video)
         },
         modifier = Modifier.padding(padding),
       )
@@ -204,7 +211,7 @@ private fun NetworkBrowserContent(
 
     else -> {
       val folders = files.filter { it.isDirectory }
-      val videos = files.filter { !it.isDirectory && it.mimeType?.startsWith("video/") == true }
+      val videos = files.filter { !it.isDirectory && (it.mimeType?.startsWith("video/") == true || it.isM3uFile()) }
       val networkListState = LazyListState()
 
       // Check if at top of list to hide scrollbar during pull-to-refresh
@@ -309,5 +316,20 @@ private fun NetworkBrowserContent(
     }
   }
 }
+}
+
+private fun NetworkFile.isM3uFile(): Boolean {
+  val lowerName = name.lowercase()
+  val lowerPath = path.substringBefore('?').lowercase()
+  return lowerName.endsWith(".m3u") ||
+    lowerName.endsWith(".m3u8") ||
+    lowerPath.endsWith(".m3u") ||
+    lowerPath.endsWith(".m3u8") ||
+    mimeType in setOf(
+      "application/x-mpegurl",
+      "application/vnd.apple.mpegurl",
+      "audio/x-mpegurl",
+      "audio/mpegurl",
+    )
 }
 
