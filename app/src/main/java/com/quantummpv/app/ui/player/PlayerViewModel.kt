@@ -1900,7 +1900,65 @@ class PlayerViewModel(
     introLookupJob?.cancel()
     introLookupJob =
       viewModelScope.launch {
-        val outcome = introDbRepository.lookupSegments(lookupRequest)
+        val outcome = if (provider == IntroSegmentProvider.HYBRID) {
+          val channel = kotlinx.coroutines.channels.Channel<IntroDbLookupOutcome>(3)
+          val lookupJobs = listOf(
+              IntroSegmentProvider.INTRO_DB,
+              IntroSegmentProvider.THE_INTRO_DB,
+              IntroSegmentProvider.ANI_SKIP
+          ).map { p ->
+              launch(kotlinx.coroutines.Dispatchers.IO) {
+                  try {
+                      val res = introDbRepository.lookupSegments(lookupRequest.copy(provider = p))
+                      channel.send(res)
+                  } catch (e: Exception) {
+                      channel.send(IntroDbLookupOutcome.Error(e.message ?: "unknown", p))
+                  }
+              }
+          }
+
+          var finalOutcome: IntroDbLookupOutcome? = null
+          var loadedOutcome: IntroDbLookupOutcome.Loaded? = null
+          val receivedOutcomes = mutableListOf<IntroDbLookupOutcome>()
+
+          for (i in 0 until 3) {
+              val out = channel.receive()
+              receivedOutcomes.add(out)
+              if (out is IntroDbLookupOutcome.Loaded) {
+                  loadedOutcome = out
+                  break
+              }
+          }
+
+          // Cancel remaining lookup jobs if we got a loaded outcome
+          lookupJobs.forEach { it.cancel() }
+
+          if (loadedOutcome != null) {
+              IntroDbLookupOutcome.Loaded(
+                  imdbId = loadedOutcome.imdbId,
+                  segments = loadedOutcome.segments,
+                  source = loadedOutcome.source,
+                  provider = IntroSegmentProvider.HYBRID
+              )
+          } else {
+              val firstNonError = receivedOutcomes.firstOrNull { it !is IntroDbLookupOutcome.Error }
+              val fallbackOutcome = firstNonError ?: receivedOutcomes.firstOrNull()
+              
+              if (fallbackOutcome != null) {
+                  when (fallbackOutcome) {
+                      is IntroDbLookupOutcome.NoSegments -> IntroDbLookupOutcome.NoSegments(fallbackOutcome.imdbId, fallbackOutcome.source, IntroSegmentProvider.HYBRID)
+                      is IntroDbLookupOutcome.Unresolved -> IntroDbLookupOutcome.Unresolved(fallbackOutcome.title, IntroSegmentProvider.HYBRID)
+                      is IntroDbLookupOutcome.Error -> IntroDbLookupOutcome.Error(fallbackOutcome.reason, IntroSegmentProvider.HYBRID)
+                      else -> fallbackOutcome
+                  }
+              } else {
+                  IntroDbLookupOutcome.Error("No outcomes", IntroSegmentProvider.HYBRID)
+              }
+          }
+        } else {
+          introDbRepository.lookupSegments(lookupRequest)
+        }
+
         if (currentMediaTitle != lookupKey) return@launch
 
         applyIntroDbOutcome(outcome)

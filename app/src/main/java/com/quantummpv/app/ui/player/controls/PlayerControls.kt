@@ -207,11 +207,6 @@ fun PlayerControls(
   val demuxerCacheTime by MPVLib.propDouble["demuxer-cache-time"].collectAsState()
   val playbackSpeed by MPVLib.propFloat["speed"].collectAsState()
   val seekbarDuration = if (preciseDuration > 0) preciseDuration else duration?.toFloat() ?: 0f
-  val bufferedPosition = demuxerCacheTime?.toFloat()?.let { bufferSeconds ->
-    if (seekbarDuration > 0f) {
-      (precisePosition + bufferSeconds).coerceAtMost(seekbarDuration)
-    } else null
-  }
   val seekState by viewModel.seekState.collectAsState()
   val doubleTapSeekAmount = seekState.amount
   val showDoubleTapOvals by playerPreferences.showDoubleTapOvals.collectAsState()
@@ -231,6 +226,8 @@ fun PlayerControls(
       Modifier
     }
   var isSeeking by remember { mutableStateOf(false) }
+  val mpvSeeking by MPVLib.propBoolean["seeking"].collectAsState()
+  val isPlayerSeeking = isSeeking || (mpvSeeking ?: false)
   var resetControlsTimestamp by remember { mutableStateOf(0L) }
   val seekText = seekState.text
   val currentChapter by MPVLib.propInt["chapter"].collectAsState()
@@ -1317,7 +1314,7 @@ fun PlayerControls(
             seekbarStyle = seekbarStyle,
             loopStart = abLoopA?.toFloat(),
             loopEnd = abLoopB?.toFloat(),
-            bufferEnd = if (showBufferedRange) bufferedPosition else null,
+            bufferDuration = if (showBufferedRange && !isPlayerSeeking) demuxerCacheTime?.toFloat() else null,
             isPortrait = isPortrait,
           )
         }

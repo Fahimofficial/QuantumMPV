@@ -82,7 +82,7 @@ fun SeekbarWithTimers(
   seekbarStyle: SeekbarStyle = SeekbarStyle.Wavy,
   loopStart: Float? = null,
   loopEnd: Float? = null,
-  bufferEnd: Float? = null,
+  bufferDuration: Float? = null,
   isPortrait: Boolean = false,
   modifier: Modifier = Modifier,
 ) {
@@ -127,7 +127,7 @@ fun SeekbarWithTimers(
         seekbarStyle = seekbarStyle,
         loopStart = loopStart,
         loopEnd = loopEnd,
-        bufferEnd = bufferEnd,
+        bufferDuration = bufferDuration,
         onUserInteractionChange = { isUserInteracting = it },
         onUserPositionChange = { userPosition = it },
         onValueChange = onValueChange,
@@ -188,7 +188,7 @@ fun SeekbarWithTimers(
         seekbarStyle = seekbarStyle,
         loopStart = loopStart,
         loopEnd = loopEnd,
-        bufferEnd = bufferEnd,
+        bufferDuration = bufferDuration,
         onUserInteractionChange = { isUserInteracting = it },
         onUserPositionChange = { userPosition = it },
         onValueChange = onValueChange,
@@ -223,7 +223,7 @@ private fun SeekbarContent(
   seekbarStyle: SeekbarStyle,
   loopStart: Float?,
   loopEnd: Float?,
-  bufferEnd: Float?,
+  bufferDuration: Float?,
   onUserInteractionChange: (Boolean) -> Unit,
   onUserPositionChange: (Float) -> Unit,
   onValueChange: (Float) -> Unit,
@@ -328,7 +328,7 @@ private fun SeekbarContent(
             },
             loopStart = loopStart,
             loopEnd = loopEnd,
-            bufferEnd = bufferEnd,
+            bufferDuration = bufferDuration,
           )
         }
         SeekbarStyle.Wavy -> {
@@ -344,7 +344,7 @@ private fun SeekbarContent(
             onSeekFinished = { }, // Touch handled by parent
             loopStart = loopStart,
             loopEnd = loopEnd,
-            bufferEnd = bufferEnd,
+            bufferDuration = bufferDuration,
           )
         }
         SeekbarStyle.Thick -> {
@@ -367,7 +367,7 @@ private fun SeekbarContent(
             },
             loopStart = loopStart,
             loopEnd = loopEnd,
-            bufferEnd = bufferEnd,
+            bufferDuration = bufferDuration,
           )
         }
         SeekbarStyle.Slim -> {
@@ -379,7 +379,7 @@ private fun SeekbarContent(
             isScrubbing = isUserInteracting,
             loopStart   = loopStart,
             loopEnd     = loopEnd,
-            bufferEnd   = bufferEnd,
+            bufferDuration = bufferDuration,
           )
         }
       }
@@ -449,7 +449,7 @@ private fun SquigglySeekbar(
   onSeekFinished: () -> Unit,
   loopStart: Float? = null,
   loopEnd: Float? = null,
-  bufferEnd: Float? = null,
+  bufferDuration: Float? = null,
   modifier: Modifier = Modifier,
 ) {
   val primaryColor = MaterialTheme.colorScheme.primary
@@ -668,10 +668,10 @@ private fun SquigglySeekbar(
       )
     }
 
-    if (bufferEnd != null && duration > 0f) {
-      val bufferPx = (bufferEnd / duration).coerceIn(0f, 1f) * totalWidth
+    if (bufferDuration != null && bufferDuration > 0f && duration > 0f) {
+      val bufferPx = totalProgressPx + (bufferDuration / duration).coerceIn(0f, 1f) * totalWidth
       if (bufferPx > totalProgressPx) {
-        drawPathWithGaps(totalProgressPx, bufferPx, primaryColor.copy(alpha = 0.55f))
+        drawPathWithGaps(totalProgressPx, bufferPx.coerceAtMost(totalWidth), primaryColor.copy(alpha = 0.55f))
       }
     }
 
@@ -744,7 +744,7 @@ private fun SlimSeekbar(
     isScrubbing: Boolean,
     loopStart: Float? = null,
     loopEnd: Float? = null,
-    bufferEnd: Float? = null,
+    bufferDuration: Float? = null,
     modifier: Modifier = Modifier,
 ) {
     val primaryColor = MaterialTheme.colorScheme.primary
@@ -807,8 +807,8 @@ private fun SlimSeekbar(
         if (segCursor < totalWidth) segments.add(segCursor to totalWidth)
 
         val bufferPx =
-            if (bufferEnd != null && duration > 0f)
-                (bufferEnd / duration).coerceIn(0f, 1f) * totalWidth
+            if (bufferDuration != null && bufferDuration > 0f && duration > 0f)
+                playedPx + (bufferDuration / duration).coerceIn(0f, 1f) * totalWidth
             else
                 playedPx
 
@@ -853,8 +853,7 @@ private fun SlimSeekbar(
                     seg(bufferPx, sE, unplayedColor, 0f, rR)
                 }
                 sS < bufferPx && sE > bufferPx -> {
-                    seg(sS, playedPx, playedColor,   lR, 0f)
-                    seg(playedPx, bufferPx, primaryColor.copy(alpha = 0.55f), 0f, 0f)
+                    seg(sS, bufferPx, primaryColor.copy(alpha = 0.55f), lR, 0f)
                     seg(bufferPx, sE, unplayedColor, 0f, rR)
                 }
                 else -> seg(sS, sE, unplayedColor, lR, rR)
@@ -1058,7 +1057,7 @@ fun StandardSeekbar(
     onSeekFinished: () -> Unit,
     loopStart: Float? = null,
     loopEnd: Float? = null,
-    bufferEnd: Float? = null,
+    bufferDuration: Float? = null,
     modifier: Modifier = Modifier,
 ) {
     val primaryColor = MaterialTheme.colorScheme.primary
@@ -1132,8 +1131,8 @@ fun StandardSeekbar(
 
                 val playedPx = size.width * playedFraction
                 val bufferPx =
-                    if (bufferEnd != null && duration > 0f)
-                        ((bufferEnd / duration).coerceIn(0f, 1f) * size.width)
+                    if (bufferDuration != null && bufferDuration > 0f && duration > 0f)
+                        playedPx + (bufferDuration / duration).coerceIn(0f, 1f) * size.width
                     else playedPx
                 val trackHeight = size.height
                 

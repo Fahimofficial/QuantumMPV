@@ -2,6 +2,13 @@
 
 These notes are written in plain English and focus on what changed for real use.
 
+## 1.3.9
+
+- **Hybrid Skip Markers** — Added a brand new "Hybrid" skip marker provider that queries IntroDB, TIDB, and AniSkip concurrently, loading whichever returns timings first (making the playback setup extremely fast). This is now the default provider.
+- **Fixed Seekbar Buffering Jumping** — Resolved an issue where seeking forward caused the buffering indicator to falsely jump ahead or flicker due to stale demuxer cache timings. The buffer bar now remains anchored perfectly to the playhead without gaps across all seekbars.
+- **Collapsible Anime4K Preferences** — Redesigned the Decoder Preferences screen to make the Anime4K shader settings section collapsible, complete with a gorgeous rotating chevron micro-animation.
+- **Custom Developer Documentation** — Created a complete reference guide in `MPVRX_CUSTOM_COMMANDS.md` detailing all MpvRx custom LUA/JS `user-data` properties, panel triggers, keyboard controls, dynamic custom buttons, and real-time battery status telemetry.
+
 ## 1.3.8
 
 - **Integrated yt-dlp by [**SunnyVishnu3**](https://github.com/SunnyVishnu3)** — Added full yt-dlp integration for video watching audio/video from YouTube and other supported sites directly within the app (_Dont expect from me to add Download Functionality_). **Note: You need to download yt-dlp first (Settings > Advanced > yt-dlp Manager) before playing YouTube links — don't be clueless.**

@@ -19,6 +19,7 @@ enum class IntroSegmentProvider(
   INTRO_DB("IntroDB", "introdb"),
   THE_INTRO_DB("TIDB", "theintrodb"),
   ANI_SKIP("AniSkip (Anime)", "aniskip"),
+  HYBRID("Hybrid (Fastest)", "hybrid"),
 }
 
 enum class PlayerClockFormat(
@@ -92,7 +93,7 @@ class PlayerPreferences(
 
   val customSkipDuration = preferenceStore.getInt("custom_skip_duration", 90)
   val enableIntroDb = preferenceStore.getBoolean("enable_introdb", true)
-  val introSegmentProvider = preferenceStore.getEnum("intro_segment_provider", IntroSegmentProvider.INTRO_DB)
+  val introSegmentProvider = preferenceStore.getEnum("intro_segment_provider", IntroSegmentProvider.HYBRID)
   val detectIntroOutroFromChapters = preferenceStore.getBoolean("detect_intro_outro_from_chapters", true)
   val autoSkipIntro = preferenceStore.getBoolean("auto_skip_intro", false)
   val autoSkipOutro = preferenceStore.getBoolean("auto_skip_outro", false)
