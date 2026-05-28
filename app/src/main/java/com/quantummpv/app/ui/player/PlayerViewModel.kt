@@ -625,6 +625,7 @@ class PlayerViewModel(
   private var ambientPreBatterySaverFadeCurve: Float = 1.5f
   private var ambientPreBatterySaverOpacity: Float = 1.0f
   private var batteryReceiver: BroadcastReceiver? = null
+  private var androidSystemInfoBridgeJob: Job? = null
 
   // ==================== Custom Buttons ====================
 
@@ -834,6 +835,62 @@ class PlayerViewModel(
   fun onMpvCoreInitialized() {
     isMpvReadyForCustomButtons = true
     reloadCustomButtonsScript("mpv_core_initialized")
+    startAndroidSystemInfoBridge()
+  }
+
+  private fun startAndroidSystemInfoBridge() {
+    if (androidSystemInfoBridgeJob?.isActive == true) return
+
+    val appContext = host.context.applicationContext
+    androidSystemInfoBridgeJob = viewModelScope.launch(playbackStateDispatcher) {
+      while (isActive) {
+        publishAndroidBatteryState(appContext)
+        delay(30_000L)
+      }
+    }
+  }
+
+  private fun publishAndroidBatteryState(context: Context) {
+    runCatching {
+      val state = readAndroidBatteryState(context)
+      MPVLib.setPropertyInt("user-data/android/battery-level", state.level)
+      MPVLib.setPropertyBoolean("user-data/android/battery-charging", state.charging)
+      MPVLib.setPropertyBoolean("user-data/android/battery-plugged", state.plugged)
+      onBatteryStateChanged(state.charging)
+    }.onFailure { error ->
+      Log.w(TAG, "Failed to publish Android battery properties", error)
+    }
+  }
+
+  private data class AndroidBatteryState(
+    val level: Int,
+    val charging: Boolean,
+    val plugged: Boolean,
+  )
+
+  private fun readAndroidBatteryState(context: Context): AndroidBatteryState {
+    val batteryManager = context.getSystemService(Context.BATTERY_SERVICE) as? BatteryManager
+    val batteryIntent = context.registerReceiver(null, IntentFilter(Intent.ACTION_BATTERY_CHANGED))
+    val intentLevel = batteryIntent?.getIntExtra(BatteryManager.EXTRA_LEVEL, -1) ?: -1
+    val scale = batteryIntent?.getIntExtra(BatteryManager.EXTRA_SCALE, -1) ?: -1
+    val propertyLevel = batteryManager
+      ?.getIntProperty(BatteryManager.BATTERY_PROPERTY_CAPACITY)
+      ?.takeIf { it in 0..100 }
+    val fallbackLevel =
+      if (intentLevel >= 0 && scale > 0) {
+        ((intentLevel * 100f) / scale).roundToInt().coerceIn(0, 100)
+      } else {
+        -1
+      }
+    val status = batteryIntent?.getIntExtra(BatteryManager.EXTRA_STATUS, BatteryManager.BATTERY_STATUS_UNKNOWN)
+      ?: BatteryManager.BATTERY_STATUS_UNKNOWN
+    val pluggedExtra = batteryIntent?.getIntExtra(BatteryManager.EXTRA_PLUGGED, 0) ?: 0
+    val charging = status == BatteryManager.BATTERY_STATUS_CHARGING || status == BatteryManager.BATTERY_STATUS_FULL
+    return AndroidBatteryState(
+      level = propertyLevel ?: fallbackLevel,
+      charging = charging,
+      plugged = pluggedExtra != 0,
+    )
   }
 
   fun onVideoLoadStarted() {
