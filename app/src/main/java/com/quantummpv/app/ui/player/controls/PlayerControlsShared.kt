@@ -4,6 +4,7 @@ import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
 import android.os.BatteryManager
+import android.text.format.DateFormat
 import com.quantummpv.app.ui.icons.Icon as AppSymbolIcon
 import com.quantummpv.app.ui.icons.Icons
 import com.quantummpv.app.ui.player.controls.components.AbLoopIcon
@@ -52,6 +53,8 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.quantummpv.app.preferences.AdvancedPreferences
 import com.quantummpv.app.preferences.PlayerButton
+import com.quantummpv.app.preferences.PlayerClockFormat
+import com.quantummpv.app.preferences.PlayerPreferences
 import com.quantummpv.app.preferences.preference.collectAsState
 import com.quantummpv.app.ui.player.Panels
 import com.quantummpv.app.ui.player.PlayerActivity
@@ -66,8 +69,6 @@ import dev.vivvvek.seeker.Segment
 import `is`.xyz.mpv.MPVLib
 import kotlinx.coroutines.delay
 import org.koin.compose.koinInject
-import java.time.LocalTime
-import java.time.format.DateTimeFormatter
 import kotlin.math.abs
 import kotlin.math.roundToInt
 
@@ -93,6 +94,7 @@ fun RenderPlayerButton(
 ) {
   val clickEvent = LocalPlayerButtonsClickEvent.current
   val advancedPreferences = koinInject<AdvancedPreferences>()
+  val playerPreferences = koinInject<PlayerPreferences>()
   val statisticsPage by advancedPreferences.enabledStatisticsPage.collectAsState()
   when (button) {
     PlayerButton.BACK_ARROW -> {
@@ -868,7 +870,8 @@ fun RenderPlayerButton(
     }
 
     PlayerButton.TIME_NETWORK -> {
-      val stat by rememberTimeAndNetworkStat()
+      val clockFormat by playerPreferences.clockFormat.collectAsState()
+      val stat by rememberTimeAndNetworkStat(clockFormat)
       Surface(
         shape = CircleShape,
         color = if (hideBackground) Color.Transparent else MaterialTheme.colorScheme.surfaceContainer.copy(alpha = 0.55f),
@@ -1012,14 +1015,16 @@ internal fun readBatterySnapshot(context: Context): BatterySnapshot {
 }
 
 @Composable
-private fun rememberTimeAndNetworkStat(): androidx.compose.runtime.State<TimeAndNetworkStat> {
+private fun rememberTimeAndNetworkStat(
+  clockFormat: PlayerClockFormat,
+): androidx.compose.runtime.State<TimeAndNetworkStat> {
   val context = LocalContext.current.applicationContext
   return produceState(
     initialValue = TimeAndNetworkStat("--:--", "0 KB/s | --%", "--%"),
+    key1 = clockFormat,
   ) {
-    val formatter = DateTimeFormatter.ofPattern("HH:mm")
     while (true) {
-      val now = LocalTime.now().format(formatter)
+      val now = formatClock(context, clockFormat)
       val bps = readNetworkBytesPerSecond()
       val network =
         when {
@@ -1032,6 +1037,19 @@ private fun rememberTimeAndNetworkStat(): androidx.compose.runtime.State<TimeAnd
       delay(1000)
     }
   }
+}
+
+private fun formatClock(
+  context: Context,
+  clockFormat: PlayerClockFormat,
+): String {
+  val use24Hour =
+    when (clockFormat) {
+      PlayerClockFormat.SYSTEM -> DateFormat.is24HourFormat(context)
+      PlayerClockFormat.TWELVE_HOUR -> false
+      PlayerClockFormat.TWENTY_FOUR_HOUR -> true
+    }
+  return DateFormat.format(if (use24Hour) "HH:mm" else "h:mm a", System.currentTimeMillis()).toString()
 }
 
 private fun readNetworkBytesPerSecond(): Double {

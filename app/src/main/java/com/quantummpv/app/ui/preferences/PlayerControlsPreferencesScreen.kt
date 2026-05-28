@@ -45,6 +45,7 @@ import androidx.compose.ui.unit.dp
 import com.quantummpv.app.R
 import com.quantummpv.app.preferences.AppearancePreferences
 import com.quantummpv.app.preferences.PlayerButton
+import com.quantummpv.app.preferences.PlayerClockFormat
 import com.quantummpv.app.preferences.PlayerPreferences
 import com.quantummpv.app.preferences.SeekbarStyle
 import com.quantummpv.app.preferences.preference.collectAsState
@@ -234,6 +235,7 @@ object PlayerControlsPreferencesScreen : Screen {
           item {
             val hidePlayerButtonsBackground by appearancePrefs.hidePlayerButtonsBackground.collectAsState()
             val playerTimeToDisappear by playerPrefs.playerTimeToDisappear.collectAsState()
+            val clockFormat by playerPrefs.clockFormat.collectAsState()
             val predefinedTimeValues = listOf(500, 1000, 1500, 2000, 2500, 3000, 3500, 4000, 4500, 5000)
             val isCustomTimeValue = !predefinedTimeValues.contains(playerTimeToDisappear)
             
@@ -286,6 +288,17 @@ object PlayerControlsPreferencesScreen : Screen {
                     },
                   )
                 },
+              )
+
+              PreferenceDivider()
+
+              ListPreference(
+                value = clockFormat,
+                onValueChange = { playerPrefs.clockFormat.set(it) },
+                values = PlayerClockFormat.entries,
+                valueToText = { AnnotatedString(it.displayName) },
+                title = { Text("Time + Network clock") },
+                summary = { Text(clockFormat.displayName) },
               )
             }
             

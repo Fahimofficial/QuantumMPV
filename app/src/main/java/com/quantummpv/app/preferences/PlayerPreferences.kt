@@ -21,6 +21,14 @@ enum class IntroSegmentProvider(
   ANI_SKIP("AniSkip (Anime)", "aniskip"),
 }
 
+enum class PlayerClockFormat(
+  val displayName: String,
+) {
+  SYSTEM("System"),
+  TWELVE_HOUR("12 hour"),
+  TWENTY_FOUR_HOUR("24 hour"),
+}
+
 class PlayerPreferences(
   preferenceStore: PreferenceStore,
 ) {
@@ -65,6 +73,7 @@ class PlayerPreferences(
   val safeAreaWindow = preferenceStore.getBoolean("safe_area_window", false)
   val reduceMotion = preferenceStore.getBoolean("reduce_motion", true)
   val playerTimeToDisappear = preferenceStore.getInt("player_time_to_disappear", 4000)
+  val clockFormat = preferenceStore.getEnum("player_clock_format", PlayerClockFormat.SYSTEM)
 
   val defaultVideoZoom = preferenceStore.getFloat("default_video_zoom", 0f)
   val panAndZoomEnabled = preferenceStore.getBoolean("pan_and_zoom_enabled", false)
