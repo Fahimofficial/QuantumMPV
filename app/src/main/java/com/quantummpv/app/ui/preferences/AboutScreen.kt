@@ -57,10 +57,8 @@ import androidx.compose.ui.draw.drawWithCache
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
-import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
@@ -72,6 +70,7 @@ import com.quantummpv.app.presentation.Screen
 import com.quantummpv.app.presentation.crash.CrashActivity.Companion.collectDeviceInfo
 import com.quantummpv.app.ui.utils.LocalBackStack
 import com.quantummpv.app.ui.utils.popSafely
+import com.quantummpv.app.utils.clipboard.SafeClipboard
 import com.quantummpv.app.utils.update.UpdateViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.serialization.Serializable
@@ -84,7 +83,6 @@ object AboutScreen : Screen {
   override fun Content() {
     val context = LocalContext.current
     val backstack = LocalBackStack.current
-    val clipboardManager = LocalClipboardManager.current
     val packageManager: PackageManager = context.packageManager
     val packageInfo = packageManager.getPackageInfo(context.packageName, 0)
     val versionName = packageInfo.versionName?.substringBefore('-') ?: packageInfo.versionName ?: BuildConfig.VERSION_NAME
@@ -286,7 +284,7 @@ object AboutScreen : Screen {
                   Modifier
                     .fillMaxWidth()
                     .clickable {
-                      clipboardManager.setText(AnnotatedString(collectDeviceInfo()))
+                      SafeClipboard.copyPlainText(context, "mpvrx_device_info", collectDeviceInfo())
                     },
               ) {
                 Row(
@@ -354,7 +352,12 @@ object AboutScreen : Screen {
                         modifier = Modifier
                             .fillMaxWidth()
                             .clickable {
-                                clipboardManager.setText(AnnotatedString("panditritesh2001@okhdfcbank"))
+                                SafeClipboard.copyPlainText(
+                                    context = context,
+                                    label = "mpvrx_upi_id",
+                                    text = "panditritesh2001@okhdfcbank",
+                                    showToast = false,
+                                )
                                 Toast.makeText(context, "UPI ID copied!", Toast.LENGTH_SHORT).show()
                             }
                             .padding(horizontal = 16.dp, vertical = 14.dp),

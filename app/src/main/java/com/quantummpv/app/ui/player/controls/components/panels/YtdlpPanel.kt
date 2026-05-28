@@ -15,9 +15,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
@@ -33,6 +31,7 @@ import com.quantummpv.app.ui.player.ytdlp.YtdlpManager
 import com.quantummpv.app.ui.player.ytdlp.YtdlpOptionSettings
 import com.quantummpv.app.ui.player.ytdlp.YtdlpOptionsBuilder
 import com.quantummpv.app.ui.theme.spacing
+import com.quantummpv.app.utils.clipboard.SafeClipboard
 import kotlinx.coroutines.launch
 import org.koin.compose.koinInject
 import java.io.File
@@ -44,7 +43,6 @@ fun YtdlpPanel(
   modifier: Modifier = Modifier,
 ) {
   val context = LocalContext.current
-  val clipboardManager = LocalClipboardManager.current
   val scope = rememberCoroutineScope()
   var logs by remember { mutableStateOf("") }
   var isRunning by remember { mutableStateOf(false) }
@@ -412,8 +410,7 @@ fun YtdlpPanel(
             ) {
               IconButton(
                 onClick = {
-                  clipboardManager.setText(AnnotatedString(logs))
-                  Toast.makeText(context, "Copied logs to clipboard", Toast.LENGTH_SHORT).show()
+                  SafeClipboard.copyPlainText(context, "yt-dlp logs", logs)
                 },
                 modifier = Modifier.size(32.dp)
               ) {

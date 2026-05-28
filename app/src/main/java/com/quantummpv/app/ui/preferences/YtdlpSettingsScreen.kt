@@ -13,9 +13,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
@@ -37,6 +35,7 @@ import com.quantummpv.app.ui.player.ytdlp.YtdlpOptionsBuilder
 import com.quantummpv.app.ui.theme.spacing
 import com.quantummpv.app.ui.utils.LocalBackStack
 import com.quantummpv.app.ui.utils.popSafely
+import com.quantummpv.app.utils.clipboard.SafeClipboard
 import kotlinx.coroutines.launch
 import kotlinx.serialization.Serializable
 import org.koin.compose.koinInject
@@ -51,7 +50,6 @@ object YtdlpSettingsScreen : Screen {
     override fun Content() {
         val context = LocalContext.current
         val backStack = LocalBackStack.current
-        val clipboardManager = LocalClipboardManager.current
         val scope = rememberCoroutineScope()
         var logs by remember { mutableStateOf("") }
         val scrollState = rememberScrollState()
@@ -684,8 +682,7 @@ object YtdlpSettingsScreen : Screen {
                                     
                                     IconButton(
                                         onClick = {
-                                            clipboardManager.setText(AnnotatedString(logs))
-                                            Toast.makeText(context, "Terminal logs copied", Toast.LENGTH_SHORT).show()
+                                            SafeClipboard.copyPlainText(context, "yt-dlp logs", logs)
                                         },
                                         modifier = Modifier.size(24.dp)
                                     ) {

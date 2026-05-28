@@ -36,6 +36,7 @@ import io.github.rosemoe.sora.langs.textmate.registry.provider.AssetsFileResolve
 import io.github.rosemoe.sora.widget.CodeEditor
 import io.github.rosemoe.sora.widget.schemes.EditorColorScheme
 import io.github.rosemoe.sora.widget.subscribeAlways
+import com.quantummpv.app.utils.clipboard.SafeClipboard
 import org.eclipse.tm4e.core.registry.IThemeSource
 
 @Composable
@@ -59,7 +60,7 @@ fun MpvScriptEditor(
 
   val editor = remember {
     ScriptEditorTextMate.ensureInitialized(context)
-    CodeEditor(context).apply {
+    SafeCodeEditor(context).apply {
       setTextSize(textSize.value)
       typefaceText = Typeface.MONOSPACE
       typefaceLineNumber = Typeface.MONOSPACE
@@ -116,6 +117,16 @@ fun MpvScriptEditor(
     },
     modifier = modifier,
   )
+}
+
+private class SafeCodeEditor(context: Context) : CodeEditor(context) {
+  override fun copyTextToClipboard(
+    text: CharSequence,
+    line: Int,
+    column: Int,
+  ) {
+    SafeClipboard.copyPlainText(context, "Editor selection", text, showToast = true)
+  }
 }
 
 private object ScriptEditorTextMate {

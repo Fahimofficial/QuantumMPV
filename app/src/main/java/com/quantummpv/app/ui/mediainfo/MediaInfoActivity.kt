@@ -61,6 +61,7 @@ import com.quantummpv.app.preferences.AppearancePreferences
 import com.quantummpv.app.preferences.preference.collectAsState
 import com.quantummpv.app.ui.theme.DarkMode
 import com.quantummpv.app.ui.theme.MpvrxTheme
+import com.quantummpv.app.utils.clipboard.SafeClipboard
 import com.quantummpv.app.utils.media.MediaInfoOps
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -509,10 +510,11 @@ class MediaInfoActivity : ComponentActivity() {
 
   private suspend fun copyToClipboard(content: String, fileName: String) {
     withContext(Dispatchers.Main) {
-      val clipboard = getSystemService(android.content.Context.CLIPBOARD_SERVICE) as android.content.ClipboardManager
-      val clip = android.content.ClipData.newPlainText("Media Info - $fileName", content)
-      clipboard.setPrimaryClip(clip)
-      Toast.makeText(this@MediaInfoActivity, "Copied to clipboard", Toast.LENGTH_SHORT).show()
+      SafeClipboard.copyPlainText(
+        context = this@MediaInfoActivity,
+        label = "Media Info - $fileName",
+        text = content,
+      )
     }
   }
 

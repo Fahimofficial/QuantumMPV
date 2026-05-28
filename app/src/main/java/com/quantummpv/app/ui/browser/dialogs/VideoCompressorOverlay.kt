@@ -92,8 +92,6 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.layout.ContentScale
-import androidx.compose.ui.platform.ClipEntry
-import androidx.compose.ui.platform.LocalClipboard
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -105,6 +103,7 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import com.quantummpv.app.domain.media.model.Video
 import com.quantummpv.app.ui.icons.Icon
 import com.quantummpv.app.ui.icons.Icons
+import com.quantummpv.app.utils.clipboard.SafeClipboard
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -136,7 +135,6 @@ fun VideoCompressorOverlay(
       factory = VideoCompressorViewModel.factory(application),
     )
   val state by viewModel.uiState.collectAsState()
-  val clipboard = LocalClipboard.current
   val scope = rememberCoroutineScope()
 
   var showInfoDialog by rememberSaveable { mutableStateOf(false) }
@@ -284,8 +282,7 @@ fun VideoCompressorOverlay(
       onTogglePreserveMetadata = viewModel::togglePreserveMetadata,
       onCopy = {
         scope.launch {
-          clipboard.setClipEntry(ClipEntry(ClipData.newPlainText("compressor-info", infoText)))
-          Toast.makeText(context, "Copied device info", Toast.LENGTH_SHORT).show()
+          SafeClipboard.copyPlainText(context, "compressor-info", infoText)
         }
       },
       onShare = {
