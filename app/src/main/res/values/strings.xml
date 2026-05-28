@@ -280,9 +280,16 @@
   <string name="anime4k_mode_a_plus">A+</string>
   <string name="anime4k_mode_b_plus">B+</string>
   <string name="anime4k_mode_c_plus">C+</string>
+  <string name="anime4k_mode_artcnn">ArtCNN</string>
   <string name="anime4k_quality_fast">Fast</string>
   <string name="anime4k_quality_balanced">Balanced</string>
   <string name="anime4k_quality_high">High</string>
+  <string name="pref_anime4k_darken_title">Anime4K darken lines</string>
+  <string name="pref_anime4k_darken_summary">Adds line darkening after the main upscaler.</string>
+  <string name="pref_anime4k_thin_title">Anime4K thin lines</string>
+  <string name="pref_anime4k_thin_summary">Adds line thinning after the main upscaler.</string>
+  <string name="pref_anime4k_deblur_title">Anime4K deblur</string>
+  <string name="pref_anime4k_deblur_summary">Adds the DoG deblur pass before darken/thin, costs more GPU time.</string>
   <string name="pref_about_title">About</string>
   <string name="pref_about_summary">Acknowledgments, licenses</string>
   <string name="pref_about_oss_libraries">Libraries</string>

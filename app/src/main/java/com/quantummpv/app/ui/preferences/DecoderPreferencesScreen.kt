@@ -313,6 +313,48 @@ object DecoderPreferencesScreen : Screen {
                   )
                 },
               )
+
+              val anime4kDarken by preferences.anime4kDarken.collectAsState()
+              SwitchPreference(
+                value = anime4kDarken,
+                onValueChange = { preferences.anime4kDarken.set(it) },
+                enabled = enableAnime4K,
+                title = { Text(stringResource(R.string.pref_anime4k_darken_title)) },
+                summary = {
+                  Text(
+                    stringResource(R.string.pref_anime4k_darken_summary),
+                    color = if (enableAnime4K) MaterialTheme.colorScheme.outline else MaterialTheme.colorScheme.outlineVariant,
+                  )
+                },
+              )
+
+              val anime4kThin by preferences.anime4kThin.collectAsState()
+              SwitchPreference(
+                value = anime4kThin,
+                onValueChange = { preferences.anime4kThin.set(it) },
+                enabled = enableAnime4K,
+                title = { Text(stringResource(R.string.pref_anime4k_thin_title)) },
+                summary = {
+                  Text(
+                    stringResource(R.string.pref_anime4k_thin_summary),
+                    color = if (enableAnime4K) MaterialTheme.colorScheme.outline else MaterialTheme.colorScheme.outlineVariant,
+                  )
+                },
+              )
+
+              val anime4kDeblur by preferences.anime4kDeblur.collectAsState()
+              SwitchPreference(
+                value = anime4kDeblur,
+                onValueChange = { preferences.anime4kDeblur.set(it) },
+                enabled = enableAnime4K,
+                title = { Text(stringResource(R.string.pref_anime4k_deblur_title)) },
+                summary = {
+                  Text(
+                    stringResource(R.string.pref_anime4k_deblur_summary),
+                    color = if (enableAnime4K) MaterialTheme.colorScheme.outline else MaterialTheme.colorScheme.outlineVariant,
+                  )
+                },
+              )
             }
           }
 

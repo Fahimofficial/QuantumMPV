@@ -90,6 +90,9 @@ fun MoreSheet(
   
   val enableAnime4K by decoderPreferences.enableAnime4K.collectAsState()
   val anime4kMode by decoderPreferences.anime4kMode.collectAsState()
+  val anime4kDarken by decoderPreferences.anime4kDarken.collectAsState()
+  val anime4kThin by decoderPreferences.anime4kThin.collectAsState()
+  val anime4kDeblur by decoderPreferences.anime4kDeblur.collectAsState()
   val gpuNext by decoderPreferences.gpuNext.collectAsState()
   val useVulkan by decoderPreferences.useVulkan.collectAsState()
   // Observe video dimensions reactively — avoids raw JNI calls on every recomposition
@@ -266,7 +269,7 @@ fun MoreSheet(
             FilterChip(
               label = { Text(stringResource(mode.titleRes)) },
               selected = anime4kMode == mode.name,
-              enabled = !isHighRes,
+              enabled = !isHighRes || mode == Anime4KManager.Mode.OFF,
               leadingIcon = null,
               onClick = {
                 decoderPreferences.anime4kMode.set(mode.name)
@@ -277,6 +280,9 @@ fun MoreSheet(
                     anime4kManager = anime4kManager,
                     mode = mode.name,
                     quality = decoderPreferences.anime4kQuality.get(),
+                    darken = anime4kDarken,
+                    thin = anime4kThin,
+                    deblur = anime4kDeblur,
                     onAnime4KChanged = onAnime4KChanged,
                   )
                 }
@@ -296,6 +302,9 @@ private suspend fun applyAnime4KRuntimeSelection(
   anime4kManager: Anime4KManager,
   mode: String,
   quality: Anime4KManager.Quality,
+  darken: Boolean,
+  thin: Boolean,
+  deblur: Boolean,
   onAnime4KChanged: () -> Unit,
 ) {
   runCatching {
@@ -315,6 +324,7 @@ private suspend fun applyAnime4KRuntimeSelection(
       return
     }
 
+    anime4kManager.setPostFilters(darken = darken, thin = thin, deblur = deblur)
     if (applyAnime4KShaderChain(anime4kManager, selection.mode, selection.quality)) {
       val useVulkan = (MPVLib.getPropertyString("gpu-api") ?: "") == "vulkan"
       applyAnime4KStabilityOptions(useVulkan = useVulkan)

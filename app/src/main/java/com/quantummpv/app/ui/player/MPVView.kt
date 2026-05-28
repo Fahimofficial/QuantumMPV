@@ -214,7 +214,7 @@ class MPVView(
         MPVLib.command("script-binding", "stats/display-page-$it")
       }
     }
-    applyUserMpvConf()
+    // applyUserMpvConf()
   }
 
   private fun applyUserMpvConf() {
@@ -463,6 +463,11 @@ class MPVView(
         return
       }
 
+      anime4kManager.setPostFilters(
+        darken = decoderPreferences.anime4kDarken.get(),
+        thin = decoderPreferences.anime4kThin.get(),
+        deblur = decoderPreferences.anime4kDeblur.get(),
+      )
       if (applyAnime4KShaderChain(anime4kManager, selection.mode, selection.quality)) {
         applyAnime4KStabilityOptions(useVulkan = useVulkan)
       } else {

@@ -28,6 +28,15 @@ class Anime4KManager(private val context: Context) {
       "Anime4K_Upscale_Denoise_CNN_x2_S.glsl",
       "Anime4K_Upscale_Denoise_CNN_x2_M.glsl",
       "Anime4K_Upscale_Denoise_CNN_x2_L.glsl",
+      "Anime4K_Darken_Fast.glsl",
+      "Anime4K_Darken_HQ.glsl",
+      "Anime4K_Darken_VeryFast.glsl",
+      "Anime4K_Thin_Fast.glsl",
+      "Anime4K_Thin_HQ.glsl",
+      "Anime4K_Thin_VeryFast.glsl",
+      "Anime4K_Deblur_DoG.glsl",
+      "Anime4K_Deblur_Original.glsl",
+      "Ani4Kv2_ArtCNN_C4F32_i2_CMP.glsl",
     )
     val BUILT_IN_SHADER_FILES: Set<String> = REQUIRED_SHADER_FILES.toSet()
     val DEFAULT_QUALITY = Quality.BALANCED
@@ -48,11 +57,28 @@ class Anime4KManager(private val context: Context) {
     C(com.quantummpv.app.R.string.anime4k_mode_c),
     A_PLUS(com.quantummpv.app.R.string.anime4k_mode_a_plus),
     B_PLUS(com.quantummpv.app.R.string.anime4k_mode_b_plus),
-    C_PLUS(com.quantummpv.app.R.string.anime4k_mode_c_plus)
+    C_PLUS(com.quantummpv.app.R.string.anime4k_mode_c_plus),
+    ARTCNN(com.quantummpv.app.R.string.anime4k_mode_artcnn)
   }
 
   private var shaderDir: File? = null
   private var isInitialized = false
+  @Volatile
+  private var enableDarken: Boolean = true
+  @Volatile
+  private var enableThin: Boolean = true
+  @Volatile
+  private var enableDeblur: Boolean = false
+
+  fun setPostFilters(
+    darken: Boolean,
+    thin: Boolean,
+    deblur: Boolean,
+  ) {
+    enableDarken = darken
+    enableThin = thin
+    enableDeblur = deblur
+  }
 
   /**
    * Initialize: copy shaders from assets to internal storage
@@ -199,7 +225,21 @@ class Anime4KManager(private val context: Context) {
         shaders.add(getShaderFile("Anime4K_Restore_CNN_$q.glsl"))
         shaders.add(getShaderFile("Anime4K_Upscale_CNN_x2_$q.glsl"))
       }
+      Mode.ARTCNN -> {
+        shaders.add(getShaderFile("Ani4Kv2_ArtCNN_C4F32_i2_CMP.glsl"))
+      }
       Mode.OFF -> { /* Already handled */ }
+    }
+
+    // Optional Anime4K edge/detail modules, matching the Android Anime4K fork order.
+    if (enableDeblur) {
+      shaders.add(getShaderFile("Anime4K_Deblur_DoG.glsl"))
+    }
+    if (enableDarken) {
+      shaders.add(getShaderFile(darkenShaderFile(quality)))
+    }
+    if (enableThin) {
+      shaders.add(getShaderFile(thinShaderFile(quality)))
     }
 
     // Validate that all shader files exist
@@ -217,4 +257,18 @@ class Anime4KManager(private val context: Context) {
   private fun getShaderFile(fileName: String): File {
     return File(shaderDir, fileName)
   }
+
+  private fun darkenShaderFile(quality: Quality): String =
+    when (quality) {
+      Quality.FAST -> "Anime4K_Darken_Fast.glsl"
+      Quality.BALANCED,
+      Quality.HIGH -> "Anime4K_Darken_HQ.glsl"
+    }
+
+  private fun thinShaderFile(quality: Quality): String =
+    when (quality) {
+      Quality.FAST -> "Anime4K_Thin_Fast.glsl"
+      Quality.BALANCED,
+      Quality.HIGH -> "Anime4K_Thin_HQ.glsl"
+    }
 }
