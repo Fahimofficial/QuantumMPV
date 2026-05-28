@@ -4,6 +4,7 @@ import com.quantummpv.app.ui.icons.Icon
 import com.quantummpv.app.ui.icons.Icons
 
 import android.content.Intent
+import android.widget.Toast
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -334,9 +335,15 @@ object RecentlyPlayedScreen : Screen {
             playlistRepository = playlistRepository,
             selectionManager = selectionManager,
             onVideoClick = { video ->
-              // Always play individual videos without creating a playlist
-              // regardless of playlist mode setting
-              MediaUtils.playFile(video, context, "recently_played")
+              coroutineScope.launch {
+                val playableVideo = viewModel.resolvePlayableRecentVideo(video)
+                if (playableVideo != null) {
+                  // Always play individual videos without creating a playlist.
+                  MediaUtils.playFile(playableVideo, context, "recently_played")
+                } else {
+                  Toast.makeText(context, "Recent file no longer exists", Toast.LENGTH_SHORT).show()
+                }
+              }
             },
             onPlaylistClick = { playlistItem ->
               // Navigate to playlist detail screen

@@ -385,10 +385,21 @@ class PlayerViewModel(
     metadataCache.put(key, value)
   }
 
-  // MPV properties with efficient collection
-  val paused by MPVLib.propBoolean["pause"].collectAsState(viewModelScope)
-  val pos by MPVLib.propInt["time-pos"].collectAsState(viewModelScope)
-  val duration by MPVLib.propInt["duration"].collectAsState(viewModelScope)
+  // MPV-backed scalar state. Keep these initialized before any coroutine can read them.
+  private val _paused = MutableStateFlow<Boolean?>(null)
+  val paused: Boolean? get() = _paused.value
+
+  private val _pos = MutableStateFlow<Int?>(null)
+  val pos: Int? get() = _pos.value
+
+  private val _duration = MutableStateFlow<Int?>(null)
+  val duration: Int? get() = _duration.value
+
+  private val _volumeBoostCap = MutableStateFlow<Int?>(null)
+  private val volumeBoostCap: Int? get() = _volumeBoostCap.value
+
+  private val _isMpvCoreReady = MutableStateFlow(false)
+  private var mpvStateCollectorsJob: Job? = null
 
   // High-precision position and duration for smooth seekbar
   private val _precisePosition = MutableStateFlow(0f)
@@ -423,10 +434,6 @@ class PlayerViewModel(
   val maxVolume = host.audioManager.getStreamMaxVolume(AudioManager.STREAM_MUSIC)
   val currentVolume = MutableStateFlow(host.audioManager.getStreamVolume(AudioManager.STREAM_MUSIC))
   val currentVolumePercent = MutableStateFlow(systemVolumeToPercent(currentVolume.value))
-  private val volumeBoostCap by MPVLib.propInt["volume-max"].collectAsState(viewModelScope)
-
-
-
   // UI state
   private val _controlsShown = MutableStateFlow(false)
   val controlsShown: StateFlow<Boolean> = _controlsShown.asStateFlow()
@@ -686,6 +693,10 @@ class PlayerViewModel(
     //   500 ms – paused
     viewModelScope.launch(playbackStateDispatcher) {
       while (isActive) {
+        if (!_isMpvCoreReady.value) {
+          delay(250L)
+          continue
+        }
         runCatching {
           val time = MPVLib.getPropertyDouble("time-pos")
           if (time != null) {
@@ -714,7 +725,7 @@ class PlayerViewModel(
     // which would otherwise manifest as dropped frames and accelerated battery drain.
     viewModelScope.launch(playbackStateDispatcher) {
       while (isActive) {
-        if (paused == false) {
+        if (_isMpvCoreReady.value && paused == false) {
           val newHeadroom = ThermalMonitor.getHeadroom(host.context)
           if (kotlin.math.abs(newHeadroom - thermalHeadroom) > 0.08f) {
             thermalHeadroom = newHeadroom
@@ -733,7 +744,8 @@ class PlayerViewModel(
 
     // Update precise duration when the integer duration changes (avoid polling)
     viewModelScope.launch(playbackStateDispatcher) {
-      MPVLib.propInt["duration"].collect { _ ->
+      _duration.collect { _ ->
+        if (!_isMpvCoreReady.value) return@collect
         val dur = MPVLib.getPropertyDouble("duration")
         if (dur != null && dur > 0) {
             _preciseDuration.value = dur.toFloat()
@@ -788,9 +800,10 @@ class PlayerViewModel(
 
     // Monitor duration and AB loop changes to automatically enable precise seeking
     viewModelScope.launch(playbackStateDispatcher) {
-      combine(MPVLib.propInt["duration"], abLoopState) { duration, abLoop ->
+      combine(_duration, abLoopState) { duration, abLoop ->
         Pair(duration, abLoop)
       }.collect { (duration, abLoop) ->
+        if (!_isMpvCoreReady.value) return@collect
         val videoDuration = duration ?: 0
         val isLoopActive = abLoop.a != null || abLoop.b != null
         val shouldUsePreciseSeeking = playerPreferences.usePreciseSeeking.get() || videoDuration < 120 || isLoopActive
@@ -833,9 +846,22 @@ class PlayerViewModel(
   }
 
   fun onMpvCoreInitialized() {
+    _isMpvCoreReady.value = true
+    startMpvStateCollectors()
     isMpvReadyForCustomButtons = true
     reloadCustomButtonsScript("mpv_core_initialized")
     startAndroidSystemInfoBridge()
+  }
+
+  private fun startMpvStateCollectors() {
+    if (mpvStateCollectorsJob?.isActive == true) return
+    mpvStateCollectorsJob =
+      viewModelScope.launch(playbackStateDispatcher) {
+        launch { MPVLib.propBoolean["pause"].collect { _paused.value = it } }
+        launch { MPVLib.propInt["time-pos"].collect { _pos.value = it } }
+        launch { MPVLib.propInt["duration"].collect { _duration.value = it } }
+        launch { MPVLib.propInt["volume-max"].collect { _volumeBoostCap.value = it } }
+      }
   }
 
   private fun startAndroidSystemInfoBridge() {

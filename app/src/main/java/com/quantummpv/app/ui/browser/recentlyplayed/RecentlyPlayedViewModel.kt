@@ -17,10 +17,12 @@ import com.quantummpv.app.domain.recentlyplayed.repository.RecentlyPlayedReposit
 import com.quantummpv.app.utils.permission.PermissionUtils
 
 
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import org.koin.java.KoinJavaComponent.inject
 import java.io.File
 import kotlin.math.pow
@@ -384,6 +386,35 @@ class RecentlyPlayedViewModel(application: Application) : AndroidViewModel(appli
     }
   }
 
+  suspend fun resolvePlayableRecentVideo(video: Video): Video? =
+    withContext(Dispatchers.IO) {
+      val path = video.path.takeIf { it.isNotBlank() } ?: video.uri.toString()
+      if (path.isBlank()) return@withContext null
+
+      if (isNetworkUri(path)) {
+        return@withContext video
+      }
+      val scheme = runCatching { Uri.parse(path).scheme?.lowercase() }.getOrNull()
+      if (scheme != null && scheme != "file") {
+        return@withContext video
+      }
+
+      val filePath =
+        when {
+          path.startsWith("file://", ignoreCase = true) -> path.removePrefix("file://")
+          video.uri.scheme.equals("file", ignoreCase = true) -> video.uri.path.orEmpty()
+          else -> path
+        }
+
+      val file = File(filePath)
+      if (file.exists() && file.canRead()) {
+        video
+      } else {
+        runCatching { recentlyPlayedRepository.deleteByFilePath(video.path) }
+        null
+      }
+    }
+
   private fun formatDuration(durationMs: Long): String {
     if (durationMs <= 0) return "--"
     val seconds = durationMs / 1000
@@ -426,6 +457,12 @@ class RecentlyPlayedViewModel(application: Application) : AndroidViewModel(appli
       else -> "${height}p"
     }
   }
+
+  private fun isNetworkUri(path: String): Boolean =
+    path.startsWith("http://", ignoreCase = true) ||
+      path.startsWith("https://", ignoreCase = true) ||
+      path.startsWith("rtmp://", ignoreCase = true) ||
+      path.startsWith("rtsp://", ignoreCase = true)
   
   /**
    * Checks if a URL is likely a streaming playlist (M3U, HLS, DASH, etc.)
