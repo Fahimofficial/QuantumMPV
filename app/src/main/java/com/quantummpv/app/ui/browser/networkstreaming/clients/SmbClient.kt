@@ -13,15 +13,48 @@ import com.hierynomus.smbj.auth.AuthenticationContext
 import com.hierynomus.smbj.connection.Connection
 import com.hierynomus.smbj.session.Session
 import com.hierynomus.smbj.share.DiskShare
-import com.hierynomus.smbj.share.File
+import com.hierynomus.smbj.transport.tcp.async.AsyncDirectTcpTransportFactory
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeout
+import java.io.BufferedInputStream
 import java.io.InputStream
 import java.util.EnumSet
 import java.util.concurrent.TimeUnit
 
 class SmbClient(private val connection: NetworkConnection) : NetworkClient {
+  companion object {
+    private const val SMB_BUFFER_SIZE = 1024 * 1024
+
+    @Volatile
+    private var sharedSmbClient: SMBClient? = null
+
+    private fun getOrCreateClient(): SMBClient =
+      sharedSmbClient ?: synchronized(this) {
+        sharedSmbClient ?: SMBClient(
+          SmbConfig.builder()
+            .withTransportLayerFactory(AsyncDirectTcpTransportFactory())
+            .withTimeout(60000, TimeUnit.MILLISECONDS)
+            .withSoTimeout(60000, TimeUnit.MILLISECONDS)
+            .withReadBufferSize(SMB_BUFFER_SIZE)
+            .withWriteBufferSize(SMB_BUFFER_SIZE)
+            .withTransactBufferSize(SMB_BUFFER_SIZE)
+            .withDialects(
+              com.hierynomus.mssmb2.SMB2Dialect.SMB_3_1_1,
+              com.hierynomus.mssmb2.SMB2Dialect.SMB_3_0_2,
+              com.hierynomus.mssmb2.SMB2Dialect.SMB_3_0,
+              com.hierynomus.mssmb2.SMB2Dialect.SMB_2_1,
+              com.hierynomus.mssmb2.SMB2Dialect.SMB_2_0_2,
+            )
+            .withDfsEnabled(false)
+            .withMultiProtocolNegotiate(true)
+            .withSigningRequired(false)
+            .withEncryptData(false)
+            .build(),
+        ).also { sharedSmbClient = it }
+      }
+  }
+
   private var smbClient: SMBClient? = null
   private var smbConnection: Connection? = null
   private var session: Session? = null
@@ -32,26 +65,7 @@ class SmbClient(private val connection: NetworkConnection) : NetworkClient {
   override suspend fun connect(): Result<Unit> =
     withContext(Dispatchers.IO) {
       try {
-        // Configure SMBJ for SMB 2/3 with Android-compatible settings
-        // Note: SMBJ uses Unicode (UTF-16LE) by default for SMB 2.0+ which properly handles international characters
-        // Disable signing and encryption to avoid cryptographic issues on Android
-        val config = SmbConfig.builder()
-          .withTimeout(30000, TimeUnit.MILLISECONDS)
-          .withSoTimeout(35000, TimeUnit.MILLISECONDS)
-          .withDialects(
-            com.hierynomus.mssmb2.SMB2Dialect.SMB_3_1_1,
-            com.hierynomus.mssmb2.SMB2Dialect.SMB_3_0_2,
-            com.hierynomus.mssmb2.SMB2Dialect.SMB_3_0,
-            com.hierynomus.mssmb2.SMB2Dialect.SMB_2_1,
-            com.hierynomus.mssmb2.SMB2Dialect.SMB_2_0_2,
-          )
-          .withDfsEnabled(false)
-          .withMultiProtocolNegotiate(true)
-          .withSigningRequired(false) // Fix for Android: Disable signing to avoid Key.getEncoded() error
-          .withEncryptData(false) // Fix for Android: Disable encryption
-          .build()
-
-        smbClient = SMBClient(config)
+        smbClient = getOrCreateClient()
 
         // Resolve and verify the host
         val resolvedAddress = try {
@@ -167,10 +181,6 @@ class SmbClient(private val connection: NetworkConnection) : NetworkClient {
       }
       try {
         smbConnection?.close()
-      } catch (_: Exception) {
-      }
-      try {
-        smbClient?.close()
       } catch (_: Exception) {
       }
       session = null
@@ -333,33 +343,11 @@ class SmbClient(private val connection: NetworkConnection) : NetworkClient {
       }
     }
 
-  override suspend fun getFileStream(path: String): Result<InputStream> =
+  override suspend fun getFileStream(path: String, offset: Long): Result<InputStream> =
     withContext(Dispatchers.IO) {
       try {
         val sess = session ?: return@withContext Result.failure(Exception("Not connected"))
-
-        // Parse the SMB path to get relative path within share
-        val relativePath = when {
-          path.startsWith("smb://") -> {
-            // Extract path from smb:// URL
-            // Use try-catch for URI parsing as spaces might not be encoded
-            try {
-              val uri = java.net.URI(path)
-              val pathParts = uri.path.trim('/').split('/', limit = 2)
-              pathParts.getOrNull(1) ?: ""
-            } catch (e: Exception) {
-              // If URI parsing fails (e.g., due to spaces), extract manually
-              val pathAfterProtocol = path.substringAfter("smb://")
-              val pathPart = pathAfterProtocol.substringAfter("/") // Remove host
-              val pathParts = pathPart.trim('/').split('/', limit = 2)
-              pathParts.getOrNull(1) ?: ""
-            }
-          }
-
-          else -> {
-            path.trim('/')
-          }
-        }
+        val relativePath = parseRelativePath(path)
 
         val diskShare = sess.connectShare(shareName) as? DiskShare
           ?: return@withContext Result.failure(Exception("Share '$shareName' is not a disk share"))
@@ -374,20 +362,55 @@ class SmbClient(private val connection: NetworkConnection) : NetworkClient {
             null,
           )
 
-          val inputStream = file.inputStream
+          val inputStream = object : InputStream() {
+            private var currentPosition = offset.coerceAtLeast(0L)
+            private var closed = false
+            private var scratch = ByteArray(0)
 
-          // Wrap the stream to handle cleanup
-          val wrappedStream = object : InputStream() {
-            override fun read(): Int = inputStream.read()
-            override fun read(b: ByteArray): Int = inputStream.read(b)
-            override fun read(b: ByteArray, off: Int, len: Int): Int = inputStream.read(b, off, len)
-            override fun available(): Int = inputStream.available()
+            override fun read(): Int {
+              val buffer = ByteArray(1)
+              val read = read(buffer, 0, 1)
+              return if (read == 1) buffer[0].toInt() and 0xFF else -1
+            }
+
+            override fun read(b: ByteArray): Int = read(b, 0, b.size)
+
+            override fun read(b: ByteArray, off: Int, len: Int): Int {
+              if (closed) return -1
+              if (len == 0) return 0
+
+              return try {
+                val readBuffer =
+                  if (off == 0 && len == b.size) {
+                    b
+                  } else {
+                    if (scratch.size < len) scratch = ByteArray(len)
+                    scratch
+                  }
+                val bytesRead = file.read(readBuffer, currentPosition)
+                if (bytesRead <= 0) {
+                  -1
+                } else {
+                  if (readBuffer !== b) {
+                    System.arraycopy(readBuffer, 0, b, off, bytesRead)
+                  }
+                  currentPosition += bytesRead
+                  bytesRead
+                }
+              } catch (_: Exception) {
+                -1
+              }
+            }
+
+            override fun available(): Int =
+              runCatching {
+                (file.fileInformation.standardInformation.endOfFile - currentPosition)
+                  .toInt()
+                  .coerceAtLeast(0)
+              }.getOrDefault(0)
 
             override fun close() {
-              try {
-                inputStream.close()
-              } catch (_: Exception) {
-              }
+              closed = true
               try {
                 file.close()
               } catch (_: Exception) {
@@ -399,10 +422,42 @@ class SmbClient(private val connection: NetworkConnection) : NetworkClient {
             }
           }
 
-          Result.success(wrappedStream)
+          Result.success(BufferedInputStream(inputStream, SMB_BUFFER_SIZE))
         } catch (e: Exception) {
           diskShare.close()
           Result.failure(Exception("Failed to open file: ${e.message}"))
+        }
+      } catch (e: Exception) {
+        Result.failure(e)
+      }
+    }
+
+  override suspend fun getFileSize(path: String): Result<Long> =
+    withContext(Dispatchers.IO) {
+      try {
+        if (!isConnected() || smbConnection?.isConnected != true) {
+          connect().getOrThrow()
+        }
+        val sess = session ?: return@withContext Result.failure(Exception("Not connected"))
+        val diskShare = sess.connectShare(shareName) as? DiskShare
+          ?: return@withContext Result.failure(Exception("Share '$shareName' is not a disk share"))
+
+        try {
+          val file = diskShare.openFile(
+            parseRelativePath(path),
+            EnumSet.of(AccessMask.GENERIC_READ),
+            null,
+            EnumSet.of(SMB2ShareAccess.FILE_SHARE_READ),
+            SMB2CreateDisposition.FILE_OPEN,
+            null,
+          )
+          val size = file.fileInformation.standardInformation.endOfFile
+          file.close()
+          diskShare.close()
+          Result.success(size)
+        } catch (e: Exception) {
+          diskShare.close()
+          Result.failure(Exception("Failed to get SMB file size: ${e.message}"))
         }
       } catch (e: Exception) {
         Result.failure(e)
@@ -448,5 +503,21 @@ class SmbClient(private val connection: NetworkConnection) : NetworkClient {
       else -> null
     }
   }
+
+  private fun parseRelativePath(path: String): String =
+    if (path.startsWith("smb://", ignoreCase = true)) {
+      try {
+        val uri = java.net.URI(path)
+        val pathParts = uri.path.trim('/').split('/', limit = 2)
+        pathParts.getOrNull(1) ?: ""
+      } catch (_: Exception) {
+        val pathAfterProtocol = path.substringAfter("smb://")
+        val pathPart = pathAfterProtocol.substringAfter("/")
+        val pathParts = pathPart.trim('/').split('/', limit = 2)
+        pathParts.getOrNull(1) ?: ""
+      }
+    } else {
+      path.trim('/')
+    }
 }
 

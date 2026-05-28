@@ -9,11 +9,15 @@ import com.thegrizzlylabs.sardineandroid.impl.OkHttpSardine
 import com.thegrizzlylabs.sardineandroid.DavResource
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import okhttp3.Credentials
+import okhttp3.OkHttpClient
+import okhttp3.Request
 import java.io.InputStream
 
 class WebDavClient(private val connection: NetworkConnection) : NetworkClient {
   companion object {
     private const val TAG = "WebDavClient"
+    private val rangeHttpClient by lazy { OkHttpClient() }
   }
 
   // Note: Sardine-Android uses OkHttp which properly handles UTF-8 encoding by default
@@ -112,7 +116,7 @@ class WebDavClient(private val connection: NetworkConnection) : NetworkClient {
    * Get file size for a specific file path
    * This is useful for the proxy server to support range requests
    */
-  suspend fun getFileSize(path: String): Result<Long> =
+  override suspend fun getFileSize(path: String): Result<Long> =
     withContext(Dispatchers.IO) {
       try {
         val client = sardine ?: return@withContext Result.failure(Exception("Not connected"))
@@ -132,9 +136,13 @@ class WebDavClient(private val connection: NetworkConnection) : NetworkClient {
       }
     }
 
-  override suspend fun getFileStream(path: String): Result<InputStream> =
+  override suspend fun getFileStream(path: String, offset: Long): Result<InputStream> =
     withContext(Dispatchers.IO) {
       try {
+        if (offset > 0L) {
+          return@withContext getRangedFileStream(path, offset)
+        }
+
         // Create a fresh Sardine client for this stream to avoid connection conflicts
         val streamClient = OkHttpSardine()
 
@@ -173,6 +181,41 @@ class WebDavClient(private val connection: NetworkConnection) : NetworkClient {
         Result.failure(e)
       }
     }
+
+  private fun getRangedFileStream(path: String, offset: Long): Result<InputStream> {
+    val requestBuilder =
+      Request.Builder()
+        .url(buildUrl(path))
+        .get()
+        .addHeader("Range", "bytes=$offset-")
+
+    if (!connection.isAnonymous) {
+      requestBuilder.addHeader(
+        "Authorization",
+        Credentials.basic(connection.username, connection.password),
+      )
+    }
+
+    val response = rangeHttpClient.newCall(requestBuilder.build()).execute()
+    if (!response.isSuccessful && response.code != 206) {
+      response.close()
+      return Result.failure(Exception("Failed to open ranged WebDAV stream: HTTP ${response.code}"))
+    }
+
+    val rawStream = response.body.byteStream()
+    val wrappedStream = object : InputStream() {
+      override fun read(): Int = rawStream.read()
+      override fun read(b: ByteArray): Int = rawStream.read(b)
+      override fun read(b: ByteArray, off: Int, len: Int): Int = rawStream.read(b, off, len)
+      override fun available(): Int = rawStream.available()
+
+      override fun close() {
+        runCatching { rawStream.close() }
+        runCatching { response.close() }
+      }
+    }
+    return Result.success(wrappedStream)
+  }
 
   override suspend fun getFileUri(path: String): Result<Uri> =
     withContext(Dispatchers.IO) {

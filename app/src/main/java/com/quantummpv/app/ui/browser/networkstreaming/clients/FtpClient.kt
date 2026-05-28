@@ -158,7 +158,7 @@ class FtpClient(private val connection: NetworkConnection) : NetworkClient {
    * Get file size for a specific file path
    * This is useful for the proxy server to support range requests
    */
-  suspend fun getFileSize(path: String): Result<Long> =
+  override suspend fun getFileSize(path: String): Result<Long> =
     withContext(Dispatchers.IO) {
       try {
         val client = ftpClient ?: return@withContext Result.failure(Exception("Not connected"))
@@ -175,7 +175,7 @@ class FtpClient(private val connection: NetworkConnection) : NetworkClient {
       }
     }
 
-  override suspend fun getFileStream(path: String): Result<InputStream> =
+  override suspend fun getFileStream(path: String, offset: Long): Result<InputStream> =
     withContext(Dispatchers.IO) {
       try {
         // Create a fresh FTP client for this stream to avoid connection conflicts
@@ -225,6 +225,9 @@ class FtpClient(private val connection: NetworkConnection) : NetworkClient {
         }
 
         streamClient.bufferSize = 1024 * 64 // 64KB buffer
+        if (offset > 0L) {
+          streamClient.setRestartOffset(offset)
+        }
 
         // Change to initial directory if specified (matching the connect() behavior)
         if (connection.path != "/" && connection.path.isNotEmpty()) {

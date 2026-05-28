@@ -294,6 +294,15 @@ class NetworkStreamingProxy private constructor() : NanoHTTPD("127.0.0.1", 0) {
   private fun getFileSize(streamInfo: StreamInfo): Long {
     return runBlocking {
       try {
+        if (!streamInfo.client.isConnected()) {
+          streamInfo.client.connect().getOrThrow()
+        }
+        streamInfo.client.getFileSize(streamInfo.filePath).getOrNull()?.let { size ->
+          if (size > 0L) {
+            return@runBlocking size
+          }
+        }
+
         when (streamInfo.client) {
           is com.quantummpv.app.ui.browser.networkstreaming.clients.SmbClient -> {
             getFileSizeSMB(streamInfo)
@@ -513,44 +522,18 @@ class NetworkStreamingProxy private constructor() : NanoHTTPD("127.0.0.1", 0) {
   }
 
   private fun getStream(streamInfo: StreamInfo): InputStream? {
-    return runBlocking {
-      try {
-        // Connect if needed
-        if (!streamInfo.client.isConnected()) {
-          streamInfo.client.connect().getOrThrow()
-        }
-
-        // Get file stream
-        val result = streamInfo.client.getFileStream(streamInfo.filePath)
-        result.getOrNull()
-      } catch (e: Exception) {
-        Log.e(TAG, "Error getting stream", e)
-        null
-      }
-    }
+    return getStreamWithOffset(streamInfo, 0L)
   }
 
   private fun getStreamWithOffset(streamInfo: StreamInfo, offset: Long): InputStream? {
     return runBlocking {
       try {
-        when (streamInfo.client) {
-          is com.quantummpv.app.ui.browser.networkstreaming.clients.SmbClient -> {
-            getStreamWithOffsetSMB(streamInfo, offset)
-          }
-
-          is com.quantummpv.app.ui.browser.networkstreaming.clients.FtpClient -> {
-            getStreamWithOffsetFTP(streamInfo, offset)
-          }
-
-          is com.quantummpv.app.ui.browser.networkstreaming.clients.WebDavClient -> {
-            getStreamWithOffsetWebDAV(streamInfo, offset)
-          }
-
-          else -> {
-            getStreamWithOffsetGeneric(streamInfo, offset)
-          }
+        if (!streamInfo.client.isConnected()) {
+          streamInfo.client.connect().getOrThrow()
         }
+        streamInfo.client.getFileStream(streamInfo.filePath, offset).getOrNull()
       } catch (e: Exception) {
+        Log.e(TAG, "Error getting ranged stream", e)
         null
       }
     }

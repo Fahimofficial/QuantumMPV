@@ -31,7 +31,13 @@ interface NetworkClient {
   /**
    * Get input stream for a file
    */
-  suspend fun getFileStream(path: String): Result<InputStream>
+  suspend fun getFileStream(path: String, offset: Long = 0L): Result<InputStream>
+
+  /**
+   * Get file size when the protocol can expose it cheaply.
+   */
+  suspend fun getFileSize(path: String): Result<Long> =
+    Result.failure(UnsupportedOperationException("File size is not supported by this client"))
 
   /**
    * Get file URI for playback
