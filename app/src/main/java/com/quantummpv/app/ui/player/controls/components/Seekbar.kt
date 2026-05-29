@@ -808,7 +808,7 @@ private fun SlimSeekbar(
 
         val bufferPx =
             if (bufferDuration != null && bufferDuration > 0f && duration > 0f)
-                playedPx + (bufferDuration / duration).coerceIn(0f, 1f) * totalWidth
+                (playedPx + (bufferDuration / duration) * totalWidth).coerceIn(playedPx, totalWidth)
             else
                 playedPx
 
@@ -1132,7 +1132,7 @@ fun StandardSeekbar(
                 val playedPx = size.width * playedFraction
                 val bufferPx =
                     if (bufferDuration != null && bufferDuration > 0f && duration > 0f)
-                        playedPx + (bufferDuration / duration).coerceIn(0f, 1f) * size.width
+                        (playedPx + (bufferDuration / duration) * size.width).coerceIn(playedPx, size.width)
                     else playedPx
                 val trackHeight = size.height
                 
