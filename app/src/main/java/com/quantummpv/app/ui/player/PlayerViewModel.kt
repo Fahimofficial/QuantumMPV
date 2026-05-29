@@ -3052,9 +3052,11 @@ class PlayerViewModel(
       "curl_request" -> scriptCurlBridge.handleRequest(data)
     }
 
-    // Do not clear curl_request here — the bridge reads it asynchronously.
-    // For all other properties, clear after handling to signal "consumed".
-    if (property.substringAfterLast("/") != "curl_request") {
+    // Do not clear curl_request or curl_response here:
+    //  - curl_request is consumed asynchronously by the bridge.
+    //  - curl_response is written by the bridge and must remain readable
+    //    until the script's observe_property callback fires.
+    if (property.substringAfterLast("/") !in listOf("curl_request", "curl_response")) {
       MPVLib.setPropertyString(property, "")
     }
   }

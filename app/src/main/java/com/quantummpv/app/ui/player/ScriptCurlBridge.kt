@@ -187,14 +187,21 @@ class ScriptCurlBridge(
         return try {
             client.newCall(okRequest).execute().use { response ->
                 val rawBody = response.body?.byteStream()?.let { stream ->
-                    stream.readBytes().let { bytes ->
-                        if (bytes.size > MAX_RESPONSE_BODY_BYTES) {
-                            Log.w(TAG, "Response body truncated (${bytes.size} bytes > $MAX_RESPONSE_BODY_BYTES)")
-                            bytes.copyOf(MAX_RESPONSE_BODY_BYTES).toString(Charsets.UTF_8) + "\n[truncated]"
-                        } else {
-                            bytes.toString(Charsets.UTF_8)
-                        }
+                    val buffer = ByteArray(MAX_RESPONSE_BODY_BYTES + 1)
+                    var totalRead = 0
+                    var bytesRead: Int
+                    while (totalRead <= MAX_RESPONSE_BODY_BYTES &&
+                        stream.read(buffer, totalRead, buffer.size - totalRead).also { bytesRead = it } != -1
+                    ) {
+                        totalRead += bytesRead
                     }
+                    val truncated = totalRead > MAX_RESPONSE_BODY_BYTES
+                    val limit = if (truncated) MAX_RESPONSE_BODY_BYTES else totalRead
+                    if (truncated) {
+                        Log.w(TAG, "Response body truncated (> $MAX_RESPONSE_BODY_BYTES bytes)")
+                    }
+                    buffer.toString(Charsets.UTF_8, 0, limit) +
+                        if (truncated) "\n[truncated]" else ""
                 } ?: ""
 
                 val responseHeaders = response.headers.toMultimap()
