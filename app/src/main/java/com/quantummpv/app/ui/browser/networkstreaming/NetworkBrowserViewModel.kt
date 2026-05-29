@@ -137,19 +137,45 @@ class NetworkBrowserViewModel(
       return
     }
 
-    val sourceUrl =
-      NetworkClientFactory.createClient(connection)
-        .getFileUri(file.path)
-        .getOrNull()
-        ?.toString()
-        ?: file.path
+    // Resolve the source URL that the M3U was loaded from.
+    // This is essential for resolving relative paths inside the M3U
+    // (e.g. "episode02.mkv" -> "davs://server/videos/episode02.mkv").
+    // getFileUri() is tried first; if it fails we build a best-effort URL
+    // from the connection's base URL + file path.
+    val sourceUrl: String = NetworkClientFactory.createClient(connection)
+      .getFileUri(file.path)
+      .getOrNull()
+      ?.toString()
+      ?: buildFallbackSourceUrl(connection, file.path)
+
+    Log.d(TAG, "Importing M3U playlist from: $sourceUrl")
 
     val playlistId = playlistRepository.createM3UPlaylistFromContent(
       content = content,
       sourceName = file.name,
       sourceUrl = sourceUrl,
-    ).getOrThrow()
+    ).getOrElse { e ->
+      Log.e(TAG, "Failed to create playlist from M3U content", e)
+      _error.value = "Failed to import playlist: ${e.message}"
+      return
+    }
     _importedPlaylistId.emit(playlistId.toInt())
+  }
+
+  /**
+   * Builds a best-effort URL for the given file path on a network connection.
+   * Used as a fallback when [NetworkClientFactory] cannot produce a URI.
+   */
+  private fun buildFallbackSourceUrl(connection: NetworkConnection, filePath: String): String {
+    val protocol = when (connection.protocol) {
+      NetworkProtocol.WEBDAV -> if (connection.useHttps) "https" else "http"
+      NetworkProtocol.FTP    -> "ftp"
+      NetworkProtocol.SMB    -> "smb"
+    }
+    val defaultPort = connection.protocol.defaultPort
+    val portStr = if (connection.port != defaultPort) ":${connection.port}" else ""
+    val normalizedPath = if (filePath.startsWith("/")) filePath else "/$filePath"
+    return "$protocol://${connection.host}$portStr$normalizedPath"
   }
 
   private fun playVideoInternal(

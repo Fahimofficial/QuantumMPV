@@ -267,7 +267,7 @@ class PlaylistRepository(private val playlistDao: PlaylistDao) {
               name = parseResult.playlistName.ifBlank { sourceName.substringBeforeLast('.') },
               createdAt = now,
               updatedAt = now,
-              m3uSourceUrl = null,
+              m3uSourceUrl = sourceUrl,
               isM3uPlaylist = true,
               userAgent = userAgent,
             )

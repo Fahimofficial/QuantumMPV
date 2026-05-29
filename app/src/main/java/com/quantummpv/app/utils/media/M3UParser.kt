@@ -35,12 +35,13 @@ sealed class M3UParseResult {
 }
 
 /**
- * Parser for M3U and M3U8 playlist files
- * Supports both simple M3U format and extended M3U format with EXTINF tags
+ * Parser for M3U and M3U8 playlist files.
+ * Supports both simple M3U format and extended M3U format with EXTINF tags.
+ * Handles relative URLs for any URI scheme, including http(s), davs://, smb://, ftp://, sftp://.
  */
 object M3UParser {
   private const val TAG = "M3UParser"
-  private const val TIMEOUT_MS = 15000
+  private const val TIMEOUT_MS = 30_000 // 30s — generous for slow WebDAV/SMB servers
   private const val DEFAULT_USER_AGENT = "MpvRx/1.0"
 
   private const val EXTINF_PREFIX = "#EXTINF:"
@@ -50,7 +51,7 @@ object M3UParser {
   private const val KODI_LICENSE_KEY  = "inputstream.adaptive.license_key"
 
   private val kodiPropRegex = """([^=]+)=(.+)""".toRegex()
-  private val extinfMetaRegex = """([\w\-_.]+)=\s*(?:"([^"]*)"|(\S+))""".toRegex()
+  private val extinfMetaRegex = """([\w\-_.]+)=\s*(?:"([^"]*)"|([\S]+))""".toRegex()
   private val extinfInfoRegex = """(-?\d+)(.*),(.*)""".toRegex()
 
   /**
@@ -114,7 +115,11 @@ object M3UParser {
   }
   
   /**
-   * Parse M3U/M3U8 content from string
+   * Parse M3U/M3U8 content from a string.
+   *
+   * @param content  Raw M3U text
+   * @param sourceUrl  The URL/path from which the content was loaded; used to resolve
+   *                   relative entry URLs. Pass null only if all entries are absolute.
    */
   fun parseContent(content: String, sourceUrl: String? = null): M3UParseResult {
     try {
@@ -167,7 +172,7 @@ object M3UParser {
               currentDuration = parts.firstOrNull()?.trim()?.split(" ")?.firstOrNull()?.toIntOrNull() ?: -1
               currentTitle = if (parts.size > 1) parts[1].trim().ifBlank { null } else null
               if (parts.isNotEmpty()) {
-                currentTvgLogo   = extractAttribute(parts[0], "tvg-logo")
+                currentTvgLogo    = extractAttribute(parts[0], "tvg-logo")
                 currentGroupTitle = extractAttribute(parts[0], "group-title")
                 currentTvgId      = extractAttribute(parts[0], "tvg-id")
                 currentTvgName    = extractAttribute(parts[0], "tvg-name")
@@ -207,8 +212,9 @@ object M3UParser {
             var mediaUrl = line.trim()
             if (mediaUrl.isEmpty()) continue
 
-            // If URL is relative and we have a base URL, make it absolute
-            if (!mediaUrl.startsWith("http://") && !mediaUrl.startsWith("https://") && baseUrl != null) {
+            // Resolve relative URLs against the base URL of the M3U file.
+            // This handles any URI scheme: http(s), davs://, smb://, ftp://, sftp://, etc.
+            if (baseUrl != null && !isAbsoluteUrl(mediaUrl)) {
               mediaUrl = resolveRelativeUrl(baseUrl, mediaUrl)
             }
 
@@ -250,12 +256,12 @@ object M3UParser {
       
       // Extract playlist name from source URL/filename or use default
       val playlistName = sourceUrl?.let { 
-        // Check if it's a URL or a filename
         if (it.startsWith("http://") || it.startsWith("https://")) {
           extractPlaylistNameFromUrl(it)
         } else {
-          // It's a filename, extract name without extension
-          it.substringBeforeLast('.', it)
+          // It's a filename or a non-http URL — extract name without extension
+          it.substringAfterLast('/')
+            .substringBeforeLast('.')
             .replace('_', ' ')
             .replace('-', ' ')
             .trim()
@@ -272,6 +278,12 @@ object M3UParser {
     }
   }
 
+  /**
+   * Returns true if the URL string is already absolute (has a scheme or is protocol-relative).
+   */
+  private fun isAbsoluteUrl(url: String): Boolean =
+    url.startsWith("//") || Uri.parse(url).scheme != null
+
   fun isLikelyHlsMediaManifest(content: String): Boolean {
     val lines = content.lines().map { it.trim() }
     return lines.any { line ->
@@ -285,98 +297,136 @@ object M3UParser {
   }
   
   /**
-   * Extract attribute value from EXTINF line
-   * Example: tvg-logo="http://example.com/logo.png"
+   * Extract attribute value from an EXTINF attribute string.
+   * Example: extractAttribute(line, "tvg-logo") -> "http://example.com/logo.png"
    */
   private fun extractAttribute(line: String, attributeName: String): String? {
     val pattern = """$attributeName="([^"]+)"""".toRegex()
     return pattern.find(line)?.groupValues?.getOrNull(1)
   }
-  
+
   /**
-   * Extract base URL from a full URL
+   * Extract the base directory URL from a full URL.
+   *
+   * - http/https: uses java.net.URL for accurate path handling
+   * - All other schemes (davs://, smb://, ftp://, sftp://, etc.): strips the
+   *   filename after the last slash
    */
   private fun extractBaseUrl(url: String): String {
-    val scheme = Uri.parse(url).scheme
-    if (scheme != null && scheme !in setOf("http", "https")) {
-      return url.substringBeforeLast('/', missingDelimiterValue = url).let { base ->
-        if (base == url) "$url/" else "$base/"
+    val scheme = Uri.parse(url).scheme?.lowercase()
+    if (scheme == "http" || scheme == "https") {
+      return try {
+        val urlObj = URL(url)
+        val path = urlObj.path
+        val lastSlash = path.lastIndexOf('/')
+        val basePath = if (lastSlash >= 0) path.substring(0, lastSlash + 1) else "/"
+        "${urlObj.protocol}://${urlObj.host}${if (urlObj.port != -1) ":${urlObj.port}" else ""}$basePath"
+      } catch (_: Exception) {
+        url.substringBeforeLast('/') + "/"
       }
     }
-    return try {
-      val urlObj = URL(url)
-      val path = urlObj.path
-      val lastSlash = path.lastIndexOf('/')
-      val basePath = if (lastSlash >= 0) path.substring(0, lastSlash + 1) else "/"
-      "${urlObj.protocol}://${urlObj.host}${if (urlObj.port != -1) ":${urlObj.port}" else ""}$basePath"
-    } catch (_: Exception) {
-      url.substringBeforeLast('/') + "/"
-    }
+    // Non-http scheme: strip filename after last slash
+    val stripped = url.substringBeforeLast('/')
+    return if (stripped == url) "$url/" else "$stripped/"
   }
   
   /**
-   * Resolve a relative URL against a base URL
+   * Resolve a relative URL against a base URL.
+   *
+   * Handles all URI schemes correctly:
+   * - http/https/ftp → java.net.URL (handles `../` segments properly)
+   * - davs://, smb://, sftp://, and any other scheme → pure Uri-based resolution
+   *
+   * @param baseUrl      Directory URL (always ends with '/' from [extractBaseUrl])
+   * @param relativeUrl  Raw URL string from an M3U entry line
    */
   private fun resolveRelativeUrl(baseUrl: String, relativeUrl: String): String {
-    val parsedScheme = Uri.parse(relativeUrl).scheme
-    if (parsedScheme != null || relativeUrl.startsWith("//")) {
-      return relativeUrl
+    // Fast path: already absolute or protocol-relative
+    if (isAbsoluteUrl(relativeUrl)) return relativeUrl
+
+    val baseScheme = Uri.parse(baseUrl).scheme?.lowercase()
+
+    // For http/https/ftp, java.net.URL handles `../` traversal correctly
+    if (baseScheme == "http" || baseScheme == "https" || baseScheme == "ftp") {
+      return try {
+        URL(URL(baseUrl), relativeUrl).toString()
+      } catch (_: Exception) {
+        // Fall through to Uri-based resolver
+        resolveWithUri(baseUrl, relativeUrl, baseScheme)
+      }
     }
-    return try {
-      URL(URL(baseUrl), relativeUrl).toString()
-    } catch (_: Exception) {
-      val baseUri = Uri.parse(baseUrl)
-      when {
-        relativeUrl.startsWith("/") && baseUri.scheme != null && !baseUri.authority.isNullOrBlank() -> {
-          "${baseUri.scheme}://${baseUri.encodedAuthority ?: baseUri.authority}$relativeUrl"
-        }
-        else -> {
-          val base = if (baseUrl.endsWith("/")) baseUrl else baseUrl.substringBeforeLast('/') + "/"
-          base + relativeUrl
+
+    // For davs://, smb://, sftp://, etc. — use Uri-based resolution
+    return resolveWithUri(baseUrl, relativeUrl, baseScheme)
+  }
+
+  /**
+   * Pure Uri-based relative URL resolver.
+   * Works for any URI scheme where java.net.URL is not applicable.
+   */
+  private fun resolveWithUri(baseUrl: String, relativeUrl: String, baseScheme: String?): String {
+    val baseUri = Uri.parse(baseUrl)
+    val authority = baseUri.encodedAuthority?.takeIf { it.isNotBlank() }
+      ?: baseUri.authority?.takeIf { it.isNotBlank() }
+      ?: ""
+    val schemePrefix = if (baseScheme != null) "$baseScheme://" else "//"
+
+    return when {
+      relativeUrl.startsWith("/") -> {
+        // Absolute path on the same server — keep scheme + authority, replace path
+        "$schemePrefix$authority$relativeUrl"
+      }
+      else -> {
+        // Relative to the base directory (e.g. "ep2.mkv" or "../s2/ep1.mkv")
+        // baseUrl already ends with '/' from extractBaseUrl
+        val combined = baseUrl + relativeUrl
+        // Use java.net.URI.normalize() to collapse '..' and '.' segments
+        try {
+          java.net.URI(combined).normalize().toString()
+        } catch (_: Exception) {
+          combined
         }
       }
     }
   }
   
   /**
-   * Extract a readable title from a URL
+   * Extract a human-readable title from a media URL.
+   * Falls back to URL-decoding the last path segment and stripping the extension.
    */
   private fun extractTitleFromUrl(url: String): String {
     return try {
-      val urlObj = URL(url)
-      val path = urlObj.path
+      val path = Uri.parse(url).path ?: url
       val filename = path.substringAfterLast('/')
-      
-      // Remove extension and decode
       val nameWithoutExt = filename.substringBeforeLast('.')
       java.net.URLDecoder.decode(nameWithoutExt, "UTF-8")
         .replace('_', ' ')
         .replace('-', ' ')
+        .trim()
+        .ifBlank { filename.take(60) }
     } catch (_: Exception) {
-      url.substringAfterLast('/').take(50)
+      url.substringAfterLast('/').take(60)
     }
   }
   
   /**
-   * Extract playlist name from URL
+   * Extract a human-readable playlist name from a URL.
+   * Decodes URL encoding and strips the file extension.
    */
   private fun extractPlaylistNameFromUrl(url: String): String {
     return try {
-      val urlObj = URL(url)
-      val path = urlObj.path
+      val path = Uri.parse(url).path ?: return "M3U Playlist"
       val filename = path.substringAfterLast('/')
-      
-      // Remove extension
       val nameWithoutExt = filename.substringBeforeLast('.')
       java.net.URLDecoder.decode(nameWithoutExt, "UTF-8")
         .replace('_', ' ')
         .replace('-', ' ')
         .replaceFirstChar { it.uppercase() }
+        .trim()
+        .ifBlank { "M3U Playlist" }
     } catch (_: Exception) {
       "M3U Playlist"
     }
   }
 
 }
-
-
