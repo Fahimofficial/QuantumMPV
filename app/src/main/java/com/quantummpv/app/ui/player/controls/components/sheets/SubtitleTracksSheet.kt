@@ -73,7 +73,7 @@ fun SubtitlesSheet(
   subtitleGenerationStatus: String,
   translatingTrackId: Int? = null,
   translatingTrackName: String = "",
-  provider: AiProvider = AiProvider.GEMINI,
+  provider: AiProvider = AiProvider.OPENCODE,
   autoTranslateLanguages: String = "",
   aiEnabled: Boolean = true,
   realtimeSubsEnabled: Boolean = true,

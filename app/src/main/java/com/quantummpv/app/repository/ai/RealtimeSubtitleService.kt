@@ -41,7 +41,6 @@ class RealtimeSubtitleService(
   private val context: Context,
   private val preferences: AiPreferences,
   private val groqSpeechClient: GroqSpeechClient,
-  private val geminiSpeechClient: GeminiSpeechClient,
   private val okHttpClient: OkHttpClient,
   private val json: Json,
 ) {
@@ -250,12 +249,6 @@ class RealtimeSubtitleService(
         val key = preferences.groqApiKey.get()
         if (key.isBlank()) return null
         groqSpeechClient.transcribe(key, audioFile, language).getOrNull()
-      }
-
-      AiProvider.GEMINI -> {
-        val key = preferences.geminiApiKey.get()
-        if (key.isBlank()) return null
-        geminiSpeechClient.transcribe(key, audioFile, language).getOrNull()
       }
 
       AiProvider.OPENAI -> {

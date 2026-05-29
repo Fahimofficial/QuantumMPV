@@ -792,28 +792,28 @@ object SearchablePreferences {
             add(SearchablePreference(
                 title = "AI Integration",
                 summary = "AI-powered rename, subtitle formatting, speech-to-text, subtitle translation, offline models",
-                keywords = listOf("ai", "gemini", "groq", "openai", "anthropic", "together", "openrouter", "machine learning", "intelligence"),
+                keywords = listOf("ai", "opencode", "groq", "openai", "anthropic", "together", "openrouter", "machine learning", "intelligence"),
                 category = "AI",
                 screen = AiIntegrationScreen,
             ))
             add(SearchablePreference(
                 title = "AI Provider",
-                summary = "Choose Gemini, Groq, OpenAI, Anthropic, OpenRouter, Together, or offline local models",
-                keywords = listOf("provider", "gemini", "groq", "openai", "anthropic", "together", "openrouter", "local", "offline", "api"),
+                summary = "Choose OpenCode, Groq, OpenAI, Anthropic, OpenRouter, Together, or offline local models",
+                keywords = listOf("provider", "opencode", "groq", "openai", "anthropic", "together", "openrouter", "local", "offline", "api"),
                 category = "AI",
                 screen = AiIntegrationScreen,
             ))
             add(SearchablePreference(
                 title = "API Key Configuration",
                 summary = "Enter and verify your AI provider API key",
-                keywords = listOf("api key", "key", "authentication", "token", "verify", "gemini", "groq", "openai"),
+                keywords = listOf("api key", "key", "authentication", "token", "verify", "opencode", "groq", "openai"),
                 category = "AI",
                 screen = AiIntegrationScreen,
             ))
             add(SearchablePreference(
                 title = "AI Model Selection",
                 summary = "Fetch and select which AI model to use",
-                keywords = listOf("model", "llm", "gemini", "gpt", "claude", "mixtral", "deepseek", "selection"),
+                keywords = listOf("model", "llm", "opencode", "gpt", "claude", "mixtral", "deepseek", "selection"),
                 category = "AI",
                 screen = AiIntegrationScreen,
             ))

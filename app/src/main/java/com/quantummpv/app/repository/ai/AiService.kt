@@ -16,7 +16,7 @@ import java.util.Locale
 class AiService(
   private val context: Context,
   private val preferences: AiPreferences,
-  private val geminiClient: AiClient,
+  private val openCodeClient: AiClient,
   private val groqClient: AiClient,
   private val openAiClient: AiClient,
   private val anthropicClient: AiClient,
@@ -31,7 +31,7 @@ class AiService(
   }
 
   private val clients: Map<AiProvider, AiClient> = mapOf(
-    AiProvider.GEMINI to geminiClient,
+    AiProvider.OPENCODE to openCodeClient,
     AiProvider.GROQ to groqClient,
     AiProvider.OPENAI to openAiClient,
     AiProvider.ANTHROPIC to anthropicClient,
@@ -294,7 +294,7 @@ class AiService(
   fun getOnlineProviders(): List<AiProvider> = AiProvider.values().filter { it != AiProvider.LOCAL }
 
   fun getApiKey(provider: AiProvider): String = when (provider) {
-    AiProvider.GEMINI -> preferences.geminiApiKey.get()
+    AiProvider.OPENCODE -> preferences.openCodeApiKey.get()
     AiProvider.GROQ -> preferences.groqApiKey.get()
     AiProvider.OPENAI -> preferences.openaiApiKey.get()
     AiProvider.ANTHROPIC -> preferences.anthropicApiKey.get()

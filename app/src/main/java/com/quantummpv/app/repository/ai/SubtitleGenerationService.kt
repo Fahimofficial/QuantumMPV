@@ -49,7 +49,6 @@ class SubtitleGenerationService(
   private val context: Context,
   private val preferences: AiPreferences,
   private val groqSpeechClient: GroqSpeechClient,
-  private val geminiSpeechClient: GeminiSpeechClient,
   private val okHttpClient: OkHttpClient,
   private val json: Json,
 ) {
@@ -220,7 +219,7 @@ class SubtitleGenerationService(
         extractor.release()
       }
 
-      if (!isActive) { outputFile!!.delete(); return@runCatching null }
+      if (!isActive) { outputFile.delete(); return@runCatching null }
       outputFile
     }.getOrNull()
   }
@@ -236,11 +235,6 @@ class SubtitleGenerationService(
         if (key.isBlank()) Result.failure(Exception("Groq API key not configured."))
         else groqSpeechClient.transcribe(key, audioFile, language)
       }
-      AiProvider.GEMINI -> {
-        val key = preferences.geminiApiKey.get()
-        if (key.isBlank()) Result.failure(Exception("Gemini API key not configured."))
-        else geminiSpeechClient.transcribe(key, audioFile, language)
-      }
       AiProvider.OPENAI -> {
         val key = preferences.openaiApiKey.get()
         if (key.isBlank()) Result.failure(Exception("OpenAI API key not configured."))
@@ -251,7 +245,7 @@ class SubtitleGenerationService(
         if (key.isBlank()) Result.failure(Exception("OpenRouter API key not configured."))
         else transcribeOpenAiCompatible("https://openrouter.ai/api/v1/audio/transcriptions", key, "openai/whisper-1", audioFile, language)
       }
-      else -> Result.failure(Exception("Only online providers (Groq, Gemini, OpenAI, OpenRouter) are supported."))
+      else -> Result.failure(Exception("Only online providers (Groq, OpenAI, OpenRouter) are supported."))
     }
   }
 

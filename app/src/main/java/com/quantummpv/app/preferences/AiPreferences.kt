@@ -4,7 +4,7 @@ import com.quantummpv.app.preferences.preference.PreferenceStore
 import com.quantummpv.app.preferences.preference.getEnum
 
 enum class AiProvider(val displayName: String) {
-  GEMINI("Gemini"),
+  OPENCODE("OpenCode"),
   GROQ("Groq"),
   OPENAI("OpenAI"),
   ANTHROPIC("Anthropic"),
@@ -18,9 +18,9 @@ class AiPreferences(
 ) {
   val enabled = preferenceStore.getBoolean("ai_enabled", false)
 
-  val provider = preferenceStore.getEnum("ai_provider", AiProvider.GEMINI)
+  val provider = preferenceStore.getEnum("ai_provider", AiProvider.OPENCODE)
 
-  val geminiApiKey = preferenceStore.getString("ai_gemini_api_key", "")
+  val openCodeApiKey = preferenceStore.getString("ai_opencode_api_key", "")
   val groqApiKey = preferenceStore.getString("ai_groq_api_key", "")
   val openaiApiKey = preferenceStore.getString("ai_openai_api_key", "")
   val anthropicApiKey = preferenceStore.getString("ai_anthropic_api_key", "")

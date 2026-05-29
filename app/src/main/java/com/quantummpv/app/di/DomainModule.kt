@@ -13,8 +13,7 @@ import com.quantummpv.app.repository.subtitlehub.MpvRxSubtitleHubRepository
 import com.quantummpv.app.repository.wyzie.WyzieSearchRepository
 import com.quantummpv.app.repository.ai.AiClient
 import com.quantummpv.app.repository.ai.AiService
-import com.quantummpv.app.repository.ai.GeminiClient
-import com.quantummpv.app.repository.ai.GeminiSpeechClient
+import com.quantummpv.app.repository.ai.OpenCodeClient
 import com.quantummpv.app.repository.ai.AnthropicClient
 import com.quantummpv.app.repository.ai.GroqClient
 import com.quantummpv.app.repository.ai.GroqSpeechClient
@@ -100,16 +99,15 @@ val domainModule = module {
     single { MpvRxSubtitleHubRepository(get(), get(), get(), get()) }
     single { OnlineSubtitleOrchestrator(get<WyzieSearchRepository>(), get<MpvRxSubtitleHubRepository>()) }
     single { IntroDbRepository(get(), get()) }
-    single { GeminiClient(get(), get()) }
+    single { OpenCodeClient(get(), get()) }
     single { GroqClient(get(), get()) }
     single { OpenAiClient(get(), get()) }
     single { AnthropicClient(get(), get()) }
     single { OpenRouterClient(get(), get()) }
     single { TogetherClient(get(), get()) }
-    single { GeminiSpeechClient(get(), get()) }
     single { GroqSpeechClient(get(), get()) }
     single<com.quantummpv.app.repository.ai.LlmInference> { com.quantummpv.app.repository.ai.LlamaCppInference() }
-    single<AiClient>(named("gemini")) { GeminiClient(get(), get()) }
+    single<AiClient>(named("opencode")) { OpenCodeClient(get(), get()) }
     single<AiClient>(named("groq")) { GroqClient(get(), get()) }
     single<AiClient>(named("openai")) { OpenAiClient(get(), get()) }
     single<AiClient>(named("anthropic")) { AnthropicClient(get(), get()) }
@@ -117,13 +115,13 @@ val domainModule = module {
     single<AiClient>(named("together")) { TogetherClient(get(), get()) }
     single { LocalAiClient(get()) }
     single { ModelDownloadManager(get()) }
-    single { SubtitleGenerationService(androidContext(), get(), get(), get(), get(), get()) }
-    single { RealtimeSubtitleService(androidContext(), get(), get(), get(), get(), get()) }
+    single { SubtitleGenerationService(androidContext(), get(), get(), get(), get()) }
+    single { RealtimeSubtitleService(androidContext(), get(), get(), get(), get()) }
     single {
         AiService(
             androidContext(),
             get<AiPreferences>(),
-            get<AiClient>(named("gemini")),
+            get<AiClient>(named("opencode")),
             get<AiClient>(named("groq")),
             get<AiClient>(named("openai")),
             get<AiClient>(named("anthropic")),

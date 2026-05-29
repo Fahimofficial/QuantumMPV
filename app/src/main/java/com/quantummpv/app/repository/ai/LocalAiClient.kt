@@ -35,7 +35,7 @@ class LocalAiClient(
       return Result.failure(
         IllegalStateException(
           "Local AI native library is not available on this device. " +
-            "Please use Gemini or Groq instead.",
+            "Please use OpenCode or Groq instead.",
         ),
       )
     }
@@ -54,7 +54,7 @@ class LocalAiClient(
         // Guard #1: native library must be present
         if (!inference.isAvailable()) {
           throw IllegalStateException(
-            "Local AI is not supported on this device. Please use Gemini or Groq.",
+            "Local AI is not supported on this device. Please use OpenCode or Groq.",
           )
         }
 

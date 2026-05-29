@@ -268,7 +268,7 @@ fun OnlineSubtitleSearchSheet(
                 .height(160.dp),
               contentPadding = PaddingValues(horizontal = MaterialTheme.spacing.small)
             ) {
-              items(count = mediaSearchResults.size, key = { index -> mediaSearchResults[index].id ?: mediaSearchResults[index].title }) { index ->
+              items(count = mediaSearchResults.size, key = { index -> mediaSearchResults[index].id }) { index ->
                 val result = mediaSearchResults[index]
                 TmdbMediaCard(
                   result = result,

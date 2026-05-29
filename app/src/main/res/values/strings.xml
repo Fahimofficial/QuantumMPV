@@ -504,7 +504,7 @@
   <string name="pref_section_storage_summary">Media paths, hidden folders</string>
   <string name="pref_section_ai">AI</string>
   <string name="pref_section_ai_title">AI Integration</string>
-  <string name="pref_section_ai_summary">AI rename, subtitle translation, speech-to-text, offline models (Gemini/Groq/OpenAI)</string>
+  <string name="pref_section_ai_summary">AI rename, subtitle translation, speech-to-text, offline models (OpenCode/Groq/OpenAI)</string>
   <string name="pref_section_advanced">Advanced</string>
   <string name="pref_section_about">About</string>
 
@@ -726,9 +726,9 @@
   <string name="pref_translation_warning_text">Subtitle translation can be a bit messy. For best results, use better models and don\'t rant that subs aren\'t working properly.</string>
 
   <!-- AI - API Key titles/placeholders for each provider         -->
-  <string name="pref_gemini_api_key_title">Gemini API Key</string>
-  <string name="pref_gemini_api_key_hint">Get a key from aistudio.google.com</string>
-  <string name="pref_gemini_api_key_placeholder">AIza…</string>
+  <string name="pref_opencode_api_key_title">OpenCode API Key</string>
+  <string name="pref_opencode_api_key_hint">Get your key from opencode.ai/auth</string>
+  <string name="pref_opencode_api_key_placeholder">sk-…</string>
   <string name="pref_groq_api_key_title">Groq API Key</string>
   <string name="pref_groq_api_key_hint">Get a key from console.groq.com</string>
   <string name="pref_groq_api_key_placeholder">gsk_…</string>
@@ -767,7 +767,7 @@
   <string name="search_fonts_folder_summary">Fonts used for subtitle rendering</string>
   <string name="search_base_storage_summary">Root folder — auto-creates Subtitles/ and Fonts/ subdirs</string>
   <string name="search_ai_integration_summary">AI-powered rename, subtitle formatting, speech-to-text, subtitle translation, offline models</string>
-  <string name="search_ai_provider_summary">Choose Gemini, Groq, OpenAI, Anthropic, OpenRouter, Together, or offline local models</string>
+  <string name="search_ai_provider_summary">Choose OpenCode, Groq, OpenAI, Anthropic, OpenRouter, Together, or offline local models</string>
   <string name="search_api_key_config_title">API Key Configuration</string>
   <string name="search_api_key_config_summary">Enter and verify your AI provider API key</string>
   <string name="search_ai_model_selection_title">AI Model Selection</string>

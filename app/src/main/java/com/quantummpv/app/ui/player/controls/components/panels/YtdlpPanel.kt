@@ -91,7 +91,7 @@ fun YtdlpPanel(
         }
         
         // Expressive M3 Tabs
-        TabRow(
+        PrimaryTabRow(
           selectedTabIndex = selectedTab,
           containerColor = Color.Transparent,
           divider = { HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.3f)) },

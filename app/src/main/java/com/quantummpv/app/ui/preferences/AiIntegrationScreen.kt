@@ -56,10 +56,12 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
+import com.quantummpv.app.R
 import com.quantummpv.app.preferences.AiPreferences
 import com.quantummpv.app.preferences.AiProvider
 import com.quantummpv.app.preferences.preference.collectAsState
@@ -113,7 +115,7 @@ object AiIntegrationScreen : Screen {
 
     val enabled by preferences.enabled.collectAsState()
     val provider by preferences.provider.collectAsState()
-    val geminiKey by preferences.geminiApiKey.collectAsState()
+    val openCodeKey by preferences.openCodeApiKey.collectAsState()
     val groqKey by preferences.groqApiKey.collectAsState()
     val openaiKey by preferences.openaiApiKey.collectAsState()
     val anthropicKey by preferences.anthropicApiKey.collectAsState()
@@ -187,6 +189,9 @@ object AiIntegrationScreen : Screen {
             stored,
           )
         } catch (_: Exception) {}
+      }
+      if (models.isEmpty() && provider != AiProvider.LOCAL) {
+        loadModels()
       }
     }
 
@@ -411,7 +416,7 @@ object AiIntegrationScreen : Screen {
 
             if (provider != AiProvider.LOCAL) {
               val apiKeyInfo = when (provider) {
-                AiProvider.GEMINI -> ApiKeyInfo("Gemini API Key", "Get your key from aistudio.google.com", "AIza...", geminiKey, preferences.geminiApiKey::set)
+                AiProvider.OPENCODE -> ApiKeyInfo(stringResource(R.string.pref_opencode_api_key_title), stringResource(R.string.pref_opencode_api_key_hint), stringResource(R.string.pref_opencode_api_key_placeholder), openCodeKey, preferences.openCodeApiKey::set)
                 AiProvider.GROQ -> ApiKeyInfo("Groq API Key", "Get your key from console.groq.com", "gsk_...", groqKey, preferences.groqApiKey::set)
                 AiProvider.OPENAI -> ApiKeyInfo("OpenAI API Key", "Get your key from platform.openai.com/api-keys", "sk-...", openaiKey, preferences.openaiApiKey::set)
                 AiProvider.ANTHROPIC -> ApiKeyInfo("Anthropic API Key", "Get your key from console.anthropic.com", "sk-ant-...", anthropicKey, preferences.anthropicApiKey::set)
@@ -793,7 +798,7 @@ object AiIntegrationScreen : Screen {
 
               item {
                 PreferenceCard {
-                  val sttProviders = listOf(AiProvider.GROQ, AiProvider.GEMINI, AiProvider.OPENAI, AiProvider.OPENROUTER)
+                  val sttProviders = listOf(AiProvider.GROQ, AiProvider.OPENAI, AiProvider.OPENROUTER)
                   val sttProvider by preferences.sttProvider.collectAsState()
                   val sttModel by preferences.sttModel.collectAsState()
 
@@ -1271,7 +1276,6 @@ private fun SttModelSelector(
             .onSuccess { allModels ->
               val sttOnly = allModels.filter { model ->
                 model.id.contains("whisper", ignoreCase = true) ||
-                  model.id.contains("gemini", ignoreCase = true) ||
                   model.id.contains("flash", ignoreCase = true)
               }.ifEmpty {
                 allModels.take(5)
