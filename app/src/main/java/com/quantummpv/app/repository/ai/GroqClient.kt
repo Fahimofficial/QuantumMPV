@@ -66,10 +66,6 @@ class GroqClient(
     private const val TAG = "GroqClient"
     private const val BASE_URL = "https://api.groq.com/openai/v1"
     private val JSON_MEDIA_TYPE = "application/json".toMediaType()
-
-    val FREE_MODEL_PREFIXES = listOf(
-      "whisper", "distil-whisper", "llama", "gemma", "mixtral", "deepseek",
-    )
   }
 
   private val apiClient: OkHttpClient =
@@ -99,7 +95,7 @@ class GroqClient(
       parsed.data
         .filter { !it.id.startsWith("gpt") && !it.id.startsWith("dall-e") && !it.id.startsWith("tts") && !it.id.startsWith("stt") }
         .map {
-          val isFree = FREE_MODEL_PREFIXES.any { prefix -> it.id.startsWith(prefix, ignoreCase = true) }
+          val isFree = FreeModelsConfig.isFree("groq", it.id)
           val displayName = if (it.owned_by != null) "${it.id} (${it.owned_by})" else it.id
           AiModelInfo(
             id = it.id,

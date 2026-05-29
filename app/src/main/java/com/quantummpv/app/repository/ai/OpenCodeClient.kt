@@ -60,11 +60,6 @@ class OpenCodeClient(
     private const val TAG = "OpenCodeClient"
     private const val BASE_URL = "https://opencode.ai/zen/v1"
     private val JSON_MEDIA_TYPE = "application/json".toMediaType()
-
-    val FREE_MODEL_PREFIXES = listOf(
-      "deepseek-v4-flash-free", "mimo-v2.5-free", "nemotron-3-super-free",
-      "big-pickle", "qwen3.6-plus-free", "minimax-m2.5-free",
-    )
   }
 
   private val apiClient: OkHttpClient =
@@ -89,7 +84,7 @@ class OpenCodeClient(
 
       val parsed = json.decodeFromString<OcModelListResponse>(body)
       parsed.data.map { model ->
-        val isFree = FREE_MODEL_PREFIXES.any { model.id.startsWith(it, ignoreCase = true) }
+        val isFree = FreeModelsConfig.isFree("opencode", model.id)
         val displayName = if (model.owned_by != null) "${model.id} (${model.owned_by})" else model.id
         AiModelInfo(
           id = model.id,

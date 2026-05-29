@@ -12,9 +12,18 @@ import okhttp3.RequestBody.Companion.toRequestBody
 import java.util.concurrent.TimeUnit
 
 @Serializable
+private data class OrModelPricing(
+  val prompt: String = "0",
+  val completion: String = "0",
+  val image: String = "0",
+  val request: String = "0",
+)
+
+@Serializable
 private data class OrModel(
   val id: String,
   val name: String? = null,
+  val pricing: OrModelPricing? = null,
 )
 
 @Serializable
@@ -60,11 +69,6 @@ class OpenRouterClient(
     private const val TAG = "OpenRouterClient"
     private const val BASE_URL = "https://openrouter.ai/api/v1"
     private val JSON_MEDIA_TYPE = "application/json".toMediaType()
-
-    val FREE_MODEL_PREFIXES = listOf(
-      "openrouter/auto", "cognitivecomputations/", "google/gemma",
-      "microsoft/phi", "mistralai/mistral", "meta-llama/llama",
-    )
   }
 
   private val apiClient: OkHttpClient =
@@ -89,7 +93,12 @@ class OpenRouterClient(
 
       val parsed = json.decodeFromString<OrModelListResponse>(body)
       parsed.data.map { model ->
-        val isFree = FREE_MODEL_PREFIXES.any { model.id.startsWith(it, ignoreCase = true) }
+        val isFree = model.pricing?.let { p ->
+          p.prompt.toDoubleOrNull() == 0.0 &&
+            p.completion.toDoubleOrNull() == 0.0 &&
+            p.image.toDoubleOrNull() == 0.0 &&
+            p.request.toDoubleOrNull() == 0.0
+        } ?: FreeModelsConfig.isFree("openrouter", model.id)
         AiModelInfo(
           id = model.id,
           displayName = model.name ?: model.id,

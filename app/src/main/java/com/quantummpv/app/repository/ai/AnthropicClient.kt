@@ -70,10 +70,6 @@ class AnthropicClient(
     private const val BASE_URL = "https://api.anthropic.com/v1"
     private val JSON_MEDIA_TYPE = "application/json".toMediaType()
     private const val ANTHROPIC_VERSION = "2023-06-01"
-
-    val FREE_MODEL_PREFIXES = listOf(
-      "claude-3-haiku", "claude-3-5-haiku",
-    )
   }
 
   private val apiClient: OkHttpClient =
@@ -99,7 +95,7 @@ class AnthropicClient(
 
       val parsed = json.decodeFromString<AnthropicModelListResponse>(body)
       parsed.data.map { model ->
-        val isFree = FREE_MODEL_PREFIXES.any { model.id.startsWith(it, ignoreCase = true) }
+        val isFree = FreeModelsConfig.isFree("anthropic", model.id)
         AiModelInfo(
           id = model.id,
           displayName = model.display_name ?: model.id,

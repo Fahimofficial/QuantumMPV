@@ -416,7 +416,7 @@ object AiIntegrationScreen : Screen {
 
             if (provider != AiProvider.LOCAL) {
               val apiKeyInfo = when (provider) {
-                AiProvider.OPENCODE -> ApiKeyInfo(stringResource(R.string.pref_opencode_api_key_title), stringResource(R.string.pref_opencode_api_key_hint), stringResource(R.string.pref_opencode_api_key_placeholder), openCodeKey, preferences.openCodeApiKey::set)
+                AiProvider.OPENCODE -> ApiKeyInfo("OpenCode API Key", "Get your key from opencode.ai/auth", "sk-...", openCodeKey, preferences.openCodeApiKey::set)
                 AiProvider.GROQ -> ApiKeyInfo("Groq API Key", "Get your key from console.groq.com", "gsk_...", groqKey, preferences.groqApiKey::set)
                 AiProvider.OPENAI -> ApiKeyInfo("OpenAI API Key", "Get your key from platform.openai.com/api-keys", "sk-...", openaiKey, preferences.openaiApiKey::set)
                 AiProvider.ANTHROPIC -> ApiKeyInfo("Anthropic API Key", "Get your key from console.anthropic.com", "sk-ant-...", anthropicKey, preferences.anthropicApiKey::set)

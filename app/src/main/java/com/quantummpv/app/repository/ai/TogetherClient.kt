@@ -61,11 +61,6 @@ class TogetherClient(
     private const val TAG = "TogetherClient"
     private const val BASE_URL = "https://api.together.xyz/v1"
     private val JSON_MEDIA_TYPE = "application/json".toMediaType()
-
-    val FREE_MODEL_PREFIXES = listOf(
-      "meta-llama/", "mistralai/", "google/", "microsoft/",
-      "Qwen/", "deepseek-ai/", "allenai/", "upstage/",
-    )
   }
 
   private val apiClient: OkHttpClient =
@@ -91,7 +86,7 @@ class TogetherClient(
       val parsed = json.decodeFromString<TogModelListResponse>(body)
       val models = parsed.data ?: emptyList()
       models.map { model ->
-        val isFree = FREE_MODEL_PREFIXES.any { model.id.startsWith(it, ignoreCase = true) }
+        val isFree = FreeModelsConfig.isFree("together", model.id)
         AiModelInfo(
           id = model.id,
           displayName = model.displayName ?: model.display_name ?: model.id,

@@ -78,6 +78,7 @@ import androidx.documentfile.provider.DocumentFile
 import android.webkit.MimeTypeMap
 import com.quantummpv.app.preferences.AdvancedPreferences
 import com.quantummpv.app.preferences.DecoderPreferences
+import com.quantummpv.app.ui.player.ScriptCurlBridge
 import kotlin.properties.ReadOnlyProperty
 import kotlin.reflect.KProperty
 import kotlin.math.roundToInt
@@ -155,6 +156,9 @@ class PlayerViewModel(
   private val introMarkerCachePrefs by lazy {
     host.context.getSharedPreferences(INTRO_MARKER_CACHE_PREFS, Context.MODE_PRIVATE)
   }
+
+  // HTTP bridge for Lua/JS scripts — executes curl_request payloads via OkHttp
+  private val scriptCurlBridge = ScriptCurlBridge(scope = viewModelScope)
 
   // Playlist items for the playlist sheet
   private val _playlistItems = kotlinx.coroutines.flow.MutableStateFlow<List<com.quantummpv.app.ui.player.controls.components.sheets.PlaylistItem>>(emptyList())
@@ -3043,9 +3047,16 @@ class PlayerViewModel(
       "seek_by" -> seekByWithText(data.toInt(), null)
       "seek_to" -> seekToWithText(data.toInt(), null)
       "software_keyboard" -> handleSoftwareKeyboard(data)
+      // Curl bridge: dispatch the HTTP request asynchronously; response is written
+      // back to user-data/mpvrx/curl_response for the script to observe.
+      "curl_request" -> scriptCurlBridge.handleRequest(data)
     }
 
-    MPVLib.setPropertyString(property, "")
+    // Do not clear curl_request here — the bridge reads it asynchronously.
+    // For all other properties, clear after handling to signal "consumed".
+    if (property.substringAfterLast("/") != "curl_request") {
+      MPVLib.setPropertyString(property, "")
+    }
   }
 
   private fun handleToggleUI(data: String) {

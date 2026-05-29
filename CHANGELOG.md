@@ -4,6 +4,13 @@ These notes are written in plain English and focus on what changed for real use.
 
 ## 1.3.9
 
+- **Switched from Gemini to OpenCode Zen AI** — Replaced the old Gemini provider with OpenCode Zen AI across the board. Better performance, more reliable responses, and no more weird API quirks.
+- **Added curl support for Lua scripts** — Lua scripts can now make HTTP requests using curl, opening up endless possibilities for custom scripting without Android/Java bridge hacks.
+- **Free AI models are now detected dynamically** — Instead of keeping a hardcoded list that goes out of date, each provider's free models are determined in real time. OpenRouter checks the actual pricing from the API (zero-cost models = free), and the rest fetch the latest free model list from a remote source with a sensible fallback. No more manually updating prefix lists every time a new free model drops.
+- **Fixed M3U playlist playback from WebDAV/network shares** — Previously only the first file in an M3U would play when loaded over WebDAV or SMB. The rest of the playlist now loads and plays correctly.
+- **Updated Wyzie subtitle sources** — Synced with the latest Wyzie API changes for better subtitle availability.
+- **New toggle for Media Info in the system share sheet** — You can now choose whether to show or hide Media Info in Android's share/open-with chooser. Plus the screenshot filename template description got a polish pass.
+- **Configured CI/CD signing step** — Automated build signing is now set up in the primary workflow so each release goes through without manual intervention.
 - **Hybrid Skip Markers** — Added a brand new "Hybrid" skip marker provider that queries IntroDB, TIDB, and AniSkip concurrently, loading whichever returns timings first (making the playback setup extremely fast). This is now the default provider.
 - **Fixed Seekbar Buffering Jumping** — Resolved an issue where seeking forward caused the buffering indicator to falsely jump ahead or flicker due to stale demuxer cache timings. The buffer bar now remains anchored perfectly to the playhead without gaps across all seekbars.
 - **Collapsible Anime4K Preferences** — Redesigned the Decoder Preferences screen to make the Anime4K shader settings section collapsible, complete with a gorgeous rotating chevron micro-animation.

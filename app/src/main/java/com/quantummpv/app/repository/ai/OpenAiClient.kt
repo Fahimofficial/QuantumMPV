@@ -66,10 +66,6 @@ class OpenAiClient(
     private const val TAG = "OpenAiClient"
     private const val BASE_URL = "https://api.openai.com/v1"
     private val JSON_MEDIA_TYPE = "application/json".toMediaType()
-
-    val FREE_MODEL_PREFIXES = listOf(
-      "gpt-4o-mini", "gpt-4o-realtime", "o1-mini", "o3-mini",
-    )
   }
 
   private val apiClient: OkHttpClient =
@@ -94,7 +90,7 @@ class OpenAiClient(
 
       val parsed = json.decodeFromString<OpenAiModelListResponse>(body)
       parsed.data.map { model ->
-        val isFree = FREE_MODEL_PREFIXES.any { model.id.startsWith(it, ignoreCase = true) }
+        val isFree = FreeModelsConfig.isFree("openai", model.id)
         AiModelInfo(
           id = model.id,
           displayName = model.id,
