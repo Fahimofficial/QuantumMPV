@@ -1,14 +1,20 @@
 package com.quantummpv.app.preferences
 
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.defaultMinSize
+import androidx.compose.material3.ButtonGroupDefaults
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.MultiChoiceSegmentedButtonRow
-import androidx.compose.material3.SegmentedButton
-import androidx.compose.material3.SegmentedButtonDefaults
 import androidx.compose.material3.Text
+import androidx.compose.material3.ToggleButton
+import androidx.compose.material3.ToggleButtonDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.role
+import androidx.compose.ui.semantics.semantics
 import com.quantummpv.app.preferences.preference.PreferenceStore
 import com.quantummpv.app.preferences.preference.getEnum
 import com.quantummpv.app.ui.theme.AppTheme
@@ -90,17 +96,31 @@ fun MultiChoiceSegmentedButton(
   onClick: (Int) -> Unit,
   modifier: Modifier = Modifier,
 ) {
-  MultiChoiceSegmentedButtonRow(
-    modifier =
-      modifier
-        .fillMaxWidth()
-        .padding(MaterialTheme.spacing.medium),
+  Row(
+    modifier = modifier
+      .fillMaxWidth()
+      .padding(MaterialTheme.spacing.medium),
+    horizontalArrangement = Arrangement.spacedBy(ButtonGroupDefaults.ConnectedSpaceBetween),
   ) {
     choices.forEachIndexed { index, choice ->
-      SegmentedButton(
+      ToggleButton(
         checked = selectedIndices.contains(index),
         onCheckedChange = { onClick(index) },
-        shape = SegmentedButtonDefaults.itemShape(index = index, count = choices.size),
+        modifier = Modifier
+          .weight(1f)
+          .defaultMinSize(minHeight = MaterialTheme.spacing.extraLarge)
+          .semantics { role = Role.RadioButton },
+        colors = ToggleButtonDefaults.toggleButtonColors(
+          checkedContainerColor = MaterialTheme.colorScheme.primaryContainer,
+          checkedContentColor = MaterialTheme.colorScheme.onPrimaryContainer,
+          uncheckedContainerColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.08f),
+          uncheckedContentColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f),
+        ),
+        shapes = when (index) {
+          0 -> ButtonGroupDefaults.connectedLeadingButtonShapes()
+          choices.lastIndex -> ButtonGroupDefaults.connectedTrailingButtonShapes()
+          else -> ButtonGroupDefaults.connectedMiddleButtonShapes()
+        },
       ) {
         Text(text = choice)
       }

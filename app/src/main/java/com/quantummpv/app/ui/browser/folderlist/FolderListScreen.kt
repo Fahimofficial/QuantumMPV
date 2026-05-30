@@ -720,17 +720,6 @@ private fun FolderListContent(
           onTogglePin = onTogglePin,
         )
       }
-
-      // Show background enrichment progress
-      if (scanStatus != null && !showLoading) {
-        androidx.compose.material3.LinearProgressIndicator(
-          modifier = Modifier
-            .fillMaxWidth()
-            .padding(2.dp),
-          color = MaterialTheme.colorScheme.secondary,
-          trackColor = MaterialTheme.colorScheme.surfaceVariant
-        )
-      }
     }
   }
 }
@@ -931,7 +920,6 @@ private fun FolderSortDialog(
   val showTotalSizeChip by browserPreferences.showTotalSizeChip.collectAsState()
   val showDateChip by browserPreferences.showDateChip.collectAsState()
   val showFolderPath by browserPreferences.showFolderPath.collectAsState()
-  val showProgressBar by browserPreferences.showProgressBar.collectAsState()
   val unlimitedNameLines by appearancePreferences.unlimitedNameLines.collectAsState()
   val folderViewMode by browserPreferences.folderViewMode.collectAsState()
   val mediaLayoutMode by browserPreferences.mediaLayoutMode.collectAsState()
@@ -1063,11 +1051,6 @@ private fun FolderSortDialog(
         label = "Date",
         checked = showDateChip,
         onCheckedChange = { browserPreferences.showDateChip.set(it) },
-      ),
-      VisibilityToggle(
-        label = "Progress Bar",
-        checked = showProgressBar,
-        onCheckedChange = { browserPreferences.showProgressBar.set(it) },
       ),
     ),
     folderGridColumnSelector = folderGridColumnSelector,
