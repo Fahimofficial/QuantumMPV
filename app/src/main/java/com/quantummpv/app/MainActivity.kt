@@ -1,5 +1,6 @@
 package com.quantummpv.app
 
+import android.content.res.Configuration
 import android.os.Bundle
 import android.util.Log
 import androidx.activity.ComponentActivity
@@ -118,6 +119,7 @@ class MainActivity : ComponentActivity() {
   private val appearancePreferences by inject<AppearancePreferences>()
   private val playerPreferences by inject<PlayerPreferences>()
   private val networkRepository by inject<NetworkRepository>()
+  private var appliedEdgeToEdgeDarkMode: Boolean? = null
 
   // Create a coroutine scope tied to the activity lifecycle
   private val activityScope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
@@ -140,6 +142,13 @@ class MainActivity : ComponentActivity() {
     }
     lifecycle.addObserver(NetworkLifecycleObserver(networkRepository))
 
+    applyEdgeToEdge(
+      isDarkMode = resolveIsDarkMode(
+        darkMode = appearancePreferences.darkMode.get(),
+        isSystemInDarkTheme = isSystemInDarkThemeFromResources(),
+      ),
+    )
+
     setContent {
       // Set up theme and edge-to-edge display
       val dark by appearancePreferences.darkMode.collectAsState()
@@ -148,15 +157,8 @@ class MainActivity : ComponentActivity() {
         dark == DarkMode.Dark || (dark == DarkMode.System && isSystemInDarkTheme)
       }
 
-      // LAUNCHED EFFECT: Only trigger edge-to-edge update when dark mode actually changes.
-      // This eliminates redundant window compositor SurfaceFlinger IPC calls during recompositions.
       LaunchedEffect(isDarkMode) {
-        enableEdgeToEdge(
-          SystemBarStyle.auto(
-            lightScrim = Color.White.toArgb(),
-            darkScrim = Color.Transparent.toArgb(),
-          ) { isDarkMode },
-        )
+        applyEdgeToEdge(isDarkMode)
       }
 
       // Auto-connect to saved network connections
@@ -180,6 +182,27 @@ class MainActivity : ComponentActivity() {
     } catch (e: Exception) {
       Log.e("MainActivity", "Error during onDestroy", e)
     }
+  }
+
+  private fun resolveIsDarkMode(
+    darkMode: DarkMode,
+    isSystemInDarkTheme: Boolean,
+  ): Boolean =
+    darkMode == DarkMode.Dark || (darkMode == DarkMode.System && isSystemInDarkTheme)
+
+  private fun isSystemInDarkThemeFromResources(): Boolean =
+    (resources.configuration.uiMode and Configuration.UI_MODE_NIGHT_MASK) == Configuration.UI_MODE_NIGHT_YES
+
+  private fun applyEdgeToEdge(isDarkMode: Boolean) {
+    if (appliedEdgeToEdgeDarkMode == isDarkMode) return
+
+    enableEdgeToEdge(
+      SystemBarStyle.auto(
+        lightScrim = Color.White.toArgb(),
+        darkScrim = Color.Transparent.toArgb(),
+      ) { isDarkMode },
+    )
+    appliedEdgeToEdgeDarkMode = isDarkMode
   }
 
   /**
