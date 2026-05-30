@@ -29,6 +29,7 @@ import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.Modifier
@@ -46,6 +47,7 @@ import com.quantummpv.app.presentation.Screen
 import com.quantummpv.app.repository.NetworkRepository
 import com.quantummpv.app.utils.update.UpdateDialog
 import com.quantummpv.app.utils.update.UpdateViewModel
+import com.quantummpv.app.repository.NetworkLifecycleObserver
 import com.quantummpv.app.ui.browser.MainScreen
 import com.quantummpv.app.ui.theme.DarkMode
 import com.quantummpv.app.ui.theme.MpvrxTheme
@@ -136,18 +138,26 @@ class MainActivity : ComponentActivity() {
     if (networkStreamingEnabled) {
       lifecycle.addObserver(com.quantummpv.app.ui.browser.networkstreaming.proxy.ProxyLifecycleObserver())
     }
+    lifecycle.addObserver(NetworkLifecycleObserver(networkRepository))
 
     setContent {
       // Set up theme and edge-to-edge display
       val dark by appearancePreferences.darkMode.collectAsState()
       val isSystemInDarkTheme = isSystemInDarkTheme()
-      val isDarkMode = dark == DarkMode.Dark || (dark == DarkMode.System && isSystemInDarkTheme)
-      enableEdgeToEdge(
-        SystemBarStyle.auto(
-          lightScrim = Color.White.toArgb(),
-          darkScrim = Color.Transparent.toArgb(),
-        ) { isDarkMode },
-      )
+      val isDarkMode = remember(dark, isSystemInDarkTheme) {
+        dark == DarkMode.Dark || (dark == DarkMode.System && isSystemInDarkTheme)
+      }
+
+      // LAUNCHED EFFECT: Only trigger edge-to-edge update when dark mode actually changes.
+      // This eliminates redundant window compositor SurfaceFlinger IPC calls during recompositions.
+      LaunchedEffect(isDarkMode) {
+        enableEdgeToEdge(
+          SystemBarStyle.auto(
+            lightScrim = Color.White.toArgb(),
+            darkScrim = Color.Transparent.toArgb(),
+          ) { isDarkMode },
+        )
+      }
 
       // Auto-connect to saved network connections
       LaunchedEffect(networkStreamingEnabled) {
