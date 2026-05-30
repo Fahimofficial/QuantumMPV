@@ -22,7 +22,7 @@ MpvRx listens for updates to the observed properties under `user-data/mpvrx/*`. 
 | [`seek_to`](#6-seek_to) | `String` (representing Integer seconds) | Absolute seek without any text overlay. |
 | [`seek_by`](#7-seek_by) | `String` (representing Integer seconds) | Relative seek without any text overlay. |
 | [`software_keyboard`](#8-software_keyboard) | `"show"` \| `"hide"` \| `"toggle"` | Forces visibility state of the system software keyboard. |
-| [`curl_request`](#9-curl_request) | JSON Object (see below) | Fires an async HTTP request via OkHttp. Response is written to `curl_response`. |
+| [`curl_request`](#9-curl_request) | JSON Object (see below) | Fires an async HTTP request via native libcurl (HTTP/2, HTTP/3, TLS). Response is written to `curl_response`. |
 | [`curl_response`](#9-curl_request) | JSON Object (read-only, observe) | Receives the HTTP response for a previously issued `curl_request`. |
 
 ---
@@ -199,7 +199,7 @@ mp.observe_property("user-data/android/battery-level", "native", handle_battery_
 
 ## 4. HTTP / Curl Bridge (`user-data/mpvrx/curl_request` + `curl_response`)
 
-MpvRx exposes a full async HTTP client to Lua and JS scripts via OkHttp. Scripts write a JSON request object to `user-data/mpvrx/curl_request`; the response is written back to `user-data/mpvrx/curl_response` once the network call completes.
+MpvRx exposes a full async HTTP client to Lua and JS scripts via native libcurl (built from curl-android, supporting HTTP/2, HTTP/3 with BoringSSL). Scripts write a JSON request object to `user-data/mpvrx/curl_request`; the response is written back to `user-data/mpvrx/curl_response` once the network call completes.
 
 > [!IMPORTANT]
 > Requests are **non-blocking** — the script continues executing immediately after setting `curl_request`. Observe `curl_response` to receive the result. Use the `id` field to correlate requests with responses when making multiple concurrent calls.
@@ -213,7 +213,7 @@ MpvRx exposes a full async HTTP client to Lua and JS scripts via OkHttp. Scripts
         [MpvRx parses the request]
                     │
                     ▼
-     [OkHttp executes on background thread]
+     [libcurl executes on background thread]
           (video playback unaffected)
                     │
                     ▼
@@ -221,6 +221,9 @@ MpvRx exposes a full async HTTP client to Lua and JS scripts via OkHttp. Scripts
                     │
                     ▼
   [Script observer fires → handle the result]
+                    │
+                    ▼
+  [Script updates show_text → OSD appears on screen]
 ```
 
 ---
@@ -272,6 +275,26 @@ Observe `user-data/mpvrx/curl_response` to receive a JSON string:
 
 The response is a JSON **array**. The quote text is in `[0].q` and the author is in `[0].a`.
 
+#### Expected OSD output
+
+When the script runs, you will see these messages appear as OSD text overlays on the player screen in sequence:
+
+```
+1. "Fetching quote of the day..."
+   (appears briefly when the video starts)
+
+2. "Perseverance and spirit have done wonders in all ages."
+   "-- George Washington"
+   (appears once the API responds, replaces the fetching message)
+```
+
+If something goes wrong, you will see one of:
+```
+"Quote fetch failed: <error message>"    ← network error / timeout
+"Quote API error: HTTP 404"              ← non-200 status code
+"Could not parse quote response"         ← malformed response body
+```
+
 ---
 
 #### Lua — Fetch a random quote and show it on screen
@@ -280,51 +303,57 @@ Save as `quote_of_session.lua` in your MPV scripts folder.
 
 ```lua
 -- quote_of_session.lua
--- Fetches a random inspirational quote from ZenQuotes and displays it
--- on the player screen when the video starts.
+-- Fetches a random quote when a file loads and shows it as OSD.
 
 local utils = require("mp.utils")
 
--- Step 1: Observe curl_response ONCE at script load time.
--- All responses from any curl_request will arrive here.
+-- Step 1: Observe curl_response once at script load time.
+-- Every response from any curl_request arrives here.
 mp.observe_property("user-data/mpvrx/curl_response", "string", function(name, value)
-    -- Ignore empty / cleared values
     if value == nil or value == "" then return end
 
     local res = utils.parse_json(value)
     if res == nil then return end
 
-    -- Only handle our specific request by checking the id
+    -- Ignore responses meant for other requests
     if res.id ~= "zenquotes-random" then return end
 
+    -- OSD: Network / timeout error
     if res.error then
-        -- Network failed — show a brief error
-        mp.set_property("user-data/mpvrx/show_text", "Quote fetch failed: " .. res.error)
+        mp.set_property("user-data/mpvrx/show_text",
+            "Quote fetch failed: " .. res.error)
         return
     end
 
+    -- OSD: Non-200 status
     if res.status ~= 200 then
-        mp.set_property("user-data/mpvrx/show_text", "Quote API error: HTTP " .. res.status)
+        mp.set_property("user-data/mpvrx/show_text",
+            "Quote API error: HTTP " .. res.status)
         return
     end
 
-    -- Parse the ZenQuotes array response: [{ "q": "...", "a": "..." }]
+    -- Parse the ZenQuotes response array
     local data = utils.parse_json(res.body)
     if data == nil or data[1] == nil then
-        mp.set_property("user-data/mpvrx/show_text", "Could not parse quote response")
+        mp.set_property("user-data/mpvrx/show_text",
+            "Could not parse quote response")
         return
     end
 
     local quote  = data[1].q or "..."
     local author = data[1].a or "Unknown"
 
-    -- Display the quote as an OSD overlay on the player screen
-    mp.set_property("user-data/mpvrx/show_text", "\u{201C}" .. quote .. "\u{201D}\n— " .. author)
+    -- OSD: Show the quote on screen
+    mp.set_property("user-data/mpvrx/show_text",
+        "\"" .. quote .. "\"\n-- " .. author)
 end)
 
--- Step 2: Fire the request when the file starts playing.
--- The observer above will handle the response whenever it arrives.
+-- Step 2: Fire request when the file starts playing.
 mp.register_event("file-loaded", function()
+    -- OSD: Let the user know we are fetching
+    mp.set_property("user-data/mpvrx/show_text",
+        "Fetching quote of the day...")
+
     mp.set_property("user-data/mpvrx/curl_request", utils.format_json({
         id      = "zenquotes-random",
         url     = "https://zenquotes.io/api/random",
@@ -341,7 +370,7 @@ end)
 
 ```lua
 -- quote_on_demand.lua
--- Press the custom button to fetch and display a fresh quote at any time.
+-- Press Q or tap the custom button to fetch a quote at any time.
 
 local utils = require("mp.utils")
 
@@ -351,20 +380,21 @@ mp.observe_property("user-data/mpvrx/curl_response", "string", function(name, va
     if res == nil or res.id ~= "quote-demand" then return end
 
     if res.error or res.status ~= 200 then
-        mp.set_property("user-data/mpvrx/show_text", "Could not fetch quote")
+        mp.set_property("user-data/mpvrx/show_text",
+            "Could not fetch quote")
         return
     end
 
     local data = utils.parse_json(res.body)
     if data and data[1] then
-        mp.set_property(
-            "user-data/mpvrx/show_text",
-            data[1].q .. "\n— " .. data[1].a
-        )
+        mp.set_property("user-data/mpvrx/show_text",
+            data[1].q .. "\n-- " .. data[1].a)
     end
 end)
 
 local function fetch_quote()
+    -- OSD: Show fetching indicator immediately
+    mp.set_property("user-data/mpvrx/show_text", "Fetching quote...")
     mp.set_property("user-data/mpvrx/curl_request", utils.format_json({
         id      = "quote-demand",
         url     = "https://zenquotes.io/api/random",
@@ -373,10 +403,7 @@ local function fetch_quote()
     }))
 end
 
--- Register as a custom button action
 mp.register_script_message("call_button_quote_on_demand", fetch_quote)
-
--- Also bind to the Q key directly
 mp.add_key_binding("Q", "fetch-quote", fetch_quote)
 ```
 
@@ -388,38 +415,35 @@ Save as `quote_of_session.js` in your MPV scripts folder.
 
 ```javascript
 // quote_of_session.js
-// Fetches a random quote from ZenQuotes when the video starts.
+// Fetches a random quote when a file loads and shows it as OSD.
 
-// Step 1: Observe curl_response once at script load time
 mp.observe_property("user-data/mpvrx/curl_response", "string", function(name, value) {
     if (!value) return;
 
     let res;
-    try {
-        res = JSON.parse(value);
-    } catch (e) {
-        return; // not valid JSON, ignore
-    }
+    try { res = JSON.parse(value); } catch (e) { return; }
 
-    // Only handle our request
     if (res.id !== "zenquotes-random-js") return;
 
+    // OSD: Network / timeout error
     if (res.error) {
-        mp.set_property("user-data/mpvrx/show_text", "Quote fetch failed: " + res.error);
+        mp.set_property("user-data/mpvrx/show_text",
+            "Quote fetch failed: " + res.error);
         return;
     }
 
+    // OSD: Non-200 status
     if (res.status !== 200) {
-        mp.set_property("user-data/mpvrx/show_text", "Quote API error: HTTP " + res.status);
+        mp.set_property("user-data/mpvrx/show_text",
+            "Quote API error: HTTP " + res.status);
         return;
     }
 
-    // ZenQuotes returns an array: [{ "q": "...", "a": "..." }]
+    // Parse ZenQuotes response array
     let data;
-    try {
-        data = JSON.parse(res.body);
-    } catch (e) {
-        mp.set_property("user-data/mpvrx/show_text", "Could not parse quote");
+    try { data = JSON.parse(res.body); } catch (e) {
+        mp.set_property("user-data/mpvrx/show_text",
+            "Could not parse quote response");
         return;
     }
 
@@ -428,11 +452,17 @@ mp.observe_property("user-data/mpvrx/curl_response", "string", function(name, va
     const quote  = data[0].q || "...";
     const author = data[0].a || "Unknown";
 
-    mp.set_property("user-data/mpvrx/show_text", "\u201C" + quote + "\u201D\n\u2014 " + author);
+    // OSD: Show the quote on screen
+    mp.set_property("user-data/mpvrx/show_text",
+        "\u201C" + quote + "\u201D\n\u2014 " + author);
 });
 
-// Step 2: Fire the request when the file starts
+// Fire the request when the file starts
 mp.register_event("file-loaded", function() {
+    // OSD: Let the user know we are fetching
+    mp.set_property("user-data/mpvrx/show_text",
+        "Fetching quote of the day...");
+
     mp.set_property("user-data/mpvrx/curl_request", JSON.stringify({
         id:      "zenquotes-random-js",
         url:     "https://zenquotes.io/api/random",
@@ -449,6 +479,7 @@ mp.register_event("file-loaded", function() {
 
 ```javascript
 // quote_on_demand.js
+// Press Q or tap the custom button to fetch a quote at any time.
 
 mp.observe_property("user-data/mpvrx/curl_response", "string", function(name, value) {
     if (!value) return;
@@ -457,34 +488,75 @@ mp.observe_property("user-data/mpvrx/curl_response", "string", function(name, va
     if (res.id !== "quote-demand-js") return;
 
     if (res.error || res.status !== 200) {
-        mp.set_property("user-data/mpvrx/show_text", "Could not fetch quote");
+        mp.set_property("user-data/mpvrx/show_text",
+            "Could not fetch quote");
         return;
     }
 
     let data;
     try { data = JSON.parse(res.body); } catch (e) { return; }
     if (data && data[0]) {
-        mp.set_property(
-            "user-data/mpvrx/show_text",
-            data[0].q + "\n\u2014 " + data[0].a
-        );
+        mp.set_property("user-data/mpvrx/show_text",
+            data[0].q + "\n\u2014 " + data[0].a);
     }
 });
 
 function fetchQuote() {
+    // OSD: Show fetching indicator immediately
+    mp.set_property("user-data/mpvrx/show_text", "Fetching quote...");
     mp.set_property("user-data/mpvrx/curl_request", JSON.stringify({
-        id:      "quote-demand-js",
-        url:     "https://zenquotes.io/api/random",
-        method:  "GET",
+        id:     "quote-demand-js",
+        url:    "https://zenquotes.io/api/random",
+        method: "GET",
         timeout: 10
     }));
 }
 
-// Register as a custom button action
 mp.register_script_message("call_button_quote_on_demand", fetchQuote);
-
-// Also bind to the Q key
 mp.add_key_binding("Q", "fetch-quote-js", fetchQuote);
+```
+
+---
+
+### Additional Examples
+
+#### Lua — POST JSON data with auth token
+
+```lua
+-- post_example.lua
+-- Sends a POST request with JSON body and Bearer token.
+
+local utils = require("mp.utils")
+
+mp.observe_property("user-data/mpvrx/curl_response", "string", function(name, value)
+    if value == nil or value == "" then return end
+    local res = utils.parse_json(value)
+    if res == nil or res.id ~= "post-data" then return end
+
+    if res.error then
+        mp.set_property("user-data/mpvrx/show_text",
+            "POST failed: " .. res.error)
+        return
+    end
+
+    -- OSD: Show the response status
+    mp.set_property("user-data/mpvrx/show_text",
+        "POST returned HTTP " .. res.status)
+end)
+
+-- Fire a POST request
+mp.set_property("user-data/mpvrx/curl_request", utils.format_json({
+    id           = "post-data",
+    url          = "https://httpbin.org/post",
+    method       = "POST",
+    headers      = {
+        Authorization = "Bearer your-token-here",
+        Accept        = "application/json",
+    },
+    body         = '{"key": "value"}',
+    content_type = "application/json",
+    timeout      = 15,
+}))
 ```
 
 ---

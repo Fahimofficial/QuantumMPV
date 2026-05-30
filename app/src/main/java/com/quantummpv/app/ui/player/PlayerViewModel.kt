@@ -157,7 +157,7 @@ class PlayerViewModel(
     host.context.getSharedPreferences(INTRO_MARKER_CACHE_PREFS, Context.MODE_PRIVATE)
   }
 
-  // HTTP bridge for Lua/JS scripts — executes curl_request payloads via OkHttp
+  // HTTP bridge for Lua/JS scripts — executes curl_request payloads via native libcurl
   private val scriptCurlBridge = ScriptCurlBridge(scope = viewModelScope)
 
   // Playlist items for the playlist sheet

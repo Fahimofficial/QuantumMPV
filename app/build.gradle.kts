@@ -109,6 +109,7 @@ android {
     viewBinding = true
     buildConfig = true
     resValues = true
+    prefab = true
   }
 
   packaging {
@@ -219,6 +220,7 @@ dependencies {
   implementation(libs.kotlinx.immutable.collections)
   implementation(libs.kotlinx.serialization.json)
   implementation(libs.okhttp)
+  implementation(libs.curl.android)
   implementation(libs.jsoup)
   implementation(libs.androidx.media3.common)
   implementation(libs.androidx.media3.effect)
