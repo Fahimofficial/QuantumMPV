@@ -113,8 +113,8 @@ fun MultiChoiceSegmentedButton(
         colors = ToggleButtonDefaults.toggleButtonColors(
           checkedContainerColor = MaterialTheme.colorScheme.primaryContainer,
           checkedContentColor = MaterialTheme.colorScheme.onPrimaryContainer,
-          uncheckedContainerColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.08f),
-          uncheckedContentColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f),
+          containerColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.08f),
+          contentColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f),
         ),
         shapes = when (index) {
           0 -> ButtonGroupDefaults.connectedLeadingButtonShapes()
