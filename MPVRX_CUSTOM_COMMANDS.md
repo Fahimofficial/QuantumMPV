@@ -1,520 +1,628 @@
-# MPV_RX Custom Commands & User Data Integration Guide
+# MpvRx Lua and JavaScript Command Guide
 
-This guide details the custom `user-data` properties, OSD messaging, panel triggers, soft-keyboard control, dynamic button script-messages, and Android system telemetry available in **MpvRx**.
+This file documents the public scripting surface that MpvRx exposes to mpv Lua
+and JavaScript scripts.
 
-Developers and power users can use these custom properties and messages within their `mpv` Lua/JS scripts to build customized UI overlays, launch native Android player panels, or coordinate custom interactions.
+Scripts talk to MpvRx by writing string values to properties under:
 
----
-
-## 1. Custom Player Action Properties (`user-data/mpvrx/*`)
-
-MpvRx listens for updates to the observed properties under `user-data/mpvrx/*`. When a script sets one of these properties, MpvRx captures the value, performs the action, and clears the property to prepare for the next command.
-
-### 📑 Summary of Supported Actions
-
-| Property Subpath | Expected Value Format | Action Performed |
-| :--- | :--- | :--- |
-| [`show_text`](#1-show_text) | `String` | Displays a premium text overlay / OSD message on the player UI. |
-| [`toggle_ui`](#2-toggle_ui) | `"show"` \| `"hide"` \| `"toggle"` | Controls visibility of the player UI controls. |
-| [`show_panel`](#3-show_panel) | Panel Identifier (`String`) | Opens a native MpvRx bottom sheet or settings panel. |
-| [`seek_to_with_text`](#4-seek_to_with_text) | `"<seconds>\|<message>"` | Absolute seek to timestamp while showing custom overlay text. |
-| [`seek_by_with_text`](#5-seek_by_with_text) | `"<seconds>\|<message>"` | Relative seek by delta (seconds) showing custom overlay text. |
-| [`seek_to`](#6-seek_to) | `String` (representing Integer seconds) | Absolute seek without any text overlay. |
-| [`seek_by`](#7-seek_by) | `String` (representing Integer seconds) | Relative seek without any text overlay. |
-| [`software_keyboard`](#8-software_keyboard) | `"show"` \| `"hide"` \| `"toggle"` | Forces visibility state of the system software keyboard. |
-| [`curl_request`](#9-curl_request) | JSON Object (see below) | Fires an async HTTP request via native libcurl (HTTP/2, HTTP/3, TLS). Response is written to `curl_response`. |
-| [`curl_response`](#9-curl_request) | JSON Object (read-only, observe) | Receives the HTTP response for a previously issued `curl_request`. |
-
----
-
-### Detailed Properties & Examples
-
-#### 1. `show_text`
-Displays a text string directly on the player screen via MpvRx's native UI overlay.
-*   **Property:** `user-data/mpvrx/show_text`
-*   **Lua Example:**
-    ```lua
-    mp.set_property("user-data/mpvrx/show_text", "Anime4K Shaders Activated!")
-    ```
-*   **JS Example:**
-    ```javascript
-    mp.set_property("user-data/mpvrx/show_text", "Anime4K Shaders Activated!");
-    ```
-
-#### 2. `toggle_ui`
-Controls the visibility of the primary video controls overlay.
-*   **Property:** `user-data/mpvrx/toggle_ui`
-*   **Accepted Values:**
-    *   `"show"`: Forces the control overlay to appear.
-    *   `"hide"`: Forces all controls, sheets, and active panels to slide out of view.
-    *   `"toggle"`: Toggles the controls overlay visibility state.
-*   **Lua Example:**
-    ```lua
-    mp.set_property("user-data/mpvrx/toggle_ui", "toggle")
-    ```
-
-#### 3. `show_panel`
-Launches native player panels and bottom sheets directly from scripts.
-*   **Property:** `user-data/mpvrx/show_panel`
-*   **Accepted Values:**
-    *   `"frame_navigation"`: Launches the high-precision frame navigation bottom sheet.
-    *   `"subtitle_settings"`: Launches the subtitle style & typography settings panel.
-    *   `"subtitle_delay"`: Launches the subtitle delay adjustment panel.
-    *   `"audio_delay"`: Launches the audio delay adjustment panel.
-    *   `"video_filters"`: Launches the color correction & sharpness filters panel.
-    *   `"lua_scripts"`: Launches the Lua scripts configuration panel.
-    *   `"hdr_screen_output"`: Launches the Vulkan HDR screen configuration panel.
-*   **Lua Example:**
-    ```lua
-    -- Open Video Filters directly when an option is selected
-    mp.set_property("user-data/mpvrx/show_panel", "video_filters")
-    ```
-
-#### 4. `seek_to_with_text`
-Performs an absolute seek while presenting a clean, modern seek overlay with descriptive text.
-*   **Property:** `user-data/mpvrx/seek_to_with_text`
-*   **Value Format:** `"<seek_position_in_seconds>|<overlay_message_text>"`
-*   **Lua Example:**
-    ```lua
-    -- Seek to exactly 5 minutes (300 seconds) and notify the user
-    mp.set_property("user-data/mpvrx/seek_to_with_text", "300|Skipping Opening Theme")
-    ```
-
-#### 5. `seek_by_with_text`
-Performs a relative seek by delta seconds and shows a descriptive OSD overlay.
-*   **Property:** `user-data/mpvrx/seek_by_with_text`
-*   **Value Format:** `"<seek_delta_in_seconds>|<overlay_message_text>"`
-*   **Lua Example:**
-    ```lua
-    -- Seek forward by 85 seconds
-    mp.set_property("user-data/mpvrx/seek_by_with_text", "85|Fast Forwarding to Recap")
-    
-    -- Seek backward by 10 seconds
-    mp.set_property("user-data/mpvrx/seek_by_with_text", "-10|Rewinding...")
-    ```
-
-#### 6. `seek_to`
-Performs a silent absolute seek to the specified timestamp.
-*   **Property:** `user-data/mpvrx/seek_to`
-*   **Value Format:** `"seconds"` (String)
-*   **Lua Example:**
-    ```lua
-    mp.set_property("user-data/mpvrx/seek_to", "600")
-    ```
-
-#### 7. `seek_by`
-Performs a silent relative seek by a delta.
-*   **Property:** `user-data/mpvrx/seek_by`
-*   **Value Format:** `"delta_seconds"` (String)
-*   **Lua Example:**
-    ```lua
-    mp.set_property("user-data/mpvrx/seek_by", "-30")
-    ```
-
-#### 8. `software_keyboard`
-Forces the Android IME software keyboard to show or hide. Useful for scripts requiring keyboard entry.
-*   **Property:** `user-data/mpvrx/software_keyboard`
-*   **Accepted Values:**
-    *   `"show"`: Forces showing the keyboard.
-    *   `"hide"`: Forces hiding the keyboard.
-    *   `"toggle"`: Toggles keyboard visibility based on current focus state.
-*   **Lua Example:**
-    ```lua
-    mp.set_property("user-data/mpvrx/software_keyboard", "show")
-    ```
-
----
-
-## 2. Dynamic Custom Buttons API
-
-MpvRx allows users to configure custom buttons through the application preferences (via JSON schema slot configuration). These custom buttons are compiled dynamically into LUA/JS script files during player initialization.
-
-### Event Routing Workflow
-```
-[User Taps Custom Button in UI]
-             │
-             ▼
-[MpvRx fires Native command("script-message", "call_button_<safe_id>")]
-             │
-             ▼
-[Registered LUA/JS script-message callback executes custom logic]
+```text
+user-data/mpvrx/*
 ```
 
-### Script Message Registration
-When you create a custom button, MpvRx wraps your action/startup code in a clean, stateful lifecycle. The target script registers the following script-messages:
-1.  **Click Action:** `call_button_<safe_id>`
-2.  **Long Press Action:** `call_button_long_<safe_id>`
+MpvRx observes those properties, performs the native player action, and clears
+the command property after handling it. The only exception is the curl bridge:
+`curl_request` and `curl_response` are kept long enough for async HTTP handling.
 
-> [!NOTE]
-> `<safe_id>` is the custom button's identifier with hyphens (`-`) automatically replaced by underscores (`_`).
+The examples below use public no-auth API endpoints from:
 
-#### Lua Custom Button Script Example
-```lua
--- MpvRx automatically manages active instance safety via: is_active_instance()
-function button_custom_toggle_deband()
-    if not is_active_instance() then return end
-    
-    local current = mp.get_property("deband")
-    if current == "yes" then
-        mp.set_property("deband", "no")
-        mp.set_property("user-data/mpvrx/show_text", "Debanding: Disabled")
-    else
-        mp.set_property("deband", "yes")
-        mp.set_property("user-data/mpvrx/show_text", "Debanding: Enabled")
-    end
-end
+- JSONPlaceholder: https://jsonplaceholder.typicode.com/
+- httpbin: https://httpbin.org/
 
--- Register to the script message called by the MpvRx button tap event
-mp.register_script_message('call_button_custom_toggle_deband', button_custom_toggle_deband)
-```
+## Quick Start
 
----
+1. Enable Lua/JS scripting in MpvRx advanced settings.
+2. Put script files in the selected mpv config folder.
+3. Prefer the `scripts/` subfolder. MpvRx also falls back to the config root.
+4. Use `.lua` for Lua scripts and `.js` for JavaScript scripts.
+5. Select the scripts in the MpvRx scripts panel.
+6. Reopen the video if a script was added before playback started.
 
-## 3. Real-Time Android Telemetry (`user-data/android/*`)
+MpvRx also syncs `script-opts/` from the selected mpv config folder.
 
-MpvRx writes system status information directly into MPV properties. Scripts can read or observe these properties to update script-rendered OSDs or trigger custom power-saving modes.
+## Important Rules
 
-*   `user-data/android/battery-level` (Integer, `0` - `100`): Current battery percentage level.
-*   `user-data/android/battery-charging` (Boolean, `true`/`false`): Whether the device is actively charging.
-*   `user-data/android/battery-plugged` (Boolean, `true`/`false`): Whether the device is connected to a power outlet (AC, USB, or wireless).
+- Every MpvRx command property is handled as a string.
+- Seek values must be integer seconds. Do not send decimals.
+- `seek_to_with_text` and `seek_by_with_text` use the format `seconds|message`.
+- `curl_request` is async. Always observe `curl_response`.
+- Always give curl requests a unique `id` and ignore responses with a different
+  `id`.
+- JavaScript runs through mpv's JavaScript runtime. Use ES5-compatible syntax:
+  `var` and `function` are safest.
 
-#### Lua Telemetry Observer Example
-```lua
-function handle_battery_change(name, level)
-    if level == nil then return end
-    
-    local level_num = tonumber(level)
-    if level_num < 15 and not mp.get_property_bool("user-data/android/battery-charging") then
-        -- Enable low power mode inside MPV
-        mp.set_property("deband", "no")
-        mp.set_property("user-data/mpvrx/show_text", "Battery Low! Disabling deband filter to save power.")
-    end
-end
+## Supported Commands
 
--- Observe battery level changes
-mp.observe_property("user-data/android/battery-level", "native", handle_battery_change)
-```
+| Property | Value | What it does |
+| --- | --- | --- |
+| `user-data/mpvrx/show_text` | Any string | Shows a native MpvRx text overlay. |
+| `user-data/mpvrx/toggle_ui` | `show`, `hide`, `toggle` | Shows, hides, or toggles player controls. |
+| `user-data/mpvrx/show_panel` | Panel id | Opens a native MpvRx sheet or panel. |
+| `user-data/mpvrx/seek_to` | Integer seconds | Seeks to an absolute timestamp. |
+| `user-data/mpvrx/seek_by` | Integer seconds | Seeks relative to the current timestamp. |
+| `user-data/mpvrx/seek_to_with_text` | `seconds|message` | Absolute seek with overlay text. |
+| `user-data/mpvrx/seek_by_with_text` | `seconds|message` | Relative seek with overlay text. |
+| `user-data/mpvrx/software_keyboard` | `show`, `hide`, `toggle` | Controls the Android software keyboard. |
+| `user-data/mpvrx/curl_request` | JSON string | Runs an async HTTP request through native curl. |
+| `user-data/mpvrx/curl_response` | JSON string | Response written by MpvRx. Scripts should observe it. |
 
----
+Supported panel ids:
 
-## 4. HTTP / Curl Bridge (`user-data/mpvrx/curl_request` + `curl_response`)
+| Panel id | Result |
+| --- | --- |
+| `frame_navigation` | Opens the frame navigation sheet. |
+| `subtitle_settings` | Opens subtitle style settings. |
+| `subtitle_delay` | Opens subtitle delay controls. |
+| `audio_delay` | Opens audio delay controls. |
+| `video_filters` | Opens video filter controls. |
+| `lua_scripts` | Opens the scripts panel. |
+| `hdr_screen_output` | Opens HDR screen output controls. |
 
-MpvRx exposes a full async HTTP client to Lua and JS scripts via native libcurl (built from curl-android, supporting HTTP/2, HTTP/3 with BoringSSL). Scripts write a JSON request object to `user-data/mpvrx/curl_request`; the response is written back to `user-data/mpvrx/curl_response` once the network call completes.
+Observed but not public commands:
 
-> [!IMPORTANT]
-> Requests are **non-blocking** — the script continues executing immediately after setting `curl_request`. Observe `curl_response` to receive the result. Use the `id` field to correlate requests with responses when making multiple concurrent calls.
+`set_button_title`, `reset_button_title`, and `toggle_button` are currently
+observed by the mpv property observer, but the player command dispatcher does
+not implement public behavior for them. Treat them as reserved.
 
-### How it works
+## Full Working Lua Example
 
-```
-[Script sets user-data/mpvrx/curl_request = JSON]
-                    │
-                    ▼
-        [MpvRx parses the request]
-                    │
-                    ▼
-     [libcurl executes on background thread]
-          (video playback unaffected)
-                    │
-                    ▼
-[MpvRx writes user-data/mpvrx/curl_response = JSON]
-                    │
-                    ▼
-  [Script observer fires → handle the result]
-                    │
-                    ▼
-  [Script updates show_text → OSD appears on screen]
-```
+Save this as `mpvrx_demo.lua` in your mpv `scripts/` folder.
 
----
-
-### Request Format
-
-Write a JSON string to `user-data/mpvrx/curl_request`:
-
-| Field | Type | Required | Default | Description |
-| :--- | :--- | :--- | :--- | :--- |
-| `id` | `string` | ✅ | — | Unique identifier echoed back in the response. Use this to match responses to requests. |
-| `url` | `string` | ✅ | — | Full URL including scheme (`https://...`). |
-| `method` | `string` | ❌ | `"GET"` | HTTP method: `GET`, `POST`, `PUT`, `PATCH`, `DELETE`, `HEAD`. |
-| `headers` | `object` | ❌ | `{}` | Key-value map of request headers. |
-| `body` | `string` | ❌ | `""` | Raw request body (used for `POST`, `PUT`, `PATCH`). |
-| `content_type` | `string` | ❌ | `"text/plain; charset=utf-8"` | `Content-Type` header for the request body. |
-| `timeout` | `integer` | ❌ | `30` | Timeout in seconds (1–120). |
-
-### Response Format
-
-Observe `user-data/mpvrx/curl_response` to receive a JSON string:
-
-| Field | Type | Description |
-| :--- | :--- | :--- |
-| `id` | `string` | The `id` from the original request. |
-| `status` | `integer` | HTTP status code (e.g. `200`, `404`). `0` on network/timeout error. |
-| `body` | `string` | Response body as a UTF-8 string. Truncated at 2 MB with `[truncated]` suffix. |
-| `headers` | `object` | Response headers as a key-value map. |
-| `error` | `string\|null` | `null` on success. Error message string on network failure or timeout. |
-
----
-
-### Real-World Example — ZenQuotes API
-
-[ZenQuotes](https://zenquotes.io) is a free public API that returns a random inspirational quote. No API key needed.
-
-**Endpoint:** `GET https://zenquotes.io/api/random`
-
-**Response shape:**
-```json
-[
-  {
-    "q": "Perseverance and spirit have done wonders in all ages.",
-    "a": "George Washington",
-    "h": "<blockquote>...</blockquote>"
-  }
-]
-```
-
-The response is a JSON **array**. The quote text is in `[0].q` and the author is in `[0].a`.
-
-#### Expected OSD output
-
-When the script runs, you will see the raw response details formatted and displayed as an OSD text overlay on the player screen for 20 seconds. It will show the request ID, status code, and raw body containing the quote data.
-
----
-
-#### Lua — Fetch a random quote and show it on screen
-
-Save as `quote_of_session.lua` in your MPV scripts folder.
+It fetches a public JSONPlaceholder post, shows the post title, and includes
+key bindings for common MpvRx commands.
 
 ```lua
--- quote_of_session.lua
--- Fetches a random quote and prints the raw response as an OSD message for 20 seconds.
+-- mpvrx_demo.lua
 
 local utils = require("mp.utils")
 
-mp.observe_property("user-data/mpvrx/curl_response", "string", function(_, value)
-    if not value then return end
+local REQUEST_ID = "mpvrx-demo-lua-post"
 
-    local res = utils.parse_json(value)
+local function mpvrx(command, value)
+    mp.set_property("user-data/mpvrx/" .. command, tostring(value))
+end
 
-    mp.osd_message(
-        utils.format_json(res),
-        20
-    )
-end)
+local function show(message)
+    mpvrx("show_text", message)
+end
 
-mp.register_event("file-loaded", function()
-    mp.set_property("user-data/mpvrx/curl_request",
-        utils.format_json({
-            id = "quote",
-            url = "https://zenquotes.io/api/random",
-            method = "GET"
-        })
-    )
-end)
-```
+local function fetch_post()
+    show("Fetching JSONPlaceholder post...")
 
----
-
-#### Lua — Fetch a new quote on key press (bound to a custom button)
-
-```lua
--- quote_on_demand.lua
--- Press Q or tap the custom button to fetch a quote at any time.
-
-local utils = require("mp.utils")
-
-mp.observe_property("user-data/mpvrx/curl_response", "string", function(name, value)
-    if value == nil or value == "" then return end
-    local res = utils.parse_json(value)
-    if res == nil or res.id ~= "quote-demand" then return end
-
-    if res.error or res.status ~= 200 then
-        mp.set_property("user-data/mpvrx/show_text",
-            "Could not fetch quote")
-        return
-    end
-
-    local data = utils.parse_json(res.body)
-    if data and data[1] then
-        mp.set_property("user-data/mpvrx/show_text",
-            data[1].q .. "\n-- " .. data[1].a)
-    end
-end)
-
-local function fetch_quote()
-    -- OSD: Show fetching indicator immediately
-    mp.set_property("user-data/mpvrx/show_text", "Fetching quote...")
-    mp.set_property("user-data/mpvrx/curl_request", utils.format_json({
-        id      = "quote-demand",
-        url     = "https://zenquotes.io/api/random",
-        method  = "GET",
-        timeout = 10,
+    mpvrx("curl_request", utils.format_json({
+        id = REQUEST_ID,
+        url = "https://jsonplaceholder.typicode.com/posts/1",
+        method = "GET",
+        headers = {
+            Accept = "application/json",
+        },
+        timeout = 15,
     }))
 end
 
-mp.register_script_message("call_button_quote_on_demand", fetch_quote)
-mp.add_key_binding("Q", "fetch-quote", fetch_quote)
-```
-
----
-
-#### JavaScript — Fetch a random quote on file load
-
-Save as `quote_of_session.js` in your MPV scripts folder.
-
-```javascript
-// quote_of_session.js
-// Fetches a random quote when a file loads and shows it as OSD.
-
-mp.observe_property("user-data/mpvrx/curl_response", "string", function(name, value) {
-    if (!value) return;
-
-    let res;
-    try { res = JSON.parse(value); } catch (e) { return; }
-
-    if (res.id !== "zenquotes-random-js") return;
-
-    // OSD: Network / timeout error
-    if (res.error) {
-        mp.set_property("user-data/mpvrx/show_text",
-            "Quote fetch failed: " + res.error);
-        return;
-    }
-
-    // OSD: Non-200 status
-    if (res.status !== 200) {
-        mp.set_property("user-data/mpvrx/show_text",
-            "Quote API error: HTTP " + res.status);
-        return;
-    }
-
-    // Parse ZenQuotes response array
-    let data;
-    try { data = JSON.parse(res.body); } catch (e) {
-        mp.set_property("user-data/mpvrx/show_text",
-            "Could not parse quote response");
-        return;
-    }
-
-    if (!data || !data[0]) return;
-
-    const quote  = data[0].q || "...";
-    const author = data[0].a || "Unknown";
-
-    // OSD: Show the quote on screen
-    mp.set_property("user-data/mpvrx/show_text",
-        "\u201C" + quote + "\u201D\n\u2014 " + author);
-});
-
-// Fire the request when the file starts
-mp.register_event("file-loaded", function() {
-    // OSD: Let the user know we are fetching
-    mp.set_property("user-data/mpvrx/show_text",
-        "Fetching quote of the day...");
-
-    mp.set_property("user-data/mpvrx/curl_request", JSON.stringify({
-        id:      "zenquotes-random-js",
-        url:     "https://zenquotes.io/api/random",
-        method:  "GET",
-        headers: { "Accept": "application/json" },
-        timeout: 10
-    }));
-});
-```
-
----
-
-#### JavaScript — Fetch a new quote on key press
-
-```javascript
-// quote_on_demand.js
-// Press Q or tap the custom button to fetch a quote at any time.
-
-mp.observe_property("user-data/mpvrx/curl_response", "string", function(name, value) {
-    if (!value) return;
-    let res;
-    try { res = JSON.parse(value); } catch (e) { return; }
-    if (res.id !== "quote-demand-js") return;
-
-    if (res.error || res.status !== 200) {
-        mp.set_property("user-data/mpvrx/show_text",
-            "Could not fetch quote");
-        return;
-    }
-
-    let data;
-    try { data = JSON.parse(res.body); } catch (e) { return; }
-    if (data && data[0]) {
-        mp.set_property("user-data/mpvrx/show_text",
-            data[0].q + "\n\u2014 " + data[0].a);
-    }
-});
-
-function fetchQuote() {
-    // OSD: Show fetching indicator immediately
-    mp.set_property("user-data/mpvrx/show_text", "Fetching quote...");
-    mp.set_property("user-data/mpvrx/curl_request", JSON.stringify({
-        id:     "quote-demand-js",
-        url:    "https://zenquotes.io/api/random",
-        method: "GET",
-        timeout: 10
-    }));
-}
-
-mp.register_script_message("call_button_quote_on_demand", fetchQuote);
-mp.add_key_binding("Q", "fetch-quote-js", fetchQuote);
-```
-
----
-
-### Additional Examples
-
-#### Lua — POST JSON data with auth token
-
-```lua
--- post_example.lua
--- Sends a POST request with JSON body and Bearer token.
-
-local utils = require("mp.utils")
-
-mp.observe_property("user-data/mpvrx/curl_response", "string", function(name, value)
+mp.observe_property("user-data/mpvrx/curl_response", "string", function(_, value)
     if value == nil or value == "" then return end
-    local res = utils.parse_json(value)
-    if res == nil or res.id ~= "post-data" then return end
 
-    if res.error then
-        mp.set_property("user-data/mpvrx/show_text",
-            "POST failed: " .. res.error)
+    local res = utils.parse_json(value)
+    if res == nil or res.id ~= REQUEST_ID then return end
+
+    if res.error ~= nil then
+        show("Curl failed: " .. tostring(res.error))
         return
     end
 
-    -- OSD: Show the response status
-    mp.set_property("user-data/mpvrx/show_text",
-        "POST returned HTTP " .. res.status)
+    if tonumber(res.status) ~= 200 then
+        show("HTTP " .. tostring(res.status))
+        return
+    end
+
+    local body = utils.parse_json(res.body)
+    if body == nil then
+        show("Could not parse response body")
+        return
+    end
+
+    show("Post #" .. tostring(body.id) .. "\n" .. tostring(body.title))
 end)
 
--- Fire a POST request
+mp.register_event("file-loaded", fetch_post)
+
+mp.add_key_binding("J", "mpvrx-fetch-jsonplaceholder-post", fetch_post)
+mp.add_key_binding("U", "mpvrx-toggle-ui", function()
+    mpvrx("toggle_ui", "toggle")
+end)
+mp.add_key_binding("V", "mpvrx-open-video-filters", function()
+    mpvrx("show_panel", "video_filters")
+end)
+mp.add_key_binding("RIGHT", "mpvrx-seek-forward", function()
+    mpvrx("seek_by_with_text", "30|Forward 30 seconds")
+end)
+mp.add_key_binding("LEFT", "mpvrx-seek-back", function()
+    mpvrx("seek_by_with_text", "-10|Back 10 seconds")
+end)
+```
+
+## Full Working JavaScript Example
+
+Save this as `mpvrx_demo.js` in your mpv `scripts/` folder.
+
+This example uses ES5-style JavaScript for mpv compatibility. It sends a POST
+request to JSONPlaceholder and shows the fake created post id returned by the
+public test API.
+
+```javascript
+// mpvrx_demo.js
+
+var REQUEST_ID = "mpvrx-demo-js-create-post";
+
+function mpvrx(command, value) {
+    mp.set_property("user-data/mpvrx/" + command, String(value));
+}
+
+function show(message) {
+    mpvrx("show_text", message);
+}
+
+function createPost() {
+    var payload = {
+        title: "MpvRx JavaScript curl test",
+        body: "Posted from an mpv JavaScript script through MpvRx curl.",
+        userId: 1
+    };
+
+    show("Posting to JSONPlaceholder...");
+
+    mpvrx("curl_request", JSON.stringify({
+        id: REQUEST_ID,
+        url: "https://jsonplaceholder.typicode.com/posts",
+        method: "POST",
+        headers: {
+            "Accept": "application/json",
+            "Content-Type": "application/json"
+        },
+        body: JSON.stringify(payload),
+        content_type: "application/json",
+        timeout: 15
+    }));
+}
+
+mp.observe_property("user-data/mpvrx/curl_response", "string", function(name, value) {
+    if (!value) return;
+
+    var res;
+    try {
+        res = JSON.parse(value);
+    } catch (e) {
+        return;
+    }
+
+    if (!res || res.id !== REQUEST_ID) return;
+
+    if (res.error) {
+        show("Curl failed: " + res.error);
+        return;
+    }
+
+    if (res.status < 200 || res.status >= 300) {
+        show("HTTP " + res.status);
+        return;
+    }
+
+    var body;
+    try {
+        body = JSON.parse(res.body);
+    } catch (e2) {
+        show("Could not parse response body");
+        return;
+    }
+
+    show("Created fake post #" + body.id + "\nHTTP " + res.status);
+});
+
+mp.add_key_binding("P", "mpvrx-create-jsonplaceholder-post", createPost);
+mp.add_key_binding("U", "mpvrx-toggle-ui-js", function() {
+    mpvrx("toggle_ui", "toggle");
+});
+mp.add_key_binding("S", "mpvrx-open-subtitle-settings-js", function() {
+    mpvrx("show_panel", "subtitle_settings");
+});
+mp.add_key_binding("K", "mpvrx-show-keyboard-js", function() {
+    mpvrx("software_keyboard", "show");
+});
+```
+
+## Command Reference
+
+### `show_text`
+
+Shows a short native MpvRx overlay.
+
+Lua:
+
+```lua
+mp.set_property("user-data/mpvrx/show_text", "Shaders enabled")
+```
+
+JavaScript:
+
+```javascript
+mp.set_property("user-data/mpvrx/show_text", "Shaders enabled");
+```
+
+### `toggle_ui`
+
+Controls the player controls overlay.
+
+Accepted values:
+
+- `show`
+- `hide`
+- `toggle`
+
+Lua:
+
+```lua
+mp.set_property("user-data/mpvrx/toggle_ui", "hide")
+```
+
+JavaScript:
+
+```javascript
+mp.set_property("user-data/mpvrx/toggle_ui", "toggle");
+```
+
+### `show_panel`
+
+Opens a native MpvRx sheet or panel.
+
+Lua:
+
+```lua
+mp.set_property("user-data/mpvrx/show_panel", "frame_navigation")
+mp.set_property("user-data/mpvrx/show_panel", "video_filters")
+```
+
+JavaScript:
+
+```javascript
+mp.set_property("user-data/mpvrx/show_panel", "lua_scripts");
+mp.set_property("user-data/mpvrx/show_panel", "hdr_screen_output");
+```
+
+### `seek_to`
+
+Seeks to an absolute timestamp in integer seconds.
+
+```lua
+mp.set_property("user-data/mpvrx/seek_to", "600")
+```
+
+### `seek_by`
+
+Seeks relative to the current timestamp in integer seconds.
+
+```lua
+mp.set_property("user-data/mpvrx/seek_by", "30")
+mp.set_property("user-data/mpvrx/seek_by", "-10")
+```
+
+### `seek_to_with_text`
+
+Seeks to an absolute timestamp and shows custom overlay text.
+
+Value format:
+
+```text
+seconds|message
+```
+
+Lua:
+
+```lua
+mp.set_property("user-data/mpvrx/seek_to_with_text", "90|Jumping to intro")
+```
+
+JavaScript:
+
+```javascript
+mp.set_property("user-data/mpvrx/seek_to_with_text", "3600|Jumping to final act");
+```
+
+### `seek_by_with_text`
+
+Seeks relative to the current timestamp and shows custom overlay text.
+
+Lua:
+
+```lua
+mp.set_property("user-data/mpvrx/seek_by_with_text", "85|Skipping opening")
+mp.set_property("user-data/mpvrx/seek_by_with_text", "-15|Back 15 seconds")
+```
+
+JavaScript:
+
+```javascript
+mp.set_property("user-data/mpvrx/seek_by_with_text", "30|Forward 30 seconds");
+```
+
+### `software_keyboard`
+
+Controls the Android software keyboard.
+
+Accepted values:
+
+- `show`
+- `hide`
+- `toggle`
+
+Lua:
+
+```lua
+mp.set_property("user-data/mpvrx/software_keyboard", "show")
+```
+
+JavaScript:
+
+```javascript
+mp.set_property("user-data/mpvrx/software_keyboard", "hide");
+```
+
+## Curl Bridge
+
+The curl bridge lets Lua and JavaScript scripts make HTTP requests through the
+native libcurl bridge. Scripts write a JSON request to:
+
+```text
+user-data/mpvrx/curl_request
+```
+
+MpvRx writes the response to:
+
+```text
+user-data/mpvrx/curl_response
+```
+
+Requests are async. Playback continues while the request runs.
+
+### Curl Request JSON
+
+| Field | Type | Required | Default | Notes |
+| --- | --- | --- | --- | --- |
+| `id` | string | No | UUID generated by MpvRx | Use your own id so scripts can match responses. |
+| `url` | string | Yes | none | Must not be blank. Use `http://` or `https://`. |
+| `method` | string | No | `GET` | Supported: `GET`, `HEAD`, `POST`, `PUT`, `PATCH`, `DELETE`. |
+| `headers` | object | No | `{}` | String key/value request headers. Maximum 64 headers. |
+| `body` | string | No | null | Sent for `POST`, `PUT`, and `PATCH`. |
+| `content_type` | string | No | `text/plain; charset=utf-8` | Sent as `Content-Type` when not blank. |
+| `timeout` | integer | No | `30` | Clamped to 1 through 120 seconds. |
+
+Lua request:
+
+```lua
+local utils = require("mp.utils")
+
 mp.set_property("user-data/mpvrx/curl_request", utils.format_json({
-    id           = "post-data",
-    url          = "https://httpbin.org/post",
-    method       = "POST",
-    headers      = {
-        Authorization = "Bearer your-token-here",
-        Accept        = "application/json",
+    id = "lua-httpbin-get",
+    url = "https://httpbin.org/get",
+    method = "GET",
+    headers = {
+        Accept = "application/json",
     },
-    body         = '{"key": "value"}',
-    content_type = "application/json",
-    timeout      = 15,
+    timeout = 10,
 }))
 ```
 
----
+JavaScript request:
 
-### Notes & Limits
+```javascript
+mp.set_property("user-data/mpvrx/curl_request", JSON.stringify({
+    id: "js-httpbin-get",
+    url: "https://httpbin.org/get",
+    method: "GET",
+    headers: {
+        "Accept": "application/json"
+    },
+    timeout: 10
+}));
+```
 
-- **Response body** is capped at **2 MB**. Larger responses are truncated with a `[truncated]` suffix appended to the body.
-- **Timeout** is clamped between 1 and 120 seconds.
-- **Supported methods:** `GET`, `POST`, `PUT`, `PATCH`, `DELETE`, `HEAD`.
-- Redirects (HTTP and HTTPS) are followed automatically.
-- The `curl_response` property is **not** cleared between requests — always check `res.id` to match the response to your request.
-- Requests run on a background thread and do **not** block video playback.
+### Curl Response JSON
+
+| Field | Type | Notes |
+| --- | --- | --- |
+| `id` | string | Echoes the request id, or generated id if omitted. |
+| `status` | integer | HTTP status code. `0` means bridge/network/native error. |
+| `body` | string | UTF-8 response body. Capped at 2 MB. |
+| `headers` | object | Response headers as string key/value pairs. |
+| `error` | string or null | Missing/null on success. String message on failure. |
+
+Lua observer:
+
+```lua
+local utils = require("mp.utils")
+
+mp.observe_property("user-data/mpvrx/curl_response", "string", function(_, value)
+    if value == nil or value == "" then return end
+
+    local res = utils.parse_json(value)
+    if res == nil or res.id ~= "lua-httpbin-get" then return end
+
+    if res.error ~= nil then
+        mp.set_property("user-data/mpvrx/show_text", "Curl error: " .. res.error)
+        return
+    end
+
+    mp.set_property("user-data/mpvrx/show_text", "HTTP " .. tostring(res.status))
+end)
+```
+
+JavaScript observer:
+
+```javascript
+mp.observe_property("user-data/mpvrx/curl_response", "string", function(name, value) {
+    if (!value) return;
+
+    var res;
+    try {
+        res = JSON.parse(value);
+    } catch (e) {
+        return;
+    }
+
+    if (!res || res.id !== "js-httpbin-get") return;
+
+    if (res.error) {
+        mp.set_property("user-data/mpvrx/show_text", "Curl error: " + res.error);
+        return;
+    }
+
+    mp.set_property("user-data/mpvrx/show_text", "HTTP " + res.status);
+});
+```
+
+### Curl Limits and Behavior
+
+- Body capture is capped at 2 MB.
+- Header capture is capped at 256 KB.
+- Request headers are capped at 64 entries.
+- Redirects are followed for HTTP and HTTPS.
+- Only HTTP and HTTPS URLs are allowed.
+- Timeout applies to connect and total request time.
+- `DELETE` requests do not send a body in the native bridge.
+- `curl_response` is not cleared automatically. Always check `id`.
+
+## Custom Buttons
+
+MpvRx custom buttons support Lua and JavaScript actions.
+
+In the Custom Button editor:
+
+- `Button title` is the text shown in the player UI.
+- `Tap action` is required.
+- `Long press action` is optional.
+- `On startup` is optional.
+- `Script language` can be Lua or JavaScript.
+
+Paste only the action body into the editor. MpvRx wraps it in a generated
+script and registers the correct script message internally.
+
+Lua tap action example:
+
+```lua
+mp.set_property("deband", "yes")
+mp.set_property("user-data/mpvrx/show_text", "Deband enabled")
+```
+
+Lua long press action example:
+
+```lua
+mp.set_property("deband", "no")
+mp.set_property("user-data/mpvrx/show_text", "Deband disabled")
+```
+
+JavaScript tap action example:
+
+```javascript
+mp.set_property("video-zoom", "0.25");
+mp.set_property("user-data/mpvrx/show_text", "Zoom 25%");
+```
+
+JavaScript long press action example:
+
+```javascript
+mp.set_property("video-zoom", "0");
+mp.set_property("user-data/mpvrx/show_text", "Zoom reset");
+```
+
+Generated custom button internals:
+
+- MpvRx writes generated scripts to the app internal `scripts/` directory.
+- Lua buttons are generated into `custombuttons.lua`.
+- JavaScript buttons are generated into `custombuttons.js`.
+- Tapping a button sends `script-message call_button_<safe_id>`.
+- Long pressing a button sends `script-message call_button_long_<safe_id>`.
+- `<safe_id>` is the internal button id with `-` replaced by `_`.
+- Generated Lua actions are guarded by `is_active_instance()`.
+- Generated JavaScript actions are guarded by `isActiveInstance()`.
+
+Do not call `is_active_instance()` or `isActiveInstance()` from normal script
+files. They exist only inside generated custom button scripts.
+
+## Android Telemetry Properties
+
+MpvRx writes Android device state into mpv `user-data/android/*` properties.
+Scripts can read or observe these values.
+
+| Property | Type | Meaning |
+| --- | --- | --- |
+| `user-data/android/battery-level` | integer | Battery level from 0 to 100. |
+| `user-data/android/battery-charging` | boolean | `true` when charging. |
+| `user-data/android/battery-plugged` | boolean | `true` when plugged into power. |
+
+Lua telemetry example:
+
+```lua
+mp.observe_property("user-data/android/battery-level", "native", function(_, level)
+    if level == nil then return end
+
+    local charging = mp.get_property_native("user-data/android/battery-charging")
+    if tonumber(level) < 15 and not charging then
+        mp.set_property("deband", "no")
+        mp.set_property("user-data/mpvrx/show_text", "Low battery: deband disabled")
+    end
+end)
+```
+
+JavaScript telemetry example:
+
+```javascript
+mp.observe_property("user-data/android/battery-level", "native", function(name, level) {
+    if (level === null || level === undefined) return;
+
+    var charging = mp.get_property_native("user-data/android/battery-charging");
+    if (Number(level) < 15 && !charging) {
+        mp.set_property("deband", "no");
+        mp.set_property("user-data/mpvrx/show_text", "Low battery: deband disabled");
+    }
+});
+```
+
+## Troubleshooting
+
+If a command does nothing:
+
+- Confirm scripting is enabled in MpvRx settings.
+- Confirm the script is selected in the scripts panel.
+- Confirm the script file extension is `.lua` or `.js`.
+- Use integer seconds for seek commands.
+- Use the exact command property path.
+- For curl, check `res.id` before handling the response.
+- For curl, check `res.error` and `res.status`.
+- Reopen the video after adding a new script.
+
+Minimal smoke test:
+
+Lua:
+
+```lua
+mp.register_event("file-loaded", function()
+    mp.set_property("user-data/mpvrx/show_text", "Lua script loaded")
+end)
+```
+
+JavaScript:
+
+```javascript
+mp.register_event("file-loaded", function() {
+    mp.set_property("user-data/mpvrx/show_text", "JavaScript script loaded");
+});
+```

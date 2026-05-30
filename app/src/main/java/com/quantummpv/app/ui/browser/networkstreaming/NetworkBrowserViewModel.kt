@@ -2,6 +2,7 @@ package com.quantummpv.app.ui.browser.networkstreaming
 
 import android.app.Application
 import android.content.Intent
+import android.net.Uri
 import android.util.Log
 import com.quantummpv.app.database.repository.PlaylistRepository
 import androidx.lifecycle.AndroidViewModel
@@ -15,6 +16,7 @@ import com.quantummpv.app.domain.network.NetworkProtocol
 import com.quantummpv.app.repository.NetworkRepository
 import com.quantummpv.app.ui.browser.networkstreaming.clients.NetworkClientFactory
 import com.quantummpv.app.utils.media.M3UParser
+import com.quantummpv.app.utils.storage.FileTypeUtils
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.SharedFlow
@@ -185,21 +187,13 @@ class NetworkBrowserViewModel(
     // Use proxy server for protocols that need seeking support
     val useProxy = connection.protocol in PROXY_PROTOCOLS
 
-    val uri = if (useProxy) {
-      val proxy = com.quantummpv.app.ui.browser.networkstreaming.proxy.NetworkStreamingProxy.getInstance()
-      val streamId = "${connectionId}_${System.currentTimeMillis()}"
-      val proxyUrl = proxy.registerStream(
-        streamId = streamId,
-        connection = connection,
-        filePath = file.path,
-        fileSize = file.size,
-        mimeType = file.mimeType ?: "video/mp4",
-      )
-      android.net.Uri.parse(proxyUrl)
-    } else {
-      NetworkStreamingProvider.setConnection(connectionId, connection)
-      NetworkStreamingProvider.getUri(application, connectionId, file.path)
-    }
+    val playableFiles = currentDirectoryPlayableFiles(file)
+    val playlistIndex = playableFiles.indexOfFirst { it.path == file.path }
+      .takeIf { it >= 0 }
+      ?: 0
+    val playlistUris = playableFiles.map { createPlayableNetworkUri(connection, it, useProxy) }
+    val uri = playlistUris.getOrNull(playlistIndex)
+      ?: createPlayableNetworkUri(connection, file, useProxy)
 
     // Launch the player
     val intent = Intent(Intent.ACTION_VIEW, uri)
@@ -214,11 +208,73 @@ class NetworkBrowserViewModel(
     intent.setDataAndType(uri, file.mimeType ?: "video/*")
     intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
 
+    if (playlistUris.size > 1) {
+      intent.putParcelableArrayListExtra("playlist", ArrayList(playlistUris))
+      intent.putExtra("playlist_index", playlistIndex)
+      intent.putStringArrayListExtra("network_playlist_paths", ArrayList(playableFiles.map { it.path }))
+      intent.putStringArrayListExtra("network_playlist_titles", ArrayList(playableFiles.map { it.name }))
+      intent.putExtra("network_playlist_connection_id", connectionId)
+    }
+
     if (!useProxy) {
       intent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
     }
 
     application.startActivity(intent)
+  }
+
+  private fun currentDirectoryPlayableFiles(clickedFile: NetworkFile): List<NetworkFile> {
+    val files = _files.value
+      .filter { it.isPlayableVideoFile() }
+
+    return if (files.any { it.path == clickedFile.path }) {
+      files
+    } else {
+      listOf(clickedFile)
+    }
+  }
+
+  private fun createPlayableNetworkUri(
+    connection: NetworkConnection,
+    file: NetworkFile,
+    useProxy: Boolean,
+  ): Uri {
+    return if (useProxy) {
+      val proxy = com.quantummpv.app.ui.browser.networkstreaming.proxy.NetworkStreamingProxy.getInstance()
+      val streamId = buildStableStreamId(file)
+      val proxyUrl = proxy.registerStream(
+        streamId = streamId,
+        connection = connection,
+        filePath = file.path,
+        fileSize = file.size,
+        mimeType = file.mimeType ?: "video/mp4",
+      )
+      Uri.parse(proxyUrl)
+    } else {
+      NetworkStreamingProvider.setConnection(connectionId, connection)
+      NetworkStreamingProvider.getUri(application, connectionId, file.path)
+    }
+  }
+
+  private fun buildStableStreamId(file: NetworkFile): String {
+    val pathHash = Integer.toUnsignedString(file.path.hashCode(), 36)
+    val sizeHash = Integer.toUnsignedString(file.size.hashCode(), 36)
+    return "network_${connectionId}_${pathHash}_$sizeHash"
+  }
+
+  private fun NetworkFile.isPlayableVideoFile(): Boolean {
+    if (isDirectory || isM3uFile(this)) {
+      return false
+    }
+
+    val mime = mimeType?.lowercase()
+    if (mime?.startsWith("video/") == true) {
+      return true
+    }
+
+    val cleanName = name.substringBefore('?').substringBefore('#')
+    val extension = cleanName.substringAfterLast('.', missingDelimiterValue = "").lowercase()
+    return extension in FileTypeUtils.VIDEO_EXTENSIONS
   }
 
   private fun isM3uFile(file: NetworkFile): Boolean {

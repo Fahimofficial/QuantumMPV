@@ -228,6 +228,13 @@ class PlayerActivity :
   private var playlistItems: List<PlaylistItemEntity> = emptyList()
 
   /**
+   * Original network metadata for intent-backed WebDAV/SMB/FTP playlists.
+   */
+  private var networkPlaylistPaths: List<String> = emptyList()
+  private var networkPlaylistTitles: List<String> = emptyList()
+  private var networkPlaylistConnectionId: Long = -1L
+
+  /**
    * Playlist metadata for the current Room-backed playlist.
    */
   private var playlistEntity: PlaylistEntity? = null
@@ -473,6 +480,7 @@ class PlayerActivity :
 
     playlistId = intent.getIntExtra("playlist_id", -1).takeIf { it != -1 }
     playlistIndex = intent.getIntExtra("playlist_index", 0)
+    loadNetworkPlaylistMetadata(intent)
 
     // Load playlist from intent extras first (fast path - backward compatibility)
     playlist = if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.TIRAMISU) {
@@ -3121,6 +3129,7 @@ class PlayerActivity :
       playlistItems = emptyList()
       playlistEntity = null
       isM3uPlaylist = false
+      loadNetworkPlaylistMetadata(intent)
     }
 
     // If playlist is empty but playlist_id is provided, load from database
@@ -3940,15 +3949,23 @@ class PlayerActivity :
     val uri = playlist[index]
     val playableUri = uri.openContentFd(this) ?: uri.toString()
     currentPlayableUri = uri.toString()
+    val networkFilePath = networkPlaylistPaths.getOrNull(index)?.takeIf { it.isNotBlank() }
+    val networkTitle = networkPlaylistTitles.getOrNull(index)?.takeIf { it.isNotBlank() }
 
     // Update playlist index
     playlistIndex = index
     viewModel.calculateVideoHash(uri)
 
     // Extract and set the new file name
-    fileName = getPlaylistItemByIndex(index)?.fileName?.takeIf { it.isNotBlank() } ?: getFileNameFromUri(uri)
+    fileName = getPlaylistItemByIndex(index)?.fileName?.takeIf { it.isNotBlank() }
+      ?: networkTitle
+      ?: getFileNameFromUri(uri)
     // Generate new media identifier for playback state
-    mediaIdentifier = getMediaIdentifierFromUri(uri, fileName)
+    mediaIdentifier = if (networkFilePath != null && networkPlaylistConnectionId != -1L) {
+      buildNetworkMediaIdentifier(networkPlaylistConnectionId, networkFilePath)
+    } else {
+      getMediaIdentifierFromUri(uri, fileName)
+    }
 
     // Set HTTP headers (including referer) for network streams
     setHttpHeadersForUri(uri)
@@ -4233,7 +4250,7 @@ class PlayerActivity :
 
     if (networkFilePath != null && networkConnectionId != -1L) {
       // For network files via proxy: use connection ID + file path for stable identifier
-      val identifier = "network_${networkConnectionId}_${networkFilePath.hashCode()}"
+      val identifier = buildNetworkMediaIdentifier(networkConnectionId, networkFilePath)
       Log.d(
         TAG,
         "Using network file identifier: $identifier (connection: $networkConnectionId, path: $networkFilePath)",
@@ -4250,6 +4267,15 @@ class PlayerActivity :
       fileName
     }
   }
+
+  private fun loadNetworkPlaylistMetadata(intent: Intent) {
+    networkPlaylistPaths = intent.getStringArrayListExtra("network_playlist_paths") ?: emptyList()
+    networkPlaylistTitles = intent.getStringArrayListExtra("network_playlist_titles") ?: emptyList()
+    networkPlaylistConnectionId = intent.getLongExtra("network_playlist_connection_id", -1L)
+  }
+
+  private fun buildNetworkMediaIdentifier(connectionId: Long, filePath: String): String =
+    "network_${connectionId}_${filePath.hashCode()}"
 
   /**
    * Generate a unique identifier for this media from a URI and name.

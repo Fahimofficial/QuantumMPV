@@ -4,18 +4,21 @@ These notes are written in plain English and focus on what changed for real use.
 
 ## 1.3.9
 
+> # 🚀 **CURL IS NOW SUPPORTED!** 
+> ### ⚠️ **EXPERIMENTAL** — This is brand new and may or may not work properly on your device. ⚠️
+> Lua and JavaScript scripts can now make HTTP requests through the new native libcurl bridge via JNI.
+> Use it, break it, and report issues so we can make it stable!, see `MPVRX_CUSTOM_COMMANDS.d` for tutorial on how to use in Lua and JS.
+>
+> **What this means:** You can now write scripts that fetch data from the internet — APIs, subtitles, metadata, you name it — all through libcurl compiled directly into the app.
+
 - AI support has been updated. Gemini is removed and OpenCode Zen AI is now available for AI rename, subtitle formatting, and subtitle translation.
 - AI model lists now come from the provider APIs instead of a saved model list in the app. OpenRouter also marks free models using the pricing data returned by OpenRouter itself.
-- Lua and JavaScript scripts can now make HTTP requests through the new curl bridge.
 - Background playback is fixed so repeat keeps working after using the headphone button, and returning to the player no longer restarts the current stream from the beginning.
-- M3U playlists from WebDAV, SMB, and other network sources now continue past the first item properly.
 - Subtitle search has been updated for the latest Wyzie source changes.
 - Added Hybrid Skip Markers. The player can now check IntroDB, TIDB, and AniSkip together and use whichever result is found first.
-- Fixed a seekbar buffering issue where the buffer bar could jump or flicker after seeking.
-- Anime4K settings are now easier to use with a collapsible section in Decoder Preferences.
+- Anime4K settings are now easier to use with a collapsible section in Decoder Preferences and also Added Optimization by Sunny Vishnu .
 - Added a setting to show or hide Media Info from Android's share/open-with screen.
 - Added documentation for custom Lua/JS player commands in `MPVRX_CUSTOM_COMMANDS.md`.
-- Release builds now have automated signing configured in CI.
 
 ## 1.3.8
 

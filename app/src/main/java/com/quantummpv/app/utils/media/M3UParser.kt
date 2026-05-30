@@ -320,7 +320,8 @@ object M3UParser {
         val path = urlObj.path
         val lastSlash = path.lastIndexOf('/')
         val basePath = if (lastSlash >= 0) path.substring(0, lastSlash + 1) else "/"
-        "${urlObj.protocol}://${urlObj.host}${if (urlObj.port != -1) ":${urlObj.port}" else ""}$basePath"
+        val userInfo = urlObj.userInfo?.takeIf { it.isNotBlank() }?.let { "$it@" } ?: ""
+        "${urlObj.protocol}://$userInfo${urlObj.host}${if (urlObj.port != -1) ":${urlObj.port}" else ""}$basePath"
       } catch (_: Exception) {
         url.substringBeforeLast('/') + "/"
       }
