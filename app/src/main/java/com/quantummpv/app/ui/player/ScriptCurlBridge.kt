@@ -17,6 +17,16 @@ class ScriptCurlBridge(
     private val scope: CoroutineScope,
 ) {
 
+    private external fun nativeExecute(
+        url: String,
+        method: String,
+        headerKeys: Array<String>?,
+        headerValues: Array<String>?,
+        body: String?,
+        contentType: String?,
+        timeout: Int,
+    ): String
+
     companion object {
         private const val TAG = "ScriptCurlBridge"
         private const val RESPONSE_PROPERTY = "user-data/mpvrx/curl_response"
@@ -27,17 +37,6 @@ class ScriptCurlBridge(
         init {
             System.loadLibrary("curl_bridge")
         }
-
-        @JvmStatic
-        private external fun nativeExecute(
-            url: String,
-            method: String,
-            headerKeys: Array<String>?,
-            headerValues: Array<String>?,
-            body: String?,
-            contentType: String?,
-            timeout: Int,
-        ): String
     }
 
     private val json = Json {

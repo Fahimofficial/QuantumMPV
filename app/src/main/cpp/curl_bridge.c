@@ -134,7 +134,7 @@ JNIEXPORT void JNICALL JNI_OnUnload(JavaVM *vm, void *reserved) {
 
 JNIEXPORT jstring JNICALL
 Java_app_gyrolet_mpvrx_ui_player_ScriptCurlBridge_nativeExecute(
-    JNIEnv *env, jclass clazz,
+    JNIEnv *env, jobject thiz,
     jstring j_url, jstring j_method,
     jobjectArray j_header_keys, jobjectArray j_header_values,
     jstring j_body, jstring j_content_type, jint j_timeout) {
