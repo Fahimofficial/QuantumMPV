@@ -39,101 +39,82 @@ static size_t write_cb(char *ptr, size_t size, size_t nmemb, void *userdata) {
     return (size_t)buffer_append((struct buffer *)userdata, ptr, size * nmemb);
 }
 
-static void json_escape(const char *in, char *out, size_t out_size) {
-    size_t j = 0;
-    for (const char *p = in; *p && j + 6 < out_size; p++) {
-        switch (*p) {
-            case '"':  out[j++] = '\\'; out[j++] = '"';  break;
-            case '\\': out[j++] = '\\'; out[j++] = '\\'; break;
-            case '\n': out[j++] = '\\'; out[j++] = 'n';  break;
-            case '\r': out[j++] = '\\'; out[j++] = 'r';  break;
-            case '\t': out[j++] = '\\'; out[j++] = 't';  break;
-            default:   out[j++] = *p;                     break;
-        }
-    }
-    out[j] = '\0';
-}
+#include "cJSON.h"
 
-static int json_append(char **json, size_t *pos, size_t *cap, const char *fmt, ...) {
-    if (*pos >= *cap) return 0;
-    va_list ap;
-    va_start(ap, fmt);
-    int needed = vsnprintf(*json + *pos, *cap - *pos, fmt, ap);
-    va_end(ap);
-    if (needed < 0) return 0;
-    if ((size_t)needed >= *cap - *pos) {
-        size_t new_cap = *cap + (size_t)needed + 1;
-        char *p = realloc(*json, new_cap);
-        if (!p) return 0;
-        *json = p;
-        *cap = new_cap;
-        va_start(ap, fmt);
-        vsnprintf(*json + *pos, *cap - *pos, fmt, ap);
-        va_end(ap);
-    }
-    *pos += (size_t)needed;
-    return 1;
+static jstring to_java_string(JNIEnv *env, const char *str) {
+    if (!str) return NULL;
+    jclass strClass = (*env)->FindClass(env, "java/lang/String");
+    if (!strClass) return NULL;
+    jmethodID ctor = (*env)->GetMethodID(env, strClass, "<init>", "([BLjava/lang/String;)V");
+    if (!ctor) return NULL;
+    jstring encoding = (*env)->NewStringUTF(env, "UTF-8");
+    if (!encoding) return NULL;
+
+    size_t len = strlen(str);
+    jbyteArray bytes = (*env)->NewByteArray(env, (jsize)len);
+    if (!bytes) return NULL;
+    (*env)->SetByteArrayRegion(env, bytes, 0, (jsize)len, (const jbyte*)str);
+
+    jstring result = (jstring)(*env)->NewObject(env, strClass, ctor, bytes, encoding);
+
+    (*env)->DeleteLocalRef(env, bytes);
+    (*env)->DeleteLocalRef(env, encoding);
+    (*env)->DeleteLocalRef(env, strClass);
+
+    return result;
 }
 
 static char *build_response_json(long status, struct buffer *body,
                                  struct buffer *raw_headers, const char *error) {
-    size_t cap = 2048;
-    size_t pos = 0;
-    char *json = malloc(cap);
-    if (!json) return NULL;
+    cJSON *root = cJSON_CreateObject();
+    if (!root) return NULL;
 
-    json_append(&json, &pos, &cap, "{\"status\":%ld,\"body\":\"", status);
+    cJSON_AddNumberToObject(root, "status", (double)status);
 
-    if (body && body->data) {
-        size_t esc_len = body->len * 6 + 1;
-        char *esc = malloc(esc_len);
-        if (esc) {
-            json_escape(body->data, esc, esc_len);
-            json_append(&json, &pos, &cap, "%s", esc);
-            free(esc);
-        }
-    }
-
-    json_append(&json, &pos, &cap, "\",\"headers\":{");
-
-    if (raw_headers && raw_headers->data) {
-        char *hdr = strdup(raw_headers->data);
-        if (hdr) {
-            int first = 1;
-            char *save;
-            char *line = strtok_r(hdr, "\r\n", &save);
-            while (line) {
-                if (strncmp(line, "HTTP/", 5) == 0) { line = strtok_r(NULL, "\r\n", &save); continue; }
-                char *colon = strchr(line, ':');
-                if (colon) {
-                    *colon = '\0';
-                    char *key = line;
-                    char *val = colon + 1;
-                    while (*val == ' ') val++;
-                    char ek[512], ev[2048];
-                    json_escape(key, ek, sizeof(ek));
-                    json_escape(val, ev, sizeof(ev));
-                    if (!first) json_append(&json, &pos, &cap, ",");
-                    first = 0;
-                    json_append(&json, &pos, &cap, "\"%s\":\"%s\"", ek, ev);
-                }
-                line = strtok_r(NULL, "\r\n", &save);
-            }
-            free(hdr);
-        }
-    }
-
-    json_append(&json, &pos, &cap, ",\"error\":");
-    if (error) {
-        char ee[1024];
-        json_escape(error, ee, sizeof(ee));
-        json_append(&json, &pos, &cap, "\"%s\"", ee);
+    if (body && body->data && body->len > 0) {
+        cJSON_AddStringToObject(root, "body", body->data);
     } else {
-        json_append(&json, &pos, &cap, "null");
+        cJSON_AddStringToObject(root, "body", "");
     }
-    json_append(&json, &pos, &cap, "}");
 
-    return json;
+    cJSON *hdrs = cJSON_CreateObject();
+    if (hdrs) {
+        if (raw_headers && raw_headers->data) {
+            char *hdr = strdup(raw_headers->data);
+            if (hdr) {
+                char *save;
+                char *line = strtok_r(hdr, "\r\n", &save);
+                while (line) {
+                    if (strncmp(line, "HTTP/", 5) == 0) {
+                        line = strtok_r(NULL, "\r\n", &save);
+                        continue;
+                    }
+                    char *colon = strchr(line, ':');
+                    if (colon) {
+                        *colon = '\0';
+                        char *key = line;
+                        char *val = colon + 1;
+                        while (*val == ' ') val++;
+                        cJSON_AddStringToObject(hdrs, key, val);
+                    }
+                    line = strtok_r(NULL, "\r\n", &save);
+                }
+                free(hdr);
+            }
+        }
+        cJSON_AddItemToObject(root, "headers", hdrs);
+    }
+
+    if (error) {
+        cJSON_AddStringToObject(root, "error", error);
+    } else {
+        cJSON_AddNullToObject(root, "error");
+    }
+
+    char *json_str = cJSON_PrintUnformatted(root);
+    cJSON_Delete(root);
+
+    return json_str;
 }
 
 static int curl_initialised = 0;
@@ -167,7 +148,7 @@ Java_app_gyrolet_mpvrx_ui_player_ScriptCurlBridge_nativeExecute(
 
     CURL *curl = curl_easy_init();
     if (!curl) {
-        result = (*env)->NewStringUTF(env,
+        result = to_java_string(env,
             "{\"status\":0,\"body\":\"\",\"headers\":{},\"error\":\"Failed to init libcurl\"}");
         goto cleanup_strings;
     }
@@ -234,10 +215,10 @@ Java_app_gyrolet_mpvrx_ui_player_ScriptCurlBridge_nativeExecute(
 
     char *json = build_response_json(http_code, &resp_body, &resp_headers, err);
     if (json) {
-        result = (*env)->NewStringUTF(env, json);
+        result = to_java_string(env, json);
         free(json);
     } else {
-        result = (*env)->NewStringUTF(env,
+        result = to_java_string(env,
             "{\"status\":0,\"body\":\"\",\"headers\":{},\"error\":\"OOM building response\"}");
     }
 

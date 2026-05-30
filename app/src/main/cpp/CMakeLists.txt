@@ -9,7 +9,7 @@ set_target_properties(ytdl_wrapper PROPERTIES PREFIX "lib" SUFFIX ".so")
 
 # libcurl JNI bridge for Lua/JS scripting HTTP support
 # BoringSSL is C++; use C++ linker so libc++ is linked at the correct position
-add_library(curl_bridge SHARED curl_bridge.c)
+add_library(curl_bridge SHARED curl_bridge.c cJSON.c)
 set_target_properties(curl_bridge PROPERTIES LINKER_LANGUAGE CXX)
 find_package(curl REQUIRED CONFIG)
 target_link_libraries(curl_bridge curl::curl_static log z)
