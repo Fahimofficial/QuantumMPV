@@ -19,6 +19,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import com.quantummpv.app.R
@@ -57,7 +58,10 @@ fun SubtitlesMiscellaneousCard(modifier: Modifier = Modifier) {
     ProvidePreferenceLocals {
       Column {
         var overrideAssSubs by remember {
-          mutableStateOf(MPVLib.getPropertyString("sub-ass-override") == "force")
+          mutableStateOf(preferences.overrideAssSubs.get())
+        }
+        LaunchedEffect(preferences.overrideAssSubs.get()) {
+          overrideAssSubs = preferences.overrideAssSubs.get()
         }
         SwitchPreference(
           overrideAssSubs,

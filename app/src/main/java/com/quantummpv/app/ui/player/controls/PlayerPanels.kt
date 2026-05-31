@@ -46,7 +46,10 @@ fun PlayerPanels(
         Box(Modifier.fillMaxHeight())
       }
       Panels.SubtitleSettings -> {
-        SubtitleSettingsPanel(onDismissRequest)
+        SubtitleSettingsPanel(
+          viewModel = viewModel,
+          onDismissRequest = onDismissRequest,
+        )
       }
       Panels.SubtitleDelay -> {
         SubtitleDelayPanel(onDismissRequest)

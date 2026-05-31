@@ -12,6 +12,8 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconToggleButton
@@ -20,6 +22,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
@@ -29,6 +32,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.unit.dp
 import androidx.core.graphics.alpha
 import androidx.core.graphics.blue
 import androidx.core.graphics.green
@@ -43,11 +47,16 @@ import com.quantummpv.app.presentation.components.TintedSliderItem
 import com.quantummpv.app.ui.player.controls.CARDS_MAX_WIDTH
 import com.quantummpv.app.ui.player.controls.panelCardsColors
 import com.quantummpv.app.ui.theme.spacing
+import com.quantummpv.app.ui.player.PlayerViewModel
+import com.quantummpv.app.ui.player.applySubtitleLayout
 import `is`.xyz.mpv.MPVLib
 import org.koin.compose.koinInject
 
 @Composable
-fun SubtitleSettingsColorsCard(modifier: Modifier = Modifier) {
+fun SubtitleSettingsColorsCard(
+  viewModel: PlayerViewModel,
+  modifier: Modifier = Modifier,
+) {
   val preferences = koinInject<SubtitlesPreferences>()
   var isExpanded by remember { mutableStateOf(true) }
   ExpandableCard(
@@ -65,6 +74,8 @@ fun SubtitleSettingsColorsCard(modifier: Modifier = Modifier) {
     colors = panelCardsColors(),
   ) {
     Column {
+      AssOverrideWarningBanner(viewModel = viewModel, preferences = preferences)
+
       var currentColorType by remember { mutableStateOf(SubColorType.Text) }
       var currentColor by remember { mutableIntStateOf(getCurrentMPVColor(currentColorType)) }
       LaunchedEffect(currentColorType) {
@@ -89,6 +100,7 @@ fun SubtitleSettingsColorsCard(modifier: Modifier = Modifier) {
                 SubColorType.Text -> Icons.Default.FormatColorText
                 SubColorType.Border -> Icons.Default.BorderColor
                 SubColorType.Background -> Icons.Default.FormatColorFill
+                SubColorType.Shadow -> Icons.Default.Shadow
               },
               null,
             )
@@ -116,7 +128,10 @@ fun SubtitleSettingsColorsCard(modifier: Modifier = Modifier) {
         onColorChange = {
           currentColor = it
           currentColorType.preference(preferences).set(it)
-          MPVLib.setPropertyString(currentColorType.property, it.toColorHexString())
+          val hexColor = it.toColorHexString()
+          MPVLib.setPropertyString(currentColorType.property, hexColor)
+          val secondaryProp = currentColorType.property.replace("sub-", "secondary-sub-")
+          MPVLib.setPropertyString(secondaryProp, hexColor)
         },
       )
     }
@@ -153,25 +168,25 @@ enum class SubColorType(
     "sub-back-color",
     preference = SubtitlesPreferences::backgroundColor,
   ),
+  Shadow(
+    R.string.player_sheets_subtitles_color_shadow,
+    "sub-shadow-color",
+    preference = SubtitlesPreferences::shadowColor,
+  ),
 }
 
 fun resetColors(
   preferences: SubtitlesPreferences,
   type: SubColorType,
 ) {
-  when (type) {
-    SubColorType.Text -> {
-      MPVLib.setPropertyString("sub-color", preferences.textColor.deleteAndGet().toColorHexString())
-    }
-
-    SubColorType.Border -> {
-      MPVLib.setPropertyString("sub-border-color", preferences.borderColor.deleteAndGet().toColorHexString())
-    }
-
-    SubColorType.Background -> {
-      MPVLib.setPropertyString("sub-back-color", preferences.backgroundColor.deleteAndGet().toColorHexString())
-    }
+  val hexColor = when (type) {
+    SubColorType.Text -> preferences.textColor.deleteAndGet().toColorHexString()
+    SubColorType.Border -> preferences.borderColor.deleteAndGet().toColorHexString()
+    SubColorType.Background -> preferences.backgroundColor.deleteAndGet().toColorHexString()
+    SubColorType.Shadow -> preferences.shadowColor.deleteAndGet().toColorHexString()
   }
+  MPVLib.setPropertyString(type.property, hexColor)
+  MPVLib.setPropertyString(type.property.replace("sub-", "secondary-sub-"), hexColor)
 }
 
 val getCurrentMPVColor: (SubColorType) -> Int = {
@@ -222,6 +237,78 @@ fun SubtitlesColorPicker(
     )
   }
 }
+
+@Composable
+fun AssOverrideWarningBanner(
+  viewModel: PlayerViewModel,
+  preferences: SubtitlesPreferences,
+  modifier: Modifier = Modifier,
+) {
+  val subtitleTracks by viewModel.subtitleTracks.collectAsState()
+  val activeSubTrack = subtitleTracks.find { it.isSelected }
+  val isActiveSubAss = activeSubTrack?.codec?.contains("ass", ignoreCase = true) == true ||
+                       activeSubTrack?.codec?.contains("ssa", ignoreCase = true) == true
+
+  var overrideAssSubs by remember {
+    mutableStateOf(preferences.overrideAssSubs.get())
+  }
+
+  LaunchedEffect(preferences.overrideAssSubs.get()) {
+    overrideAssSubs = preferences.overrideAssSubs.get()
+  }
+
+  if (isActiveSubAss && !overrideAssSubs) {
+    androidx.compose.material3.Card(
+      colors = androidx.compose.material3.CardDefaults.cardColors(
+        containerColor = MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.15f),
+        contentColor = MaterialTheme.colorScheme.onErrorContainer
+      ),
+      border = androidx.compose.foundation.BorderStroke(
+        width = 1.dp,
+        color = MaterialTheme.colorScheme.error.copy(alpha = 0.3f)
+      ),
+      modifier = modifier
+        .fillMaxWidth()
+        .padding(horizontal = MaterialTheme.spacing.medium)
+        .padding(bottom = MaterialTheme.spacing.medium)
+    ) {
+      Row(
+        modifier = Modifier.padding(MaterialTheme.spacing.medium),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(MaterialTheme.spacing.medium)
+      ) {
+        Icon(
+          Icons.Default.Warning,
+          contentDescription = null,
+          tint = MaterialTheme.colorScheme.error,
+          modifier = Modifier.size(24.dp)
+        )
+        Column(modifier = Modifier.weight(1f)) {
+          Text(
+            text = stringResource(R.string.player_sheets_sub_ass_override_warning),
+            style = MaterialTheme.typography.bodySmall
+          )
+          Spacer(Modifier.height(MaterialTheme.spacing.extraSmall))
+          TextButton(
+            onClick = {
+              preferences.overrideAssSubs.set(true)
+              overrideAssSubs = true
+              applySubtitleLayout(MPVLib.getPropertyInt("sub-pos") ?: preferences.subPos.get(), true)
+            },
+            contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 0.dp, vertical = 0.dp)
+          ) {
+            Text(
+              text = "Enable ASS Override",
+              style = MaterialTheme.typography.labelMedium,
+              color = MaterialTheme.colorScheme.error
+            )
+          }
+        }
+      }
+    }
+  }
+}
+
 
 
 

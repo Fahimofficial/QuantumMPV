@@ -30,6 +30,7 @@ class SubtitlesPreferences(
   val borderStyle = preferenceStore.getEnum("sub_border_style", SubtitlesBorderStyle.OutlineAndShadow)
   val shadowOffset = preferenceStore.getInt("sub_shadow_offset", 0)
   val backgroundColor = preferenceStore.getInt("sub_color_bg", Color.Transparent.toArgb())
+  val shadowColor = preferenceStore.getInt("sub_color_shadow", Color.Black.toArgb())
 
   val justification = preferenceStore.getEnum("sub_justify", SubtitleJustification.Auto)
   val subPos = preferenceStore.getInt("sub_pos", 100)

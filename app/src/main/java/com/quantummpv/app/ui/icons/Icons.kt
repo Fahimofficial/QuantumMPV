@@ -8,6 +8,10 @@ import com.composables.icons.materialsymbols.roundedfilled.Cancel
 import com.composables.icons.materialsymbols.roundedfilled.Close
 import com.composables.icons.materialsymbols.roundedfilled.Code
 import com.composables.icons.materialsymbols.roundedfilled.Developer_board
+import com.composables.icons.materialsymbols.roundedfilled.Format_clear
+import com.composables.icons.materialsymbols.roundedfilled.Format_color_fill
+import com.composables.icons.materialsymbols.roundedfilled.Link
+import com.composables.icons.materialsymbols.roundedfilled.Link_off
 import com.composables.icons.materialsymbols.roundedfilled.Play_arrow
 import com.composables.icons.materialsymbols.roundedfilled.Repeat
 import com.composables.icons.materialsymbols.roundedfilled.Repeat_on
@@ -99,8 +103,8 @@ object Icons {
     val FormatAlignLeft = AppIcon(R.drawable.materialsymbols_ic_format_align_left_rounded_filled)
     val FormatAlignRight = AppIcon(R.drawable.materialsymbols_ic_format_align_right_rounded_filled)
     val FormatBold = AppIcon(R.drawable.materialsymbols_ic_format_bold_rounded_filled)
-    val FormatClear = AppIcon(R.drawable.materialsymbols_ic_format_clear_rounded_filled)
-    val FormatColorFill = AppIcon(R.drawable.materialsymbols_ic_format_color_fill_rounded_filled)
+    val FormatClear = AppIcon(MaterialSymbols.RoundedFilled.Format_clear)
+    val FormatColorFill = AppIcon(MaterialSymbols.RoundedFilled.Format_color_fill)
     val FormatColorReset = AppIcon(R.drawable.materialsymbols_ic_format_color_reset_rounded_filled)
     val FormatColorText = AppIcon(R.drawable.materialsymbols_ic_format_color_text_rounded_filled)
     val FormatItalic = AppIcon(R.drawable.materialsymbols_ic_format_italic_rounded_filled)
@@ -123,9 +127,9 @@ object Icons {
     val KeyboardArrowRight = AppIcon(R.drawable.materialsymbols_ic_keyboard_arrow_right_rounded_filled)
     val KeyboardArrowUp = AppIcon(R.drawable.materialsymbols_ic_keyboard_arrow_up_rounded_filled)
     val Language = AppIcon(R.drawable.materialsymbols_ic_language_rounded_filled)
-    val Link = AppIcon(R.drawable.materialsymbols_ic_link_rounded_filled)
+    val Link = AppIcon(MaterialSymbols.RoundedFilled.Link)
     val Translate = AppIcon(MaterialSymbols.RoundedFilled.Translate)
-    val LinkOff = AppIcon(R.drawable.materialsymbols_ic_link_off_rounded_filled)
+    val LinkOff = AppIcon(MaterialSymbols.RoundedFilled.Link_off)
     val Lock = AppIcon(R.drawable.materialsymbols_ic_lock_rounded_filled)
     val LockOpen = AppIcon(R.drawable.materialsymbols_ic_lock_open_rounded_filled)
     val ListAlt = AppIcon(R.drawable.materialsymbols_ic_list_alt_rounded_filled)
@@ -143,9 +147,9 @@ object Icons {
     val PlayCircle = AppIcon(R.drawable.materialsymbols_ic_play_circle_rounded_filled)
     val PlaylistAddCheck = AppIcon(R.drawable.materialsymbols_ic_playlist_add_check_rounded_filled)
     val PlaylistAddCircle = AppIcon(R.drawable.materialsymbols_ic_playlist_add_circle_rounded_filled)
-    val SmartDisplay = AppIcon(R.drawable.materialsymbols_ic_smart_display_rounded_filled)
+    val SmartDisplay = PlayArrow
     val PlaylistAdd = AppIcon(R.drawable.materialsymbols_ic_playlist_add_rounded_filled)
-    val PlaylistPlay = AppIcon(R.drawable.materialsymbols_ic_playlist_play_rounded_filled)
+    val PlaylistPlay = PlayArrow
     val PushPin = AppIcon(R.drawable.materialsymbols_ic_push_pin_rounded_filled)
     val QueueMusic = AppIcon(R.drawable.materialsymbols_ic_queue_music_rounded_filled)
     val Refresh = AppIcon(R.drawable.materialsymbols_ic_refresh_rounded_filled)
@@ -310,6 +314,7 @@ object Icons {
     val SortByAlpha = Shared.SortByAlpha
     val SkipNext = Shared.SkipNext
     val SkipPrevious = Shared.SkipPrevious
+    val SmartDisplay = Shared.SmartDisplay
     val Slideshow = Shared.Slideshow
     val Speed = Shared.Speed
     val Subtitles = Shared.Subtitles

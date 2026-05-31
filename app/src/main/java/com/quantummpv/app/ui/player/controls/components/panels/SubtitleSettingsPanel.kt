@@ -26,12 +26,14 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.constraintlayout.compose.ConstraintLayout
 import com.quantummpv.app.R
+import com.quantummpv.app.ui.player.PlayerViewModel
 import com.quantummpv.app.ui.player.controls.CARDS_MAX_WIDTH
 import com.quantummpv.app.ui.player.controls.panelCardsColors
 import com.quantummpv.app.ui.theme.spacing
 
 @Composable
 fun SubtitleSettingsPanel(
+  viewModel: PlayerViewModel,
   onDismissRequest: () -> Unit,
   modifier: Modifier = Modifier,
 ) {
@@ -61,8 +63,8 @@ fun SubtitleSettingsPanel(
         Modifier.padding(MaterialTheme.spacing.medium),
         verticalArrangement = Arrangement.spacedBy(MaterialTheme.spacing.medium),
       ) {
-        SubtitleSettingsTypographyCard()
-        SubtitleSettingsColorsCard()
+        SubtitleSettingsTypographyCard(viewModel = viewModel)
+        SubtitleSettingsColorsCard(viewModel = viewModel)
         SubtitlesMiscellaneousCard()
       }
   }

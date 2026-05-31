@@ -315,6 +315,8 @@
   <string name="player_sheets_subtitles_color_text">Text</string>
   <string name="player_sheets_subtitles_color_border">Border</string>
   <string name="player_sheets_subtitles_color_background">Background</string>
+  <string name="player_sheets_subtitles_color_shadow">Shadow</string>
+  <string name="player_sheets_sub_ass_override_warning">Overrides are inactive for ASS/SSA format. Toggle ASS Override to customize.</string>
   <string name="player_sheets_subtitles_border_style">Border style</string>
   <string name="player_sheets_subtitles_border_style_outline_and_shadow">Outline and shadow</string>
   <string name="player_sheets_subtitles_border_style_opaque_box">Opaque box</string>

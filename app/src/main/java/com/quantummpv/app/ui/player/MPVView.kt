@@ -236,14 +236,10 @@ class MPVView(
   }
 
   fun applyOsdSafeAreaMargins(insets: WindowInsetsCompat? = null) {
-    val cutoutInsets =
-      if (playerPreferences.safeAreaWindow.get()) {
-        insets?.getInsets(WindowInsetsCompat.Type.displayCutout())
-      } else {
-        null
-      }
-    val horizontalMargin = maxOf(cutoutInsets?.left ?: 0, cutoutInsets?.right ?: 0)
-    val verticalMargin = cutoutInsets?.top ?: 0
+    val resolvedInsets = insets ?: androidx.core.view.ViewCompat.getRootWindowInsets(this)
+    val cutoutInsets = resolvedInsets?.getInsets(WindowInsetsCompat.Type.displayCutout())
+    val horizontalMargin = maxOf(cutoutInsets?.left ?: 0, cutoutInsets?.right ?: 0).coerceAtLeast(16)
+    val verticalMargin = (cutoutInsets?.top ?: 0).coerceAtLeast(16)
     MPVLib.setOptionString("osd-margin-x", horizontalMargin.toString())
     MPVLib.setOptionString("osd-margin-y", verticalMargin.toString())
   }
@@ -376,6 +372,7 @@ class MPVView(
     val textColor = subtitlesPreferences.textColor.get().toColorHexString()
     val backgroundColor = subtitlesPreferences.backgroundColor.get().toColorHexString()
     val borderColor = subtitlesPreferences.borderColor.get().toColorHexString()
+    val shadowColor = subtitlesPreferences.shadowColor.get().toColorHexString()
     val borderSize = subtitlesPreferences.borderSize.get().toString()
     val borderStyle = subtitlesPreferences.borderStyle.get().value
     val shadowOffset = subtitlesPreferences.shadowOffset.get().toString()
@@ -384,6 +381,9 @@ class MPVView(
     val subScale = subtitlesPreferences.subScale.get().toString()
 
     val scaleByWindow = if (subtitlesPreferences.scaleByWindow.get()) "yes" else "no"
+    val blendMode = if (subtitlesPreferences.blendSubtitlesWithVideo.get() && playerPreferences.isAmbientEnabled.get()) "video" else "no"
+    MPVLib.setOptionString("blend-subtitles", blendMode)
+
     for ((prefix, pos) in listOf("sub-" to subPos.toString(), "secondary-sub-" to secondarySubPos.toString())) {
       MPVLib.setOptionString("${prefix}font-size", fontSize)
       MPVLib.setOptionString("${prefix}bold", bold)
@@ -392,6 +392,7 @@ class MPVView(
       MPVLib.setOptionString("${prefix}color", textColor)
       MPVLib.setOptionString("${prefix}back-color", backgroundColor)
       MPVLib.setOptionString("${prefix}border-color", borderColor)
+      MPVLib.setOptionString("${prefix}shadow-color", shadowColor)
       MPVLib.setOptionString("${prefix}border-size", borderSize)
       MPVLib.setOptionString("${prefix}border-style", borderStyle)
       MPVLib.setOptionString("${prefix}shadow-offset", shadowOffset)

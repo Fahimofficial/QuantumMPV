@@ -2791,28 +2791,48 @@ class PlayerActivity :
    * This ensures subtitle customizations (font, colors, position, etc.) persist across videos.
    */
   private fun applySubtitlePreferences() {
-    // Typography settings
-    MPVLib.setPropertyString("sub-font", subtitlesPreferences.font.get())
-    MPVLib.setPropertyInt("sub-font-size", subtitlesPreferences.fontSize.get())
-    MPVLib.setPropertyBoolean("sub-bold", subtitlesPreferences.bold.get())
-    MPVLib.setPropertyBoolean("sub-italic", subtitlesPreferences.italic.get())
-    MPVLib.setPropertyString("sub-justify", subtitlesPreferences.justification.get().value)
-    MPVLib.setPropertyString("sub-border-style", subtitlesPreferences.borderStyle.get().value)
-    MPVLib.setPropertyInt("sub-outline-size", subtitlesPreferences.borderSize.get())
-    MPVLib.setPropertyInt("sub-shadow-offset", subtitlesPreferences.shadowOffset.get())
+    val font = subtitlesPreferences.font.get()
+    val fontSize = subtitlesPreferences.fontSize.get()
+    val bold = subtitlesPreferences.bold.get()
+    val italic = subtitlesPreferences.italic.get()
+    val justify = subtitlesPreferences.justification.get().value
+    val borderStyle = subtitlesPreferences.borderStyle.get().value
+    val borderSize = subtitlesPreferences.borderSize.get()
+    val shadowOffset = subtitlesPreferences.shadowOffset.get()
 
     // Color settings
-    MPVLib.setPropertyString("sub-color", subtitlesPreferences.textColor.get().toColorHexString())
-    MPVLib.setPropertyString("sub-border-color", subtitlesPreferences.borderColor.get().toColorHexString())
-    MPVLib.setPropertyString("sub-back-color", subtitlesPreferences.backgroundColor.get().toColorHexString())
+    val textColor = subtitlesPreferences.textColor.get().toColorHexString()
+    val borderColor = subtitlesPreferences.borderColor.get().toColorHexString()
+    val backgroundColor = subtitlesPreferences.backgroundColor.get().toColorHexString()
+    val shadowColor = subtitlesPreferences.shadowColor.get().toColorHexString()
 
     // Miscellaneous settings
     val scaleByWindow = subtitlesPreferences.scaleByWindow.get()
     val scaleValue = if (scaleByWindow) "yes" else "no"
-    MPVLib.setPropertyString("sub-scale-by-window", scaleValue)
-    MPVLib.setPropertyString("sub-use-margins", scaleValue)
+    val subScale = subtitlesPreferences.subScale.get()
+    val blendMode = if (subtitlesPreferences.blendSubtitlesWithVideo.get() && playerPreferences.isAmbientEnabled.get()) "video" else "no"
 
-    MPVLib.setPropertyFloat("sub-scale", subtitlesPreferences.subScale.get())
+    MPVLib.setPropertyString("blend-subtitles", blendMode)
+
+    for (prefix in listOf("sub-", "secondary-sub-")) {
+      MPVLib.setPropertyString("${prefix}font", font)
+      MPVLib.setPropertyInt("${prefix}font-size", fontSize)
+      MPVLib.setPropertyBoolean("${prefix}bold", bold)
+      MPVLib.setPropertyBoolean("${prefix}italic", italic)
+      MPVLib.setPropertyString("${prefix}justify", justify)
+      MPVLib.setPropertyString("${prefix}border-style", borderStyle)
+      MPVLib.setPropertyInt("${prefix}border-size", borderSize)
+      MPVLib.setPropertyInt("${prefix}outline-size", borderSize)
+      MPVLib.setPropertyInt("${prefix}shadow-offset", shadowOffset)
+      MPVLib.setPropertyString("${prefix}color", textColor)
+      MPVLib.setPropertyString("${prefix}border-color", borderColor)
+      MPVLib.setPropertyString("${prefix}back-color", backgroundColor)
+      MPVLib.setPropertyString("${prefix}shadow-color", shadowColor)
+      MPVLib.setPropertyString("${prefix}scale-by-window", scaleValue)
+      MPVLib.setPropertyString("${prefix}use-margins", scaleValue)
+      MPVLib.setPropertyFloat("${prefix}scale", subScale)
+    }
+
     applySubtitleLayout(
       primaryPosition = subtitlesPreferences.subPos.get(),
       forceAssOverride = subtitlesPreferences.overrideAssSubs.get(),

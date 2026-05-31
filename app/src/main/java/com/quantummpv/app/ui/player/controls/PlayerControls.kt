@@ -339,7 +339,7 @@ fun PlayerControls(
         modifier =
           Modifier
             .align(Alignment.TopStart)
-            .then(safeAreaInsetModifier)
+            .windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Top + WindowInsetsSides.Horizontal))
             .padding(top = 16.dp, start = 14.dp),
       )
     }
@@ -1628,6 +1628,17 @@ private data class CustomStatsSnapshot(
   val batteryWattsText: String,
   val batteryTempText: String,
   val hdrActive: String,
+  // New session & environmental metrics
+  val sessionPlayTimeText: String,
+  val decoderEfficiencyText: String,
+  val thermalStateText: String,
+  val peakTempText: String,
+  val tempRiseText: String,
+  val sessionDrainText: String,
+  val burnRateText: String,
+  val estRemainingPlaybackText: String,
+  val totalDataConsumedText: String,
+  val stallCountText: String,
 )
 
 @Composable
@@ -1655,14 +1666,34 @@ private fun CustomStatsPageSixOverlay(
         batteryWattsText = "-- W",
         batteryTempText = "--°C",
         hdrActive = "--",
+        sessionPlayTimeText = "00:00:00",
+        decoderEfficiencyText = "Unknown",
+        thermalStateText = "Normal",
+        peakTempText = "--°C",
+        tempRiseText = "+0.0°C",
+        sessionDrainText = "0%",
+        burnRateText = "Calculating...",
+        estRemainingPlaybackText = "Calculating...",
+        totalDataConsumedText = "0 Bytes",
+        stallCountText = "0 stalls",
       ),
   ) {
     val history = ArrayDeque<Float>()
     var lastCpuMs   = runCatching { android.os.Process.getElapsedCpuTime() }.getOrDefault(0L)
     var lastTimeMs  = android.os.SystemClock.elapsedRealtime()
+    
+    // Session variables
+    val sessionStartRealtime = android.os.SystemClock.elapsedRealtime()
+    var startBatteryPercent: Int? = null
+    var startBatteryTemp: Float? = null
+    var peakBatteryTemp = 0.0f
+    var accumulatedNetworkBytes = 0L
+    var previousPausedForCache = false
+    var stallCount = 0
+    var stallTimeMs = 0L
+    var totalActivePlayTimeMs = 0L
+
     // Track PREVIOUS cumulative counts so we can compute per-second DELTA rates.
-    // Using raw cumulative totals in the bar gave ever-growing values that drifted
-    // to 100% over time and never reflected the current rendering state.
     var lastDropped = 0
     var lastDelayed = 0
 
@@ -1677,31 +1708,19 @@ private fun CustomStatsPageSixOverlay(
       val audioCodec    = runCatching { MPVLib.getPropertyString("audio-codec-name") ?: "--" }.getOrDefault("--")
 
       // ── App CPU % ──────────────────────────────────────────────────────────
-      // getElapsedCpuTime() measures THIS PROCESS's CPU ms, not system-wide.
-      // cpu = (processCpuMs consumed / wallClockMs elapsed) * 100
-      // i.e. "what fraction of one CPU core did mpvRx use last second"
       val currentCpuMs  = runCatching { android.os.Process.getElapsedCpuTime() }.getOrDefault(lastCpuMs)
       val currentTimeMs = android.os.SystemClock.elapsedRealtime()
       val cpuDelta      = (currentCpuMs - lastCpuMs).coerceAtLeast(0L)
       val timeDelta     = (currentTimeMs - lastTimeMs).coerceAtLeast(1L)
       val cpu           = ((cpuDelta.toFloat() / timeDelta.toFloat()) * 100f).coerceIn(0f, 100f)
 
-      // ── GPU pressure estimate (delta-based, per-second) ────────────────────
-      // The old formula used CUMULATIVE drop+delay totals which drift to 100%
-      // over a long session, and added a fixed FPS-proportional baseline that
-      // made a 120fps video with ZERO drops show 70% GPU load — meaningless.
-      //
-      // New approach: measure how many frames were dropped/delayed THIS SECOND
-      // relative to the expected frame rate.  0 drops → 0% pressure.  All
-      // frames dropped → 100% pressure.  A small non-zero floor (5%) signals
-      // that the GPU is actively rendering.
+      // ── GPU pressure estimate ──────────────────────────────────────────────
       val estFps         = runCatching { MPVLib.getPropertyDouble("estimated-vf-fps") ?: 0.0 }.getOrDefault(0.0).toFloat()
       val droppedDelta   = (dropped - lastDropped).coerceAtLeast(0)
       val delayedDelta   = (delayed - lastDelayed).coerceAtLeast(0)
       val framePressure  = if (estFps > 0f) {
         ((droppedDelta + delayedDelta).toFloat() / estFps).coerceIn(0f, 1f)
       } else 0f
-      // 5% baseline shows the GPU is working; scales to 100% when all frames drop.
       val gpuEstimate    = (framePressure * 95f + if (estFps > 0f) 5f else 0f).coerceIn(0f, 100f)
 
       val netBps = readNetworkBytesPerSecondForOverlay()
@@ -1715,6 +1734,119 @@ private fun CustomStatsPageSixOverlay(
       val battery = readBatterySnapshot(context)
       history.addLast(netMbps)
       if (history.size > 42) history.removeFirst()
+
+      val isPaused = runCatching { MPVLib.getPropertyBoolean("pause") }.getOrDefault(false) == true
+
+      // ── Active playtime tracking ───────────────────────────────────────────
+      if (!isPaused) {
+        totalActivePlayTimeMs += timeDelta
+      }
+      val playSecs = totalActivePlayTimeMs / 1000L
+      val sessionPlayTimeText = String.format("%02d:%02d:%02d", playSecs / 3600, (playSecs % 3600) / 60, playSecs % 60)
+
+      // ── Battery numeric parsing & metrics ──────────────────────────────────
+      val currentPercentText = battery.percentageText.replace("%", "").trim()
+      val currentPercent = currentPercentText.toIntOrNull() ?: 0
+      val currentTempText = battery.tempText.replace("°C", "").trim()
+      val currentTemp = currentTempText.toFloatOrNull() ?: 0f
+
+      if (startBatteryPercent == null && currentPercent > 0) {
+        startBatteryPercent = currentPercent
+      }
+      if (startBatteryTemp == null && currentTemp > 0f) {
+        startBatteryTemp = currentTemp
+      }
+      if (currentTemp > peakBatteryTemp) {
+        peakBatteryTemp = currentTemp
+      }
+
+      val sessionDrainText = if (startBatteryPercent != null) {
+        val drainPercent = startBatteryPercent!! - currentPercent
+        "$drainPercent%"
+      } else {
+        "0%"
+      }
+
+      val activeHours = totalActivePlayTimeMs / 3600000f
+      val burnRateText = if (startBatteryPercent != null && activeHours > 0.005f) {
+        val drainPercent = startBatteryPercent!! - currentPercent
+        val rate = drainPercent / activeHours
+        String.format("%.1f%% / hr", rate)
+      } else {
+        "Calculating..."
+      }
+
+      val estRemainingPlaybackText = if (startBatteryPercent != null && activeHours > 0.005f) {
+        val drainPercent = startBatteryPercent!! - currentPercent
+        if (drainPercent > 0) {
+          val rate = drainPercent / activeHours
+          val hoursLeft = currentPercent / rate
+          val minsLeft = (hoursLeft * 60).roundToInt()
+          String.format("%dh %dm", minsLeft / 60, minsLeft % 60)
+        } else {
+          "Calculating..."
+        }
+      } else {
+        "Calculating..."
+      }
+
+      val peakTempText = if (peakBatteryTemp > 0f) String.format("%.1f°C", peakBatteryTemp) else "--°C"
+      val tempRiseText = if (startBatteryTemp != null) {
+        val rise = currentTemp - startBatteryTemp!!
+        String.format("%+.1f°C", rise)
+      } else {
+        "+0.0°C"
+      }
+
+      // ── Android Thermal Status ─────────────────────────────────────────────
+      val powerManager = context.getSystemService(android.content.Context.POWER_SERVICE) as? android.os.PowerManager
+      val thermalStatus = if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.Q) {
+        powerManager?.currentThermalStatus ?: 0
+      } else {
+        0
+      }
+      val thermalStateText = when (thermalStatus) {
+        0 -> "Normal"
+        1 -> "Light Throttling"
+        2 -> "Moderate Throttling"
+        3 -> "Severe Throttling"
+        4 -> "Critical Throttling"
+        5 -> "Emergency!"
+        6 -> "Overheating Shutdown!"
+        else -> "Normal"
+      }
+
+      // ── Decoder Efficiency ─────────────────────────────────────────────────
+      val currentHwdec = runCatching { MPVLib.getPropertyString("hwdec-current") ?: "no" }.getOrDefault("no")
+      val gpuApi = runCatching { MPVLib.getPropertyString("gpu-api") ?: "opengl" }.getOrDefault("opengl")
+      val decoderEfficiencyText = when {
+        currentHwdec == "no" || currentHwdec.isBlank() -> "Low (Software Decoding, CPU-heavy)"
+        currentHwdec.contains("copy") -> "Moderate (Hardware-copy, GPU texture overhead)"
+        else -> "High (Hardware Direct, $gpuApi backend)"
+      }
+
+      // ── Network / Cache stalls ─────────────────────────────────────────────
+      val pausedForCache = runCatching { MPVLib.getPropertyBoolean("paused-for-cache") }.getOrDefault(false) == true
+      if (pausedForCache) {
+        if (!previousPausedForCache) {
+          stallCount++
+        }
+        stallTimeMs += timeDelta
+      }
+      previousPausedForCache = pausedForCache
+      val stallCountText = if (stallCount > 0) {
+        "$stallCount times  (${String.format("%.1fs", stallTimeMs / 1000f)} total)"
+      } else {
+        "0 stalls"
+      }
+
+      accumulatedNetworkBytes += (netBps * (timeDelta / 1000f)).toLong()
+      val totalDataConsumedText = when {
+        accumulatedNetworkBytes >= 1024 * 1024 * 1024 -> String.format("%.2f GB", accumulatedNetworkBytes / (1024f * 1024f * 1024f))
+        accumulatedNetworkBytes >= 1024 * 1024 -> String.format("%.1f MB", accumulatedNetworkBytes / (1024f * 1024f))
+        accumulatedNetworkBytes >= 1024 -> String.format("%.0f KB", accumulatedNetworkBytes / 1024f)
+        else -> "$accumulatedNetworkBytes Bytes"
+      }
 
       value = CustomStatsSnapshot(
         fileName          = fileName,
@@ -1738,6 +1870,16 @@ private fun CustomStatsPageSixOverlay(
           val primaries = MPVLib.getPropertyString("video-params/primaries")
           if (transfer == "pq" || transfer == "hlg" || primaries == "bt.2020") "HDR Active" else "SDR"
         }.getOrDefault("SDR"),
+        sessionPlayTimeText = sessionPlayTimeText,
+        decoderEfficiencyText = decoderEfficiencyText,
+        thermalStateText  = thermalStateText,
+        peakTempText      = peakTempText,
+        tempRiseText      = tempRiseText,
+        sessionDrainText  = sessionDrainText,
+        burnRateText      = burnRateText,
+        estRemainingPlaybackText = estRemainingPlaybackText,
+        totalDataConsumedText = totalDataConsumedText,
+        stallCountText    = stallCountText,
       )
 
       // Advance delta baselines
@@ -1746,12 +1888,8 @@ private fun CustomStatsPageSixOverlay(
       lastDropped = dropped
       lastDelayed = delayed
 
-      // ── Pause-aware backoff ────────────────────────────────────────────────
-      // When playback is paused most metrics are static (FPS=0, no new drops,
-      // network idle for local files).  Polling every 2 s instead of 1 s halves
-      // the wasted JNI overhead without affecting the UX noticeably.
-      val isPaused = runCatching { MPVLib.getPropertyBoolean("pause") }.getOrDefault(false)
-      delay(if (isPaused == true) 2000L else 1000L)
+      // Polling every 2 s when paused instead of 1 s halves JNI overhead
+      delay(if (isPaused) 2000L else 1000L)
     }
   }
 
@@ -1766,45 +1904,62 @@ private fun CustomStatsPageSixOverlay(
       MaterialTheme.typography.bodySmall.copy(
         color = Color.White,
         fontFamily = FontFamily.Monospace,
-        fontSize = 10.sp,
-        lineHeight = 12.sp,
+        fontSize = 8.sp,
+        lineHeight = 10.sp,
         shadow = Shadow(
-          color = Color.Black.copy(alpha = 0.9f),
-          offset = androidx.compose.ui.geometry.Offset(1f, 1f),
-          blurRadius = 2f,
+          color = Color.Black,
+          offset = androidx.compose.ui.geometry.Offset(1.2f, 1.2f),
+          blurRadius = 3f,
         ),
       )
-    val headerStyle = textStyle.copy(fontWeight = FontWeight.Bold, fontSize = 10.5.sp)
+    val headerStyle = textStyle.copy(fontWeight = FontWeight.Bold, fontSize = 8.5.sp)
 
+    Text("--- PLAYBACK & DECODER ---", style = headerStyle)
     Text("File: ${stats.fileName}", style = textStyle)
-    Text("Context: ${stats.renderContext}", style = textStyle)
-    Text("Total Cache: ${stats.cache}", style = textStyle)
-    Text("Refresh Rate: ${stats.fps} Hz (estimated)", style = textStyle)
-    Text("Dropped Frames: ${stats.droppedFrames}", style = textStyle)
-    Text("Video: ${stats.video}", style = textStyle)
-    Text("Audio: ${stats.audio}", style = textStyle)
-    Text("Network: ${stats.networkText}  (${String.format("%.1f", stats.networkMbps)} Mbps)", style = textStyle)
-    Text("HDR: ${stats.hdrActive}", style = textStyle)
-    Row(
-      horizontalArrangement = Arrangement.spacedBy(8.dp),
-      verticalAlignment = Alignment.CenterVertically,
-    ) {
-      Text("Battery: ${stats.batteryPercentText}", style = textStyle)
-      Text("${stats.batteryRateText}  |  ${stats.batteryWattsText}  |  ${stats.batteryTempText}", style = textStyle)
-    }
+    Text("Decoder & VO: ${stats.renderContext} | ${stats.video} | Efficiency: ${stats.decoderEfficiencyText}", style = textStyle)
+    Text("Refresh Rate: ${stats.fps} Hz | Dropped: ${stats.droppedFrames}", style = textStyle)
+    Text("Audio: ${stats.audio} | HDR: ${stats.hdrActive}", style = textStyle)
+
+    Spacer(modifier = Modifier.height(2.dp))
+    Text("--- POWER & THERMALS ---", style = headerStyle)
+    Text("Battery Level: ${stats.batteryPercentText} | Power: ${stats.batteryWattsText} | Rate: ${stats.batteryRateText}", style = textStyle)
+    Text("Temp: ${stats.batteryTempText} (Peak: ${stats.peakTempText} | Rise: ${stats.tempRiseText})", style = textStyle)
+    Text("Thermal State: ${stats.thermalStateText}", style = textStyle)
+    Text("Session Drain: ${stats.sessionDrainText} | Burn Rate: ${stats.burnRateText} | Projected Playback: ${stats.estRemainingPlaybackText}", style = textStyle)
+
+    Spacer(modifier = Modifier.height(2.dp))
+    Text("--- CACHE & DATA COST ---", style = headerStyle)
+    Text("Buffer Health: ${stats.cache} | Stall Count: ${stats.stallCountText}", style = textStyle)
+    Text("Data Consumed: ${stats.totalDataConsumedText} | Speed: ${stats.networkText} (${String.format("%.1f", stats.networkMbps)} Mbps)", style = textStyle)
+
     NetworkSparkline(
       points = stats.networkHistory,
       modifier =
         Modifier
           .fillMaxWidth()
-          .height(48.dp)
+          .height(28.dp)
           .padding(top = 2.dp, bottom = 2.dp),
     )
-    Spacer(modifier = Modifier.height(4.dp))
-    Text("Page 6 • Live Performance", style = headerStyle)
-    LinearProgressIndicator(progress = { stats.cpuPercent / 100f }, modifier = Modifier.fillMaxWidth())
+
+    Spacer(modifier = Modifier.height(2.dp))
+    Text("--- SESSION PERFORMANCE SUMMARY ---", style = headerStyle)
+    Text("Active Playtime: ${stats.sessionPlayTimeText}", style = textStyle)
+
+    LinearProgressIndicator(
+      progress = { stats.cpuPercent / 100f },
+      modifier = Modifier
+        .fillMaxWidth()
+        .height(3.dp)
+        .padding(vertical = 0.5.dp)
+    )
     Text("App CPU (this process) ${stats.cpuPercent.toInt()}%", style = textStyle)
-    LinearProgressIndicator(progress = { stats.gpuEstimatePercent / 100f }, modifier = Modifier.fillMaxWidth())
+    LinearProgressIndicator(
+      progress = { stats.gpuEstimatePercent / 100f },
+      modifier = Modifier
+        .fillMaxWidth()
+        .height(3.dp)
+        .padding(vertical = 0.5.dp)
+    )
     Text("Frame Pressure (drop-based est.) ${stats.gpuEstimatePercent.toInt()}%", style = textStyle)
   }
 }
