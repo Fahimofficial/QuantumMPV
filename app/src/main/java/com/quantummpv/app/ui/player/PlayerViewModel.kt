@@ -50,6 +50,8 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.MutableSharedFlow
+import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -463,6 +465,8 @@ class PlayerViewModel(
     )
 
   val sheetShown = MutableStateFlow(Sheets.None)
+  val isPlaylistSwipeActive = MutableStateFlow(false)
+  val playlistSwipeOffset = MutableStateFlow(0f)
   val panelShown = MutableStateFlow(Panels.None)
   private val _videoOpenAnimationState = MutableStateFlow(VideoOpenAnimationState())
   val videoOpenAnimationState: StateFlow<VideoOpenAnimationState> = _videoOpenAnimationState.asStateFlow()

@@ -16,6 +16,8 @@ import androidx.compose.foundation.gestures.DraggableAnchors
 import androidx.compose.foundation.gestures.Orientation
 import androidx.compose.foundation.gestures.anchoredDraggable
 import androidx.compose.foundation.gestures.animateTo
+import androidx.compose.foundation.gestures.snapTo
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.WindowInsets
@@ -34,7 +36,7 @@ import androidx.compose.material3.Surface
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableFloatStateOf
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.rememberUpdatedState
@@ -55,7 +57,6 @@ import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.Velocity
 import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.flow.collectLatest
-import kotlinx.coroutines.flow.drop
 import kotlinx.coroutines.flow.filter
 import kotlinx.coroutines.launch
 import kotlin.math.roundToInt
@@ -71,6 +72,8 @@ fun PlayerSheet(
   customMaxWidth: Dp? = null,
   customMaxHeight: Dp? = null,
   surfaceColor: Color? = null,
+  isSwipeActive: Boolean = false,
+  swipeOffset: Float = 0f,
   content: @Composable () -> Unit,
 ) {
   val scope = rememberCoroutineScope()
@@ -90,13 +93,7 @@ fun PlayerSheet(
     else -> LocalConfiguration.current.screenHeightDp.dp
   }
 
-  var backgroundAlpha by remember { mutableFloatStateOf(0f) }
-  val alpha by animateFloatAsState(
-    backgroundAlpha,
-    animationSpec = sheetAnimationSpec,
-    label = "alpha",
-  )
-
+  val screenHeightPx = with(density) { LocalConfiguration.current.screenHeightDp.dp.toPx() }
   val decayAnimationSpec = rememberSplineBasedDecay<Float>()
   val anchoredDraggableState =
     remember {
@@ -108,10 +105,26 @@ fun PlayerSheet(
         velocityThreshold = { with(density) { 125.dp.toPx() } },
       )
     }
+
+  val scaledSwipeOffset = swipeOffset * 2f
+  val height = if (anchoredDraggableState.anchors.size > 0) anchoredDraggableState.anchors.positionOf(1) else screenHeightPx
+  val swipeProgress = if (height > 0) (-scaledSwipeOffset / height).coerceIn(0f, 1f) else 0f
+  val targetAlpha = if (isSwipeActive) {
+    if (anchoredDraggableState.anchors.size > 0) 0.5f * swipeProgress else 0f
+  } else if (anchoredDraggableState.targetValue == 0) {
+    0.5f
+  } else {
+    0f
+  }
+  val alpha by animateFloatAsState(
+    targetAlpha,
+    animationSpec = sheetAnimationSpec,
+    label = "alpha",
+  )
+
   val internalOnDismissRequest = {
     if (anchoredDraggableState.currentValue == 0) {
       scope.launch {
-        backgroundAlpha = 0f
         anchoredDraggableState.animateTo(1)
       }
     }
@@ -149,14 +162,15 @@ fun PlayerSheet(
             },
           ).then(modifier)
           .offset {
-            IntOffset(
-              0,
-              anchoredDraggableState.offset
-                .takeIf { it.isFinite() }
-                ?.roundToInt()
-                ?: 0,
-            )
-          }.anchoredDraggable(
+            val baseOffset = anchoredDraggableState.offset
+              .takeIf { it.isFinite() }
+              ?: screenHeightPx
+            IntOffset(0, baseOffset.roundToInt())
+          }
+          .graphicsLayer {
+            this.alpha = if (anchoredDraggableState.anchors.size > 0) 1f else 0f
+          }
+          .anchoredDraggable(
             state = anchoredDraggableState,
             orientation = Orientation.Vertical,
           ).windowInsetsPadding(
@@ -175,16 +189,49 @@ fun PlayerSheet(
       },
     )
 
-    LaunchedEffect(true) {
-      backgroundAlpha = 0.5f
+    LaunchedEffect(scaledSwipeOffset, isSwipeActive) {
+      if (isSwipeActive && anchoredDraggableState.anchors.size > 0) {
+        val targetOffset = (height + scaledSwipeOffset).coerceIn(0f, screenHeightPx)
+        val delta = targetOffset - anchoredDraggableState.offset
+        anchoredDraggableState.dispatchRawDelta(delta)
+      }
     }
 
+    var wasSwipeActive by remember { mutableStateOf(false) }
+    LaunchedEffect(anchoredDraggableState, isSwipeActive) {
+      if (isSwipeActive) {
+        wasSwipeActive = true
+      } else {
+        if (wasSwipeActive) {
+          val currentOffset = anchoredDraggableState.offset
+          // Settle to open (0) if the user dragged up by more than 10% of the sheet height
+          val target = if (currentOffset >= height * 0.9f) 1 else 0
+          anchoredDraggableState.animateTo(target)
+          if (target == 1) {
+            latestOnDismissRequest()
+          }
+          wasSwipeActive = false
+        } else {
+          // Title tap opening: wait for anchors to be measured before animating open (0)
+          snapshotFlow { anchoredDraggableState.anchors.size }
+            .filter { it > 0 }
+            .collectLatest {
+              anchoredDraggableState.animateTo(0)
+            }
+        }
+      }
+    }
+
+    var wasOpened by remember { mutableStateOf(false) }
     LaunchedEffect(anchoredDraggableState) {
-      scope.launch { anchoredDraggableState.animateTo(0) }
       snapshotFlow { anchoredDraggableState.currentValue }
-        .drop(1)
-        .filter { it == 1 }
-        .collectLatest { latestOnDismissRequest() }
+        .collectLatest { value ->
+          if (value == 0) {
+            wasOpened = true
+          } else if (value == 1 && wasOpened) {
+            latestOnDismissRequest()
+          }
+        }
     }
   }
 }

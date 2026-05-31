@@ -70,6 +70,7 @@ import com.quantummpv.app.presentation.components.RightSideOvalShape
 import com.quantummpv.app.ui.player.Panels
 import com.quantummpv.app.ui.player.PlayerUpdates
 import com.quantummpv.app.ui.player.PlayerViewModel
+import com.quantummpv.app.ui.player.Sheets
 import com.quantummpv.app.ui.player.SingleActionGesture
 import com.quantummpv.app.ui.theme.playerRippleConfiguration
 import kotlinx.coroutines.delay
@@ -107,6 +108,7 @@ fun GestureHandler(
   val useSingleTapForCenter by gesturePreferences.useSingleTapForCenter.collectAsState()
   val doubleTapSeekAreaWidth by gesturePreferences.doubleTapSeekAreaWidth.collectAsState()
   val centerVerticalSubtitlePositionGesture by gesturePreferences.centerVerticalSubtitlePositionGesture.collectAsState()
+  val enableCenterSwipeUpGesture by gesturePreferences.enableCenterSwipeUpGesture.collectAsState()
   var isDoubleTapSeeking by remember { mutableStateOf(false) }
   var lastSeekRegion by remember { mutableStateOf<String?>(null) }
   var lastSeekTime by remember { mutableStateOf<Long?>(null) }
@@ -373,6 +375,7 @@ fun GestureHandler(
         brightnessGesture,
         volumeGesture,
         centerVerticalSubtitlePositionGesture,
+        enableCenterSwipeUpGesture,
       ) {
         if (
           (!brightnessGesture &&
@@ -405,6 +408,7 @@ fun GestureHandler(
           // State for vertical gestures (volume/brightness)
           var startingY = 0f
           var mpvVolumeStartingY = 0f
+          var prevDragY = 0f
           var originalVolumePercent = currentVolumePercent
           var originalMPVVolume = currentMPVVolume
           var originalBrightness = currentBrightness
@@ -501,24 +505,39 @@ fun GestureHandler(
                         return@forEach
                       }
                     } else {
-                      if (isCenterSubtitleTouch && isVerticalDrag) {
+                      val isCenterTouch = enableCenterSwipeUpGesture && startPosition.x in (size.width * 0.35f)..(size.width * 0.65f)
+                      if (isCenterTouch && isVerticalDrag) {
                         longPressJob.cancel()
-                        return@forEach
-                      }
-
-                      // Cancel long press if drag started
-                      longPressJob.cancel()
-
-                      // Check if we're in long press mode with dynamic speed control
-                      if (isLongPressing && isDynamicSpeedControlActive && showDynamicSpeedOverlay && abs(deltaX) > 10f) {
-                        gestureType = "speed_control"
-                      } else {
-                        gestureType = if (isHorizontalDrag) {
-                          "horizontal"
-                        } else if (isVerticalDrag && !isVerticalGestureDeadZone) {
-                          "vertical"
+                        if (deltaY < -20f && viewModel.hasPlaylistSupport()) {
+                          gestureType = "playlist_swipe"
+                          viewModel.isPlaylistSwipeActive.value = true
+                          viewModel.playlistSwipeOffset.value = deltaY
+                          viewModel.sheetShown.update { Sheets.Playlist }
+                          viewModel.hideControls()
+                          viewModel.panelShown.update { Panels.None }
                         } else {
-                          null
+                          return@forEach
+                        }
+                      } else {
+                        if (isCenterSubtitleTouch && isVerticalDrag) {
+                          longPressJob.cancel()
+                          return@forEach
+                        }
+
+                        // Cancel long press if drag started
+                        longPressJob.cancel()
+
+                        // Check if we're in long press mode with dynamic speed control
+                        if (isLongPressing && isDynamicSpeedControlActive && showDynamicSpeedOverlay && abs(deltaX) > 10f) {
+                          gestureType = "speed_control"
+                        } else {
+                          gestureType = if (isHorizontalDrag) {
+                            "horizontal"
+                          } else if (isVerticalDrag && !isVerticalGestureDeadZone) {
+                            "vertical"
+                          } else {
+                            null
+                          }
                         }
                       }
                     }
@@ -555,6 +574,10 @@ fun GestureHandler(
 
                   // Handle the appropriate gesture
                   when (gestureType) {
+                    "playlist_swipe" -> {
+                      viewModel.playlistSwipeOffset.value = deltaY
+                      change.consume()
+                    }
                     "speed_control" -> {
                       if (!showDynamicSpeedOverlay) return@forEach
                       if (isLongPressing && isDynamicSpeedControlActive && paused == false) {
@@ -700,6 +723,9 @@ fun GestureHandler(
               longPressJob.cancel()
               if (gestureType != null) {
                 when (gestureType) {
+                  "playlist_swipe" -> {
+                    viewModel.isPlaylistSwipeActive.value = false
+                  }
                   "vertical",
                   "subtitle_vertical",
                     -> {
@@ -744,6 +770,10 @@ fun GestureHandler(
           if (isSubtitleHoldActive) {
             isSubtitleHoldActive = false
             viewModel.playerUpdate.update { PlayerUpdates.None }
+          }
+
+          if (gestureType == "playlist_swipe") {
+            viewModel.isPlaylistSwipeActive.value = false
           }
 
           when (gestureType) {

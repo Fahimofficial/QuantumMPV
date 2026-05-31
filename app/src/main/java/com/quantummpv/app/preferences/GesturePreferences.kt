@@ -19,5 +19,7 @@ class GesturePreferences(
   val tapThumbnailToSelect = preferenceStore.getBoolean("tap_thumbnail_to_select", false)
   val centerVerticalSubtitlePositionGesture =
     preferenceStore.getBoolean("center_vertical_subtitle_position_gesture", true)
+  val enableCenterSwipeUpGesture =
+    preferenceStore.getBoolean("enable_center_swipe_up_gesture", true)
 }
 
