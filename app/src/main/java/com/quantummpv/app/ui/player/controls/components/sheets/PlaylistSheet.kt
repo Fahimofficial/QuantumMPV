@@ -104,6 +104,8 @@ fun PlaylistSheet(
   totalCount: Int = playlist.size,
   isM3UPlaylist: Boolean = false,
   playerPreferences: com.quantummpv.app.preferences.PlayerPreferences,
+  isSwipeActive: Boolean = false,
+  swipeOffset: Float = 0f,
   modifier: Modifier = Modifier,
 ) {
   val context = LocalContext.current
@@ -165,6 +167,8 @@ fun PlaylistSheet(
     modifier = Modifier.fillMaxWidth(),
     customMaxWidth = sheetWidth,
     customMaxHeight = if (isPortrait) LocalConfiguration.current.screenHeightDp.dp * 0.5f else null,
+    isSwipeActive = isSwipeActive,
+    swipeOffset = swipeOffset,
   ) {
     Surface(
       modifier = Modifier.fillMaxWidth(),
