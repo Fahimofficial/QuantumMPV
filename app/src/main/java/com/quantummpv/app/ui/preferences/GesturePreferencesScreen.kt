@@ -136,6 +136,15 @@ object GesturePreferencesScreen : Screen {
 
               PreferenceDivider()
 
+              val enableCenterSwipeUpGesture by preferences.enableCenterSwipeUpGesture.collectAsState()
+              SwitchPreference(
+                value = enableCenterSwipeUpGesture,
+                onValueChange = { preferences.enableCenterSwipeUpGesture.set(it) },
+                title = { Text(stringResource(R.string.pref_player_gestures_enable_center_swipe_up_gesture)) },
+              )
+
+              PreferenceDivider()
+
               val horizontalSwipeSensitivity by playerPreferences.horizontalSwipeSensitivity.collectAsState()
               SliderPreference(
                 value = horizontalSwipeSensitivity,
