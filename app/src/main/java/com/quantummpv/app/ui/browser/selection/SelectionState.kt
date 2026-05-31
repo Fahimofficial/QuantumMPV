@@ -54,6 +54,14 @@ data class SelectionState<ID>(
   }
 
   /**
+   * Select an item without toggling it off.
+   */
+  fun select(id: ID): SelectionState<ID> = copy(
+    selectedIds = selectedIds + id,
+    lastSelectedId = id,
+  )
+
+  /**
    * Clear all selections
    */
   fun clear(): SelectionState<ID> = copy(selectedIds = emptySet(), lastSelectedId = null)
@@ -84,13 +92,13 @@ data class SelectionState<ID>(
   fun selectRange(targetId: ID, allIds: List<ID>): SelectionState<ID> {
     val anchor = lastSelectedId
     if (anchor == null || !allIds.contains(anchor)) {
-      return toggle(targetId)
+      return select(targetId)
     }
 
     val startIndex = allIds.indexOf(anchor)
     val endIndex = allIds.indexOf(targetId)
     if (startIndex == -1 || endIndex == -1) {
-      return toggle(targetId)
+      return select(targetId)
     }
 
     val start = minOf(startIndex, endIndex)

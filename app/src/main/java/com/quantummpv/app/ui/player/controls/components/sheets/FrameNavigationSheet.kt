@@ -5,8 +5,10 @@ import com.quantummpv.app.ui.icons.Icons
 
 import android.content.Context
 import android.widget.Toast
+import androidx.compose.animation.Crossfade
 import androidx.compose.animation.animateContentSize
 import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
@@ -28,6 +30,7 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Slider
 import androidx.compose.material3.Switch
+import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
@@ -42,6 +45,7 @@ import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.scale
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
@@ -590,6 +594,30 @@ private fun IncludeSubsToggle(
     Switch(
       checked = includeSubs,
       onCheckedChange = setIncludeSubs,
+      modifier = Modifier.scale(0.8f),
+      thumbContent = {
+        Crossfade(
+          targetState = includeSubs,
+          animationSpec = tween(durationMillis = 200),
+          label = "SwitchIconAnimation"
+        ) { isChecked ->
+          if (isChecked) {
+            Icon(
+              Icons.Filled.Check,
+              contentDescription = null,
+              modifier = Modifier.size(SwitchDefaults.IconSize),
+              tint = MaterialTheme.colorScheme.onPrimaryContainer
+            )
+          } else {
+            Icon(
+              Icons.Filled.Close,
+              contentDescription = null,
+              modifier = Modifier.size(SwitchDefaults.IconSize),
+              tint = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+          }
+        }
+      }
     )
     Text(
       text = stringResource(R.string.player_sheets_frame_navigation_include_subtitles),

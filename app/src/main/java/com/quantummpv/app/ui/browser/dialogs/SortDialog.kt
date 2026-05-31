@@ -8,7 +8,6 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
-import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -28,7 +27,6 @@ import androidx.compose.material3.SegmentedButtonDefaults
 import androidx.compose.material3.SingleChoiceSegmentedButtonRow
 import androidx.compose.material3.Slider
 import androidx.compose.material3.Text
-import androidx.compose.material3.VerticalDivider
 import androidx.compose.material3.ripple
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -38,6 +36,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.quantummpv.app.ui.icons.AppIcon
@@ -58,7 +57,7 @@ fun SortDialog(
   getLabelForType: (String, Boolean) -> Pair<String, String>,
   modifier: Modifier = Modifier,
   visibilityToggles: List<VisibilityToggle> = emptyList(),
-  viewModeSelector: ViewModeSelector? = null,
+  viewModeSelector: MultiViewModeSelector? = null,
   layoutModeSelector:  ViewModeSelector? = null,
   folderGridColumnSelector: GridColumnSelector? = null,
   videoGridColumnSelector: GridColumnSelector? = null,
@@ -106,35 +105,20 @@ fun SortDialog(
           )
         }
 
-        if (viewModeSelector != null || layoutModeSelector != null) {
-          Row(
-            modifier = Modifier.fillMaxWidth().height(IntrinsicSize.Min),
-            horizontalArrangement = Arrangement.spacedBy(16.dp),
-            verticalAlignment = Alignment.Top,
-          ) {
-            if (viewModeSelector != null) {
-              ViewModeSelectorComponent(
-                viewModeSelector = viewModeSelector,
-                enabled = enableViewModeOptions,
-                modifier = Modifier.weight(1f),
-              )
-            }
+        if (viewModeSelector != null) {
+          MultiViewModeSelectorComponent(
+            selector = viewModeSelector,
+            enabled = enableViewModeOptions,
+            modifier = Modifier.fillMaxWidth(),
+          )
+        }
 
-            if (viewModeSelector != null && layoutModeSelector != null) {
-              VerticalDivider(
-                modifier = Modifier.padding(vertical = 8.dp),
-                color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.6f)
-              )
-            }
-
-            if (layoutModeSelector != null) {
-              ViewModeSelectorComponent(
-                viewModeSelector = layoutModeSelector,
-                enabled = enableLayoutModeOptions,
-                modifier = Modifier.weight(1f),
-              )
-            }
-          }
+        if (layoutModeSelector != null) {
+          ViewModeSelectorComponent(
+            viewModeSelector = layoutModeSelector,
+            enabled = enableLayoutModeOptions,
+            modifier = Modifier.fillMaxWidth(),
+          )
         }
 
         GridColumnsSection(
@@ -162,6 +146,18 @@ data class VisibilityToggle(
   val label: String,
   val checked: Boolean,
   val onCheckedChange: (Boolean) -> Unit,
+)
+
+data class ViewModeOption(
+  val label: String,
+  val icon: AppIcon,
+  val isSelected: Boolean,
+  val onClick: () -> Unit,
+)
+
+data class MultiViewModeSelector(
+  val label: String,
+  val options: List<ViewModeOption>,
 )
 
 data class ViewModeSelector(
@@ -390,6 +386,98 @@ private fun ViewModeSelectorComponent(
               MaterialTheme.colorScheme.onSurfaceVariant
             } else {
               MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.38f)
+            },
+          )
+        }
+      }
+    }
+  }
+}
+
+@Composable
+private fun MultiViewModeSelectorComponent(
+  selector: MultiViewModeSelector,
+  enabled: Boolean = true,
+  modifier: Modifier = Modifier,
+) {
+  Column(
+    modifier = modifier,
+    verticalArrangement = Arrangement.spacedBy(8.dp),
+  ) {
+    Text(
+      text = selector.label,
+      style = MaterialTheme.typography.titleMedium,
+      fontWeight = FontWeight.Medium,
+      color = if (enabled) {
+        MaterialTheme.colorScheme.onSurface
+      } else {
+        MaterialTheme.colorScheme.onSurface.copy(alpha = 0.38f)
+      },
+    )
+
+    Row(
+      modifier = Modifier.fillMaxWidth(),
+      horizontalArrangement = Arrangement.SpaceEvenly,
+      verticalAlignment = Alignment.CenterVertically,
+    ) {
+      selector.options.forEach { option ->
+        val selected = option.isSelected
+        val shape = AppShapeScale.medium
+
+        Column(
+          horizontalAlignment = Alignment.CenterHorizontally,
+          verticalArrangement = Arrangement.spacedBy(6.dp),
+          modifier = Modifier
+            .clip(shape)
+            .background(
+              if (selected && enabled) MaterialTheme.colorScheme.primary.copy(alpha = 0.08f)
+              else Color.Transparent
+            )
+            .clickable(enabled = enabled) {
+              if (enabled) {
+                option.onClick()
+              }
+            }
+            .padding(8.dp),
+        ) {
+          Box(
+            modifier = Modifier
+              .size(44.dp)
+              .clip(shape)
+              .background(
+                color = if (selected && enabled) {
+                  MaterialTheme.colorScheme.primaryContainer
+                } else if (enabled) {
+                  MaterialTheme.colorScheme.surfaceContainerHighest.copy(alpha = 0.4f)
+                } else {
+                  MaterialTheme.colorScheme.surfaceContainerHighest.copy(alpha = 0.2f)
+                }
+              ),
+            contentAlignment = Alignment.Center,
+          ) {
+            Icon(
+              imageVector = option.icon,
+              contentDescription = null,
+              modifier = Modifier.size(24.dp),
+              tint = if (selected && enabled) {
+                MaterialTheme.colorScheme.onPrimaryContainer
+              } else if (enabled) {
+                MaterialTheme.colorScheme.onSurfaceVariant
+              } else {
+                MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.38f)
+              },
+            )
+          }
+
+          Text(
+            text = option.label,
+            style = MaterialTheme.typography.labelMedium,
+            color = if (selected && enabled) {
+              MaterialTheme.colorScheme.primary
+            } else if (enabled) {
+              MaterialTheme.colorScheme.onSurface
+            } else {
+              MaterialTheme.colorScheme.onSurface.copy(alpha = 0.38f)
             },
           )
         }

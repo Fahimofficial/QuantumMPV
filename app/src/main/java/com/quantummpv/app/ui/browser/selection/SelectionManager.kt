@@ -9,6 +9,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.platform.LocalContext
 import com.quantummpv.app.domain.media.model.Video
@@ -50,9 +51,24 @@ class SelectionManager<T, ID>(
   }
 
   /**
+   * Select an item without toggling it off.
+   */
+  fun select(item: T) {
+    state = state.select(getId(item))
+  }
+
+  /**
    * Perform range selection from the last selected item to the specified item
    */
   fun toggleRange(item: T) {
+    val allIds = items().map(getId)
+    state = state.selectRange(getId(item), allIds)
+  }
+
+  /**
+   * Add the range from the current anchor to this item.
+   */
+  fun selectRangeTo(item: T) {
     val allIds = items().map(getId)
     state = state.selectRange(getId(item), allIds)
   }
@@ -240,16 +256,30 @@ fun <T, ID> rememberSelectionManager(
 ): SelectionManager<T, ID> {
   val context = LocalContext.current
   val scope = rememberCoroutineScope()
+  val latestItems by rememberUpdatedState(items)
+  val latestGetId by rememberUpdatedState(getId)
+  val latestOnDeleteItems by rememberUpdatedState(onDeleteItems)
+  val latestOnRenameItem by rememberUpdatedState(onRenameItem)
+  val latestOnOperationComplete by rememberUpdatedState(onOperationComplete)
+  val hasRenameAction = onRenameItem != null
 
-  return remember(items, getId, onDeleteItems, onRenameItem) {
+  return remember(context, scope, hasRenameAction) {
     SelectionManager(
-      items = { items },
-      getId = getId,
+      items = { latestItems },
+      getId = { item -> latestGetId(item) },
       context = context,
       scope = scope,
-      onDeleteItems = onDeleteItems,
-      onRenameItem = onRenameItem,
-      onOperationComplete = onOperationComplete,
+      onDeleteItems = { selectedItems, deleteFiles -> latestOnDeleteItems(selectedItems, deleteFiles) },
+      onRenameItem =
+        if (hasRenameAction) {
+          { item, newName ->
+            latestOnRenameItem?.invoke(item, newName)
+              ?: Result.failure(IllegalStateException("Rename is unavailable"))
+          }
+        } else {
+          null
+        },
+      onOperationComplete = { latestOnOperationComplete() },
     )
   }
 }

@@ -55,7 +55,7 @@ import com.quantummpv.app.ui.utils.popSafely
 import kotlinx.serialization.Serializable
 import me.zhanghai.compose.preference.ListPreference
 import me.zhanghai.compose.preference.ProvidePreferenceLocals
-import me.zhanghai.compose.preference.SwitchPreference
+import com.quantummpv.app.ui.preferences.components.SwitchPreference
 import com.quantummpv.app.ui.player.controls.components.SeekbarStylePreview
 import com.quantummpv.app.ui.preferences.components.PlayerButtonChip
 import org.koin.compose.koinInject

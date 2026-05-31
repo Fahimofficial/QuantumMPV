@@ -34,7 +34,7 @@ import com.quantummpv.app.ui.player.controls.panelCardsColors
 import com.quantummpv.app.ui.theme.spacing
 import `is`.xyz.mpv.MPVLib
 import me.zhanghai.compose.preference.ProvidePreferenceLocals
-import me.zhanghai.compose.preference.SwitchPreference
+import com.quantummpv.app.ui.preferences.components.SwitchPreference
 import org.koin.compose.koinInject
 
 @Composable

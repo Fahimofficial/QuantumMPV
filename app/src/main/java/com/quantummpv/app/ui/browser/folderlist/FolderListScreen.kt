@@ -95,9 +95,12 @@ import com.quantummpv.app.utils.media.CopyPasteOps
 import com.quantummpv.app.utils.media.OpenDocumentTreeContract
 import com.quantummpv.app.ui.browser.dialogs.GridColumnSelector
 import com.quantummpv.app.ui.browser.dialogs.SortDialog
+import com.quantummpv.app.ui.browser.dialogs.MultiViewModeSelector
+import com.quantummpv.app.ui.browser.dialogs.ViewModeOption
 import com.quantummpv.app.ui.browser.dialogs.ViewModeSelector
 import com.quantummpv.app.ui.browser.dialogs.VisibilityToggle
 import com.quantummpv.app.ui.browser.filesystem.FileSystemDirectoryScreen
+import com.quantummpv.app.ui.browser.medialibrary.MediaLibraryContent
 import com.quantummpv.app.ui.browser.filesystem.FileSystemBrowserRootScreen
 import com.quantummpv.app.ui.browser.selection.rememberSelectionManager
 import com.quantummpv.app.ui.browser.sheets.PlayLinkSheet
@@ -131,6 +134,7 @@ object FolderListScreen : Screen {
     when (folderViewMode) {
       FolderViewMode.FileManager -> FileSystemBrowserRootScreen.Content()
       FolderViewMode.AlbumView -> MediaStoreFolderListContent()
+      FolderViewMode.MediaLibrary -> MediaLibraryContent()
     }
   }
 
@@ -178,6 +182,7 @@ object FolderListScreen : Screen {
     val listState = rememberLazyListState()
     val gridState = rememberLazyGridState()
     val navigationBarHeight = LocalNavigationBarHeight.current
+    val navBarState = com.quantummpv.app.ui.browser.NavigationBarState
     val isRefreshing = remember { mutableStateOf(false) }
     val sortDialogOpen = rememberSaveable { mutableStateOf(false) }
     val deleteDialogOpen = rememberSaveable { mutableStateOf(false) }
@@ -293,6 +298,14 @@ object FolderListScreen : Screen {
     LaunchedEffect(permissionState.status) {
       com.quantummpv.app.ui.browser.MainScreen.updatePermissionState(
         isDenied = permissionState.status is PermissionStatus.Denied
+      )
+    }
+
+    // Update NavigationBarState when selection mode changes
+    LaunchedEffect(selectionManager.isInSelectionMode) {
+      navBarState.updateSelectionState(
+        inSelectionMode = selectionManager.isInSelectionMode,
+        onlyVideos = false,
       )
     }
 
@@ -646,8 +659,11 @@ object FolderListScreen : Screen {
             showCopy = true,
             showMove = true,
             showRename = selectionManager.isSingleSelection,
+            showDownscale = false,
             showAddToPlaylist = false,
-            modifier = Modifier.align(Alignment.BottomCenter),
+            modifier = Modifier
+              .align(Alignment.BottomCenter)
+              .padding(bottom = if (navBarState.shouldHideNavigationBar) 0.dp else navigationBarHeight),
           )
         }
       }
@@ -701,7 +717,6 @@ object FolderListScreen : Screen {
                       }
                     }
                   }
-                  else -> {}
                 }
               }
             }
@@ -1149,18 +1164,28 @@ private fun FolderSortDialog(
       }
     },
     showSortOptions = isAlbumView,
-    viewModeSelector = ViewModeSelector(
+    viewModeSelector = MultiViewModeSelector(
       label = "View Mode",
-      firstOptionLabel = "Folder",
-      secondOptionLabel = "Tree",
-      firstOptionIcon = Icons.Filled.ViewModule,
-      secondOptionIcon = Icons.Filled.AccountTree,
-      isFirstOptionSelected = folderViewMode == FolderViewMode.AlbumView,
-      onViewModeChange = { isFirstOption ->
-        browserPreferences.folderViewMode.set(
-          if (isFirstOption) FolderViewMode.AlbumView else FolderViewMode.FileManager,
-        )
-      },
+      options = listOf(
+        ViewModeOption(
+          label = "Folder",
+          icon = Icons.Filled.ViewModule,
+          isSelected = folderViewMode == FolderViewMode.AlbumView,
+          onClick = { browserPreferences.folderViewMode.set(FolderViewMode.AlbumView) }
+        ),
+        ViewModeOption(
+          label = "Tree",
+          icon = Icons.Filled.AccountTree,
+          isSelected = folderViewMode == FolderViewMode.FileManager,
+          onClick = { browserPreferences.folderViewMode.set(FolderViewMode.FileManager) }
+        ),
+        ViewModeOption(
+          label = "Library",
+          icon = Icons.Filled.VideoLibrary,
+          isSelected = folderViewMode == FolderViewMode.MediaLibrary,
+          onClick = { browserPreferences.folderViewMode.set(FolderViewMode.MediaLibrary) }
+        ),
+      )
     ),
     layoutModeSelector = ViewModeSelector(
       label = "Layout",

@@ -57,7 +57,7 @@ import com.quantummpv.app.ui.preferences.VulkanUtils
 import kotlinx.serialization.Serializable
 import me.zhanghai.compose.preference.ListPreference
 import me.zhanghai.compose.preference.ProvidePreferenceLocals
-import me.zhanghai.compose.preference.SwitchPreference
+import com.quantummpv.app.ui.preferences.components.SwitchPreference
 import org.koin.compose.koinInject
 
 @Serializable

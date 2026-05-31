@@ -117,7 +117,7 @@ object PreferencesScreen : Screen {
     return listOf(
       SettingsSection(
         title = stringResource(R.string.pref_section_appearance),
-        tint = colorScheme.primary,
+        tint = colorScheme.onSurfaceVariant,
         items = listOf(
           SettingsDestination(
             title = stringResource(R.string.pref_appearance_title),
@@ -129,7 +129,7 @@ object PreferencesScreen : Screen {
       ),
       SettingsSection(
         title = stringResource(R.string.pref_section_playback),
-        tint = colorScheme.tertiary,
+        tint = colorScheme.onSurfaceVariant,
         items = listOf(
           SettingsDestination(
             title = stringResource(R.string.pref_player),
@@ -153,7 +153,7 @@ object PreferencesScreen : Screen {
       ),
       SettingsSection(
         title = stringResource(R.string.pref_section_gestures_controls),
-        tint = colorScheme.secondary,
+        tint = colorScheme.onSurfaceVariant,
         items = listOf(
           SettingsDestination(
             title = stringResource(R.string.pref_gesture),
@@ -171,7 +171,7 @@ object PreferencesScreen : Screen {
       ),
       SettingsSection(
         title = stringResource(R.string.pref_section_subtitles),
-        tint = colorScheme.primary,
+        tint = colorScheme.onSurfaceVariant,
         items = listOf(
           SettingsDestination(
             title = stringResource(R.string.pref_subtitles),
@@ -183,7 +183,7 @@ object PreferencesScreen : Screen {
       ),
       SettingsSection(
         title = stringResource(R.string.pref_section_storage),
-        tint = colorScheme.tertiary,
+        tint = colorScheme.onSurfaceVariant,
         items = listOf(
           SettingsDestination(
             title = stringResource(R.string.pref_folders_title),
@@ -195,7 +195,7 @@ object PreferencesScreen : Screen {
       ),
       SettingsSection(
         title = stringResource(R.string.pref_section_ai),
-        tint = colorScheme.secondary,
+        tint = colorScheme.onSurfaceVariant,
         items = listOf(
           SettingsDestination(
             title = stringResource(R.string.pref_section_ai_title),
@@ -207,7 +207,7 @@ object PreferencesScreen : Screen {
       ),
       SettingsSection(
         title = stringResource(R.string.pref_section_advanced),
-        tint = colorScheme.primary,
+        tint = colorScheme.onSurfaceVariant,
         items = listOf(
           SettingsDestination(
             title = stringResource(R.string.pref_advanced),
@@ -219,7 +219,7 @@ object PreferencesScreen : Screen {
       ),
       SettingsSection(
         title = stringResource(R.string.pref_section_about),
-        tint = colorScheme.tertiary,
+        tint = colorScheme.onSurfaceVariant,
         items = listOf(
           SettingsDestination(
             title = stringResource(R.string.pref_about_title),

@@ -40,7 +40,7 @@ import me.zhanghai.compose.preference.ListPreference
 import me.zhanghai.compose.preference.Preference
 import me.zhanghai.compose.preference.ProvidePreferenceLocals
 import me.zhanghai.compose.preference.SliderPreference
-import me.zhanghai.compose.preference.SwitchPreference
+import com.quantummpv.app.ui.preferences.components.SwitchPreference
 import org.koin.compose.koinInject
 import kotlin.math.roundToInt
 import androidx.compose.ui.text.AnnotatedString

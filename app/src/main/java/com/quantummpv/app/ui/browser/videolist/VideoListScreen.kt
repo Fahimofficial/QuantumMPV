@@ -53,8 +53,10 @@ import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
@@ -88,7 +90,9 @@ import com.quantummpv.app.ui.browser.dialogs.FolderPickerDialog
 import com.quantummpv.app.ui.browser.dialogs.GridColumnSelector
 import com.quantummpv.app.ui.browser.dialogs.LoadingDialog
 import com.quantummpv.app.ui.browser.dialogs.RenameDialog
+import com.quantummpv.app.ui.browser.dialogs.MultiViewModeSelector
 import com.quantummpv.app.ui.browser.dialogs.SortDialog
+import com.quantummpv.app.ui.browser.dialogs.ViewModeOption
 import com.quantummpv.app.ui.browser.dialogs.VideoCompressorOverlay
 import com.quantummpv.app.ui.browser.dialogs.ViewModeSelector
 import com.quantummpv.app.ui.browser.dialogs.VisibilityToggle
@@ -102,6 +106,9 @@ import com.quantummpv.app.utils.history.RecentlyPlayedOps
 import com.quantummpv.app.utils.media.CopyPasteOps
 import com.quantummpv.app.utils.media.MediaUtils
 import com.quantummpv.app.utils.sort.SortUtils
+import kotlinx.coroutines.flow.collectLatest
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
 import kotlinx.serialization.Serializable
 import my.nanihadesuka.compose.LazyColumnScrollbar
@@ -126,6 +133,7 @@ data class VideoListScreen(
     val playerPreferences = koinInject<PlayerPreferences>()
     val lifecycleOwner = androidx.lifecycle.compose.LocalLifecycleOwner.current
     val navigationBarHeight = com.quantummpv.app.ui.browser.LocalNavigationBarHeight.current
+    val navBarState = com.quantummpv.app.ui.browser.NavigationBarState
 
     // ViewModel
     val viewModel: VideoListViewModel =
@@ -237,6 +245,14 @@ data class VideoListScreen(
         // Exiting selection mode: Hide floating bar
         showFloatingBottomBar = false
       }
+    }
+
+    // Update NavigationBarState when selection mode changes
+    LaunchedEffect(selectionManager.isInSelectionMode) {
+      navBarState.updateSelectionState(
+        inSelectionMode = selectionManager.isInSelectionMode,
+        onlyVideos = true,
+      )
     }
 
     // Predictive back: Only intercept when in selection mode
@@ -379,7 +395,9 @@ data class VideoListScreen(
             animationSpec = spring(dampingRatio = AppMotion.Spatial.Standard.dampingRatio, stiffness = AppMotion.Spatial.Standard.stiffness),
             targetOffsetY = { fullHeight -> fullHeight }
           ),
-          modifier = Modifier.align(Alignment.BottomCenter)
+          modifier = Modifier
+            .align(Alignment.BottomCenter)
+            .padding(bottom = if (navBarState.shouldHideNavigationBar) 0.dp else navigationBarHeight)
         ) {
           BrowserBottomBar(
             isSelectionMode = true,
@@ -403,7 +421,7 @@ data class VideoListScreen(
             onRenameClick = { renameDialogOpen.value = true },
             onDeleteClick = { deleteDialogOpen.value = true },
             onAddToPlaylistClick = { addToPlaylistDialogOpen.value = true },
-            showDownscale = selectionManager.selectedCount > 0,
+            showDownscale = selectionManager.selectedCount == 1,
             showRename = selectionManager.selectedCount > 0
           )
         }
@@ -579,7 +597,7 @@ data class VideoListScreen(
 }
 
 @Composable
-private fun VideoListContent(
+internal fun VideoListContent(
   folderId: String,
   videosWithInfo: List<VideoWithPlaybackInfo>,
   isLoading: Boolean,
@@ -729,19 +747,72 @@ private fun VideoListContent(
           rememberedGridOffset.intValue = gridState.firstVisibleItemScrollOffset
       }
 
-      // Unified thumbnail generation - starts with initial batch and continues as needed
-      // This avoids the overhead of multiple conflicting LaunchedEffect calls
-      LaunchedEffect(folderId, showVideoThumbnails, thumbWidthPx, thumbHeightPx, videosWithInfo.size) {
-        if (showVideoThumbnails && videosWithInfo.isNotEmpty()) {
-          // Start with all videos - the ThumbnailRepository will handle batching internally
-          // This avoids redundant job restarts when scrolling
-          thumbnailRepository.startFolderThumbnailGeneration(
-            folderId = folderId,
-            videos = videosWithInfo.map { it.video },
-            widthPx = thumbWidthPx,
-            heightPx = thumbHeightPx,
-          )
+      val latestVideosWithInfo by rememberUpdatedState(videosWithInfo)
+      val thumbnailListKey = remember(videosWithInfo) {
+        buildString {
+          append(videosWithInfo.size)
+          append('|')
+          append(videosWithInfo.firstOrNull()?.video?.path.orEmpty())
+          append('|')
+          append(videosWithInfo.lastOrNull()?.video?.path.orEmpty())
         }
+      }
+
+      LaunchedEffect(
+        folderId,
+        showVideoThumbnails,
+        thumbWidthPx,
+        thumbHeightPx,
+        mediaLayoutMode,
+        thumbnailListKey,
+        videoGridColumns,
+      ) {
+        if (!showVideoThumbnails || latestVideosWithInfo.isEmpty()) return@LaunchedEffect
+
+        snapshotFlow {
+          val itemCount = latestVideosWithInfo.size
+          val visibleIndices =
+            if (mediaLayoutMode == MediaLayoutMode.GRID) {
+              gridState.layoutInfo.visibleItemsInfo.map { it.index }
+            } else {
+              listState.layoutInfo.visibleItemsInfo.map { it.index }
+            }
+
+          if (visibleIndices.isEmpty()) {
+            val firstIndex =
+              if (mediaLayoutMode == MediaLayoutMode.GRID) {
+                gridState.firstVisibleItemIndex
+              } else {
+                listState.firstVisibleItemIndex
+              }
+            visibleVideoWindow(
+              firstVisibleIndex = firstIndex,
+              lastVisibleIndex = firstIndex,
+              itemCount = itemCount,
+              columns = videoGridColumns,
+            )
+          } else {
+            visibleVideoWindow(
+              firstVisibleIndex = visibleIndices.minOrNull() ?: 0,
+              lastVisibleIndex = visibleIndices.maxOrNull() ?: 0,
+              itemCount = itemCount,
+              columns = videoGridColumns,
+            )
+          }
+        }
+          .distinctUntilChanged()
+          .map { indices ->
+            val currentVideos = latestVideosWithInfo
+            indices.mapNotNull { index -> currentVideos.getOrNull(index)?.video }
+          }
+          .collectLatest { visibleVideos ->
+            thumbnailRepository.startFolderThumbnailGeneration(
+              folderId = "$folderId:${mediaLayoutMode.name}",
+              videos = visibleVideos,
+              widthPx = thumbWidthPx,
+              heightPx = thumbHeightPx,
+            )
+          }
       }
 
       FabScrollHelper.trackScrollForFabVisibility(
@@ -901,8 +972,24 @@ private fun VideoListContent(
     }
   }
 
+private fun visibleVideoWindow(
+  firstVisibleIndex: Int,
+  lastVisibleIndex: Int,
+  itemCount: Int,
+  columns: Int,
+): List<Int> {
+  if (itemCount <= 0) return emptyList()
+
+  val safeColumns = columns.coerceAtLeast(1)
+  val prefetchBefore = safeColumns * 2
+  val prefetchAfter = safeColumns * 6
+  val start = (firstVisibleIndex - prefetchBefore).coerceAtLeast(0)
+  val end = (lastVisibleIndex + prefetchAfter).coerceAtMost(itemCount - 1)
+  return (start..end).toList()
+}
+
 @Composable
-private fun VideoSortDialog(
+internal fun VideoSortDialog(
   isOpen: Boolean,
   onDismiss: () -> Unit,
   sortType: VideoSortType,
@@ -994,18 +1081,28 @@ private fun VideoSortDialog(
         else -> Pair("Asc", "Desc")
       }
     },
-    viewModeSelector = ViewModeSelector(
+    viewModeSelector = MultiViewModeSelector(
       label = "View Mode",
-      firstOptionLabel = "Folder",
-      secondOptionLabel = "Tree",
-      firstOptionIcon = Icons.Filled.ViewModule,
-      secondOptionIcon = Icons.Filled.AccountTree,
-      isFirstOptionSelected = folderViewMode == FolderViewMode.AlbumView,
-      onViewModeChange = { isFirstOption ->
-        browserPreferences.folderViewMode.set(
-          if (isFirstOption) FolderViewMode.AlbumView else FolderViewMode.FileManager,
-        )
-      },
+      options = listOf(
+        ViewModeOption(
+          label = "Folder",
+          icon = Icons.Filled.ViewModule,
+          isSelected = folderViewMode == FolderViewMode.AlbumView,
+          onClick = { browserPreferences.folderViewMode.set(FolderViewMode.AlbumView) },
+        ),
+        ViewModeOption(
+          label = "Tree",
+          icon = Icons.Filled.AccountTree,
+          isSelected = folderViewMode == FolderViewMode.FileManager,
+          onClick = { browserPreferences.folderViewMode.set(FolderViewMode.FileManager) },
+        ),
+        ViewModeOption(
+          label = "Library",
+          icon = Icons.Filled.VideoLibrary,
+          isSelected = folderViewMode == FolderViewMode.MediaLibrary,
+          onClick = { browserPreferences.folderViewMode.set(FolderViewMode.MediaLibrary) },
+        ),
+      ),
     ),
     layoutModeSelector = ViewModeSelector(
       label = "Layout",

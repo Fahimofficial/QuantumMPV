@@ -85,7 +85,7 @@ import com.quantummpv.app.ui.preferences.PreferenceCard
 import com.quantummpv.app.ui.preferences.PreferenceDivider
 import com.quantummpv.app.ui.preferences.PreferenceSectionHeader
 import me.zhanghai.compose.preference.ProvidePreferenceLocals
-import me.zhanghai.compose.preference.SwitchPreference
+import com.quantummpv.app.ui.preferences.components.SwitchPreference
 import org.koin.compose.koinInject
 
 private val allLanguages = mapOf(

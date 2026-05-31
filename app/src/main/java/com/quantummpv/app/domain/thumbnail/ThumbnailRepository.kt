@@ -20,6 +20,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.async
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.asSharedFlow
@@ -53,7 +54,9 @@ class ThumbnailRepository(
   private val ongoingOperations = ConcurrentHashMap<String, Deferred<Bitmap?>>()
   private val repositoryScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
   private val maxConcurrentFolders = 3
-  private val generationSemaphore = Semaphore(3)
+  private val generationSemaphore = Semaphore(1)
+  private val maxFolderBatchSize = 48
+  private val generationFrameDelayMs = 12L
 
   private data class FolderState(
     val signature: String,
@@ -226,7 +229,7 @@ class ThumbnailRepository(
         videos
       } else {
         videos.filterNot { isNetworkUrl(it.path) }
-      }
+      }.take(maxFolderBatchSize)
 
     if (filteredVideos.isEmpty()) {
       return
@@ -266,6 +269,7 @@ class ThumbnailRepository(
             getThumbnail(filteredVideos[i], widthPx, heightPx)
             i++
             state.nextIndex = i
+            delay(generationFrameDelayMs)
           }
         }
     }
