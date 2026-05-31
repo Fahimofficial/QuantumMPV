@@ -301,7 +301,17 @@ class FolderListViewModel(
     calculateNewVideoCounts(_videoFolders.value)
   }
 
-
+  suspend fun renameFolder(folder: VideoFolder, newName: String): Boolean {
+    val src = java.io.File(folder.path)
+    val dst = java.io.File(src.parent ?: return false, newName)
+    if (dst.exists()) return false
+    val ok = src.renameTo(dst)
+    if (ok) {
+      android.media.MediaScannerConnection.scanFile(getApplication(), arrayOf(dst.absolutePath), null, null)
+      _foldersWereDeleted.value = true
+    }
+    return ok
+  }
 
   /**
    * Scans the filesystem recursively to find all folders containing videos.

@@ -779,6 +779,8 @@ class NetworkStreamingProxy private constructor() : NanoHTTPD("127.0.0.1", 0) {
         .withTimeout(120000, TimeUnit.MILLISECONDS) // Increase timeout for large seeks
         .withSoTimeout(120000, TimeUnit.MILLISECONDS)
         .withReadTimeout(120000, TimeUnit.MILLISECONDS)
+        .withSigningRequired(false)
+        .withEncryptData(false)
         .build()
       val smbClient = SMBClient(smbConfig)
       val connection = smbClient.connect(streamInfo.connection.host, streamInfo.connection.port)

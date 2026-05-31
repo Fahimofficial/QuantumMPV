@@ -15,6 +15,8 @@ import com.hierynomus.smbj.session.Session
 import com.hierynomus.smbj.share.DiskShare
 import com.hierynomus.smbj.transport.tcp.async.AsyncDirectTcpTransportFactory
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeout
 import java.io.BufferedInputStream
@@ -61,6 +63,57 @@ class SmbClient(private val connection: NetworkConnection) : NetworkClient {
   private var baseUrl: String = ""
   private var resolvedHostIp: String = ""
   private var shareName: String = ""
+  private val connectionMutex = Mutex()
+
+  /**
+   * Recursively traverses the exception chain to detect underlying network transport or timeout failures.
+   */
+  private fun isNetworkError(e: Throwable?): Boolean {
+    var current = e
+    while (current != null) {
+      if (current is java.util.concurrent.TimeoutException ||
+        current is com.hierynomus.protocol.transport.TransportException ||
+        current is com.hierynomus.smbj.common.SMBRuntimeException ||
+        current is java.net.SocketException ||
+        current is java.net.SocketTimeoutException ||
+        current is java.io.EOFException
+      ) {
+        return true
+      }
+      current = current.cause
+    }
+    return false
+  }
+
+  /**
+   * Executes a network operation with a single-retry mechanism.
+   * Prevents race conditions during concurrent reconnects via strict session reference tracking.
+   */
+  private suspend fun <T> executeWithRetry(block: suspend () -> T): T {
+    val sessionAtStart = session
+
+    return try {
+      if (session == null) {
+        throw java.net.SocketException("Session is null on execute")
+      }
+      block()
+    } catch (e: Exception) {
+      if (isNetworkError(e)) {
+        android.util.Log.w("SmbClient", "SMB socket dead. Reconnecting...", e)
+
+        connectionMutex.withLock {
+          if (session === sessionAtStart) {
+            disconnect()
+            connect()
+          }
+        }
+
+        block()
+      } else {
+        throw e
+      }
+    }
+  }
 
   override suspend fun connect(): Result<Unit> =
     withContext(Dispatchers.IO) {
@@ -197,147 +250,120 @@ class SmbClient(private val connection: NetworkConnection) : NetworkClient {
   override suspend fun listFiles(path: String): Result<List<NetworkFile>> =
     withContext(Dispatchers.IO) {
       try {
-        // Check if we're still connected, if not reconnect
-        if (!isConnected() || smbConnection?.isConnected != true) {
-          android.util.Log.w("SmbClient", "Connection is stale, reconnecting...")
-          disconnect()
-          val reconnectResult = connect()
-          if (reconnectResult.isFailure) {
-            return@withContext Result.failure(Exception("Failed to reconnect: ${reconnectResult.exceptionOrNull()?.message}"))
-          }
-        }
+        val result = executeWithRetry {
+          val sess = session ?: throw java.net.SocketException("Not connected")
 
-        val sess = session ?: return@withContext Result.failure(Exception("Not connected"))
+          android.util.Log.d("SmbClient", "=== listFiles called ===")
+          android.util.Log.d("SmbClient", "  Input path: '$path'")
+          android.util.Log.d("SmbClient", "  Share name: '$shareName'")
 
-        android.util.Log.d("SmbClient", "=== listFiles called ===")
-        android.util.Log.d("SmbClient", "  Input path: '$path'")
-        android.util.Log.d("SmbClient", "  Share name: '$shareName'")
-
-        // Build the relative path within the share
-        // The 'path' parameter is the navigation path from the share root
-        val relativePath = when {
-          path.startsWith("smb://") -> {
-            // Extract path from smb:// URL
-            // Use try-catch for URI parsing as spaces might not be encoded
-            val extracted = try {
-              val uri = java.net.URI(path)
-              // uri.path is like: /shareName/folder/file
-              // Remove /shareName to get: folder/file
-              val pathParts = uri.path.trim('/').split('/', limit = 2)
-              pathParts.getOrNull(1) ?: ""
-            } catch (e: Exception) {
-              // If URI parsing fails (e.g., due to spaces), extract manually
-              val pathAfterProtocol = path.substringAfter("smb://")
-              val pathPart = pathAfterProtocol.substringAfter("/") // Remove host
-              val pathParts = pathPart.trim('/').split('/', limit = 2)
-              pathParts.getOrNull(1) ?: ""
+          // Build the relative path within the share
+          // The 'path' parameter is the navigation path from the share root
+          val relativePath = when {
+            path.startsWith("smb://") -> {
+              // Extract path from smb:// URL
+              val extracted = try {
+                val uri = java.net.URI(path)
+                val pathParts = uri.path.trim('/').split('/', limit = 2)
+                pathParts.getOrNull(1) ?: ""
+              } catch (e: Exception) {
+                val pathAfterProtocol = path.substringAfter("smb://")
+                val pathPart = pathAfterProtocol.substringAfter("/")
+                val pathParts = pathPart.trim('/').split('/', limit = 2)
+                pathParts.getOrNull(1) ?: ""
+              }
+              android.util.Log.d("SmbClient", "  Extracted from SMB URL: '$extracted'")
+              extracted
             }
-            android.util.Log.d("SmbClient", "  Extracted from SMB URL: '$extracted'")
-            extracted
-          }
 
-          path == "/" || path.isEmpty() -> {
-            // Root of the share
-            android.util.Log.d("SmbClient", "  Using share root (empty path)")
-            ""
-          }
-
-          else -> {
-            // Check if path is just the share name (means root)
-            val cleaned = path.trim('/')
-            if (cleaned.equals(shareName, ignoreCase = true)) {
-              android.util.Log.d("SmbClient", "  Path equals share name - using root")
+            path == "/" || path.isEmpty() -> {
+              android.util.Log.d("SmbClient", "  Using share root (empty path)")
               ""
-            } else if (cleaned.startsWith("$shareName/", ignoreCase = true)) {
-              // Path includes share name prefix - remove it
-              val withoutShare = cleaned.substring(shareName.length + 1)
-              android.util.Log.d("SmbClient", "  Removed share prefix: '$withoutShare'")
-              withoutShare
-            } else {
-              // Normal subfolder navigation
-              android.util.Log.d("SmbClient", "  Using cleaned path: '$cleaned'")
-              cleaned
             }
-          }
-        }
 
-        android.util.Log.d("SmbClient", "  Final relativePath: '$relativePath'")
-        android.util.Log.d("SmbClient", "  Will call: diskShare.list('$relativePath')")
-
-        val diskShare = try {
-          sess.connectShare(shareName) as? DiskShare
-            ?: return@withContext Result.failure(Exception("Share '$shareName' is not a disk share"))
-        } catch (e: Exception) {
-          android.util.Log.e("SmbClient", "Failed to connect to share: ${e.message}", e)
-          return@withContext Result.failure(Exception("Failed to connect to share: ${e.message}"))
-        }
-
-        try {
-          // Use a timeout for list operation
-          val rawFiles: List<FileIdBothDirectoryInformation> = try {
-            withTimeout(15000) {
-              diskShare.list(relativePath)
-            }
-          } catch (e: kotlinx.coroutines.TimeoutCancellationException) {
-            diskShare.close()
-            return@withContext Result.failure(Exception("Operation timed out. The server may be slow or unresponsive."))
-          }
-
-          android.util.Log.d("SmbClient", "  Listed ${rawFiles.size} items")
-
-          val files = rawFiles.mapNotNull { fileInfo ->
-            try {
-              val fileName = fileInfo.fileName
-
-              // Skip special entries
-              if (fileName == "." || fileName == "..") {
-                return@mapNotNull null
-              }
-
-              // Skip Windows administrative/system shares
-              if (fileName.endsWith("$", ignoreCase = true)) {
-                return@mapNotNull null
-              }
-
-              // Skip IPC$ and other system shares
-              if (fileName.equals("IPC", ignoreCase = true) ||
-                fileName.equals("print", ignoreCase = true) ||
-                fileName.equals("print$", ignoreCase = true)
-              ) {
-                return@mapNotNull null
-              }
-
-              val isDirectory = fileInfo.fileAttributes and 0x10 != 0L // FILE_ATTRIBUTE_DIRECTORY
-              val fileSize = if (isDirectory) 0 else fileInfo.endOfFile
-
-              // Build the full SMB path for this file
-              // Store the path with the actual file names (not URL encoded)
-              // URL encoding will be done when creating URIs for external use
-              val fullPath = if (relativePath.isEmpty()) {
-                "smb://${resolvedHostIp}/${shareName}/${fileName}"
+            else -> {
+              val cleaned = path.trim('/')
+              if (cleaned.equals(shareName, ignoreCase = true)) {
+                android.util.Log.d("SmbClient", "  Path equals share name - using root")
+                ""
+              } else if (cleaned.startsWith("$shareName/", ignoreCase = true)) {
+                val withoutShare = cleaned.substring(shareName.length + 1)
+                android.util.Log.d("SmbClient", "  Removed share prefix: '$withoutShare'")
+                withoutShare
               } else {
-                "smb://${resolvedHostIp}/${shareName}/${relativePath}/${fileName}"
+                android.util.Log.d("SmbClient", "  Using cleaned path: '$cleaned'")
+                cleaned
               }
-
-              NetworkFile(
-                name = fileName,
-                path = fullPath,
-                isDirectory = isDirectory,
-                size = fileSize,
-                lastModified = fileInfo.lastWriteTime.toEpochMillis(),
-                mimeType = if (!isDirectory) getMimeType(fileName) else null,
-              )
-            } catch (e: Exception) {
-              null // Skip files that can't be accessed
             }
           }
 
-          diskShare.close()
-          Result.success(files)
-        } catch (e: Exception) {
-          diskShare.close()
-          Result.failure(Exception("Failed to list files: ${e.message}"))
+          android.util.Log.d("SmbClient", "  Final relativePath: '$relativePath'")
+          android.util.Log.d("SmbClient", "  Will call: diskShare.list('$relativePath')")
+
+          val diskShare = sess.connectShare(shareName) as? DiskShare
+            ?: throw Exception("Share '$shareName' is not a disk share")
+
+          diskShare.use { ds ->
+            try {
+              // Use a timeout for list operation
+              val rawFiles: List<FileIdBothDirectoryInformation> = try {
+                withTimeout(15000) {
+                  ds.list(relativePath)
+                }
+              } catch (e: kotlinx.coroutines.TimeoutCancellationException) {
+                throw Exception("Operation timed out. The server may be slow or unresponsive.")
+              }
+
+              android.util.Log.d("SmbClient", "  Listed ${rawFiles.size} items")
+
+              val files = rawFiles.mapNotNull { fileInfo ->
+                try {
+                  val fileName = fileInfo.fileName
+
+                  if (fileName == "." || fileName == "..") {
+                    return@mapNotNull null
+                  }
+
+                  if (fileName.endsWith("$", ignoreCase = true)) {
+                    return@mapNotNull null
+                  }
+
+                  if (fileName.equals("IPC", ignoreCase = true) ||
+                    fileName.equals("print", ignoreCase = true) ||
+                    fileName.equals("print$", ignoreCase = true)
+                  ) {
+                    return@mapNotNull null
+                  }
+
+                  val isDirectory = fileInfo.fileAttributes and 0x10 != 0L
+                  val fileSize = if (isDirectory) 0 else fileInfo.endOfFile
+
+                  val fullPath = if (relativePath.isEmpty()) {
+                    "smb://${resolvedHostIp}/${shareName}/${fileName}"
+                  } else {
+                    "smb://${resolvedHostIp}/${shareName}/${relativePath}/${fileName}"
+                  }
+
+                  NetworkFile(
+                    name = fileName,
+                    path = fullPath,
+                    isDirectory = isDirectory,
+                    size = fileSize,
+                    lastModified = fileInfo.lastWriteTime.toEpochMillis(),
+                    mimeType = if (!isDirectory) getMimeType(fileName) else null,
+                  )
+                } catch (e: Exception) {
+                  null
+                }
+              }
+
+              files
+            } catch (e: Exception) {
+              throw Exception("Failed to list files: ${e.message}", e)
+            }
+          }
         }
+        Result.success(result)
       } catch (e: Exception) {
         Result.failure(e)
       }
@@ -346,87 +372,90 @@ class SmbClient(private val connection: NetworkConnection) : NetworkClient {
   override suspend fun getFileStream(path: String, offset: Long): Result<InputStream> =
     withContext(Dispatchers.IO) {
       try {
-        val sess = session ?: return@withContext Result.failure(Exception("Not connected"))
-        val relativePath = parseRelativePath(path)
+        val result = executeWithRetry {
+          val sess = session ?: throw java.net.SocketException("Not connected")
+          val relativePath = parseRelativePath(path)
 
-        val diskShare = sess.connectShare(shareName) as? DiskShare
-          ?: return@withContext Result.failure(Exception("Share '$shareName' is not a disk share"))
+          val diskShare = sess.connectShare(shareName) as? DiskShare
+            ?: throw Exception("Share '$shareName' is not a disk share")
 
-        try {
-          val file = diskShare.openFile(
-            relativePath,
-            EnumSet.of(AccessMask.GENERIC_READ),
-            null,
-            EnumSet.of(SMB2ShareAccess.FILE_SHARE_READ),
-            SMB2CreateDisposition.FILE_OPEN,
-            null,
-          )
+          try {
+            val file = diskShare.openFile(
+              relativePath,
+              EnumSet.of(AccessMask.GENERIC_READ),
+              null,
+              EnumSet.of(SMB2ShareAccess.FILE_SHARE_READ),
+              SMB2CreateDisposition.FILE_OPEN,
+              null,
+            )
 
-          val inputStream = object : InputStream() {
-            private var currentPosition = offset.coerceAtLeast(0L)
-            private var closed = false
-            private var scratch = ByteArray(0)
+            val inputStream = object : InputStream() {
+              private var currentPosition = offset.coerceAtLeast(0L)
+              private var closed = false
+              private var scratch = ByteArray(0)
 
-            override fun read(): Int {
-              val buffer = ByteArray(1)
-              val read = read(buffer, 0, 1)
-              return if (read == 1) buffer[0].toInt() and 0xFF else -1
-            }
+              override fun read(): Int {
+                val buffer = ByteArray(1)
+                val read = read(buffer, 0, 1)
+                return if (read == 1) buffer[0].toInt() and 0xFF else -1
+              }
 
-            override fun read(b: ByteArray): Int = read(b, 0, b.size)
+              override fun read(b: ByteArray): Int = read(b, 0, b.size)
 
-            override fun read(b: ByteArray, off: Int, len: Int): Int {
-              if (closed) return -1
-              if (len == 0) return 0
+              override fun read(b: ByteArray, off: Int, len: Int): Int {
+                if (closed) return -1
+                if (len == 0) return 0
 
-              return try {
-                val readBuffer =
-                  if (off == 0 && len == b.size) {
-                    b
+                return try {
+                  val readBuffer =
+                    if (off == 0 && len == b.size) {
+                      b
+                    } else {
+                      if (scratch.size < len) scratch = ByteArray(len)
+                      scratch
+                    }
+                  val bytesRead = file.read(readBuffer, currentPosition)
+                  if (bytesRead <= 0) {
+                    -1
                   } else {
-                    if (scratch.size < len) scratch = ByteArray(len)
-                    scratch
+                    if (readBuffer !== b) {
+                      System.arraycopy(readBuffer, 0, b, off, bytesRead)
+                    }
+                    currentPosition += bytesRead
+                    bytesRead
                   }
-                val bytesRead = file.read(readBuffer, currentPosition)
-                if (bytesRead <= 0) {
+                } catch (_: Exception) {
                   -1
-                } else {
-                  if (readBuffer !== b) {
-                    System.arraycopy(readBuffer, 0, b, off, bytesRead)
-                  }
-                  currentPosition += bytesRead
-                  bytesRead
                 }
-              } catch (_: Exception) {
-                -1
+              }
+
+              override fun available(): Int =
+                runCatching {
+                  (file.fileInformation.standardInformation.endOfFile - currentPosition)
+                    .toInt()
+                    .coerceAtLeast(0)
+                }.getOrDefault(0)
+
+              override fun close() {
+                closed = true
+                try {
+                  file.close()
+                } catch (_: Exception) {
+                }
+                try {
+                  diskShare.close()
+                } catch (_: Exception) {
+                }
               }
             }
 
-            override fun available(): Int =
-              runCatching {
-                (file.fileInformation.standardInformation.endOfFile - currentPosition)
-                  .toInt()
-                  .coerceAtLeast(0)
-              }.getOrDefault(0)
-
-            override fun close() {
-              closed = true
-              try {
-                file.close()
-              } catch (_: Exception) {
-              }
-              try {
-                diskShare.close()
-              } catch (_: Exception) {
-              }
-            }
+            BufferedInputStream(inputStream, SMB_BUFFER_SIZE)
+          } catch (e: Exception) {
+            diskShare.close()
+            throw Exception("Failed to open file: ${e.message}", e)
           }
-
-          Result.success(BufferedInputStream(inputStream, SMB_BUFFER_SIZE))
-        } catch (e: Exception) {
-          diskShare.close()
-          Result.failure(Exception("Failed to open file: ${e.message}"))
         }
+        Result.success(result)
       } catch (e: Exception) {
         Result.failure(e)
       }
@@ -435,30 +464,30 @@ class SmbClient(private val connection: NetworkConnection) : NetworkClient {
   override suspend fun getFileSize(path: String): Result<Long> =
     withContext(Dispatchers.IO) {
       try {
-        if (!isConnected() || smbConnection?.isConnected != true) {
-          connect().getOrThrow()
-        }
-        val sess = session ?: return@withContext Result.failure(Exception("Not connected"))
-        val diskShare = sess.connectShare(shareName) as? DiskShare
-          ?: return@withContext Result.failure(Exception("Share '$shareName' is not a disk share"))
+        val result = executeWithRetry {
+          val sess = session ?: throw java.net.SocketException("Not connected")
+          val diskShare = sess.connectShare(shareName) as? DiskShare
+            ?: throw Exception("Share '$shareName' is not a disk share")
 
-        try {
-          val file = diskShare.openFile(
-            parseRelativePath(path),
-            EnumSet.of(AccessMask.GENERIC_READ),
-            null,
-            EnumSet.of(SMB2ShareAccess.FILE_SHARE_READ),
-            SMB2CreateDisposition.FILE_OPEN,
-            null,
-          )
-          val size = file.fileInformation.standardInformation.endOfFile
-          file.close()
-          diskShare.close()
-          Result.success(size)
-        } catch (e: Exception) {
-          diskShare.close()
-          Result.failure(Exception("Failed to get SMB file size: ${e.message}"))
+          try {
+            val file = diskShare.openFile(
+              parseRelativePath(path),
+              EnumSet.of(AccessMask.GENERIC_READ),
+              null,
+              EnumSet.of(SMB2ShareAccess.FILE_SHARE_READ),
+              SMB2CreateDisposition.FILE_OPEN,
+              null,
+            )
+            val size = file.fileInformation.standardInformation.endOfFile
+            file.close()
+            diskShare.close()
+            size
+          } catch (e: Exception) {
+            diskShare.close()
+            throw Exception("Failed to get SMB file size: ${e.message}", e)
+          }
         }
+        Result.success(result)
       } catch (e: Exception) {
         Result.failure(e)
       }

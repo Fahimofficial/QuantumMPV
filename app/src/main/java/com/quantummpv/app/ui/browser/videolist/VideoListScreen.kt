@@ -361,7 +361,7 @@ data class VideoListScreen(
               MediaUtils.playFile(video, context, "video_list")
             }
           },
-          onVideoLongClick = { video -> selectionManager.toggle(video) },
+          onVideoLongClick = { video -> selectionManager.handleLongClick(video) },
           isFabVisible = isFabVisible,
           modifier = Modifier.padding(padding),
           showFloatingBottomBar = showFloatingBottomBar,

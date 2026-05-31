@@ -528,7 +528,7 @@ data class PlaylistDetailScreen(val playlistId: Int) : Screen {
                 }
               },
               onVideoItemLongClick = { item ->
-                selectionManager.toggle(item)
+                selectionManager.handleLongClick(item)
               },
               listState = listState,
               modifier = Modifier.weight(1f).fillMaxWidth(),

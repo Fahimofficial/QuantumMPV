@@ -339,6 +339,18 @@ class FileSystemBrowserViewModel(
     return super.renameVideo(video, newDisplayName)
   }
 
+  suspend fun renameFolder(folder: FileSystemItem.Folder, newName: String): Boolean {
+    val src = File(folder.path)
+    val dst = File(src.parent ?: return false, newName)
+    if (dst.exists()) return false
+    val ok = src.renameTo(dst)
+    if (ok) {
+      android.media.MediaScannerConnection.scanFile(getApplication(), arrayOf(dst.absolutePath), null, null)
+      setItemsWereDeletedOrMoved()
+    }
+    return ok
+  }
+
   /**
    * Load current directory contents
    * Main loading logic based on Fossify's getItems() and getRegularItemsOf()

@@ -6,6 +6,7 @@ import com.quantummpv.app.ui.icons.Icons
 import android.content.Context
 import android.content.Intent
 import android.util.Log
+import java.io.File
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -329,9 +330,7 @@ fun FileSystemBrowserScreen(path: String? = null) {
   val treePickerLauncher = rememberLauncherForActivityResult(
     contract = OpenDocumentTreeContract(),
   ) { uri ->
-    if (uri == null) return@rememberLauncherForActivityResult
-    val selectedVideos = videoSelectionManager.getSelectedItems()
-    if (selectedVideos.isEmpty() || operationType.value == null) return@rememberLauncherForActivityResult
+    if (uri == null || operationType.value == null) return@rememberLauncherForActivityResult
 
     runCatching {
       context.contentResolver.takePersistableUriPermission(
@@ -342,16 +341,25 @@ fun FileSystemBrowserScreen(path: String? = null) {
 
     progressDialogOpen.value = true
     coroutineScope.launch {
-      when (operationType.value) {
-        is CopyPasteOps.OperationType.Copy -> {
-          CopyPasteOps.copyFilesToTreeUri(context, selectedVideos, uri)
+      if (folderSelectionManager.isInSelectionMode) {
+        val selectedVideos = folderSelectionManager.getSelectedItems()
+          .flatMap { collectVideosRecursively(context, it.path) }
+        if (selectedVideos.isNotEmpty()) {
+          when (operationType.value) {
+            is CopyPasteOps.OperationType.Copy -> CopyPasteOps.copyFilesToTreeUri(context, selectedVideos, uri)
+            is CopyPasteOps.OperationType.Move -> CopyPasteOps.moveFilesToTreeUri(context, selectedVideos, uri)
+            else -> {}
+          }
         }
-
-        is CopyPasteOps.OperationType.Move -> {
-          CopyPasteOps.moveFilesToTreeUri(context, selectedVideos, uri)
+      } else {
+        val selectedVideos = videoSelectionManager.getSelectedItems()
+        if (selectedVideos.isNotEmpty()) {
+          when (operationType.value) {
+            is CopyPasteOps.OperationType.Copy -> CopyPasteOps.copyFilesToTreeUri(context, selectedVideos, uri)
+            is CopyPasteOps.OperationType.Move -> CopyPasteOps.moveFilesToTreeUri(context, selectedVideos, uri)
+            else -> {}
+          }
         }
-
-        else -> {}
       }
     }
   }
@@ -528,19 +536,7 @@ fun FileSystemBrowserScreen(path: String? = null) {
             onSettingsClick = {
               backstack.add(com.quantummpv.app.ui.preferences.PreferencesScreen)
             },
-            onDeleteClick = if (videoSelectionManager.isInSelectionMode && !isMixedSelection) {
-              null
-            } else if (!BuildConfig.ENABLE_UPDATE_FEATURE && folderSelectionManager.isInSelectionMode) {
-              // Hide delete button for folders in Play Store build
-              null
-            } else {
-              { deleteDialogOpen.value = true }
-            },
-            onRenameClick = if (videoSelectionManager.isSingleSelection && !isMixedSelection) {
-              null
-            } else {
-              null
-            },
+
             isSingleSelection = videoSelectionManager.isSingleSelection && !isMixedSelection,
             onInfoClick = if (videoSelectionManager.isInSelectionMode && !folderSelectionManager.isInSelectionMode) {
               {
@@ -660,7 +656,7 @@ fun FileSystemBrowserScreen(path: String? = null) {
       floatingActionButton = {
         if (isAtRoot) {
           FloatingActionButtonMenu(
-            modifier = Modifier.padding(bottom = 88.dp),
+            modifier = Modifier.padding(bottom = navigationBarHeight + 8.dp),
             expanded = isFabExpanded.value,
             button = {
               TooltipBox(
@@ -783,7 +779,7 @@ fun FileSystemBrowserScreen(path: String? = null) {
                   }
                 },
                 onFolderLongClick = { folder ->
-                  folderSelectionManager.toggle(folder)
+                  folderSelectionManager.handleLongClick(folder)
                 },
                 onVideoClick = { video ->
                   if (isInSelectionMode) {
@@ -816,7 +812,7 @@ fun FileSystemBrowserScreen(path: String? = null) {
                   }
                 },
                 onVideoLongClick = { video ->
-                  videoSelectionManager.toggle(video)
+                  videoSelectionManager.handleLongClick(video)
                 },
                 onBreadcrumbClick = { component ->
                   // Navigate to the breadcrumb by popping until we reach it
@@ -878,7 +874,7 @@ fun FileSystemBrowserScreen(path: String? = null) {
          onDeleteClick = { deleteDialogOpen.value = true },
          onAddToPlaylistClick = { addToPlaylistDialogOpen.value = true },
          showDownscale = videoSelectionManager.selectedCount > 0,
-         showRename = videoSelectionManager.isSingleSelection,
+          showRename = (videoSelectionManager.isSingleSelection || folderSelectionManager.isSingleSelection) && !isMixedSelection,
          modifier = Modifier.padding(bottom = 0.dp) // Zero bottom padding - absolute bottom
        )
     }
@@ -917,21 +913,44 @@ fun FileSystemBrowserScreen(path: String? = null) {
         videoSelectionManager.getSelectedItems().map { it.displayName }),
     )
 
-    // Rename Dialog (only for videos)
-    if (renameDialogOpen.value && videoSelectionManager.isSingleSelection) {
-      val video = videoSelectionManager.getSelectedItems().firstOrNull()
-      if (video != null) {
-        val baseName = video.displayName.substringBeforeLast('.')
-        val extension = "." + video.displayName.substringAfterLast('.', "")
-        RenameDialog(
-          isOpen = true,
-          onDismiss = { renameDialogOpen.value = false },
-          onConfirm = { newName -> videoSelectionManager.renameSelected(newName) },
-          currentName = baseName,
-          itemType = "file",
-          extension = if (extension != ".") extension else null,
-        )
-     }
+    // Rename Dialog
+    if (renameDialogOpen.value) {
+      if (folderSelectionManager.isSingleSelection) {
+        val folder = folderSelectionManager.getSelectedItems().firstOrNull()
+        if (folder != null) {
+          RenameDialog(
+            isOpen = true,
+            onDismiss = { renameDialogOpen.value = false },
+            onConfirm = { newName ->
+              renameDialogOpen.value = false
+              coroutineScope.launch {
+                val ok = viewModel.renameFolder(folder, newName)
+                if (!ok) {
+                  android.widget.Toast.makeText(context, "Rename failed", android.widget.Toast.LENGTH_SHORT).show()
+                }
+                folderSelectionManager.clear()
+                viewModel.refresh()
+              }
+            },
+            currentName = folder.name,
+            itemType = "folder",
+          )
+        }
+      } else if (videoSelectionManager.isSingleSelection) {
+        val video = videoSelectionManager.getSelectedItems().firstOrNull()
+        if (video != null) {
+          val baseName = video.displayName.substringBeforeLast('.')
+          val extension = "." + video.displayName.substringAfterLast('.', "")
+          RenameDialog(
+            isOpen = true,
+            onDismiss = { renameDialogOpen.value = false },
+            onConfirm = { newName -> videoSelectionManager.renameSelected(newName) },
+            currentName = baseName,
+            itemType = "file",
+            extension = if (extension != ".") extension else null,
+          )
+        }
+      }
      }
 
      // Video Compressor Overlay (for file system browser)
@@ -961,20 +980,57 @@ fun FileSystemBrowserScreen(path: String? = null) {
       onDismiss = { folderPickerOpen.value = false },
       onFolderSelected = { destinationPath ->
         folderPickerOpen.value = false
-        val selectedVideos = videoSelectionManager.getSelectedItems()
-        if (selectedVideos.isNotEmpty() && operationType.value != null) {
-          progressDialogOpen.value = true
+        val op = operationType.value
+        if (op != null) {
           coroutineScope.launch {
-            when (operationType.value) {
-              is CopyPasteOps.OperationType.Copy -> {
-                CopyPasteOps.copyFiles(context, selectedVideos, destinationPath)
+            if (folderSelectionManager.isInSelectionMode) {
+              val selectedFolders = folderSelectionManager.getSelectedItems()
+              if (selectedFolders.isNotEmpty()) {
+                when (op) {
+                  is CopyPasteOps.OperationType.Move -> {
+                    val needFallback = mutableListOf<FileSystemItem.Folder>()
+                    for (folder in selectedFolders) {
+                      val dst = File(destinationPath, folder.name)
+                      if (!File(folder.path).renameTo(dst)) needFallback.add(folder)
+                    }
+                    if (needFallback.isNotEmpty()) {
+                      progressDialogOpen.value = true
+                      for (folder in needFallback) {
+                        val videos = collectVideosRecursively(context, folder.path)
+                        if (videos.isNotEmpty()) {
+                          val subDest = File(destinationPath, folder.name).also { it.mkdirs() }.absolutePath
+                          CopyPasteOps.moveFiles(context, videos, subDest)
+                        }
+                      }
+                    } else {
+                      viewModel.setItemsWereDeletedOrMoved()
+                      folderSelectionManager.clear()
+                      viewModel.refresh()
+                    }
+                  }
+                  is CopyPasteOps.OperationType.Copy -> {
+                    progressDialogOpen.value = true
+                    for (folder in selectedFolders) {
+                      val videos = collectVideosRecursively(context, folder.path)
+                      if (videos.isNotEmpty()) {
+                        val subDest = File(destinationPath, folder.name).also { it.mkdirs() }.absolutePath
+                        CopyPasteOps.copyFiles(context, videos, subDest)
+                      }
+                    }
+                  }
+                  else -> {}
+                }
               }
-
-              is CopyPasteOps.OperationType.Move -> {
-                CopyPasteOps.moveFiles(context, selectedVideos, destinationPath)
+            } else {
+              val selectedVideos = videoSelectionManager.getSelectedItems()
+              if (selectedVideos.isNotEmpty()) {
+                progressDialogOpen.value = true
+                when (op) {
+                  is CopyPasteOps.OperationType.Copy -> CopyPasteOps.copyFiles(context, selectedVideos, destinationPath)
+                  is CopyPasteOps.OperationType.Move -> CopyPasteOps.moveFiles(context, selectedVideos, destinationPath)
+                  else -> {}
+                }
               }
-
-              else -> {}
             }
           }
         }
@@ -1000,6 +1056,7 @@ fun FileSystemBrowserScreen(path: String? = null) {
           }
           operationType.value = null
           videoSelectionManager.clear()
+          folderSelectionManager.clear()
           viewModel.refresh()
         },
       )

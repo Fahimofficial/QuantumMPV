@@ -207,7 +207,7 @@ object RecentlyPlayedScreen : Screen {
       floatingActionButton = {
         FloatingActionButtonMenu(
           modifier = Modifier
-            .padding( bottom = 88.dp),
+            .padding(bottom = navigationBarHeight + 8.dp),
           expanded = isFabExpanded.value,
           button = {
             TooltipBox(
@@ -598,7 +598,7 @@ private fun RecentItemsContent(
                         onVideoClick(item.video)
                       }
                     },
-                    onLongClick = { selectionManager.toggle(item) },
+                    onLongClick = { selectionManager.handleLongClick(item) },
                     onThumbClick = if (tapThumbnailToSelect) {
                       { selectionManager.toggle(item) }
                     } else {
@@ -640,7 +640,7 @@ private fun RecentItemsContent(
                         }
                       }
                     },
-                    onLongClick = { selectionManager.toggle(item) },
+                    onLongClick = { selectionManager.handleLongClick(item) },
                     onThumbClick = {
                       if (tapThumbnailToSelect) {
                         selectionManager.toggle(item)
@@ -709,7 +709,7 @@ private fun RecentItemsContent(
                         onVideoClick(item.video)
                       }
                     },
-                    onLongClick = { selectionManager.toggle(item) },
+                    onLongClick = { selectionManager.handleLongClick(item) },
                     onThumbClick = if (tapThumbnailToSelect) {
                       { selectionManager.toggle(item) }
                     } else {
@@ -750,7 +750,7 @@ private fun RecentItemsContent(
                         }
                       }
                     },
-                    onLongClick = { selectionManager.toggle(item) },
+                    onLongClick = { selectionManager.handleLongClick(item) },
                     onThumbClick = {
                       if (tapThumbnailToSelect) {
                         selectionManager.toggle(item)
