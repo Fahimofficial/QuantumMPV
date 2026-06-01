@@ -332,10 +332,6 @@ class PlayerViewModel(
       "æ¬¡å›ž",
     )
 
-  companion object {
-    private const val AUTO_SHOW_SKIP_CHIP_DURATION = 10.0
-  }
-
   private val _skipSegments = MutableStateFlow<List<SkipSegment>>(emptyList())
   val skipSegments: StateFlow<List<SkipSegment>> = _skipSegments.asStateFlow()
   @Volatile private var skipSegmentsSnapshot: List<SkipSegment> = emptyList()
@@ -1320,10 +1316,11 @@ class PlayerViewModel(
 
   private companion object {
     const val TAG = "PlayerViewModel"
+    const val AUTO_SHOW_SKIP_CHIP_DURATION = 10.0
     const val SEEK_COALESCE_DELAY_MS = 60L
     const val SEEK_THUMBNAIL_MAX_SIZE = 240
-    const val SEEK_THUMBNAIL_CACHE_KB = 16 * 1024
-    const val SEEK_THUMBNAIL_CACHE_BUCKETS_PER_SECOND = 1f
+    const val SEEK_THUMBNAIL_CACHE_KB = 32 * 1024
+    const val SEEK_THUMBNAIL_CACHE_BUCKETS_PER_SECOND = 4f
     const val SEEK_THUMBNAIL_PREFETCH_RADIUS = 2
     const val PLAYLIST_METADATA_PREFETCH_RADIUS = 40
     const val PLAYLIST_METADATA_PREFETCH_LIMIT = 120
@@ -2754,6 +2751,11 @@ class PlayerViewModel(
     positionSeconds: Float,
     durationSeconds: Float,
   ) {
+    if (!playerPreferences.useThumbFastSeekPreview.get()) {
+      hideSeekThumbnailPreview()
+      return
+    }
+
     val clampedPosition =
       if (durationSeconds > 0f) {
         positionSeconds.coerceIn(0f, durationSeconds)
@@ -2790,7 +2792,7 @@ class PlayerViewModel(
         positionSeconds = clampedPosition,
         fraction = fraction,
         bitmap = nearestCachedBitmap ?: it.bitmap,
-        isLoading = nearestCachedBitmap == null && it.bitmap == null,
+        isLoading = cachedBitmap == null,
       )
     }
 
@@ -2856,6 +2858,8 @@ class PlayerViewModel(
   }
 
   private fun warmSeekThumbnailer() {
+    if (!playerPreferences.useThumbFastSeekPreview.get()) return
+
     val source = resolveSeekThumbnailSource() ?: return
     if (source == warmedSeekThumbnailSource) return
     warmedSeekThumbnailSource = source
@@ -2891,6 +2895,8 @@ class PlayerViewModel(
     request: SeekThumbnailRequest,
     bitmap: Bitmap,
   ) {
+    if (request.requestId != seekThumbnailRequestId) return
+
     _seekThumbnailPreview.update { current ->
       if (!current.visible) {
         current

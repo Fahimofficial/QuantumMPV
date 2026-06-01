@@ -214,6 +214,7 @@ fun PlayerControls(
   val showDoubleTapOvals by playerPreferences.showDoubleTapOvals.collectAsState()
   val showSeekTime by playerPreferences.showSeekTimeWhileSeeking.collectAsState()
   val showBufferedRange by playerPreferences.showBufferedRange.collectAsState()
+  val useThumbFastSeekPreview by playerPreferences.useThumbFastSeekPreview.collectAsState()
   val safeAreaWindow by playerPreferences.safeAreaWindow.collectAsState()
   val safeAreaInsetModifier =
     if (safeAreaWindow) {
@@ -315,6 +316,12 @@ fun PlayerControls(
   val videoOpenAnim by playerPreferences.videoOpenAnimation.collectAsState()
   val videoOpenAnimState by viewModel.videoOpenAnimationState.collectAsState()
   val animSpeed by playerPreferences.animationSpeed.collectAsState()
+
+  LaunchedEffect(useThumbFastSeekPreview) {
+    if (!useThumbFastSeekPreview) {
+      viewModel.hideSeekThumbnailPreview()
+    }
+  }
 
   val transparentOverlay by animateFloatAsState(
     if (controlsShown && !areControlsLocked) .8f else 0f,
@@ -1305,7 +1312,12 @@ fun PlayerControls(
         ) {
           val invertDuration by playerPreferences.invertDuration.collectAsState()
           val seekbarStyle by appearancePreferences.seekbarStyle.collectAsState()
-          val displayedSeekbarPosition = if (seekPreview.visible) seekPreview.positionSeconds else precisePosition
+          val displayedSeekbarPosition =
+            if (useThumbFastSeekPreview && seekPreview.visible) {
+              seekPreview.positionSeconds
+            } else {
+              precisePosition
+            }
 
           SeekbarWithTimers(
             position = displayedSeekbarPosition,
@@ -1313,13 +1325,19 @@ fun PlayerControls(
             onValueChange = {
               isSeeking = true
               resetControlsTimestamp = System.currentTimeMillis()
-              viewModel.updateSeekThumbnailPreview(it, seekbarDuration)
+              if (useThumbFastSeekPreview) {
+                viewModel.updateSeekThumbnailPreview(it, seekbarDuration)
+              } else {
+                viewModel.seekTo(it.toInt())
+              }
             },
             onValueChangeFinished = { targetPosition ->
               isSeeking = false
               resetControlsTimestamp = System.currentTimeMillis()
-              viewModel.hideSeekThumbnailPreview()
-              viewModel.seekTo(targetPosition.toInt())
+              if (useThumbFastSeekPreview) {
+                viewModel.hideSeekThumbnailPreview()
+                viewModel.seekTo(targetPosition.toInt())
+              }
               viewModel.showControls()
             },
             timersInverted = Pair(false, invertDuration),
@@ -1342,7 +1360,7 @@ fun PlayerControls(
         SeekThumbnailPreviewBubble(
           position = seekPreview.positionSeconds,
           duration = seekbarDuration,
-          visible = seekPreview.visible && !areControlsLocked,
+          visible = useThumbFastSeekPreview && seekPreview.visible && !areControlsLocked,
           bitmap = seekPreview.bitmap,
           isLoading = seekPreview.isLoading,
           isPortrait = isPortrait,

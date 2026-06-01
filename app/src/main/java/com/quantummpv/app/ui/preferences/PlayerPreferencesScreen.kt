@@ -294,6 +294,21 @@ object PlayerPreferencesScreen : Screen {
 
               PreferenceDivider()
 
+              val useThumbFastSeekPreview by preferences.useThumbFastSeekPreview.collectAsState()
+              SwitchPreference(
+                value = useThumbFastSeekPreview,
+                onValueChange = preferences.useThumbFastSeekPreview::set,
+                title = { Text(stringResource(R.string.pref_player_seek_preview_thumbfast_title)) },
+                summary = {
+                  Text(
+                    stringResource(R.string.pref_player_seek_preview_thumbfast_summary),
+                    color = MaterialTheme.colorScheme.outline,
+                  )
+                },
+              )
+
+              PreferenceDivider()
+
               val customSkipDuration by preferences.customSkipDuration.collectAsState()
               SliderPreference(
                 value = customSkipDuration.toFloat(),

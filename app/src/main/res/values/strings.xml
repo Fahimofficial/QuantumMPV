@@ -154,6 +154,8 @@
   <string name="pref_player_custom_skip_duration_title">Custom skip duration</string>
   <string name="pref_player_custom_skip_duration_summary">Duration to skip forward on custom skip button</string>
   <string name="pref_player_seeking_title">Seeking</string>
+  <string name="pref_player_seek_preview_thumbfast_title">Use ThumbFast seek preview</string>
+  <string name="pref_player_seek_preview_thumbfast_summary">Show a fast thumbnail bubble while scrubbing. Turn off for legacy live video seeking.</string>
   <string name="pref_player_close_after_eof">Close after the end of playback</string>
   <string name="pref_player_remember_brightness">Remember display brightness</string>
   <string name="pref_player_gestures">Gestures</string>
@@ -223,6 +225,13 @@
   <string name="pref_custom_lua_summary">Manage script-powered player buttons</string>
   <string name="pref_preferred_languages">Preferred languages</string>
   <string name="pref_subtitles_fonts_dir">Fonts directory</string>
+  <string name="pref_subtitles_font_title">Subtitle font</string>
+  <string name="pref_subtitles_font_summary">Selected: %1$s</string>
+  <string name="pref_subtitles_font_default">Default</string>
+  <string name="pref_subtitles_font_directory_summary">Choose a folder containing .ttf or .otf subtitle fonts</string>
+  <string name="pref_subtitles_font_directory_selected">Source: %1$s</string>
+  <string name="pref_subtitles_font_no_custom">No custom fonts loaded</string>
+  <string name="pref_subtitles_font_copy_failed">Could not load fonts: %1$s</string>
   <string name="pref_subtitles_autoload_title">Automatically load subtitles</string>
   <string name="pref_subtitles_autoload_summary">Automatically load external subtitles with the same name.</string>
   <string name="pref_subtitles_save_location">Subtitle Save Location</string>
@@ -447,6 +456,7 @@
   <string name="not_set_system_fonts">Not set (using system fonts)</string>
   <string name="fonts_loaded">%1$d fonts loaded</string>
   <string name="reload_fonts">Reload fonts</string>
+  <string name="reload_fonts_summary">Rescan the selected source folder and refresh the font list</string>
   <string name="clear_font_directory">Clear font directory</string>
   <string name="reset_to_default_font">Reset to default font</string>
   <string name="set_as_default">Set as default</string>
@@ -607,6 +617,7 @@
   <!-- ═══════════════════════════════════════════════════════════ -->
   <!-- Subtitles Preferences                                      -->
   <!-- ═══════════════════════════════════════════════════════════ -->
+  <string name="pref_section_subtitle_fonts">Fonts</string>
   <string name="pref_section_subtitle_search">Subtitle Search</string>
   <string name="pref_wyzie_api_key_title">Wyzie API Key</string>
   <string name="pref_wyzie_api_key_summary_error">Required for subtitle search</string>

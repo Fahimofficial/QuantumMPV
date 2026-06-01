@@ -4,6 +4,9 @@ import com.quantummpv.app.ui.icons.Icon
 import com.quantummpv.app.ui.icons.Icons
 
 import android.content.Intent
+import android.widget.Toast
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -27,9 +30,11 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextField
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -37,6 +42,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.quantummpv.app.R
 import com.quantummpv.app.preferences.SubtitlesPreferences
@@ -44,7 +50,10 @@ import com.quantummpv.app.preferences.preference.collectAsState
 import com.quantummpv.app.presentation.Screen
 import com.quantummpv.app.ui.utils.LocalBackStack
 import com.quantummpv.app.ui.utils.popSafely
+import com.quantummpv.app.utils.media.copyFontsFromDirectory
+import com.quantummpv.app.utils.media.loadCustomFontEntries
 import com.quantummpv.app.utils.media.resolveSubtitleStorageDirectory
+import com.github.k1rakishou.fsaf.FileManager
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -62,6 +71,7 @@ import com.quantummpv.app.repository.subtitle.OnlineSubtitleSearchMode
 import com.quantummpv.app.repository.subtitlehub.MpvRxSubtitleHubSources
 import com.quantummpv.app.repository.wyzie.WyzieLanguages
 import org.koin.compose.koinInject
+import java.io.File
 
 @Serializable
 object SubtitlesPreferencesScreen : Screen {
@@ -71,6 +81,52 @@ object SubtitlesPreferencesScreen : Screen {
     val context = LocalContext.current
     val backstack = LocalBackStack.current
     val preferences = koinInject<SubtitlesPreferences>()
+    val fileManager = koinInject<FileManager>()
+    val scope = rememberCoroutineScope()
+    var fontRefreshKey by remember { mutableStateOf(0) }
+
+    fun reloadFontsFrom(uriString: String) {
+      if (uriString.isBlank()) return
+      scope.launch(Dispatchers.IO) {
+        val copiedFonts = copyFontsFromDirectory(context, fileManager, uriString)
+        withContext(Dispatchers.Main) {
+          fontRefreshKey++
+          Toast.makeText(
+            context,
+            if (copiedFonts > 0) {
+              context.getString(R.string.fonts_loaded, copiedFonts)
+            } else {
+              context.getString(R.string.pref_subtitles_font_no_custom)
+            },
+            Toast.LENGTH_SHORT,
+          ).show()
+        }
+      }
+    }
+
+    val fontFolderPicker =
+      rememberLauncherForActivityResult(
+        ActivityResultContracts.OpenDocumentTree(),
+      ) { uri: Uri? ->
+        if (uri == null) return@rememberLauncherForActivityResult
+
+        runCatching {
+          context.contentResolver.takePersistableUriPermission(
+            uri,
+            Intent.FLAG_GRANT_READ_URI_PERMISSION,
+          )
+        }.onFailure { error ->
+          Toast.makeText(
+            context,
+            context.getString(R.string.pref_subtitles_font_copy_failed, error.message ?: "Unknown error"),
+            Toast.LENGTH_SHORT,
+          ).show()
+        }
+
+        val uriString = uri.toString()
+        preferences.fontsFolder.set(uriString)
+        reloadFontsFrom(uriString)
+      }
 
     Scaffold(
       topBar = {
@@ -99,6 +155,8 @@ object SubtitlesPreferencesScreen : Screen {
     ) { padding ->
       ProvidePreferenceLocals {
         val subtitleSaveFolder by preferences.subtitleSaveFolder.collectAsState()
+        val fontsFolder by preferences.fontsFolder.collectAsState()
+        val selectedFont by preferences.font.collectAsState()
         val wyzieHearingImpaired by preferences.wyzieHearingImpaired.collectAsState()
         val wyzieSources by preferences.wyzieSources.collectAsState()
         val wyzieFormats by preferences.wyzieFormats.collectAsState()
@@ -107,6 +165,14 @@ object SubtitlesPreferencesScreen : Screen {
         val wyzieAiSubtitles by preferences.wyzieAiSubtitles.collectAsState()
         val onlineSubtitleSearchMode by preferences.onlineSubtitleSearchMode.collectAsState()
         val subtitleHubSources by preferences.subtitleHubSources.collectAsState()
+        var customFonts by remember { mutableStateOf<List<String>>(emptyList()) }
+
+        LaunchedEffect(fontsFolder, fontRefreshKey) {
+          customFonts =
+            loadCustomFontEntries(context)
+              .map { it.familyName }
+              .distinct()
+        }
 
         LazyColumn(
           modifier =
@@ -199,6 +265,132 @@ object SubtitlesPreferencesScreen : Screen {
                 },
               )
 
+            }
+          }
+
+          // === FONT SECTION ===
+          item {
+            PreferenceSectionHeader(title = stringResource(R.string.pref_section_subtitle_fonts))
+          }
+
+          item {
+            PreferenceCard {
+              Preference(
+                title = { Text(stringResource(R.string.pref_subtitles_fonts_dir)) },
+                summary = {
+                  val folderSummary =
+                    if (fontsFolder.isBlank()) {
+                      stringResource(R.string.pref_subtitles_font_directory_summary)
+                    } else {
+                      val displayPath =
+                        runCatching { getSimplifiedPathFromUri(fontsFolder) }
+                          .getOrElse { Uri.decode(fontsFolder) ?: fontsFolder }
+                      stringResource(R.string.pref_subtitles_font_directory_selected, displayPath)
+                    }
+                  Text(
+                    text = folderSummary,
+                    color = MaterialTheme.colorScheme.outline,
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis,
+                  )
+                },
+                icon = {
+                  Icon(
+                    Icons.Default.Folder,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.primary,
+                  )
+                },
+                onClick = { fontFolderPicker.launch(null) },
+              )
+
+              PreferenceDivider()
+
+              val fontValues =
+                remember(customFonts, selectedFont) {
+                  (listOf("") + customFonts + listOf(selectedFont).filter { it.isNotBlank() }).distinct()
+                }
+              val fontValue = if (selectedFont in fontValues) selectedFont else ""
+              val fontLabel =
+                if (selectedFont.isBlank()) {
+                  stringResource(R.string.pref_subtitles_font_default)
+                } else {
+                  selectedFont
+                }
+
+              ListPreference(
+                value = fontValue,
+                onValueChange = preferences.font::set,
+                values = fontValues,
+                valueToText = {
+                  AnnotatedString(it.ifBlank { context.getString(R.string.pref_subtitles_font_default) })
+                },
+                title = { Text(stringResource(R.string.pref_subtitles_font_title)) },
+                summary = {
+                  Column {
+                    Text(
+                      stringResource(R.string.pref_subtitles_font_summary, fontLabel),
+                      color = MaterialTheme.colorScheme.outline,
+                    )
+                    Text(
+                      if (customFonts.isEmpty()) {
+                        stringResource(R.string.pref_subtitles_font_no_custom)
+                      } else {
+                        stringResource(R.string.fonts_loaded, customFonts.size)
+                      },
+                      color = MaterialTheme.colorScheme.outline,
+                      style = MaterialTheme.typography.bodySmall,
+                    )
+                  }
+                },
+              )
+
+              PreferenceDivider()
+
+              Preference(
+                title = { Text(stringResource(R.string.reload_fonts)) },
+                summary = {
+                  Text(
+                    stringResource(R.string.reload_fonts_summary),
+                    color = MaterialTheme.colorScheme.outline,
+                  )
+                },
+                icon = {
+                  Icon(
+                    Icons.Default.Refresh,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.primary,
+                  )
+                },
+                enabled = fontsFolder.isNotBlank(),
+                onClick = { reloadFontsFrom(fontsFolder) },
+              )
+
+              if (fontsFolder.isNotBlank() || selectedFont.isNotBlank() || customFonts.isNotEmpty()) {
+                PreferenceDivider()
+
+                Preference(
+                  title = {
+                    Text(
+                      stringResource(R.string.clear_font_directory),
+                      color = MaterialTheme.colorScheme.error,
+                    )
+                  },
+                  icon = {
+                    Icon(
+                      Icons.Default.Clear,
+                      contentDescription = null,
+                      tint = MaterialTheme.colorScheme.error,
+                    )
+                  },
+                  onClick = {
+                    preferences.fontsFolder.set("")
+                    preferences.font.set("")
+                    File(context.filesDir, "fonts").deleteRecursively()
+                    fontRefreshKey++
+                  },
+                )
+              }
             }
           }
 

@@ -17,10 +17,11 @@ fun copyFontsFromDirectory(
   context: Context,
   fileManager: FileManager,
   uriString: String,
-) {
-  runCatching {
+): Int {
+  return runCatching {
     val destinationPath = context.filesDir.path + "/fonts"
     val destinationDir = fileManager.fromPath(destinationPath)
+    var copiedCount = 0
 
     if (!fileManager.exists(destinationDir)) {
       File(destinationPath).mkdirs()
@@ -31,19 +32,21 @@ fun copyFontsFromDirectory(
       fileManager.listFiles(sourceDir).forEach { file ->
         if (fileManager.isFile(file)) {
           val fileName = fileManager.getName(file)
-          if (fileName.lowercase().matches(".*\\.[ot]tf$".toRegex())) {
+          if (fileName.lowercase(Locale.ROOT).matches(".*\\.(ttf|otf|ttc)$".toRegex())) {
             val inputStream = fileManager.getInputStream(file) ?: return@forEach
             val outputFile = File(destinationPath, fileName)
             outputFile.outputStream().use { outputStream ->
               inputStream.use { it.copyTo(outputStream) }
             }
+            copiedCount++
           }
         }
       }
     }
+    copiedCount
   }.onFailure { e ->
     Log.e("SubtitlesPreferences", "Error copying fonts", e)
-  }
+  }.getOrDefault(0)
 }
 
 // getSimplifiedPathFromUri is defined in AdvancedPreferencesScreen.kt within this package.
@@ -66,7 +69,7 @@ suspend fun loadCustomFontEntries(context: Context): List<CustomFontEntry> =
     val fontFiles =
       fontsDir
         .listFiles()
-        ?.filter { it.isFile && it.name.lowercase(Locale.ROOT).matches(".*\\.[ot]tf$".toRegex()) }
+        ?.filter { it.isFile && it.name.lowercase(Locale.ROOT).matches(".*\\.(ttf|otf|ttc)$".toRegex()) }
         .orEmpty()
 
     val entries = mutableListOf<CustomFontEntry>()

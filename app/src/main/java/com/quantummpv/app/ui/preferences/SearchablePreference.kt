@@ -241,6 +241,13 @@ object SearchablePreferences {
                 screen = PlayerPreferencesScreen,
             ))
             add(SearchablePreference(
+                titleRes = R.string.pref_player_seek_preview_thumbfast_title,
+                summaryRes = R.string.pref_player_seek_preview_thumbfast_summary,
+                keywords = listOf("thumbfast", "seek", "preview", "thumbnail", "scrub", "legacy"),
+                category = "Player",
+                screen = PlayerPreferencesScreen,
+            ))
+            add(SearchablePreference(
                 titleRes = R.string.pref_player_custom_skip_duration_title,
                 summaryRes = R.string.pref_player_custom_skip_duration_summary,
                 keywords = listOf("custom skip", "skip duration", "forward", "seek", "seconds", "jump"),
@@ -570,9 +577,17 @@ object SearchablePreferences {
             ))
             add(SearchablePreference(
                 titleRes = R.string.pref_subtitles_fonts_dir,
+                summaryRes = R.string.pref_subtitles_font_directory_summary,
                 keywords = listOf("fonts", "directory", "subtitle", "custom", "folder"),
-                category = "Storage",
-                screen = FoldersPreferencesScreen,
+                category = "Subtitles",
+                screen = SubtitlesPreferencesScreen,
+            ))
+            add(SearchablePreference(
+                titleRes = R.string.pref_subtitles_font_title,
+                summaryRes = R.string.pref_subtitles_font_no_custom,
+                keywords = listOf("font", "fonts", "family", "subtitle", "typography", "custom"),
+                category = "Subtitles",
+                screen = SubtitlesPreferencesScreen,
             ))
             add(SearchablePreference(
                 titleRes = R.string.pref_subtitles_save_location,

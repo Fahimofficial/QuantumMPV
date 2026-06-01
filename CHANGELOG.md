@@ -2,6 +2,37 @@
 
 These notes are written in plain English and focus on what changed for real use.
 
+## 1.4.0
+
+### Player And Seek Preview
+
+- added the ThumbFast-style seek preview UI and thumbnail cache improvements.
+- restored the legacy live-video seek preview path and added a Player setting to switch between ThumbFast thumbnail preview and legacy live seeking.
+- tightened ThumbFast preview accuracy by using smaller preview time buckets and preventing stale thumbnail requests from replacing the newest preview frame.
+- fixed glitched player vector icons and tightened subtitle/notch safe-area behavior.
+-  improved launch smoothness and predictive back behavior.
+
+### Subtitles
+
+-  added subtitle font management in Settings > Subtitles: choose a fonts directory, see the selected source folder, reload fonts, clear the font cache, and select the default subtitle font.
+-  added custom subtitle border styles and a shadow offset slider.
+- **Arnab Sadhukhan** added subtitle zoom gestures.
+- **Arnab Sadhukhan** optimized the subtitle pinch hit-zone for multi-line subtitles.
+- **Arnab Sadhukhan** added horizontal swipe on subtitles to seek dialog lines.
+
+### Browser, Library, And Storage
+
+- implemented the unified Media Library view mode.
+- added multi-select range handling, folder copy/move/rename, and SMB mutex/reconnection guards.
+- redesigned settings sections and moved progress-related options into cleaner places.
+- fixed segmented button unchecked color handling.
+- fixed Lua script copy behavior.
+
+### Gestures And Quality Of Life
+
+- **Arnab Sadhukhan** added the playlist swipe-up gesture in the player.
+- **Arnab Sadhukhan** added auto-scroll to the currently selected theme.
+
 ## 1.3.9
 
 > # 🚀 **CURL IS NOW SUPPORTED!** 
