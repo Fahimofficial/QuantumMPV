@@ -21,5 +21,7 @@ class GesturePreferences(
     preferenceStore.getBoolean("center_vertical_subtitle_position_gesture", true)
   val enableCenterSwipeUpGesture =
     preferenceStore.getBoolean("enable_center_swipe_up_gesture", true)
+  val pinchToZoomSubtitles =
+    preferenceStore.getBoolean("pinch_to_zoom_subtitles", true)
 }
 

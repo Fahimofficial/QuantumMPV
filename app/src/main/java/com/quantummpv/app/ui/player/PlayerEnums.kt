@@ -129,6 +129,10 @@ sealed class PlayerUpdates {
 
   data object VideoZoom : PlayerUpdates()
 
+  data class SubtitleZoom(
+    val scale: Float,
+  ) : PlayerUpdates()
+
   data class HorizontalSeek(
     val currentTime: String,
     val seekDelta: String,
