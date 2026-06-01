@@ -123,10 +123,13 @@ fun SubtitleSettingsTypographyCard(
       val fontSize by MPVLib.propInt["sub-font-size"].collectAsState()
       val mpvBorderStyle by MPVLib.propString["sub-border-style"].collectAsState()
       val borderStyle by remember {
-        derivedStateOf { SubtitlesBorderStyle.entries.first { it.value == mpvBorderStyle } }
+        derivedStateOf { SubtitlesBorderStyle.entries.firstOrNull { it.value == mpvBorderStyle } ?: SubtitlesBorderStyle.OutlineAndShadow }
       }
       val borderSize by MPVLib.propInt["sub-outline-size"].collectAsState()
       val shadowOffset by MPVLib.propInt["sub-shadow-offset"].collectAsState()
+      var localShadowOffset by remember(shadowOffset) {
+        mutableStateOf(shadowOffset ?: preferences.shadowOffset.get())
+      }
       Row(
         Modifier
           .fillMaxWidth()
@@ -265,14 +268,18 @@ fun SubtitleSettingsTypographyCard(
       )
       SliderItem(
         stringResource(R.string.player_sheets_subtitles_shadow_offset),
-        value = shadowOffset ?: preferences.shadowOffset.get(),
-        valueText = (shadowOffset ?: preferences.shadowOffset.get()).toString(),
+        value = localShadowOffset.coerceIn(-20, 20),
+        valueText = localShadowOffset.coerceIn(-20, 20).let {
+          if (it > 0) "+$it" else it.toString()
+        },
         onChange = {
+          localShadowOffset = it
           preferences.shadowOffset.set(it)
           MPVLib.setPropertyInt("sub-shadow-offset", it)
           MPVLib.setPropertyInt("secondary-sub-shadow-offset", it)
         },
-        max = 100,
+        min = -20,
+        max = 20,
         icon = { Icon(Icons.Default.Shadow, null) },
       )
     }
@@ -309,6 +316,7 @@ enum class SubtitlesBorderStyle(
 ) {
   OutlineAndShadow("outline-and-shadow", R.string.player_sheets_subtitles_border_style_outline_and_shadow),
   OpaqueBox("opaque-box", R.string.player_sheets_subtitles_border_style_opaque_box),
+  BackgroundBox("background-box", R.string.player_sheets_subtitles_border_style_background_box),
 }
 
 

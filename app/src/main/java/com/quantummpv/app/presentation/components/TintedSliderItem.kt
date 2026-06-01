@@ -48,28 +48,40 @@ fun TintedSliderItem(
     horizontalArrangement = Arrangement.spacedBy(MaterialTheme.spacing.large),
   ) {
     icon()
-    Column(modifier = Modifier.weight(0.5f)) {
-      Text(
-        text = label,
-        style = MaterialTheme.typography.bodyMedium,
-      )
-      Text(valueText)
-    }
+    Column(
+      modifier = Modifier.weight(1f),
+      verticalArrangement = Arrangement.spacedBy(MaterialTheme.spacing.extraSmall),
+    ) {
+      Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically,
+      ) {
+        Text(
+          text = label,
+          style = MaterialTheme.typography.bodyMedium,
+        )
+        Text(
+          text = valueText,
+          style = MaterialTheme.typography.bodyMedium,
+        )
+      }
 
-    TintedSlider(
-      value = value.toFloat(),
-      onValueChange = {
-        val newValue = it.toInt()
-        if (newValue != value) {
-          onChange(newValue)
-          haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-        }
-      },
-      modifier = Modifier.weight(1.5f),
-      valueRange = min.toFloat()..max.toFloat(),
-      steps = max - min,
-      tint = tint,
-    )
+      TintedSlider(
+        value = value.toFloat(),
+        onValueChange = {
+          val newValue = it.toInt()
+          if (newValue != value) {
+            onChange(newValue)
+            haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+          }
+        },
+        modifier = Modifier.fillMaxWidth(),
+        valueRange = min.toFloat()..max.toFloat(),
+        steps = (max - min - 1).coerceAtLeast(0),
+        tint = tint,
+      )
+    }
   }
 }
 
