@@ -122,10 +122,11 @@ fun MpvScriptEditor(
 private class SafeCodeEditor(context: Context) : CodeEditor(context) {
   override fun copyTextToClipboard(
     text: CharSequence,
-    line: Int,
-    column: Int,
+    start: Int,
+    end: Int,
   ) {
-    SafeClipboard.copyPlainText(context, "Editor selection", text, showToast = true)
+    val textToCopy = if (end > start) text.subSequence(start, end) else text
+    SafeClipboard.copyPlainText(context, "Editor selection", textToCopy, showToast = true)
   }
 }
 
