@@ -136,6 +136,15 @@ object GesturePreferencesScreen : Screen {
 
               PreferenceDivider()
 
+              val swipeSubtitlesToSeekDialog by preferences.swipeSubtitlesToSeekDialog.collectAsState()
+              SwitchPreference(
+                value = swipeSubtitlesToSeekDialog,
+                onValueChange = preferences.swipeSubtitlesToSeekDialog::set,
+                title = { Text(stringResource(R.string.pref_player_gestures_swipe_subtitles_to_seek_dialog)) },
+              )
+
+              PreferenceDivider()
+
               val horizontalSwipeToSeek by playerPreferences.horizontalSwipeToSeek.collectAsState()
               SwitchPreference(
                 value = horizontalSwipeToSeek,

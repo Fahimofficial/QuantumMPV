@@ -110,6 +110,7 @@ fun GestureHandler(
   val centerVerticalSubtitlePositionGesture by gesturePreferences.centerVerticalSubtitlePositionGesture.collectAsState()
   val enableCenterSwipeUpGesture by gesturePreferences.enableCenterSwipeUpGesture.collectAsState()
   val pinchToZoomSubtitles by gesturePreferences.pinchToZoomSubtitles.collectAsState()
+  val swipeSubtitlesToSeekDialog by gesturePreferences.swipeSubtitlesToSeekDialog.collectAsState()
   var isDoubleTapSeeking by remember { mutableStateOf(false) }
   var lastSeekRegion by remember { mutableStateOf<String?>(null) }
   var lastSeekTime by remember { mutableStateOf<Long?>(null) }
@@ -1003,13 +1004,27 @@ fun GestureHandler(
           } while (event.changes.any { it.pressed })
         }
       }
-      .pointerInput(horizontalSwipeToSeek, areControlsLocked, gesturePreferences, isVerticalGestureActive) {
+      .pointerInput(horizontalSwipeToSeek, areControlsLocked, gesturePreferences, isVerticalGestureActive, swipeSubtitlesToSeekDialog) {
         if (!horizontalSwipeToSeek || areControlsLocked || isVerticalGestureActive) return@pointerInput
 
         awaitEachGesture {
           val down = awaitFirstDown(requireUnconsumed = false)
           val startPosition = down.position
           val startTime = System.currentTimeMillis()
+
+          val hasActiveSubtitle = getTrackSelectionId("sid") > 0 || getTrackSelectionId("secondary-sid") > 0
+          val subPos = MPVLib.getPropertyInt("sub-pos") ?: subtitlesPreferences.subPos.get()
+          val subtitleScreenY = (size.height - (100 - subPos) / 0.08f).coerceIn(0f, size.height.toFloat())
+
+          val isCenterTouchX = startPosition.x in (size.width * 0.2f)..(size.width * 0.8f)
+          val subScale = MPVLib.getPropertyFloat("sub-scale") ?: subtitlesPreferences.subScale.get()
+          val scaleMultiplier = subScale.coerceIn(0.75f, 1.25f)
+          val lowerBound = -50f * scaleMultiplier
+          val upperBound = 200f * scaleMultiplier
+          val isSubtitleTouchY = (subtitleScreenY - startPosition.y) in lowerBound..upperBound
+
+          val isSubtitleTouch = swipeSubtitlesToSeekDialog && hasActiveSubtitle && isCenterTouchX && isSubtitleTouchY
+
           
           var gestureType: String? = null
           var hasStartedSeeking = false
@@ -1029,6 +1044,22 @@ fun GestureHandler(
                   val deltaX = currentPosition.x - startPosition.x
                   val deltaY = currentPosition.y - startPosition.y
                   val timeSinceStart = System.currentTimeMillis() - startTime
+
+                  if (gestureType == null && isSubtitleTouch && abs(deltaX) > 40f && abs(deltaX) > abs(deltaY) * 2f) {
+                    gestureType = "subtitle_dialog_seek"
+                    hasStartedSeeking = true
+                    val direction = if (deltaX > 0) "1" else "-1"
+                    MPVLib.command("sub-seek", direction)
+                    haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                    viewModel.playerUpdate.update {
+                      PlayerUpdates.ShowText(if (deltaX > 0) "Next Dialog" else "Prev Dialog")
+                    }
+                    change.consume()
+                  }
+
+                  if (gestureType == "subtitle_dialog_seek") {
+                    change.consume()
+                  }
 
                   // Only activate if this is clearly a horizontal gesture
                   // and not conflicting with other gestures
@@ -1088,7 +1119,9 @@ fun GestureHandler(
                 // Clean up seeking state without showing controls
                 viewModel.hideSeekThumbnailPreview()
                 viewModel.playerUpdate.update { PlayerUpdates.None }
-                viewModel.hideSeekBar()
+                if (gestureType == "horizontal_seek") {
+                  viewModel.hideSeekBar()
+                }
               }
               break
             }
@@ -1098,11 +1131,18 @@ fun GestureHandler(
           if (hasStartedSeeking) {
             pendingSeekPosition?.let { viewModel.seekTo(it.toInt()) }
             viewModel.hideSeekThumbnailPreview()
-            // Clear the horizontal seek update and hide seekbar after a short delay
-            coroutineScope.launch {
-              delay(300)
-              viewModel.playerUpdate.update { PlayerUpdates.None }
-              viewModel.hideSeekBar()
+            if (gestureType == "subtitle_dialog_seek") {
+              coroutineScope.launch {
+                delay(300)
+                viewModel.playerUpdate.update { PlayerUpdates.None }
+              }
+            } else {
+              // Clear the horizontal seek update and hide seekbar after a short delay
+              coroutineScope.launch {
+                delay(300)
+                viewModel.playerUpdate.update { PlayerUpdates.None }
+                viewModel.hideSeekBar()
+              }
             }
           }
         }
