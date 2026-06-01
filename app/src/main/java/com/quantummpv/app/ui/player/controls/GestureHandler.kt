@@ -109,6 +109,7 @@ fun GestureHandler(
   val doubleTapSeekAreaWidth by gesturePreferences.doubleTapSeekAreaWidth.collectAsState()
   val centerVerticalSubtitlePositionGesture by gesturePreferences.centerVerticalSubtitlePositionGesture.collectAsState()
   val enableCenterSwipeUpGesture by gesturePreferences.enableCenterSwipeUpGesture.collectAsState()
+  val pinchToZoomSubtitles by gesturePreferences.pinchToZoomSubtitles.collectAsState()
   var isDoubleTapSeeking by remember { mutableStateOf(false) }
   var lastSeekRegion by remember { mutableStateOf<String?>(null) }
   var lastSeekTime by remember { mutableStateOf<Long?>(null) }
@@ -791,7 +792,7 @@ fun GestureHandler(
           }
         }
       }
-      .pointerInput(pinchToZoomGesture, panAndZoomEnabled, areControlsLocked, isVerticalGestureActive) {
+      .pointerInput(pinchToZoomGesture, pinchToZoomSubtitles, panAndZoomEnabled, areControlsLocked, isVerticalGestureActive) {
         if (!pinchToZoomGesture || areControlsLocked || isVerticalGestureActive) return@pointerInput
 
         // Helper: get video display dimensions at 1x (how mpv fits the video to screen)
@@ -838,6 +839,11 @@ fun GestureHandler(
           var prevMidY = 0f
           val panSmooth = floatArrayOf(0f, 0f, 0f) // smoothX, smoothY, initialized
 
+          var isSubZoomMode = false
+          var initialSubScale = 1.0f
+          var initialDist = 1.0f
+          var lastCalculatedSubScale = 1.0f
+
           awaitFirstDown(requireUnconsumed = false)
 
           do {
@@ -856,25 +862,52 @@ fun GestureHandler(
               if (prevDist == 0f) {
                 // First frame — capture baseline
                 prevDist = dist
-                zoom = MPVLib.getPropertyDouble("video-zoom")?.toFloat() ?: 0f
                 prevMidX = midX
                 prevMidY = midY
-              } else {
-                // Activate on significant pinch movement
-                if (!gestureStarted && abs(dist - prevDist) > 5f) {
-                  gestureStarted = true
-                  viewModel.playerUpdate.update { PlayerUpdates.VideoZoom }
+
+                val hasActiveSub = getTrackSelectionId("sid") > 0 || getTrackSelectionId("secondary-sid") > 0
+                val subPos = MPVLib.getPropertyInt("sub-pos") ?: subtitlesPreferences.subPos.get()
+                val subtitleScreenY = (size.height - (100 - subPos) / 0.08f).coerceIn(0f, size.height.toFloat())
+                val isSubtitlePinch = abs(midY - subtitleScreenY) <= 100f
+
+                if (pinchToZoomSubtitles && hasActiveSub && isSubtitlePinch) {
+                  isSubZoomMode = true
+                  initialSubScale = MPVLib.getPropertyFloat("sub-scale") ?: subtitlesPreferences.subScale.get()
+                  initialDist = dist
+                  lastCalculatedSubScale = initialSubScale
+                } else {
+                  isSubZoomMode = false
+                  zoom = MPVLib.getPropertyDouble("video-zoom")?.toFloat() ?: 0f
                 }
+              } else {
+                if (isSubZoomMode) {
+                  if (!gestureStarted && abs(dist - initialDist) > 5f) {
+                    gestureStarted = true
+                  }
 
-                if (gestureStarted) {
-                  // Per-frame zoom: small delta from previous distance → naturally smooth
-                  val zoomDelta = ln((dist / prevDist).toDouble()).toFloat() * 1.2f
-                  zoom = (zoom + zoomDelta).coerceIn(-1f, 3f)
-                  viewModel.setVideoZoom(zoom)
+                  if (gestureStarted && initialDist > 0f) {
+                    val currentSubScale = (initialSubScale * (dist / initialDist)).coerceIn(0.5f, 5.0f)
+                    lastCalculatedSubScale = currentSubScale
+                    MPVLib.setPropertyFloat("sub-scale", currentSubScale)
+                    viewModel.playerUpdate.update { PlayerUpdates.SubtitleZoom(currentSubScale) }
+                  }
+                } else {
+                  // Activate on significant pinch movement
+                  if (!gestureStarted && abs(dist - prevDist) > 5f) {
+                    gestureStarted = true
+                    viewModel.playerUpdate.update { PlayerUpdates.VideoZoom }
+                  }
 
-                  // Simultaneous pan while pinching
-                  if (panAndZoomEnabled) {
-                    applyPan(midX - prevMidX, midY - prevMidY, 2f.pow(zoom), panSmooth)
+                  if (gestureStarted) {
+                    // Per-frame zoom: small delta from previous distance → naturally smooth
+                    val zoomDelta = ln((dist / prevDist).toDouble()).toFloat() * 1.2f
+                    zoom = (zoom + zoomDelta).coerceIn(-1f, 3f)
+                    viewModel.setVideoZoom(zoom)
+
+                    // Simultaneous pan while pinching
+                    if (panAndZoomEnabled) {
+                      applyPan(midX - prevMidX, midY - prevMidY, 2f.pow(zoom), panSmooth)
+                    }
                   }
                 }
 
@@ -888,6 +921,12 @@ fun GestureHandler(
               break
             }
           } while (event.changes.any { it.pressed })
+
+          if (isSubZoomMode && gestureStarted) {
+            subtitlesPreferences.subScale.set(lastCalculatedSubScale)
+          }
+
+          viewModel.playerUpdate.update { PlayerUpdates.None }
         }
       }
       // Single-finger pan (only when Pan & Zoom enabled and zoomed in)

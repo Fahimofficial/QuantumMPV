@@ -339,7 +339,7 @@ fun PlayerControls(
         modifier =
           Modifier
             .align(Alignment.TopStart)
-            .windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Top + WindowInsetsSides.Horizontal))
+            .then(safeAreaInsetModifier)
             .padding(top = 16.dp, start = 14.dp),
       )
     }
@@ -552,6 +552,7 @@ fun PlayerControls(
           is PlayerUpdates.DynamicSpeedControl  -> showHoldSpeedOverlay
           is PlayerUpdates.AspectRatio           -> showAspectRatioOverlay
           is PlayerUpdates.VideoZoom             -> showZoomLevelOverlay
+          is PlayerUpdates.SubtitleZoom          -> showZoomLevelOverlay
           is PlayerUpdates.RepeatMode,
           is PlayerUpdates.Shuffle               -> showRepeatShuffleOverlay
           is PlayerUpdates.ShowText              -> showActionFeedbackOverlay
@@ -669,6 +670,14 @@ fun PlayerControls(
               val zoomPercentage = (videoZoom * 100).toInt()
               TextPlayerUpdate(
                 text = String.format("Zoom:%3d%%", zoomPercentage),
+                modifier = Modifier.widthIn(min = 112.dp),
+              )
+            }
+
+            is PlayerUpdates.SubtitleZoom -> {
+              val scaleVal = (currentPlayerUpdate as PlayerUpdates.SubtitleZoom).scale
+              TextPlayerUpdate(
+                text = String.format("Sub: %.2fx", scaleVal),
                 modifier = Modifier.widthIn(min = 112.dp),
               )
             }
