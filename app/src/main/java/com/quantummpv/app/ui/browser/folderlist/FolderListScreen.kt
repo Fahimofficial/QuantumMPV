@@ -255,10 +255,31 @@ object FolderListScreen : Screen {
       items = sortedFolders,
       getId = { it.bucketId },
       onDeleteItems = { folders, _ ->
-        val ids = folders.map { it.bucketId }.toSet()
-        val videos = com.quantummpv.app.repository.MediaFileRepository.getVideosForBuckets(context, ids)
-        viewModel.deleteVideos(videos)
-        Pair(videos.size, 0)
+        var deleted = 0
+        var failed = 0
+        for (folder in folders) {
+          try {
+            val ids = setOf(folder.bucketId)
+            val videos = com.quantummpv.app.repository.MediaFileRepository.getVideosForBuckets(context, ids)
+            if (videos.isNotEmpty()) {
+              val (d, f) = viewModel.deleteVideos(videos)
+              deleted += d
+              failed += f
+            }
+            val dir = java.io.File(folder.path)
+            if (dir.exists()) {
+              if (dir.deleteRecursively()) {
+                deleted++
+              } else {
+                failed++
+              }
+            }
+          } catch (e: Exception) {
+            Log.e("FolderListScreen", "Error deleting folder ${folder.path}", e)
+            failed++
+          }
+        }
+        Pair(deleted, failed)
       },
       onOperationComplete = { viewModel.refresh() },
     )

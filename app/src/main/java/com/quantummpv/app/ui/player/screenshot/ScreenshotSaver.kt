@@ -30,8 +30,6 @@ enum class ScreenshotFormat(
   JPG("JPG", "jpg", "jpg", "image/jpeg", true),
   JPEG("JPEG", "jpeg", "jpeg", "image/jpeg", true),
   WEBP("WebP", "webp", "webp", "image/webp", true),
-  JXL("JPEG XL", "jxl", "jxl", "image/jxl", false),
-  AVIF("AVIF", "avif", "avif", "image/avif", false),
 }
 
 data class ScreenshotSettings(
@@ -81,7 +79,7 @@ object ScreenshotSaver {
         )
         val tempFile = captureNative(context, settings, includeSubtitles)
           ?: captureWithAndroidFallback(context, settings, includeSubtitles)
-          ?: error("mpv did not create a ${settings.format.title} screenshot")
+          ?: error("mpv does not support ${settings.format.title} format on this device")
 
         saveToPictures(context, tempFile, displayName, settings.format).also {
           tempFile.delete()
@@ -155,9 +153,7 @@ object ScreenshotSaver {
         } else {
           Bitmap.CompressFormat.WEBP
         }
-      ScreenshotFormat.PNG,
-      ScreenshotFormat.JXL,
-      ScreenshotFormat.AVIF -> Bitmap.CompressFormat.PNG
+      ScreenshotFormat.PNG -> Bitmap.CompressFormat.PNG
     }
 
   private fun ScreenshotSettings.compressQuality(): Int =
