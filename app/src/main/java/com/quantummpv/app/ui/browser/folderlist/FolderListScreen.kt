@@ -25,6 +25,7 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
@@ -87,6 +88,8 @@ import com.quantummpv.app.ui.browser.cards.VideoCard
 import com.quantummpv.app.ui.browser.cards.VideoCardUiConfig
 import com.quantummpv.app.ui.browser.components.BrowserBottomBar
 import com.quantummpv.app.ui.browser.components.BrowserTopBar
+import com.quantummpv.app.ui.browser.components.ExpressiveScrollBar
+import com.quantummpv.app.ui.browser.components.fastScrollGlyph
 import com.quantummpv.app.ui.browser.dialogs.DeleteConfirmationDialog
 import com.quantummpv.app.ui.browser.dialogs.FileOperationProgressDialog
 import com.quantummpv.app.ui.browser.dialogs.FolderPickerDialog
@@ -108,6 +111,7 @@ import com.quantummpv.app.ui.browser.states.EmptyState
 import com.quantummpv.app.ui.browser.states.LoadingState
 import com.quantummpv.app.ui.browser.states.PermissionDeniedState
 import com.quantummpv.app.ui.utils.LocalBackStack
+import com.quantummpv.app.utils.clipboard.SafeClipboard
 import com.quantummpv.app.utils.history.RecentlyPlayedOps
 import com.quantummpv.app.utils.media.MediaUtils
 import com.quantummpv.app.utils.permission.PermissionUtils
@@ -117,9 +121,6 @@ import com.google.accompanist.permissions.PermissionStatus
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.serialization.Serializable
-import my.nanihadesuka.compose.LazyColumnScrollbar
-import my.nanihadesuka.compose.LazyVerticalGridScrollbar
-import my.nanihadesuka.compose.ScrollbarSettings
 import org.koin.compose.koinInject
 import java.io.File
 
@@ -433,6 +434,12 @@ object FolderListScreen : Screen {
                 if (allVideos.isNotEmpty()) {
                   MediaUtils.shareVideos(context, allVideos)
                 }
+              }
+            },
+            onCopyClick = {
+              val selectedPaths = selectionManager.getSelectedItems().map { it.path }.distinct()
+              if (selectedPaths.isNotEmpty()) {
+                SafeClipboard.copyPlainText(context, "Selected folder paths", selectedPaths.joinToString("\n"))
               }
             },
             onPlayClick = {
@@ -853,20 +860,9 @@ private fun FolderListContent(
   val showLoading = isLoading && !hasCompletedInitialLoad
   val showEmpty = folders.isEmpty() && hasCompletedInitialLoad && !foldersWereDeleted
 
-  // Scrollbar alpha animation
-  val isAtTop by remember {
-    derivedStateOf {
-      if (isGridMode) {
-        gridState.firstVisibleItemIndex == 0 && gridState.firstVisibleItemScrollOffset == 0
-      } else {
-        listState.firstVisibleItemIndex == 0 && listState.firstVisibleItemScrollOffset == 0
-      }
-    }
-  }
-
   val hasEnoughItems = folders.size > 20
   val scrollbarAlpha by androidx.compose.animation.core.animateFloatAsState(
-    targetValue = if (isAtTop || !hasEnoughItems) 0f else 1f,
+    targetValue = if (hasEnoughItems) 1f else 0f,
     animationSpec = androidx.compose.animation.core.spring(
       dampingRatio = com.quantummpv.app.ui.theme.AppMotion.Effect.Alpha.dampingRatio,
       stiffness = com.quantummpv.app.ui.theme.AppMotion.Effect.Alpha.stiffness,
@@ -1001,20 +997,18 @@ private fun GridContent(
     }
 
     // Scrollbar with bottom padding
-    Box(
-      modifier = Modifier
-        .fillMaxSize()
-        .padding(bottom = navigationBarHeight)
-    ) {
-      LazyVerticalGridScrollbar(
-        state = gridState,
-        settings = ScrollbarSettings(
-          thumbUnselectedColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.4f * scrollbarAlpha),
-          thumbSelectedColor = MaterialTheme.colorScheme.primary.copy(alpha = scrollbarAlpha),
-        ),
-      ) {
-        // Empty content - scrollbar only
-      }
+    if (folders.isNotEmpty() && scrollbarAlpha > 0.01f) {
+      ExpressiveScrollBar(
+        gridState = gridState,
+        dragLabelProvider = { index ->
+          fastScrollGlyph(folders.getOrNull(index)?.name)
+        },
+        modifier =
+          Modifier
+            .align(Alignment.CenterEnd)
+            .padding(end = 2.dp, top = 6.dp, bottom = navigationBarHeight + 6.dp)
+            .graphicsLayer { alpha = scrollbarAlpha },
+      )
     }
   }
 }
@@ -1098,20 +1092,18 @@ private fun ListContent(
     }
 
     // Scrollbar with bottom padding
-    Box(
-      modifier = Modifier
-        .fillMaxSize()
-        .padding(bottom = navigationBarHeight)
-    ) {
-      LazyColumnScrollbar(
-        state = listState,
-        settings = ScrollbarSettings(
-          thumbUnselectedColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.4f * scrollbarAlpha),
-          thumbSelectedColor = MaterialTheme.colorScheme.primary.copy(alpha = scrollbarAlpha),
-        ),
-      ) {
-        // Empty content - scrollbar only
-      }
+    if (folders.isNotEmpty() && scrollbarAlpha > 0.01f) {
+      ExpressiveScrollBar(
+        listState = listState,
+        dragLabelProvider = { index ->
+          fastScrollGlyph(folders.getOrNull(index)?.name)
+        },
+        modifier =
+          Modifier
+            .align(Alignment.CenterEnd)
+            .padding(end = 2.dp, top = 6.dp, bottom = navigationBarHeight + 6.dp)
+            .graphicsLayer { alpha = scrollbarAlpha },
+      )
     }
   }
 }

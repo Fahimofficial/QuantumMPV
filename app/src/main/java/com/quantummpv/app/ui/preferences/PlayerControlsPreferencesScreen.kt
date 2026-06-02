@@ -56,7 +56,7 @@ import kotlinx.serialization.Serializable
 import me.zhanghai.compose.preference.ListPreference
 import me.zhanghai.compose.preference.ProvidePreferenceLocals
 import com.quantummpv.app.ui.preferences.components.SwitchPreference
-import com.quantummpv.app.ui.player.controls.components.SeekbarStylePreview
+import com.quantummpv.app.ui.player.controls.components.SeekbarStyleLivePreview
 import com.quantummpv.app.ui.preferences.components.PlayerButtonChip
 import org.koin.compose.koinInject
 
@@ -201,7 +201,7 @@ object PlayerControlsPreferencesScreen : Screen {
                     Text(text = style.name)
                   },
                   supportingContent = {
-                    SeekbarStylePreview(
+                    SeekbarStyleLivePreview(
                       style = style,
                       modifier = Modifier
                         .fillMaxWidth()

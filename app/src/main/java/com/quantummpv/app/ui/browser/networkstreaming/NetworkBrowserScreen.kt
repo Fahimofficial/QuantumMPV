@@ -29,6 +29,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
@@ -41,14 +42,14 @@ import com.quantummpv.app.presentation.components.pullrefresh.PullRefreshBox
 import com.quantummpv.app.ui.browser.cards.NetworkFolderCard
 import com.quantummpv.app.ui.browser.cards.NetworkVideoCard
 import com.quantummpv.app.ui.browser.components.BrowserTopBar
+import com.quantummpv.app.ui.browser.components.ExpressiveScrollBar
+import com.quantummpv.app.ui.browser.components.fastScrollGlyph
 import com.quantummpv.app.ui.browser.playlist.PlaylistDetailScreen
 import com.quantummpv.app.ui.browser.states.EmptyState
 import com.quantummpv.app.ui.preferences.PreferencesScreen
 import com.quantummpv.app.ui.utils.LocalBackStack
 import com.quantummpv.app.ui.utils.popSafely
 import kotlinx.serialization.Serializable
-import my.nanihadesuka.compose.LazyColumnScrollbar
-import my.nanihadesuka.compose.ScrollbarSettings
 
 @Serializable
 data class NetworkBrowserScreen(
@@ -214,19 +215,12 @@ private fun NetworkBrowserContent(
       val videos = files.filter { !it.isDirectory && (it.mimeType?.startsWith("video/") == true || it.isM3uFile()) }
       val networkListState = LazyListState()
 
-      // Check if at top of list to hide scrollbar during pull-to-refresh
-      val isAtTop by remember {
-        derivedStateOf {
-          networkListState.firstVisibleItemIndex == 0 && networkListState.firstVisibleItemScrollOffset == 0
-        }
-      }
-
       // Only show scrollbar if list has more than 20 items (folders + videos)
       val hasEnoughItems = (folders.size + videos.size) > 20
 
       // Animate scrollbar alpha
       val scrollbarAlpha by androidx.compose.animation.core.animateFloatAsState(
-        targetValue = if (isAtTop || !hasEnoughItems) 0f else 1f,
+        targetValue = if (hasEnoughItems) 1f else 0f,
         animationSpec = androidx.compose.animation.core.spring(
           dampingRatio = com.quantummpv.app.ui.theme.AppMotion.Effect.Alpha.dampingRatio,
           stiffness = com.quantummpv.app.ui.theme.AppMotion.Effect.Alpha.stiffness,
@@ -240,29 +234,34 @@ private fun NetworkBrowserContent(
         listState = networkListState,
         modifier = modifier.fillMaxSize(),
       ) {
+        val scrollbarLabels = remember(folders, videos) {
+          buildList<String?> {
+            if (folders.isNotEmpty()) {
+              add(null)
+              addAll(folders.map { it.name })
+            }
+            if (videos.isNotEmpty()) {
+              add(null)
+              addAll(videos.map { it.name })
+            }
+          }
+        }
         val navigationBarHeight = com.quantummpv.app.ui.browser.LocalNavigationBarHeight.current
         Box(
           modifier = Modifier
             .fillMaxSize()
             .padding(bottom = navigationBarHeight)
         ) {
-          LazyColumnScrollbar(
+          LazyColumn(
             state = networkListState,
-            settings = ScrollbarSettings(
-              thumbUnselectedColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.4f * scrollbarAlpha),
-              thumbSelectedColor = MaterialTheme.colorScheme.primary.copy(alpha = scrollbarAlpha),
+            modifier = Modifier.fillMaxSize(),
+            contentPadding = PaddingValues(
+              start = 8.dp,
+              end = 8.dp,
+              top = 8.dp,
+              bottom = navigationBarHeight
             ),
           ) {
-            LazyColumn(
-              state = networkListState,
-              modifier = Modifier.fillMaxSize(),
-              contentPadding = PaddingValues(
-                start = 8.dp,
-                end = 8.dp,
-                top = 8.dp,
-                bottom = navigationBarHeight
-              ),
-            ) {
             // Folders section
             if (folders.isNotEmpty()) {
               item {
@@ -311,11 +310,22 @@ private fun NetworkBrowserContent(
               }
             }
           }
+          if (hasEnoughItems && scrollbarAlpha > 0.01f) {
+            ExpressiveScrollBar(
+              listState = networkListState,
+              dragLabelProvider = { index: Int ->
+                fastScrollGlyph(scrollbarLabels.getOrNull(index))
+              },
+              modifier = Modifier
+                .align(Alignment.CenterEnd)
+                .padding(end = 4.dp)
+                .graphicsLayer { alpha = scrollbarAlpha },
+            )
+          }
         }
       }
     }
   }
-}
 }
 
 private fun NetworkFile.isM3uFile(): Boolean {

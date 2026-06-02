@@ -69,6 +69,7 @@ import com.quantummpv.app.ui.browser.videolist.VideoSortDialog
 import com.quantummpv.app.ui.browser.videolist.VideoWithPlaybackInfo
 import com.quantummpv.app.ui.player.PlayerActivity
 import com.quantummpv.app.ui.utils.LocalBackStack
+import com.quantummpv.app.utils.clipboard.SafeClipboard
 import com.quantummpv.app.utils.history.RecentlyPlayedOps
 import com.quantummpv.app.utils.media.MediaUtils
 import com.quantummpv.app.utils.sort.SortUtils
@@ -265,6 +266,12 @@ fun MediaLibraryContent() {
             }
           },
           onShareClick = { selectionManager.shareSelected() },
+          onCopyClick = {
+            val selectedPaths = selectionManager.getSelectedItems().map { it.path }.distinct()
+            if (selectedPaths.isNotEmpty()) {
+              SafeClipboard.copyPlainText(context, "Selected paths", selectedPaths.joinToString("\n"))
+            }
+          },
           onPlayClick = { selectionManager.playSelected() },
           onSelectAll = { selectionManager.selectAll() },
           onInvertSelection = { selectionManager.invertSelection() },

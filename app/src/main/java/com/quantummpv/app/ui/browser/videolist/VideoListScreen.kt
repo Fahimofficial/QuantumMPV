@@ -59,6 +59,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.dp
@@ -83,6 +84,8 @@ import com.quantummpv.app.ui.browser.cards.VideoCard
 import com.quantummpv.app.ui.browser.cards.VideoCardUiConfig
 import com.quantummpv.app.ui.browser.components.BrowserBottomBar
 import com.quantummpv.app.ui.browser.components.BrowserTopBar
+import com.quantummpv.app.ui.browser.components.ExpressiveScrollBar
+import com.quantummpv.app.ui.browser.components.fastScrollGlyph
 import com.quantummpv.app.ui.browser.dialogs.AddToPlaylistDialog
 import com.quantummpv.app.ui.browser.dialogs.DeleteConfirmationDialog
 import com.quantummpv.app.ui.browser.dialogs.FileOperationProgressDialog
@@ -102,6 +105,7 @@ import com.quantummpv.app.ui.browser.selection.rememberSelectionManager
 import com.quantummpv.app.ui.browser.states.EmptyState
 import com.quantummpv.app.ui.utils.LocalBackStack
 import com.quantummpv.app.ui.utils.popSafely
+import com.quantummpv.app.utils.clipboard.SafeClipboard
 import com.quantummpv.app.utils.history.RecentlyPlayedOps
 import com.quantummpv.app.utils.media.CopyPasteOps
 import com.quantummpv.app.utils.media.MediaUtils
@@ -111,9 +115,6 @@ import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
 import kotlinx.serialization.Serializable
-import my.nanihadesuka.compose.LazyColumnScrollbar
-import my.nanihadesuka.compose.LazyVerticalGridScrollbar
-import my.nanihadesuka.compose.ScrollbarSettings
 import org.koin.compose.koinInject
 import java.io.File
 import kotlin.math.roundToInt
@@ -307,6 +308,12 @@ data class VideoListScreen(
             }
           },
           onShareClick = { selectionManager.shareSelected() },
+          onCopyClick = {
+            val selectedPaths = selectionManager.getSelectedItems().map { it.path }.distinct()
+            if (selectedPaths.isNotEmpty()) {
+              SafeClipboard.copyPlainText(context, "Selected paths", selectedPaths.joinToString("\n"))
+            }
+          },
           onPlayClick = { selectionManager.playSelected() },
           onSelectAll = { selectionManager.selectAll() },
           onInvertSelection = { selectionManager.invertSelection() },
@@ -831,20 +838,10 @@ internal fun VideoListContent(
       
       val coroutineScope = rememberCoroutineScope()
 
-      val isAtTop by remember {
-        derivedStateOf {
-          if (mediaLayoutMode == MediaLayoutMode.GRID) {
-            gridState.firstVisibleItemIndex == 0 && gridState.firstVisibleItemScrollOffset == 0
-          } else {
-            listState.firstVisibleItemIndex == 0 && listState.firstVisibleItemScrollOffset == 0
-          }
-        }
-      }
-
-      val hasEnoughItems = videosWithInfo.size > 20
+      val hasEnoughItems = videosWithInfo.size > 10
 
       val scrollbarAlpha by androidx.compose.animation.core.animateFloatAsState(
-        targetValue = if (isAtTop || !hasEnoughItems) 0f else 1f,
+        targetValue = if (hasEnoughItems) 1f else 0f,
         animationSpec = androidx.compose.animation.core.spring(
           dampingRatio = com.quantummpv.app.ui.theme.AppMotion.Effect.Alpha.dampingRatio,
           stiffness = com.quantummpv.app.ui.theme.AppMotion.Effect.Alpha.stiffness,
@@ -866,81 +863,82 @@ internal fun VideoListContent(
 
         if (mediaLayoutMode == MediaLayoutMode.GRID) {
           Box(
-            modifier = Modifier
-              .fillMaxSize()
-              .padding(bottom = navigationBarHeight)
+            modifier =
+              Modifier
+                .fillMaxSize()
+                .padding(bottom = navigationBarHeight),
           ) {
-            LazyVerticalGridScrollbar(
+            LazyVerticalGrid(
+              columns = GridCells.Fixed(columns),
               state = gridState,
-              settings = ScrollbarSettings(
-                thumbUnselectedColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.4f * scrollbarAlpha),
-                thumbSelectedColor = MaterialTheme.colorScheme.primary.copy(alpha = scrollbarAlpha),
+              modifier = Modifier.fillMaxSize(),
+              contentPadding = PaddingValues(
+                start = 8.dp,
+                end = 8.dp,
+                bottom = if (showFloatingBottomBar) 88.dp else 16.dp,
               ),
-            ) {
-              LazyVerticalGrid(
-                columns = GridCells.Fixed(columns),
-                state = gridState,
-                modifier = Modifier.fillMaxSize(),
-                contentPadding = PaddingValues(
-                  start = 8.dp,
-                  end = 8.dp,
-                  bottom = if (showFloatingBottomBar) 88.dp else 16.dp
-                ),
               horizontalArrangement = Arrangement.spacedBy(4.dp),
               verticalArrangement = Arrangement.spacedBy(4.dp),
             ) {
-            items(
-              count = videosWithInfo.size,
-              key = { index -> "${videosWithInfo[index].video.id}_${videosWithInfo[index].video.path}" },
-            ) { index ->
-              val videoWithInfo = videosWithInfo[index]
-              val isRecentlyPlayed = recentlyPlayedFilePath?.let { videoWithInfo.video.path == it } ?: false
+              items(
+                count = videosWithInfo.size,
+                key = { index -> "${videosWithInfo[index].video.id}_${videosWithInfo[index].video.path}" },
+              ) { index ->
+                val videoWithInfo = videosWithInfo[index]
+                val isRecentlyPlayed = recentlyPlayedFilePath?.let { videoWithInfo.video.path == it } ?: false
 
-              VideoCard(
-                video = videoWithInfo.video,
-                progressPercentage = videoWithInfo.progressPercentage,
-                isRecentlyPlayed = isRecentlyPlayed,
-                isSelected = selectionManager.isSelected(videoWithInfo.video),
-                isOldAndUnplayed = videoWithInfo.isOldAndUnplayed,
-                isWatched = videoWithInfo.isWatched,
-                onClick = { onVideoClick(videoWithInfo.video) },
-                onLongClick = { onVideoLongClick(videoWithInfo.video) },
-                onThumbClick = if (tapThumbnailToSelect) {
-                  { onVideoLongClick(videoWithInfo.video) }
-                } else {
-                  { onVideoClick(videoWithInfo.video) }
+                VideoCard(
+                  video = videoWithInfo.video,
+                  progressPercentage = videoWithInfo.progressPercentage,
+                  isRecentlyPlayed = isRecentlyPlayed,
+                  isSelected = selectionManager.isSelected(videoWithInfo.video),
+                  isOldAndUnplayed = videoWithInfo.isOldAndUnplayed,
+                  isWatched = videoWithInfo.isWatched,
+                  onClick = { onVideoClick(videoWithInfo.video) },
+                  onLongClick = { onVideoLongClick(videoWithInfo.video) },
+                  onThumbClick = if (tapThumbnailToSelect) {
+                    { onVideoLongClick(videoWithInfo.video) }
+                  } else {
+                    { onVideoClick(videoWithInfo.video) }
+                  },
+                  isGridMode = mediaLayoutMode == MediaLayoutMode.GRID,
+                  gridColumns = videoGridColumns,
+                  showSubtitleIndicator = showSubtitleIndicator,
+                  allowThumbnailGeneration = false,
+                  uiConfig = videoCardUiConfig,
+                )
+              }
+            }
+
+            if (hasEnoughItems && scrollbarAlpha > 0.01f) {
+              ExpressiveScrollBar(
+                gridState = gridState,
+                dragLabelProvider = { index ->
+                  fastScrollGlyph(videosWithInfo.getOrNull(index)?.video?.displayName)
                 },
-                isGridMode = mediaLayoutMode == MediaLayoutMode.GRID,
-                gridColumns = videoGridColumns,
-                showSubtitleIndicator = showSubtitleIndicator,
-                allowThumbnailGeneration = false,
-                uiConfig = videoCardUiConfig,
+                modifier =
+                  Modifier
+                    .align(Alignment.CenterEnd)
+                    .padding(vertical = 6.dp)
+                    .graphicsLayer { alpha = scrollbarAlpha },
               )
             }
-            }
           }
-        }
         } else {
           Box(
-            modifier = Modifier
-              .fillMaxSize()
-              .padding(bottom = navigationBarHeight)
+            modifier =
+              Modifier
+                .fillMaxSize()
+                .padding(bottom = navigationBarHeight),
           ) {
-            LazyColumnScrollbar(
+            LazyColumn(
               state = listState,
-              settings = ScrollbarSettings(
-                thumbUnselectedColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.4f * scrollbarAlpha),
-                thumbSelectedColor = MaterialTheme.colorScheme.primary.copy(alpha = scrollbarAlpha),
+              modifier = Modifier.fillMaxSize(),
+              contentPadding = PaddingValues(
+                start = 8.dp,
+                end = 8.dp,
+                bottom = if (showFloatingBottomBar) 88.dp else 16.dp,
               ),
-            ) {
-              LazyColumn(
-                state = listState,
-                modifier = Modifier.fillMaxSize(),
-                contentPadding = PaddingValues(
-                  start = 8.dp,
-                  end = 8.dp,
-                  bottom = if (showFloatingBottomBar) 88.dp else 16.dp
-                ),
             ) {
               items(
                 count = videosWithInfo.size,
@@ -970,8 +968,21 @@ internal fun VideoListContent(
                 )
               }
             }
+
+            if (hasEnoughItems && scrollbarAlpha > 0.01f) {
+              ExpressiveScrollBar(
+                listState = listState,
+                dragLabelProvider = { index ->
+                  fastScrollGlyph(videosWithInfo.getOrNull(index)?.video?.displayName)
+                },
+                modifier =
+                  Modifier
+                    .align(Alignment.CenterEnd)
+                    .padding(vertical = 6.dp)
+                    .graphicsLayer { alpha = scrollbarAlpha },
+              )
+            }
           }
-        }
         }
       }
       }
