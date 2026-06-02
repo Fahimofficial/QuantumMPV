@@ -147,7 +147,8 @@ object Icons {
     val PlayCircle = AppIcon(R.drawable.materialsymbols_ic_play_circle_rounded_filled)
     val PlaylistAddCheck = AppIcon(R.drawable.materialsymbols_ic_playlist_add_check_rounded_filled)
     val PlaylistAddCircle = AppIcon(R.drawable.materialsymbols_ic_playlist_add_circle_rounded_filled)
-    val SmartDisplay = PlayArrow
+    val SmartDisplay = AppIcon(R.drawable.materialsymbols_ic_smart_display_rounded_filled)
+    val Videocam = AppIcon(R.drawable.materialsymbols_ic_videocam_rounded_filled)
     val PlaylistAdd = AppIcon(R.drawable.materialsymbols_ic_playlist_add_rounded_filled)
     val PlaylistPlay = PlayArrow
     val PushPin = AppIcon(R.drawable.materialsymbols_ic_push_pin_rounded_filled)
@@ -287,6 +288,7 @@ object Icons {
     val Translate = Shared.Translate
     val Memory = Shared.Memory
     val Movie = Shared.Movie
+    val Videocam = Shared.Videocam
     val Link = Shared.Link
     val MoreVert = Shared.MoreVert
     val NewReleases = Shared.NewReleases

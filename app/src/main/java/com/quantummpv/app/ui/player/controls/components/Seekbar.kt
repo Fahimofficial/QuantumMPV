@@ -265,7 +265,6 @@ private fun SeekbarContent(
       SeekbarStyle.Thick -> 16.dp
       SeekbarStyle.Standard -> 8.dp
       SeekbarStyle.Wavy -> 8.dp
-      SeekbarStyle.PixelWavy -> 8.dp
     }
   var latestInteractionPosition by remember { mutableFloatStateOf(position) }
 
@@ -279,35 +278,6 @@ private fun SeekbarContent(
     modifier = modifier,
     contentAlignment = Alignment.Center,
   ) {
-    if (seekbarStyle == SeekbarStyle.PixelWavy) {
-      WavySliderExpressiveSeekbar(
-        position = position,
-        duration = duration,
-        onValueChange = { newPos ->
-          onUserInteractionChange(true)
-          latestInteractionPosition = newPos.coerceIn(0f, duration)
-          onUserPositionChange(newPos)
-          onValueChange(newPos)
-        },
-        onValueChangeFinished = { finalPos ->
-          val targetPos = finalPos.coerceIn(0f, duration)
-          latestInteractionPosition = targetPos
-          onUserPositionChange(targetPos)
-          scope.launch {
-            animatedPosition.snapTo(targetPos)
-            onUserInteractionChange(false)
-            onValueChangeFinished(targetPos)
-          }
-        },
-        chapters = chapters,
-        skipSegments = skipSegments,
-        isPlaying = !paused,
-        loopStart = loopStart,
-        loopEnd = loopEnd,
-        bufferDuration = bufferDuration,
-        modifier = Modifier.fillMaxWidth(),
-      )
-    } else {
       // Invisible expanded touch area
       Box(
         modifier = Modifier
@@ -447,7 +417,6 @@ private fun SeekbarContent(
               bufferDuration = bufferDuration,
             )
           }
-          SeekbarStyle.PixelWavy -> { } // handled above
         }
       }
 
@@ -499,7 +468,6 @@ private fun SeekbarContent(
           }
         }
       }
-    }
   }
 }
 
@@ -1169,40 +1137,6 @@ fun SeekbarStylePreview(
                     cornerRadius = CornerRadius(thumbW / 2f),
                 )
             }
-            SeekbarStyle.PixelWavy -> {
-                val strokeWidthPx = 5.dp.toPx()
-                val amp = 4.dp.toPx()
-                val edgePad = strokeWidthPx + amp + 2.dp.toPx()
-                val trackStart = edgePad
-                val trackEnd = size.width - edgePad
-                val trackW = (trackEnd - trackStart).coerceAtLeast(0f)
-                val playedPxWavy = trackStart + (trackW * previewProgress)
-
-                drawLine(
-                    color = primaryColor.copy(alpha = 0.3f),
-                    start = Offset(trackStart, centerY),
-                    end = Offset(trackEnd, centerY),
-                    strokeWidth = strokeWidthPx,
-                    cap = StrokeCap.Round,
-                )
-
-                drawLine(
-                    color = primaryColor,
-                    start = Offset(trackStart, centerY),
-                    end = Offset(playedPxWavy, centerY),
-                    strokeWidth = strokeWidthPx,
-                    cap = StrokeCap.Round,
-                )
-
-                val barHalfH = amp + strokeWidthPx / 2f + 2.dp.toPx()
-                drawLine(
-                    color = primaryColor,
-                    start = Offset(playedPxWavy, centerY - barHalfH),
-                    end = Offset(playedPxWavy, centerY + barHalfH),
-                    strokeWidth = 5.dp.toPx(),
-                    cap = StrokeCap.Round,
-                )
-            }
         }
     }
 }
@@ -1223,27 +1157,11 @@ fun SeekbarStyleLivePreview(
         label = "live_preview_progress",
     )
 
-    when (style) {
-        SeekbarStyle.PixelWavy -> {
-            WavySliderExpressiveSeekbar(
-                position = animatedProgress * 120f,
-                duration = 120f,
-                onValueChange = {},
-                onValueChangeFinished = {},
-                isPlaying = true,
-                chapters = persistentListOf(),
-                skipSegments = persistentListOf(),
-                modifier = modifier.fillMaxWidth().height(48.dp),
-            )
-        }
-        else -> {
-            SeekbarStylePreview(
-                style = style,
-                progress = animatedProgress,
-                modifier = modifier,
-            )
-        }
-    }
+    SeekbarStylePreview(
+        style = style,
+        progress = animatedProgress,
+        modifier = modifier,
+    )
 }
 
 @Composable

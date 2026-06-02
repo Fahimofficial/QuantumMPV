@@ -5,6 +5,5 @@ enum class SeekbarStyle {
     Wavy,
     Thick,
     Slim,
-    PixelWavy,
 }
 

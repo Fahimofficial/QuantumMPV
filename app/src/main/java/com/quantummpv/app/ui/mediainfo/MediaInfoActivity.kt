@@ -26,12 +26,21 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.background
+import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.layout.ColumnScope
+import androidx.compose.animation.animateContentSize
+import androidx.compose.animation.animateColorAsState
+import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilledTonalIconButton
-import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.IconButtonDefaults
 import androidx.compose.material3.MaterialTheme
@@ -114,15 +123,6 @@ class MediaInfoActivity : ComponentActivity() {
     var fileName by remember { mutableStateOf("Media File") }
     var fileUri by remember { mutableStateOf<Uri?>(null) }
     var mediaInfo by remember { mutableStateOf<MediaInfoOps.MediaInfoData?>(null) }
-
-    // Get Material Theme colors
-    val backgroundColor = MaterialTheme.colorScheme.background
-    val surfaceColor = MaterialTheme.colorScheme.surface
-    val primaryColor = MaterialTheme.colorScheme.primary
-    val onSurfaceColor = MaterialTheme.colorScheme.onSurface
-    val onSurfaceVariantColor = MaterialTheme.colorScheme.onSurfaceVariant
-    val surfaceContainerColor = MaterialTheme.colorScheme.surfaceContainer
-    val outlineVariantColor = MaterialTheme.colorScheme.outlineVariant
 
     LaunchedEffect(Unit) {
       val uri = when (intent?.action) {
@@ -327,145 +327,776 @@ class MediaInfoActivity : ComponentActivity() {
     }
   }
 
+  enum class InfoTab(val displayName: String) {
+    OVERVIEW("Overview"),
+    VIDEO("Video"),
+    AUDIO("Audio"),
+    SUBTITLES("Subtitles"),
+    CHAPTERS("Chapters")
+  }
+
   @Composable
-  private fun MediaInfoContent(mediaInfo: MediaInfoOps.MediaInfoData, fileName: String, fullMediaInfoText: String?) {
+  private fun MediaInfoContent(
+    mediaInfo: MediaInfoOps.MediaInfoData,
+    fileName: String,
+    fullMediaInfoText: String?
+  ) {
     if (fullMediaInfoText == null) {
       Box(
         modifier = Modifier.fillMaxSize(),
         contentAlignment = Alignment.Center,
       ) {
-        Text("Loading detailed information...")
+        CircularProgressIndicator()
       }
       return
     }
 
-    // Parse the text output into sections
-    val sections = parseMediaInfoText(fullMediaInfoText)
+    val sections = remember(fullMediaInfoText) { parseMediaInfoText(fullMediaInfoText) }
+
+    // Group sections dynamically
+    val videoSections = remember(sections) { sections.filter { it.name.startsWith("Video", ignoreCase = true) } }
+    val audioSections = remember(sections) { sections.filter { it.name.startsWith("Audio", ignoreCase = true) } }
+    val subtitleSections = remember(sections) {
+      sections.filter {
+        it.name.startsWith("Text", ignoreCase = true) ||
+        it.name.startsWith("Subtitle", ignoreCase = true)
+      }
+    }
+    val menuSections = remember(sections) {
+      sections.filter {
+        it.name.equals("Menu", ignoreCase = true) ||
+        it.name.startsWith("Chapter", ignoreCase = true)
+      }
+    }
+
+    // Determine available tabs
+    val availableTabs = remember(sections) {
+      buildList {
+        add(InfoTab.OVERVIEW)
+        if (videoSections.isNotEmpty()) add(InfoTab.VIDEO)
+        if (audioSections.isNotEmpty()) add(InfoTab.AUDIO)
+        if (subtitleSections.isNotEmpty()) add(InfoTab.SUBTITLES)
+        if (menuSections.isNotEmpty()) add(InfoTab.CHAPTERS)
+      }
+    }
+
+    var selectedTab by remember(availableTabs) { mutableStateOf(InfoTab.OVERVIEW) }
+
+    Column(
+      modifier = Modifier
+        .fillMaxSize()
+        .background(
+          brush = androidx.compose.ui.graphics.Brush.verticalGradient(
+            colors = listOf(
+              MaterialTheme.colorScheme.background,
+              MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.25f)
+            )
+          )
+        )
+    ) {
+      // Horizontal Scrollable Inspired Tab Bar
+      Row(
+        modifier = Modifier
+          .fillMaxWidth()
+          .horizontalScroll(rememberScrollState())
+          .padding(horizontal = 16.dp, vertical = 12.dp),
+        horizontalArrangement = Arrangement.spacedBy(8.dp)
+      ) {
+        availableTabs.forEach { tab ->
+          val isSelected = selectedTab == tab
+          val containerColor by animateColorAsState(
+            targetValue = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.45f),
+            label = "TabContainerColor"
+          )
+          val contentColor by animateColorAsState(
+            targetValue = if (isSelected) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurfaceVariant,
+            label = "TabContentColor"
+          )
+
+          Surface(
+            onClick = { selectedTab = tab },
+            color = containerColor,
+            contentColor = contentColor,
+            shape = RoundedCornerShape(16.dp),
+            modifier = Modifier.animateContentSize(),
+            border = BorderStroke(
+              1.dp,
+              if (isSelected) Color.Transparent else MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.3f)
+            )
+          ) {
+            Row(
+              modifier = Modifier.padding(horizontal = 16.dp, vertical = 10.dp),
+              horizontalArrangement = Arrangement.Center,
+              verticalAlignment = Alignment.CenterVertically
+            ) {
+              val icon = when (tab) {
+                InfoTab.OVERVIEW -> Icons.Filled.Info
+                InfoTab.VIDEO -> Icons.Default.Videocam
+                InfoTab.AUDIO -> Icons.Default.VolumeUp
+                InfoTab.SUBTITLES -> Icons.Default.Subtitles
+                InfoTab.CHAPTERS -> Icons.Default.ViewList
+              }
+              Icon(
+                imageVector = icon,
+                contentDescription = null,
+                modifier = Modifier.size(16.dp)
+              )
+              Spacer(modifier = Modifier.width(8.dp))
+              Text(
+                text = tab.displayName,
+                style = MaterialTheme.typography.labelLarge.copy(fontWeight = FontWeight.Bold)
+              )
+            }
+          }
+        }
+      }
+
+      // Tab Content
+      Box(
+        modifier = Modifier
+          .weight(1f)
+          .fillMaxWidth()
+          .padding(horizontal = 16.dp)
+      ) {
+        when (selectedTab) {
+          InfoTab.OVERVIEW -> OverviewTabContent(
+            mediaInfo,
+            fileName,
+            sections,
+            videoSections.size,
+            audioSections.size,
+            subtitleSections.size,
+            menuSections.firstOrNull()?.properties?.size ?: 0
+          )
+          InfoTab.VIDEO -> StreamTabContent(videoSections, "Video Stream")
+          InfoTab.AUDIO -> StreamTabContent(audioSections, "Audio Stream")
+          InfoTab.SUBTITLES -> StreamTabContent(subtitleSections, "Subtitle Track")
+          InfoTab.CHAPTERS -> ChaptersTabContent(menuSections)
+        }
+      }
+    }
+  }
+
+  @Composable
+  private fun GlassmorphicCard(
+    modifier: Modifier = Modifier,
+    containerColor: Color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.15f),
+    borderColor: Color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.08f),
+    content: @Composable ColumnScope.() -> Unit
+  ) {
+    Card(
+      modifier = modifier,
+      shape = RoundedCornerShape(24.dp),
+      colors = CardDefaults.cardColors(containerColor = containerColor),
+      border = BorderStroke(1.dp, borderColor),
+      content = content
+    )
+  }
+
+  @Composable
+  private fun QuickStatCard(
+    title: String,
+    value: String,
+    icon: com.quantummpv.app.ui.icons.AppIcon,
+    accentColor: Color,
+    modifier: Modifier = Modifier
+  ) {
+    val context = LocalContext.current
+    GlassmorphicCard(
+      modifier = modifier.clickable {
+        SafeClipboard.copyPlainText(context, title, value)
+        Toast.makeText(context, "Copied: $value", Toast.LENGTH_SHORT).show()
+      },
+      containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.20f)
+    ) {
+      Row(
+        modifier = Modifier.padding(16.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(12.dp)
+      ) {
+        Surface(
+          shape = RoundedCornerShape(12.dp),
+          color = accentColor.copy(alpha = 0.12f),
+          contentColor = accentColor,
+          modifier = Modifier.size(40.dp)
+        ) {
+          Box(contentAlignment = Alignment.Center) {
+            Icon(imageVector = icon, contentDescription = null, modifier = Modifier.size(20.dp), tint = accentColor)
+          }
+        }
+        Column(modifier = Modifier.weight(1f)) {
+          Text(
+            text = title,
+            style = MaterialTheme.typography.labelSmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+          )
+          Text(
+            text = value,
+            style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Bold),
+            color = MaterialTheme.colorScheme.onSurface,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis
+          )
+        }
+      }
+    }
+  }
+
+  @Composable
+  private fun HeroChipRow(chips: List<String>) {
+    Row(
+      modifier = Modifier
+        .fillMaxWidth()
+        .horizontalScroll(rememberScrollState())
+        .padding(vertical = 4.dp),
+      horizontalArrangement = Arrangement.spacedBy(8.dp),
+      verticalAlignment = Alignment.CenterVertically
+    ) {
+      chips.forEach { label ->
+        Surface(
+          shape = RoundedCornerShape(12.dp),
+          color = MaterialTheme.colorScheme.primary.copy(alpha = 0.08f),
+          contentColor = MaterialTheme.colorScheme.primary,
+          border = BorderStroke(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.2f))
+        ) {
+          Text(
+            text = label,
+            modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
+            style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold)
+          )
+        }
+      }
+    }
+  }
+
+  @Composable
+  private fun OverviewTabContent(
+    mediaInfo: MediaInfoOps.MediaInfoData,
+    fileName: String,
+    sections: List<InfoSection>,
+    videoCount: Int,
+    audioCount: Int,
+    subtitleCount: Int,
+    chapterCount: Int
+  ) {
+    // Quick Stat values
+    val primaryVideo = mediaInfo.videoStreams.firstOrNull()
+    val resolutionLabel = remember(primaryVideo) {
+      if (primaryVideo != null) {
+        val w = primaryVideo.width.filter { it.isDigit() }
+        val h = primaryVideo.height.filter { it.isDigit() }
+        if (h == "2160" || w == "3840") "4K UHD"
+        else if (h == "1440" || w == "2560") "2K QHD"
+        else if (h == "1080") "1080p FHD"
+        else if (h == "720") "720p HD"
+        else if (w.isNotEmpty() && h.isNotEmpty()) "${w}x${h}"
+        else "Unknown"
+      } else "No Video"
+    }
+
+    val sizeLabel = mediaInfo.general.fileSize.ifBlank { "Unknown" }
+    val durationLabel = mediaInfo.general.duration.ifBlank { "Unknown" }
+    val formatLabel = mediaInfo.general.format.ifBlank { "Unknown" }
+
+    val heroChips = remember(mediaInfo) {
+      buildList {
+        primaryVideo?.let { v ->
+          val w = v.width.filter { it.isDigit() }.toIntOrNull() ?: 0
+          val h = v.height.filter { it.isDigit() }.toIntOrNull() ?: 0
+          val res = when {
+            w >= 3840 || h >= 2160 -> "4K UHD"
+            w >= 2560 || h >= 1440 -> "2K QHD"
+            w >= 1920 || h >= 1080 -> "1080p"
+            w >= 1280 || h >= 720  -> "720p"
+            else -> null
+          }
+          res?.let { add(it) }
+          if (v.format.isNotBlank() && v.format != "---") add(v.format)
+        }
+        mediaInfo.audioStreams.firstOrNull()?.let { a ->
+          if (a.format.isNotBlank() && a.format != "---") add(a.format)
+        }
+        if (sizeLabel != "Unknown") add(sizeLabel)
+        if (durationLabel != "Unknown") add(durationLabel)
+      }
+    }
 
     Column(
       modifier = Modifier
         .fillMaxSize()
         .verticalScroll(rememberScrollState())
-        .padding(16.dp),
-      verticalArrangement = Arrangement.spacedBy(12.dp),
+        .padding(bottom = 24.dp),
+      verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
-      sections.forEach { section ->
-        MediaInfoSection(section)
+      // Neon Header Banner
+      GlassmorphicCard(
+        modifier = Modifier.fillMaxWidth(),
+        containerColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.25f),
+        borderColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.2f)
+      ) {
+        Column(
+          modifier = Modifier.padding(20.dp),
+          verticalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+          Surface(
+            shape = RoundedCornerShape(8.dp),
+            color = MaterialTheme.colorScheme.primary.copy(alpha = 0.15f),
+            contentColor = MaterialTheme.colorScheme.primary,
+            border = BorderStroke(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.3f))
+          ) {
+            Text(
+              text = formatLabel.uppercase(),
+              style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.ExtraBold),
+              modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp)
+            )
+          }
+
+          Text(
+            text = fileName,
+            style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.Black),
+            color = MaterialTheme.colorScheme.onSurface,
+            maxLines = 2,
+            overflow = TextOverflow.Ellipsis
+          )
+        }
       }
 
-      Spacer(modifier = Modifier.height(8.dp))
+      // Hero summary chips inline row
+      if (heroChips.isNotEmpty()) {
+        HeroChipRow(heroChips)
+      }
 
-      // Footer
-      Text(
-        text = "Generated by MpvRx using MediaInfoLib",
-        style = MaterialTheme.typography.bodySmall,
-        color = MaterialTheme.colorScheme.onSurfaceVariant,
-        modifier = Modifier
-          .fillMaxWidth()
-          .padding(vertical = 12.dp),
-        textAlign = androidx.compose.ui.text.style.TextAlign.Center,
-      )
-
-      Spacer(modifier = Modifier.height(8.dp))
-    }
-  }
-
-  private fun parseMediaInfoText(text: String): List<InfoSection> {
-    val sections = mutableListOf<InfoSection>()
-    val lines = text.lines()
-
-    var currentSectionName: String? = null
-    val currentProperties = mutableListOf<Pair<String, String>>()
-
-    for (line in lines) {
-      when {
-        // Skip separator lines and empty lines
-        line.trim().startsWith("=") || line.trim().isEmpty() -> continue
-
-        // Skip header/footer
-        line.contains("MEDIA INFO -") || line.contains("Generated by MpvRx") -> continue
-
-        // New section (no colon, not indented, has content)
-        !line.startsWith(" ") && !line.contains(":") && line.trim().isNotEmpty() -> {
-          // Save previous section
-          if (currentSectionName != null && currentProperties.isNotEmpty()) {
-            sections.add(InfoSection(currentSectionName, currentProperties.toList()))
-            currentProperties.clear()
-          }
-          currentSectionName = line.trim()
+      // Quick Specs Grid (2 columns)
+      Column(
+        verticalArrangement = Arrangement.spacedBy(8.dp)
+      ) {
+        Row(
+          modifier = Modifier.fillMaxWidth(),
+          horizontalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+          QuickStatCard(
+            title = "Resolution",
+            value = resolutionLabel,
+            icon = Icons.Default.Videocam,
+            accentColor = MaterialTheme.colorScheme.primary,
+            modifier = Modifier.weight(1f)
+          )
+          QuickStatCard(
+            title = "File Size",
+            value = sizeLabel,
+            icon = Icons.Default.SdCard,
+            accentColor = MaterialTheme.colorScheme.secondary,
+            modifier = Modifier.weight(1f)
+          )
         }
+        Row(
+          modifier = Modifier.fillMaxWidth(),
+          horizontalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+          QuickStatCard(
+            title = "Duration",
+            value = durationLabel,
+            icon = Icons.Outlined.Timer,
+            accentColor = MaterialTheme.colorScheme.tertiary,
+            modifier = Modifier.weight(1f)
+          )
+          QuickStatCard(
+            title = "Bitrate",
+            value = mediaInfo.general.overallBitRate.ifBlank { "Unknown" },
+            icon = Icons.Default.Speed,
+            accentColor = Color(0xFFFFB300),
+            modifier = Modifier.weight(1f)
+          )
+        }
+      }
 
-        // Property line — prefer " : " as separator (standard MediaInfo format)
-        // e.g. "00:01:33.046                : en:Chapter 1"  →  key="00:01:33.046" value="Chapter 1"
-        // e.g. "Type                        : Cover"         →  key="Type" value="Cover"
-        line.contains(":") -> {
-          val spaceColonIdx = line.indexOf(" : ")
-          if (spaceColonIdx >= 0) {
-            val key = line.substring(0, spaceColonIdx).trim()
-            var value = line.substring(spaceColonIdx + 3).trim()
-            // Strip language prefix like "en:" or "de:" from chapter/menu values
-            val langPrefixRegex = Regex("^[a-z]{2,3}:")
-            if (langPrefixRegex.containsMatchIn(value)) {
-              value = value.substringAfter(":").trim()
+      // Stream summary blocks
+      GlassmorphicCard(
+        modifier = Modifier.fillMaxWidth()
+      ) {
+        Column(
+          modifier = Modifier.padding(16.dp),
+          verticalArrangement = Arrangement.spacedBy(16.dp)
+        ) {
+          Text(
+            text = "Media Tracks Summary",
+            style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
+            color = MaterialTheme.colorScheme.primary
+          )
+
+          Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceAround
+          ) {
+            TrackSummaryItem(videoCount, "Video", Icons.Default.Videocam, MaterialTheme.colorScheme.primary)
+            TrackSummaryItem(audioCount, "Audio", Icons.Default.VolumeUp, MaterialTheme.colorScheme.secondary)
+            TrackSummaryItem(subtitleCount, "Subtitle", Icons.Default.Subtitles, MaterialTheme.colorScheme.tertiary)
+            if (chapterCount > 0) {
+              TrackSummaryItem(chapterCount, "Chapters", Icons.Default.ViewList, Color(0xFFFFB300))
             }
-            if (key.isNotEmpty() && value.isNotEmpty()) {
-              currentProperties.add(key to value)
-            }
-          } else {
-            val parts = line.split(":", limit = 2)
-            if (parts.size == 2) {
-              val key = parts[0].trim()
-              val value = parts[1].trim()
-              if (key.isNotEmpty() && value.isNotEmpty()) {
-                currentProperties.add(key to value)
+          }
+        }
+      }
+
+      // Detailed metadata list
+      val generalSection = sections.firstOrNull { it.name.equals("General", ignoreCase = true) }
+      if (generalSection != null) {
+        GlassmorphicCard(
+          modifier = Modifier.fillMaxWidth()
+        ) {
+          Column(
+            modifier = Modifier.padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp)
+          ) {
+            Text(
+              text = "Container Metadata",
+              style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
+              color = MaterialTheme.colorScheme.primary
+            )
+
+            SelectionContainer {
+              Column(
+                verticalArrangement = Arrangement.spacedBy(10.dp)
+              ) {
+                generalSection.properties.forEach { (key, value) ->
+                  // Avoid showing details already on Quick Stats to keep clean
+                  if (key != "Format" && key != "File size" && key != "Duration" && key != "Overall bit rate") {
+                    PropertyRow(key, value)
+                  }
+                }
               }
             }
           }
         }
       }
     }
-
-    // Add last section
-    if (currentSectionName != null && currentProperties.isNotEmpty()) {
-      sections.add(InfoSection(currentSectionName, currentProperties.toList()))
-    }
-
-    return sections
   }
 
   @Composable
-  private fun MediaInfoSection(section: InfoSection) {
-    Card(
-      modifier = Modifier.fillMaxWidth(),
-      colors = CardDefaults.cardColors(
-        containerColor = MaterialTheme.colorScheme.surfaceContainer,
-      ),
-      shape = MaterialTheme.shapes.large,
-      elevation = CardDefaults.cardElevation(
-        defaultElevation = 2.dp,
-        pressedElevation = 4.dp,
-        hoveredElevation = 4.dp,
-      ),
+  private fun TrackSummaryItem(
+    count: Int,
+    label: String,
+    icon: com.quantummpv.app.ui.icons.AppIcon,
+    color: Color
+  ) {
+    Column(
+      horizontalAlignment = Alignment.CenterHorizontally,
+      verticalArrangement = Arrangement.spacedBy(4.dp)
+    ) {
+      Surface(
+        shape = CircleShape,
+        color = color.copy(alpha = 0.12f),
+        contentColor = color,
+        modifier = Modifier.size(48.dp)
+      ) {
+        Box(contentAlignment = Alignment.Center) {
+          Icon(imageVector = icon, contentDescription = null, modifier = Modifier.size(20.dp), tint = color)
+        }
+      }
+      Text(
+        text = "$count $label",
+        style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Bold),
+        color = MaterialTheme.colorScheme.onSurface
+      )
+    }
+  }
+
+  @Composable
+  private fun StreamCard(
+    title: String,
+    badge: String?,
+    icon: com.quantummpv.app.ui.icons.AppIcon,
+    headerBgColor: Color,
+    headerTextColor: Color,
+    properties: List<Pair<String, String>>,
+    modifier: Modifier = Modifier
+  ) {
+    val context = LocalContext.current
+    val scope = rememberCoroutineScope()
+
+    GlassmorphicCard(
+      modifier = modifier.fillMaxWidth()
+    ) {
+      Column {
+        // Dynamic strip header representing the track class, inspired by mpvFlux cards
+        Row(
+          modifier = Modifier
+            .fillMaxWidth()
+            .background(headerBgColor)
+            .padding(horizontal = 16.dp, vertical = 12.dp),
+          verticalAlignment = Alignment.CenterVertically,
+          horizontalArrangement = Arrangement.spacedBy(10.dp)
+        ) {
+          Surface(
+            shape = RoundedCornerShape(8.dp),
+            color = headerTextColor.copy(alpha = 0.15f),
+            modifier = Modifier.size(32.dp)
+          ) {
+            Box(contentAlignment = Alignment.Center) {
+              Icon(imageVector = icon, contentDescription = null, modifier = Modifier.size(18.dp), tint = headerTextColor)
+            }
+          }
+          Text(
+            text = title,
+            style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold),
+            color = headerTextColor,
+            modifier = Modifier.weight(1f)
+          )
+          if (badge != null) {
+            Surface(
+              shape = RoundedCornerShape(6.dp),
+              color = headerTextColor.copy(alpha = 0.15f)
+            ) {
+              Text(
+                text = badge,
+                modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp),
+                style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold),
+                color = headerTextColor
+              )
+            }
+          }
+
+          IconButton(
+            onClick = {
+              scope.launch {
+                val content = properties.joinToString("\n") { "${it.first}: ${it.second}" }
+                SafeClipboard.copyPlainText(context, title, content)
+                Toast.makeText(context, "Copied specifications to clipboard", Toast.LENGTH_SHORT).show()
+              }
+            },
+            modifier = Modifier.size(32.dp)
+          ) {
+            Icon(
+              imageVector = Icons.Filled.ContentCopy,
+              contentDescription = "Copy all",
+              tint = headerTextColor.copy(alpha = 0.8f),
+              modifier = Modifier.size(16.dp)
+            )
+          }
+        }
+
+        // Two-column chunked Stat Tiles inspired by the premium mpvFlux UI
+        Column(
+          modifier = Modifier.padding(12.dp),
+          verticalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+          val chunked = properties.chunked(2)
+          chunked.forEach { pair ->
+            Row(
+              modifier = Modifier.fillMaxWidth(),
+              horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+              pair.forEach { (label, value) ->
+                StatTile(
+                  label = label,
+                  value = value,
+                  modifier = Modifier.weight(1f)
+                )
+              }
+              if (pair.size == 1) {
+                Spacer(modifier = Modifier.weight(1f))
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+
+  @Composable
+  private fun StatTile(
+    label: String,
+    value: String,
+    modifier: Modifier = Modifier
+  ) {
+    val context = LocalContext.current
+    Surface(
+      modifier = modifier.clickable {
+        SafeClipboard.copyPlainText(context, label, value)
+        Toast.makeText(context, "Copied: $value", Toast.LENGTH_SHORT).show()
+      },
+      shape = RoundedCornerShape(12.dp),
+      color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.1f),
+      border = BorderStroke(1.dp, MaterialTheme.colorScheme.onSurface.copy(alpha = 0.05f))
     ) {
       Column(
-        modifier = Modifier.padding(16.dp),
+        modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp)
       ) {
-        // Section title
         Text(
-          text = section.name,
-          style = MaterialTheme.typography.titleMedium,
-          fontWeight = FontWeight.Bold,
-          color = MaterialTheme.colorScheme.primary,
-          modifier = Modifier.padding(bottom = 12.dp),
+          text = label,
+          style = MaterialTheme.typography.labelSmall,
+          color = MaterialTheme.colorScheme.onSurfaceVariant,
+          maxLines = 1,
+          overflow = TextOverflow.Ellipsis
         )
+        Spacer(modifier = Modifier.height(2.dp))
+        Text(
+          text = value,
+          style = MaterialTheme.typography.bodyMedium.copy(
+            fontWeight = FontWeight.Bold,
+            fontFamily = FontFamily.Monospace
+          ),
+          color = MaterialTheme.colorScheme.onSurface,
+          maxLines = 1,
+          overflow = TextOverflow.Ellipsis
+        )
+      }
+    }
+  }
 
-        // Properties
-        androidx.compose.foundation.text.selection.SelectionContainer {
+  @Composable
+  private fun StreamTabContent(
+    sections: List<InfoSection>,
+    streamTypeLabel: String
+  ) {
+    Column(
+      modifier = Modifier
+        .fillMaxSize()
+        .verticalScroll(rememberScrollState())
+        .padding(bottom = 24.dp),
+      verticalArrangement = Arrangement.spacedBy(16.dp)
+    ) {
+      sections.forEachIndexed { index, section ->
+        val format = section.properties.firstOrNull { it.first.equals("Format", ignoreCase = true) }?.second ?: "Unknown"
+        val language = section.properties.firstOrNull { it.first.equals("Language", ignoreCase = true) }?.second
+
+        val badgeLabel = if (language != null) "$format ($language)" else format
+
+        val (headerBgColor, headerTextColor, icon) = when {
+          streamTypeLabel.contains("Video", ignoreCase = true) -> Triple(
+            MaterialTheme.colorScheme.primaryContainer,
+            MaterialTheme.colorScheme.onPrimaryContainer,
+            Icons.Default.Movie
+          )
+          streamTypeLabel.contains("Audio", ignoreCase = true) -> Triple(
+            MaterialTheme.colorScheme.tertiaryContainer,
+            MaterialTheme.colorScheme.onTertiaryContainer,
+            Icons.Default.VolumeUp
+          )
+          else -> Triple(
+            MaterialTheme.colorScheme.secondaryContainer,
+            MaterialTheme.colorScheme.onSecondaryContainer,
+            Icons.Default.Subtitles
+          )
+        }
+
+        val filteredProperties = section.properties.filter { it.first != "Format" }
+
+        StreamCard(
+          title = "$streamTypeLabel #${index + 1}",
+          badge = badgeLabel,
+          icon = icon,
+          headerBgColor = headerBgColor,
+          headerTextColor = headerTextColor,
+          properties = filteredProperties
+        )
+      }
+    }
+  }
+
+  @Composable
+  private fun ChaptersTabContent(
+    sections: List<InfoSection>
+  ) {
+    val menuSection = sections.firstOrNull() ?: return
+
+    Column(
+      modifier = Modifier
+        .fillMaxSize()
+        .verticalScroll(rememberScrollState())
+        .padding(bottom = 24.dp),
+      verticalArrangement = Arrangement.spacedBy(16.dp)
+    ) {
+      GlassmorphicCard(
+        modifier = Modifier.fillMaxWidth()
+      ) {
+        Column(
+          modifier = Modifier.padding(16.dp),
+          verticalArrangement = Arrangement.spacedBy(16.dp)
+        ) {
+          Text(
+            text = "Video Chapters & Timeline",
+            style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
+            color = MaterialTheme.colorScheme.primary
+          )
+
           Column(
-            verticalArrangement = Arrangement.spacedBy(8.dp),
+            modifier = Modifier.padding(start = 8.dp)
           ) {
-            section.properties.forEach { (key, value) ->
-              PropertyRow(key, value)
+            menuSection.properties.forEachIndexed { index, (timestamp, name) ->
+              val context = LocalContext.current
+              val scope = rememberCoroutineScope()
+
+              Row(
+                modifier = Modifier
+                  .fillMaxWidth()
+                  .clickable {
+                    scope.launch {
+                      SafeClipboard.copyPlainText(context, "Chapter timestamp", timestamp)
+                      Toast.makeText(context, "Copied: $timestamp", Toast.LENGTH_SHORT).show()
+                    }
+                  }
+                  .padding(vertical = 12.dp),
+                verticalAlignment = Alignment.Top
+              ) {
+                // Interactive connected timeline
+                Column(
+                  horizontalAlignment = Alignment.CenterHorizontally,
+                  modifier = Modifier.width(28.dp)
+                ) {
+                  Surface(
+                    shape = CircleShape,
+                    color = MaterialTheme.colorScheme.primary,
+                    border = BorderStroke(2.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.3f)),
+                    modifier = Modifier.size(12.dp)
+                  ) {}
+
+                  if (index < menuSection.properties.size - 1) {
+                    Spacer(
+                      modifier = Modifier
+                        .width(2.dp)
+                        .height(38.dp)
+                        .background(
+                          brush = androidx.compose.ui.graphics.Brush.verticalGradient(
+                            colors = listOf(
+                              MaterialTheme.colorScheme.primary,
+                              MaterialTheme.colorScheme.tertiary.copy(alpha = 0.25f)
+                            )
+                          )
+                        )
+                    )
+                  }
+                }
+
+                Spacer(modifier = Modifier.width(12.dp))
+
+                // Chapter markers details
+                Column(
+                  modifier = Modifier.weight(1f)
+                ) {
+                  Text(
+                    text = name,
+                    style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Bold),
+                    color = MaterialTheme.colorScheme.onSurface
+                  )
+                  Spacer(modifier = Modifier.height(2.dp))
+                  Surface(
+                    shape = RoundedCornerShape(6.dp),
+                    color = MaterialTheme.colorScheme.primary.copy(alpha = 0.08f),
+                    border = BorderStroke(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.15f))
+                  ) {
+                    Text(
+                      text = timestamp,
+                      modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp),
+                      style = MaterialTheme.typography.bodySmall.copy(
+                        fontFamily = FontFamily.Monospace,
+                        fontWeight = FontWeight.Bold
+                      ),
+                      color = MaterialTheme.colorScheme.primary
+                    )
+                  }
+                }
+              }
             }
           }
         }
@@ -475,32 +1106,70 @@ class MediaInfoActivity : ComponentActivity() {
 
   @Composable
   private fun PropertyRow(label: String, value: String) {
-    // Detect timestamp keys (HH:MM:SS.mmm format from Menu/Chapters section)
-    val isTimestamp = label.matches(Regex("\\d{2}:\\d{2}:\\d{2}\\.\\d{3}"))
+    val context = LocalContext.current
+    val scope = rememberCoroutineScope()
+
     Row(
-      modifier = Modifier.fillMaxWidth(),
+      modifier = Modifier
+        .fillMaxWidth()
+        .clickable {
+          scope.launch {
+            SafeClipboard.copyPlainText(context, label, value)
+            Toast.makeText(context, "Copied: $value", Toast.LENGTH_SHORT).show()
+          }
+        }
+        .padding(vertical = 4.dp),
       horizontalArrangement = Arrangement.SpaceBetween,
       verticalAlignment = Alignment.Top,
     ) {
       Text(
         text = label,
         style = MaterialTheme.typography.bodyMedium,
-        fontWeight = if (isTimestamp) FontWeight.Medium else FontWeight.SemiBold,
-        fontFamily = if (isTimestamp) FontFamily.Monospace else null,
-        color = if (isTimestamp) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
+        fontWeight = FontWeight.SemiBold,
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
         modifier = Modifier
-          .weight(if (isTimestamp) 1.2f else 1f)
+          .weight(1f)
           .padding(end = 12.dp),
       )
 
       Text(
         text = value,
-        style = MaterialTheme.typography.bodyMedium,
-        fontFamily = if (isTimestamp) null else FontFamily.Monospace,
+        style = MaterialTheme.typography.bodyMedium.copy(
+          fontFamily = FontFamily.Monospace
+        ),
         color = MaterialTheme.colorScheme.onSurface,
-        modifier = Modifier.weight(if (isTimestamp) 1.8f else 1.5f),
+        modifier = Modifier.weight(1.5f),
       )
     }
+  }
+
+  private fun parseMediaInfoText(text: String): List<InfoSection> {
+    val sections = mutableListOf<InfoSection>()
+    var currentName: String? = null
+    val currentProps = mutableListOf<Pair<String, String>>()
+    text.lines().forEach { line ->
+      val trimmed = line.trim()
+      when {
+        trimmed.isEmpty() || trimmed.startsWith("=") || line.contains("MEDIA INFO") -> {}
+        !line.startsWith(" ") && !line.contains(":") -> {
+          if (currentName != null && currentProps.isNotEmpty()) {
+            sections.add(InfoSection(currentName, currentProps.toList()))
+          }
+          currentName = trimmed
+          currentProps.clear()
+        }
+        line.contains(":") -> {
+          val parts = line.split(":", limit = 2)
+          if (parts.size == 2 && parts[0].trim().isNotEmpty() && parts[1].trim().isNotEmpty()) {
+            currentProps.add(parts[0].trim() to parts[1].trim())
+          }
+        }
+      }
+    }
+    if (currentName != null && currentProps.isNotEmpty()) {
+      sections.add(InfoSection(currentName, currentProps.toList()))
+    }
+    return sections
   }
 
   private data class InfoSection(
@@ -554,9 +1223,3 @@ class MediaInfoActivity : ComponentActivity() {
     }
   }
 }
-
-
-
-
-
-

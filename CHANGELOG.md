@@ -22,6 +22,7 @@ These notes are written in plain English and focus on what changed for real use.
 
 ### Browser, Library, And Storage
 
+- redesigned the Media Info page to use a premium, tabbed Material 3 interface with beautiful overview stats, container metadata detail, track summaries, and customizable sharing.
 - implemented the unified Media Library view mode.
 - added multi-select range handling, folder copy/move/rename, and SMB mutex/reconnection guards.
 - redesigned settings sections and moved progress-related options into cleaner places.
@@ -35,7 +36,6 @@ These notes are written in plain English and focus on what changed for real use.
 - Removed Avif / Jpeg-Xl type images from the settings selection
 - Added Font selection in the Subtitle Settings section.
 - Fixed issue of Lua script when copying specific part Copied whole Lua script.
-- Added Pixel player Style Seekbar in Seekbar types 
 - added Expressive Scrollbar like in Pixel player 
 
 ## 1.3.9
