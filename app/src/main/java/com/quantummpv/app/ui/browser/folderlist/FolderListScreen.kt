@@ -185,7 +185,7 @@ object FolderListScreen : Screen {
     val navBarState = com.quantummpv.app.ui.browser.NavigationBarState
     val isRefreshing = remember { mutableStateOf(false) }
     val sortDialogOpen = rememberSaveable { mutableStateOf(false) }
-    val deleteDialogOpen = rememberSaveable { mutableStateOf(false) }
+    var pendingDeleteFolders by remember { mutableStateOf<List<VideoFolder>>(emptyList()) }
     val showLinkDialog = remember { mutableStateOf(false) }
     val folderPickerOpen = rememberSaveable { mutableStateOf(false) }
     val operationType = remember { mutableStateOf<CopyPasteOps.OperationType?>(null) }
@@ -250,37 +250,39 @@ object FolderListScreen : Screen {
 
     val filteredFolders = sortedFolders
     
+    suspend fun deleteFolders(folders: List<VideoFolder>): Pair<Int, Int> {
+      var deleted = 0
+      var failed = 0
+      for (folder in folders) {
+        try {
+          val ids = setOf(folder.bucketId)
+          val videos = com.quantummpv.app.repository.MediaFileRepository.getVideosForBuckets(context, ids)
+          if (videos.isNotEmpty()) {
+            val (d, f) = viewModel.deleteVideos(videos)
+            deleted += d
+            failed += f
+          }
+          val dir = java.io.File(folder.path)
+          if (dir.exists()) {
+            if (dir.deleteRecursively()) {
+              deleted++
+            } else {
+              failed++
+            }
+          }
+        } catch (e: Exception) {
+          Log.e("FolderListScreen", "Error deleting folder ${folder.path}", e)
+          failed++
+        }
+      }
+      return Pair(deleted, failed)
+    }
+
     // Selection manager
     val selectionManager = rememberSelectionManager(
       items = sortedFolders,
       getId = { it.bucketId },
-      onDeleteItems = { folders, _ ->
-        var deleted = 0
-        var failed = 0
-        for (folder in folders) {
-          try {
-            val ids = setOf(folder.bucketId)
-            val videos = com.quantummpv.app.repository.MediaFileRepository.getVideosForBuckets(context, ids)
-            if (videos.isNotEmpty()) {
-              val (d, f) = viewModel.deleteVideos(videos)
-              deleted += d
-              failed += f
-            }
-            val dir = java.io.File(folder.path)
-            if (dir.exists()) {
-              if (dir.deleteRecursively()) {
-                deleted++
-              } else {
-                failed++
-              }
-            }
-          } catch (e: Exception) {
-            Log.e("FolderListScreen", "Error deleting folder ${folder.path}", e)
-            failed++
-          }
-        }
-        Pair(deleted, failed)
-      },
+      onDeleteItems = { folders, _ -> deleteFolders(folders) },
       onOperationComplete = { viewModel.refresh() },
     )
 
@@ -488,6 +490,7 @@ object FolderListScreen : Screen {
                 ).show()
               }
             },
+            onDeleteClick = { pendingDeleteFolders = selectionManager.getSelectedItems() },
             onSelectAll = { selectionManager.selectAll() },
             onInvertSelection = { selectionManager.invertSelection() },
             onDeselectAll = { selectionManager.clear() },
@@ -675,7 +678,7 @@ object FolderListScreen : Screen {
               }
             },
             onRenameClick = { renameDialogOpen = true },
-            onDeleteClick = { deleteDialogOpen.value = true },
+            onDeleteClick = { pendingDeleteFolders = selectionManager.getSelectedItems() },
             onAddToPlaylistClick = { },
             showCopy = true,
             showMove = true,
@@ -792,14 +795,33 @@ object FolderListScreen : Screen {
         onSortOrderChange = { browserPreferences.folderSortOrder.set(it) },
       )
 
-      DeleteConfirmationDialog(
-        isOpen = deleteDialogOpen.value,
-        onDismiss = { deleteDialogOpen.value = false },
-        onConfirm = { selectionManager.deleteSelected() },
-        itemType = "folder",
-        itemCount = selectionManager.selectedCount,
-        itemNames = selectionManager.getSelectedItems().map { it.name },
-      )
+      if (pendingDeleteFolders.isNotEmpty()) {
+        DeleteConfirmationDialog(
+          isOpen = true,
+          onDismiss = { pendingDeleteFolders = emptyList() },
+          onConfirm = {
+            val foldersToDelete = pendingDeleteFolders
+            pendingDeleteFolders = emptyList()
+            coroutineScope.launch {
+              runCatching {
+                val (deleted, failed) = deleteFolders(foldersToDelete)
+                if (deleted > 0) {
+                  android.widget.Toast.makeText(context, "Deleted successfully", android.widget.Toast.LENGTH_SHORT).show()
+                } else if (failed > 0) {
+                  android.widget.Toast.makeText(context, "Failed to delete", android.widget.Toast.LENGTH_SHORT).show()
+                }
+              }.onFailure {
+                android.widget.Toast.makeText(context, "Failed to delete: ${it.message}", android.widget.Toast.LENGTH_SHORT).show()
+              }
+              selectionManager.clear()
+              viewModel.refresh()
+            }
+          },
+          itemType = "folder",
+          itemCount = pendingDeleteFolders.size,
+          itemNames = pendingDeleteFolders.map { it.name },
+        )
+      }
     }
   }
 }

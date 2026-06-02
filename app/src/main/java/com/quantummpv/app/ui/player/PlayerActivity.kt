@@ -64,6 +64,9 @@ import com.quantummpv.app.preferences.DecoderPreferences
 import com.quantummpv.app.preferences.PlayerPreferences
 import com.quantummpv.app.preferences.SubtitlesPreferences
 import com.quantummpv.app.preferences.VideoSortType
+import com.quantummpv.app.ui.browser.playlist.ALL_VIDEOS_PLAYLIST_ID
+import com.quantummpv.app.ui.browser.playlist.buildAllVideosPlaylistEntity
+import com.quantummpv.app.ui.browser.playlist.isAllVideosPlaylist
 import com.quantummpv.app.ui.player.controls.PlayerControls
 import com.quantummpv.app.ui.player.ytdlp.YtdlpManager
 import com.quantummpv.app.ui.theme.MpvrxTheme
@@ -501,25 +504,12 @@ class PlayerActivity :
       lifecycleScope.launch(Dispatchers.IO) {
         val pid = playlistId ?: return@launch
         try {
-          val loadedPlaylist = playlistRepository.getPlaylistById(pid)
-          val loadedItems = playlistRepository.getPlaylistItems(pid)
-          val items = loadedItems.map { Uri.parse(it.filePath) }
-          val totalCount = loadedItems.size
-
-          withContext(Dispatchers.Main) {
-            playlistEntity = loadedPlaylist
-            playlistItems = loadedItems
-            isM3uPlaylist = loadedPlaylist?.isM3uPlaylist == true
-            playlist = items
-            playlistWindowOffset = 0
-            playlistTotalCount = totalCount
-            Log.d(TAG, "Loaded all $totalCount items from playlist $pid (isM3U: $isM3uPlaylist)")
-            // Re-initialize shuffle now that playlist is available
-            if (viewModel.shuffleEnabled.value) {
-              onShuffleToggled(true)
-            }
-            viewModel.refreshPlaylistItems()
-          }
+          loadPlaylistById(
+            pid = pid,
+            sourceIntent = intent,
+            logPrefix = "Loaded",
+            reapplyShuffle = true,
+          )
         } catch (e: Exception) {
           Log.e(TAG, "Failed to load playlist from database", e)
         }
@@ -3229,19 +3219,11 @@ class PlayerActivity :
       lifecycleScope.launch(Dispatchers.IO) {
         val pid = playlistId ?: return@launch
         try {
-          val loadedPlaylist = playlistRepository.getPlaylistById(pid)
-          val loadedItems = playlistRepository.getPlaylistItems(pid)
-          val items = loadedItems.map { Uri.parse(it.filePath) }
-          val totalCount = loadedItems.size
-          withContext(Dispatchers.Main) {
-            playlistEntity = loadedPlaylist
-            playlistItems = loadedItems
-            isM3uPlaylist = loadedPlaylist?.isM3uPlaylist == true
-            playlist = items
-            playlistTotalCount = totalCount
-            Log.d(TAG, "onNewIntent: Loaded ${items.size} items from playlist $pid")
-            viewModel.refreshPlaylistItems()
-          }
+          loadPlaylistById(
+            pid = pid,
+            sourceIntent = intent,
+            logPrefix = "onNewIntent: Loaded",
+          )
         } catch (e: Exception) {
           Log.e(TAG, "onNewIntent: Failed to load playlist from database", e)
         }
@@ -4063,7 +4045,7 @@ class PlayerActivity :
     setHttpHeadersForUri(uri)
 
     // Update playlist play history if this is a custom playlist
-    playlistId?.let { id ->
+    playlistId?.takeUnless(::isAllVideosPlaylist)?.let { id ->
       lifecycleScope.launch(Dispatchers.IO) {
         val filePath = when (uri.scheme) {
           "file" -> uri.path ?: uri.toString()
@@ -4301,6 +4283,8 @@ class PlayerActivity :
         MPVLib.getPropertyInt("height") ?: MPVLib.getPropertyInt("video-params/h") ?: 0
       }.getOrDefault(0)
 
+      val historyPlaylistId = playlistId?.takeUnless(::isAllVideosPlaylist)
+
       RecentlyPlayedOps.addRecentlyPlayed(
         filePath = filePath,
         fileName = name,
@@ -4310,7 +4294,7 @@ class PlayerActivity :
         width = width,
         height = height,
         launchSource = "playlist",
-        playlistId = playlistId,
+        playlistId = historyPlaylistId,
       )
 
       Log.d(TAG, "Saved recently played (playlist): $filePath")
@@ -4319,7 +4303,7 @@ class PlayerActivity :
       Log.d(TAG, "  - duration: ${duration}ms")
       Log.d(TAG, "  - size: ${fileSize}B")
       Log.d(TAG, "  - resolution: ${width}x${height}")
-      Log.d(TAG, "  - playlistId: $playlistId")
+      Log.d(TAG, "  - playlistId: $historyPlaylistId")
     }.onFailure { e ->
       Log.e(TAG, "Error saving recently played for playlist item", e)
     }
@@ -4468,6 +4452,79 @@ class PlayerActivity :
       sortedFromLibrary
     } else {
       sortSiblingFilesForVideoList(directVideoFiles)
+    }
+  }
+
+  private suspend fun loadPlaylistById(
+    pid: Int,
+    sourceIntent: Intent,
+    logPrefix: String,
+    reapplyShuffle: Boolean = false,
+  ) {
+    if (isAllVideosPlaylist(pid)) {
+      val allVideos =
+        com.quantummpv.app.utils.sort.SortUtils.sortVideos(
+          com.quantummpv.app.repository.MediaFileRepository.getAllVideos(this@PlayerActivity),
+          browserPreferences.videoSortType.get(),
+          browserPreferences.videoSortOrder.get(),
+        )
+      val playlistUris = allVideos.map { it.uri }
+      val resolvedPath = parsePathFromIntent(sourceIntent)
+      val resolvedUri = sourceIntent.dataString
+      val derivedIndex =
+        allVideos.indexOfFirst { video ->
+          video.path == resolvedPath || video.uri.toString() == resolvedUri
+        }
+      val syntheticItems =
+        allVideos.mapIndexed { index, video ->
+          PlaylistItemEntity(
+            id = index + 1,
+            playlistId = ALL_VIDEOS_PLAYLIST_ID,
+            filePath = video.path,
+            fileName = video.displayName,
+            position = index,
+            addedAt = video.dateAdded * 1000L,
+          )
+        }
+      val updatedAt =
+        allVideos.maxOfOrNull { it.dateModified * 1000L } ?: System.currentTimeMillis()
+
+      withContext(Dispatchers.Main) {
+        playlistEntity = buildAllVideosPlaylistEntity(updatedAt = updatedAt)
+        playlistItems = syntheticItems
+        isM3uPlaylist = false
+        playlist = playlistUris
+        playlistWindowOffset = 0
+        playlistTotalCount = playlistUris.size
+        playlistIndex =
+          derivedIndex.takeIf { it >= 0 }
+            ?: playlistIndex.coerceIn(0, (playlistUris.lastIndex).coerceAtLeast(0))
+        Log.d(TAG, "$logPrefix ${playlistUris.size} items from all-videos playlist")
+        if (reapplyShuffle && viewModel.shuffleEnabled.value) {
+          onShuffleToggled(true)
+        }
+        viewModel.refreshPlaylistItems()
+      }
+      return
+    }
+
+    val loadedPlaylist = playlistRepository.getPlaylistById(pid)
+    val loadedItems = playlistRepository.getPlaylistItems(pid)
+    val items = loadedItems.map { Uri.parse(it.filePath) }
+    val totalCount = loadedItems.size
+
+    withContext(Dispatchers.Main) {
+      playlistEntity = loadedPlaylist
+      playlistItems = loadedItems
+      isM3uPlaylist = loadedPlaylist?.isM3uPlaylist == true
+      playlist = items
+      playlistWindowOffset = 0
+      playlistTotalCount = totalCount
+      Log.d(TAG, "$logPrefix all $totalCount items from playlist $pid (isM3U: $isM3uPlaylist)")
+      if (reapplyShuffle && viewModel.shuffleEnabled.value) {
+        onShuffleToggled(true)
+      }
+      viewModel.refreshPlaylistItems()
     }
   }
 

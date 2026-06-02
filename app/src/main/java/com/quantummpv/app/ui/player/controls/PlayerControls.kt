@@ -346,10 +346,15 @@ fun PlayerControls(
     )
     if (statisticsPage == 6) {
       CustomStatsPageSixOverlay(
+        viewModel = viewModel,
         modifier =
           Modifier
             .align(Alignment.TopStart)
-            .then(safeAreaInsetModifier)
+            .windowInsetsPadding(
+              WindowInsets.safeDrawing.only(
+                WindowInsetsSides.Top + WindowInsetsSides.Horizontal
+              )
+            )
             .padding(top = 16.dp, start = 14.dp),
       )
     }
@@ -1702,9 +1707,12 @@ private data class CustomStatsSnapshot(
 
 @Composable
 private fun CustomStatsPageSixOverlay(
+  viewModel: PlayerViewModel,
   modifier: Modifier = Modifier,
 ) {
   val context = LocalContext.current.applicationContext
+  val isHdrOutputEnabled by viewModel.isHdrScreenOutputEnabled.collectAsState()
+  val hdrScreenMode by viewModel.hdrScreenMode.collectAsState()
   val stats by produceState(
     initialValue =
       CustomStatsSnapshot(
@@ -1736,6 +1744,8 @@ private fun CustomStatsPageSixOverlay(
         totalDataConsumedText = "0 Bytes",
         stallCountText = "0 stalls",
       ),
+    isHdrOutputEnabled,
+    hdrScreenMode,
   ) {
     val history = ArrayDeque<Float>()
     var lastCpuMs   = runCatching { android.os.Process.getElapsedCpuTime() }.getOrDefault(0L)
@@ -1925,10 +1935,23 @@ private fun CustomStatsPageSixOverlay(
         batteryWattsText  = battery.wattsText,
         batteryTempText   = battery.tempText,
         hdrActive         = runCatching {
-          val transfer = MPVLib.getPropertyString("video-params/transfer")
-          val primaries = MPVLib.getPropertyString("video-params/primaries")
-          if (transfer == "pq" || transfer == "hlg" || primaries == "bt.2020") "HDR Active" else "SDR"
-        }.getOrDefault("SDR"),
+          val sourceGamma = MPVLib.getPropertyString("video-params/gamma").orEmpty()
+          val sourcePrimaries = MPVLib.getPropertyString("video-params/primaries").orEmpty()
+          val sourcePeak = MPVLib.getPropertyDouble("video-params/sig-peak") ?: 0.0
+
+          val isHdrSource = sourceGamma == "pq" ||
+            sourceGamma == "hlg" ||
+            (sourcePrimaries == "bt.2020" && sourcePeak > 1.0)
+
+          val sourceLabel = if (isHdrSource) "HDR Source" else "SDR Source"
+          val outputLabel = if (isHdrOutputEnabled) {
+            "HDR - ${hdrScreenMode.shortTitle} Mode Output"
+          } else {
+            "SDR Output"
+          }
+
+          "$sourceLabel | $outputLabel"
+        }.getOrDefault("Unknown"),
         sessionPlayTimeText = sessionPlayTimeText,
         decoderEfficiencyText = decoderEfficiencyText,
         thermalStateText  = thermalStateText,

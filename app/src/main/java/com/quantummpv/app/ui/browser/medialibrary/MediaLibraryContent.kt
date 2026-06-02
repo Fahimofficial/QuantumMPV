@@ -6,6 +6,7 @@ import androidx.compose.animation.core.tween
 import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
@@ -16,8 +17,11 @@ import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
 import com.quantummpv.app.ui.icons.Icon
 import com.quantummpv.app.ui.icons.Icons
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.PlainTooltip
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.SearchBar
+import androidx.compose.material3.SearchBarDefaults
 import androidx.compose.material3.Text
 import androidx.compose.material3.TooltipAnchorPosition
 import androidx.compose.material3.TooltipBox
@@ -29,6 +33,7 @@ import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -36,24 +41,33 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.quantummpv.app.BuildConfig
 import com.quantummpv.app.domain.media.model.Video
 import com.quantummpv.app.preferences.BrowserPreferences
+import com.quantummpv.app.preferences.PlayerPreferences
 import com.quantummpv.app.preferences.preference.collectAsState
 import com.quantummpv.app.ui.browser.LocalNavigationBarHeight
 import com.quantummpv.app.ui.browser.NavigationBarState
 import com.quantummpv.app.ui.browser.components.BrowserBottomBar
 import com.quantummpv.app.ui.browser.components.BrowserTopBar
+import com.quantummpv.app.ui.browser.dialogs.AddToPlaylistDialog
 import com.quantummpv.app.ui.browser.dialogs.DeleteConfirmationDialog
 import com.quantummpv.app.ui.browser.dialogs.RenameDialog
+import com.quantummpv.app.ui.browser.playlist.ALL_VIDEOS_PLAYLIST_ID
 import com.quantummpv.app.ui.browser.selection.rememberSelectionManager
+import com.quantummpv.app.ui.browser.states.EmptyState
 import com.quantummpv.app.ui.browser.videolist.VideoListContent
 import com.quantummpv.app.ui.browser.videolist.VideoSortDialog
 import com.quantummpv.app.ui.browser.videolist.VideoWithPlaybackInfo
+import com.quantummpv.app.ui.player.PlayerActivity
 import com.quantummpv.app.ui.utils.LocalBackStack
 import com.quantummpv.app.utils.history.RecentlyPlayedOps
 import com.quantummpv.app.utils.media.MediaUtils
@@ -68,6 +82,7 @@ fun MediaLibraryContent() {
   val coroutineScope = rememberCoroutineScope()
   val backstack = LocalBackStack.current
   val browserPreferences = koinInject<BrowserPreferences>()
+  val playerPreferences = koinInject<PlayerPreferences>()
   val lifecycleOwner = androidx.lifecycle.compose.LocalLifecycleOwner.current
   val navigationBarHeight = LocalNavigationBarHeight.current
 
@@ -81,6 +96,7 @@ fun MediaLibraryContent() {
 
   val videoSortType by browserPreferences.videoSortType.collectAsState()
   val videoSortOrder by browserPreferences.videoSortOrder.collectAsState()
+  val playlistMode by playerPreferences.playlistMode.collectAsState()
   val sortedVideosWithInfo = remember(videosWithPlaybackInfo, videoSortType, videoSortOrder) {
     val infoById = videosWithPlaybackInfo.associateBy { it.video.path }
     val sortedVideos = SortUtils.sortVideos(videosWithPlaybackInfo.map { it.video }, videoSortType, videoSortOrder)
@@ -89,8 +105,23 @@ fun MediaLibraryContent() {
     }
   }
 
+  var searchQuery by rememberSaveable { mutableStateOf("") }
+  var isSearching by rememberSaveable { mutableStateOf(false) }
+  val keyboardController = LocalSoftwareKeyboardController.current
+  val focusRequester = remember { FocusRequester() }
+  val filteredVideosWithInfo = remember(sortedVideosWithInfo, isSearching, searchQuery) {
+    if (isSearching && searchQuery.isNotBlank()) {
+      sortedVideosWithInfo.filter { item ->
+        item.video.displayName.contains(searchQuery, ignoreCase = true) ||
+          item.video.path.contains(searchQuery, ignoreCase = true)
+      }
+    } else {
+      sortedVideosWithInfo
+    }
+  }
+
   val selectionManager = rememberSelectionManager(
-    items = sortedVideosWithInfo.map { it.video },
+    items = filteredVideosWithInfo.map { it.video },
     getId = { it.path.hashCode().toLong() },
     onDeleteItems = { items, _ ->
       coroutineScope.launch { viewModel.deleteVideos(items) }
@@ -107,9 +138,18 @@ fun MediaLibraryContent() {
   val sortDialogOpen = rememberSaveable { mutableStateOf(false) }
   val deleteDialogOpen = rememberSaveable { mutableStateOf(false) }
   val renameDialogOpen = rememberSaveable { mutableStateOf(false) }
+  val addToPlaylistDialogOpen = rememberSaveable { mutableStateOf(false) }
   val isFabVisible = remember { mutableStateOf(true) }
   var showFloatingBottomBar by remember { mutableStateOf(false) }
   val animationDuration = 300
+  val lastPlayRequestIndex = remember { mutableIntStateOf(-1) }
+
+  LaunchedEffect(isSearching) {
+    if (isSearching) {
+      focusRequester.requestFocus()
+      keyboardController?.show()
+    }
+  }
 
   LaunchedEffect(selectionManager.isInSelectionMode) {
     showFloatingBottomBar = selectionManager.isInSelectionMode
@@ -119,8 +159,34 @@ fun MediaLibraryContent() {
     )
   }
 
-  BackHandler(enabled = selectionManager.isInSelectionMode) {
-    selectionManager.clear()
+  fun playFromMediaLibrary(video: Video) {
+    if (!playlistMode || sortedVideosWithInfo.size <= 1) {
+      MediaUtils.playFile(video, context, "media_library")
+      return
+    }
+
+    lastPlayRequestIndex.intValue =
+      sortedVideosWithInfo.indexOfFirst { it.video.path == video.path }
+
+    val intent = android.content.Intent(android.content.Intent.ACTION_VIEW, video.uri).apply {
+      setClass(context, PlayerActivity::class.java)
+      putExtra("internal_launch", true)
+      putExtra("playlist_id", ALL_VIDEOS_PLAYLIST_ID)
+      putExtra("playlist_index", lastPlayRequestIndex.intValue.coerceAtLeast(0))
+      putExtra("launch_source", "media_library")
+      putExtra("title", video.displayName)
+    }
+    context.startActivity(intent)
+  }
+
+  BackHandler(enabled = selectionManager.isInSelectionMode || isSearching) {
+    when {
+      selectionManager.isInSelectionMode -> selectionManager.clear()
+      isSearching -> {
+        isSearching = false
+        searchQuery = ""
+      }
+    }
   }
 
   DisposableEffect(lifecycleOwner) {
@@ -137,36 +203,83 @@ fun MediaLibraryContent() {
 
   Scaffold(
     topBar = {
-      BrowserTopBar(
-        title = "Media Library",
-        isInSelectionMode = selectionManager.isInSelectionMode,
-        selectedCount = selectionManager.selectedCount,
-        totalCount = sortedVideosWithInfo.size,
-        onBackClick = null,
-        onCancelSelection = { selectionManager.clear() },
-        onSortClick = { sortDialogOpen.value = true },
-        onSettingsClick = {
-          backstack.add(com.quantummpv.app.ui.preferences.PreferencesScreen)
-        },
-        isSingleSelection = selectionManager.isSingleSelection,
-        onInfoClick = {
-          if (selectionManager.isSingleSelection) {
-            val video = selectionManager.getSelectedItems().firstOrNull()
-            if (video != null) {
-              MediaUtils.playFile(video.path, context, "media_library_info")
-              selectionManager.clear()
+      if (isSearching) {
+        SearchBar(
+          inputField = {
+            SearchBarDefaults.InputField(
+              query = searchQuery,
+              onQueryChange = { searchQuery = it },
+              onSearch = { },
+              expanded = false,
+              onExpandedChange = { },
+              placeholder = { Text("Search videos...") },
+              leadingIcon = {
+                Icon(
+                  imageVector = Icons.Filled.Search,
+                  contentDescription = "Search",
+                )
+              },
+              trailingIcon = {
+                IconButton(
+                  onClick = {
+                    isSearching = false
+                    searchQuery = ""
+                  },
+                ) {
+                  Icon(
+                    imageVector = Icons.Filled.Close,
+                    contentDescription = "Cancel",
+                  )
+                }
+              },
+              modifier = Modifier.focusRequester(focusRequester),
+            )
+          },
+          expanded = false,
+          onExpandedChange = { },
+          modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 16.dp, vertical = 8.dp),
+        ) { }
+      } else {
+        BrowserTopBar(
+          title = "Media Library",
+          isInSelectionMode = selectionManager.isInSelectionMode,
+          selectedCount = selectionManager.selectedCount,
+          totalCount = filteredVideosWithInfo.size,
+          onBackClick = null,
+          onCancelSelection = { selectionManager.clear() },
+          onSortClick = { sortDialogOpen.value = true },
+          onSearchClick = { isSearching = true },
+          onSettingsClick = {
+            backstack.add(com.quantummpv.app.ui.preferences.PreferencesScreen)
+          },
+          isSingleSelection = selectionManager.isSingleSelection,
+          onInfoClick = {
+            if (selectionManager.isSingleSelection) {
+              val video = selectionManager.getSelectedItems().firstOrNull()
+              if (video != null) {
+                MediaUtils.playFile(video.path, context, "media_library_info")
+                selectionManager.clear()
+              }
             }
-          }
-        },
-        onShareClick = { selectionManager.shareSelected() },
-        onPlayClick = { selectionManager.playSelected() },
-        onSelectAll = { selectionManager.selectAll() },
-        onInvertSelection = { selectionManager.invertSelection() },
-        onDeselectAll = { selectionManager.clear() },
-      )
+          },
+          onShareClick = { selectionManager.shareSelected() },
+          onPlayClick = { selectionManager.playSelected() },
+          onSelectAll = { selectionManager.selectAll() },
+          onInvertSelection = { selectionManager.invertSelection() },
+          onDeselectAll = { selectionManager.clear() },
+          onAddToPlaylistClick =
+            if (!BuildConfig.ENABLE_UPDATE_FEATURE) {
+              { addToPlaylistDialogOpen.value = true }
+            } else {
+              null
+            },
+        )
+      }
     },
     floatingActionButton = {
-      if (sortedVideosWithInfo.isNotEmpty()) {
+      if (filteredVideosWithInfo.isNotEmpty()) {
         TooltipBox(
           positionProvider = TooltipDefaults.rememberTooltipPositionProvider(TooltipAnchorPosition.Above),
           tooltip = { PlainTooltip { Text("Play recently played or first video") } },
@@ -184,12 +297,14 @@ fun MediaLibraryContent() {
               coroutineScope.launch {
                 val recentlyPlayedVideos = RecentlyPlayedOps.getRecentlyPlayed(limit = 1)
                 val lastPlayed = recentlyPlayedVideos.firstOrNull()
+                val targetVideo =
+                  if (lastPlayed != null) {
+                    filteredVideosWithInfo.firstOrNull { it.video.path == lastPlayed.filePath }?.video
+                  } else {
+                    null
+                  }
 
-                if (lastPlayed != null && sortedVideosWithInfo.any { it.video.path == lastPlayed.filePath }) {
-                  MediaUtils.playFile(lastPlayed.filePath, context, "recently_played_button")
-                } else {
-                  MediaUtils.playFile(sortedVideosWithInfo.first().video, context, "first_video_button")
-                }
+                playFromMediaLibrary(targetVideo ?: filteredVideosWithInfo.first().video)
               }
             },
           ) {
@@ -203,28 +318,43 @@ fun MediaLibraryContent() {
     val videosWereDeletedOrMoved = false
 
     Box(modifier = Modifier.fillMaxSize()) {
-      VideoListContent(
-        folderId = "media_library",
-        videosWithInfo = sortedVideosWithInfo,
-        isLoading = isLoading && videos.isEmpty(),
-        isRefreshing = isRefreshing,
-        recentlyPlayedFilePath = recentlyPlayedFilePath,
-        videosWereDeletedOrMoved = videosWereDeletedOrMoved,
-        autoScrollToLastPlayed = autoScrollToLastPlayed,
-        onRefresh = { viewModel.refresh() },
-        selectionManager = selectionManager,
-        onVideoClick = { video ->
-          if (selectionManager.isInSelectionMode) {
-            selectionManager.toggle(video)
-          } else {
-            MediaUtils.playFile(video, context, "video_list")
-          }
-        },
-        onVideoLongClick = { video -> selectionManager.handleLongClick(video) },
-        isFabVisible = isFabVisible,
-        modifier = Modifier.padding(padding),
-        showFloatingBottomBar = showFloatingBottomBar,
-      )
+      if (isSearching && filteredVideosWithInfo.isEmpty() && searchQuery.isNotBlank()) {
+        Box(
+          modifier = Modifier
+            .fillMaxSize()
+            .padding(padding),
+          contentAlignment = Alignment.Center,
+        ) {
+          EmptyState(
+            icon = Icons.Filled.Search,
+            title = "No videos found",
+            message = "Try a different search term",
+          )
+        }
+      } else {
+        VideoListContent(
+          folderId = "media_library",
+          videosWithInfo = filteredVideosWithInfo,
+          isLoading = isLoading && videos.isEmpty(),
+          isRefreshing = isRefreshing,
+          recentlyPlayedFilePath = recentlyPlayedFilePath,
+          videosWereDeletedOrMoved = videosWereDeletedOrMoved,
+          autoScrollToLastPlayed = autoScrollToLastPlayed,
+          onRefresh = { viewModel.refresh() },
+          selectionManager = selectionManager,
+          onVideoClick = { video ->
+            if (selectionManager.isInSelectionMode) {
+              selectionManager.toggle(video)
+            } else {
+              playFromMediaLibrary(video)
+            }
+          },
+          onVideoLongClick = { video -> selectionManager.handleLongClick(video) },
+          isFabVisible = isFabVisible,
+          modifier = Modifier.padding(padding),
+          showFloatingBottomBar = showFloatingBottomBar,
+        )
+      }
 
       AnimatedVisibility(
         visible = showFloatingBottomBar,
@@ -244,7 +374,9 @@ fun MediaLibraryContent() {
           onMoveClick = { /* N/A */ },
           onRenameClick = { renameDialogOpen.value = true },
           onDeleteClick = { deleteDialogOpen.value = true },
-          onAddToPlaylistClick = { /* N/A */ },
+          onAddToPlaylistClick = { addToPlaylistDialogOpen.value = true },
+          showCopy = false,
+          showMove = false,
           modifier = Modifier.padding(bottom = if (NavigationBarState.shouldHideNavigationBar) 0.dp else navigationBarHeight)
         )
       }
@@ -289,5 +421,15 @@ fun MediaLibraryContent() {
         )
       }
     }
+
+    AddToPlaylistDialog(
+      isOpen = addToPlaylistDialogOpen.value,
+      videos = selectionManager.getSelectedItems(),
+      onDismiss = { addToPlaylistDialogOpen.value = false },
+      onSuccess = {
+        selectionManager.clear()
+        viewModel.refresh()
+      },
+    )
   }
 }

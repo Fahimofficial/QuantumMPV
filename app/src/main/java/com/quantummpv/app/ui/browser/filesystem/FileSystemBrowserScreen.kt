@@ -187,7 +187,7 @@ fun FileSystemBrowserScreen(path: String? = null) {
   val isRefreshing = remember { mutableStateOf(false) }
   val showLinkDialog = remember { mutableStateOf(false) }
    val sortDialogOpen = rememberSaveable { mutableStateOf(false) }
-   val deleteDialogOpen = rememberSaveable { mutableStateOf(false) }
+   var deleteDialogOpen by rememberSaveable { mutableStateOf(false) }
    val renameDialogOpen = rememberSaveable { mutableStateOf(false) }
    val addToPlaylistDialogOpen = rememberSaveable { mutableStateOf(false) }
    val compressorDialogOpen = rememberSaveable { mutableStateOf(false) }
@@ -575,6 +575,7 @@ fun FileSystemBrowserScreen(path: String? = null) {
                 selectionManager.clear()
               }
             },
+            onDeleteClick = { deleteDialogOpen = true },
             onSelectAll = { selectionManager.selectAll() },
             onInvertSelection = { selectionManager.invertSelection() },
             onDeselectAll = { selectionManager.clear() },
@@ -802,7 +803,7 @@ fun FileSystemBrowserScreen(path: String? = null) {
         },
         onDownscaleClick = { compressorDialogOpen.value = true },
         onRenameClick = { renameDialogOpen.value = true },
-        onDeleteClick = { deleteDialogOpen.value = true },
+        onDeleteClick = { deleteDialogOpen = true },
         onAddToPlaylistClick = { addToPlaylistDialogOpen.value = true },
         showDownscale = selectedVideos.size == 1 && selectedFolders.isEmpty(),
         showRename = selectionManager.isSingleSelection,
@@ -824,20 +825,23 @@ fun FileSystemBrowserScreen(path: String? = null) {
       isAtRoot = isAtRoot,
     )
 
-    DeleteConfirmationDialog(
-      isOpen = deleteDialogOpen.value,
-      onDismiss = { deleteDialogOpen.value = false },
-      onConfirm = {
-        selectionManager.deleteSelected()
-      },
-      itemType = when {
-        selectedFolders.isNotEmpty() && selectedVideos.isNotEmpty() -> "item"
-        selectedFolders.isNotEmpty() -> "folder"
-        else -> "video"
-      },
-      itemCount = selectedCount,
-      itemNames = selectedItems.map { it.name },
-    )
+    if (deleteDialogOpen) {
+      DeleteConfirmationDialog(
+        isOpen = true,
+        onDismiss = { deleteDialogOpen = false },
+        onConfirm = {
+          deleteDialogOpen = false
+          selectionManager.deleteSelected()
+        },
+        itemType = when {
+          selectedFolders.isNotEmpty() && selectedVideos.isNotEmpty() -> "item"
+          selectedFolders.isNotEmpty() -> "folder"
+          else -> "video"
+        },
+        itemCount = selectedCount,
+        itemNames = selectedItems.map { it.name },
+      )
+    }
 
     // Rename Dialog
     if (renameDialogOpen.value) {

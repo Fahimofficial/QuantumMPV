@@ -622,7 +622,13 @@ internal fun VideoListContent(
   val videoGridColumnsLandscape by browserPreferences.videoGridColumnsLandscape.collectAsState()
   val configuration = androidx.compose.ui.platform.LocalConfiguration.current
   val isLandscape = configuration.orientation == android.content.res.Configuration.ORIENTATION_LANDSCAPE
-  val videoGridColumns = if (isLandscape) videoGridColumnsLandscape else videoGridColumnsPortrait
+  val preferredVideoGridColumns = if (isLandscape) videoGridColumnsLandscape else videoGridColumnsPortrait
+  val videoGridColumns = remember(configuration.screenWidthDp, preferredVideoGridColumns) {
+    responsiveVideoGridColumns(
+      availableWidthDp = configuration.screenWidthDp,
+      preferredColumns = preferredVideoGridColumns,
+    )
+  }
   val tapThumbnailToSelect by gesturePreferences.tapThumbnailToSelect.collectAsState()
   val showSubtitleIndicator by browserPreferences.showSubtitleIndicator.collectAsState()
   val showVideoThumbnails by browserPreferences.showVideoThumbnails.collectAsState()
@@ -986,6 +992,26 @@ private fun visibleVideoWindow(
   val start = (firstVisibleIndex - prefetchBefore).coerceAtLeast(0)
   val end = (lastVisibleIndex + prefetchAfter).coerceAtMost(itemCount - 1)
   return (start..end).toList()
+}
+
+private fun responsiveVideoGridColumns(
+  availableWidthDp: Int,
+  preferredColumns: Int,
+): Int {
+  val safePreferred = preferredColumns.coerceAtLeast(1)
+  val minCellDp =
+    when (safePreferred) {
+      1 -> 280
+      2 -> 150
+      3 -> 120
+      4 -> 100
+      else -> 88
+    }
+  val horizontalPaddingDp = 16
+  val spacingDp = 4
+  val usableWidthDp = (availableWidthDp - horizontalPaddingDp).coerceAtLeast(minCellDp)
+  val widthBasedColumns = ((usableWidthDp + spacingDp) / (minCellDp + spacingDp)).coerceAtLeast(1)
+  return widthBasedColumns.coerceIn(1, safePreferred + 2)
 }
 
 @Composable
