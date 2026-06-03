@@ -1026,116 +1026,109 @@ fun SeekbarStylePreview(
     val primaryColor = MaterialTheme.colorScheme.primary
     val previewProgress = progress
 
-    Canvas(modifier = modifier.fillMaxWidth().height(36.dp)) {
-        val playedPx = size.width * previewProgress
-        val centerY = size.height / 2f
+    if (style == SeekbarStyle.Wavy) {
+        SquigglySeekbar(
+            position = previewProgress * 100f,
+            duration = 100f,
+            chapters = persistentListOf(),
+            isPaused = false,
+            isScrubbing = false,
+            useWavySeekbar = true,
+            seekbarStyle = SeekbarStyle.Wavy,
+            onSeek = {},
+            onSeekFinished = {},
+            modifier = modifier,
+        )
+    } else {
+        Canvas(modifier = modifier.fillMaxWidth().height(36.dp)) {
+            val playedPx = size.width * previewProgress
+            val centerY = size.height / 2f
 
-        when (style) {
-            SeekbarStyle.Slim -> {
-                val height = 10.dp.toPx()
-                val radius = height / 2f
-                drawRoundRect(
-                    color = primaryColor.copy(alpha = 0.3f),
-                    topLeft = Offset(0f, centerY - radius),
-                    size = Size(size.width, height),
-                    cornerRadius = CornerRadius(radius),
-                )
-                if (playedPx > 0f) {
-                    val path = Path()
-                    path.addRoundRect(
-                        androidx.compose.ui.geometry.RoundRect(
-                            left = 0f, top = centerY - radius,
-                            right = playedPx, bottom = centerY + radius,
-                            topLeftCornerRadius     = CornerRadius(radius),
-                            bottomLeftCornerRadius  = CornerRadius(radius),
-                            topRightCornerRadius    = CornerRadius(if (playedPx >= size.width - 0.5f) radius else 0f),
-                            bottomRightCornerRadius = CornerRadius(if (playedPx >= size.width - 0.5f) radius else 0f),
+            when (style) {
+                SeekbarStyle.Slim -> {
+                    val height = 10.dp.toPx()
+                    val radius = height / 2f
+                    drawRoundRect(
+                        color = primaryColor.copy(alpha = 0.3f),
+                        topLeft = Offset(0f, centerY - radius),
+                        size = Size(size.width, height),
+                        cornerRadius = CornerRadius(radius),
+                    )
+                    if (playedPx > 0f) {
+                        val path = Path()
+                        path.addRoundRect(
+                            androidx.compose.ui.geometry.RoundRect(
+                                left = 0f, top = centerY - radius,
+                                right = playedPx, bottom = centerY + radius,
+                                topLeftCornerRadius     = CornerRadius(radius),
+                                bottomLeftCornerRadius  = CornerRadius(radius),
+                                topRightCornerRadius    = CornerRadius(if (playedPx >= size.width - 0.5f) radius else 0f),
+                                bottomRightCornerRadius = CornerRadius(if (playedPx >= size.width - 0.5f) radius else 0f),
+                            )
                         )
-                    )
-                    drawPath(path, primaryColor)
+                        drawPath(path, primaryColor)
+                    }
                 }
-            }
-            SeekbarStyle.Standard -> {
-                val height = 8.dp.toPx()
-                val radius = height / 2f
-                val thumbW = 3.dp.toPx()
-                val gapHalf = (thumbW + 10.dp.toPx()) / 2f
-                val thumbStart = (playedPx - gapHalf).coerceIn(0f, size.width)
-                val thumbEnd = (playedPx + gapHalf).coerceIn(0f, size.width)
-                drawRoundRect(
-                    color = primaryColor.copy(alpha = 0.3f),
-                    topLeft = Offset(thumbEnd, centerY - radius),
-                    size = Size((size.width - thumbEnd).coerceAtLeast(0f), height),
-                    cornerRadius = CornerRadius(radius),
-                )
-                if (thumbStart > 0f) {
+                SeekbarStyle.Standard -> {
+                    val height = 8.dp.toPx()
+                    val radius = height / 2f
+                    val thumbW = 3.dp.toPx()
+                    val gapHalf = (thumbW + 10.dp.toPx()) / 2f
+                    val thumbStart = (playedPx - gapHalf).coerceIn(0f, size.width)
+                    val thumbEnd = (playedPx + gapHalf).coerceIn(0f, size.width)
                     drawRoundRect(
-                        color = primaryColor,
-                        topLeft = Offset(0f, centerY - radius),
-                        size = Size(thumbStart, height),
+                        color = primaryColor.copy(alpha = 0.3f),
+                        topLeft = Offset(thumbEnd, centerY - radius),
+                        size = Size((size.width - thumbEnd).coerceAtLeast(0f), height),
                         cornerRadius = CornerRadius(radius),
                     )
-                }
-                val thumbHalfH = 12.dp.toPx()
-                drawRoundRect(
-                    color = primaryColor,
-                    topLeft = Offset(playedPx - thumbW / 2f, centerY - thumbHalfH),
-                    size = Size(thumbW, thumbHalfH * 2),
-                    cornerRadius = CornerRadius(thumbW / 2f),
-                )
-            }
-            SeekbarStyle.Wavy -> {
-                val strokeWidth = 5.dp.toPx()
-                drawLine(
-                    color = primaryColor,
-                    start = Offset(0f, centerY),
-                    end = Offset(playedPx, centerY),
-                    strokeWidth = strokeWidth,
-                    cap = StrokeCap.Round,
-                )
-                drawLine(
-                    color = primaryColor.copy(alpha = 0.3f),
-                    start = Offset(playedPx, centerY),
-                    end = Offset(size.width, centerY),
-                    strokeWidth = strokeWidth,
-                    cap = StrokeCap.Round,
-                )
-                val barHalfH = strokeWidth / 2f + 3.dp.toPx()
-                drawLine(
-                    color = primaryColor,
-                    start = Offset(playedPx, centerY - barHalfH),
-                    end = Offset(playedPx, centerY + barHalfH),
-                    strokeWidth = 5.dp.toPx(),
-                    cap = StrokeCap.Round,
-                )
-            }
-            SeekbarStyle.Thick -> {
-                val height = 16.dp.toPx()
-                val radius = height / 2f
-                val thumbW = 4.dp.toPx()
-                val gapHalf = (thumbW + 18.dp.toPx()) / 2f
-                val thumbStart = (playedPx - gapHalf).coerceIn(0f, size.width)
-                val thumbEnd = (playedPx + gapHalf).coerceIn(0f, size.width)
-                drawRoundRect(
-                    color = primaryColor.copy(alpha = 0.3f),
-                    topLeft = Offset(thumbEnd, centerY - radius),
-                    size = Size((size.width - thumbEnd).coerceAtLeast(0f), height),
-                    cornerRadius = CornerRadius(radius),
-                )
-                if (thumbStart > 0f) {
+                    if (thumbStart > 0f) {
+                        drawRoundRect(
+                            color = primaryColor,
+                            topLeft = Offset(0f, centerY - radius),
+                            size = Size(thumbStart, height),
+                            cornerRadius = CornerRadius(radius),
+                        )
+                    }
+                    val thumbHalfH = 12.dp.toPx()
                     drawRoundRect(
                         color = primaryColor,
-                        topLeft = Offset(0f, centerY - radius),
-                        size = Size(thumbStart, height),
-                        cornerRadius = CornerRadius(radius),
+                        topLeft = Offset(playedPx - thumbW / 2f, centerY - thumbHalfH),
+                        size = Size(thumbW, thumbHalfH * 2),
+                        cornerRadius = CornerRadius(thumbW / 2f),
                     )
                 }
-                drawRoundRect(
-                    color = primaryColor,
-                    topLeft = Offset(playedPx - thumbW / 2f, centerY - radius),
-                    size = Size(thumbW, height),
-                    cornerRadius = CornerRadius(thumbW / 2f),
-                )
+                SeekbarStyle.Thick -> {
+                    val height = 16.dp.toPx()
+                    val radius = height / 2f
+                    val thumbW = 4.dp.toPx()
+                    val gapHalf = (thumbW + 18.dp.toPx()) / 2f
+                    val thumbStart = (playedPx - gapHalf).coerceIn(0f, size.width)
+                    val thumbEnd = (playedPx + gapHalf).coerceIn(0f, size.width)
+                    drawRoundRect(
+                        color = primaryColor.copy(alpha = 0.3f),
+                        topLeft = Offset(thumbEnd, centerY - radius),
+                        size = Size((size.width - thumbEnd).coerceAtLeast(0f), height),
+                        cornerRadius = CornerRadius(radius),
+                    )
+                    if (thumbStart > 0f) {
+                        drawRoundRect(
+                            color = primaryColor,
+                            topLeft = Offset(0f, centerY - radius),
+                            size = Size(thumbStart, height),
+                            cornerRadius = CornerRadius(radius),
+                        )
+                    }
+                    drawRoundRect(
+                        color = primaryColor,
+                        topLeft = Offset(playedPx - thumbW / 2f, centerY - radius),
+                        size = Size(thumbW, height),
+                        cornerRadius = CornerRadius(thumbW / 2f),
+                    )
+                }
+                SeekbarStyle.Wavy -> {
+                    // Handled in parent branch
+                }
             }
         }
     }
