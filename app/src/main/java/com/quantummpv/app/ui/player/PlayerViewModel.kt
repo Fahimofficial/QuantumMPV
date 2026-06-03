@@ -1059,17 +1059,23 @@ class PlayerViewModel(
 
         customButtonsScriptPaths = generatedPaths.toMap()
         deleteCustomButtonsScriptFiles(activePaths = generatedPaths.values.toSet())
-        customButtonScriptTargets
-          .filter { it.language !in generatedPaths.keys }
-          .forEach(::deactivateCustomButtonsScript)
+        withContext(Dispatchers.Main) {
+          customButtonScriptTargets
+            .filter { it.language !in generatedPaths.keys }
+            .forEach(::deactivateCustomButtonsScript)
+        }
 
         if (generatedPaths.isNotEmpty()) {
           if (isMpvReadyForCustomButtons) {
             customButtonsLoadMutex.withLock {
-              deactivateLegacyCustomButtonsScript()
+              withContext(Dispatchers.Main) {
+                deactivateLegacyCustomButtonsScript()
+              }
               generatedPaths.forEach { (language, path) ->
                 val target = customButtonScriptTargetsByLanguage[language] ?: return@forEach
-                val loaded = loadCustomButtonsScript(File(path), target)
+                val loaded = withContext(Dispatchers.Main) {
+                  loadCustomButtonsScript(File(path), target)
+                }
                 if (!loaded) {
                   android.util.Log.w("PlayerViewModel", "Failed to load ${target.fileName}")
                 }
@@ -1081,8 +1087,10 @@ class PlayerViewModel(
         } else {
           customButtonsScriptPaths = emptyMap()
           deleteCustomButtonsScriptFiles()
-          customButtonScriptTargets.forEach(::deactivateCustomButtonsScript)
-          deactivateLegacyCustomButtonsScript()
+          withContext(Dispatchers.Main) {
+            customButtonScriptTargets.forEach(::deactivateCustomButtonsScript)
+            deactivateLegacyCustomButtonsScript()
+          }
         }
       } catch (e: Exception) {
         android.util.Log.e("PlayerViewModel", "Error setting up custom buttons", e)
@@ -1099,11 +1107,16 @@ class PlayerViewModel(
         val scriptPaths = customButtonsScriptPaths
         if (scriptPaths.isEmpty()) return@withLock
 
-        deactivateLegacyCustomButtonsScript()
+        withContext(Dispatchers.Main) {
+          deactivateLegacyCustomButtonsScript()
+        }
 
         for ((language, scriptPath) in scriptPaths) {
           val target = customButtonScriptTargetsByLanguage[language] ?: continue
-          if (isCustomButtonsScriptLoaded(target)) continue
+          val isLoaded = withContext(Dispatchers.Main) {
+            isCustomButtonsScriptLoaded(target)
+          }
+          if (isLoaded) continue
 
           val file = File(scriptPath)
           if (!file.exists()) {
@@ -1112,7 +1125,9 @@ class PlayerViewModel(
             break
           }
 
-          val loaded = loadCustomButtonsScript(file, target)
+          val loaded = withContext(Dispatchers.Main) {
+            loadCustomButtonsScript(file, target)
+          }
           if (!loaded) {
             android.util.Log.w("PlayerViewModel", "${target.fileName} load failed during $reason")
           }
@@ -1384,8 +1399,8 @@ class PlayerViewModel(
               showToast("Failed to load audio file: Invalid URI")
             }
 
-        MPVLib.command("audio-add", path, "cached")
         withContext(Dispatchers.Main) {
+          MPVLib.command("audio-add", path, "cached")
           showToast("Audio track added")
         }
       }.onFailure { e ->
@@ -1436,7 +1451,9 @@ class PlayerViewModel(
           if (existingTrack != null) {
             android.util.Log.d("PlayerViewModel", "Subtitle already loaded by MPV, skipping sub-add: $mpvPath")
             if (select) {
-              runCatching { MPVLib.setPropertyInt("sid", existingTrack.id) }
+              withContext(Dispatchers.Main) {
+                runCatching { MPVLib.setPropertyInt("sid", existingTrack.id) }
+              }
             }
             // Still track it in _externalSubtitles if it's not there
             if (!_externalSubtitles.contains(uriString)) {
@@ -1448,7 +1465,9 @@ class PlayerViewModel(
           // Store mapping for reliable physical deletion later
           mpvPathToUriMap[mpvPath] = uri.toString()
 
-          MPVLib.command("sub-add", mpvPath, mode)
+          withContext(Dispatchers.Main) {
+            MPVLib.command("sub-add", mpvPath, mode)
+          }
 
           // Track external subtitle URI for persistence
           if (!_externalSubtitles.contains(uriString)) {
@@ -1644,11 +1663,13 @@ class PlayerViewModel(
       onNewContent = { srtContent ->
         realtimeSrtFile?.writeText(srtContent)
         val srtPath = realtimeSrtFile?.absolutePath ?: return@start
-        if (realtimeSrtFileAdded) {
-          MPVLib.command("sub-reload", srtPath)
-        } else {
-          MPVLib.command("sub-add", srtPath, "select")
-          realtimeSrtFileAdded = true
+        viewModelScope.launch(Dispatchers.Main) {
+          if (realtimeSrtFileAdded) {
+            MPVLib.command("sub-reload", srtPath)
+          } else {
+            MPVLib.command("sub-add", srtPath, "select")
+            realtimeSrtFileAdded = true
+          }
         }
       },
       onComplete = {
@@ -1782,11 +1803,13 @@ class PlayerViewModel(
       if (addedCount > 0) {
         // Give MPV time to register the sub-add commands
         kotlinx.coroutines.delay(300)
-        val activeSid = getTrackSelectionId("sid")
-        if (activeSid == 0) {
-          val firstExternal = subtitleTracks.value.firstOrNull { it.external == true }
-          if (firstExternal != null) {
-            runCatching { setTrackSelectionId("sid", firstExternal.id) }
+        withContext(Dispatchers.Main) {
+          val activeSid = getTrackSelectionId("sid")
+          if (activeSid == 0) {
+            val firstExternal = subtitleTracks.value.firstOrNull { it.external == true }
+            if (firstExternal != null) {
+              runCatching { setTrackSelectionId("sid", firstExternal.id) }
+            }
           }
         }
       }

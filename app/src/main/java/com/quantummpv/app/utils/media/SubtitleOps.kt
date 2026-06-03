@@ -128,51 +128,53 @@ object SubtitleOps : KoinComponent {
       // Load subtitles via proxy
       val proxy = NetworkStreamingProxy.getInstance()
       
-      // Keep mpv calls off the main thread for network-backed subtitle sources to avoid ANRs.
-      subtitles.forEachIndexed { index, subtitle ->
-        try {
-          // Extract just the filename without path for display
-          // Handle both forward slashes and backslashes
-          val displayName = subtitle.name
-            .substringAfterLast('/')
-            .substringAfterLast('\\')
-            .takeIf { it.isNotBlank() } ?: subtitle.name
+      // Dispatch JNI calls to the Main thread to prevent concurrent JNI usage/crashes.
+      withContext(Dispatchers.Main) {
+        subtitles.forEachIndexed { index, subtitle ->
+          try {
+            // Extract just the filename without path for display
+            // Handle both forward slashes and backslashes
+            val displayName = subtitle.name
+              .substringAfterLast('/')
+              .substringAfterLast('\\')
+              .takeIf { it.isNotBlank() } ?: subtitle.name
 
-          Log.d(TAG, "Processing subtitle - name: '${subtitle.name}', displayName: '$displayName', path: '${subtitle.path}'")
+            Log.d(TAG, "Processing subtitle - name: '${subtitle.name}', displayName: '$displayName', path: '${subtitle.path}'")
 
-          // Create a URL-safe filename for the streamId
-          val urlSafeFilename = displayName
-            .replace(" ", ".")
-            .replace(Regex("[^a-zA-Z0-9._-]"), "")
+            // Create a URL-safe filename for the streamId
+            val urlSafeFilename = displayName
+              .replace(" ", ".")
+              .replace(Regex("[^a-zA-Z0-9._-]"), "")
 
-          // Register subtitle stream with proxy using the filename in streamId
-          val streamId = urlSafeFilename
-          val proxyUrl = proxy.registerStream(
-            streamId = streamId,
-            connection = connection,
-            filePath = subtitle.path,
-            fileSize = subtitle.size,
-            mimeType = "text/plain",
-          )
+            // Register subtitle stream with proxy using the filename in streamId
+            val streamId = urlSafeFilename
+            val proxyUrl = proxy.registerStream(
+              streamId = streamId,
+              connection = connection,
+              filePath = subtitle.path,
+              fileSize = subtitle.size,
+              mimeType = "text/plain",
+            )
 
-          // Get current subtitle track count before adding
-          val trackCountBefore = MPVLib.getPropertyInt("track-list/count") ?: 0
+            // Get current subtitle track count before adding
+            val trackCountBefore = MPVLib.getPropertyInt("track-list/count") ?: 0
 
-          // Use "select" for the first subtitle, "auto" for others
-          val flag = if (index == 0) "select" else "auto"
-          MPVLib.command("sub-add", proxyUrl, flag)
+            // Use "select" for the first subtitle, "auto" for others
+            val flag = if (index == 0) "select" else "auto"
+            MPVLib.command("sub-add", proxyUrl, flag)
 
-          // Set the title for the newly added subtitle track
-          val trackCountAfter = MPVLib.getPropertyInt("track-list/count") ?: 0
-          if (trackCountAfter > trackCountBefore) {
-            val newTrackIndex = trackCountAfter - 1
-            MPVLib.setPropertyString("track-list/$newTrackIndex/title", displayName)
-            Log.d(TAG, "Loaded network subtitle: '$displayName' (track $newTrackIndex) via proxy (flag=$flag)")
-          } else {
-            Log.d(TAG, "Loaded network subtitle: '$displayName' via proxy (flag=$flag)")
+            // Set the title for the newly added subtitle track
+            val trackCountAfter = MPVLib.getPropertyInt("track-list/count") ?: 0
+            if (trackCountAfter > trackCountBefore) {
+              val newTrackIndex = trackCountAfter - 1
+              MPVLib.setPropertyString("track-list/$newTrackIndex/title", displayName)
+              Log.d(TAG, "Loaded network subtitle: '$displayName' (track $newTrackIndex) via proxy (flag=$flag)")
+            } else {
+              Log.d(TAG, "Loaded network subtitle: '$displayName' via proxy (flag=$flag)")
+            }
+          } catch (e: Exception) {
+            Log.e(TAG, "Failed to load subtitle ${subtitle.name}: ${e.message}", e)
           }
-        } catch (e: Exception) {
-          Log.e(TAG, "Failed to load subtitle ${subtitle.name}: ${e.message}", e)
         }
       }
     } catch (e: Exception) {
@@ -233,7 +235,9 @@ object SubtitleOps : KoinComponent {
         // Use "auto" flag so MPV doesn't select it if it's not found
         // Only use "select" for the first one (.srt)
         val flag = if (index == 0) "select" else "auto"
-        MPVLib.command("sub-add", subtitleUrl, flag, "$baseName.$ext")
+        withContext(Dispatchers.Main) {
+          MPVLib.command("sub-add", subtitleUrl, flag, "$baseName.$ext")
+        }
         Log.d(TAG, "Attempting to load network subtitle: $subtitleUrl (flag=$flag)")
       } catch (e: Exception) {
         Log.d(TAG, "Could not load network subtitle $subtitleUrl: ${e.message}")

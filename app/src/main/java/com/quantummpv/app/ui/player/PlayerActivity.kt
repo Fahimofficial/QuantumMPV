@@ -313,7 +313,7 @@ class PlayerActivity :
   private var lastBackgroundThumbnailKey: String? = null
   private var lastBackgroundThumbnail: Bitmap? = null
   private var currentPlayableUri: String? = null // Store current URI for notification re-entry
-  private val playbackRenderDispatcher = Dispatchers.Default.limitedParallelism(1)
+  private val playbackRenderDispatcher = Dispatchers.Main
 
   // ==================== Background Playback ====================
 
@@ -2734,26 +2734,30 @@ class PlayerActivity :
             else -> uri.toString()
           }
 
-          // Get duration and file size from MPV
-          val updatedDuration = runCatching {
-            (MPVLib.getPropertyDouble("duration") ?: 0.0).times(1000).toLong()
-          }.getOrDefault(0L)
+          // Get duration and file size from MPV on Main thread
+          var updatedDuration = 0L
+          var updatedFileSize = 0L
+          var updatedWidth = 0
+          var updatedHeight = 0
+          withContext(Dispatchers.Main) {
+            updatedDuration = runCatching {
+              (MPVLib.getPropertyDouble("duration") ?: 0.0).times(1000).toLong()
+            }.getOrDefault(0L)
 
-          val updatedFileSize = runCatching {
-            // Try multiple properties to get file size
-            MPVLib.getPropertyDouble("file-size")?.toLong()
-              ?: MPVLib.getPropertyDouble("stream-end")?.toLong()
-              ?: 0L
-          }.getOrDefault(0L)
+            updatedFileSize = runCatching {
+              MPVLib.getPropertyDouble("file-size")?.toLong()
+                ?: MPVLib.getPropertyDouble("stream-end")?.toLong()
+                ?: 0L
+            }.getOrDefault(0L)
 
-          // Get video resolution from MPV
-          val updatedWidth = runCatching {
-            MPVLib.getPropertyInt("width") ?: MPVLib.getPropertyInt("video-params/w") ?: 0
-          }.getOrDefault(0)
+            updatedWidth = runCatching {
+              MPVLib.getPropertyInt("width") ?: MPVLib.getPropertyInt("video-params/w") ?: 0
+            }.getOrDefault(0)
 
-          val updatedHeight = runCatching {
-            MPVLib.getPropertyInt("height") ?: MPVLib.getPropertyInt("video-params/h") ?: 0
-          }.getOrDefault(0)
+            updatedHeight = runCatching {
+              MPVLib.getPropertyInt("height") ?: MPVLib.getPropertyInt("video-params/h") ?: 0
+            }.getOrDefault(0)
+          }
 
           // Update metadata without thumbnail
           runCatching {
@@ -2936,8 +2940,10 @@ class PlayerActivity :
     return runCatching {
       val state = playbackStateRepository.getVideoDataByTitle(mediaIdentifier)
 
-      applyPlaybackState(state)
-      applyDefaultSettings(state)
+      withContext(Dispatchers.Main) {
+        applyPlaybackState(state)
+        applyDefaultSettings(state)
+      }
 
       state != null
     }.onFailure { e ->

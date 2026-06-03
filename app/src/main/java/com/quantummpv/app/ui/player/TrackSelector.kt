@@ -4,7 +4,9 @@ import android.util.Log
 import com.quantummpv.app.preferences.AudioPreferences
 import com.quantummpv.app.preferences.SubtitlesPreferences
 import `is`.xyz.mpv.MPVLib
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.withContext
 
 /**
  * Handles automatic track selection based on user preferences.
@@ -67,7 +69,7 @@ class TrackSelector(
     val image: Boolean
   )
 
-  suspend fun onFileLoaded(hasState: Boolean = false) {
+  suspend fun onFileLoaded(hasState: Boolean = false) = withContext(Dispatchers.Main) {
     var attempts = 0
     val maxAttempts = 20
     
@@ -79,14 +81,14 @@ class TrackSelector(
     }
 
     val trackCount = MPVLib.getPropertyInt("track-list/count") ?: 0
-    if (trackCount == 0) return
+    if (trackCount == 0) return@withContext
 
     // Read all tracks once
     val tracks = readTracks(trackCount)
 
     if (!isVideoFile(tracks)) {
       Log.d(TAG, "Smart Tracks: Audio/Image file detected. Script disabled.")
-      return
+      return@withContext
     }
   
     ensureAudioTrackSelected(tracks, hasState)
