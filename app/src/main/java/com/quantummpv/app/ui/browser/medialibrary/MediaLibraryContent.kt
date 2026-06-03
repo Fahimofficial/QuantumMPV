@@ -66,7 +66,7 @@ import com.quantummpv.app.ui.browser.playlist.ALL_VIDEOS_PLAYLIST_ID
 import com.quantummpv.app.ui.browser.selection.rememberSelectionManager
 import com.quantummpv.app.ui.browser.states.EmptyState
 import com.quantummpv.app.ui.browser.videolist.VideoListContent
-import com.quantummpv.app.ui.browser.videolist.VideoSortDialog
+import com.quantummpv.app.ui.browser.dialogs.VideoSortDialog
 import com.quantummpv.app.ui.browser.videolist.VideoWithPlaybackInfo
 import com.quantummpv.app.ui.player.PlayerActivity
 import com.quantummpv.app.ui.utils.LocalBackStack
