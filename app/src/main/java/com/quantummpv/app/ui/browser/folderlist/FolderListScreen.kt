@@ -497,7 +497,7 @@ object FolderListScreen : Screen {
                 ).show()
               }
             },
-            onDeleteClick = { pendingDeleteFolders = selectionManager.getSelectedItems() },
+            onDeleteClick = null,
             onSelectAll = { selectionManager.selectAll() },
             onInvertSelection = { selectionManager.invertSelection() },
             onDeselectAll = { selectionManager.clear() },
