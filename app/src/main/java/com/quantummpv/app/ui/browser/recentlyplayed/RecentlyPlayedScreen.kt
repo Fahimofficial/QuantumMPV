@@ -456,6 +456,9 @@ private fun RecentItemsContent(
   val folderGridColumnsLandscape by browserPreferences.folderGridColumnsLandscape.collectAsState()
   val videoGridColumnsPortrait by browserPreferences.videoGridColumnsPortrait.collectAsState()
   val videoGridColumnsLandscape by browserPreferences.videoGridColumnsLandscape.collectAsState()
+  val showExtensionField by browserPreferences.showExtensionField.collectAsState()
+  val showDurationField by browserPreferences.showDurationField.collectAsState()
+
 
   val configuration = androidx.compose.ui.platform.LocalConfiguration.current
   val isLandscape = configuration.orientation == android.content.res.Configuration.ORIENTATION_LANDSCAPE
@@ -487,6 +490,8 @@ private fun RecentItemsContent(
       showDateChip,
       showUnplayedOldVideoLabel,
       unplayedOldVideoDays,
+      showExtensionField,
+      showDurationField,
     ) {
       VideoCardUiConfig(
         unlimitedNameLines = unlimitedNameLines,
@@ -498,6 +503,8 @@ private fun RecentItemsContent(
         showDateChip = showDateChip,
         showUnplayedOldVideoLabel = showUnplayedOldVideoLabel,
         unplayedOldVideoDays = unplayedOldVideoDays,
+        showExtensionField = showExtensionField,
+        showDurationField = showDurationField,
       )
     }
 

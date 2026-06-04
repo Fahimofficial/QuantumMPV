@@ -68,6 +68,8 @@ data class VideoCardUiConfig(
   val showDateChip: Boolean,
   val showUnplayedOldVideoLabel: Boolean,
   val unplayedOldVideoDays: Int,
+  val showExtensionField: Boolean = true,
+  val showDurationField: Boolean = true,
 )
 
 @Composable
@@ -104,6 +106,8 @@ fun VideoCard(
       showDateChip = browserPreferences.showDateChip.collectAsState().value,
       showUnplayedOldVideoLabel = appearancePreferences.showUnplayedOldVideoLabel.collectAsState().value,
       unplayedOldVideoDays = appearancePreferences.unplayedOldVideoDays.collectAsState().value,
+      showExtensionField = browserPreferences.showExtensionField.collectAsState().value,
+      showDurationField = browserPreferences.showDurationField.collectAsState().value,
     )
   val maxLines = if (resolvedUiConfig.unlimitedNameLines) Int.MAX_VALUE else 2
 
@@ -113,6 +117,13 @@ fun VideoCard(
   val showDateChip = resolvedUiConfig.showDateChip
   val showUnplayedOldVideoLabel = resolvedUiConfig.showUnplayedOldVideoLabel
   val unplayedOldVideoDays = resolvedUiConfig.unplayedOldVideoDays
+  val showDurationField = resolvedUiConfig.showDurationField
+  val displayName = if (resolvedUiConfig.showExtensionField) {
+    video.displayName
+  } else {
+    video.displayName.substringBeforeLast('.')
+  }
+
   val selectionInset = 2.dp
   val selectionContainerColor =
     if (isSelected) {
@@ -271,19 +282,21 @@ fun VideoCard(
           }
 
           // Duration overlay
-          Box(
-            modifier = Modifier
-              .align(Alignment. BottomEnd)
-              .padding(6.dp)
-              .clip(AppShapeScale.extraSmall)
-              .background(Color.Black.copy(alpha = 0.65f))
-              .padding(horizontal = 6.dp, vertical = 2.dp),
-          ) {
-            Text(
-              text = video. durationFormatted,
-              style = MaterialTheme.typography.labelSmall,
-              color = Color.White,
-            )
+          if (showDurationField) {
+            Box(
+              modifier = Modifier
+                .align(Alignment.BottomEnd)
+                .padding(6.dp)
+                .clip(AppShapeScale.extraSmall)
+                .background(Color.Black.copy(alpha = 0.65f))
+                .padding(horizontal = 6.dp, vertical = 2.dp),
+            ) {
+              Text(
+                text = video.durationFormatted,
+                style = MaterialTheme.typography.labelSmall,
+                color = Color.White,
+              )
+            }
           }
 
           // Progress bar
@@ -309,7 +322,7 @@ fun VideoCard(
 
         // Title below thumbnail
         Text(
-          text = video.displayName,
+          text = displayName,
           style = if (useFolderNameStyle) {
             MaterialTheme.typography.titleSmall
           } else {
@@ -544,20 +557,22 @@ fun VideoCard(
           }
 
           // Duration timestamp overlay at bottom-right of the thumbnail
-          Box(
-            modifier =
-              Modifier
-                .align(Alignment.BottomEnd)
-                .padding(6.dp)
-                .clip(AppShapeScale.extraSmall)
-                .background(Color.Black.copy(alpha = 0.65f))
-                .padding(horizontal = 6.dp, vertical = 2.dp),
-          ) {
-            Text(
-              text = video.durationFormatted,
-              style = MaterialTheme.typography.labelSmall,
-              color = Color.White,
-            )
+          if (showDurationField) {
+            Box(
+              modifier =
+                Modifier
+                  .align(Alignment.BottomEnd)
+                  .padding(6.dp)
+                  .clip(AppShapeScale.extraSmall)
+                  .background(Color.Black.copy(alpha = 0.65f))
+                  .padding(horizontal = 6.dp, vertical = 2.dp),
+            ) {
+              Text(
+                text = video.durationFormatted,
+                style = MaterialTheme.typography.labelSmall,
+                color = Color.White,
+              )
+            }
           }
 
           // Progress bar at bottom of thumbnail
@@ -592,7 +607,7 @@ fun VideoCard(
           modifier = Modifier.weight(1f),
         ) {
           Text(
-            video.displayName,
+            displayName,
             style = if (useFolderNameStyle) {
               MaterialTheme.typography.titleMedium
             } else {

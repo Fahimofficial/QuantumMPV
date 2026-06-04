@@ -233,16 +233,16 @@ object ScreenshotTemplate {
       ?: path?.substringAfterLast('/')?.substringBeforeLast('.')?.ifBlank { null }
       ?: "video"
     val rendered = template.ifBlank { "mpv_snapshot_%Y%m%d_%H%M%S" }
+      .replace("%wH", now.format(DateTimeFormatter.ofPattern("HH")))
+      .replace("%wM", now.format(DateTimeFormatter.ofPattern("mm")))
+      .replace("%wS", now.format(DateTimeFormatter.ofPattern("ss")))
+      .replace("%wT", now.format(DateTimeFormatter.ofPattern("SSS")))
       .replace("%Y", now.format(DateTimeFormatter.ofPattern("yyyy")))
       .replace("%m", now.format(DateTimeFormatter.ofPattern("MM")))
       .replace("%d", now.format(DateTimeFormatter.ofPattern("dd")))
       .replace("%H", now.format(DateTimeFormatter.ofPattern("HH")))
       .replace("%M", now.format(DateTimeFormatter.ofPattern("mm")))
       .replace("%S", now.format(DateTimeFormatter.ofPattern("ss")))
-      .replace("%wH", now.format(DateTimeFormatter.ofPattern("HH")))
-      .replace("%wM", now.format(DateTimeFormatter.ofPattern("mm")))
-      .replace("%wS", now.format(DateTimeFormatter.ofPattern("ss")))
-      .replace("%wT", now.format(DateTimeFormatter.ofPattern("SSS")))
       .replace("%f", baseTitle)
       .replace("%p", positionSeconds.coerceAtLeast(0).toString())
 

@@ -1141,6 +1141,8 @@ private fun SearchResultsContent(
   val unlimitedNameLines by appearancePreferences.unlimitedNameLines.collectAsState()
   val showUnplayedOldVideoLabel by appearancePreferences.showUnplayedOldVideoLabel.collectAsState()
   val unplayedOldVideoDays by appearancePreferences.unplayedOldVideoDays.collectAsState()
+  val showExtensionField by browserPreferences.showExtensionField.collectAsState()
+  val showDurationField by browserPreferences.showDurationField.collectAsState()
   val videoCardUiConfig =
     remember(
       unlimitedNameLines,
@@ -1152,6 +1154,8 @@ private fun SearchResultsContent(
       showDateChip,
       showUnplayedOldVideoLabel,
       unplayedOldVideoDays,
+      showExtensionField,
+      showDurationField,
     ) {
       VideoCardUiConfig(
         unlimitedNameLines = unlimitedNameLines,
@@ -1163,6 +1167,8 @@ private fun SearchResultsContent(
         showDateChip = showDateChip,
         showUnplayedOldVideoLabel = showUnplayedOldVideoLabel,
         unplayedOldVideoDays = unplayedOldVideoDays,
+        showExtensionField = showExtensionField,
+        showDurationField = showDurationField,
       )
     }
   

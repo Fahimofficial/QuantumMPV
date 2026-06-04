@@ -18,8 +18,10 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -58,6 +60,7 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.platform.LocalContext
@@ -394,6 +397,30 @@ class MediaInfoActivity : ComponentActivity() {
           )
         )
     ) {
+      // Tab Content
+      Box(
+        modifier = Modifier
+          .weight(1f)
+          .fillMaxWidth()
+          .padding(horizontal = 16.dp)
+      ) {
+        when (selectedTab) {
+          InfoTab.OVERVIEW -> OverviewTabContent(
+            mediaInfo,
+            fileName,
+            sections,
+            videoSections.size,
+            audioSections.size,
+            subtitleSections.size,
+            menuSections.firstOrNull()?.properties?.size ?: 0
+          )
+          InfoTab.VIDEO -> StreamTabContent(videoSections, "Video Stream")
+          InfoTab.AUDIO -> StreamTabContent(audioSections, "Audio Stream")
+          InfoTab.SUBTITLES -> StreamTabContent(subtitleSections, "Subtitle Track")
+          InfoTab.CHAPTERS -> ChaptersTabContent(menuSections)
+        }
+      }
+
       // Horizontal Scrollable Inspired Tab Bar
       Row(
         modifier = Modifier
@@ -448,30 +475,6 @@ class MediaInfoActivity : ComponentActivity() {
               )
             }
           }
-        }
-      }
-
-      // Tab Content
-      Box(
-        modifier = Modifier
-          .weight(1f)
-          .fillMaxWidth()
-          .padding(horizontal = 16.dp)
-      ) {
-        when (selectedTab) {
-          InfoTab.OVERVIEW -> OverviewTabContent(
-            mediaInfo,
-            fileName,
-            sections,
-            videoSections.size,
-            audioSections.size,
-            subtitleSections.size,
-            menuSections.firstOrNull()?.properties?.size ?: 0
-          )
-          InfoTab.VIDEO -> StreamTabContent(videoSections, "Video Stream")
-          InfoTab.AUDIO -> StreamTabContent(audioSections, "Audio Stream")
-          InfoTab.SUBTITLES -> StreamTabContent(subtitleSections, "Subtitle Track")
-          InfoTab.CHAPTERS -> ChaptersTabContent(menuSections)
         }
       }
     }
@@ -827,14 +830,16 @@ class MediaInfoActivity : ComponentActivity() {
           verticalAlignment = Alignment.CenterVertically,
           horizontalArrangement = Arrangement.spacedBy(10.dp)
         ) {
-          Surface(
-            shape = RoundedCornerShape(8.dp),
-            color = headerTextColor.copy(alpha = 0.15f),
-            modifier = Modifier.size(32.dp)
+          Box(
+            modifier = Modifier
+              .size(32.dp)
+              .background(
+                color = headerTextColor.copy(alpha = 0.18f),
+                shape = RoundedCornerShape(8.dp)
+              ),
+            contentAlignment = Alignment.Center,
           ) {
-            Box(contentAlignment = Alignment.Center) {
-              Icon(imageVector = icon, contentDescription = null, modifier = Modifier.size(18.dp), tint = headerTextColor)
-            }
+            Icon(imageVector = icon, contentDescription = null, modifier = Modifier.size(18.dp), tint = headerTextColor)
           }
           Text(
             text = title,
@@ -856,15 +861,19 @@ class MediaInfoActivity : ComponentActivity() {
             }
           }
 
-          IconButton(
-            onClick = {
-              scope.launch {
-                val content = properties.joinToString("\n") { "${it.first}: ${it.second}" }
-                SafeClipboard.copyPlainText(context, title, content)
-                Toast.makeText(context, "Copied specifications to clipboard", Toast.LENGTH_SHORT).show()
-              }
-            },
-            modifier = Modifier.size(32.dp)
+          Box(
+            modifier = Modifier
+              .size(32.dp)
+              .clip(RoundedCornerShape(8.dp))
+              .background(headerTextColor.copy(alpha = 0.15f))
+              .clickable {
+                scope.launch {
+                  val content = properties.joinToString("\n") { "${it.first}: ${it.second}" }
+                  SafeClipboard.copyPlainText(context, title, content)
+                  Toast.makeText(context, "Copied specifications to clipboard", Toast.LENGTH_SHORT).show()
+                }
+              },
+            contentAlignment = Alignment.Center,
           ) {
             Icon(
               imageVector = Icons.Filled.ContentCopy,
@@ -966,7 +975,7 @@ class MediaInfoActivity : ComponentActivity() {
           streamTypeLabel.contains("Video", ignoreCase = true) -> Triple(
             MaterialTheme.colorScheme.primaryContainer,
             MaterialTheme.colorScheme.onPrimaryContainer,
-            Icons.Default.Movie
+            Icons.Default.Videocam
           )
           streamTypeLabel.contains("Audio", ignoreCase = true) -> Triple(
             MaterialTheme.colorScheme.tertiaryContainer,
@@ -1023,27 +1032,45 @@ class MediaInfoActivity : ComponentActivity() {
           Column(
             modifier = Modifier.padding(start = 8.dp)
           ) {
-            menuSection.properties.forEachIndexed { index, (timestamp, name) ->
+            menuSection.properties.forEachIndexed { index, (timestamp, rawName) ->
               val context = LocalContext.current
               val scope = rememberCoroutineScope()
+
+              // Clean chapter name: strip leading ": en:" / ": " language prefix artifacts
+              val chapterName = rawName
+                .trimStart()
+                .removePrefix(":")
+                .trimStart()
+                .let { s ->
+                  // Strip "en:" / "und:" / "jpn:" etc. language tag if present at start
+                  val langTagRegex = Regex("^[a-z]{2,3}:")
+                  if (s.matches(Regex("^[a-z]{2,3}:.*"))) s.replaceFirst(langTagRegex, "").trimStart()
+                  else s
+                }
+                .ifBlank { "Chapter ${index + 1}" }
 
               Row(
                 modifier = Modifier
                   .fillMaxWidth()
+                  .height(IntrinsicSize.Min)
                   .clickable {
                     scope.launch {
                       SafeClipboard.copyPlainText(context, "Chapter timestamp", timestamp)
                       Toast.makeText(context, "Copied: $timestamp", Toast.LENGTH_SHORT).show()
                     }
                   }
-                  .padding(vertical = 12.dp),
+                  .padding(vertical = 6.dp),
                 verticalAlignment = Alignment.Top
               ) {
-                // Interactive connected timeline
+                // Connected timeline — dot + line that dynamically fills row height
                 Column(
                   horizontalAlignment = Alignment.CenterHorizontally,
-                  modifier = Modifier.width(28.dp)
+                  modifier = Modifier
+                    .width(24.dp)
+                    .fillMaxHeight()
                 ) {
+                  // Top padding so dot lines up with the chapter name text
+                  Spacer(modifier = Modifier.height(3.dp))
                   Surface(
                     shape = CircleShape,
                     color = MaterialTheme.colorScheme.primary,
@@ -1055,7 +1082,7 @@ class MediaInfoActivity : ComponentActivity() {
                     Spacer(
                       modifier = Modifier
                         .width(2.dp)
-                        .height(38.dp)
+                        .weight(1f)  // stretches to fill remaining row height
                         .background(
                           brush = androidx.compose.ui.graphics.Brush.verticalGradient(
                             colors = listOf(
@@ -1068,18 +1095,22 @@ class MediaInfoActivity : ComponentActivity() {
                   }
                 }
 
-                Spacer(modifier = Modifier.width(12.dp))
+                Spacer(modifier = Modifier.width(14.dp))
 
-                // Chapter markers details
+                // Chapter name + timestamp chip stacked vertically
                 Column(
-                  modifier = Modifier.weight(1f)
+                  modifier = Modifier
+                    .weight(1f)
+                    .padding(bottom = 10.dp),
+                  verticalArrangement = Arrangement.spacedBy(4.dp)
                 ) {
                   Text(
-                    text = name,
+                    text = chapterName,
                     style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Bold),
-                    color = MaterialTheme.colorScheme.onSurface
+                    color = MaterialTheme.colorScheme.onSurface,
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis
                   )
-                  Spacer(modifier = Modifier.height(2.dp))
                   Surface(
                     shape = RoundedCornerShape(6.dp),
                     color = MaterialTheme.colorScheme.primary.copy(alpha = 0.08f),
@@ -1151,15 +1182,15 @@ class MediaInfoActivity : ComponentActivity() {
       val trimmed = line.trim()
       when {
         trimmed.isEmpty() || trimmed.startsWith("=") || line.contains("MEDIA INFO") -> {}
-        !line.startsWith(" ") && !line.contains(":") -> {
+        !line.startsWith(" ") && !line.contains(" : ") -> {
           if (currentName != null && currentProps.isNotEmpty()) {
             sections.add(InfoSection(currentName, currentProps.toList()))
           }
           currentName = trimmed
           currentProps.clear()
         }
-        line.contains(":") -> {
-          val parts = line.split(":", limit = 2)
+        line.contains(" : ") -> {
+          val parts = line.split(" : ", limit = 2)
           if (parts.size == 2 && parts[0].trim().isNotEmpty() && parts[1].trim().isNotEmpty()) {
             currentProps.add(parts[0].trim() to parts[1].trim())
           }

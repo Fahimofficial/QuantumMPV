@@ -236,6 +236,8 @@ fun VideoSortDialog(
   val showProgressBar by browserPreferences.showProgressBar.collectAsState()
   val showDateChip by browserPreferences.showDateChip.collectAsState()
   val showSubtitleIndicator by browserPreferences.showSubtitleIndicator.collectAsState()
+  val showExtensionField by browserPreferences.showExtensionField.collectAsState()
+  val showDurationField by browserPreferences.showDurationField.collectAsState()
   val unlimitedNameLines by appearancePreferences.unlimitedNameLines.collectAsState()
   val mediaLayoutMode by browserPreferences.mediaLayoutMode.collectAsState()
   val folderViewMode by browserPreferences.folderViewMode.collectAsState()
@@ -349,6 +351,20 @@ fun VideoSortDialog(
         )
         add(
           VisibilityToggle(
+            label = "Extension",
+            checked = showExtensionField,
+            onCheckedChange = { browserPreferences.showExtensionField.set(it) },
+          )
+        )
+        add(
+          VisibilityToggle(
+            label = "Duration",
+            checked = showDurationField,
+            onCheckedChange = { browserPreferences.showDurationField.set(it) },
+          )
+        )
+        add(
+          VisibilityToggle(
             label = "Subtitle Indicator",
             checked = showSubtitleIndicator,
             onCheckedChange = { browserPreferences.showSubtitleIndicator.set(it) },
@@ -431,6 +447,8 @@ fun FileSystemSortDialog(
   val showFramerateInResolution by browserPreferences.showFramerateInResolution.collectAsState()
   val showProgressBar by browserPreferences.showProgressBar.collectAsState()
   val showSubtitleIndicator by browserPreferences.showSubtitleIndicator.collectAsState()
+  val showExtensionField by browserPreferences.showExtensionField.collectAsState()
+  val showDurationField by browserPreferences.showDurationField.collectAsState()
   val unlimitedNameLines by appearancePreferences.unlimitedNameLines.collectAsState()
 
   SortDialog(
@@ -515,6 +533,16 @@ fun FileSystemSortDialog(
         label = "Full Name",
         checked = unlimitedNameLines,
         onCheckedChange = { appearancePreferences.unlimitedNameLines.set(it) },
+      ),
+      VisibilityToggle(
+        label = "Extension",
+        checked = showExtensionField,
+        onCheckedChange = { browserPreferences.showExtensionField.set(it) },
+      ),
+      VisibilityToggle(
+        label = "Duration",
+        checked = showDurationField,
+        onCheckedChange = { browserPreferences.showDurationField.set(it) },
       ),
       VisibilityToggle(
         label = "Path",

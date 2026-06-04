@@ -27,6 +27,9 @@ class BrowserPreferences(
   val videoGridColumnsPortrait = preferenceStore.getInt("video_grid_columns_portrait", if (isTablet) 4 else 2)
   val videoGridColumnsLandscape = preferenceStore.getInt("video_grid_columns_landscape", 4)
 
+  val showExtensionField = preferenceStore.getBoolean("show_extension_field", false)
+  val showDurationField = preferenceStore.getBoolean("show_duration_field", true)
+
   // Visibility preferences for video card chips
   val showVideoThumbnails = preferenceStore.getBoolean("show_video_thumbnails", true)
   val thumbnailMode = preferenceStore.getEnum("thumbnail_mode", ThumbnailMode.Smart)

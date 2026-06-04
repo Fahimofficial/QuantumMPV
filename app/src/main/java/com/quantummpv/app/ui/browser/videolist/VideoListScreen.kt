@@ -636,6 +636,8 @@ internal fun VideoListContent(
   val showDateChip by browserPreferences.showDateChip.collectAsState()
   val showUnplayedOldVideoLabel by appearancePreferences.showUnplayedOldVideoLabel.collectAsState()
   val unplayedOldVideoDays by appearancePreferences.unplayedOldVideoDays.collectAsState()
+  val showExtensionField by browserPreferences.showExtensionField.collectAsState()
+  val showDurationField by browserPreferences.showDurationField.collectAsState()
   val density = LocalDensity.current
   val navigationBarHeight = com.quantummpv.app.ui.browser.LocalNavigationBarHeight.current
   // Must match the thumbnail size logic inside `VideoCard` for this screen,
@@ -655,6 +657,8 @@ internal fun VideoListContent(
       showDateChip,
       showUnplayedOldVideoLabel,
       unplayedOldVideoDays,
+      showExtensionField,
+      showDurationField,
     ) {
       VideoCardUiConfig(
         unlimitedNameLines = unlimitedNameLines,
@@ -666,6 +670,8 @@ internal fun VideoListContent(
         showDateChip = showDateChip,
         showUnplayedOldVideoLabel = showUnplayedOldVideoLabel,
         unplayedOldVideoDays = unplayedOldVideoDays,
+        showExtensionField = showExtensionField,
+        showDurationField = showDurationField,
       )
     }
 
@@ -855,7 +861,7 @@ internal fun VideoListContent(
             modifier =
               Modifier
                 .fillMaxSize()
-                .padding(bottom = navigationBarHeight),
+                .padding(bottom = if (selectionManager.isInSelectionMode) 0.dp else navigationBarHeight),
           ) {
             LazyVerticalGrid(
               columns = GridCells.Fixed(columns),
@@ -918,7 +924,7 @@ internal fun VideoListContent(
             modifier =
               Modifier
                 .fillMaxSize()
-                .padding(bottom = navigationBarHeight),
+                .padding(bottom = if (selectionManager.isInSelectionMode) 0.dp else navigationBarHeight),
           ) {
             LazyColumn(
               state = listState,

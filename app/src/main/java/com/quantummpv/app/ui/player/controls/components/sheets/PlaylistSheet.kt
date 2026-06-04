@@ -339,7 +339,7 @@ fun PlaylistTrackListItem(
         contentAlignment = Alignment.Center,
       ) {
         Icon(
-          imageVector = Icons.Default.SmartDisplay,
+          imageVector = Icons.Default.Videocam,
           contentDescription = null,
           tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f),
           modifier = Modifier.size(24.dp),
@@ -511,7 +511,7 @@ fun PlaylistTrackGridItem(
         contentAlignment = Alignment.Center,
       ) {
         Icon(
-          imageVector = Icons.Default.SmartDisplay,
+          imageVector = Icons.Default.Videocam,
           contentDescription = null,
           tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f),
           modifier = Modifier.size(32.dp),

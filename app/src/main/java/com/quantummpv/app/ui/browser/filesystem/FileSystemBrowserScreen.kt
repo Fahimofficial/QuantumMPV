@@ -1178,6 +1178,8 @@ private fun FileSystemBrowserContent(
   val showDateChip by browserPreferences.showDateChip.collectAsState()
   val showUnplayedOldVideoLabel by appearancePreferences.showUnplayedOldVideoLabel.collectAsState()
   val unplayedOldVideoDays by appearancePreferences.unplayedOldVideoDays.collectAsState()
+  val showExtensionField by browserPreferences.showExtensionField.collectAsState()
+  val showDurationField by browserPreferences.showDurationField.collectAsState()
   val videoCardUiConfig =
     remember(
       unlimitedNameLines,
@@ -1189,6 +1191,8 @@ private fun FileSystemBrowserContent(
       showDateChip,
       showUnplayedOldVideoLabel,
       unplayedOldVideoDays,
+      showExtensionField,
+      showDurationField,
     ) {
       VideoCardUiConfig(
         unlimitedNameLines = unlimitedNameLines,
@@ -1200,6 +1204,8 @@ private fun FileSystemBrowserContent(
         showDateChip = showDateChip,
         showUnplayedOldVideoLabel = showUnplayedOldVideoLabel,
         unplayedOldVideoDays = unplayedOldVideoDays,
+        showExtensionField = showExtensionField,
+        showDurationField = showDurationField,
       )
     }
 
@@ -1498,6 +1504,8 @@ private fun FileSystemSearchContent(
   val unlimitedNameLines by appearancePreferences.unlimitedNameLines.collectAsState()
   val showUnplayedOldVideoLabel by appearancePreferences.showUnplayedOldVideoLabel.collectAsState()
   val unplayedOldVideoDays by appearancePreferences.unplayedOldVideoDays.collectAsState()
+  val showExtensionField by browserPreferences.showExtensionField.collectAsState()
+  val showDurationField by browserPreferences.showDurationField.collectAsState()
   val videoCardUiConfig =
     remember(
       unlimitedNameLines,
@@ -1509,6 +1517,8 @@ private fun FileSystemSearchContent(
       showDateChip,
       showUnplayedOldVideoLabel,
       unplayedOldVideoDays,
+      showExtensionField,
+      showDurationField,
     ) {
       VideoCardUiConfig(
         unlimitedNameLines = unlimitedNameLines,
@@ -1520,6 +1530,8 @@ private fun FileSystemSearchContent(
         showDateChip = showDateChip,
         showUnplayedOldVideoLabel = showUnplayedOldVideoLabel,
         unplayedOldVideoDays = unplayedOldVideoDays,
+        showExtensionField = showExtensionField,
+        showDurationField = showDurationField,
       )
     }
 

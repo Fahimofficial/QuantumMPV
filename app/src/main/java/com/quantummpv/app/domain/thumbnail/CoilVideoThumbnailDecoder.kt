@@ -300,7 +300,16 @@ class CoilVideoThumbnailDecoder(
     }, null)
 
     val decodeResult = runCatching {
-      codec.configure(trackFormat, surface, null, 0)
+      var configured = false
+      // Try original format first, then strip constraints for 10-bit/unsupported profiles
+      for (fmt in listOf(trackFormat, cleanFormatForDecoder(trackFormat))) {
+        try {
+          codec.configure(fmt, surface, null, 0)
+          configured = true
+          break
+        } catch (_: Exception) { /* try next */ }
+      }
+      if (!configured) throw IllegalStateException("No compatible format for codec")
       codec.start()
       extractor.seekTo(timeUs, MediaExtractor.SEEK_TO_CLOSEST_SYNC)
       val bufferInfo = MediaCodec.BufferInfo()
@@ -355,6 +364,21 @@ class CoilVideoThumbnailDecoder(
       if (info.supportedTypes.any { it.equals(mimeType, ignoreCase = true) }) return info
     }
     return null
+  }
+
+  private fun cleanFormatForDecoder(format: MediaFormat): MediaFormat {
+    val clean = MediaFormat()
+    format.getString(MediaFormat.KEY_MIME)?.let { clean.setString(MediaFormat.KEY_MIME, it) }
+    if (format.containsKey(MediaFormat.KEY_WIDTH)) {
+      clean.setInteger(MediaFormat.KEY_WIDTH, format.getInteger(MediaFormat.KEY_WIDTH))
+    }
+    if (format.containsKey(MediaFormat.KEY_HEIGHT)) {
+      clean.setInteger(MediaFormat.KEY_HEIGHT, format.getInteger(MediaFormat.KEY_HEIGHT))
+    }
+    for (key in listOf("csd-0", "csd-1", "csd-2")) {
+      format.getByteBuffer(key)?.let { clean.setByteBuffer(key, it) }
+    }
+    return clean
   }
 
   private fun imageReaderImageToBitmap(image: Image): Bitmap? {

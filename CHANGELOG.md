@@ -2,6 +2,17 @@
 
 These notes are written in plain English and focus on what changed for real use.
 
+## 1.4.1
+
+### Browser, Dialogs, And Sizing
+- fixed selection bottom bar blank background issue in Library View for list and grid layouts.
+- added missing file operations (Copy, Move, and Compressor/Downscale) to the Library View selection bottom bar.
+- improved Sort and View Options Dialog design to be more compact and responsive across all screen sizes.
+- made the "Fields" toggle section in Sort/View dialog collapsible — collapsed by default, expands with a smooth height animation that does not cause the dialog to jump or resize.
+
+### Player & UI Legibility
+- added outlined text with a black border to the Stats Page 6 overlay so text stays readable over any video content regardless of background colour.
+
 ## 1.4.0
 
 ### Player And Seek Preview

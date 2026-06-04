@@ -74,8 +74,17 @@ import com.quantummpv.app.utils.clipboard.SafeClipboard
 import com.quantummpv.app.utils.history.RecentlyPlayedOps
 import com.quantummpv.app.utils.media.MediaUtils
 import com.quantummpv.app.utils.sort.SortUtils
+import android.os.Environment
+import androidx.activity.compose.rememberLauncherForActivityResult
+import com.quantummpv.app.utils.media.OpenDocumentTreeContract
+import com.quantummpv.app.ui.browser.dialogs.FileOperationProgressDialog
+import com.quantummpv.app.ui.browser.dialogs.FolderPickerDialog
+import com.quantummpv.app.ui.browser.dialogs.VideoCompressorOverlay
+import com.quantummpv.app.utils.media.CopyPasteOps
+import java.io.File
 import kotlinx.coroutines.launch
 import org.koin.compose.koinInject
+
 
 @OptIn(ExperimentalMaterial3ExpressiveApi::class)
 @Composable
@@ -145,6 +154,49 @@ fun MediaLibraryContent() {
   var showFloatingBottomBar by remember { mutableStateOf(false) }
   val animationDuration = 300
   val lastPlayRequestIndex = remember { mutableIntStateOf(-1) }
+
+  val compressorDialogOpen = rememberSaveable { mutableStateOf(false) }
+  val folderPickerOpen = rememberSaveable { mutableStateOf(false) }
+  val operationType = remember { mutableStateOf<CopyPasteOps.OperationType?>(null) }
+  val progressDialogOpen = rememberSaveable { mutableStateOf(false) }
+  val operationProgress by CopyPasteOps.operationProgress.collectAsState()
+  val treePickerLauncher =
+    rememberLauncherForActivityResult(OpenDocumentTreeContract()) { uri ->
+      if (uri == null) {
+        return@rememberLauncherForActivityResult
+      }
+      val selectedVideos = selectionManager.getSelectedItems()
+      if (selectedVideos.isEmpty()) {
+        return@rememberLauncherForActivityResult
+      }
+
+      runCatching {
+        context.contentResolver.takePersistableUriPermission(
+          uri,
+          Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_GRANT_WRITE_URI_PERMISSION,
+        )
+      }
+
+      when {
+        operationType.value != null -> {
+          progressDialogOpen.value = true
+          coroutineScope.launch {
+            when (operationType.value) {
+              is CopyPasteOps.OperationType.Copy -> {
+                CopyPasteOps.copyFilesToTreeUri(context, selectedVideos, uri)
+              }
+
+              is CopyPasteOps.OperationType.Move -> {
+                CopyPasteOps.moveFilesToTreeUri(context, selectedVideos, uri)
+              }
+
+              else -> {}
+            }
+          }
+        }
+      }
+    }
+
 
   LaunchedEffect(isSearching) {
     if (isSearching) {
@@ -381,13 +433,30 @@ fun MediaLibraryContent() {
       ) {
         BrowserBottomBar(
           isSelectionMode = true,
-          onCopyClick = { /* N/A */ },
-          onMoveClick = { /* N/A */ },
+          onCopyClick = {
+            operationType.value = CopyPasteOps.OperationType.Copy
+            if (CopyPasteOps.canUseDirectFileOperations()) {
+              folderPickerOpen.value = true
+            } else {
+              treePickerLauncher.launch(null)
+            }
+          },
+          onMoveClick = {
+            operationType.value = CopyPasteOps.OperationType.Move
+            if (CopyPasteOps.canUseDirectFileOperations()) {
+              folderPickerOpen.value = true
+            } else {
+              treePickerLauncher.launch(null)
+            }
+          },
+          onDownscaleClick = { compressorDialogOpen.value = true },
           onRenameClick = { renameDialogOpen.value = true },
           onDeleteClick = { deleteDialogOpen.value = true },
           onAddToPlaylistClick = { addToPlaylistDialogOpen.value = true },
-          showCopy = false,
-          showMove = false,
+          showCopy = true,
+          showMove = true,
+          showDownscale = selectionManager.selectedCount == 1,
+          showRename = selectionManager.selectedCount > 0,
           modifier = Modifier.padding(bottom = if (NavigationBarState.shouldHideNavigationBar) 0.dp else navigationBarHeight)
         )
       }
@@ -442,5 +511,70 @@ fun MediaLibraryContent() {
         viewModel.refresh()
       },
     )
+
+    if (folderPickerOpen.value) {
+      FolderPickerDialog(
+        isOpen = folderPickerOpen.value,
+        currentPath =
+          videos.firstOrNull()?.let { File(it.path).parent }
+            ?: Environment.getExternalStorageDirectory().absolutePath,
+        onDismiss = {
+          folderPickerOpen.value = false
+        },
+        onFolderSelected = { destinationPath ->
+          folderPickerOpen.value = false
+          val selectedVideos = selectionManager.getSelectedItems()
+          if (selectedVideos.isNotEmpty() && operationType.value != null) {
+            progressDialogOpen.value = true
+            coroutineScope.launch {
+              when (operationType.value) {
+                is CopyPasteOps.OperationType.Copy -> {
+                  CopyPasteOps.copyFiles(context, selectedVideos, destinationPath)
+                }
+
+                is CopyPasteOps.OperationType.Move -> {
+                  CopyPasteOps.moveFiles(context, selectedVideos, destinationPath)
+                }
+
+                else -> {}
+              }
+            }
+          }
+        },
+      )
+    }
+
+    if (operationType.value != null) {
+      FileOperationProgressDialog(
+        isOpen = progressDialogOpen.value,
+        operationType = operationType.value!!,
+        progress = operationProgress,
+        onCancel = {
+          CopyPasteOps.cancelOperation()
+        },
+        onDismiss = {
+          progressDialogOpen.value = false
+          operationType.value = null
+          selectionManager.clear()
+          viewModel.refresh()
+        },
+      )
+    }
+
+    if (compressorDialogOpen.value) {
+      val selectedVideos = selectionManager.getSelectedItems()
+      if (selectedVideos.isNotEmpty()) {
+        VideoCompressorOverlay(
+          isOpen = true,
+          videos = selectedVideos,
+          onDismiss = {
+            compressorDialogOpen.value = false
+            selectionManager.clear()
+            viewModel.refresh()
+          },
+        )
+      }
+    }
   }
 }
+

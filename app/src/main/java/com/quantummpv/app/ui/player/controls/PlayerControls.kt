@@ -87,7 +87,10 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.Shadow
+import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.graphics.StrokeJoin
 import androidx.compose.ui.platform.LocalContext
+
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.layout.positionInParent
@@ -1996,23 +1999,23 @@ private fun CustomStatsPageSixOverlay(
       )
     val headerStyle = textStyle.copy(fontWeight = FontWeight.Bold, fontSize = 8.5.sp)
 
-    Text("--- PLAYBACK & DECODER ---", style = headerStyle)
-    Text("File: ${stats.fileName}", style = textStyle)
-    Text("Decoder & VO: ${stats.renderContext} | ${stats.video} | Efficiency: ${stats.decoderEfficiencyText}", style = textStyle)
-    Text("Refresh Rate: ${stats.fps} Hz | Dropped: ${stats.droppedFrames}", style = textStyle)
-    Text("Audio: ${stats.audio} | HDR: ${stats.hdrActive}", style = textStyle)
+    OutlinedText("--- PLAYBACK & DECODER ---", style = headerStyle)
+    OutlinedText("File: ${stats.fileName}", style = textStyle)
+    OutlinedText("Decoder & VO: ${stats.renderContext} | ${stats.video} | Efficiency: ${stats.decoderEfficiencyText}", style = textStyle)
+    OutlinedText("Refresh Rate: ${stats.fps} Hz | Dropped: ${stats.droppedFrames}", style = textStyle)
+    OutlinedText("Audio: ${stats.audio} | HDR: ${stats.hdrActive}", style = textStyle)
 
     Spacer(modifier = Modifier.height(2.dp))
-    Text("--- POWER & THERMALS ---", style = headerStyle)
-    Text("Battery Level: ${stats.batteryPercentText} | Power: ${stats.batteryWattsText} | Rate: ${stats.batteryRateText}", style = textStyle)
-    Text("Temp: ${stats.batteryTempText} (Peak: ${stats.peakTempText} | Rise: ${stats.tempRiseText})", style = textStyle)
-    Text("Thermal State: ${stats.thermalStateText}", style = textStyle)
-    Text("Session Drain: ${stats.sessionDrainText} | Burn Rate: ${stats.burnRateText} | Projected Playback: ${stats.estRemainingPlaybackText}", style = textStyle)
+    OutlinedText("--- POWER & THERMALS ---", style = headerStyle)
+    OutlinedText("Battery Level: ${stats.batteryPercentText} | Power: ${stats.batteryWattsText} | Rate: ${stats.batteryRateText}", style = textStyle)
+    OutlinedText("Temp: ${stats.batteryTempText} (Peak: ${stats.peakTempText} | Rise: ${stats.tempRiseText})", style = textStyle)
+    OutlinedText("Thermal State: ${stats.thermalStateText}", style = textStyle)
+    OutlinedText("Session Drain: ${stats.sessionDrainText} | Burn Rate: ${stats.burnRateText} | Projected Playback: ${stats.estRemainingPlaybackText}", style = textStyle)
 
     Spacer(modifier = Modifier.height(2.dp))
-    Text("--- CACHE & DATA COST ---", style = headerStyle)
-    Text("Buffer Health: ${stats.cache} | Stall Count: ${stats.stallCountText}", style = textStyle)
-    Text("Data Consumed: ${stats.totalDataConsumedText} | Speed: ${stats.networkText} (${String.format("%.1f", stats.networkMbps)} Mbps)", style = textStyle)
+    OutlinedText("--- CACHE & DATA COST ---", style = headerStyle)
+    OutlinedText("Buffer Health: ${stats.cache} | Stall Count: ${stats.stallCountText}", style = textStyle)
+    OutlinedText("Data Consumed: ${stats.totalDataConsumedText} | Speed: ${stats.networkText} (${String.format("%.1f", stats.networkMbps)} Mbps)", style = textStyle)
 
     NetworkSparkline(
       points = stats.networkHistory,
@@ -2024,8 +2027,8 @@ private fun CustomStatsPageSixOverlay(
     )
 
     Spacer(modifier = Modifier.height(2.dp))
-    Text("--- SESSION PERFORMANCE SUMMARY ---", style = headerStyle)
-    Text("Active Playtime: ${stats.sessionPlayTimeText}", style = textStyle)
+    OutlinedText("--- SESSION PERFORMANCE SUMMARY ---", style = headerStyle)
+    OutlinedText("Active Playtime: ${stats.sessionPlayTimeText}", style = textStyle)
 
     LinearProgressIndicator(
       progress = { stats.cpuPercent / 100f },
@@ -2034,7 +2037,7 @@ private fun CustomStatsPageSixOverlay(
         .height(3.dp)
         .padding(vertical = 0.5.dp)
     )
-    Text("App CPU (this process) ${stats.cpuPercent.toInt()}%", style = textStyle)
+    OutlinedText("App CPU (this process) ${stats.cpuPercent.toInt()}%", style = textStyle)
     LinearProgressIndicator(
       progress = { stats.gpuEstimatePercent / 100f },
       modifier = Modifier
@@ -2042,7 +2045,7 @@ private fun CustomStatsPageSixOverlay(
         .height(3.dp)
         .padding(vertical = 0.5.dp)
     )
-    Text("Frame Pressure (drop-based est.) ${stats.gpuEstimatePercent.toInt()}%", style = textStyle)
+    OutlinedText("Frame Pressure (drop-based est.) ${stats.gpuEstimatePercent.toInt()}%", style = textStyle)
   }
 }
 
@@ -2108,3 +2111,28 @@ private fun readNetworkBytesPerSecondForOverlay(): Double {
 
   return if (bitratesBitsPerSecond > 0.0) bitratesBitsPerSecond / 8.0 else 0.0
 }
+
+@Composable
+private fun OutlinedText(
+  text: String,
+  style: androidx.compose.ui.text.TextStyle,
+) {
+  Box {
+    Text(
+      text = text,
+      style = style.copy(
+        color = Color.Black,
+        shadow = null,
+        drawStyle = Stroke(
+          width = with(LocalDensity.current) { 1.2.dp.toPx() },
+          join = StrokeJoin.Round
+        )
+      )
+    )
+    Text(
+      text = text,
+      style = style
+    )
+  }
+}
+
