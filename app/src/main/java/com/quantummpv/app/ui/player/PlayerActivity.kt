@@ -96,6 +96,12 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import org.koin.android.ext.android.inject
 import java.io.File
+import com.quantummpv.app.utils.media.M3UParser
+import com.quantummpv.app.utils.media.M3UParseResult
+import java.io.BufferedReader
+import java.io.InputStreamReader
+import java.net.HttpURLConnection
+import java.net.URL
 
 private enum class BackgroundPlaybackStartResult {
   Started,
@@ -554,7 +560,35 @@ class PlayerActivity :
       } else {
         isReady = false
         viewModel.onVideoLoadStarted()
-        player.playFile(playableUri)
+        val originalUri = extractUriFromIntent(intent)
+        val originalUriStr = originalUri?.toString().orEmpty().lowercase()
+        val fileNameLower = fileName.lowercase()
+        val isM3u = playlistId == null && playlist.isEmpty() && (
+          playableUri.lowercase().endsWith(".m3u") ||
+          playableUri.lowercase().endsWith(".m3u8") ||
+          playableUri.lowercase().contains(".m3u?") ||
+          playableUri.lowercase().contains(".m3u8?") ||
+          originalUriStr.endsWith(".m3u") ||
+          originalUriStr.endsWith(".m3u8") ||
+          originalUriStr.contains(".m3u?") ||
+          originalUriStr.contains(".m3u8?") ||
+          fileNameLower.endsWith(".m3u") ||
+          fileNameLower.endsWith(".m3u8") ||
+          (intent.type?.lowercase()?.contains("mpegurl") == true)
+        )
+        if (isM3u) {
+          lifecycleScope.launch(Dispatchers.Main) {
+            val success = loadDynamicM3uPlaylist(originalUri?.toString() ?: playableUri)
+            if (success) {
+              val targetIndex = playlistIndex.coerceIn(0, playlist.lastIndex)
+              loadPlaylistItem(targetIndex)
+            } else {
+              player.playFile(playableUri)
+            }
+          }
+        } else {
+          player.playFile(playableUri)
+        }
       }
     }
 
@@ -2109,6 +2143,11 @@ class PlayerActivity :
   internal fun getPlaylistItemTitle(uri: Uri): String {
     getPlaylistItemByUri(uri)?.fileName?.takeIf { it.isNotBlank() }?.let { return it }
 
+    val idx = playlist.indexOf(uri)
+    if (idx != -1 && idx < networkPlaylistTitles.size) {
+      networkPlaylistTitles[idx].takeIf { it.isNotBlank() }?.let { return it }
+    }
+
     // Try content resolver first for content:// URIs
     getDisplayNameFromUri(uri)?.let { return it }
 
@@ -2120,10 +2159,25 @@ class PlayerActivity :
 
   private fun getPlaylistItemByUri(uri: Uri): PlaylistItemEntity? {
     val currentItem = getPlaylistItemByIndex(playlistIndex)
-    if (currentItem?.filePath == uri.toString()) {
+    if (currentItem != null && isSameUriOrLocalPath(currentItem.filePath, uri)) {
       return currentItem
     }
-    return playlistItems.firstOrNull { it.filePath == uri.toString() }
+    return playlistItems.firstOrNull { isSameUriOrLocalPath(it.filePath, uri) }
+  }
+
+  private fun isSameUriOrLocalPath(filePath: String, uri: Uri): Boolean {
+    if (filePath == uri.toString()) return true
+    val path1 = if (filePath.startsWith("content://") || filePath.startsWith("file://")) {
+      Uri.parse(filePath).extractLocalPath()
+    } else {
+      filePath
+    }
+    val path2 = if (uri.scheme == "content" || uri.scheme == "file") {
+      uri.extractLocalPath()
+    } else {
+      uri.toString()
+    }
+    return path1 != null && path2 != null && path1 == path2
   }
 
   private fun getEffectiveUserAgent(item: PlaylistItemEntity?): String? =
@@ -3324,10 +3378,41 @@ class PlayerActivity :
       currentPlayableUri = uri
       isReady = false
       viewModel.onVideoLoadStarted()
-      // Avoid blocking UI thread while mpv opens network streams (e.g., HLS).
-      lifecycleScope.launch(Dispatchers.Default) {
-        MPVLib.setPropertyString("vid", "no")
-        MPVLib.command("loadfile", uri)
+      val originalUri = extractUriFromIntent(intent)
+      val originalUriStr = originalUri?.toString().orEmpty().lowercase()
+      val fileNameLower = fileName.lowercase()
+      val isM3u = playlistId == null && playlist.isEmpty() && (
+        uri.lowercase().endsWith(".m3u") ||
+        uri.lowercase().endsWith(".m3u8") ||
+        uri.lowercase().contains(".m3u?") ||
+        uri.lowercase().contains(".m3u8?") ||
+        originalUriStr.endsWith(".m3u") ||
+        originalUriStr.endsWith(".m3u8") ||
+        originalUriStr.contains(".m3u?") ||
+        originalUriStr.contains(".m3u8?") ||
+        fileNameLower.endsWith(".m3u") ||
+        fileNameLower.endsWith(".m3u8") ||
+        (intent.type?.lowercase()?.contains("mpegurl") == true)
+      )
+      if (isM3u) {
+        lifecycleScope.launch(Dispatchers.Main) {
+          val success = loadDynamicM3uPlaylist(originalUri?.toString() ?: uri)
+          if (success) {
+            val targetIndex = playlistIndex.coerceIn(0, playlist.lastIndex)
+            loadPlaylistItem(targetIndex)
+          } else {
+            lifecycleScope.launch(Dispatchers.Default) {
+              MPVLib.setPropertyString("vid", "no")
+              MPVLib.command("loadfile", uri)
+            }
+          }
+        }
+      } else {
+        // Avoid blocking UI thread while mpv opens network streams (e.g., HLS).
+        lifecycleScope.launch(Dispatchers.Default) {
+          MPVLib.setPropertyString("vid", "no")
+          MPVLib.command("loadfile", uri)
+        }
       }
     }
   }
@@ -4112,7 +4197,8 @@ class PlayerActivity :
     // Update playlist play history if this is a custom playlist
     playlistId?.takeUnless(::isAllVideosPlaylist)?.let { id ->
       lifecycleScope.launch(Dispatchers.IO) {
-        val filePath = when (uri.scheme) {
+        val playlistItem = getPlaylistItemByUri(uri)
+        val filePath = playlistItem?.filePath ?: when (uri.scheme) {
           "file" -> uri.path ?: uri.toString()
           "content" -> {
             contentResolver.query(
@@ -4633,6 +4719,109 @@ class PlayerActivity :
    * Check if the current playlist is an M3U playlist (sourced from database).
    */
   fun isCurrentPlaylistM3U(): Boolean = isM3uPlaylist
+
+  private suspend fun fetchM3uContent(uriString: String): String? = withContext(Dispatchers.IO) {
+    try {
+      if (uriString.startsWith("content://") || uriString.startsWith("file://")) {
+        val uri = Uri.parse(uriString)
+        contentResolver.openInputStream(uri)?.use { inputStream ->
+          BufferedReader(InputStreamReader(inputStream, "UTF-8")).use { reader ->
+            reader.readText()
+          }
+        }
+      } else if (uriString.startsWith("http://") || uriString.startsWith("https://")) {
+        val connection = URL(uriString).openConnection() as HttpURLConnection
+        connection.connectTimeout = 15000
+        connection.readTimeout = 15000
+        connection.requestMethod = "GET"
+        connection.setRequestProperty("User-Agent", "MpvRx/1.0")
+        val responseCode = connection.responseCode
+        if (responseCode == HttpURLConnection.HTTP_OK) {
+          val text = BufferedReader(InputStreamReader(connection.inputStream, "UTF-8")).use { reader ->
+            reader.readText()
+          }
+          connection.disconnect()
+          text
+        } else {
+          connection.disconnect()
+          null
+        }
+      } else if (uriString.startsWith("fd://")) {
+        val fdNum = uriString.substring(5).toIntOrNull()
+        if (fdNum != null) {
+          runCatching {
+            val fd = java.io.FileDescriptor().apply {
+              val field = java.io.FileDescriptor::class.java.getDeclaredField("descriptor")
+              field.isAccessible = true
+              field.setInt(this, fdNum)
+            }
+            val dupFd = android.system.Os.dup(fd)
+            java.io.FileInputStream(dupFd).use { inputStream ->
+              BufferedReader(InputStreamReader(inputStream, "UTF-8")).use { reader ->
+                reader.readText()
+              }
+            }
+          }.getOrNull()
+        } else {
+          null
+        }
+      } else {
+        // It could be a local file path, e.g. /storage/...
+        val file = File(uriString)
+        if (file.exists()) {
+          file.bufferedReader(Charsets.UTF_8).use { it.readText() }
+        } else {
+          null
+        }
+      }
+    } catch (e: Exception) {
+      Log.e(TAG, "Error fetching M3U content from $uriString", e)
+      null
+    }
+  }
+
+  private suspend fun loadDynamicM3uPlaylist(uriString: String): Boolean {
+    val content = fetchM3uContent(uriString) ?: return false
+    
+    // Check if HLS manifest
+    if (M3UParser.isLikelyHlsMediaManifest(content)) {
+      Log.d(TAG, "M3U file is likely an HLS manifest, playing as single stream")
+      return false
+    }
+    
+    // Resolve content URI to a local path if possible, for better base URL resolution
+    val resolvedSourceUrl = if (uriString.startsWith("content://")) {
+      Uri.parse(uriString).extractLocalPath() ?: uriString
+    } else {
+      uriString
+    }
+    
+    // Parse as M3U playlist
+    val parseResult = M3UParser.parseContent(content, resolvedSourceUrl)
+    if (parseResult is M3UParseResult.Success) {
+      val items = parseResult.items
+      if (items.isNotEmpty()) {
+        withContext(Dispatchers.Main) {
+          isM3uPlaylist = true
+          playlist = items.map { Uri.parse(it.url) }
+          networkPlaylistTitles = items.map { it.title ?: extractFileNameFromUri(Uri.parse(it.url)) }
+          networkPlaylistPaths = items.map { it.url }
+          playlistWindowOffset = 0
+          playlistTotalCount = items.size
+          
+          // Re-generate shuffled indices if shuffle is active
+          if (viewModel.shuffleEnabled.value) {
+            generateShuffledIndices()
+          }
+          
+          Log.d(TAG, "Dynamically loaded M3U playlist with ${items.size} items")
+          viewModel.refreshPlaylistItems()
+        }
+        return true
+      }
+    }
+    return false
+  }
 
   /**
    * Disables video decoding to save battery when moving to background playback.

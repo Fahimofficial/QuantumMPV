@@ -729,6 +729,7 @@ private fun PlaylistVideoListContent(
                     isSelected = selectionManager.isSelected(item),
                     isRecentlyPlayed = item.playlistItem.id == mostRecentlyPlayedItem?.playlistItem?.id,
                     isFavorite = item.playlistItem.isFavorite,
+                    video = item.video,
                     modifier = Modifier.weight(1f),
                   )
                 } else {

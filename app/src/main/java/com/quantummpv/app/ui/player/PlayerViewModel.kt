@@ -3659,17 +3659,20 @@ class PlayerViewModel(
 
     return activity.playlist.mapIndexed { index, uri ->
       val title = activity.getPlaylistItemTitle(uri)
-      // Path is not used for thumbnail loading - thumbnails are loaded directly from URI
-      // Keep it for cache key compatibility
-      val path = uri.toString()
+      val resolvedUri = if (uri.scheme == "content") {
+        uri.extractLocalPath()?.let { Uri.fromFile(File(it)) } ?: uri
+      } else {
+        uri
+      }
+      val path = resolvedUri.toString()
       val isCurrentlyPlaying = index == activity.playlistIndex
 
       // Try to get from cache first (synchronized access)
-      val cacheKey = uri.toString()
+      val cacheKey = resolvedUri.toString()
       val (durationStr, resolutionStr) = synchronized(metadataCache) { metadataCache[cacheKey] } ?: ("" to "")
 
       com.quantummpv.app.ui.player.controls.components.sheets.PlaylistItem(
-        uri = uri,
+        uri = resolvedUri,
         title = title,
         index = index,
         isPlaying = isCurrentlyPlaying,
@@ -3683,19 +3686,25 @@ class PlayerViewModel(
   }
 
   private fun getVideoMetadata(uri: Uri): Pair<String, String> {
+    val resolvedUri = if (uri.scheme == "content") {
+      uri.extractLocalPath()?.let { Uri.fromFile(File(it)) } ?: uri
+    } else {
+      uri
+    }
+
     // Skip metadata extraction for network streams and M3U playlists
-    if (uri.scheme?.startsWith("http") == true || uri.scheme == "rtmp" || uri.scheme == "ftp" || uri.scheme == "rtsp" || uri.scheme == "mms") {
+    if (resolvedUri.scheme?.startsWith("http") == true || resolvedUri.scheme == "rtmp" || resolvedUri.scheme == "ftp" || resolvedUri.scheme == "rtsp" || resolvedUri.scheme == "mms") {
       return "" to ""
     }
 
     // Skip M3U/M3U8 files
-    val uriString = uri.toString().lowercase()
+    val uriString = resolvedUri.toString().lowercase()
     if (uriString.contains(".m3u8") || uriString.contains(".m3u")) {
       return "" to ""
     }
 
     // Try MediaStore first (much faster - uses cached values)
-    val mediaStoreMetadata = getVideoMetadataFromMediaStore(uri)
+    val mediaStoreMetadata = getVideoMetadataFromMediaStore(resolvedUri)
     if (mediaStoreMetadata != null) {
       return mediaStoreMetadata
     }
@@ -3704,11 +3713,11 @@ class PlayerViewModel(
     val retriever = android.media.MediaMetadataRetriever()
     return try {
       // For file:// URIs, use the path directly (faster)
-      if (uri.scheme == "file") {
-        retriever.setDataSource(uri.path)
+      if (resolvedUri.scheme == "file") {
+        retriever.setDataSource(resolvedUri.path)
       } else {
         // For content:// URIs, use context
-        retriever.setDataSource(host.context, uri)
+        retriever.setDataSource(host.context, resolvedUri)
       }
 
       // Get duration
@@ -3726,7 +3735,7 @@ class PlayerViewModel(
 
       durationStr to resolutionStr
     } catch (e: Exception) {
-      android.util.Log.e("PlayerViewModel", "Failed to get video metadata for $uri", e)
+      android.util.Log.e("PlayerViewModel", "Failed to get video metadata for $resolvedUri", e)
       "" to ""
     } finally {
       try {
@@ -3913,11 +3922,17 @@ class PlayerViewModel(
   private fun loadPlaylistMetadataAsync(items: List<com.quantummpv.app.ui.player.controls.components.sheets.PlaylistItem>) {
     playlistMetadataJob?.cancel()
     playlistMetadataJob = viewModelScope.launch(Dispatchers.IO) {
-      // Skip metadata extraction for M3U playlists
+      // Skip metadata extraction for M3U playlists only if they contain network streams
       val activity = host as? PlayerActivity
       if (activity?.isCurrentPlaylistM3U() == true) {
-        Log.d(TAG, "Skipping metadata extraction for M3U playlist")
-        return@launch
+        val hasNetworkStreams = activity.playlist.any { uri ->
+          val scheme = uri.scheme?.lowercase()
+          scheme == "http" || scheme == "https" || scheme == "davs" || scheme == "smb" || scheme == "ftp" || scheme == "sftp"
+        }
+        if (hasNetworkStreams) {
+          Log.d(TAG, "Skipping metadata extraction for M3U playlist with network streams")
+          return@launch
+        }
       }
 
       val metadataItems =

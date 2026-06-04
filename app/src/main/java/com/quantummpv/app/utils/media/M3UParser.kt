@@ -3,9 +3,11 @@ package com.quantummpv.app.utils.media
 import android.content.Context
 import android.net.Uri
 import android.util.Log
+import com.quantummpv.app.ui.player.openContentFd
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import java.io.BufferedReader
+import java.io.File
 import java.io.InputStreamReader
 import java.net.HttpURLConnection
 import java.net.URL
@@ -99,15 +101,36 @@ object M3UParser {
         }
       } ?: return@withContext M3UParseResult.Error("Failed to open file")
       
-      // Get filename for playlist name
-      val filename = context.contentResolver.query(uri, null, null, null, null)?.use { cursor ->
+      // Resolve sourceUrl to its real filesystem path to allow proper base directory resolution
+      val resolvedPath = runCatching { uri.openContentFd(context) }.getOrNull()
+      val sourceUrl = if (resolvedPath != null && !resolvedPath.startsWith("fd://")) {
+        resolvedPath
+      } else {
+        uri.toString()
+      }
+
+      // Get filename for playlist name with multi-stage fallback
+      val rawFilename = context.contentResolver.query(uri, null, null, null, null)?.use { cursor ->
         val nameIndex = cursor.getColumnIndex(android.provider.OpenableColumns.DISPLAY_NAME)
         if (nameIndex >= 0 && cursor.moveToFirst()) {
           cursor.getString(nameIndex)
         } else null
-      } ?: uri.lastPathSegment ?: "Local M3U Playlist"
+      } ?: (if (resolvedPath != null && !resolvedPath.startsWith("fd://")) File(resolvedPath).name else null)
+        ?: uri.lastPathSegment
+        ?: "Local M3U Playlist"
+
+      // URL-decode to handle encoded names (e.g. %20 -> space, %3A -> :)
+      val decodedFilename = runCatching { java.net.URLDecoder.decode(rawFilename, "UTF-8") }.getOrNull() ?: rawFilename
+
+      // Clean the name: strip extension, replace underscores/dashes with spaces
+      val cleanPlaylistName = decodedFilename
+        .substringBeforeLast('.')
+        .replace('_', ' ')
+        .replace('-', ' ')
+        .trim()
+        .ifEmpty { "Local M3U Playlist" }
       
-      parseContent(content, filename)
+      parseContent(content, sourceUrl, overridePlaylistName = cleanPlaylistName)
     } catch (e: Exception) {
       Log.e(TAG, "Error parsing M3U playlist from URI", e)
       M3UParseResult.Error("Failed to parse playlist: ${e.message}", e)
@@ -121,7 +144,11 @@ object M3UParser {
    * @param sourceUrl  The URL/path from which the content was loaded; used to resolve
    *                   relative entry URLs. Pass null only if all entries are absolute.
    */
-  fun parseContent(content: String, sourceUrl: String? = null): M3UParseResult {
+  fun parseContent(
+    content: String,
+    sourceUrl: String? = null,
+    overridePlaylistName: String? = null,
+  ): M3UParseResult {
     try {
       val lines = content.lines().map { it.trimEnd() }.filter { it.isNotEmpty() }
 
@@ -254,8 +281,8 @@ object M3UParser {
         return M3UParseResult.Error("No valid media URLs found in playlist")
       }
       
-      // Extract playlist name from source URL/filename or use default
-      val playlistName = sourceUrl?.let { 
+      // Extract playlist name from override, source URL/filename, or use default
+      val playlistName = overridePlaylistName ?: sourceUrl?.let { 
         if (it.startsWith("http://") || it.startsWith("https://")) {
           extractPlaylistNameFromUrl(it)
         } else {

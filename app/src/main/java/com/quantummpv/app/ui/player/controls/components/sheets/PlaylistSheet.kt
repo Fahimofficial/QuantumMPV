@@ -250,7 +250,7 @@ fun PlaylistSheet(
                 item = item,
                 imageLoader = imageLoader,
                 onClick = { onItemClick(item) },
-                skipThumbnail = isM3UPlaylist,
+                skipThumbnail = false,
                 accentColor = accentColor
               )
             }
@@ -272,7 +272,7 @@ fun PlaylistSheet(
                 onClick = {
                   onItemClick(item)
                 },
-                skipThumbnail = isM3UPlaylist,
+                skipThumbnail = false,
               )
             }
           }

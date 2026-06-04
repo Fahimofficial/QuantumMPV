@@ -20,6 +20,8 @@ import kotlinx.coroutines.launch
 import org.koin.core.component.KoinComponent
 import org.koin.core.component.inject
 import java.io.File
+import com.quantummpv.app.ui.player.extractLocalPath
+import kotlinx.coroutines.withContext
 
 data class PlaylistVideoItem(
   val playlistItem: PlaylistItemEntity,
@@ -222,18 +224,52 @@ class PlaylistDetailViewModel(
     playlistRepository.toggleFavorite(itemId)
   }
 
-  private fun buildM3UVideoItems(
+  private suspend fun buildM3UVideoItems(
     playlist: PlaylistEntity?,
     items: List<PlaylistItemEntity>,
-  ): List<PlaylistVideoItem> =
+  ): List<PlaylistVideoItem> = withContext(Dispatchers.IO) {
     items.mapNotNull { item ->
       try {
-        val video = Video(
+        val isNetwork = item.filePath.startsWith("http://", ignoreCase = true) ||
+            item.filePath.startsWith("https://", ignoreCase = true) ||
+            item.filePath.startsWith("rtmp://", ignoreCase = true) ||
+            item.filePath.startsWith("rtsp://", ignoreCase = true) ||
+            item.filePath.startsWith("ftp://", ignoreCase = true) ||
+            item.filePath.startsWith("sftp://", ignoreCase = true) ||
+            item.filePath.startsWith("smb://", ignoreCase = true)
+        
+        var resolvedVideo: Video? = null
+        val localPath = if (!isNetwork) {
+          if (item.filePath.startsWith("content://") || item.filePath.startsWith("file://")) {
+            android.net.Uri.parse(item.filePath).extractLocalPath()
+          } else {
+            item.filePath
+          }
+        } else null
+
+        if (localPath != null) {
+          val file = File(localPath)
+          if (file.exists()) {
+            val videos = MediaFileRepository.getVideosFromFiles(getApplication(), listOf(file))
+            resolvedVideo = videos.firstOrNull()?.copy(
+              id = item.id.toLong()
+            )
+          }
+        }
+        
+        val fallbackPath = localPath ?: item.filePath
+        val fallbackUri = if (localPath != null) {
+          android.net.Uri.fromFile(File(localPath))
+        } else {
+          android.net.Uri.parse(item.filePath)
+        }
+
+        val video = resolvedVideo ?: Video(
           id = item.id.toLong(),
           title = item.fileName,
           displayName = item.fileName,
-          path = item.filePath,
-          uri = android.net.Uri.parse(item.filePath),
+          path = fallbackPath,
+          uri = fallbackUri,
           duration = 0L,
           durationFormatted = "--",
           size = 0L,
@@ -254,5 +290,6 @@ class PlaylistDetailViewModel(
         null
       }
     }
+  }
 }
 

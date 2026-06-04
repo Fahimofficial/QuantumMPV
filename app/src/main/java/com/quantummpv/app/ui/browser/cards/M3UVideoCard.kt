@@ -68,20 +68,31 @@ fun M3UVideoCard(
   isSelected: Boolean = false,
   isRecentlyPlayed: Boolean = false,
   isFavorite: Boolean = false,
+  video: Video? = null,
 ) {
   val thumbnailRepository = koinInject<ThumbnailRepository>()
   val appearancePreferences = koinInject<AppearancePreferences>()
   val showNetworkThumbnails by appearancePreferences.showNetworkThumbnails.collectAsState()
   var thumbnail by remember(url) { mutableStateOf<android.graphics.Bitmap?>(null) }
 
-  if (showNetworkThumbnails) {
+  val isNetwork = remember(url) {
+    url.startsWith("http://", ignoreCase = true) ||
+      url.startsWith("https://", ignoreCase = true) ||
+      url.startsWith("rtmp://", ignoreCase = true) ||
+      url.startsWith("rtsp://", ignoreCase = true) ||
+      url.startsWith("ftp://", ignoreCase = true) ||
+      url.startsWith("sftp://", ignoreCase = true) ||
+      url.startsWith("smb://", ignoreCase = true)
+  }
+
+  if (!isNetwork || showNetworkThumbnails) {
     val density = LocalDensity.current
     val targetThumbnailSize = 128.dp
     val thumbWidthPx = with(density) { targetThumbnailSize.toPx().roundToInt() }
     val thumbHeightPx = (thumbWidthPx / (16f / 9f)).roundToInt()
 
-    val dummyVideo = remember(url) {
-      Video(
+    val actualVideo = remember(video, url) {
+      video ?: Video(
         id = url.hashCode().toLong(),
         title = title,
         displayName = title,
@@ -103,14 +114,18 @@ fun M3UVideoCard(
       )
     }
 
-    val thumbnailKey = remember(dummyVideo.id, thumbWidthPx, thumbHeightPx) {
-      thumbnailRepository.thumbnailKeyForNetworkPath(url, thumbWidthPx, thumbHeightPx)
+    val thumbnailKey = remember(actualVideo.id, thumbWidthPx, thumbHeightPx, isNetwork) {
+      if (isNetwork) {
+        thumbnailRepository.thumbnailKeyForNetworkPath(url, thumbWidthPx, thumbHeightPx)
+      } else {
+        thumbnailRepository.thumbnailKey(actualVideo, thumbWidthPx, thumbHeightPx)
+      }
     }
 
     LaunchedEffect(thumbnailKey) {
       thumbnailRepository.thumbnailReadyKeys.filter { it == thumbnailKey }.collect {
         thumbnail = thumbnailRepository.getThumbnailFromMemory(
-          dummyVideo,
+          actualVideo,
           thumbWidthPx,
           thumbHeightPx
         )
@@ -120,7 +135,11 @@ fun M3UVideoCard(
     LaunchedEffect(thumbnailKey) {
       if (thumbnail == null) {
         thumbnail = withContext(Dispatchers.IO) {
-          thumbnailRepository.getThumbnailForNetworkPath(url, thumbWidthPx, thumbHeightPx)
+          if (isNetwork) {
+            thumbnailRepository.getThumbnailForNetworkPath(url, thumbWidthPx, thumbHeightPx)
+          } else {
+            thumbnailRepository.getThumbnail(actualVideo, thumbWidthPx, thumbHeightPx)
+          }
         }
       }
     }

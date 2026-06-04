@@ -33,8 +33,29 @@ private object StoragePaths {
  *
  * Falls back to file descriptor if real path cannot be determined.
  */
+/**
+ * Extracts a direct local filesystem path from a content:// URI if it exists.
+ * This is useful to bypass scoped storage / document provider permissions when we have MANAGE_EXTERNAL_STORAGE.
+ */
+internal fun Uri.extractLocalPath(): String? {
+  val decoded = runCatching { Uri.decode(this.toString()) }.getOrNull() ?: return null
+  val candidates = listOf("/storage/emulated/", "/storage/", "/sdcard/")
+  for (candidate in candidates) {
+    val index = decoded.indexOf(candidate)
+    if (index != -1) {
+      val rawPath = decoded.substring(index)
+      val path = rawPath.substringBefore('?').substringBefore('#')
+      if (File(path).exists()) {
+        return path
+      }
+    }
+  }
+  return null
+}
+
 internal fun Uri.openContentFd(context: Context): String? =
-  tryFileDescriptorPath(context)
+  extractLocalPath()
+    ?: tryFileDescriptorPath(context)
     ?: tryMediaStoreQuery(context)
     ?: tryDocumentUriParsing(context)
     ?: tryFileDescriptorFallback(context)
