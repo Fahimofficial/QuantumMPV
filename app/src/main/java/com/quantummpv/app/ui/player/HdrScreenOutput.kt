@@ -79,11 +79,7 @@ internal fun hdrScreenOutputSettings(
 }
 
 private fun offSettings(): List<Pair<String, String>> = listOf(
-  "target-colorspace-hint"      to "auto",
   "target-colorspace-hint-mode" to "target",
-  "target-trc"                  to "auto",
-  "target-prim"                 to "auto",
-  "target-peak"                 to "auto",
   "inverse-tone-mapping"        to "no",
   "tone-mapping"                to "auto",
   "gamut-mapping-mode"          to "auto",
@@ -112,11 +108,8 @@ private fun hdrToysSettings(profile: HdrToysProfile): List<Pair<String, String>>
 private fun linearHdrSettings(hdrEnabled: Boolean): List<Pair<String, String>> = listOf(
   "target-colorspace-hint"      to if (hdrEnabled) "yes" else "no",
   "tone-mapping-visualize"      to "no",
-  "target-trc"                  to "auto",
-  "target-prim"                 to "auto",
-  "target-peak"                 to "auto",
   "inverse-tone-mapping"        to if (hdrEnabled) "yes" else "no",
-  "tone-mapping"                to if (hdrEnabled) "clip" else "auto",
+  "tone-mapping"                to "clip",
   "gamut-mapping-mode"          to if (hdrEnabled) "clip" else "auto",
   "hdr-compute-peak"            to if (hdrEnabled) "yes" else "auto",
   "hdr-reference-white"         to "203",
