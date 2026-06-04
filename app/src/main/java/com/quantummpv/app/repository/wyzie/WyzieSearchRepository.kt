@@ -123,15 +123,44 @@ data class WyzieSeasonDetails(
     val episodes: List<WyzieEpisode> = emptyList()
 )
 
+@Serializable
+data class WyzieSourceItem(
+    val key: String,
+    val name: String,
+    val tier: String,
+    val tags: List<String> = emptyList(),
+    val available: Boolean = true
+)
+
+@Serializable
+data class WyzieKeyInfo(
+    val valid: Boolean = false,
+    val type: String? = null
+)
+
+@Serializable
+data class WyzieSourcesResponse(
+    val sources: List<String> = emptyList(),
+    val free: List<String> = emptyList(),
+    val paid: List<String> = emptyList(),
+    val tiered: List<WyzieSourceItem> = emptyList(),
+    val allFree: Boolean = false,
+    val key: WyzieKeyInfo? = null,
+    val available: List<String> = emptyList(),
+    val restricted: List<String> = emptyList()
+)
+
 object WyzieSources {
     val ALL = mapOf(
         "all" to "All",
-        "opensubtitles" to "OpenSubtitles",
-        "subf2m" to "Subf2m",
-        "tvsubtitles" to "TVsubtitles",
-        "yify" to "YIFY",
-        "gestdown" to "Gestdown",
-        "kitsunekko" to "Kitsunekko"
+        "bravo" to "Bravo",
+        "charlie" to "Charlie",
+        "foxtrot" to "Foxtrot",
+        "india" to "India",
+        "juliet" to "Juliet",
+        "lima" to "Lima",
+        "mike" to "Mike",
+        "november" to "November"
     )
 }
 
@@ -239,6 +268,55 @@ class WyzieSearchRepository(
 
     private val baseUrl = "https://sub.wyzie.io"
     private val tmdbMirrorBaseUrl = "https://db.videasy.net/3"
+
+    private var cachedSourcesResponse: WyzieSourcesResponse? = null
+
+    suspend fun getSources(forceRefresh: Boolean = false): Result<WyzieSourcesResponse> = withContext(Dispatchers.IO) {
+        if (!forceRefresh && cachedSourcesResponse != null) {
+            return@withContext Result.success(cachedSourcesResponse!!)
+        }
+        
+        // Try to load from preference cache first if memory cache is empty
+        if (cachedSourcesResponse == null) {
+            val cachedJson = preferences.wyzieCachedSourcesJson.get()
+            if (cachedJson.isNotBlank()) {
+                try {
+                    cachedSourcesResponse = json.decodeFromString<WyzieSourcesResponse>(cachedJson)
+                } catch (e: Exception) {
+                    Log.w("WyzieSearchRepository", "Failed to parse cached sources json", e)
+                }
+            }
+        }
+        
+        // If not forcing refresh and we just loaded from preference cache, return it
+        if (!forceRefresh && cachedSourcesResponse != null) {
+            return@withContext Result.success(cachedSourcesResponse!!)
+        }
+
+        try {
+            val apiKey = preferences.wyzieApiKey.get().trim()
+            val url = "$baseUrl/sources${if (apiKey.isNotBlank()) "?key=${URLEncoder.encode(apiKey, "UTF-8")}" else ""}"
+            val request = Request.Builder()
+                .url(url)
+                .header("User-Agent", "Mozilla/5.0 (Linux; Android 14)")
+                .build()
+            client.newCall(request).execute().use { response ->
+                if (!response.isSuccessful) throw IOException("Failed to fetch sources: ${response.code}")
+                val body = response.body.string()
+                val parsed = json.decodeFromString<WyzieSourcesResponse>(body)
+                cachedSourcesResponse = parsed
+                preferences.wyzieCachedSourcesJson.set(body)
+                Result.success(parsed)
+            }
+        } catch (e: Exception) {
+            Log.e("WyzieSearchRepository", "Failed to fetch sources from network", e)
+            // If we have cached sources, return them as a fallback instead of failing completely
+            cachedSourcesResponse?.let {
+                return@withContext Result.success(it)
+            }
+            Result.failure(e)
+        }
+    }
 
     override suspend fun search(request: OnlineSubtitleSearchRequest): Result<List<OnlineSubtitle>> =
         search(

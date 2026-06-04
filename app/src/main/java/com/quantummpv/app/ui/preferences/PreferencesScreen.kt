@@ -290,14 +290,6 @@ private fun SettingsSectionBlock(
       .fillMaxWidth()
       .padding(top = 10.dp, bottom = 14.dp),
   ) {
-    SettingsDestinationGroup(
-      section = section,
-      onItemClick = onItemClick,
-      modifier = Modifier.padding(horizontal = 16.dp),
-    )
-
-    Spacer(modifier = Modifier.height(8.dp))
-
     Column(
       modifier = Modifier.padding(horizontal = 24.dp),
     ) {
@@ -307,6 +299,14 @@ private fun SettingsSectionBlock(
         color = MaterialTheme.colorScheme.onSurface,
       )
     }
+
+    Spacer(modifier = Modifier.height(8.dp))
+
+    SettingsDestinationGroup(
+      section = section,
+      onItemClick = onItemClick,
+      modifier = Modifier.padding(horizontal = 16.dp),
+    )
   }
 }
 

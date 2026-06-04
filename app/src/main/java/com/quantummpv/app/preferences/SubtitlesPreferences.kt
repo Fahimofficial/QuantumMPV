@@ -55,6 +55,7 @@ class SubtitlesPreferences(
   val wyzieEncodings = preferenceStore.getStringSet("wyzie_encodings", setOf("utf-8"))
   val wyzieHearingImpaired = preferenceStore.getBoolean("wyzie_hi", false)
   val wyzieApiKey = preferenceStore.getString("wyzie_api_key", "")
+  val wyzieCachedSourcesJson = preferenceStore.getString("wyzie_cached_sources_json", "")
   val wyzieRelease = preferenceStore.getString("wyzie_release", "")
   val wyzieFile = preferenceStore.getString("wyzie_file", "")
   val wyzieOrigin = preferenceStore.getString("wyzie_origin", "")

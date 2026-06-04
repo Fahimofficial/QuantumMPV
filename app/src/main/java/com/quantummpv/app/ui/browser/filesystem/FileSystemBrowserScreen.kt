@@ -16,8 +16,6 @@ import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutVertically
 import com.quantummpv.app.utils.media.OpenDocumentTreeContract
 import com.quantummpv.app.ui.theme.AppMotion
-import androidx.compose.foundation.gestures.detectDragGesturesAfterLongPress
-import androidx.compose.foundation.gestures.scrollBy
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -64,8 +62,6 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
-import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.res.stringResource
@@ -306,7 +302,7 @@ fun FileSystemBrowserScreen(path: String? = null) {
         mainScreenObj.updateBottomBarVisibility(showBottomNavigation)
         mainScreenObj.updateSelectionState(
           isInSelectionMode = isInSelectionMode,
-          isOnlyVideosSelected = onlyVideosSelected,
+          isOnlyVideosSelected = true,
           selectionManager = if (onlyVideosSelected) selectionManager else null
         )
         mainScreenObj.updatePermissionState(
@@ -1068,20 +1064,6 @@ private fun fileSystemSelectionId(item: FileSystemItem): String =
     is FileSystemItem.VideoFile -> "video:${item.path}"
   }
 
-private fun selectableItemAtOffset(
-  listState: LazyListState,
-  offset: Offset,
-  selectableItems: List<FileSystemItem>,
-  selectableItemIndexOffset: Int,
-): FileSystemItem? {
-  val y = offset.y.toInt()
-  val visibleItem =
-    listState.layoutInfo.visibleItemsInfo.firstOrNull { itemInfo ->
-      y >= itemInfo.offset && y < itemInfo.offset + itemInfo.size
-    } ?: return null
-
-  return selectableItems.getOrNull(visibleItem.index - selectableItemIndexOffset)
-}
 
 /**
  * Recursively collects all videos from a folder and its subfolders
@@ -1215,20 +1197,10 @@ private fun FileSystemBrowserContent(
   val aspect = 16f / 9f
   val thumbWidthPx = with(density) { thumbWidthDp.roundToPx() }
   val thumbHeightPx = ((thumbWidthPx.toFloat() / aspect).toInt())
-  val dragScrollScope = rememberCoroutineScope()
-  val edgeScrollThresholdPx = with(density) { 72.dp.toPx() }
-  val edgeScrollStepPx = with(density) { 42.dp.toPx() }
 
   val folders = items.filterIsInstance<FileSystemItem.Folder>()
   val videoFiles = items.filterIsInstance<FileSystemItem.VideoFile>()
   val videos = videoFiles.map { it.video }
-  val selectableItems = remember(items) {
-    buildList<FileSystemItem> {
-      addAll(folders)
-      addAll(videoFiles)
-    }
-  }
-  val selectableItemIndexOffset = if (!isAtRoot && breadcrumbs.isNotEmpty()) 1 else 0
 
   // Create a unique folderId based on the current directories
   val folderId = remember(folders, isAtRoot, breadcrumbs) {
@@ -1320,58 +1292,7 @@ private fun FileSystemBrowserContent(
         ) {
           LazyColumn(
             state = listState,
-            modifier = Modifier
-              .fillMaxSize()
-              .pointerInput(selectableItems, selectableItemIndexOffset) {
-                var lastDragSelectedId: String? = null
-                detectDragGesturesAfterLongPress(
-                  onDragStart = { offset ->
-                    val item = selectableItemAtOffset(
-                      listState = listState,
-                      offset = offset,
-                      selectableItems = selectableItems,
-                      selectableItemIndexOffset = selectableItemIndexOffset,
-                    )
-                    if (item != null) {
-                      selectionManager.select(item)
-                      lastDragSelectedId = fileSystemSelectionId(item)
-                    }
-                  },
-                  onDrag = { change, _ ->
-                    val viewportHeight = size.height.toFloat()
-                    val scrollDelta =
-                      when {
-                        change.position.y < edgeScrollThresholdPx -> -edgeScrollStepPx
-                        change.position.y > viewportHeight - edgeScrollThresholdPx -> edgeScrollStepPx
-                        else -> 0f
-                      }
-                    if (scrollDelta != 0f) {
-                      dragScrollScope.launch {
-                        listState.scrollBy(scrollDelta)
-                      }
-                    }
-
-                    val item = selectableItemAtOffset(
-                      listState = listState,
-                      offset = change.position,
-                      selectableItems = selectableItems,
-                      selectableItemIndexOffset = selectableItemIndexOffset,
-                    )
-                    val itemId = item?.let(::fileSystemSelectionId)
-                    if (item != null && itemId != null && itemId != lastDragSelectedId) {
-                      selectionManager.selectRangeTo(item)
-                      lastDragSelectedId = itemId
-                    }
-                    change.consume()
-                  },
-                  onDragEnd = {
-                    lastDragSelectedId = null
-                  },
-                  onDragCancel = {
-                    lastDragSelectedId = null
-                  },
-                )
-              },
+            modifier = Modifier.fillMaxSize(),
             contentPadding = PaddingValues(
               start = 8.dp,
               end = 8.dp,
@@ -1408,7 +1329,7 @@ private fun FileSystemBrowserContent(
                 isSelected = selectionManager.isSelected(folder),
                 isRecentlyPlayed = false,
                 onClick = { onFolderClick(folder) },
-                onLongClick = null,
+                onLongClick = { onFolderLongClick(folder) },
                 onThumbClick = if (tapThumbnailToSelect) {
                   { selectionManager.toggle(folder) }
                 } else {
@@ -1430,7 +1351,7 @@ private fun FileSystemBrowserContent(
                 isRecentlyPlayed = false,
                 isSelected = selectionManager.isSelected(videoFile),
                 onClick = { onVideoClick(videoFile) },
-                onLongClick = null,
+                onLongClick = { onVideoLongClick(videoFile) },
                 onThumbClick = if (tapThumbnailToSelect) {
                   { selectionManager.toggle(videoFile) }
                 } else {

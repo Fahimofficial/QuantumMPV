@@ -200,8 +200,7 @@ object MainScreen : Screen {
       }
     ) { paddingValues ->
       Box(modifier = Modifier.fillMaxSize()) {
-        val isNavigationBarVisible = !hideNavigationBar && visibleTabs.isNotEmpty() && !isPermissionDenied
-        val fabBottomPadding = if (isNavigationBarVisible) 80.dp else 16.dp
+        val fabBottomPadding =  80.dp 
 
         AnimatedContent(
           targetState = selectedTab,

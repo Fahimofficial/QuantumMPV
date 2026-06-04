@@ -18,9 +18,13 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.background
 import com.quantummpv.app.repository.wyzie.WyzieEncodings
 import com.quantummpv.app.repository.wyzie.WyzieFormats
 import com.quantummpv.app.repository.wyzie.WyzieSources
+import com.quantummpv.app.repository.wyzie.WyzieSearchRepository
+import com.quantummpv.app.repository.wyzie.WyzieSourcesResponse
+import com.quantummpv.app.repository.wyzie.WyzieSourceItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -29,6 +33,9 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextField
 import androidx.compose.material3.TopAppBar
+import androidx.compose.material3.SuggestionChip
+import androidx.compose.material3.SuggestionChipDefaults
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -82,6 +89,7 @@ object SubtitlesPreferencesScreen : Screen {
     val backstack = LocalBackStack.current
     val preferences = koinInject<SubtitlesPreferences>()
     val fileManager = koinInject<FileManager>()
+    val wyzieSearchRepository = koinInject<WyzieSearchRepository>()
     val scope = rememberCoroutineScope()
     var fontRefreshKey by remember { mutableStateOf(0) }
 
@@ -172,6 +180,24 @@ object SubtitlesPreferencesScreen : Screen {
             loadCustomFontEntries(context)
               .map { it.familyName }
               .distinct()
+        }
+
+        var sourcesResponse by remember { mutableStateOf<WyzieSourcesResponse?>(null) }
+        var isLoadingSources by remember { mutableStateOf(false) }
+        var sourcesError by remember { mutableStateOf<String?>(null) }
+        var refreshTrigger by remember { mutableStateOf(0) }
+
+        LaunchedEffect(wyzieApiKey, refreshTrigger) {
+          isLoadingSources = true
+          sourcesError = null
+          val result = wyzieSearchRepository.getSources(forceRefresh = refreshTrigger > 0)
+          result.onSuccess {
+            sourcesResponse = it
+            isLoadingSources = false
+          }.onFailure { err ->
+            sourcesError = err.message ?: "Failed to fetch sources"
+            isLoadingSources = false
+          }
         }
 
         LazyColumn(
@@ -467,21 +493,279 @@ object SubtitlesPreferencesScreen : Screen {
               PreferenceDivider()
 
               // Wyzie Sources
-              MultiChoicePreference(
+              var showSourcesDialog by remember { mutableStateOf(false) }
+              val displayNamesMap = remember(sourcesResponse) {
+                val map = mutableMapOf<String, String>()
+                map.putAll(WyzieSources.ALL)
+                sourcesResponse?.tiered?.forEach { item ->
+                  map[item.key] = item.name.replaceFirstChar { it.uppercase() }
+                }
+                map
+              }
+
+              Preference(
                 title = { Text(stringResource(R.string.pref_subtitle_sources_title)) },
                 summary = {
                   val summaryText = if (wyzieSources.isEmpty() || wyzieSources.contains("all")) {
                     stringResource(R.string.pref_all_sources)
                   } else {
-                    wyzieSources.mapNotNull { WyzieSources.ALL[it] }.joinToString(", ")
+                    wyzieSources.mapNotNull { displayNamesMap[it] ?: it.replaceFirstChar { c -> c.uppercase() } }.joinToString(", ")
                   }
                   Text(summaryText, color = MaterialTheme.colorScheme.outline)
                 },
-                values = WyzieSources.ALL,
-                selectedValues = wyzieSources,
-                onValuesChange = { preferences.wyzieSources.set(it) },
-                hasAllOption = true
+                onClick = { showSourcesDialog = true }
               )
+
+              if (showSourcesDialog) {
+                AlertDialog(
+                  onDismissRequest = { showSourcesDialog = false },
+                  title = {
+                    Row(
+                      verticalAlignment = Alignment.CenterVertically,
+                      horizontalArrangement = Arrangement.SpaceBetween,
+                      modifier = Modifier.fillMaxWidth()
+                    ) {
+                      Text(stringResource(R.string.pref_subtitle_sources_title))
+                      
+                      if (isLoadingSources) {
+                        CircularProgressIndicator(
+                          modifier = Modifier.size(18.dp),
+                          strokeWidth = 2.dp,
+                          color = MaterialTheme.colorScheme.primary
+                        )
+                      } else {
+                        IconButton(
+                          onClick = { refreshTrigger++ },
+                          modifier = Modifier.size(24.dp)
+                        ) {
+                          Icon(
+                            imageVector = Icons.Default.Refresh,
+                            contentDescription = "Refresh",
+                            modifier = Modifier.size(18.dp),
+                            tint = MaterialTheme.colorScheme.primary
+                          )
+                        }
+                      }
+                    }
+                  },
+                  text = {
+                    Column(modifier = Modifier.fillMaxWidth()) {
+                      sourcesResponse?.key?.let { keyInfo ->
+                        val keyType = keyInfo.type?.replaceFirstChar { it.uppercase() } ?: "Unknown"
+                        val badgeColor = if (keyInfo.valid) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.errorContainer
+                        val badgeTextColor = if (keyInfo.valid) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onErrorContainer
+                        
+                        Row(
+                          modifier = Modifier.padding(bottom = 8.dp),
+                          verticalAlignment = Alignment.CenterVertically
+                        ) {
+                          SuggestionChip(
+                            onClick = {},
+                            label = { Text("API Key: $keyType") },
+                            colors = SuggestionChipDefaults.suggestionChipColors(
+                              containerColor = badgeColor,
+                              labelColor = badgeTextColor
+                            )
+                          )
+                        }
+                      }
+
+                      if (sourcesError != null && sourcesResponse == null) {
+                        Text(
+                          text = sourcesError ?: "Error loading sources",
+                          color = MaterialTheme.colorScheme.error,
+                          style = MaterialTheme.typography.bodyMedium,
+                          modifier = Modifier.padding(vertical = 16.dp)
+                        )
+                      } else {
+                        val items = sourcesResponse?.tiered ?: WyzieSources.ALL.filterKeys { it != "all" }.map { (key, value) ->
+                          WyzieSourceItem(
+                            key = key,
+                            name = value,
+                            tier = if (key == "charlie" || key == "lima") "free" else "paid",
+                            tags = emptyList(),
+                            available = true
+                          )
+                        }
+
+                        val freeItems = items.filter { it.tier.lowercase() == "free" }
+                        val paidItems = items.filter { it.tier.lowercase() == "paid" }
+
+                        LazyColumn(modifier = Modifier.weight(1f, fill = false)) {
+                          // "All Sources" option
+                          item {
+                            val isAllChecked = wyzieSources.isEmpty() || wyzieSources.contains("all")
+                            Row(
+                              modifier = Modifier
+                                .fillMaxWidth()
+                                .clickable {
+                                  preferences.wyzieSources.set(setOf("all"))
+                                }
+                                .padding(vertical = 8.dp),
+                              verticalAlignment = Alignment.CenterVertically
+                            ) {
+                              Checkbox(
+                                checked = isAllChecked,
+                                onCheckedChange = null
+                              )
+                              Spacer(modifier = Modifier.width(8.dp))
+                              Text(
+                                text = stringResource(R.string.pref_all_sources),
+                                fontWeight = FontWeight.Bold
+                              )
+                            }
+                            PreferenceDivider()
+                          }
+
+                          // Free Sources Group
+                          if (freeItems.isNotEmpty()) {
+                            item {
+                              Text(
+                                text = "Free Sources",
+                                style = MaterialTheme.typography.labelMedium,
+                                color = MaterialTheme.colorScheme.primary,
+                                modifier = Modifier.padding(vertical = 8.dp)
+                              )
+                            }
+                            items(freeItems.size) { index ->
+                              val item = freeItems[index]
+                              val checked = !wyzieSources.contains("all") && wyzieSources.contains(item.key)
+                              Row(
+                                modifier = Modifier
+                                  .fillMaxWidth()
+                                  .clickable {
+                                    val newSet = wyzieSources.toMutableSet()
+                                    newSet.remove("all")
+                                    if (checked) {
+                                      newSet.remove(item.key)
+                                    } else {
+                                      newSet.add(item.key)
+                                    }
+                                    if (newSet.isEmpty()) newSet.add("all")
+                                    preferences.wyzieSources.set(newSet)
+                                  }
+                                  .padding(vertical = 8.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                              ) {
+                                Checkbox(
+                                  checked = checked,
+                                  onCheckedChange = null
+                                )
+                                Spacer(modifier = Modifier.width(8.dp))
+                                Column(modifier = Modifier.weight(1f)) {
+                                  Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Text(text = item.name.replaceFirstChar { it.uppercase() })
+                                    
+                                    item.tags.forEach { tag ->
+                                      Spacer(modifier = Modifier.width(6.dp))
+                                      Text(
+                                        text = tag,
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = MaterialTheme.colorScheme.onSecondaryContainer,
+                                        modifier = Modifier
+                                          .background(
+                                            color = MaterialTheme.colorScheme.secondaryContainer,
+                                            shape = MaterialTheme.shapes.extraSmall
+                                          )
+                                          .padding(horizontal = 4.dp, vertical = 2.dp)
+                                      )
+                                    }
+                                  }
+                                }
+                              }
+                            }
+                          }
+
+                          // Paid Sources Group
+                          if (paidItems.isNotEmpty()) {
+                            item {
+                              Text(
+                                text = "Paid Sources",
+                                style = MaterialTheme.typography.labelMedium,
+                                color = MaterialTheme.colorScheme.primary,
+                                modifier = Modifier.padding(vertical = 8.dp)
+                              )
+                            }
+                            items(paidItems.size) { index ->
+                              val item = paidItems[index]
+                              val checked = !wyzieSources.contains("all") && wyzieSources.contains(item.key)
+                              val isAvailable = item.available
+
+                              Row(
+                                modifier = Modifier
+                                  .fillMaxWidth()
+                                  .clickable {
+                                    val newSet = wyzieSources.toMutableSet()
+                                    newSet.remove("all")
+                                    if (checked) {
+                                      newSet.remove(item.key)
+                                    } else {
+                                      newSet.add(item.key)
+                                    }
+                                    if (newSet.isEmpty()) newSet.add("all")
+                                    preferences.wyzieSources.set(newSet)
+                                  }
+                                  .padding(vertical = 8.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                              ) {
+                                Checkbox(
+                                  checked = checked,
+                                  onCheckedChange = null
+                                )
+                                Spacer(modifier = Modifier.width(8.dp))
+                                Column(modifier = Modifier.weight(1f)) {
+                                  Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Text(
+                                      text = item.name.replaceFirstChar { it.uppercase() },
+                                      color = if (isAvailable) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
+                                    )
+                                    
+                                    item.tags.forEach { tag ->
+                                      Spacer(modifier = Modifier.width(6.dp))
+                                      Text(
+                                        text = tag,
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = MaterialTheme.colorScheme.onSecondaryContainer,
+                                        modifier = Modifier
+                                          .background(
+                                            color = MaterialTheme.colorScheme.secondaryContainer,
+                                            shape = MaterialTheme.shapes.extraSmall
+                                          )
+                                          .padding(horizontal = 4.dp, vertical = 2.dp)
+                                      )
+                                    }
+                                  }
+                                  if (!isAvailable) {
+                                    Text(
+                                      text = "Restricted (Requires Paid API Key)",
+                                      style = MaterialTheme.typography.bodySmall,
+                                      color = MaterialTheme.colorScheme.error
+                                    )
+                                  }
+                                }
+                                
+                                if (!isAvailable) {
+                                  Icon(
+                                    imageVector = Icons.Filled.Lock,
+                                    contentDescription = "Restricted",
+                                    tint = MaterialTheme.colorScheme.error,
+                                    modifier = Modifier.size(16.dp)
+                                  )
+                                }
+                              }
+                            }
+                          }
+                        }
+                      }
+                    }
+                  },
+                  confirmButton = {
+                    TextButton(onClick = { showSourcesDialog = false }) {
+                      Text(stringResource(android.R.string.ok))
+                    }
+                  }
+                )
+              }
 
               PreferenceDivider()
 
