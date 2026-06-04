@@ -2,7 +2,7 @@
 
 These notes are written in plain English and focus on what changed for real use.
 
-## 1.4.1
+## 1.4.1-final
 
 ### Player, Playback & Stability
 - Fixed stuttering and massive frame drops by optimizing video and screen synchronization.
