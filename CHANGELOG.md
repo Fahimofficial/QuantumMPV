@@ -4,14 +4,38 @@ These notes are written in plain English and focus on what changed for real use.
 
 ## 1.4.1
 
-### Browser, Dialogs, And Sizing
-- fixed selection bottom bar blank background issue in Library View for list and grid layouts.
-- added missing file operations (Copy, Move, and Compressor/Downscale) to the Library View selection bottom bar.
-- improved Sort and View Options Dialog design to be more compact and responsive across all screen sizes.
-- made the "Fields" toggle section in Sort/View dialog collapsible — collapsed by default, expands with a smooth height animation that does not cause the dialog to jump or resize.
+### Player, Playback & Stability
+- Fixed stuttering and massive frame drops by optimizing video and screen synchronization.
+- Fixed overlapping video frames/glitches when skipping rapidly through videos.
+- Fixed picture-in-picture mode progress sync so your playback progress is correctly saved on exit.
+- Prevented screen locking when opening the video's chapter list if the video has no chapters.
+- Fixed visible screen rotation animation glitches when using the swipe-back gesture to exit the player.
+- Adjusted player bottom controls bar padding to a more comfortable size.
+- Cleaned up redundant HDR colorspace and tone mapping settings to avoid visual confusion.
+- Fixed sudden crashes when loading or playing certain media files.
+- Added outlined text with a black border to the Stats Page 6 overlay so text stays readable over any video content.
 
-### Player & UI Legibility
-- added outlined text with a black border to the Stats Page 6 overlay so text stays readable over any video content regardless of background colour.
+### Library, File Browser & Sizing
+- Fixed playback, titles showing up as raw IDs (like `msf:1000`), missing thumbnails, and progress tracking for local M3U/M3U8 playlists.
+- Added support for folder thumbnails in folder grid view (disabled by default, can be turned on in settings).
+- Centralized file sorting options and improved title alignment in grid layouts.
+- Fixed selection bar background in library list and grid layouts.
+- Added Copy, Move, and Compress/Downscale options to the library selection bar.
+- Fixed top toolbar delete button showing during folder selection to prevent accidental folder deletions.
+- Fixed thumbnail taps so they toggle item selection instead of selecting ranges of items.
+- Fixed library Media Info button to open details page instead of playing the file.
+
+### Gestures & Dialogs
+- Fixed subtitle swipe and pinch gesture detection zones so they are more responsive and natural to use.
+- Added custom skip keywords for video openings and endings to automatically skip intros/outros.
+- Redesigned the Sort and View Options Dialog to be more compact, with a collapsible "Fields" toggle section.
+- Fixed bottom control bar icon scaling for smaller/larger screens.
+- Fixed a visual glitch where the seekbar layout preview looked wavy.
+
+### Network & Connections
+- Added support for sending your playback progress to Jellyfin when playing videos externally.
+
+- Many More Small QOL Fixes and Optimizations 
 
 ## 1.4.0
 
