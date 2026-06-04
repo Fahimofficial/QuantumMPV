@@ -140,7 +140,6 @@ class MPVView(
       hwdecMode,
     )
     MPVLib.setOptionString("hwdec-codecs", "all")
-    MPVLib.setOptionString("vd-lavc-dr", "yes")
 
     if (decoderPreferences.useYUV420P.get()) {
       MPVLib.setOptionString("vf", "format=yuv420p")
@@ -179,11 +178,6 @@ class MPVView(
     val preciseSeek = playerPreferences.usePreciseSeeking.get()
     MPVLib.setOptionString("hr-seek", if (preciseSeek) "yes" else "no")
     MPVLib.setOptionString("hr-seek-framedrop", if (preciseSeek) "no" else "yes")
-
-    MPVLib.setOptionString("video-sync", "audio")
-    MPVLib.setOptionString("display-fps", "0")
-    MPVLib.setOptionString("override-display-fps", "0")
-    MPVLib.setOptionString("interpolation", "no")
 
     // Anime4K shader initialization (MUST be in initOptions, not after file load!)
     applyAnime4KShaders(backend.vo, backend.gpuApi)
