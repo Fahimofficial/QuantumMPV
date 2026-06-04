@@ -2893,8 +2893,7 @@ class PlayerActivity :
     // Cancel any previous pending save operation
     savePlaybackStateJob?.cancel()
 
-    // Launch new save job and track it
-    savePlaybackStateJob = lifecycleScope.launch(Dispatchers.IO) {
+    val saveBlock: suspend kotlinx.coroutines.CoroutineScope.() -> Unit = {
       runCatching {
         if (!immediate) {
           delay(250)
@@ -2915,6 +2914,13 @@ class PlayerActivity :
       }.onFailure { e ->
         Log.e(TAG, "Error saving playback state", e)
       }
+    }
+
+    if (immediate) {
+      kotlinx.coroutines.GlobalScope.launch(Dispatchers.IO + kotlinx.coroutines.NonCancellable, block = saveBlock)
+    } else {
+      // Launch new save job and track it
+      savePlaybackStateJob = lifecycleScope.launch(Dispatchers.IO, block = saveBlock)
     }
   }
 
