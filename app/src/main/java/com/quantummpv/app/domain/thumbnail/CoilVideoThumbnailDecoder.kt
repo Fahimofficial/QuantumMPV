@@ -282,70 +282,80 @@ class CoilVideoThumbnailDecoder(
     val targetWidth = minOf(width, MAX_THUMBNAIL_SIZE)
     val targetHeight = (height.toFloat() * targetWidth / width).toInt().coerceAtLeast(1)
 
-    val imageReader = ImageReader.newInstance(targetWidth, targetHeight, PixelFormat.RGBA_8888, 2)
-    val surface = imageReader.surface
-    val codec = runCatching { MediaCodec.createByCodecName(codecInfo.name) }.getOrNull()
-    if (codec == null) { imageReader.close(); extractor.release(); return@withContext null }
-
     var bitmap: Bitmap? = null
-    val latch = CountDownLatch(1)
 
-    imageReader.setOnImageAvailableListener({ reader ->
-      val image = reader.acquireLatestImage()
-      if (image != null && bitmap == null) {
-        bitmap = imageReaderImageToBitmap(image)
-        image.close()
-        latch.countDown()
-      }
-    }, null)
+    for (pixelFormat in listOf(PixelFormat.RGBA_8888, ImageFormat.YUV_420_888)) {
+      if (bitmap != null) break
 
-    val decodeResult = runCatching {
-      var configured = false
-      // Try original format first, then strip constraints for 10-bit/unsupported profiles
-      for (fmt in listOf(trackFormat, cleanFormatForDecoder(trackFormat))) {
-        try {
-          codec.configure(fmt, surface, null, 0)
-          configured = true
-          break
-        } catch (_: Exception) { /* try next */ }
-      }
-      if (!configured) throw IllegalStateException("No compatible format for codec")
-      codec.start()
-      extractor.seekTo(timeUs, MediaExtractor.SEEK_TO_CLOSEST_SYNC)
-      val bufferInfo = MediaCodec.BufferInfo()
-      var inputDone = false
-      var outputDone = false
+      val imageReader = ImageReader.newInstance(targetWidth, targetHeight, pixelFormat, 2)
+      val surface = imageReader.surface
+      val codec = runCatching { MediaCodec.createByCodecName(codecInfo.name) }.getOrNull()
+      if (codec == null) { imageReader.close(); continue }
 
-      while (!outputDone && bitmap == null) {
-        if (!inputDone) {
-          val inputIndex = codec.dequeueInputBuffer(5000L)
-          if (inputIndex >= 0) {
-            val inputBuffer = codec.getInputBuffer(inputIndex) ?: continue
-            val sampleSize = extractor.readSampleData(inputBuffer, 0)
-            if (sampleSize < 0) {
-              codec.queueInputBuffer(inputIndex, 0, 0, 0, MediaCodec.BUFFER_FLAG_END_OF_STREAM)
-              inputDone = true
-            } else {
-              codec.queueInputBuffer(inputIndex, 0, sampleSize, extractor.sampleTime, 0)
-              extractor.advance()
+      val latch = CountDownLatch(1)
+      var localBitmap: Bitmap? = null
+
+      imageReader.setOnImageAvailableListener({ reader ->
+        val image = reader.acquireLatestImage()
+        if (image != null && localBitmap == null) {
+          localBitmap = imageReaderImageToBitmap(image)
+          image.close()
+          latch.countDown()
+        }
+      }, null)
+
+      val decodeResult = runCatching {
+        var configured = false
+        // Try original format first, then strip constraints for 10-bit/unsupported profiles
+        for (fmt in listOf(trackFormat, cleanFormatForDecoder(trackFormat))) {
+          try {
+            codec.configure(fmt, surface, null, 0)
+            configured = true
+            break
+          } catch (_: Exception) { /* try next */ }
+        }
+        if (!configured) throw IllegalStateException("No compatible format for codec")
+        codec.start()
+        extractor.seekTo(timeUs, MediaExtractor.SEEK_TO_CLOSEST_SYNC)
+        val bufferInfo = MediaCodec.BufferInfo()
+        var inputDone = false
+        var outputDone = false
+
+        while (!outputDone && localBitmap == null) {
+          if (!inputDone) {
+            val inputIndex = codec.dequeueInputBuffer(5000L)
+            if (inputIndex >= 0) {
+              val inputBuffer = codec.getInputBuffer(inputIndex) ?: continue
+              val sampleSize = extractor.readSampleData(inputBuffer, 0)
+              if (sampleSize < 0) {
+                codec.queueInputBuffer(inputIndex, 0, 0, 0, MediaCodec.BUFFER_FLAG_END_OF_STREAM)
+                inputDone = true
+              } else {
+                codec.queueInputBuffer(inputIndex, 0, sampleSize, extractor.sampleTime, 0)
+                extractor.advance()
+              }
             }
           }
-        }
 
-        val outputIndex = codec.dequeueOutputBuffer(bufferInfo, 5000L)
-        if (outputIndex >= 0) {
-          if (bufferInfo.flags and MediaCodec.BUFFER_FLAG_END_OF_STREAM != 0) outputDone = true
-          codec.releaseOutputBuffer(outputIndex, true)
+          val outputIndex = codec.dequeueOutputBuffer(bufferInfo, 5000L)
+          if (outputIndex >= 0) {
+            if (bufferInfo.flags and MediaCodec.BUFFER_FLAG_END_OF_STREAM != 0) outputDone = true
+            codec.releaseOutputBuffer(outputIndex, true)
+          }
         }
+      }
+
+      latch.await(2, TimeUnit.SECONDS)
+      runCatching { codec.stop() }
+      runCatching { codec.release() }
+      imageReader.close()
+
+      if (decodeResult.isSuccess && localBitmap != null) {
+        bitmap = localBitmap
       }
     }
 
-    latch.await(2, TimeUnit.SECONDS)
-    codec.stop()
-    codec.release()
-    imageReader.close()
     extractor.release()
-    decodeResult.getOrNull()
     bitmap
   }
 

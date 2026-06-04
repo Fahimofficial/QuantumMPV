@@ -137,9 +137,12 @@ private fun tryRawPath(docId: String): String? {
  * External SD cards can be mounted at different locations depending on manufacturer.
  */
 private fun tryExternalStoragePaths(docId: String): String? {
+  val volumeId = docId.substringBefore(":")
   val path = docId.substringAfter(":")
   val possiblePaths =
     listOf(
+      "${StoragePaths.EXTERNAL_STORAGE}/$volumeId/$path",
+      "${StoragePaths.MEDIA_RW}/$volumeId/$path",
       "${StoragePaths.PRIMARY_STORAGE}/$path",
       "${StoragePaths.EXTERNAL_STORAGE}/$path",
       "${StoragePaths.MEDIA_RW}/$path",
