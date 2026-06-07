@@ -384,13 +384,12 @@ private fun GridColumnsNextSection(
   HorizontalDivider(modifier = Modifier.padding(top = 10.dp))
   DialogSectionTitle(text = "Grid Columns")
 
-  Row(
+  Column(
     modifier = Modifier.fillMaxWidth(),
-    horizontalArrangement = Arrangement.spacedBy(16.dp),
-    verticalAlignment = Alignment.Top,
+    verticalArrangement = Arrangement.spacedBy(12.dp),
   ) {
     if (folderGridColumnSelector != null) {
-      Column(modifier = Modifier.weight(1f)) {
+      Column(modifier = Modifier.fillMaxWidth()) {
         Row(
           modifier = Modifier.fillMaxWidth(),
           horizontalArrangement = Arrangement.SpaceBetween,
@@ -419,7 +418,7 @@ private fun GridColumnsNextSection(
     }
 
     if (videoGridColumnSelector != null) {
-      Column(modifier = Modifier.weight(1f)) {
+      Column(modifier = Modifier.fillMaxWidth()) {
         Row(
           modifier = Modifier.fillMaxWidth(),
           horizontalArrangement = Arrangement.SpaceBetween,

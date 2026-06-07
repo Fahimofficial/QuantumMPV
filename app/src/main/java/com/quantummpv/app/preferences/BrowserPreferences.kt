@@ -42,6 +42,7 @@ class BrowserPreferences(
   val showProgressBar = preferenceStore.getBoolean("show_progress_bar", true)
   val centerGridTitles = preferenceStore.getBoolean("center_grid_titles", true)
   val mediaLayoutMode = preferenceStore.getEnum("media_layout_mode", MediaLayoutMode.LIST)
+  val manualGridColumnsEnabled = preferenceStore.getBoolean("manual_grid_columns_enabled", false)
 
   // Visibility preferences for folder card chips
   val showTotalVideosChip = preferenceStore.getBoolean("show_total_videos_chip", true)
