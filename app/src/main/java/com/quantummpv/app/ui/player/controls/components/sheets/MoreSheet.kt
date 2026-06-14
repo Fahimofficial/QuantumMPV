@@ -91,6 +91,7 @@ fun MoreSheet(
   
   val enableAnime4K by decoderPreferences.enableAnime4K.collectAsState()
   val anime4kMode by decoderPreferences.anime4kMode.collectAsState()
+  val enableAnime4KUltra by decoderPreferences.enableAnime4KUltra.collectAsState()
   val anime4kUltraMode by decoderPreferences.anime4kUltraMode.collectAsState()
   val anime4kDarken by decoderPreferences.anime4kDarken.collectAsState()
   val anime4kThin by decoderPreferences.anime4kThin.collectAsState()
@@ -299,8 +300,8 @@ fun MoreSheet(
         }
       }
 
-      // Anime4K Ultra: requires gpu-next + Vulkan
-      if (gpuNext && useVulkan) {
+      // Anime4K Ultra: requires gpu-next + Vulkan + enabled in decoder settings
+      if (gpuNext && useVulkan && enableAnime4KUltra) {
         Spacer(modifier = Modifier.height(MaterialTheme.spacing.smaller))
 
         Text(

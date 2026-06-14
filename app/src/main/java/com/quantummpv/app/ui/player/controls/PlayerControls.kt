@@ -348,6 +348,14 @@ fun PlayerControls(
       speedMultiplier = animSpeed,
       animationState = videoOpenAnimState,
     )
+    if (brightness < 0) {
+      Box(
+        modifier = Modifier
+          .fillMaxSize()
+          .background(Color.Black.copy(alpha = -brightness))
+          .zIndex(0f),
+      )
+    }
     if (statisticsPage == 6) {
       CustomStatsPageSixOverlay(
         viewModel = viewModel,
@@ -506,7 +514,7 @@ fun PlayerControls(
               top.linkTo(parent.top, spacing.larger)
               bottom.linkTo(parent.bottom, spacing.extraLarge)
             },
-        ) { BrightnessSlider(brightness, 0f..1f) }
+        ) { BrightnessSlider(brightness, 0f..1f, 0f..0.75f) }
 
         AnimatedVisibility(
           isVolumeSliderShown && showVolumeGestureOverlay,

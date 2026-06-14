@@ -3134,10 +3134,10 @@ class PlayerViewModel(
   // ==================== Brightness & Volume ====================
 
   fun changeBrightnessTo(brightness: Float) {
-    val coercedBrightness = brightness.coerceIn(0f, 1f)
+    val coercedBrightness = brightness.coerceIn(-0.75f, 1f)
     host.hostWindow.attributes =
       host.hostWindow.attributes.apply {
-        screenBrightness = coercedBrightness
+        screenBrightness = coercedBrightness.coerceIn(0f, 1f)
       }
     currentBrightness.value = coercedBrightness
 

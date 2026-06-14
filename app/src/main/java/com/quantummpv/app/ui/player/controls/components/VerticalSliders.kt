@@ -138,10 +138,11 @@ fun VerticalSlider(
 @Composable
 fun BrightnessSlider(
   brightness: Float,
-  range: ClosedFloatingPointRange<Float>,
+  positiveRange: ClosedFloatingPointRange<Float>,
+  negativeRange: ClosedFloatingPointRange<Float>,
   modifier: Modifier = Modifier,
 ) {
-  val coercedBrightness = brightness.coerceIn(range)
+  val coercedBrightness = brightness.coerceIn(negativeRange.start, positiveRange.endInclusive)
   Surface(
     modifier = modifier,
     shape = AppShapeScale.extraLarge,
@@ -161,17 +162,19 @@ fun BrightnessSlider(
         modifier = Modifier.widthIn(min = 48.dp)
       )
       VerticalSlider(
-        coercedBrightness,
-        range,
+        coercedBrightness.coerceIn(0f, positiveRange.endInclusive),
+        positiveRange,
+        overflowValue = (-coercedBrightness).coerceIn(0f, negativeRange.endInclusive),
+        overflowRange = negativeRange,
         colorStart = MaterialTheme.colorScheme.primaryContainer,
         colorEnd = MaterialTheme.colorScheme.primary,
       )
       Icon(
-        when (percentage(coercedBrightness, range)) {
-          in 0f..0.3f -> Icons.Default.BrightnessLow
-          in 0.3f..0.6f -> Icons.Default.BrightnessMedium
-          in 0.6f..1f -> Icons.Default.BrightnessHigh
-          else -> Icons.Default.BrightnessMedium
+        when {
+          coercedBrightness < 0 -> Icons.Default.Brightness6
+          percentage(coercedBrightness, positiveRange) <= 0.3f -> Icons.Default.BrightnessLow
+          percentage(coercedBrightness, positiveRange) <= 0.6f -> Icons.Default.BrightnessMedium
+          else -> Icons.Default.BrightnessHigh
         },
         contentDescription = null,
         tint = MaterialTheme.colorScheme.primary,
