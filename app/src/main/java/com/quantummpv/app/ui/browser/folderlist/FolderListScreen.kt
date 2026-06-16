@@ -1304,14 +1304,14 @@ object SearchManager {
 }
 
 private suspend fun buildSearchIndex(context: Context) {
-  val folders = MediaFileRepository.getAllVideoFoldersFast(context)
+  val folders = com.quantummpv.app.repository.MediaFileRepository.getAllVideoFoldersFast(context)
   val videosByFolder = folders.associate { folder ->
-    folder.bucketId to MediaFileRepository.getVideosInFolder(context, folder.bucketId)
+    folder.bucketId to com.quantummpv.app.repository.MediaFileRepository.getVideosInFolder(context, folder.bucketId)
   }
   SearchManager.engine.buildIndex(folders, videosByFolder)
 }
 
-private fun searchFoldersAndVideos(
+private suspend fun searchFoldersAndVideos(
   context: Context,
   query: String,
 ): List<FileSystemItem> {
@@ -1328,7 +1328,7 @@ private fun searchFoldersAndVideos(
 
       when (item) {
 
-        is Folder -> {
+        is MediaSearchEngine.Folder -> {
           results.add(
             FileSystemItem.Folder(
               name = item.name,
@@ -1341,7 +1341,7 @@ private fun searchFoldersAndVideos(
           )
         }
 
-        is Video -> {
+        is MediaSearchEngine.Video -> {
           results.add(
             FileSystemItem.VideoFile(
               name = item.displayName,
