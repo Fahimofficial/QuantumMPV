@@ -113,6 +113,7 @@ import com.quantummpv.app.ui.utils.LocalBackStack
 import com.quantummpv.app.utils.clipboard.SafeClipboard
 import com.quantummpv.app.utils.history.RecentlyPlayedOps
 import com.quantummpv.app.utils.media.MediaUtils
+import com.quantummpv.app.utils.media.MediaSearchEngine
 import com.quantummpv.app.utils.permission.PermissionUtils
 import com.quantummpv.app.utils.sort.SortUtils
 import com.google.accompanist.permissions.ExperimentalPermissionsApi
@@ -413,7 +414,12 @@ object FolderListScreen : Screen {
             onBackClick = null,
             onCancelSelection = { selectionManager.clear() },
             onSortClick = { sortDialogOpen.value = true },
-            onSearchClick = { isSearching = !isSearching },
+            onSearchClick = {
+              isSearching = !isSearching
+              coroutineScope.launch {
+                buildSearchIndex(context)
+              }
+            },
             onSettingsClick = {
               backstack.add(com.quantummpv.app.ui.preferences.PreferencesScreen)
             },
@@ -1287,65 +1293,74 @@ private fun SearchResultsContent(
   }
 }
 
+
 /**
  * Searches for folders and videos matching the query
  * Returns FileSystemItem results containing matching folders and videos
  */
-private suspend fun searchFoldersAndVideos(
+
+object SearchManager {
+  val engine = MediaSearchEngine
+}
+
+private suspend fun buildSearchIndex(context: Context) {
+  val folders = MediaFileRepository.getAllVideoFoldersFast(context)
+  val videosByFolder = folders.associate { folder ->
+    folder.bucketId to MediaFileRepository.getVideosInFolder(context, folder.bucketId)
+  }
+  SearchManager.engine.buildIndex(folders, videosByFolder)
+}
+
+private fun searchFoldersAndVideos(
   context: Context,
   query: String,
 ): List<FileSystemItem> {
+
   val results = mutableListOf<FileSystemItem>()
-  
+
   try {
     Log.d("FolderListScreen", "Searching for: $query")
-    
-    // Get all video folders
-    val folders = com.quantummpv.app.repository.MediaFileRepository
-      .getAllVideoFoldersFast(context)
-    
-    // Search in folders
-    folders.forEach { folder ->
-      if (folder.name.contains(query, ignoreCase = true) || 
-          folder.path.contains(query, ignoreCase = true)) {
-        results.add(
-          FileSystemItem.Folder(
-            name = folder.name,
-            path = folder.path,
-            lastModified = folder.lastModified,
-            videoCount = folder.videoCount,
-            totalSize = folder.totalSize,
-            totalDuration = folder.totalDuration,
+
+    // Get all search matches
+    val matches = SearchManager.engine.search(query, limit=50)
+
+    for (item in matches) {
+
+      when (item) {
+
+        is Folder -> {
+          results.add(
+            FileSystemItem.Folder(
+              name = item.name,
+              path = item.path,
+              lastModified = item.lastModified,
+              videoCount = item.videoCount,
+              totalSize = item.totalSize,
+              totalDuration = item.totalDuration,
+            )
           )
-        )
-      }
-      
-      // Also search within videos in this folder
-      val videos = com.quantummpv.app.repository.MediaFileRepository
-        .getVideosInFolder(context, folder.bucketId)
-      
-      videos.forEach { video ->
-        if (video.displayName.contains(query, ignoreCase = true)) {
+        }
+
+        is Video -> {
           results.add(
             FileSystemItem.VideoFile(
-              name = video.displayName,
-              path = video.path,
-              lastModified = video.dateModified,
-              video = video,
+              name = item.displayName,
+              path = item.path,
+              lastModified = item.dateModified,
+              video = item,
             )
           )
         }
       }
     }
-    
+
     Log.d("FolderListScreen", "Found ${results.size} results for: $query")
+
   } catch (e: Exception) {
     Log.e("FolderListScreen", "Error searching folders and videos", e)
   }
-  
+
   return results
 }
-
-
 
 
