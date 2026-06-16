@@ -47,7 +47,8 @@ object MediaSearchEngine {
       // Optimization: Skip folders with no videos to save memory and loop time
       val videos = videosByFolder[folder.bucketId] ?: continue
       for (video in videos) {
-        val vName = video.displayName        videoMap[video.path] = VideoIndex(
+        val vName = video.displayName
+        videoMap[video.path] = VideoIndex(
           video = video,
           nameLower = vName.lowercase(),
           tokens = tokenize(vName)
