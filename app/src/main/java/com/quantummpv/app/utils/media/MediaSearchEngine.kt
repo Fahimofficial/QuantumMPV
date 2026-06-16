@@ -3,7 +3,6 @@ package com.quantummpv.app.utils.media
 import com.quantummpv.app.domain.media.model.Video
 import com.quantummpv.app.domain.media.model.VideoFolder
 
-// Made private since these are only used internally by the engine
 private data class VideoIndex(
   val video: Video,
   val nameLower: String,
@@ -29,10 +28,6 @@ object MediaSearchEngine {
   ) {
     videoMap.clear()
     folderMap.clear()
-    
-    // Optimization: Pre-allocate capacity to avoid internal array resizing
-    videoMap.ensureCapacity(videosByFolder.values.sumOf { it.size })
-    folderMap.ensureCapacity(folders.size)
 
     for (folder in folders) {
       val name = folder.name
@@ -42,17 +37,17 @@ object MediaSearchEngine {
         tokens = tokenize(name)
       )
 
-      // Optimization: Use 'continue' to skip folders with no videos
+      // Optimization: Skip folders with no videos
       val videos = videosByFolder[folder.bucketId] ?: continue
       for (video in videos) {
         val vName = video.displayName
         videoMap[video.path] = VideoIndex(
-          video = video,          nameLower = vName.lowercase(),
+          video = video,
+          nameLower = vName.lowercase(),
           tokens = tokenize(vName)
         )
       }
-    }
-  }
+    }  }
 
   // -------------------------
   // SEARCH
@@ -96,17 +91,17 @@ object MediaSearchEngine {
     if (text.contains(query)) score += 120
 
     for (qt in qTokens) {
-      for (t in tokens) {        if (t == qt) score += 80
+      for (t in tokens) {
+        if (t == qt) score += 80
         else if (t.startsWith(qt)) score += 40
       }
     }
-
     if (isSequentialMatch(text, query)) score += 60
 
     return score
   }
 
-  // Optimization: split() with vararg chars is significantly faster than Regex or multiple string splits
+  // Optimization: split() with vararg chars is significantly faster than Regex
   private fun tokenize(text: String): List<String> {
     return text.lowercase().split(' ', '_', '-', '.', '/').filter { it.isNotEmpty() }
   }
@@ -123,4 +118,3 @@ object MediaSearchEngine {
     return i == qLen
   }
 }
-
