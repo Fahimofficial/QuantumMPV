@@ -1990,11 +1990,12 @@ class PlayerViewModel(
     introLookupJob =
       viewModelScope.launch {
         val outcome = if (provider == IntroSegmentProvider.HYBRID) {
-          val channel = kotlinx.coroutines.channels.Channel<IntroDbLookupOutcome>(3)
+          val channel = kotlinx.coroutines.channels.Channel<IntroDbLookupOutcome>(4)
           val lookupJobs = listOf(
               IntroSegmentProvider.INTRO_DB,
               IntroSegmentProvider.THE_INTRO_DB,
-              IntroSegmentProvider.ANI_SKIP
+              IntroSegmentProvider.ANI_SKIP,
+              IntroSegmentProvider.ANIME_SKIP
           ).map { p ->
               launch(kotlinx.coroutines.Dispatchers.IO) {
                   try {
@@ -2010,7 +2011,7 @@ class PlayerViewModel(
           var loadedOutcome: IntroDbLookupOutcome.Loaded? = null
           val receivedOutcomes = mutableListOf<IntroDbLookupOutcome>()
 
-          for (i in 0 until 3) {
+          for (i in 0 until 4) {
               val out = channel.receive()
               receivedOutcomes.add(out)
               if (out is IntroDbLookupOutcome.Loaded) {

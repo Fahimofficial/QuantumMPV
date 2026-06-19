@@ -14,8 +14,10 @@ import kotlinx.serialization.json.doubleOrNull
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
 import okhttp3.HttpUrl.Companion.toHttpUrl
+import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.OkHttpClient
 import okhttp3.Request
+import okhttp3.RequestBody.Companion.toRequestBody
 import java.net.URLEncoder
 
 enum class IntroDbResolutionSource {
@@ -116,12 +118,6 @@ private data class IntroDbTmdbSearchResponse(
 )
 
 @Serializable
-private data class IntroDbExternalIdsResponse(
-  @SerialName("imdb_id")
-  val imdbId: String? = null,
-)
-
-@Serializable
 private data class AniSkipLookupResponse(
   val found: Boolean = false,
   val results: List<AniSkipLookupResult> = emptyList(),
@@ -165,6 +161,43 @@ private data class JikanAnimeSearchResult(
 @Serializable
 private data class JikanAnimeTitle(
   val title: String? = null,
+)
+
+@Serializable
+private data class AnimeSkipGraphqlResponse(
+  val data: AnimeSkipData? = null,
+)
+
+@Serializable
+private data class AnimeSkipData(
+  @SerialName("searchShows")
+  val searchShows: List<AnimeSkipShow>? = null,
+)
+
+@Serializable
+private data class AnimeSkipShow(
+  val id: String,
+  val name: String,
+  val episodes: List<AnimeSkipEpisode> = emptyList(),
+)
+
+@Serializable
+private data class AnimeSkipEpisode(
+  val id: String,
+  val season: String? = null,
+  val number: String? = null,
+  val timestamps: List<AnimeSkipTimestamp> = emptyList(),
+)
+
+@Serializable
+private data class AnimeSkipTimestamp(
+  val at: Double? = null,
+  val type: AnimeSkipTimestampType? = null,
+)
+
+@Serializable
+private data class AnimeSkipTimestampType(
+  val name: String? = null,
 )
 
 class IntroDbRepository(
@@ -211,6 +244,14 @@ class IntroDbRepository(
 
         IntroSegmentProvider.ANI_SKIP ->
           lookupViaAniSkip(
+            request = request,
+            normalizedTitle = normalizedTitle,
+            season = effectiveSeason,
+            episode = effectiveEpisode,
+          )
+
+        IntroSegmentProvider.ANIME_SKIP ->
+          lookupViaAnimeSkip(
             request = request,
             normalizedTitle = normalizedTitle,
             season = effectiveSeason,
@@ -375,6 +416,83 @@ class IntroDbRepository(
     }
   }
 
+  private suspend fun getAnimeSkipSegments(
+    showName: String,
+    season: Int?,
+    episode: Int?,
+  ): Result<List<IntroDbSegment>> = withContext(Dispatchers.IO) {
+    runCatching {
+      val escapedName = showName.replace("\\", "\\\\").replace("\"", "\\\"")
+      val gqlQuery = """{searchShows(search: "$escapedName", limit: 3) {id name episodes {id season number timestamps {at type {name}}}}}"""
+      val requestBody = """{"query":"$gqlQuery"}""".toRequestBody(JSON_MEDIA_TYPE)
+
+      val request =
+        Request
+          .Builder()
+          .url(ANIME_SKIP_GRAPHQL_URL)
+          .header("Content-Type", "application/json")
+          .header("X-Client-ID", ANIME_SKIP_CLIENT_ID)
+          .post(requestBody)
+          .build()
+
+      val responseBody =
+        client.newCall(request).execute().use { response ->
+          if (!response.isSuccessful) {
+            error("Anime Skip request failed with HTTP ${response.code}")
+          }
+          response.body.string()
+        }
+
+      if (responseBody.isBlank()) return@runCatching emptyList()
+
+      val payload = json.decodeFromString<AnimeSkipGraphqlResponse>(responseBody)
+      val shows = payload.data?.searchShows ?: emptyList()
+      if (shows.isEmpty()) return@runCatching emptyList()
+
+      val normalizedSearch = normalizeTitle(showName)
+      val bestShow = shows.maxByOrNull { show ->
+        scoreNormalizedTitleMatch(normalizedSearch, normalizeTitle(show.name))
+      } ?: return@runCatching emptyList()
+
+      val episodeStr = episode?.toString()
+      val seasonStr = season?.toString()
+      val matchingEpisode = bestShow.episodes.firstOrNull { ep ->
+        (seasonStr == null || ep.season == null || ep.season == seasonStr) &&
+          ep.number == episodeStr
+      } ?: return@runCatching emptyList()
+
+      val timestamps =
+        matchingEpisode
+          .timestamps
+          .filter { it.at != null && it.type?.name != null }
+          .sortedBy { it.at }
+
+      if (timestamps.isEmpty()) return@runCatching emptyList()
+
+      buildAnimeSkipSegments(timestamps)
+    }.onFailure { error ->
+      Log.w(TAG, "Failed to fetch Anime Skip data for $showName S${season}E${episode}", error)
+    }
+  }
+
+  private fun buildAnimeSkipSegments(timestamps: List<AnimeSkipTimestamp>): List<IntroDbSegment> {
+    val segments = mutableListOf<IntroDbSegment>()
+    for (i in timestamps.indices) {
+      val current = timestamps[i]
+      val typeName = current.type?.name ?: continue
+      val segmentType =
+        when (typeName.lowercase()) {
+          "intro" -> "opening"
+          "credits" -> "ending"
+          else -> continue
+        }
+      val start = current.at ?: continue
+      val end = timestamps.getOrNull(i + 1)?.at
+      segments.add(IntroDbSegment(segmentType = segmentType, start = start, end = end))
+    }
+    return segments
+  }
+
   private fun parseSegmentsBody(body: String): List<IntroDbSegment> =
     runCatching {
       json.decodeFromString<List<IntroDbSegment>>(body)
@@ -470,48 +588,22 @@ class IntroDbRepository(
       )
     }
 
-    request.tmdbId?.let { tmdbId ->
-      val imdbId =
-        resolveImdbIdFromTmdb(
-          tmdbId = tmdbId,
-          mediaType = mediaType,
-        ) ?: return IntroDbLookupOutcome.Unresolved(
-          title = normalizedTitle,
-          provider = request.provider,
-        )
-      return fetchSegmentsForResolvedId(
+    request.tmdbId?.let {
+      return IntroDbLookupOutcome.Unresolved(
+        title = normalizedTitle,
         provider = request.provider,
-        lookupId = imdbId,
-        imdbId = imdbId,
-        mediaType = mediaType,
-        season = season,
-        episode = episode,
-        source = IntroDbResolutionSource.EXPLICIT_TMDB,
       )
     }
 
-    val match = searchTmdb(normalizedTitle, parsedYear, mediaType)
+    searchTmdb(normalizedTitle, parsedYear, mediaType)
       ?: return IntroDbLookupOutcome.Unresolved(
         title = normalizedTitle,
         provider = request.provider,
       )
-    val imdbId =
-      resolveImdbIdFromTmdb(
-        tmdbId = match.id,
-        mediaType = match.mediaType,
-      ) ?: return IntroDbLookupOutcome.Unresolved(
-        title = normalizedTitle,
-        provider = request.provider,
-      )
 
-    return fetchSegmentsForResolvedId(
+    return IntroDbLookupOutcome.Unresolved(
+      title = normalizedTitle,
       provider = request.provider,
-      lookupId = imdbId,
-      imdbId = imdbId,
-      mediaType = mediaType,
-      season = season,
-      episode = episode,
-      source = IntroDbResolutionSource.TMDB_SEARCH,
     )
   }
 
@@ -570,7 +662,7 @@ class IntroDbRepository(
       provider = request.provider,
       lookupId = "tmdb:${match.id}",
       tmdbId = match.id,
-      imdbId = resolveImdbIdFromTmdb(match.id, match.mediaType),
+      imdbId = null,
       mediaType = mediaType,
       season = season,
       episode = episode,
@@ -622,6 +714,58 @@ class IntroDbRepository(
     )
   }
 
+  private suspend fun lookupViaAnimeSkip(
+    request: IntroDbLookupRequest,
+    normalizedTitle: String,
+    season: Int?,
+    episode: Int?,
+  ): IntroDbLookupOutcome {
+    if (episode == null || episode <= 0) {
+      return IntroDbLookupOutcome.Unresolved(
+        title = normalizedTitle,
+        provider = request.provider,
+      )
+    }
+
+    val malId =
+      extractMalId(request.mediaTitle, request.lookupHint, request.canonicalTitle)
+        ?: run {
+          val searchQueries = buildAniSkipQueryCandidates(request, normalizedTitle, season)
+          searchAniSkipAnime(searchQueries, season)?.malId
+        }
+
+    if (malId == null) {
+      return IntroDbLookupOutcome.Unresolved(
+        title = normalizedTitle,
+        provider = request.provider,
+      )
+    }
+
+    val searchTitle = request.canonicalTitle?.takeIf { it.isNotBlank() } ?: normalizedTitle
+    val segments = getAnimeSkipSegments(searchTitle, season, episode).getOrElse { error ->
+      return IntroDbLookupOutcome.Error(
+        reason = error.message ?: "Anime Skip request failed",
+        provider = request.provider,
+      )
+    }
+
+    val lookupId = "mal:$malId"
+    return if (segments.isEmpty()) {
+      IntroDbLookupOutcome.NoSegments(
+        imdbId = lookupId,
+        source = IntroDbResolutionSource.MAL_SEARCH,
+        provider = request.provider,
+      )
+    } else {
+      IntroDbLookupOutcome.Loaded(
+        imdbId = lookupId,
+        segments = segments,
+        source = IntroDbResolutionSource.MAL_SEARCH,
+        provider = request.provider,
+      )
+    }
+  }
+
   private suspend fun fetchSegmentsForResolvedId(
     provider: IntroSegmentProvider,
     lookupId: String,
@@ -657,6 +801,9 @@ class IntroDbRepository(
             malId = malId ?: error("AniSkip lookup requires a MAL id"),
             episode = episode.takeIf { useEpisodeHints } ?: error("AniSkip lookup requires an episode number"),
           )
+
+        IntroSegmentProvider.ANIME_SKIP ->
+          Result.failure(IllegalArgumentException("Anime Skip provider does not use fetchSegmentsForResolvedId"))
 
         IntroSegmentProvider.HYBRID ->
           Result.failure(IllegalArgumentException("Hybrid provider cannot be resolved sequentially"))
@@ -978,36 +1125,6 @@ class IntroDbRepository(
     return score
   }
 
-  private fun resolveImdbIdFromTmdb(
-    tmdbId: Int,
-    mediaType: String?,
-  ): String? {
-    val pathType =
-      when {
-        mediaType.equals("tv", ignoreCase = true) -> "tv"
-        else -> "movie"
-      }
-    val request =
-      Request
-        .Builder()
-        .url("$TMDB_EXTERNAL_IDS_BASE/$pathType/$tmdbId/external_ids")
-        .get()
-        .build()
-
-    return client.newCall(request).execute().use { response ->
-      if (!response.isSuccessful) {
-        error("TMDB external_ids failed with HTTP ${response.code}")
-      }
-
-      val body = response.body.string()
-      if (body.isBlank()) {
-        null
-      } else {
-        json.decodeFromString<IntroDbExternalIdsResponse>(body).imdbId?.takeIf { it.isNotBlank() }
-      }
-    }
-  }
-
   private fun normalizeTitle(title: String): String =
     title
       .lowercase()
@@ -1025,7 +1142,9 @@ class IntroDbRepository(
     private const val MAX_ANISKIP_SEARCH_RESULTS = 10
     private const val ANISKIP_MATCH_THRESHOLD = 60
     private const val TMDB_SEARCH_URL = "https://sub.wyzie.io/api/tmdb/search"
-    private const val TMDB_EXTERNAL_IDS_BASE = "https://db.videasy.net/3"
+    private const val ANIME_SKIP_GRAPHQL_URL = "https://api.anime-skip.com/graphql"
+    private const val ANIME_SKIP_CLIENT_ID = "ZGfO0sMF3eCwLYf8yMSCJjlynwNGRXWE"
+    private val JSON_MEDIA_TYPE = "application/json".toMediaType()
     private val imdbIdRegex = Regex("""tt\d{7,9}""", RegexOption.IGNORE_CASE)
     private val myAnimeListUrlRegex = Regex("""myanimelist\.net/anime/(\d+)""", RegexOption.IGNORE_CASE)
     private val malIdRegex = Regex("""\d{3,8}""")

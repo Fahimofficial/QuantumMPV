@@ -263,8 +263,8 @@ object SearchablePreferences {
             ))
             add(SearchablePreference(
                 title = "Online marker provider",
-                summary = "Choose IntroDB, TIDB, or AniSkip for online intro/outro markers.",
-                keywords = listOf("provider", "source", "introdb", "tidb", "theintrodb", "aniskip", "anime", "online markers", "skip provider"),
+                summary = "Choose IntroDB, TIDB, AniSkip, or Anime Skip for online intro/outro markers.",
+                keywords = listOf("provider", "source", "introdb", "tidb", "theintrodb", "aniskip", "anime", "animeskip", "online markers", "skip provider"),
                 category = "Player",
                 screen = PlayerPreferencesScreen,
             ))

@@ -14,7 +14,6 @@ import com.quantummpv.app.utils.media.resolveSubtitleStorageDirectory
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.Serializable
-import kotlinx.serialization.SerialName
 import kotlinx.serialization.decodeFromString
 import kotlinx.serialization.json.Json
 import okhttp3.OkHttpClient
@@ -64,29 +63,6 @@ data class WyzieTmdbResult(
 @Serializable
 data class WyzieTmdbResponse(
     val results: List<WyzieTmdbResult>
-)
-
-@Serializable
-private data class VideasyTmdbTrendingResponse(
-    val results: List<VideasyTmdbTrendingItem> = emptyList()
-)
-
-@Serializable
-private data class VideasyTmdbTrendingItem(
-    val id: Int,
-    @SerialName("media_type")
-    val mediaType: String? = null,
-    val title: String? = null,
-    val name: String? = null,
-    @SerialName("release_date")
-    val releaseDate: String? = null,
-    @SerialName("first_air_date")
-    val firstAirDate: String? = null,
-    @SerialName("poster_path")
-    val posterPath: String? = null,
-    @SerialName("backdrop_path")
-    val backdropPath: String? = null,
-    val overview: String? = null,
 )
 
 @Serializable
@@ -267,7 +243,6 @@ class WyzieSearchRepository(
     override val provider: SubtitleProvider = SubtitleProvider.WYZIE
 
     private val baseUrl = "https://sub.wyzie.io"
-    private val tmdbMirrorBaseUrl = "https://db.videasy.net/3"
 
     private var cachedSourcesResponse: WyzieSourcesResponse? = null
 
@@ -585,12 +560,7 @@ class WyzieSearchRepository(
     }
 
     suspend fun trendingMedia(limit: Int = 20): Result<List<WyzieTmdbResult>> = withContext(Dispatchers.IO) {
-        try {
-            Result.success(tmdbTrending(limit))
-        } catch (e: Exception) {
-            Log.e("WyzieSearchRepository", "TMDB trending fetch failed", e)
-            Result.failure(e)
-        }
+        Result.failure(IOException("Trending endpoint no longer available"))
     }
 
     suspend fun getTvShowDetails(id: Int): Result<WyzieTvShowDetails> = withContext(Dispatchers.IO) {
@@ -632,75 +602,15 @@ class WyzieSearchRepository(
                 .header("User-Agent", "Mozilla/5.0 (Linux; Android 14)")
                 .build()
             client.newCall(request).execute().use { response ->
-                if (response.isSuccessful) {
-                    val body = response.body.string()
-                    val results = json.decodeFromString<WyzieTmdbResponse>(body).results
-                    if (results.isNotEmpty()) return results
-                }
-            }
-        } catch (e: Exception) {
-            Log.w("WyzieSearchRepository", "Primary TMDB search failed, trying fallback: ${e.message}")
-        }
-
-        try {
-            val fallbackUrl = "$tmdbMirrorBaseUrl/search/multi?query=${URLEncoder.encode(query, "UTF-8")}&include_adult=false"
-            val fallbackRequest = Request.Builder().url(fallbackUrl)
-                .header("User-Agent", "Mozilla/5.0 (Linux; Android 14)")
-                .build()
-            client.newCall(fallbackRequest).execute().use { response ->
-                if (!response.isSuccessful) throw IOException("TMDb fallback search failed: ${response.code}")
+                if (!response.isSuccessful) throw IOException("TMDB search failed: ${response.code}")
                 val body = response.body.string()
-                return json.decodeFromString<VideasyTmdbTrendingResponse>(body)
-                    .results
-                    .filter { it.mediaType == "movie" || it.mediaType == "tv" }
-                    .map { item ->
-                        WyzieTmdbResult(
-                            id = item.id,
-                            mediaType = item.mediaType ?: if (item.title != null) "movie" else "tv",
-                            title = item.title ?: item.name ?: "Untitled",
-                            releaseYear = (item.releaseDate ?: item.firstAirDate)?.take(4),
-                            poster = item.posterPath,
-                            backdrop = item.backdropPath,
-                            overview = item.overview,
-                        )
-                    }
+                val results = json.decodeFromString<WyzieTmdbResponse>(body).results
+                if (results.isEmpty()) throw IOException("TMDB search returned no results")
+                return results
             }
         } catch (e: Exception) {
-            Log.w("WyzieSearchRepository", "Fallback TMDB search also failed: ${e.message}")
-            throw IOException("All TMDb search endpoints failed")
-        }
-    }
-
-    private fun tmdbTrending(limit: Int): List<WyzieTmdbResult> {
-        val url = "$tmdbMirrorBaseUrl/trending/all/day"
-        val request = Request.Builder()
-            .url(url)
-            .header("User-Agent", "Mozilla/5.0 (Linux; Android 14)")
-            .build()
-        client.newCall(request).execute().use { response ->
-            if (!response.isSuccessful) throw IOException("TMDb trending failed: ${response.code}")
-            val body = response.body.string()
-            return json.decodeFromString<VideasyTmdbTrendingResponse>(body)
-                .results
-                .asSequence()
-                .filter { item ->
-                    item.mediaType == "movie" || item.mediaType == "tv"
-                }
-                .map { item ->
-                    WyzieTmdbResult(
-                        id = item.id,
-                        mediaType = item.mediaType ?: if (item.title != null) "movie" else "tv",
-                        title = item.title ?: item.name ?: "Untitled",
-                        releaseYear = (item.releaseDate ?: item.firstAirDate)
-                            ?.takeIf { it.isNotBlank() }
-                            ?.take(4),
-                        poster = item.posterPath,
-                        backdrop = item.backdropPath,
-                        overview = item.overview,
-                    )
-                }
-                .take(limit.coerceAtLeast(1))
-                .toList()
+            Log.w("WyzieSearchRepository", "TMDB search failed: ${e.message}")
+            throw IOException("TMDB search failed", e)
         }
     }
 

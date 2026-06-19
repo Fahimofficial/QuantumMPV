@@ -568,7 +568,7 @@
   <string name="pref_online_skip_markers_title">Use online skip markers</string>
   <string name="pref_online_skip_markers_summary">Fetch intro, recap, outro, credits, and preview markers from the selected provider</string>
   <string name="pref_marker_provider_title">Online marker provider</string>
-  <string name="pref_marker_provider_summary">Choose IntroDB, TIDB, or AniSkip for online intro/outro markers</string>
+  <string name="pref_marker_provider_summary">Choose IntroDB, TIDB, AniSkip, or Anime Skip for online intro/outro markers</string>
   <string name="pref_chapter_detect_title">Detect intro/outro from chapter titles</string>
   <string name="pref_chapter_detect_summary">Analyze chapter name variants like opening/ending/credits and create skip markers</string>
   <string name="pref_auto_skip_intro_title">Auto-skip intro</string>
@@ -789,7 +789,7 @@
   <!-- Search Index Entries (SearchablePreference.kt)             -->
   <!-- ═══════════════════════════════════════════════════════════ -->
   <string name="search_online_skip_markers_summary">Fetch intro, recap, outro, credits, and preview markers from an online provider</string>
-  <string name="search_marker_provider_summary">Choose IntroDB, TIDB, or AniSkip for online intro/outro markers</string>
+  <string name="search_marker_provider_summary">Choose IntroDB, TIDB, AniSkip, or Anime Skip for online intro/outro markers</string>
   <string name="search_chapter_detect_summary">Create skip markers from chapter names such as opening, ending, credits, or preview</string>
   <string name="search_auto_skip_intro_summary">Skip opening markers automatically during playback</string>
   <string name="search_auto_skip_outro_summary">Skip ending markers automatically during playback</string>
