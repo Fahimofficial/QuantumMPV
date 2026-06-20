@@ -125,6 +125,56 @@ fun GestureHandler(
     }
     return (height * (subPos / 100f)).coerceIn(0f, height)
   }
+
+  /**
+   * Estimates subtitle hitbox bounds (lowerBound, upperBound) relative to subtitleScreenY.
+   * Accounts for sub-text content, font size, sub-scale, and screen width to handle
+   * multi-line wrapping in both portrait and landscape.
+   */
+  fun getSubtitleHitboxBounds(screenWidth: Float, screenHeight: Float): Pair<Float, Float> {
+    val subScale = MPVLib.getPropertyFloat("sub-scale") ?: subtitlesPreferences.subScale.get()
+    val fontSize = (MPVLib.getPropertyInt("sub-font-size") ?: subtitlesPreferences.fontSize.get()).toFloat()
+    val scaleMultiplier = subScale.coerceIn(0.4f, 3.0f)
+
+    // Estimate per-line height in screen pixels.
+    // sub-font-size is in "arbitrary" units scaled relative to screen height (720 reference).
+    val lineHeightPx = (fontSize / 720f) * screenHeight * scaleMultiplier * 1.3f
+
+    // Estimate how many lines the subtitle actually occupies
+    val subText = MPVLib.getPropertyString("sub-text") ?: ""
+    val estimatedLines = if (subText.isNotEmpty()) {
+      // Count explicit newlines first
+      val explicitLines = subText.split("\n")
+
+      // Estimate wrapping per explicit line based on available width
+      // Subtitles typically use ~80% of screen width (sub-margin-x on each side)
+      val subMarginX = (MPVLib.getPropertyInt("sub-margin-x") ?: 25).toFloat()
+      val availableWidth = screenWidth * (1f - 2f * subMarginX / screenWidth.coerceAtLeast(1f))
+
+      // Estimate character width: roughly fontSize * scale * 0.55 (typical char width ratio)
+      val charWidthPx = (fontSize / 720f) * screenHeight * scaleMultiplier * 0.55f
+      val charsPerLine = if (charWidthPx > 0f) (availableWidth / charWidthPx).toInt().coerceAtLeast(1) else 40
+
+      var totalLines = 0
+      for (line in explicitLines) {
+        val stripped = line.replace(Regex("<[^>]*>"), "").replace(Regex("[{][^}]*[}]"), "")
+        totalLines += if (stripped.isEmpty()) 1 else ((stripped.length + charsPerLine - 1) / charsPerLine).coerceAtLeast(1)
+      }
+      totalLines.coerceAtLeast(1)
+    } else {
+      // No text available, assume a reasonable default
+      2
+    }
+
+    // Subtitle text grows upward from the sub-pos anchor point.
+    // Lower bound: small region below the anchor (padding for touch imprecision)
+    val lowerBound = -50f * scaleMultiplier
+    // Upper bound: covers the full estimated subtitle height + padding
+    val estimatedSubtitleHeight = lineHeightPx * estimatedLines
+    val upperBound = (estimatedSubtitleHeight + 80f * scaleMultiplier).coerceAtLeast(200f * scaleMultiplier)
+
+    return Pair(lowerBound, upperBound)
+  }
   val panelShown by viewModel.panelShown.collectAsState()
   val allowGesturesInPanels by playerPreferences.allowGesturesInPanels.collectAsState()
   val paused by MPVLib.propBoolean["pause"].collectAsState()
@@ -901,10 +951,7 @@ fun GestureHandler(
                 val subPos = MPVLib.getPropertyInt("sub-pos") ?: subtitlesPreferences.subPos.get()
                 val subtitleScreenY = getSubtitleScreenY(subPos, size.width.toFloat(), size.height.toFloat())
                 val isCenterPinchX = midX in (size.width * 0.2f)..(size.width * 0.8f)
-                val subScale = MPVLib.getPropertyFloat("sub-scale") ?: subtitlesPreferences.subScale.get()
-                val scaleMultiplier = subScale.coerceIn(0.4f, 3.0f)
-                val lowerBound = -50f * scaleMultiplier
-                val upperBound = 200f * scaleMultiplier
+                val (lowerBound, upperBound) = getSubtitleHitboxBounds(size.width.toFloat(), size.height.toFloat())
                 val isSubtitlePinch = isCenterPinchX && (subtitleScreenY - midY) in lowerBound..upperBound
 
                 if (pinchToZoomSubtitles && hasActiveSub && isSubtitlePinch) {
@@ -1056,10 +1103,7 @@ fun GestureHandler(
 
 
           val isCenterTouchX = startPosition.x in (size.width * 0.2f)..(size.width * 0.8f)
-          val subScale = MPVLib.getPropertyFloat("sub-scale") ?: subtitlesPreferences.subScale.get()
-          val scaleMultiplier = subScale.coerceIn(0.4f, 3.0f)
-          val lowerBound = -50f * scaleMultiplier
-          val upperBound = 200f * scaleMultiplier
+          val (lowerBound, upperBound) = getSubtitleHitboxBounds(size.width.toFloat(), size.height.toFloat())
           val isSubtitleTouchY = (subtitleScreenY - startPosition.y) in lowerBound..upperBound
 
           val isSubtitleTouch = swipeSubtitlesToSeekDialog && hasActiveSubtitle && isCenterTouchX && isSubtitleTouchY
