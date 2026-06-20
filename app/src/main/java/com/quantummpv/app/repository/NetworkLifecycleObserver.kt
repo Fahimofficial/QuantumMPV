@@ -6,6 +6,7 @@ import androidx.lifecycle.LifecycleOwner
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.cancel
 import kotlinx.coroutines.launch
 
 class NetworkLifecycleObserver(
@@ -24,5 +25,15 @@ class NetworkLifecycleObserver(
                 Log.e("NetworkLifecycle", "Error disconnecting shares", e)
             }
         }
+    }
+
+    override fun onDestroy(owner: LifecycleOwner) {
+        // Cancel any pending disconnect work and release the SupervisorJob so
+        // the CoroutineScope is not leaked when MainActivity is destroyed
+        // (config change, process death, etc.). Without this, every Activity
+        // recreation leaks a scope with a live job. See issue 2.5 in the
+        // leak audit.
+        scope.cancel()
+        super.onDestroy(owner)
     }
 }

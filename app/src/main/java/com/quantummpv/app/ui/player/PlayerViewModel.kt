@@ -4673,6 +4673,31 @@ class PlayerViewModel(
     Toast.makeText(host.context, message, Toast.LENGTH_SHORT).show()
   }
 
+  override fun onCleared() {
+    // Deterministic cleanup of resources that previously relied on GC.
+    // viewModelScope is auto-cancelled by ViewModel, but the following
+    // resources are not coroutine-scoped and need explicit release.
+    // See issue 2.1 in the leak audit.
+
+    // Stop the realtime subtitle service and delete its temp .srt file.
+    // Without this the file lingers in cacheDir until the system reclaims
+    // it, and the service may keep an active session open.
+    runCatching { stopRealtimeSubtitles() }
+
+    // Evict all cached Bitmaps from the seek-thumbnail LruCache so the
+    // memory is returned immediately rather than waiting for the next GC
+    // pass (which may not happen before the next playback session starts,
+    // causing cumulative heap growth across rapid back-to-back plays).
+    runCatching { seekThumbnailCache.evictAll() }
+
+    // The metadataCache (Pair<String, String> entries) is small and
+    // bounded at 100 entries, so it is not urgent to clear, but clearing
+    // here keeps the working set fresh for the next session.
+    runCatching { metadataCache.evictAll() }
+
+    super.onCleared()
+  }
+
 }
 
 // Extension functions

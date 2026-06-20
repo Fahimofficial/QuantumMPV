@@ -695,6 +695,20 @@ class MediaPlaybackService :
       Log.d(TAG, "MPV shutdown event received, stopping service")
       savePlaybackStateBlocking()
       stopSelf()
+      return
+    }
+
+    if (eventId == MPVLib.MpvEvent.MPV_EVENT_END_FILE) {
+      // The current file has finished (or been quit). Release the static
+      // thumbnail Bitmap reference now so it does not linger in the
+      // companion object for the entire process lifetime — which can be
+      // long if the service is killed by the system without onDestroy
+      // being called. The next file loaded will set a fresh thumbnail
+      // via setMediaInfo(). See issue 2.4 in the leak audit.
+      // We null the companion field (not the local instance field) so
+      // the next setMediaInfo call starts from a clean state.
+      thumbnail = null
+      lastPaletteThumbnail = null
     }
   }
 

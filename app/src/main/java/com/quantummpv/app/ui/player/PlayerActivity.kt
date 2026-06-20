@@ -494,7 +494,13 @@ class PlayerActivity :
     setupPlayerControls()
     setupPipHelper()
     setupMediaSession()
-    registerScreenStateReceiver()
+    // Note: screenStateReceiver is now registered in onStart() and
+    // unregistered in onStop(), matching the noisyReceiver pattern.
+    // Previously it was registered here in onCreate and stayed registered
+    // for the entire Activity lifetime — including while paused/stopped —
+    // which wasted battery (every ACTION_SCREEN_OFF / ACTION_USER_PRESENT
+    // woke the Activity) and risked leaking the receiver if onDestroy was
+    // skipped. See issue 2.3 in the leak audit.
 
     playlistId = intent.getIntExtra("playlist_id", -1).takeIf { it != -1 }
     playlistIndex = intent.getIntExtra("playlist_index", 0)
@@ -1108,6 +1114,14 @@ class PlayerActivity :
         noisyReceiverRegistered = false
       }
 
+      // Unregister the screen-state receiver while stopped so the Activity
+      // is not woken by ACTION_SCREEN_OFF / ACTION_USER_PRESENT while in
+      // the background. It is re-registered in onStart(). See issue 2.3.
+      if (screenStateReceiverRegistered) {
+        unregisterReceiver(screenStateReceiver)
+        screenStateReceiverRegistered = false
+      }
+
       if (
         PlayerLifecyclePolicy.shouldTreatStopAsPipDismissal(
           wasInPictureInPictureMode = wasInPipMode,
@@ -1185,6 +1199,10 @@ class PlayerActivity :
         registerReceiver(noisyReceiver, filter)
         noisyReceiverRegistered = true
       }
+
+      // Re-register the screen-state receiver when returning to the
+      // foreground. It is unregistered in onStop(). See issue 2.3.
+      registerScreenStateReceiver()
 
       if (playerPreferences.rememberBrightness.get()) {
         val brightness = playerPreferences.defaultBrightness.get()
