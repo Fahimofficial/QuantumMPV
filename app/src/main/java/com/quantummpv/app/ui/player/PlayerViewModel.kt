@@ -1344,10 +1344,10 @@ class PlayerViewModel(
     const val TAG = "PlayerViewModel"
     const val AUTO_SHOW_SKIP_CHIP_DURATION = 10.0
     const val SEEK_COALESCE_DELAY_MS = 60L
-    const val SEEK_THUMBNAIL_MAX_SIZE = 192
-    const val SEEK_THUMBNAIL_CACHE_KB = 12 * 1024
+    const val SEEK_THUMBNAIL_MAX_SIZE = 240
+    const val SEEK_THUMBNAIL_CACHE_KB = 16 * 1024
     const val SEEK_THUMBNAIL_CACHE_BUCKETS_PER_SECOND = 1f
-    const val SEEK_THUMBNAIL_PREFETCH_RADIUS = 1
+    const val SEEK_THUMBNAIL_PREFETCH_RADIUS = 2
     const val PLAYLIST_METADATA_PREFETCH_RADIUS = 40
     const val PLAYLIST_METADATA_PREFETCH_LIMIT = 120
     const val MIN_INTRO_MARKER_DURATION_SEC = 480.0
@@ -1358,8 +1358,6 @@ class PlayerViewModel(
     const val INTRO_MARKER_CACHE_LOADED = "loaded"
     const val INTRO_MARKER_CACHE_NO_SEGMENTS = "no_segments"
     const val INTRO_MARKER_CACHE_UNRESOLVED = "unresolved"
-    val networkThumbnailSchemes =
-      setOf("http", "https", "rtmp", "rtmps", "rtsp", "rtsps", "mms", "mmsh", "ftp", "ftps")
     val VALID_SUBTITLE_EXTENSIONS =
       setOf(
         // Common & modern
@@ -2961,7 +2959,7 @@ class PlayerViewModel(
     bitmap: Bitmap,
   ) {
     _seekThumbnailPreview.update { current ->
-      if (!current.visible || seekThumbnailBucket(current.positionSeconds) != request.bucket) {
+      if (!current.visible) {
         current
       } else {
         current.copy(
@@ -2973,8 +2971,6 @@ class PlayerViewModel(
   }
 
   private fun prefetchSeekThumbnails(request: SeekThumbnailRequest) {
-    if (isNetworkSeekThumbnailSource(request.source)) return
-
     val maxBucket =
       if (request.durationSeconds > 0f) {
         seekThumbnailBucket(request.durationSeconds)
@@ -3018,11 +3014,6 @@ class PlayerViewModel(
 
   private fun seekThumbnailCacheKey(source: String, bucket: Int): String =
     "$source|$bucket|$SEEK_THUMBNAIL_MAX_SIZE"
-
-  private fun isNetworkSeekThumbnailSource(source: String): Boolean {
-    val scheme = source.substringBefore(":", missingDelimiterValue = "").lowercase()
-    return scheme in networkThumbnailSchemes
-  }
 
   private fun findNearestSeekThumbnail(
     source: String,

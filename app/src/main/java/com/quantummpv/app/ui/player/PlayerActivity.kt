@@ -82,9 +82,9 @@ import com.github.k1rakishou.fsaf.FileManager
 import `is`.xyz.mpv.MPVLib
 import `is`.xyz.mpv.MPVNode
 import `is`.xyz.mpv.Utils
+import kotlinx.coroutines.DelicateCoroutinesApi
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
-import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.flow.combine
@@ -94,7 +94,6 @@ import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withContext
 import org.koin.android.ext.android.inject
 import java.io.File
@@ -584,11 +583,11 @@ class PlayerActivity :
               val targetIndex = playlistIndex.coerceIn(0, playlist.lastIndex)
               loadPlaylistItem(targetIndex)
             } else {
-              loadInitialPlayableUri(playableUri)
+              player.playFile(playableUri)
             }
           }
         } else {
-          loadInitialPlayableUri(playableUri)
+          player.playFile(playableUri)
         }
       }
     }
@@ -954,38 +953,17 @@ class PlayerActivity :
     }.onFailure { e ->
       Log.e(TAG, "Error quitting MPV", e)
     }
-    destroyMpvAfterCommandDrain("player cleanup", waitForDestroy = false)
+    destroyMpvAfterCommandDrain("player cleanup")
   }
 
-  private fun destroyMpvAfterCommandDrain(
-    reason: String,
-    waitForDestroy: Boolean = false,
-  ) {
-    // mpv's quit command is asynchronous. Destroying the core immediately on
-    // Activity teardown can block the UI thread or abort inside libmpv's dispatch
-    // queue while HTTPS/HLS stream work is still unwinding.
-    //
-    // The destroy is scheduled on a PROCESS-GLOBAL scope (see companion) — not a
-    // per-Activity one — and guarded so that a fresh PlayerActivity can flush it before
-    // calling MPVLib.initialize(). Without this, replaying a video right after backing out
-    // let a previous instance's delayed MPVLib.destroy() tear down the freshly created
-    // native core, crashing the player.
-    mpvCoreNeedsDestroy = true
-    suspend fun drainAndDestroy() {
-      delay(MPV_DESTROY_DRAIN_DELAY_MS)
-      performMpvDestroyOnce("drain after $reason")
-    }
-
-    pendingMpvDestroyJob?.cancel()
-    if (waitForDestroy) {
-      runBlocking(Dispatchers.Default) {
-        drainAndDestroy()
-      }
-      pendingMpvDestroyJob = null
-    } else {
-      pendingMpvDestroyJob = mpvDestroyScope.launch {
-        drainAndDestroy()
-      }
+  private fun destroyMpvAfterCommandDrain(reason: String) {
+    // mpv's quit command is asynchronous. Destroying the core immediately can abort
+    // inside libmpv's dispatch queue while stream/subtitle work is still unwinding.
+    android.os.SystemClock.sleep(MPV_DESTROY_DRAIN_DELAY_MS)
+    runCatching {
+      MPVLib.destroy()
+    }.onFailure { e ->
+      Log.e(TAG, "Error destroying MPV after $reason", e)
     }
   }
 
@@ -1378,7 +1356,7 @@ class PlayerActivity :
     }.onFailure { e ->
       Log.e(TAG, "Error quitting detached MPV session", e)
     }
-    destroyMpvAfterCommandDrain("detached background session", waitForDestroy = true)
+    destroyMpvAfterCommandDrain("detached background session")
   }
 
   private fun isNotificationReentryIntent(intent: Intent?): Boolean =
@@ -1389,10 +1367,6 @@ class PlayerActivity :
    * CRITICAL: Must copy config and scripts BEFORE initializing MPV, as MPV loads scripts during init.
    */
   private fun setupMPV() {
-    // Make sure no deferred destroy from a previous PlayerActivity instance is still pending;
-    // it would otherwise fire after our initialize() and tear down the new native core.
-    flushPendingMpvDestroy()
-
     // Prepare only the launch-critical files before initializing MPV.
     runCatching {
       syncBundledAssetsIfNeeded()
@@ -1958,8 +1932,8 @@ class PlayerActivity :
   private fun addSubtitlesFromExtras(extras: Bundle) {
     if (!extras.containsKey("subs")) return
 
-    val subList = Utils.getParcelableArray<Uri>(extras, "subs")?.toList().orEmpty()
-    val subsToEnable = Utils.getParcelableArray<Uri>(extras, "subs.enable")?.toList().orEmpty()
+    val subList = Utils.getParcelableArray<Uri>(extras, "subs").toList().orEmpty()
+    val subsToEnable = Utils.getParcelableArray<Uri>(extras, "subs.enable").toList().orEmpty()
     val hasSubsToEnable = extras.containsKey("subs.enable")
     val subtitleTitles = extras.getStringArray("subs.titles").orEmpty()
     val subtitleLanguages = extras.getStringArray("subs.langs").orEmpty()
@@ -2329,29 +2303,6 @@ class PlayerActivity :
       uri.toUri().openContentFd(this)
     } else {
       uri
-    }
-  }
-
-  private fun loadInitialPlayableUri(uri: String) {
-    if (HttpUtils.isNetworkStream(uri.toUri())) {
-      loadFileWithMpvCommand(uri)
-    } else {
-      player.playFile(uri)
-    }
-  }
-
-  private fun loadFileWithMpvCommand(uri: String) {
-    // Network stream loading is I/O-bound (DNS, connect, initial demux fetch). Use the IO
-    // dispatcher so it does not contend with the CPU-bound Default pool that decode/render
-    // helper work runs on.
-    lifecycleScope.launch(Dispatchers.IO) {
-      if (!canIssueMpvCommands()) return@launch
-      runCatching {
-        MPVLib.setPropertyString("vid", "auto")
-        MPVLib.command("loadfile", uri)
-      }.onFailure { e ->
-        Log.e(TAG, "Failed to load file with mpv command", e)
-      }
     }
   }
 
@@ -3014,6 +2965,7 @@ class PlayerActivity :
    *
    * @param mediaTitle The title of the media being played
    */
+  @OptIn(DelicateCoroutinesApi::class)
   private fun saveVideoPlaybackState(
     mediaTitle: String,
     immediate: Boolean = false,
@@ -3469,11 +3421,14 @@ class PlayerActivity :
             val targetIndex = playlistIndex.coerceIn(0, playlist.lastIndex)
             loadPlaylistItem(targetIndex)
           } else {
-            loadFileWithMpvCommand(uri)
+            lifecycleScope.launch(Dispatchers.Default) {
+              MPVLib.setPropertyString("vid", "no")
+              MPVLib.command("loadfile", uri)
+            }
           }
         }
       } else {
-        loadInitialPlayableUri(uri)
+        player.playFile(uri)
       }
     }
   }
@@ -4943,64 +4898,7 @@ class PlayerActivity :
     /**
      * Lets mpv drain asynchronous quit/HTTPS stream work before destroying the native core.
      */
-    private const val MPV_DESTROY_DRAIN_DELAY_MS = 750L
-
-    // ── Global MPV destroy coordination ─────────────────────────────────────────────
-    // MPVLib is a single process-global native core. Teardown is deferred (see
-    // MPV_DESTROY_DRAIN_DELAY_MS), so these MUST be static: a newly created PlayerActivity
-    // has to be able to see and complete a destroy scheduled by the previous instance
-    // before it initializes a new core. Otherwise the deferred destroy fires after the new
-    // initialize() and crashes the player (reproduced by: play a video, back out, then
-    // immediately play the same video again).
-    private val mpvDestroyScope =
-      kotlinx.coroutines.CoroutineScope(SupervisorJob() + Dispatchers.Default)
-
-    @Volatile
-    private var pendingMpvDestroyJob: Job? = null
-
-    /** True while a native core exists that has been asked to quit but not yet destroyed. */
-    @Volatile
-    private var mpvCoreNeedsDestroy = false
-
-    private val mpvDestroyLock = Any()
-
-    /** Destroys the global MPV core at most once, regardless of how many paths race to it. */
-    private fun performMpvDestroyOnce(reason: String) {
-      synchronized(mpvDestroyLock) {
-        if (!mpvCoreNeedsDestroy) return
-        mpvCoreNeedsDestroy = false
-        runCatching { MPVLib.destroy() }
-          .onFailure { e -> Log.e(TAG, "Error destroying MPV ($reason)", e) }
-      }
-    }
-
-    /**
-     * Blocks until any deferred [MPVLib.destroy] scheduled by a previous PlayerActivity has
-     * run, then guarantees the core is destroyed before a fresh initialize(). Call this
-     * before MPVLib.initialize() so a stale teardown can never clobber the new core.
-     */
-    fun flushPendingMpvDestroy() {
-      val pendingDestroy = pendingMpvDestroyJob
-      if (pendingDestroy != null) {
-        runCatching {
-          runBlocking(Dispatchers.Default) {
-            pendingDestroy.join()
-          }
-        }.onFailure { e ->
-          Log.e(TAG, "Error waiting for pending MPV destroy", e)
-        }
-        if (pendingMpvDestroyJob === pendingDestroy) {
-          pendingMpvDestroyJob = null
-        }
-      }
-      // If a previous destroy was cancelled before it ran, preserve the drain delay here.
-      if (mpvCoreNeedsDestroy) {
-        runBlocking(Dispatchers.Default) {
-          delay(MPV_DESTROY_DRAIN_DELAY_MS)
-          performMpvDestroyOnce("flush before fresh launch")
-        }
-      }
-    }
+    private const val MPV_DESTROY_DRAIN_DELAY_MS = 200L
 
     /**
      * Factor to divide subtitle and audio delays to convert from ms to seconds.
