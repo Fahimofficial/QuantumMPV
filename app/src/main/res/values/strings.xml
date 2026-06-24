@@ -650,7 +650,7 @@
   <string name="pref_import_complete_title">Import Complete</string>
   <string name="pref_import_complete_text">Successfully imported: %1$s\nFailed: %2$s\nVersion: %3$s\n\nPlease restart the app for all changes to take effect.</string>
   <string name="pref_section_storage_root">Storage Root</string>
-  <string name="pref_base_storage_folder_summary">Tap to select — creates Subtitles/, Fonts/, scripts/ subdirs</string>
+  <string name="pref_base_storage_folder_summary">Tap to select - creates Subtitles/, Fonts/, scripts/, script-modules/ subdirs</string>
   <string name="pref_clear_storage_root_title">Clear Storage Root</string>
   <string name="pref_section_mpv_config">MPV Configuration</string>
   <string name="pref_config_edit_summary">Tap to edit configuration</string>

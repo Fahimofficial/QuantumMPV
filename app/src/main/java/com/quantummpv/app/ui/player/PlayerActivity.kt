@@ -1411,7 +1411,7 @@ class PlayerActivity :
 
   /**
    * Syncs ALL MPV assets from the user's configured MPV directory to internal storage.
-   * Handles: mpv.conf, input.conf, scripts/, script-opts/, shaders/, fonts/
+   * Handles: mpv.conf, input.conf, scripts/, script-modules/, script-opts/, shaders/, fonts/
    *
    * Uses case-insensitive subfolder matching and falls back to root scanning
    * if standard subfolders don't exist. Falls back to preferences-based config
@@ -1432,6 +1432,7 @@ class PlayerActivity :
       Log.d(TAG, "Syncing from user MPV directory: ${tree.uri}")
       syncConfigFiles(tree)
       syncScripts(tree)
+      syncScriptModules(tree)
       syncScriptOpts(tree)
       syncShaders(tree)
       syncFonts(tree, syncSubtitleFontsFolder)
@@ -1516,6 +1517,38 @@ class PlayerActivity :
       )
 
     Log.d(TAG, "Scripts sync: $count file(s) from ${if (scriptsSubdir != null) "scripts/" else "root"}")
+  }
+
+  /**
+   * Syncs all Lua module files from the script-modules/ subfolder (case-insensitive)
+   * to internal storage so Lua's C-level require() can find them via native fopen().
+   */
+  private fun syncScriptModules(tree: DocumentFile) {
+    val internalModulesDir = File(filesDir, "script-modules")
+    internalModulesDir.mkdirs()
+
+    if (!advancedPreferences.enableLuaScripts.get()) {
+      clearDirectoryContents(internalModulesDir)
+      Log.d(TAG, "Script modules disabled, skipping")
+      return
+    }
+
+    val modulesSubdir = findSubdirCaseInsensitive(tree, "script-modules")
+    if (modulesSubdir == null) {
+      clearDirectoryContents(internalModulesDir)
+      Log.d(TAG, "No script-modules/ subfolder found, skipping")
+      return
+    }
+
+    val count =
+      syncRecursiveDocumentDirectory(
+        sourceDir = modulesSubdir,
+        destinationDir = internalModulesDir,
+        includeFile = { name -> name.endsWith(".lua", ignoreCase = true) },
+        deleteMissing = true,
+      )
+
+    Log.d(TAG, "Script modules sync: $count file(s)")
   }
 
   // ==================== Script Options Sync ====================
@@ -1675,6 +1708,83 @@ class PlayerActivity :
     return copiedCount
   }
 
+  private fun syncRecursiveDocumentDirectory(
+    sourceDir: DocumentFile,
+    destinationDir: File,
+    includeFile: (name: String) -> Boolean,
+    deleteMissing: Boolean,
+  ): Int {
+    destinationDir.mkdirs()
+    val expectedFiles = mutableSetOf<String>()
+    val expectedDirs = mutableSetOf<String>()
+    var copiedCount = 0
+
+    fun syncDirectory(
+      currentSourceDir: DocumentFile,
+      currentDestinationDir: File,
+      relativeDir: String,
+    ) {
+      currentDestinationDir.mkdirs()
+      listTreeFilesSafely(currentSourceDir).forEach { document ->
+        val name = document.name?.takeIf { isSafeDocumentFileName(it) } ?: return@forEach
+        val relativePath = if (relativeDir.isBlank()) name else "$relativeDir/$name"
+
+        when {
+          document.isDirectory -> {
+            expectedDirs += relativePath
+            syncDirectory(
+              currentSourceDir = document,
+              currentDestinationDir = File(currentDestinationDir, name),
+              relativeDir = relativePath,
+            )
+          }
+          document.isFile && includeFile(name) -> {
+            expectedFiles += relativePath
+            if (copyDocumentToFileIfNeeded(document, File(currentDestinationDir, name))) {
+              copiedCount++
+            }
+          }
+        }
+      }
+    }
+
+    syncDirectory(sourceDir, destinationDir, relativeDir = "")
+
+    if (deleteMissing) {
+      pruneDirectoryToExpected(destinationDir, expectedFiles, expectedDirs, relativeDir = "")
+    }
+
+    return copiedCount
+  }
+
+  private fun pruneDirectoryToExpected(
+    directory: File,
+    expectedFiles: Set<String>,
+    expectedDirs: Set<String>,
+    relativeDir: String,
+  ) {
+    directory.listFiles()?.forEach { existingFile ->
+      val relativePath =
+        if (relativeDir.isBlank()) {
+          existingFile.name
+        } else {
+          "$relativeDir/${existingFile.name}"
+        }
+
+      when {
+        existingFile.isDirectory -> {
+          pruneDirectoryToExpected(existingFile, expectedFiles, expectedDirs, relativePath)
+          val isExpected = relativePath in expectedDirs
+          val isEmpty = existingFile.listFiles()?.isEmpty() != false
+          if (!isExpected || isEmpty) {
+            existingFile.deleteRecursively()
+          }
+        }
+        existingFile.isFile && relativePath !in expectedFiles -> existingFile.delete()
+      }
+    }
+  }
+
   private fun syncFlatDocumentDirectory(
     sourceDir: DocumentFile,
     destinationDir: File,
@@ -1771,6 +1881,8 @@ class PlayerActivity :
         if (tree != null) {
           // Look for scripts/ subfolder first (case-insensitive), fall back to root
           val scriptsDir = findSubdirCaseInsensitive(tree, "scripts") ?: tree
+          syncScriptModules(tree)
+          syncScriptOpts(tree)
           
           val scriptFile = listTreeFilesSafely(scriptsDir).firstOrNull {
             it.name == scriptName 
@@ -1827,6 +1939,7 @@ class PlayerActivity :
       }
       // Ensure scripts directory exists even without user dir
       File(filesDir, "scripts").mkdirs()
+      File(filesDir, "script-modules").mkdirs()
       File(filesDir, "fonts").mkdirs()
       File(filesDir, "shaders").mkdirs()
     }.onFailure { e ->
@@ -1844,6 +1957,19 @@ class PlayerActivity :
       nestedDir.deleteRecursively()
     }
   }
+
+  private fun clearDirectoryContents(directory: File) {
+    directory.listFiles()?.forEach { child ->
+      if (child.isDirectory) {
+        child.deleteRecursively()
+      } else {
+        child.delete()
+      }
+    }
+  }
+
+  private fun isSafeDocumentFileName(name: String): Boolean =
+    name.isNotBlank() && !name.contains('/') && !name.contains('\\')
 
   /**
    * Finds a subdirectory by name (case-insensitive) within a DocumentFile.

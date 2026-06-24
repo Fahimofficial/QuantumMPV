@@ -97,7 +97,7 @@ object FoldersPreferencesScreen : Screen {
       subtitlesPreferences.subtitleSaveFolder.set(uriString)
       subtitlesPreferences.fontsFolder.set(uriString)
       val root = DocumentFile.fromTreeUri(context, uri) ?: return@rememberLauncherForActivityResult
-      listOf("fonts", "Subtitles", "scripts", "script-opts", "shaders").forEach { name ->
+      listOf("fonts", "Subtitles", "scripts", "script-modules", "script-opts", "shaders").forEach { name ->
         if (root.findFile(name) == null) root.createDirectory(name)
       }
     }
@@ -520,7 +520,7 @@ internal fun StorageRootPickerCard(
           text = if (currentPath.isNotEmpty())
             getSimplifiedStoragePath(currentPath)
           else
-            "Tap to select — creates Subtitles/, Fonts/, scripts/ subdirs",
+            "Tap to select - creates Subtitles/, Fonts/, scripts/, script-modules/ subdirs",
           style = MaterialTheme.typography.bodySmall,
           color = MaterialTheme.colorScheme.onSurfaceVariant,
           maxLines = 1,
