@@ -30,6 +30,15 @@ enum class YtdlPlaylistMode(val title: String) {
   WHOLE_PLAYLIST("Whole playlist"),
 }
 
+enum class YtdlAudioPreference(val title: String) {
+  AUTO("Auto / Best"),
+  AAC("AAC"),
+  OPUS("Opus"),
+  M4A("M4A"),
+  WEBM("WebM"),
+}
+
+
 data class YtdlpOptionSettings(
   val codecPreference: YtdlCodecPreference = YtdlCodecPreference.AUTO,
   val legacyPreferH264: Boolean = false,
@@ -37,6 +46,7 @@ data class YtdlpOptionSettings(
   val maxFps: Int = 0,
   val hdrPreference: YtdlHdrPreference = YtdlHdrPreference.ANY,
   val containerPreference: YtdlContainerPreference = YtdlContainerPreference.ANY,
+  val audioPreference: YtdlAudioPreference = YtdlAudioPreference.AUTO,
   val formatSort: String = "",
   val mergeOutputFormat: String = "",
   val writeSubs: Boolean = true,
@@ -68,6 +78,7 @@ data class YtdlpOptionSettings(
         maxFps = ytdlPreferences.maxFps.get(),
         hdrPreference = ytdlPreferences.hdrPreference.get(),
         containerPreference = ytdlPreferences.containerPreference.get(),
+        audioPreference = ytdlPreferences.audioPreference.get(),
         formatSort = ytdlPreferences.formatSort.get(),
         mergeOutputFormat = ytdlPreferences.mergeOutputFormat.get(),
         writeSubs = ytdlPreferences.writeSubs.get(),
@@ -142,12 +153,23 @@ object YtdlpOptionsBuilder {
     )
   }
 
+  private fun YtdlAudioPreference.audioSelector(): String =
+    when (this) {
+      YtdlAudioPreference.AUTO -> "ba"
+      YtdlAudioPreference.AAC -> "ba[acodec^=?aac]"
+      YtdlAudioPreference.OPUS -> "ba[acodec^=?opus]"
+      YtdlAudioPreference.M4A -> "ba[ext=m4a]"
+      YtdlAudioPreference.WEBM -> "ba[ext=webm]"
+    }
+
   fun buildFormat(settings: YtdlpOptionSettings): String {
     val codec = if (settings.codecPreference == YtdlCodecPreference.AUTO && settings.legacyPreferH264) {
       YtdlCodecPreference.H264
     } else {
       settings.codecPreference
     }
+
+    val audioSel = settings.audioPreference.audioSelector()
 
     val videoSelectors = codec.videoSelectors(settings.containerPreference)
       .map { selector -> selector + settings.formatFilters() }
@@ -156,9 +178,9 @@ object YtdlpOptionsBuilder {
     val primary = if (videoGroup.isBlank()) {
       singleGroup
     } else {
-      "($videoGroup)+ba/$singleGroup"
+      "($videoGroup)+$audioSel/$singleGroup"
     }
-    return "$primary/bv*+ba/b"
+    return "$primary/bv*+$audioSel/b"
   }
 
   fun parseRawOptions(raw: String): List<RawYtdlpOption> =

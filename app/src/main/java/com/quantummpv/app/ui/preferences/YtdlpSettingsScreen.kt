@@ -1,7 +1,5 @@
 package com.quantummpv.app.ui.preferences
 
-import android.widget.Toast
-import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.animateContentSize
 import androidx.compose.animation.core.*
 import androidx.compose.foundation.*
@@ -11,10 +9,7 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -29,13 +24,14 @@ import com.quantummpv.app.ui.player.ytdlp.YtdlCodecPreference
 import com.quantummpv.app.ui.player.ytdlp.YtdlContainerPreference
 import com.quantummpv.app.ui.player.ytdlp.YtdlHdrPreference
 import com.quantummpv.app.ui.player.ytdlp.YtdlPlaylistMode
+import com.quantummpv.app.ui.player.ytdlp.YtdlAudioPreference
 import com.quantummpv.app.ui.player.ytdlp.YtdlpManager
 import com.quantummpv.app.ui.player.ytdlp.YtdlpOptionSettings
 import com.quantummpv.app.ui.player.ytdlp.YtdlpOptionsBuilder
+import androidx.compose.runtime.saveable.rememberSaveable
 import com.quantummpv.app.ui.theme.spacing
 import com.quantummpv.app.ui.utils.LocalBackStack
 import com.quantummpv.app.ui.utils.popSafely
-import com.quantummpv.app.utils.clipboard.SafeClipboard
 import kotlinx.coroutines.launch
 import kotlinx.serialization.Serializable
 import org.koin.compose.koinInject
@@ -51,7 +47,6 @@ object YtdlpSettingsScreen : Screen {
         val context = LocalContext.current
         val backStack = LocalBackStack.current
         val scope = rememberCoroutineScope()
-        var logs by remember { mutableStateOf("") }
         val scrollState = rememberScrollState()
         var isRunning by remember { mutableStateOf(false) }
 
@@ -62,11 +57,14 @@ object YtdlpSettingsScreen : Screen {
         val maxFps by ytdlPreferences.maxFps.collectAsState()
         val hdrPreference by ytdlPreferences.hdrPreference.collectAsState()
         val containerPreference by ytdlPreferences.containerPreference.collectAsState()
+        val audioPreference by ytdlPreferences.audioPreference.collectAsState()
         val playlistMode by ytdlPreferences.playlistMode.collectAsState()
         val geoBypass by ytdlPreferences.geoBypass.collectAsState()
         val liveFromStart by ytdlPreferences.liveFromStart.collectAsState()
         val writeSubs by ytdlPreferences.writeSubs.collectAsState()
         val writeAutoSubs by ytdlPreferences.writeAutoSubs.collectAsState()
+        
+        var showAdvancedNetworking by rememberSaveable { mutableStateOf(false) }
         
         var userAgentText by remember { mutableStateOf(ytdlPreferences.customUserAgent.get()) }
         var subtitleLanguagesText by remember { mutableStateOf(ytdlPreferences.subtitleLanguages.get()) }
@@ -87,10 +85,6 @@ object YtdlpSettingsScreen : Screen {
             if (!isRunning) {
                 hasYtdlp = File(ytdlDir, "yt-dlp").exists()
             }
-        }
-
-        LaunchedEffect(logs) {
-            scrollState.animateScrollTo(scrollState.maxValue)
         }
 
         val ytdlpInfo = remember(hasYtdlp) {
@@ -195,6 +189,97 @@ object YtdlpSettingsScreen : Screen {
                     }
                 }
 
+                PreferenceSectionHeader(title = "Engine Installer")
+
+                PreferenceCard {
+                    Column(
+                        modifier = Modifier.padding(16.dp),
+                        verticalArrangement = Arrangement.spacedBy(12.dp)
+                    ) {
+                        Text(
+                            text = "Manage yt-dlp Environment",
+                            style = MaterialTheme.typography.bodyMedium,
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.onSurface
+                        )
+                        Text(
+                            text = "Download the latest wrapper modules and compile python-friendly native binaries inside local sandboxed folders.",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                        
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(12.dp)
+                        ) {
+                            Button(
+                                onClick = {
+                                    scope.launch {
+                                        isRunning = true
+                                        YtdlpManager.runInstall(context) {}
+                                        isRunning = false
+                                    }
+                                },
+                                enabled = !isRunning,
+                                shape = RoundedCornerShape(16.dp),
+                                modifier = Modifier.weight(1f),
+                                colors = ButtonDefaults.buttonColors(
+                                    containerColor = MaterialTheme.colorScheme.primary,
+                                    contentColor = MaterialTheme.colorScheme.onPrimary
+                                )
+                            ) {
+                                Icon(Icons.Default.Download, null, modifier = Modifier.size(18.dp))
+                                Spacer(Modifier.width(8.dp))
+                                Text("Install Core")
+                            }
+
+                            OutlinedButton(
+                                onClick = {
+                                    scope.launch {
+                                        isRunning = true
+                                        YtdlpManager.runUpdate(context) {}
+                                        isRunning = false
+                                    }
+                                },
+                                enabled = !isRunning && hasYtdlp,
+                                shape = RoundedCornerShape(16.dp),
+                                modifier = Modifier.weight(1f),
+                                colors = ButtonDefaults.outlinedButtonColors(
+                                    contentColor = MaterialTheme.colorScheme.primary
+                                ),
+                                border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant)
+                            ) {
+                                Icon(Icons.Default.Update, null, modifier = Modifier.size(18.dp))
+                                Spacer(Modifier.width(8.dp))
+                                Text("Update Core")
+                            }
+                        }
+
+                        Spacer(Modifier.height(4.dp))
+
+                        OutlinedButton(
+                            onClick = {
+                                scope.launch {
+                                    isRunning = true
+                                    YtdlpManager.runUpdateToNightly(context) {}
+                                    isRunning = false
+                                }
+                            },
+                            enabled = !isRunning && hasYtdlp,
+                            shape = RoundedCornerShape(16.dp),
+                            modifier = Modifier.fillMaxWidth(),
+                            colors = ButtonDefaults.outlinedButtonColors(
+                                contentColor = MaterialTheme.colorScheme.secondary
+                            ),
+                            border = BorderStroke(1.dp, MaterialTheme.colorScheme.secondary.copy(alpha = 0.5f))
+                        ) {
+                            Icon(Icons.Default.Update, null, modifier = Modifier.size(18.dp))
+                            Spacer(Modifier.width(8.dp))
+                            Text("Update to Nightly Build")
+                        }
+                    }
+                }
+
                 PreferenceSectionHeader(title = "Quality & Format")
 
                 PreferenceCard {
@@ -290,36 +375,21 @@ object YtdlpSettingsScreen : Screen {
                             },
                         )
 
-                        OutlinedTextField(
-                            value = formatSortText,
-                            onValueChange = {
-                                formatSortText = it
-                                ytdlPreferences.formatSort.set(it)
+                        OptionDropdown(
+                            title = "Audio Preference",
+                            value = audioPreference,
+                            values = YtdlAudioPreference.entries,
+                            valueLabel = { it.title },
+                            onValueChange = { selected ->
+                                ytdlPreferences.audioPreference.set(selected)
+                                updateFormatString(ytdlPreferences)
                             },
-                            label = { Text("Format Sort") },
-                            placeholder = { Text("res,fps,hdr:12,vcodec:vp9.2") },
-                            singleLine = true,
-                            shape = RoundedCornerShape(12.dp),
-                            modifier = Modifier.fillMaxWidth(),
-                            supportingText = { Text("Passed to yt-dlp as format-sort for advanced ranking.") }
                         )
 
-                        OutlinedTextField(
-                            value = mergeOutputFormatText,
-                            onValueChange = {
-                                mergeOutputFormatText = it
-                                ytdlPreferences.mergeOutputFormat.set(it)
-                            },
-                            label = { Text("Merge Output Format") },
-                            placeholder = { Text("mp4, mkv, webm") },
-                            singleLine = true,
-                            shape = RoundedCornerShape(12.dp),
-                            modifier = Modifier.fillMaxWidth(),
-                        )
 
                         PreferenceDivider()
 
-                        val currentFormat = remember(ytdlQuality, preferH264, codecPreference, maxFps, hdrPreference, containerPreference) {
+                        val currentFormat = remember(ytdlQuality, preferH264, codecPreference, maxFps, hdrPreference, containerPreference, audioPreference) {
                             YtdlpOptionsBuilder.buildFormat(YtdlpOptionSettings.fromYtdlPreferences(ytdlPreferences))
                         }
                         
@@ -398,351 +468,230 @@ object YtdlpSettingsScreen : Screen {
 
                 PreferenceCard {
                     Column(
-                        modifier = Modifier.padding(16.dp),
+                        modifier = Modifier.fillMaxWidth().animateContentSize(),
                         verticalArrangement = Arrangement.spacedBy(MaterialTheme.spacing.medium)
                     ) {
-                        OutlinedTextField(
-                            value = userAgentText,
-                            onValueChange = { 
-                                userAgentText = it
-                                ytdlPreferences.customUserAgent.set(it)
-                            },
-                            label = { Text("Custom User-Agent Override") },
-                            placeholder = { Text("Mozilla/5.0 ...") },
-                            singleLine = false,
-                            maxLines = 3,
-                            shape = RoundedCornerShape(12.dp),
-                            modifier = Modifier.fillMaxWidth(),
-                            colors = OutlinedTextFieldDefaults.colors(
-                                focusedBorderColor = MaterialTheme.colorScheme.primary,
-                                unfocusedBorderColor = MaterialTheme.colorScheme.outlineVariant
-                            ),
-                            supportingText = {
-                                Text("Leave blank to use default browser User-Agent. Helps bypass anti-bot scrapers.")
-                            }
-                        )
-
-                        PreferenceDivider()
-
-                        OutlinedTextField(
-                            value = refererText,
-                            onValueChange = {
-                                refererText = it
-                                ytdlPreferences.referer.set(it)
-                            },
-                            label = { Text("Referer") },
-                            placeholder = { Text("https://www.youtube.com/") },
-                            singleLine = true,
-                            shape = RoundedCornerShape(12.dp),
-                            modifier = Modifier.fillMaxWidth(),
-                        )
-
-                        OutlinedTextField(
-                            value = cookiesFileText,
-                            onValueChange = {
-                                cookiesFileText = it
-                                ytdlPreferences.cookiesFile.set(it)
-                            },
-                            label = { Text("Cookies File") },
-                            placeholder = { Text("/storage/emulated/0/Download/cookies.txt") },
-                            singleLine = true,
-                            shape = RoundedCornerShape(12.dp),
-                            modifier = Modifier.fillMaxWidth(),
-                        )
-
-                        OutlinedTextField(
-                            value = proxyText,
-                            onValueChange = {
-                                proxyText = it
-                                ytdlPreferences.proxy.set(it)
-                            },
-                            label = { Text("Proxy") },
-                            placeholder = { Text("socks5://127.0.0.1:1080") },
-                            singleLine = true,
-                            shape = RoundedCornerShape(12.dp),
-                            modifier = Modifier.fillMaxWidth(),
-                        )
-
-                        OutlinedTextField(
-                            value = extractorArgsText,
-                            onValueChange = {
-                                extractorArgsText = it
-                                ytdlPreferences.extractorArgs.set(it)
-                            },
-                            label = { Text("Extractor Args") },
-                            placeholder = { Text("youtube:player_client=android,web") },
-                            singleLine = false,
-                            maxLines = 2,
-                            shape = RoundedCornerShape(12.dp),
-                            modifier = Modifier.fillMaxWidth(),
-                        )
-
-                        OptionDropdown(
-                            title = "Playlist Behavior",
-                            value = playlistMode,
-                            values = YtdlPlaylistMode.entries,
-                            valueLabel = { it.title },
-                            onValueChange = { ytdlPreferences.playlistMode.set(it) },
-                        )
-
-                        SwitchPreference(
-                            value = geoBypass,
-                            onValueChange = { ytdlPreferences.geoBypass.set(it) },
-                            title = { Text("Geo Bypass", fontWeight = FontWeight.Medium) },
-                            summary = { Text("Ask yt-dlp to use its extractor-level region bypass logic.") }
-                        )
-
-                        SwitchPreference(
-                            value = liveFromStart,
-                            onValueChange = { ytdlPreferences.liveFromStart.set(it) },
-                            title = { Text("Live From Start", fontWeight = FontWeight.Medium) },
-                            summary = { Text("Start live streams from the beginning when the extractor supports it.") }
-                        )
-
-                        OutlinedTextField(
-                            value = sponsorBlockMarkText,
-                            onValueChange = {
-                                sponsorBlockMarkText = it
-                                ytdlPreferences.sponsorBlockMark.set(it)
-                            },
-                            label = { Text("SponsorBlock Mark") },
-                            placeholder = { Text("sponsor,selfpromo") },
-                            singleLine = true,
-                            shape = RoundedCornerShape(12.dp),
-                            modifier = Modifier.fillMaxWidth(),
-                        )
-
-                        OutlinedTextField(
-                            value = sponsorBlockRemoveText,
-                            onValueChange = {
-                                sponsorBlockRemoveText = it
-                                ytdlPreferences.sponsorBlockRemove.set(it)
-                            },
-                            label = { Text("SponsorBlock Remove") },
-                            placeholder = { Text("sponsor") },
-                            singleLine = true,
-                            shape = RoundedCornerShape(12.dp),
-                            modifier = Modifier.fillMaxWidth(),
-                        )
-
-                        PreferenceDivider()
-
-                        OutlinedTextField(
-                            value = rawOptionsText,
-                            onValueChange = { 
-                                rawOptionsText = it
-                                ytdlPreferences.customRawOptions.set(it)
-                            },
-                            label = { Text("Raw yt-dlp Options") },
-                            placeholder = { Text("extractor-args=\"youtube:player_client=android,web\"\ngeo-bypass=") },
-                            singleLine = false,
-                            maxLines = 6,
-                            shape = RoundedCornerShape(12.dp),
-                            modifier = Modifier.fillMaxWidth(),
-                            colors = OutlinedTextFieldDefaults.colors(
-                                focusedBorderColor = MaterialTheme.colorScheme.primary,
-                                unfocusedBorderColor = MaterialTheme.colorScheme.outlineVariant
-                            ),
-                            supportingText = {
-                                Text("Anything not exposed above. Separate options with new lines or commas; quote values that contain commas.")
-                            }
-                        )
-                    }
-                }
-
-                PreferenceSectionHeader(title = "Engine Installer")
-
-                PreferenceCard {
-                    Column(
-                        modifier = Modifier.padding(16.dp),
-                        verticalArrangement = Arrangement.spacedBy(12.dp)
-                    ) {
-                        Text(
-                            text = "Manage yt-dlp Environment",
-                            style = MaterialTheme.typography.bodyMedium,
-                            fontWeight = FontWeight.Bold,
-                            color = MaterialTheme.colorScheme.onSurface
-                        )
-                        Text(
-                            text = "Download the latest wrapper modules and compile python-friendly native binaries inside local sandboxed folders.",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                        
                         Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.spacedBy(12.dp)
-                        ) {
-                            Button(
-                                onClick = {
-                                    scope.launch {
-                                        isRunning = true
-                                        logs = ""
-                                        YtdlpManager.runInstall(context) { line ->
-                                            logs += line
-                                        }
-                                        isRunning = false
-                                    }
-                                },
-                                enabled = !isRunning,
-                                shape = RoundedCornerShape(16.dp),
-                                modifier = Modifier.weight(1f),
-                                colors = ButtonDefaults.buttonColors(
-                                    containerColor = MaterialTheme.colorScheme.primary,
-                                    contentColor = MaterialTheme.colorScheme.onPrimary
-                                )
-                            ) {
-                                Icon(Icons.Default.Download, null, modifier = Modifier.size(18.dp))
-                                Spacer(Modifier.width(8.dp))
-                                Text("Install Core")
-                            }
-
-                            OutlinedButton(
-                                onClick = {
-                                    scope.launch {
-                                        isRunning = true
-                                        logs = ""
-                                        YtdlpManager.runUpdate(context) { line ->
-                                            logs += line
-                                        }
-                                        isRunning = false
-                                    }
-                                },
-                                enabled = !isRunning && hasYtdlp,
-                                shape = RoundedCornerShape(16.dp),
-                                modifier = Modifier.weight(1f),
-                                colors = ButtonDefaults.outlinedButtonColors(
-                                    contentColor = MaterialTheme.colorScheme.primary
-                                ),
-                                border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant)
-                            ) {
-                                Icon(Icons.Default.Update, null, modifier = Modifier.size(18.dp))
-                                Spacer(Modifier.width(8.dp))
-                                Text("Update Core")
-                            }
-                        }
-                    }
-                }
-
-                // High-Tech Console Terminal
-                AnimatedVisibility(
-                    visible = isRunning || logs.isNotEmpty(),
-                    enter = androidx.compose.animation.expandVertically(),
-                    exit = androidx.compose.animation.shrinkVertically()
-                ) {
-                    Column(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(horizontal = 16.dp, vertical = 8.dp)
-                    ) {
-                        // Terminal Header
-                        Surface(
-                            color = Color(0xFF0F1419),
-                            shape = RoundedCornerShape(topStart = 16.dp, topEnd = 16.dp),
-                            modifier = Modifier.fillMaxWidth()
-                        ) {
-                            Row(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .padding(horizontal = 16.dp, vertical = 8.dp),
-                                horizontalArrangement = Arrangement.SpaceBetween,
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Row(
-                                    verticalAlignment = Alignment.CenterVertically,
-                                    horizontalArrangement = Arrangement.spacedBy(8.dp)
-                                ) {
-                                    // Simulated Terminal status dots
-                                    Box(modifier = Modifier.size(8.dp).clip(RoundedCornerShape(4.dp)).background(Color(0xFFFF5F56)))
-                                    Box(modifier = Modifier.size(8.dp).clip(RoundedCornerShape(4.dp)).background(Color(0xFFFFBD2E)))
-                                    Box(modifier = Modifier.size(8.dp).clip(RoundedCornerShape(4.dp)).background(Color(0xFF27C93F)))
-                                    Spacer(Modifier.width(4.dp))
-                                    Text(
-                                        text = "engine-terminal.sh",
-                                        style = TextStyle(
-                                            fontFamily = FontFamily.Monospace,
-                                            fontSize = 11.sp,
-                                            fontWeight = FontWeight.Bold,
-                                            color = Color(0xFFE6B450)
-                                        )
-                                    )
-                                }
-                                
-                                Row(
-                                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                                    verticalAlignment = Alignment.CenterVertically
-                                ) {
-                                    if (isRunning) {
-                                        CircularProgressIndicator(
-                                            modifier = Modifier.size(14.dp),
-                                            strokeWidth = 2.dp,
-                                            color = Color(0xFF00FF99)
-                                        )
-                                    }
-                                    
-                                    IconButton(
-                                        onClick = {
-                                            SafeClipboard.copyPlainText(context, "yt-dlp logs", logs)
-                                        },
-                                        modifier = Modifier.size(24.dp)
-                                    ) {
-                                        Icon(
-                                            imageVector = Icons.Default.ContentCopy,
-                                            contentDescription = "Copy logs",
-                                            tint = Color(0xFFB3B3B3),
-                                            modifier = Modifier.size(14.dp)
-                                        )
-                                    }
-                                    
-                                    IconButton(
-                                        onClick = { logs = "" },
-                                        modifier = Modifier.size(24.dp),
-                                        enabled = !isRunning
-                                    ) {
-                                        Icon(
-                                            imageVector = Icons.Default.Delete,
-                                            contentDescription = "Clear logs",
-                                            tint = if (isRunning) Color(0xFF555555) else Color(0xFFB3B3B3),
-                                            modifier = Modifier.size(14.dp)
-                                        )
-                                    }
-                                }
-                            }
-                        }
-                        
-                        // Terminal logs content
-                        Surface(
-                            color = Color(0xFF070B0E),
-                            shape = RoundedCornerShape(bottomStart = 16.dp, bottomEnd = 16.dp),
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .heightIn(max = 280.dp)
+                                .clickable { showAdvancedNetworking = !showAdvancedNetworking }
+                                .padding(16.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.SpaceBetween
                         ) {
-                            val terminalScrollState = rememberScrollState()
-                            
-                            LaunchedEffect(logs) {
-                                terminalScrollState.animateScrollTo(terminalScrollState.maxValue)
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text(
+                                    text = "Advanced Configurations",
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    fontWeight = FontWeight.Bold,
+                                    color = MaterialTheme.colorScheme.onSurface
+                                )
+                                Text(
+                                    text = "Custom HTTP agent, proxy, extractor args, SponsorBlock, and raw options",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
                             }
-                            
-                            Box(
+                            Icon(
+                                imageVector = if (showAdvancedNetworking) Icons.Default.KeyboardArrowUp else Icons.Default.KeyboardArrowDown,
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.primary
+                            )
+                        }
+                        
+                        if (showAdvancedNetworking) {
+                            Column(
                                 modifier = Modifier
                                     .fillMaxWidth()
-                                    .verticalScroll(terminalScrollState)
-                                    .padding(16.dp)
+                                    .padding(horizontal = 16.dp)
+                                    .padding(bottom = 16.dp),
+                                verticalArrangement = Arrangement.spacedBy(MaterialTheme.spacing.medium)
                             ) {
-                                Text(
-                                    text = logs.ifEmpty { "Ready..." },
-                                    style = TextStyle(
-                                        fontFamily = FontFamily.Monospace,
-                                        fontSize = 12.sp,
-                                        lineHeight = 16.sp,
-                                        color = Color(0xFF00FF99)
-                                    )
+                                PreferenceDivider()
+
+                                OutlinedTextField(
+                                    value = formatSortText,
+                                    onValueChange = {
+                                        formatSortText = it
+                                        ytdlPreferences.formatSort.set(it)
+                                    },
+                                    label = { Text("Format Sort") },
+                                    placeholder = { Text("res,fps,hdr:12,vcodec:vp9.2") },
+                                    singleLine = true,
+                                    shape = RoundedCornerShape(12.dp),
+                                    modifier = Modifier.fillMaxWidth(),
+                                    supportingText = { Text("Passed to yt-dlp as format-sort for advanced ranking.") }
+                                )
+
+                                PreferenceDivider()
+
+                                OutlinedTextField(
+                                    value = mergeOutputFormatText,
+                                    onValueChange = {
+                                        mergeOutputFormatText = it
+                                        ytdlPreferences.mergeOutputFormat.set(it)
+                                    },
+                                    label = { Text("Merge Output Format") },
+                                    placeholder = { Text("mp4, mkv, webm") },
+                                    singleLine = true,
+                                    shape = RoundedCornerShape(12.dp),
+                                    modifier = Modifier.fillMaxWidth(),
+                                )
+                                
+                                PreferenceDivider()
+                                
+                                OutlinedTextField(
+                                    value = userAgentText,
+                                    onValueChange = { 
+                                        userAgentText = it
+                                        ytdlPreferences.customUserAgent.set(it)
+                                    },
+                                    label = { Text("Custom User-Agent Override") },
+                                    placeholder = { Text("Mozilla/5.0 ...") },
+                                    singleLine = false,
+                                    maxLines = 3,
+                                    shape = RoundedCornerShape(12.dp),
+                                    modifier = Modifier.fillMaxWidth(),
+                                    colors = OutlinedTextFieldDefaults.colors(
+                                        focusedBorderColor = MaterialTheme.colorScheme.primary,
+                                        unfocusedBorderColor = MaterialTheme.colorScheme.outlineVariant
+                                    ),
+                                    supportingText = {
+                                        Text("Leave blank to use default browser User-Agent. Helps bypass anti-bot scrapers.")
+                                    }
+                                )
+
+                                PreferenceDivider()
+
+                                OutlinedTextField(
+                                    value = refererText,
+                                    onValueChange = {
+                                        refererText = it
+                                        ytdlPreferences.referer.set(it)
+                                    },
+                                    label = { Text("Referer") },
+                                    placeholder = { Text("https://www.youtube.com/") },
+                                    singleLine = true,
+                                    shape = RoundedCornerShape(12.dp),
+                                    modifier = Modifier.fillMaxWidth(),
+                                )
+
+                                OutlinedTextField(
+                                    value = cookiesFileText,
+                                    onValueChange = {
+                                        cookiesFileText = it
+                                        ytdlPreferences.cookiesFile.set(it)
+                                    },
+                                    label = { Text("Cookies File") },
+                                    placeholder = { Text("/storage/emulated/0/Download/cookies.txt") },
+                                    singleLine = true,
+                                    shape = RoundedCornerShape(12.dp),
+                                    modifier = Modifier.fillMaxWidth(),
+                                )
+
+                                OutlinedTextField(
+                                    value = proxyText,
+                                    onValueChange = {
+                                        proxyText = it
+                                        ytdlPreferences.proxy.set(it)
+                                    },
+                                    label = { Text("Proxy") },
+                                    placeholder = { Text("socks5://127.0.0.1:1080") },
+                                    singleLine = true,
+                                    shape = RoundedCornerShape(12.dp),
+                                    modifier = Modifier.fillMaxWidth(),
+                                )
+
+                                OutlinedTextField(
+                                    value = extractorArgsText,
+                                    onValueChange = {
+                                        extractorArgsText = it
+                                        ytdlPreferences.extractorArgs.set(it)
+                                    },
+                                    label = { Text("Extractor Args") },
+                                    placeholder = { Text("youtube:player_client=android,web") },
+                                    singleLine = false,
+                                    maxLines = 2,
+                                    shape = RoundedCornerShape(12.dp),
+                                    modifier = Modifier.fillMaxWidth(),
+                                )
+
+                                OptionDropdown(
+                                    title = "Playlist Behavior",
+                                    value = playlistMode,
+                                    values = YtdlPlaylistMode.entries,
+                                    valueLabel = { it.title },
+                                    onValueChange = { ytdlPreferences.playlistMode.set(it) },
+                                )
+
+                                SwitchPreference(
+                                    value = geoBypass,
+                                    onValueChange = { ytdlPreferences.geoBypass.set(it) },
+                                    title = { Text("Geo Bypass", fontWeight = FontWeight.Medium) },
+                                    summary = { Text("Ask yt-dlp to use its extractor-level region bypass logic.") }
+                                )
+
+                                SwitchPreference(
+                                    value = liveFromStart,
+                                    onValueChange = { ytdlPreferences.liveFromStart.set(it) },
+                                    title = { Text("Live From Start", fontWeight = FontWeight.Medium) },
+                                    summary = { Text("Start live streams from the beginning when the extractor supports it.") }
+                                )
+
+                                OutlinedTextField(
+                                    value = sponsorBlockMarkText,
+                                    onValueChange = {
+                                        sponsorBlockMarkText = it
+                                        ytdlPreferences.sponsorBlockMark.set(it)
+                                    },
+                                    label = { Text("SponsorBlock Mark") },
+                                    placeholder = { Text("sponsor,selfpromo") },
+                                    singleLine = true,
+                                    shape = RoundedCornerShape(12.dp),
+                                    modifier = Modifier.fillMaxWidth(),
+                                )
+
+                                OutlinedTextField(
+                                    value = sponsorBlockRemoveText,
+                                    onValueChange = {
+                                        sponsorBlockRemoveText = it
+                                        ytdlPreferences.sponsorBlockRemove.set(it)
+                                    },
+                                    label = { Text("SponsorBlock Remove") },
+                                    placeholder = { Text("sponsor") },
+                                    singleLine = true,
+                                    shape = RoundedCornerShape(12.dp),
+                                    modifier = Modifier.fillMaxWidth(),
+                                )
+
+                                PreferenceDivider()
+
+                                OutlinedTextField(
+                                    value = rawOptionsText,
+                                    onValueChange = { 
+                                        rawOptionsText = it
+                                        ytdlPreferences.customRawOptions.set(it)
+                                    },
+                                    label = { Text("Raw yt-dlp Options") },
+                                    placeholder = { Text("extractor-args=\"youtube:player_client=android,web\"\ngeo-bypass=") },
+                                    singleLine = false,
+                                    maxLines = 6,
+                                    shape = RoundedCornerShape(12.dp),
+                                    modifier = Modifier.fillMaxWidth(),
+                                    colors = OutlinedTextFieldDefaults.colors(
+                                        focusedBorderColor = MaterialTheme.colorScheme.primary,
+                                        unfocusedBorderColor = MaterialTheme.colorScheme.outlineVariant
+                                    ),
+                                    supportingText = {
+                                        Text("Anything not exposed above. Separate options with new lines or commas; quote values that contain commas.")
+                                    }
                                 )
                             }
                         }
                     }
                 }
+
+                // Engine Installer moved to top
             }
         }
     }
@@ -761,6 +710,7 @@ private fun YtdlpOptionSettings.Companion.fromYtdlPreferences(prefs: YtdlPrefere
         maxFps = prefs.maxFps.get(),
         hdrPreference = prefs.hdrPreference.get(),
         containerPreference = prefs.containerPreference.get(),
+        audioPreference = prefs.audioPreference.get(),
     )
 
 @Composable

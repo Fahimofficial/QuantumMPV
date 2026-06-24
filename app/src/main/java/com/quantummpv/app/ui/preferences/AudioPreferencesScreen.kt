@@ -87,7 +87,12 @@ object AudioPreferencesScreen : Screen {
           TextFieldPreference(
             value = preferredLanguages,
             onValueChange = { preferences.preferredLanguages.set(it) },
-            textToValue = { it },
+            textToValue = { input ->
+              input.split(",")
+                .map { it.trim().lowercase() }
+                .filter { it.isNotEmpty() }
+                .joinToString(",")
+            },
             title = { Text(stringResource(R.string.pref_preferred_languages)) },
             summary = {
                 if (preferredLanguages.isNotBlank()) {

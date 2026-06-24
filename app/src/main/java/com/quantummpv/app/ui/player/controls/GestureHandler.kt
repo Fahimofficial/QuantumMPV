@@ -1175,7 +1175,7 @@ fun GestureHandler(
                     if (useThumbFastSeekPreview) {
                       viewModel.updateSeekThumbnailPreview(clampedPosition, maxDuration)
                     } else {
-                      viewModel.seekTo(clampedPosition.toInt())
+                      viewModel.seekTo(clampedPosition.toInt(), fast = true)
                     }
                     
                     // Format and display time position updates
@@ -1222,6 +1222,8 @@ fun GestureHandler(
             if (useThumbFastSeekPreview) {
               pendingSeekPosition?.let { viewModel.seekTo(it.toInt()) }
               viewModel.hideSeekThumbnailPreview()
+            } else {
+              pendingSeekPosition?.let { viewModel.seekTo(it.toInt(), fast = false) }
             }
             if (gestureType == "subtitle_dialog_seek") {
               coroutineScope.launch {

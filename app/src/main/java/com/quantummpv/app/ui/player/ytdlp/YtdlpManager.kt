@@ -110,10 +110,10 @@ object YtdlpManager {
             Log.w(TAG, "yt-dlp not found in ${ytDlpFile.absolutePath}. Subprocess will fail until installed.")
         }
 
-        val resolvedOptions = YtdlpOptionsBuilder.build(
-            YtdlpOptionSettings.fromPreferences(ytdlPreferences, subtitlesPreferences),
-        )
+        val settings = YtdlpOptionSettings.fromPreferences(ytdlPreferences, subtitlesPreferences)
+        val resolvedOptions = YtdlpOptionsBuilder.build(settings)
         val ua = ytdlPreferences.customUserAgent.get().ifBlank { YtdlpOptionsBuilder.DEFAULT_USER_AGENT }
+        val allFormats = if (settings.audioPreference == YtdlAudioPreference.AUTO) "no" else "yes"
 
         // Create script-opts/ytdl_hook.conf to ensure the script picks up our bridge
         // This is the most reliable way to override ytdl_hook options
@@ -123,7 +123,7 @@ object YtdlpManager {
             val ytdlConf = File(scriptOptsDir, "ytdl_hook.conf")
             val confContent = """
                 ytdl_path=$ytdlBinaryPath
-                all_formats=yes
+                all_formats=$allFormats
                 exclude=$DIRECT_MEDIA_EXCLUDE
             """.trimIndent()
             ytdlConf.writeText(confContent)
@@ -139,7 +139,7 @@ object YtdlpManager {
         // Use script-opts-append for runtime flexibility
         MPVLib.setOptionString("script-opts-append", "ytdl_hook-path=$ytdlBinaryPath")
         MPVLib.setOptionString("script-opts-append", "ytdl_hook-ytdl_path=$ytdlBinaryPath")
-        MPVLib.setOptionString("script-opts-append", "ytdl_hook-all_formats=yes")
+        MPVLib.setOptionString("script-opts-append", "ytdl_hook-all_formats=$allFormats")
         // Skip yt-dlp for direct media/manifest URLs (.m3u8/.mpd/.mp4/.ts/...). Without this,
         // ytdl_hook intercepts every http(s) URL and routes it through yt-dlp's generic
         // extractor, which chokes on tokenized HLS/CDN links — so mpv never falls back to
@@ -185,6 +185,16 @@ object YtdlpManager {
         val command = mutableListOf(pythonBinary, ytDlp, "--update")
         
         runPythonProcess("Updating yt-dlp...", command, context, onLog)
+    }
+
+    suspend fun runUpdateToNightly(context: Context, onLog: (String) -> Unit): Boolean = withContext(Dispatchers.IO) {
+        val ytdlDir = getYtdlDir(context)
+        val pythonBinary = getExecutablePath(context)
+        val ytDlp = File(ytdlDir, "yt-dlp").absolutePath
+
+        val command = mutableListOf(pythonBinary, ytDlp, "--update-to", "nightly")
+        
+        runPythonProcess("Updating to yt-dlp nightly...", command, context, onLog)
     }
 
     private fun runPythonProcess(title: String, command: List<String>, context: Context, onLog: (String) -> Unit): Boolean {

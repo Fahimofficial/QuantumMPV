@@ -3043,7 +3043,7 @@ class PlayerViewModel(
     coalesceSeek(offset)
   }
 
-  fun seekTo(position: Int) {
+  fun seekTo(position: Int, fast: Boolean = false) {
     viewModelScope.launch(Dispatchers.IO) {
       val maxDuration = MPVLib.getPropertyInt("duration") ?: 0
       var clampedPosition = position.coerceIn(0, maxDuration)
@@ -3064,8 +3064,13 @@ class PlayerViewModel(
       pendingSeekOffset = 0
 
       // Use precise seeking for videos shorter than 2 minutes (120 seconds) or if preference is enabled
-      val shouldUsePreciseSeeking = playerPreferences.usePreciseSeeking.get() || maxDuration < 120
-      val seekMode = if (shouldUsePreciseSeeking) "absolute+exact" else "absolute+keyframes"
+      // If fast is true, override and use keyframe seeking for speed
+      val seekMode = if (fast) {
+        "absolute+keyframes"
+      } else {
+        val shouldUsePreciseSeeking = playerPreferences.usePreciseSeeking.get() || maxDuration < 120
+        if (shouldUsePreciseSeeking) "absolute+exact" else "absolute+keyframes"
+      }
       MPVLib.command("seek", clampedPosition.toString(), seekMode)
     }
   }

@@ -186,12 +186,17 @@ fun VideoCompressorOverlay(
     }
 
   Dialog(
-    onDismissRequest = {},
+    onDismissRequest = {
+      if (state.isCompressing) {
+        viewModel.cancelCompression()
+      }
+      closeOverlay()
+    },
     properties =
       DialogProperties(
         usePlatformDefaultWidth = false,
         decorFitsSystemWindows = false,
-        dismissOnBackPress = false,
+        dismissOnBackPress = true,
         dismissOnClickOutside = false,
       ),
   ) {

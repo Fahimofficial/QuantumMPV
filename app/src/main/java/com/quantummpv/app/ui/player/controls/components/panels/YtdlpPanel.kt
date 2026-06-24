@@ -1,26 +1,16 @@
 package com.quantummpv.app.ui.player.controls.components.panels
 
-import android.widget.Toast
-import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.animateContentSize
 import androidx.compose.foundation.BorderStroke
-import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.text.TextStyle
-import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import com.quantummpv.app.preferences.YtdlPreferences
 import com.quantummpv.app.preferences.preference.collectAsState
 import com.quantummpv.app.ui.icons.Icon
@@ -31,7 +21,6 @@ import com.quantummpv.app.ui.player.ytdlp.YtdlpManager
 import com.quantummpv.app.ui.player.ytdlp.YtdlpOptionSettings
 import com.quantummpv.app.ui.player.ytdlp.YtdlpOptionsBuilder
 import com.quantummpv.app.ui.theme.spacing
-import com.quantummpv.app.utils.clipboard.SafeClipboard
 import kotlinx.coroutines.launch
 import org.koin.compose.koinInject
 import java.io.File
@@ -44,9 +33,7 @@ fun YtdlpPanel(
 ) {
   val context = LocalContext.current
   val scope = rememberCoroutineScope()
-  var logs by remember { mutableStateOf("") }
   var isRunning by remember { mutableStateOf(false) }
-  var selectedTab by remember { mutableIntStateOf(0) }
 
   val ytdlPreferences = koinInject<YtdlPreferences>()
   val ytdlQuality by ytdlPreferences.ytdlQuality.collectAsState()
@@ -71,57 +58,21 @@ fun YtdlpPanel(
   DraggablePanel(
     modifier = modifier,
     header = {
-      Column(modifier = Modifier.fillMaxWidth()) {
-        Row(
-          verticalAlignment = Alignment.CenterVertically,
-          horizontalArrangement = Arrangement.SpaceBetween,
-          modifier = Modifier
-            .fillMaxWidth()
-            .padding(horizontal = MaterialTheme.spacing.medium)
-            .padding(top = MaterialTheme.spacing.small, bottom = MaterialTheme.spacing.extraSmall),
-        ) {
-          Text(
-            text = "yt-dlp Manager",
-            style = MaterialTheme.typography.titleLarge,
-            fontWeight = FontWeight.Bold
-          )
-          IconButton(onClick = onDismissRequest) {
-            Icon(Icons.Default.Close, null, modifier = Modifier.size(24.dp))
-          }
-        }
-        
-        // Expressive M3 Tabs
-        PrimaryTabRow(
-          selectedTabIndex = selectedTab,
-          containerColor = Color.Transparent,
-          divider = { HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.3f)) },
-          modifier = Modifier.padding(horizontal = 8.dp)
-        ) {
-          Tab(
-            selected = selectedTab == 0,
-            onClick = { selectedTab = 0 },
-            text = { Text("Settings", fontWeight = FontWeight.SemiBold) }
-          )
-          Tab(
-            selected = selectedTab == 1,
-            onClick = { selectedTab = 1 },
-            text = { 
-              Row(
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(6.dp)
-              ) {
-                Text("Console", fontWeight = FontWeight.SemiBold)
-                if (isRunning) {
-                  Box(
-                    modifier = Modifier
-                      .size(6.dp)
-                      .clip(RoundedCornerShape(3.dp))
-                      .background(MaterialTheme.colorScheme.primary)
-                  )
-                }
-              }
-            }
-          )
+      Row(
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.SpaceBetween,
+        modifier = Modifier
+          .fillMaxWidth()
+          .padding(horizontal = MaterialTheme.spacing.medium)
+          .padding(top = MaterialTheme.spacing.small, bottom = MaterialTheme.spacing.extraSmall),
+      ) {
+        Text(
+          text = "yt-dlp Manager",
+          style = MaterialTheme.typography.titleLarge,
+          fontWeight = FontWeight.Bold
+        )
+        IconButton(onClick = onDismissRequest) {
+          Icon(Icons.Default.Close, null, modifier = Modifier.size(24.dp))
         }
       }
     }
@@ -132,8 +83,7 @@ fun YtdlpPanel(
         .animateContentSize(),
       verticalArrangement = Arrangement.spacedBy(MaterialTheme.spacing.medium),
     ) {
-      if (selectedTab == 0) {
-        // Tab 1: Settings Panel
+      // Settings Panel
         
         // Compact Status Indicator
         Surface(
@@ -346,12 +296,8 @@ fun YtdlpPanel(
           Button(
             onClick = {
               scope.launch {
-                selectedTab = 1 // Switch to console logs view immediately so user sees logs!
                 isRunning = true
-                logs = ""
-                YtdlpManager.runInstall(context) { line ->
-                  logs += line
-                }
+                YtdlpManager.runInstall(context) {}
                 isRunning = false
               }
             },
@@ -367,12 +313,8 @@ fun YtdlpPanel(
           OutlinedButton(
             onClick = {
               scope.launch {
-                selectedTab = 1 // Switch to console logs view immediately
                 isRunning = true
-                logs = ""
-                YtdlpManager.runUpdate(context) { line ->
-                  logs += line
-                }
+                YtdlpManager.runUpdate(context) {}
                 isRunning = false
               }
             },
@@ -385,88 +327,6 @@ fun YtdlpPanel(
             Spacer(Modifier.width(8.dp))
             Text("Update Core")
           }
-        }
-      } else {
-        // Tab 2: Console Terminal emulator view
-        Column(
-          modifier = Modifier.fillMaxWidth(),
-          verticalArrangement = Arrangement.spacedBy(8.dp)
-        ) {
-          // Terminal Controls Row
-          Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically
-          ) {
-            Text(
-              text = if (isRunning) "Installing/Updating..." else "Terminal Idle",
-              style = MaterialTheme.typography.bodySmall,
-              fontWeight = FontWeight.Bold,
-              color = if (isRunning) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
-            )
-            
-            Row(
-              horizontalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-              IconButton(
-                onClick = {
-                  SafeClipboard.copyPlainText(context, "yt-dlp logs", logs)
-                },
-                modifier = Modifier.size(32.dp)
-              ) {
-                Icon(
-                  imageVector = Icons.Default.ContentCopy,
-                  contentDescription = "Copy logs",
-                  modifier = Modifier.size(16.dp)
-                )
-              }
-              
-              IconButton(
-                onClick = { logs = "" },
-                modifier = Modifier.size(32.dp),
-                enabled = !isRunning
-              ) {
-                Icon(
-                  imageVector = Icons.Default.Delete,
-                  contentDescription = "Clear logs",
-                  modifier = Modifier.size(16.dp)
-                )
-              }
-            }
-          }
-          
-          // Terminal Console output container
-          Surface(
-            color = Color(0xFF0F1419),
-            shape = RoundedCornerShape(16.dp),
-            modifier = Modifier
-              .fillMaxWidth()
-              .heightIn(max = 240.dp)
-          ) {
-            val terminalScrollState = rememberScrollState()
-            
-            LaunchedEffect(logs) {
-              terminalScrollState.animateScrollTo(terminalScrollState.maxValue)
-            }
-            
-            Box(
-              modifier = Modifier
-                .fillMaxWidth()
-                .verticalScroll(terminalScrollState)
-                .padding(12.dp)
-            ) {
-              Text(
-                text = logs.ifEmpty { "Console output is ready...\nInstall or update to trigger output." },
-                style = TextStyle(
-                  fontFamily = FontFamily.Monospace,
-                  fontSize = 11.sp,
-                  lineHeight = 15.sp,
-                  color = Color(0xFF00FF99)
-                )
-              )
-            }
-          }
-        }
       }
     }
   }
@@ -482,6 +342,7 @@ private fun updateFormatString(prefs: YtdlPreferences) {
         maxFps = prefs.maxFps.get(),
         hdrPreference = prefs.hdrPreference.get(),
         containerPreference = prefs.containerPreference.get(),
+        audioPreference = prefs.audioPreference.get(),
       ),
     ),
   )

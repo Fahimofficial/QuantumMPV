@@ -1354,7 +1354,7 @@ fun PlayerControls(
               if (useThumbFastSeekPreview) {
                 viewModel.updateSeekThumbnailPreview(it, seekbarDuration)
               } else {
-                viewModel.seekTo(it.toInt())
+                viewModel.seekTo(it.toInt(), fast = true)
               }
             },
             onValueChangeFinished = { targetPosition ->
@@ -1363,7 +1363,7 @@ fun PlayerControls(
               if (useThumbFastSeekPreview) {
                 viewModel.hideSeekThumbnailPreview()
               }
-              viewModel.seekTo(targetPosition.toInt())
+              viewModel.seekTo(targetPosition.toInt(), fast = false)
               viewModel.showControls()
             },
             timersInverted = Pair(false, invertDuration),
