@@ -2,6 +2,54 @@
 
 These notes are written in plain English and focus on what changed for real use.
 
+## 1.5.0-preview.1 — Preview Release
+
+### 📦 MpvLib Update
+- Updated mpv library and its dependencies 
+
+### ⚡ Performance & Stability
+- **Startup optimization**: Deferred cold-start DB initialization, grammar pre-load, and auto-update check to cut first-frame time significantly
+- **Memory leak fixes**: Plugged 5 memory leaks across PlayerActivity (screen-state receiver), PlayerViewModel (LRU caches, temp subtitle cleanup), MediaPlaybackService (bitmap leak), MainActivity (unused scope), and NetworkLifecycleObserver (uncancelled coroutine)
+- **UI smoothness**: Optimized seekbar spring animation, precomputed skip-segment colors, memoized immutable copies in PlayerControls, hoisted per-card preference collectors
+- **Player crash fix**: Resolved a crash in PlayerActivity during stream initialization
+- **Streaming optimizations**: Load network streams on `Dispatchers.IO` instead of Default to reduce CPU pool contention
+
+### 🎨 UI/UX Improvements
+- **Dynamic Grids**: Added responsive grid layouts — auto-adjusts column count based on screen width across FileSystemBrowser, FolderList, VideoList, Playlist, and RecentlyPlayed screens
+- **Centered controls**: Play/pause and navigation buttons now center in portrait mode
+- **Haptic feedback**: Sort dialog sliders now provide haptic ticks on snap
+- **Slider layout**: Column sliders placed side-by-side for better space usage
+- **Theme refresh**: Boosted container saturation and surface tints across all themes (light/dark) for vivid, non-washed-out appearance
+- **Subtitle sheet redesign**: Inline SeriesSelectionControls directly in the OnlineSubtitleSearchSheet search row
+- **Compressor back-press fix**: Video compressor overlay now handles system back press correctly
+
+### 🎥 Player & Streaming
+- **HLS/DASH streaming fix**: Direct media URLs (.m3u8/.mpd/.mp4/.ts) now bypass yt-dlp and use mpv's native ffmpeg HLS demuxer — these streams previously failed in yt-dlp's generic extractor
+- **yt-dlp audio selection**: New audio track selector in the yt-dlp panel; preferred languages sanitization for better auto-selection
+- **Collapsible advanced settings**: YtdlpSettingsScreen now organizes advanced options under collapsible sections
+- **Console option**: Added Console toggle in MoreSheet stats rows — opens the mpv debug console via script-message
+- **Subtitle hitbox fixes**: Dynamic hitbox detection for multi-line wrapped text; fixed hitbox under zoom/pan; lowered minimum subtitle scale limit
+- **Subtitle loading fix**: Fixed subtitle loading and player overlay issues with IntentSubtitleLoadPolicy and M3uPlaybackPolicy
+- **Negative brightness**: Added negative brightness range support in vertical sliders
+- **Streaming overlays**: Fixed streaming playback overlays and thumbnail rendering
+
+### 🔍 Anime Skip Provider
+- New **Anime Skip** provider (api.anime-skip.com GraphQL) for intro/ending detection — searches via MAL ID, pairs consecutive timestamps
+- Removed dead db.videasy.net TMDB mirror (providers now skip IMDB resolution without it)
+- Cleaned up WyzieSearchRepository: removed fallback mirror logic and dead VideasyTmdbTrendingResponse
+
+### 📁 Media Search Engine
+- **New MediaSearchEngine**: Dedicated search engine for searching files/folders with optimized indexing
+- **FolderListScreen integration**: Search across folders and videos using the new engine with VideoFolder references
+- **Multiple refactors**: Cleaned up search logic, improved readability, and added Kotlin smart-casting clarifications
+
+### 🐛 Bug Fixes
+- Fixed mpv console ytdl_hook warnings (removed invalid 'all_subtitles' option)
+- Fixed video-aspect-override deprecation warnings
+- Resolved player crash during stream playback
+- Fixed subtitle swipe gesture hitbox
+- Fixed dynamic grid rendering edge cases
+
 ## 1.4.1-final
 
 ### Player, Playback & Stability

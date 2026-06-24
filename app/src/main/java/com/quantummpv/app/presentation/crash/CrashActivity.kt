@@ -212,16 +212,10 @@ class CrashActivity : ComponentActivity() {
       Device brand: ${Build.BRAND}
       Device manufacturer: ${Build.MANUFACTURER}
       Device model: ${Build.MODEL} (${Build.DEVICE})
-      MPV version: ${Utils.VERSIONS.mpv.cleanBundledMpvVersion()}
+      MPV version: ${Utils.VERSIONS.mpv}
       ffmpeg version: ${Utils.VERSIONS.ffmpeg}
       libplacebo version: ${Utils.VERSIONS.libPlacebo}
       """.trimIndent()
-
-    private fun String.cleanBundledMpvVersion(): String =
-      replace("-UNKNOWN", "")
-        .replace("+UNKNOWN", "")
-        .replace("_UNKNOWN", "")
-        .trim()
   }
 
   @Composable
