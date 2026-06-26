@@ -157,12 +157,15 @@ object AdvancedPreferencesScreen : Screen {
           Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_GRANT_WRITE_URI_PERMISSION,
         )
         val uriString = uri.toString()
+        val previousBaseStorageFolder = foldersPreferences.baseStorageFolder.get()
+        if (subtitlesPreferences.fontsFolder.get() == previousBaseStorageFolder) {
+          subtitlesPreferences.fontsFolder.set("")
+        }
         foldersPreferences.baseStorageFolder.set(uriString)
         preferences.mpvConfStorageUri.set(uriString)
         subtitlesPreferences.subtitleSaveFolder.set(uriString)
-        subtitlesPreferences.fontsFolder.set(uriString)
         val root = DocumentFile.fromTreeUri(context, uri) ?: return@rememberLauncherForActivityResult
-        listOf("fonts", "Subtitles", "scripts", "script-modules", "script-opts", "shaders").forEach { name ->
+        listOf("fonts", "Subtitles", "scripts", "script-opts", "shaders").forEach { name ->
           if (root.findFile(name) == null) root.createDirectory(name)
         }
       }
@@ -325,10 +328,12 @@ object AdvancedPreferencesScreen : Screen {
                   title = { Text(stringResource(R.string.pref_clear_storage_root_title)) },
                   icon = { Icon(Icons.Default.Clear, contentDescription = null, tint = MaterialTheme.colorScheme.error) },
                   onClick = {
+                    if (subtitlesPreferences.fontsFolder.get() == baseStorageFolder) {
+                      subtitlesPreferences.fontsFolder.set("")
+                    }
                     foldersPreferences.baseStorageFolder.set("")
                     preferences.mpvConfStorageUri.set("")
                     subtitlesPreferences.subtitleSaveFolder.set("")
-                    subtitlesPreferences.fontsFolder.set("")
                   },
                 )
               }

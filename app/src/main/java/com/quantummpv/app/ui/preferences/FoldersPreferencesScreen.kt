@@ -92,12 +92,15 @@ object FoldersPreferencesScreen : Screen {
         Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_GRANT_WRITE_URI_PERMISSION,
       )
       val uriString = uri.toString()
+      val previousBaseStorageFolder = preferences.baseStorageFolder.get()
+      if (subtitlesPreferences.fontsFolder.get() == previousBaseStorageFolder) {
+        subtitlesPreferences.fontsFolder.set("")
+      }
       preferences.baseStorageFolder.set(uriString)
       advancedPreferences.mpvConfStorageUri.set(uriString)
       subtitlesPreferences.subtitleSaveFolder.set(uriString)
-      subtitlesPreferences.fontsFolder.set(uriString)
       val root = DocumentFile.fromTreeUri(context, uri) ?: return@rememberLauncherForActivityResult
-      listOf("fonts", "Subtitles", "scripts", "script-modules", "script-opts", "shaders").forEach { name ->
+      listOf("fonts", "Subtitles", "scripts", "script-opts", "shaders").forEach { name ->
         if (root.findFile(name) == null) root.createDirectory(name)
       }
     }
@@ -520,7 +523,7 @@ internal fun StorageRootPickerCard(
           text = if (currentPath.isNotEmpty())
             getSimplifiedStoragePath(currentPath)
           else
-            "Tap to select - creates Subtitles/, Fonts/, scripts/, script-modules/ subdirs",
+            "Tap to select - creates Subtitles/, Fonts/, scripts/, script-opts/ subdirs",
           style = MaterialTheme.typography.bodySmall,
           color = MaterialTheme.colorScheme.onSurfaceVariant,
           maxLines = 1,

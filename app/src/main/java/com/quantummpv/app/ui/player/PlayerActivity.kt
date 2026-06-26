@@ -54,7 +54,6 @@ import com.quantummpv.app.database.entities.PlaylistEntity
 import com.quantummpv.app.database.entities.PlaylistItemEntity
 import com.quantummpv.app.database.entities.PlaybackStateEntity
 import com.quantummpv.app.databinding.PlayerLayoutBinding
-import com.quantummpv.app.domain.anime4k.Anime4KManager
 import com.quantummpv.app.domain.playbackstate.repository.PlaybackStateRepository
 import com.quantummpv.app.preferences.AdvancedPreferences
 import com.quantummpv.app.preferences.AppearancePreferences
@@ -583,11 +582,15 @@ class PlayerActivity :
               val targetIndex = playlistIndex.coerceIn(0, playlist.lastIndex)
               loadPlaylistItem(targetIndex)
             } else {
-              player.playFile(playableUri)
+              lifecycleScope.launch(Dispatchers.Default) {
+                player.playFile(playableUri)
+              }
             }
           }
         } else {
-          player.playFile(playableUri)
+          lifecycleScope.launch(Dispatchers.Default) {
+            player.playFile(playableUri)
+          }
         }
       }
     }
@@ -1370,7 +1373,7 @@ class PlayerActivity :
     // Prepare only the launch-critical files before initializing MPV.
     runCatching {
       syncBundledAssetsIfNeeded()
-      syncFromUserMpvDirectory(syncSubtitleFontsFolder = false)
+      syncFromUserMpvDirectory()
       sanitizeInternalFontsDirectory()
       Log.d(TAG, "MPV config and scripts prepared successfully")
     }.onFailure { e ->
@@ -1410,14 +1413,14 @@ class PlayerActivity :
   }
 
   /**
-   * Syncs ALL MPV assets from the user's configured MPV directory to internal storage.
-   * Handles: mpv.conf, input.conf, scripts/, script-modules/, script-opts/, shaders/, fonts/
+   * Syncs launch-critical MPV assets from the user's configured MPV directory to internal storage.
+   * Handles: mpv.conf, input.conf, selected scripts/, script helper folders, and script-opts/.
    *
-   * Uses case-insensitive subfolder matching and falls back to root scanning
-   * if standard subfolders don't exist. Falls back to preferences-based config
-   * if no user directory is configured.
+   * Keep this path lean: it runs before MPV initialization and directly affects first-frame time.
+   * Large asset folders such as shaders/ and fonts/ are loaded by the app's dedicated managers
+   * or the subtitle font picker instead of being blanket-copied on every video launch.
    */
-  private fun syncFromUserMpvDirectory(syncSubtitleFontsFolder: Boolean) {
+  private fun syncFromUserMpvDirectory() {
     val mpvConfStorageUri = advancedPreferences.mpvConfStorageUri.get()
 
     // Try to open the user's MPV directory
@@ -1430,20 +1433,15 @@ class PlayerActivity :
 
     if (tree != null) {
       Log.d(TAG, "Syncing from user MPV directory: ${tree.uri}")
-      syncConfigFiles(tree)
-      syncScripts(tree)
-      syncScriptModules(tree)
-      syncScriptOpts(tree)
-      syncShaders(tree)
-      syncFonts(tree, syncSubtitleFontsFolder)
-      Log.d(TAG, "Full MPV directory sync completed")
+      val rootChildren = listTreeFilesSafely(tree)
+      syncConfigFiles(tree, rootChildren)
+      syncScripts(tree, rootChildren)
+      syncScriptOpts(tree, rootChildren)
+      Log.d(TAG, "Launch-critical MPV directory sync completed")
     } else {
       // Fallback: use preferences-based config (no user directory set)
       Log.d(TAG, "No MPV directory configured, using preferences fallback")
       copyMPVConfigFromPreferences()
-      if (syncSubtitleFontsFolder) {
-        syncSubtitleFontsFromPreferenceFolder()
-      }
     }
   }
 
@@ -1453,17 +1451,23 @@ class PlayerActivity :
    * Syncs mpv.conf and input.conf from the user's MPV directory.
    * Also caches the content in preferences for the config editor.
    */
-  private fun syncConfigFiles(tree: DocumentFile) {
+  private fun syncConfigFiles(
+    tree: DocumentFile,
+    rootChildren: Array<DocumentFile>,
+  ) {
     for (configName in listOf("mpv.conf", "input.conf")) {
       runCatching {
-        val configFile = findFileCaseInsensitive(tree, configName)
+        val configFile = findFileCaseInsensitive(tree, configName, rootChildren)
         if (configFile != null && configFile.exists() && configFile.canRead()) {
           contentResolver.openInputStream(configFile.uri)?.use { input ->
             val content = input.bufferedReader().readText()
             writeTextFileIfChanged(File(filesDir, configName), content)
             // Cache in preferences for the config editor
             when (configName) {
-              "mpv.conf" -> advancedPreferences.mpvConf.set(content)
+              "mpv.conf" -> {
+                advancedPreferences.mpvConf.set(content)
+                syncReferencedShaders(tree, rootChildren, content)
+              }
               "input.conf" -> advancedPreferences.inputConf.set(content)
             }
             Log.d(TAG, "Synced config: $configName (${content.length} chars)")
@@ -1479,6 +1483,9 @@ class PlayerActivity :
             if (!exists()) createNewFile()
             if (prefContent.isNotBlank()) writeText(prefContent)
           }
+          if (configName == "mpv.conf" && prefContent.isNotBlank()) {
+            syncReferencedShaders(tree, rootChildren, prefContent)
+          }
           Log.d(TAG, "Config not found in directory, used preferences: $configName")
         }
       }.onFailure { e ->
@@ -1493,17 +1500,20 @@ class PlayerActivity :
    * Syncs all script files (.lua, .js) from the user's MPV directory.
    * Looks in scripts/ subfolder first (case-insensitive), falls back to root.
    */
-  private fun syncScripts(tree: DocumentFile) {
+  private fun syncScripts(
+    tree: DocumentFile,
+    rootChildren: Array<DocumentFile>,
+  ) {
     val internalScriptsDir = File(filesDir, "scripts")
     internalScriptsDir.mkdirs()
 
     if (!advancedPreferences.enableLuaScripts.get()) {
-      internalScriptsDir.listFiles()?.forEach { it.delete() }
+      clearDirectoryContents(internalScriptsDir)
       Log.d(TAG, "Scripts disabled, skipping")
       return
     }
 
-    val scriptsSubdir = findSubdirCaseInsensitive(tree, "scripts")
+    val scriptsSubdir = findSubdirCaseInsensitive(tree, "scripts", rootChildren)
     val sourceDir = scriptsSubdir ?: tree
     val scriptExtensions = setOf("lua", "js")
     val selectedScripts = advancedPreferences.selectedLuaScripts.get()
@@ -1515,40 +1525,56 @@ class PlayerActivity :
         allowedNames = selectedScripts,
         deleteMissing = true,
       )
+    val supportCount = syncScriptSupportDirectories(scriptsSubdir)
 
-    Log.d(TAG, "Scripts sync: $count file(s) from ${if (scriptsSubdir != null) "scripts/" else "root"}")
+    Log.d(
+      TAG,
+      "Scripts sync: $count file(s), $supportCount helper file(s) from ${if (scriptsSubdir != null) "scripts/" else "root"}",
+    )
   }
 
   /**
-   * Syncs all Lua module files from the script-modules/ subfolder (case-insensitive)
-   * to internal storage so Lua's C-level require() can find them via native fopen().
+   * Syncs helper folders from scripts/ and mirrors Lua modules into mpv's internal
+   * script-modules path so require() works without exposing a separate user folder.
    */
-  private fun syncScriptModules(tree: DocumentFile) {
+  private fun syncScriptSupportDirectories(
+    scriptsSubdir: DocumentFile?,
+  ): Int {
+    val internalScriptsDir = File(filesDir, "scripts")
     val internalModulesDir = File(filesDir, "script-modules")
     internalModulesDir.mkdirs()
 
     if (!advancedPreferences.enableLuaScripts.get()) {
       clearDirectoryContents(internalModulesDir)
-      Log.d(TAG, "Script modules disabled, skipping")
-      return
+      return 0
     }
 
-    val modulesSubdir = findSubdirCaseInsensitive(tree, "script-modules")
-    if (modulesSubdir == null) {
-      clearDirectoryContents(internalModulesDir)
-      Log.d(TAG, "No script-modules/ subfolder found, skipping")
-      return
+    clearDirectoryContents(internalModulesDir)
+
+    var copiedCount = 0
+
+    if (scriptsSubdir != null) {
+      listTreeFilesSafely(scriptsSubdir).forEach { document ->
+        val name = document.name?.takeIf { isSafeDocumentFileName(it) } ?: return@forEach
+        if (!document.isDirectory) return@forEach
+
+        copiedCount += syncRecursiveDocumentDirectory(
+          sourceDir = document,
+          destinationDir = File(internalScriptsDir, name),
+          includeFile = { true },
+          deleteMissing = true,
+        )
+
+        copiedCount += syncRecursiveDocumentDirectory(
+          sourceDir = document,
+          destinationDir = File(internalModulesDir, name),
+          includeFile = { fileName -> fileName.endsWith(".lua", ignoreCase = true) },
+          deleteMissing = true,
+        )
+      }
     }
 
-    val count =
-      syncRecursiveDocumentDirectory(
-        sourceDir = modulesSubdir,
-        destinationDir = internalModulesDir,
-        includeFile = { name -> name.endsWith(".lua", ignoreCase = true) },
-        deleteMissing = true,
-      )
-
-    Log.d(TAG, "Script modules sync: $count file(s)")
+    return copiedCount
   }
 
   // ==================== Script Options Sync ====================
@@ -1556,11 +1582,14 @@ class PlayerActivity :
   /**
    * Syncs all files from script-opts/ subfolder (case-insensitive).
    */
-  private fun syncScriptOpts(tree: DocumentFile) {
+  private fun syncScriptOpts(
+    tree: DocumentFile,
+    rootChildren: Array<DocumentFile>,
+  ) {
     val internalScriptOptsDir = File(filesDir, "script-opts")
     internalScriptOptsDir.mkdirs()
 
-    val scriptOptsSubdir = findSubdirCaseInsensitive(tree, "script-opts")
+    val scriptOptsSubdir = findSubdirCaseInsensitive(tree, "script-opts", rootChildren)
     if (scriptOptsSubdir == null) {
       Log.d(TAG, "No script-opts/ subfolder found, skipping")
       return
@@ -1577,64 +1606,110 @@ class PlayerActivity :
     Log.d(TAG, "Script-opts sync: $count file(s)")
   }
 
-  // ==================== Shaders Sync ====================
-
-  /**
-   * Syncs shader files (.glsl, .hook, .comp) from the user's MPV directory.
-   * Looks in shaders/ subfolder first (case-insensitive), falls back to root.
-   * Saves to shaders/ (same as non-Play Store) so Lua scripts can find them at ~~/shaders/
-   */
-  private fun syncShaders(tree: DocumentFile) {
-    // Use shaders/ directory directly for compatibility with existing Lua scripts
-    val shadersDir = File(filesDir, "shaders")
-    shadersDir.mkdirs()
-
-    val shadersSubdir = findSubdirCaseInsensitive(tree, "shaders")
-    val sourceDir = shadersSubdir ?: tree
-    val shaderExtensions = setOf("glsl", "hook", "comp")
-    val count =
-      syncFlatDocumentDirectory(
-        sourceDir = sourceDir,
-        destinationDir = shadersDir,
-        includeFile = { name -> name.substringAfterLast('.', "").lowercase() in shaderExtensions },
-        protectedNames = Anime4KManager.BUILT_IN_SHADER_FILES,
-        deleteMissing = true,
-      )
-
-    Log.d(TAG, "Shaders sync: $count file(s)")
-  }
-
-  // ==================== Fonts Sync ====================
-
-  /**
-   * Syncs font files (.ttf, .otf, .ttc, .woff, .woff2) from the user's MPV directory.
-   * Looks in fonts/ subfolder first (case-insensitive), falls back to root.
-   * Also syncs from the subtitle preferences font folder if set.
-   */
-  private fun syncFonts(
+  private fun syncReferencedShaders(
     tree: DocumentFile,
-    syncSubtitleFontsFolder: Boolean,
+    rootChildren: Array<DocumentFile>,
+    mpvConf: String,
   ) {
-    val internalFontsDir = File(filesDir, "fonts")
-    internalFontsDir.mkdirs()
-    internalFontsDir.listFiles()?.filter { it.isDirectory }?.forEach { it.deleteRecursively() }
+    val shaderPaths = referencedShaderPaths(mpvConf)
+    if (shaderPaths.isEmpty()) return
 
-    val fontsSubdir = findSubdirCaseInsensitive(tree, "fonts")
-    val sourceDir = fontsSubdir ?: tree
-    val fontExtensions = setOf("ttf", "otf", "ttc", "woff", "woff2")
-    val count =
-      syncFlatDocumentDirectory(
-        sourceDir = sourceDir,
-        destinationDir = internalFontsDir,
-        includeFile = { name -> name.substringAfterLast('.', "").lowercase() in fontExtensions },
-        deleteMissing = false,
-      )
+    val shadersSubdir = findSubdirCaseInsensitive(tree, "shaders", rootChildren)
+    val sourceRoot = shadersSubdir ?: tree
+    val destinationRoot = File(filesDir, "shaders").apply { mkdirs() }
+    var copiedCount = 0
 
-    if (syncSubtitleFontsFolder) {
-      syncSubtitleFontsFromPreferenceFolder()
+    shaderPaths.forEach { relativePath ->
+      val sourceFile =
+        findDocumentByRelativePath(sourceRoot, relativePath)
+          ?: findFileCaseInsensitive(sourceRoot, relativePath.substringAfterLast('/'))
+          ?: return@forEach
+
+      val targetPath = relativePath.split('/').fold(destinationRoot) { parent, segment ->
+        File(parent, segment)
+      }
+      if (copyDocumentToFileIfNeeded(sourceFile, targetPath)) {
+        copiedCount++
+      }
     }
 
-    Log.d(TAG, "Fonts sync: $count file(s) from MPV directory")
+    Log.d(TAG, "Referenced shader sync: $copiedCount/${shaderPaths.size} file(s)")
+  }
+
+  private fun referencedShaderPaths(mpvConf: String): Set<String> {
+    val shaderExtensions = setOf("glsl", "hook", "comp")
+
+    return mpvConf
+      .lineSequence()
+      .map(::stripMpvConfigComment)
+      .map(String::trim)
+      .filter { it.isNotEmpty() && !it.startsWith("[") }
+      .mapNotNull(::shaderOptionValue)
+      .flatMap { value ->
+        value
+          .trim()
+          .trimMatchingQuotes()
+          .splitToSequence(':', ';')
+      }
+      .map { normalizeShaderPath(it) }
+      .filter { path -> path.substringAfterLast('.', "").lowercase() in shaderExtensions }
+      .toSet()
+  }
+
+  private fun shaderOptionValue(line: String): String? {
+    val separatorIndex = line.indexOf('=').takeIf { it >= 0 }
+      ?: line.indexOfFirst(Char::isWhitespace).takeIf { it >= 0 }
+      ?: return null
+    val key = line.substring(0, separatorIndex).trim()
+    if (!key.startsWith("glsl-shader", ignoreCase = true)) return null
+    return line.substring(separatorIndex + 1).trim().takeIf { it.isNotBlank() }
+  }
+
+  private fun normalizeShaderPath(rawPath: String): String {
+    val normalized =
+      rawPath
+        .trim()
+        .trimMatchingQuotes()
+        .replace('\\', '/')
+        .removePrefix("~~/")
+        .removePrefix("~/")
+        .removePrefix("./")
+        .trimStart('/')
+
+    val shadersIndex = normalized.indexOf("shaders/", ignoreCase = true)
+    val relativePath =
+      if (shadersIndex >= 0) {
+        normalized.substring(shadersIndex + "shaders/".length)
+      } else {
+        normalized.substringAfterLast('/')
+      }
+
+    return relativePath
+      .split('/')
+      .filter { isSafeDocumentFileName(it) }
+      .joinToString("/")
+  }
+
+  private fun stripMpvConfigComment(line: String): String {
+    var quote: Char? = null
+    line.forEachIndexed { index, char ->
+      when {
+        char == '\'' || char == '"' -> quote = if (quote == char) null else quote ?: char
+        char == '#' && quote == null -> return line.substring(0, index)
+      }
+    }
+    return line
+  }
+
+  private fun String.trimMatchingQuotes(): String {
+    if (length < 2) return this
+    val first = first()
+    val last = last()
+    return if ((first == '"' && last == '"') || (first == '\'' && last == '\'')) {
+      substring(1, lastIndex)
+    } else {
+      this
+    }
   }
 
   private fun syncBundledAssetsIfNeeded() {
@@ -1668,15 +1743,27 @@ class PlayerActivity :
   }
 
   private fun syncSubtitleFontsFromPreferenceFolder() {
-    val fontsFolderUri = subtitlesPreferences.fontsFolder.get()
-    if (fontsFolderUri.isBlank()) return
-
-    val sourceDir = openPersistedTreeDocument(this, fontsFolderUri) ?: return
+    val sourceDir = resolveSubtitleFontSourceDirectory() ?: return
 
     val destinationDir = File(filesDir, "fonts")
     destinationDir.mkdirs()
     destinationDir.listFiles()?.filter { it.isDirectory }?.forEach { it.deleteRecursively() }
     syncFontDirectory(sourceDir, destinationDir)
+  }
+
+  private fun resolveSubtitleFontSourceDirectory(): DocumentFile? {
+    val fontsFolderUri = subtitlesPreferences.fontsFolder.get()
+    if (fontsFolderUri.isBlank()) return null
+
+    val sourceDir = openPersistedTreeDocument(this, fontsFolderUri) ?: return null
+
+    // Older builds auto-pointed the subtitle font folder at the whole storage/config root.
+    // Use its fonts/ child instead so playback never recursively scans a large media folder.
+    if (fontsFolderUri == advancedPreferences.mpvConfStorageUri.get()) {
+      return findSubdirCaseInsensitive(sourceDir, "fonts")
+    }
+
+    return sourceDir
   }
 
   private fun syncFontDirectory(
@@ -1879,10 +1966,12 @@ class PlayerActivity :
       runCatching {
         val tree = openPersistedTreeDocument(this@PlayerActivity, mpvConfStorageUri)
         if (tree != null) {
+          val rootChildren = listTreeFilesSafely(tree)
           // Look for scripts/ subfolder first (case-insensitive), fall back to root
-          val scriptsDir = findSubdirCaseInsensitive(tree, "scripts") ?: tree
-          syncScriptModules(tree)
-          syncScriptOpts(tree)
+          val scriptsSubdir = findSubdirCaseInsensitive(tree, "scripts", rootChildren)
+          val scriptsDir = scriptsSubdir ?: tree
+          syncScriptSupportDirectories(scriptsSubdir)
+          syncScriptOpts(tree, rootChildren)
           
           val scriptFile = listTreeFilesSafely(scriptsDir).firstOrNull {
             it.name == scriptName 
@@ -1971,19 +2060,51 @@ class PlayerActivity :
   private fun isSafeDocumentFileName(name: String): Boolean =
     name.isNotBlank() && !name.contains('/') && !name.contains('\\')
 
+  private fun findDocumentByRelativePath(
+    sourceRoot: DocumentFile,
+    relativePath: String,
+  ): DocumentFile? {
+    val segments = relativePath.split('/').filter(String::isNotBlank)
+    if (segments.isEmpty()) return null
+
+    var current = sourceRoot
+    segments.forEachIndexed { index, segment ->
+      if (!isSafeDocumentFileName(segment)) return null
+      val next = listTreeFilesSafely(current).firstOrNull {
+        it.name?.equals(segment, ignoreCase = true) == true
+      } ?: return null
+
+      if (index == segments.lastIndex) {
+        return next.takeIf { it.isFile && it.canRead() }
+      }
+      if (!next.isDirectory) return null
+      current = next
+    }
+
+    return null
+  }
+
   /**
    * Finds a subdirectory by name (case-insensitive) within a DocumentFile.
    */
-  private fun findSubdirCaseInsensitive(parent: DocumentFile, name: String): DocumentFile? =
-    listTreeFilesSafely(parent).firstOrNull {
+  private fun findSubdirCaseInsensitive(
+    parent: DocumentFile,
+    name: String,
+    children: Array<DocumentFile> = listTreeFilesSafely(parent),
+  ): DocumentFile? =
+    children.firstOrNull {
       it.isDirectory && it.name?.equals(name, ignoreCase = true) == true
     }
 
   /**
    * Finds a file by name (case-insensitive) within a DocumentFile.
    */
-  private fun findFileCaseInsensitive(parent: DocumentFile, name: String): DocumentFile? =
-    listTreeFilesSafely(parent).firstOrNull {
+  private fun findFileCaseInsensitive(
+    parent: DocumentFile,
+    name: String,
+    children: Array<DocumentFile> = listTreeFilesSafely(parent),
+  ): DocumentFile? =
+    children.firstOrNull {
       it.isFile && it.name?.equals(name, ignoreCase = true) == true
     }
 
@@ -3565,7 +3686,9 @@ class PlayerActivity :
           }
         }
       } else {
-        player.playFile(uri)
+        lifecycleScope.launch(Dispatchers.Default) {
+          player.playFile(uri)
+        }
       }
     }
   }
