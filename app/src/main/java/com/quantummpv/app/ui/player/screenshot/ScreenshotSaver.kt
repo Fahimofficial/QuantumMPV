@@ -71,11 +71,11 @@ object ScreenshotSaver {
         val displayName = ScreenshotTemplate.buildFileName(
           template = settings.template,
           extension = settings.format.extension,
-          mediaTitle = MPVLib.getPropertyString("media-title")
-            ?: MPVLib.getPropertyString("filename/no-ext")
-            ?: MPVLib.getPropertyString("filename"),
+          filename = MPVLib.getPropertyString("filename"),
+          filenameNoExt = MPVLib.getPropertyString("filename/no-ext"),
+          mediaTitle = MPVLib.getPropertyString("media-title"),
           path = MPVLib.getPropertyString("path"),
-          positionSeconds = MPVLib.getPropertyDouble("time-pos")?.toLong() ?: 0L,
+          positionSeconds = MPVLib.getPropertyDouble("time-pos") ?: 0.0,
         )
         val tempFile = captureNative(context, settings, includeSubtitles)
           ?: captureWithAndroidFallback(context, settings, includeSubtitles)
@@ -225,26 +225,47 @@ object ScreenshotTemplate {
     template: String,
     extension: String,
     now: LocalDateTime = LocalDateTime.now(),
+    filename: String? = null,
+    filenameNoExt: String? = null,
     mediaTitle: String? = null,
     path: String? = null,
-    positionSeconds: Long = 0L,
+    positionSeconds: Double = 0.0,
   ): String {
-    val baseTitle = mediaTitle?.ifBlank { null }
-      ?: path?.substringAfterLast('/')?.substringBeforeLast('.')?.ifBlank { null }
+    val resolvedFilename = filename?.ifBlank { null }
+      ?: path?.substringAfterLast('/')?.ifBlank { null }
+      ?: mediaTitle?.ifBlank { null }
       ?: "video"
+
+    val resolvedFilenameNoExt = filenameNoExt?.ifBlank { null }
+      ?: resolvedFilename.substringBeforeLast('.')
+
+    val posSec = positionSeconds.coerceAtLeast(0.0)
+    val totalMs = (posSec * 1000.0).toLong()
+    val hours = totalMs / 3600000
+    val minutes = (totalMs % 3600000) / 60000
+    val seconds = (totalMs % 60000) / 1000
+    val milliseconds = totalMs % 1000
+
+    val wHStr = String.format(Locale.US, "%02d", hours)
+    val wMStr = String.format(Locale.US, "%02d", minutes)
+    val wSStr = String.format(Locale.US, "%02d", seconds)
+    val wTStr = String.format(Locale.US, "%03d", milliseconds)
+
     val rendered = template.ifBlank { "mpv_snapshot_%Y%m%d_%H%M%S" }
-      .replace("%wH", now.format(DateTimeFormatter.ofPattern("HH")))
-      .replace("%wM", now.format(DateTimeFormatter.ofPattern("mm")))
-      .replace("%wS", now.format(DateTimeFormatter.ofPattern("ss")))
-      .replace("%wT", now.format(DateTimeFormatter.ofPattern("SSS")))
+      .replace("%wH", wHStr)
+      .replace("%wM", wMStr)
+      .replace("%wS", wSStr)
+      .replace("%wT", wTStr)
       .replace("%Y", now.format(DateTimeFormatter.ofPattern("yyyy")))
       .replace("%m", now.format(DateTimeFormatter.ofPattern("MM")))
       .replace("%d", now.format(DateTimeFormatter.ofPattern("dd")))
       .replace("%H", now.format(DateTimeFormatter.ofPattern("HH")))
       .replace("%M", now.format(DateTimeFormatter.ofPattern("mm")))
       .replace("%S", now.format(DateTimeFormatter.ofPattern("ss")))
-      .replace("%f", baseTitle)
-      .replace("%p", positionSeconds.coerceAtLeast(0).toString())
+      .replace("%f", resolvedFilename)
+      .replace("%F", resolvedFilenameNoExt)
+      .replace("%P", "$wHStr:$wMStr:$wSStr.$wTStr")
+      .replace("%p", "$wHStr:$wMStr:$wSStr")
 
     val sanitized = rendered
       .replace(invalidFileChars, "_")
