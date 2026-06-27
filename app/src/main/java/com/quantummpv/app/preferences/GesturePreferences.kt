@@ -25,5 +25,7 @@ class GesturePreferences(
     preferenceStore.getBoolean("pinch_to_zoom_subtitles", true)
   val swipeSubtitlesToSeekDialog =
     preferenceStore.getBoolean("swipe_subtitles_to_seek_dialog", true)
+  val swipeSubtitlesInvertDirection =
+    preferenceStore.getBoolean("swipe_subtitles_invert_direction", false)
 }
 

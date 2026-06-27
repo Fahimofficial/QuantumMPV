@@ -145,6 +145,17 @@ object GesturePreferencesScreen : Screen {
 
               PreferenceDivider()
 
+              val swipeSubtitlesInvertDirection by preferences.swipeSubtitlesInvertDirection.collectAsState()
+              SwitchPreference(
+                value = swipeSubtitlesInvertDirection,
+                onValueChange = preferences.swipeSubtitlesInvertDirection::set,
+                title = { Text(stringResource(R.string.pref_player_gestures_swipe_subtitles_invert_direction)) },
+                summary = { Text(stringResource(R.string.pref_player_gestures_swipe_subtitles_invert_direction_summary)) },
+                enabled = swipeSubtitlesToSeekDialog,
+              )
+
+              PreferenceDivider()
+
               val horizontalSwipeToSeek by playerPreferences.horizontalSwipeToSeek.collectAsState()
               SwitchPreference(
                 value = horizontalSwipeToSeek,

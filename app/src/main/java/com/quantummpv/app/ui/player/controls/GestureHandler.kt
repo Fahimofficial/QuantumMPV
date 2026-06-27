@@ -196,6 +196,7 @@ fun GestureHandler(
   val enableCenterSwipeUpGesture by gesturePreferences.enableCenterSwipeUpGesture.collectAsState()
   val pinchToZoomSubtitles by gesturePreferences.pinchToZoomSubtitles.collectAsState()
   val swipeSubtitlesToSeekDialog by gesturePreferences.swipeSubtitlesToSeekDialog.collectAsState()
+  val isSwipeSubtitlesInverted by gesturePreferences.swipeSubtitlesInvertDirection.collectAsState()
   var isDoubleTapSeeking by remember { mutableStateOf(false) }
   var lastSeekRegion by remember { mutableStateOf<String?>(null) }
   var lastSeekTime by remember { mutableStateOf<Long?>(null) }
@@ -1090,6 +1091,7 @@ fun GestureHandler(
         gesturePreferences,
         isVerticalGestureActive,
         swipeSubtitlesToSeekDialog,
+        isSwipeSubtitlesInverted,
       ) {
         if (!horizontalSwipeToSeek || areControlsLocked || isVerticalGestureActive) return@pointerInput
 
@@ -1132,11 +1134,12 @@ fun GestureHandler(
                   if (gestureType == null && isSubtitleTouch && abs(deltaX) > 40f && abs(deltaX) > abs(deltaY) * 2f) {
                     gestureType = "subtitle_dialog_seek"
                     hasStartedSeeking = true
-                    val direction = if (deltaX > 0) "1" else "-1"
+                    val isForward = if (isSwipeSubtitlesInverted) deltaX < 0 else deltaX > 0
+                    val direction = if (isForward) "1" else "-1"
                     MPVLib.command("sub-seek", direction)
                     haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove)
                     viewModel.playerUpdate.update {
-                      PlayerUpdates.ShowText(if (deltaX > 0) "Next Dialog" else "Prev Dialog")
+                      PlayerUpdates.ShowText(if (isForward) "Next Dialog" else "Prev Dialog")
                     }
                     change.consume()
                   }
