@@ -3210,8 +3210,7 @@ class PlayerActivity :
   /**
    * Helper extension function to convert Int color to hex string for MPV
    */
-  @OptIn(ExperimentalStdlibApi::class)
-  private fun Int.toColorHexString() = "#" + this.toHexString().uppercase()
+  private fun Int.toColorHexString() = "#" + this.toUInt().toString(16).padStart(8, '0').uppercase()
 
   private fun canIssueMpvCommands(): Boolean = mpvInitialized && !player.isExiting && !isDestroyed
 
