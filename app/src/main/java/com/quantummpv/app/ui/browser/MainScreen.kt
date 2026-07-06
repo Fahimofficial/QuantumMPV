@@ -8,6 +8,7 @@ import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.ContentTransform
 import androidx.compose.animation.core.Spring
+import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.animation.core.spring
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
@@ -27,6 +28,7 @@ import com.quantummpv.app.ui.player.NavigationAnimStyle
 import org.koin.compose.koinInject
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Icon
 import androidx.compose.material3.NavigationBar
@@ -117,6 +119,7 @@ object MainScreen : Screen {
     val showNetworkTab by appearancePreferences.showNetworkTab.collectAsState()
     val hideNavigationBar = NavigationBarState.shouldHideNavigationBar
     val isPermissionDenied = NavigationBarState.isPermissionDenied
+    val isDualPaneFolderSelected = NavigationBarState.isDualPaneFolderSelected
     
     val visibleTabs = remember(
       showHomeTab,
@@ -129,6 +132,37 @@ object MainScreen : Screen {
         if (showRecentsTab) add(MainTab.RECENTS)
         if (showPlaylistsTab) add(MainTab.PLAYLISTS)
         if (showNetworkTab) add(MainTab.NETWORK)
+      }
+    }
+
+    val mainNavBar = @Composable { modifier: Modifier ->
+      NavigationBar(
+        modifier = modifier.clip(AppShapeScale.extraLargeIncreased)
+      ) {
+        visibleTabs.forEach { tab ->
+          NavigationBarItem(
+            icon = {
+              when (tab) {
+                MainTab.HOME -> Icon(Icons.Filled.Home, contentDescription = "Home")
+                MainTab.RECENTS -> Icon(Icons.Filled.History, contentDescription = "Recents")
+                MainTab.PLAYLISTS -> Icon(Icons.Filled.PlaylistPlay, contentDescription = "Playlists")
+                MainTab.NETWORK -> Icon(Icons.Filled.BringYourOwnIp, contentDescription = "Network")
+              }
+            },
+            label = {
+              Text(
+                when (tab) {
+                  MainTab.HOME -> "Home"
+                  MainTab.RECENTS -> "Recents"
+                  MainTab.PLAYLISTS -> "Playlists"
+                  MainTab.NETWORK -> "Network"
+                }
+              )
+            },
+            selected = selectedTab == tab,
+            onClick = { selectedTab = tab },
+          )
+        }
       }
     }
     
@@ -145,10 +179,54 @@ object MainScreen : Screen {
       }
     }
 
+    val configuration = androidx.compose.ui.platform.LocalConfiguration.current
+    val screenWidth = configuration.screenWidthDp.dp
+    val targetNavBarWidth = if (isDualPaneFolderSelected) screenWidth * 0.4f else screenWidth
+
+    val navBarWidth by animateDpAsState(
+      targetValue = targetNavBarWidth,
+      animationSpec = spring(
+        dampingRatio = Spring.DampingRatioNoBouncy,
+        stiffness = Spring.StiffnessMediumLow
+      ),
+      label = "nav_bar_width"
+    )
+
     // Scaffold with bottom navigation bar
     Scaffold(
       modifier = Modifier.fillMaxSize(),
-      bottomBar = {
+    ) { paddingValues ->
+      Box(modifier = Modifier.fillMaxSize()) {
+        val fabBottomPadding = 80.dp
+
+        AnimatedContent(
+          targetState = selectedTab,
+          transitionSpec = {
+            val initialIndex = visibleTabs.indexOf(initialState)
+            val targetIndex = visibleTabs.indexOf(targetState)
+            buildNavTransition(
+              forward = targetIndex >= initialIndex,
+              style   = navAnimStyle,
+              speed   = animSpeed,
+              density = density,
+            )
+          },
+          label = "tab_animation"
+        ) { targetTab ->
+          CompositionLocalProvider(
+            LocalNavigationBarHeight provides fabBottomPadding,
+            LocalMainNavigationBar provides mainNavBar
+          ) {
+            val effectiveTab = if (visibleTabs.isEmpty()) MainTab.HOME else targetTab
+            when (effectiveTab) {
+              MainTab.HOME -> FolderListScreen.Content()
+              MainTab.RECENTS -> RecentlyPlayedScreen.Content()
+              MainTab.PLAYLISTS -> PlaylistScreen.Content()
+              MainTab.NETWORK -> NetworkStreamingScreen.Content()
+            }
+          }
+        }
+
         // Animated bottom navigation bar with slide animations
         AnimatedVisibility(
           visible = !hideNavigationBar && visibleTabs.isNotEmpty() && !isPermissionDenied,
@@ -165,10 +243,12 @@ object MainScreen : Screen {
               stiffness = AppMotion.Spatial.StandardDp.stiffness,
             ),
             targetOffsetY = { fullHeight -> fullHeight }
-          )
+          ),
+          modifier = Modifier.align(androidx.compose.ui.Alignment.BottomStart)
         ) {
           NavigationBar(
             modifier = Modifier
+              .width(navBarWidth)
               .clip(AppShapeScale.extraLargeIncreased)
           ) {
             visibleTabs.forEach { tab ->
@@ -198,43 +278,16 @@ object MainScreen : Screen {
           }
         }
       }
-    ) { paddingValues ->
-      Box(modifier = Modifier.fillMaxSize()) {
-        val fabBottomPadding =  80.dp 
-
-        AnimatedContent(
-          targetState = selectedTab,
-          transitionSpec = {
-            val initialIndex = visibleTabs.indexOf(initialState)
-            val targetIndex = visibleTabs.indexOf(targetState)
-            buildNavTransition(
-              forward = targetIndex >= initialIndex,
-              style   = navAnimStyle,
-              speed   = animSpeed,
-              density = density,
-            )
-          },
-          label = "tab_animation"
-        ) { targetTab ->
-          CompositionLocalProvider(
-            LocalNavigationBarHeight provides fabBottomPadding
-          ) {
-            val effectiveTab = if (visibleTabs.isEmpty()) MainTab.HOME else targetTab
-            when (effectiveTab) {
-              MainTab.HOME -> FolderListScreen.Content()
-              MainTab.RECENTS -> RecentlyPlayedScreen.Content()
-              MainTab.PLAYLISTS -> PlaylistScreen.Content()
-              MainTab.NETWORK -> NetworkStreamingScreen.Content()
-            }
-          }
-        }
-      }
     }
   }
 }
 
-// CompositionLocal for navigation bar height
 val LocalNavigationBarHeight = compositionLocalOf { 0.dp }
+
+// CompositionLocal for main navigation bar
+val LocalMainNavigationBar = compositionLocalOf<@Composable (Modifier) -> Unit> {
+  { }
+}
 
 /** Builds the [ContentTransform] for tab navigation based on the selected style. */
 fun buildNavTransition(
