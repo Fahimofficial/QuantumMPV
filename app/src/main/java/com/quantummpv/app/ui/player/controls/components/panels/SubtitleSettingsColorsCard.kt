@@ -145,7 +145,13 @@ fun Int.copyAsArgb(
   blue: Int = this.blue,
 ) = (alpha shl 24) or (red shl 16) or (green shl 8) or blue
 
-fun Int.toColorHexString() = "#" + this.toUInt().toString(16).padStart(8, '0').uppercase()
+fun Int.toColorHexString(): String {
+  val a = (this shr 24 and 0xFF).toString(16).padStart(2, '0')
+  val r = (this shr 16 and 0xFF).toString(16).padStart(2, '0')
+  val g = (this shr 8 and 0xFF).toString(16).padStart(2, '0')
+  val b = (this and 0xFF).toString(16).padStart(2, '0')
+  return "#$a$r$g$b".uppercase()
+}
 
 enum class SubColorType(
   @StringRes val titleRes: Int,
