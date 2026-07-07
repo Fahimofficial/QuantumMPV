@@ -5,6 +5,7 @@ import android.net.Uri
 import androidx.documentfile.provider.DocumentFile
 import com.quantummpv.app.preferences.SubtitlesPreferences
 import com.quantummpv.app.utils.media.ChecksumUtils
+import com.quantummpv.app.utils.media.SubtitleNormalizer
 import com.quantummpv.app.utils.media.resolveSubtitleStorageDirectory
 import java.io.File
 import java.io.FileOutputStream
@@ -34,20 +35,20 @@ class OnlineSubtitleFileStore(
       val selectedEpisodeMessage = selectedEpisode?.let { " for episode $it" }.orEmpty()
       throw IllegalStateException("Downloaded subtitle archive did not contain a supported subtitle file$selectedEpisodeMessage")
     }
-    var payload = extracted?.bytes ?: bytes
-    if (SubtitleArchiveExtractor.looksLikeHtml(payload)) {
-      throw IllegalStateException("Downloaded file is HTML, not a subtitle")
-    }
-
-    // Normalize downloaded subtitle text to NFC to fix rendering issues (e.g., broken Korean Jamo)
-    payload = com.quantummpv.app.utils.media.SubtitleNormalizer.normalizeToNfcIfNeeded(payload)
-
     val extension =
       extracted?.extension
         ?: subtitle.format?.lowercase()?.takeIf { it in STANDARD_SUBTITLE_EXTENSIONS }
         ?: SubtitleArchiveExtractor.extensionFromName(subtitle.fileName)?.takeIf { it in STANDARD_SUBTITLE_EXTENSIONS }
         ?: SubtitleArchiveExtractor.extensionFromName(subtitle.url)?.takeIf { it in STANDARD_SUBTITLE_EXTENSIONS }
         ?: "srt"
+
+    val payload = SubtitleNormalizer.normalizeCueTextToNfcIfNeeded(
+      bytes = extracted?.bytes ?: bytes,
+      extension = extension,
+    )
+    if (SubtitleArchiveExtractor.looksLikeHtml(payload)) {
+      throw IllegalStateException("Downloaded file is HTML, not a subtitle")
+    }
 
     val saveFolderUri = preferences.subtitleSaveFolder.get()
     val folderName = ChecksumUtils.getCRC32(mediaTitle)
