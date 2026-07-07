@@ -243,11 +243,6 @@
   <string name="pref_subtitles_clear_downloads_summary">Delete all files in the current save location</string>
   <string name="pref_subtitles_clear_downloads_confirmation">Are you sure you want to delete all downloaded subtitles? This action cannot be undone.</string>
   <string name="toast_subtitles_cleared">Subtitle downloads cleared</string>
-  <string name="pref_subtitles_normalize_downloads">Normalize downloaded subtitles</string>
-  <string name="pref_subtitles_normalize_downloads_summary">Repair Unicode composition in subtitle text while preserving font and style metadata</string>
-  <string name="pref_subtitles_normalize_downloads_running">Normalizing downloaded subtitles...</string>
-  <string name="toast_subtitles_normalized">Normalized %1$d of %2$d subtitle files</string>
-  <string name="toast_subtitles_already_normalized">No changes needed across %1$d subtitle files</string>
   <string name="pref_audio">Audio</string>
   <string name="pref_audio_summary">Preferred languages, audio channels, pitch correction</string>
   <string name="pref_audio_pitch_correction_title">Enable audio pitch correction</string>

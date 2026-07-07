@@ -3,7 +3,6 @@ package com.quantummpv.app.ui.preferences
 import com.quantummpv.app.ui.icons.Icon
 import com.quantummpv.app.ui.icons.Icons
 
-import android.content.Context
 import android.content.Intent
 import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -75,11 +74,9 @@ import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.TextButton
 import android.net.Uri
-import androidx.documentfile.provider.DocumentFile
 import com.quantummpv.app.repository.subtitle.OnlineSubtitleSearchMode
 import com.quantummpv.app.repository.subtitlehub.MpvRxSubtitleHubSources
 import com.quantummpv.app.repository.wyzie.WyzieLanguages
-import com.quantummpv.app.utils.media.SubtitleNormalizer
 import org.koin.compose.koinInject
 import java.io.File
 
@@ -436,8 +433,6 @@ object SubtitlesPreferencesScreen : Screen {
           item {
             PreferenceCard {
               var showClearDialog by remember { mutableStateOf(false) }
-              var isNormalizingSubtitles by remember { mutableStateOf(false) }
-              val scope = androidx.compose.runtime.rememberCoroutineScope()
 
               ListPreference(
                 value = onlineSubtitleSearchMode,
@@ -896,58 +891,6 @@ object SubtitlesPreferencesScreen : Screen {
               PreferenceDivider()
 
               Preference(
-                title = { Text(stringResource(R.string.pref_subtitles_normalize_downloads)) },
-                summary = {
-                  Text(
-                    if (isNormalizingSubtitles) {
-                      stringResource(R.string.pref_subtitles_normalize_downloads_running)
-                    } else {
-                      stringResource(R.string.pref_subtitles_normalize_downloads_summary)
-                    },
-                    color = MaterialTheme.colorScheme.outline,
-                  )
-                },
-                icon = {
-                  Icon(
-                    Icons.Default.AutoFixHigh,
-                    contentDescription = null,
-                    tint = MaterialTheme.colorScheme.primary,
-                  )
-                },
-                enabled = !isNormalizingSubtitles,
-                onClick = {
-                  isNormalizingSubtitles = true
-                  scope.launch(Dispatchers.IO) {
-                    runCatching {
-                      normalizeDownloadedSubtitles(context, subtitleSaveFolder)
-                    }.onSuccess { result ->
-                      withContext(Dispatchers.Main) {
-                        isNormalizingSubtitles = false
-                        val message =
-                          if (result.changedFiles > 0) {
-                            context.getString(R.string.toast_subtitles_normalized, result.changedFiles, result.scannedFiles)
-                          } else {
-                            context.getString(R.string.toast_subtitles_already_normalized, result.scannedFiles)
-                          }
-                        Toast.makeText(context, message, Toast.LENGTH_SHORT).show()
-                      }
-                    }.onFailure { e ->
-                      withContext(Dispatchers.Main) {
-                        isNormalizingSubtitles = false
-                        Toast.makeText(
-                          context,
-                          context.getString(R.string.pref_subtitle_search_error, e.message ?: "Unknown error"),
-                          Toast.LENGTH_SHORT,
-                        ).show()
-                      }
-                    }
-                  }
-                },
-              )
-
-              PreferenceDivider()
-
-              Preference(
                 title = { Text(stringResource(R.string.pref_subtitles_clear_downloads), color = MaterialTheme.colorScheme.error) },
                 summary = { Text(stringResource(R.string.pref_subtitles_clear_downloads_summary)) },
                 onClick = { showClearDialog = true },
@@ -1023,88 +966,6 @@ object SubtitlesPreferencesScreen : Screen {
     }
   }
 }
-
-private data class SubtitleNormalizationResult(
-  val scannedFiles: Int,
-  val changedFiles: Int,
-)
-
-private fun normalizeDownloadedSubtitles(
-  context: Context,
-  subtitleSaveFolder: String,
-): SubtitleNormalizationResult {
-  if (subtitleSaveFolder.isNotBlank()) {
-    val folder = resolveSubtitleStorageDirectory(context, subtitleSaveFolder, createIfMissing = true)
-      ?: throw IllegalStateException("Subtitle save folder is unavailable or missing write permission")
-    return normalizeDocumentSubtitleTree(context, folder)
-  }
-
-  val defaultMoviesDir = File(context.getExternalFilesDir(null), "Movies")
-  return normalizeFileSubtitleTree(defaultMoviesDir)
-}
-
-private fun normalizeDocumentSubtitleTree(
-  context: Context,
-  root: DocumentFile,
-): SubtitleNormalizationResult {
-  var scannedFiles = 0
-  var changedFiles = 0
-
-  fun visit(document: DocumentFile) {
-    when {
-      document.isDirectory -> document.listFiles().forEach(::visit)
-      document.isFile -> {
-        val extension = document.name?.subtitleExtension() ?: return
-        if (extension !in NORMALIZABLE_SUBTITLE_EXTENSIONS) return
-
-        scannedFiles++
-        val original =
-          context.contentResolver.openInputStream(document.uri)?.use { input ->
-            input.readBytes()
-          } ?: return
-        val normalized = SubtitleNormalizer.normalizeCueTextToNfcIfNeeded(original, extension)
-        if (original.contentEquals(normalized)) return
-
-        context.contentResolver.openOutputStream(document.uri, "wt")?.use { output ->
-          output.write(normalized)
-        }
-        changedFiles++
-      }
-    }
-  }
-
-  visit(root)
-  return SubtitleNormalizationResult(scannedFiles = scannedFiles, changedFiles = changedFiles)
-}
-
-private fun normalizeFileSubtitleTree(root: File): SubtitleNormalizationResult {
-  if (!root.exists()) return SubtitleNormalizationResult(scannedFiles = 0, changedFiles = 0)
-
-  var scannedFiles = 0
-  var changedFiles = 0
-
-  root.walkTopDown()
-    .filter { it.isFile }
-    .forEach { file ->
-      val extension = file.name.subtitleExtension()
-      if (extension !in NORMALIZABLE_SUBTITLE_EXTENSIONS) return@forEach
-
-      scannedFiles++
-      val original = file.readBytes()
-      val normalized = SubtitleNormalizer.normalizeCueTextToNfcIfNeeded(original, extension)
-      if (original.contentEquals(normalized)) return@forEach
-
-      file.writeBytes(normalized)
-      changedFiles++
-    }
-
-  return SubtitleNormalizationResult(scannedFiles = scannedFiles, changedFiles = changedFiles)
-}
-
-private fun String.subtitleExtension(): String =
-  substringAfterLast('.', "").lowercase()
-
-private val NORMALIZABLE_SUBTITLE_EXTENSIONS = setOf("srt", "vtt", "ass", "ssa")
 
 @Composable
 fun MultiChoicePreference(

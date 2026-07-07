@@ -5,7 +5,6 @@ import android.net.Uri
 import androidx.documentfile.provider.DocumentFile
 import com.quantummpv.app.preferences.SubtitlesPreferences
 import com.quantummpv.app.utils.media.ChecksumUtils
-import com.quantummpv.app.utils.media.SubtitleNormalizer
 import com.quantummpv.app.utils.media.resolveSubtitleStorageDirectory
 import java.io.File
 import java.io.FileOutputStream
@@ -42,10 +41,7 @@ class OnlineSubtitleFileStore(
         ?: SubtitleArchiveExtractor.extensionFromName(subtitle.url)?.takeIf { it in STANDARD_SUBTITLE_EXTENSIONS }
         ?: "srt"
 
-    val payload = SubtitleNormalizer.normalizeCueTextToNfcIfNeeded(
-      bytes = extracted?.bytes ?: bytes,
-      extension = extension,
-    )
+    val payload = extracted?.bytes ?: bytes
     if (SubtitleArchiveExtractor.looksLikeHtml(payload)) {
       throw IllegalStateException("Downloaded file is HTML, not a subtitle")
     }
