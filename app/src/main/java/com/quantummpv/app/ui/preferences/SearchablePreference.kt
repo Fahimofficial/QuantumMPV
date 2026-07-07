@@ -627,6 +627,13 @@ object SearchablePreferences {
                 category = "Subtitles",
                 screen = SubtitlesPreferencesScreen,
             ))
+            add(SearchablePreference(
+                titleRes = R.string.pref_subtitles_normalize_downloads,
+                summaryRes = R.string.pref_subtitles_normalize_downloads_summary,
+                keywords = listOf("subtitle", "normalize", "unicode", "nfc", "jamo", "korean", "glyph", "font", "repair", "downloads"),
+                category = "Subtitles",
+                screen = SubtitlesPreferencesScreen,
+            ))
 
             // Audio preferences
             add(SearchablePreference(
