@@ -4,6 +4,7 @@ import androidx.annotation.StringRes
 import com.quantummpv.app.R
 import com.quantummpv.app.presentation.Screen
 import com.quantummpv.app.preferences.*
+import org.koin.core.context.GlobalContext
 
 /**
  * Represents a searchable preference item.
@@ -903,6 +904,8 @@ object SearchablePreferences {
             // Add new explicitly indexed preferences
             dynamicPreferences.addAll(staticPreferences)
 
+            val context = org.koin.core.context.GlobalContext.get().get<android.content.Context>()
+
             val existingTitles = dynamicPreferences.map {
                 (if (it.titleRes != null) getStringRes(it.titleRes) else it.title ?: "").lowercase().trim()
             }.filter { it.isNotEmpty() }.toSet()
@@ -931,16 +934,32 @@ object SearchablePreferences {
                         if (name == "preferenceStore" || name == "context" || name == "isTablet" || name == "maxColumns") continue
                         
                         if (name !in explicitKeys) {
+                            val titleResId = getResourceForProperty(context, name, isTitle = true)
+                            val summaryResId = getResourceForProperty(context, name, isTitle = false)
+                            
                             val readableTitle = name.camelCaseToSentence()
-                            if (readableTitle.lowercase().trim() in existingTitles) continue
+                            val hasManualTitle = titleResId > 0
+                            val resolvedTitle = if (hasManualTitle) {
+                                try {
+                                    context.getString(titleResId)
+                                } catch (e: Exception) {
+                                    readableTitle
+                                }
+                            } else {
+                                readableTitle
+                            }
+
+                            if (resolvedTitle.lowercase().trim() in existingTitles) continue
 
                             val words = name.split(Regex("(?<=[a-z0-9])(?=[A-Z])|(?<=[A-Z])(?=[A-Z][a-z])|_"))
                                 .map { it.lowercase() }
                                 .filter { it.isNotBlank() }
 
                             dynamicPreferences.add(SearchablePreference(
-                                title = readableTitle,
-                                summary = "Configure ${readableTitle.lowercase()} option.",
+                                titleRes = if (titleResId > 0) titleResId else null,
+                                title = if (titleResId > 0) null else readableTitle,
+                                summaryRes = if (summaryResId > 0) summaryResId else null,
+                                summary = if (summaryResId > 0) null else "Configure ${readableTitle.lowercase()} option.",
                                 keywords = words,
                                 category = category,
                                 screen = targetScreen,
@@ -985,5 +1004,30 @@ private fun String.camelCaseToSentence(): String {
     return result.split(" ").joinToString(" ") { word ->
         word.replaceFirstChar { if (it.isLowerCase()) it.titlecase() else it.toString() }
     }.trim()
+}
+
+private fun String.camelToSnakeCase(): String {
+    return this.replace(Regex("(?<=[a-z0-9])(?=[A-Z])|(?<=[A-Z])(?=[A-Z][a-z])"), "_").lowercase()
+}
+
+private fun getResourceForProperty(context: android.content.Context, name: String, isTitle: Boolean): Int {
+    val snake = name.camelToSnakeCase()
+    val prefixes = listOf(
+        "", "appearance_", "player_", "advanced_", "audio_", 
+        "subtitles_", "decoder_", "folders_", "gesture_", 
+        "nav_", "nav_home_", "nav_recents_", "nav_playlists_", "nav_network_"
+    )
+    
+    val suffixes = if (isTitle) listOf("_title", "") else listOf("_summary", "")
+    
+    for (prefix in prefixes) {
+        for (suffix in suffixes) {
+            val resName = "pref_$prefix$snake$suffix"
+            if (!isTitle && suffix == "") continue
+            val id = context.resources.getIdentifier(resName, "string", context.packageName)
+            if (id > 0) return id
+        }
+    }
+    return 0
 }
 
