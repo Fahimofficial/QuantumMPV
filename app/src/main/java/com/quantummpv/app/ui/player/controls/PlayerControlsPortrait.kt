@@ -23,6 +23,8 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.ripple
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -139,6 +141,35 @@ fun TopPlayerControlsPortrait(
           } else {
             "Translating ${translatingTrackName.ifBlank { "subs" }} ${translationStatus.ifBlank { "" }}"
           },
+          style = MaterialTheme.typography.labelSmall,
+          maxLines = 1,
+          overflow = TextOverflow.Ellipsis,
+          color = MaterialTheme.colorScheme.tertiary,
+        )
+      }
+    }
+
+    val syncplayManager = org.koin.compose.koinInject<com.quantummpv.app.domain.syncplay.SyncplayManager>()
+    val syncplayState by syncplayManager.state.collectAsState()
+
+    androidx.compose.animation.AnimatedVisibility(
+      visible = syncplayState.isConnected,
+      enter = androidx.compose.animation.fadeIn() + androidx.compose.animation.slideInVertically { -it },
+      exit = androidx.compose.animation.fadeOut() + androidx.compose.animation.slideOutVertically { -it },
+    ) {
+      Row(
+        verticalAlignment = Alignment.CenterVertically,
+        modifier = Modifier.padding(start = 14.dp, top = 8.dp),
+        horizontalArrangement = Arrangement.spacedBy(4.dp),
+      ) {
+        Icon(
+          imageVector = Icons.Default.CloudDownload,
+          contentDescription = null,
+          modifier = Modifier.size(14.dp),
+          tint = MaterialTheme.colorScheme.tertiary,
+        )
+        Text(
+          text = "Syncplay: ${syncplayState.room} (${syncplayState.users.size} users)",
           style = MaterialTheme.typography.labelSmall,
           maxLines = 1,
           overflow = TextOverflow.Ellipsis,

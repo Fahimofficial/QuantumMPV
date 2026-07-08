@@ -23,6 +23,8 @@ import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.viewmodel.CreationExtras
 import com.quantummpv.app.R
 import com.quantummpv.app.domain.hdr.HdrToysManager
+import com.quantummpv.app.domain.syncplay.SyncplayFile
+import com.quantummpv.app.domain.syncplay.SyncplayPlaybackState
 import com.quantummpv.app.preferences.AudioPreferences
 import com.quantummpv.app.preferences.GesturePreferences
 import com.quantummpv.app.preferences.IntroSegmentProvider
@@ -157,6 +159,7 @@ class PlayerViewModel(
   private val wyzieRepository: WyzieSearchRepository by inject()
   private val onlineSubtitleOrchestrator: OnlineSubtitleOrchestrator by inject()
   private val introDbRepository: IntroDbRepository by inject()
+  val syncplayManager: com.quantummpv.app.domain.syncplay.SyncplayManager by inject()
   private val introMarkerCachePrefs by lazy {
     host.context.getSharedPreferences(INTRO_MARKER_CACHE_PREFS, Context.MODE_PRIVATE)
   }
@@ -718,6 +721,31 @@ class PlayerViewModel(
   )
 
   init {
+    syncplayManager.playbackStateProvider = { currentSyncplayPlaybackState() }
+    syncplayManager.fileInfoProvider = { currentSyncplayFileInfo() }
+    syncplayManager.onRemotePause = { shouldPause ->
+      viewModelScope.launch(Dispatchers.IO) {
+        val currentlyPaused = MPVLib.getPropertyBoolean("pause") ?: false
+        if (currentlyPaused != shouldPause) {
+          if (!shouldPause) {
+            withContext(Dispatchers.Main) { host.requestAudioFocus() }
+          }
+          MPVLib.setPropertyBoolean("pause", shouldPause)
+          if (shouldPause) {
+            withContext(Dispatchers.Main) { host.abandonAudioFocus() }
+          }
+        }
+      }
+    }
+    syncplayManager.onRemoteSeek = { pos ->
+      viewModelScope.launch(Dispatchers.IO) {
+        val currentPos = MPVLib.getPropertyDouble("time-pos") ?: 0.0
+        if (kotlin.math.abs(currentPos - pos) > 0.75) {
+          MPVLib.command("seek", pos.toString(), "absolute+exact")
+        }
+      }
+    }
+
     // Single adaptive polling loop for playback position.
     //  1. An event-driven collect on MPVLib.propInt["time-pos"]
     //  2. This polling loop via MPVLib.getPropertyDouble("time-pos")
@@ -791,6 +819,7 @@ class PlayerViewModel(
             _preciseDuration.value = dur.toFloat()
             mergeSkipSegments()
             checkPendingIntroLookup()
+            syncplayManager.updateFileInfo(currentSyncplayFileInfo())
 
             // --- AMBIENT FIX: Adapt shader to new file dimensions by @Chinna95P ---
             if (_isAmbientEnabled.value) {
@@ -992,6 +1021,49 @@ class PlayerViewModel(
       }
     }
     warmSeekThumbnailer()
+    syncplayManager.updateFileInfo(currentSyncplayFileInfo())
+  }
+
+  private fun currentSyncplayPlaybackState(): SyncplayPlaybackState =
+    SyncplayPlaybackState(
+      position = runCatching { MPVLib.getPropertyDouble("time-pos") }.getOrNull()
+        ?: precisePosition.value.toDouble(),
+      paused = runCatching { MPVLib.getPropertyBoolean("pause") }.getOrNull()
+        ?: (paused ?: true),
+    )
+
+  private fun currentSyncplayFileInfo(): SyncplayFile? {
+    val name =
+      listOfNotNull(
+        runCatching { MPVLib.getPropertyString("filename") }.getOrNull(),
+        currentMediaTitle,
+        runCatching { MPVLib.getPropertyString("media-title") }.getOrNull(),
+        runCatching { MPVLib.getPropertyString("stream-open-filename") }
+          .getOrNull()
+          ?.substringAfterLast('/'),
+        runCatching { MPVLib.getPropertyString("path") }
+          .getOrNull()
+          ?.substringAfterLast('/'),
+      )
+        .map { it.trim() }
+        .firstOrNull { it.isNotBlank() }
+        ?: return null
+
+    val durationSeconds =
+      runCatching { MPVLib.getPropertyDouble("duration") }.getOrNull()?.takeIf { it > 0.0 }
+        ?: _preciseDuration.value.toDouble().takeIf { it > 0.0 }
+        ?: 0.0
+    val sizeBytes =
+      listOfNotNull(
+        runCatching { MPVLib.getPropertyDouble("file-size")?.toLong() }.getOrNull(),
+        runCatching { MPVLib.getPropertyDouble("stream-end")?.toLong() }.getOrNull(),
+      ).firstOrNull { it > 0L } ?: 0L
+
+    return SyncplayFile(
+      duration = durationSeconds,
+      name = name,
+      size = sizeBytes,
+    )
   }
 
   private fun setupCustomButtons() {
@@ -1847,6 +1919,7 @@ class PlayerViewModel(
       _videoHash.value = null
       // Scan for previously downloaded/added subtitles
       scanLocalSubtitles(mediaTitle)
+      syncplayManager.updateFileInfo(currentSyncplayFileInfo())
 
       // Restore persisted aspect mode, while zoom and pan continue to reset per file.
       restoreSavedVideoAspect(showUpdate = false)
@@ -1912,6 +1985,11 @@ class PlayerViewModel(
 
     skippedSegmentTypes += activeSegment.type
     MPVLib.setPropertyDouble("time-pos", activeSegment.endSeconds)
+    syncplayManager.updatePlayerState(
+      activeSegment.endSeconds,
+      MPVLib.getPropertyBoolean("pause") ?: false,
+      doSeek = true,
+    )
     showToast("${activeSegment.label} (auto)")
   }
 
@@ -1919,6 +1997,11 @@ class PlayerViewModel(
     val segment = _currentSkippableSegment.value ?: return
     skippedSegmentTypes += segment.type
     MPVLib.setPropertyDouble("time-pos", segment.endSeconds)
+    syncplayManager.updatePlayerState(
+      segment.endSeconds,
+      MPVLib.getPropertyBoolean("pause") ?: false,
+      doSeek = true,
+    )
     showToast("${segment.label}")
   }
 
@@ -2736,9 +2819,11 @@ class PlayerViewModel(
         // We are about to unpause, so request focus
         withContext(Dispatchers.Main) { host.requestAudioFocus() }
         MPVLib.setPropertyBoolean("pause", false)
+        syncplayManager.updatePlayerState(precisePosition.value.toDouble(), false, doSeek = false)
       } else {
         // We are about to pause
         MPVLib.setPropertyBoolean("pause", true)
+        syncplayManager.updatePlayerState(precisePosition.value.toDouble(), true, doSeek = false)
         withContext(Dispatchers.Main) { host.abandonAudioFocus() }
       }
     }
@@ -2747,6 +2832,7 @@ class PlayerViewModel(
   fun pause() {
     viewModelScope.launch(Dispatchers.IO) {
       MPVLib.setPropertyBoolean("pause", true)
+      syncplayManager.updatePlayerState(precisePosition.value.toDouble(), true, doSeek = false)
       withContext(Dispatchers.Main) { host.abandonAudioFocus() }
     }
   }
@@ -2755,6 +2841,7 @@ class PlayerViewModel(
     viewModelScope.launch(Dispatchers.IO) {
       withContext(Dispatchers.Main) { host.requestAudioFocus() }
       MPVLib.setPropertyBoolean("pause", false)
+      syncplayManager.updatePlayerState(precisePosition.value.toDouble(), false, doSeek = false)
     }
   }
 
@@ -3076,6 +3163,11 @@ class PlayerViewModel(
         if (shouldUsePreciseSeeking) "absolute+exact" else "absolute+keyframes"
       }
       MPVLib.command("seek", clampedPosition.toString(), seekMode)
+      syncplayManager.updatePlayerState(
+        clampedPosition.toDouble(),
+        MPVLib.getPropertyBoolean("pause") ?: false,
+        doSeek = true,
+      )
     }
   }
 
@@ -3095,11 +3187,21 @@ class PlayerViewModel(
           if (duration > 0 && currentPos + toApply >= duration) {
               // If seeking past the end, force seek to 100% absolute to ensure EOF is triggered
               MPVLib.command("seek", "100", "absolute-percent+exact")
+              syncplayManager.updatePlayerState(
+                duration.toDouble(),
+                MPVLib.getPropertyBoolean("pause") ?: false,
+                doSeek = true,
+              )
           } else {
               // Use precise seeking for videos shorter than 2 minutes (120 seconds) or if preference is enabled
               val shouldUsePreciseSeeking = playerPreferences.usePreciseSeeking.get() || duration < 120
               val seekMode = if (shouldUsePreciseSeeking) "relative+exact" else "relative+keyframes"
               MPVLib.command("seek", toApply.toString(), seekMode)
+              syncplayManager.updatePlayerState(
+                (currentPos + toApply).toDouble(),
+                MPVLib.getPropertyBoolean("pause") ?: false,
+                doSeek = true,
+              )
           }
         }
       }
@@ -4697,6 +4799,8 @@ class PlayerViewModel(
     // bounded at 100 entries, so it is not urgent to clear, but clearing
     // here keeps the working set fresh for the next session.
     runCatching { metadataCache.evictAll() }
+
+    runCatching { syncplayManager.clearPlayerBindings() }
 
     super.onCleared()
   }

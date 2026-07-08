@@ -132,4 +132,5 @@ val domainModule = module {
             get<Json>()
         )
     }
+    single { com.quantummpv.app.domain.syncplay.SyncplayManager() }
 }
