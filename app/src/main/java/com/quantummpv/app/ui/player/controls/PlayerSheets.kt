@@ -139,6 +139,8 @@ fun PlayerSheets(
       val provider by aiPreferences.provider.collectAsState()
       val autoTranslateLanguages by aiPreferences.autoTranslateLanguages.collectAsState()
 
+      val subtitlesOff = subtitles.none { isSubtitleSelected(it.id) }
+
       SubtitlesSheet(
         tracks = subtitles.toImmutableList(),
         onToggleSubtitle = onToggleSubtitle,
@@ -165,6 +167,12 @@ fun PlayerSheets(
         autoTranslateLanguages = autoTranslateLanguages,
         aiEnabled = aiEnabled,
         realtimeSubsEnabled = realtimeSubsEnabled,
+        subtitlesOff = subtitlesOff,
+        onDisableSubtitles = {
+          setTrackSelectionId("sid", null)
+          setTrackSelectionId("secondary-sid", null)
+          subtitlesPreferences.autoEnableSubtitles.set(false)
+        },
       )
     }
 
