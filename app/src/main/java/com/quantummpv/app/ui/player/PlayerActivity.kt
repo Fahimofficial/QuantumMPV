@@ -772,9 +772,10 @@ class PlayerActivity :
       MpvrxTheme {
         val isAudioOnly by viewModel.isAudioOnly.collectAsState()
         val audioBlobEnabled by audioPreferences.audioBlobEnabled.collectAsState()
+        val hasAlbumArt by viewModel.hasAlbumArt.collectAsState()
         val paused by MPVLib.propBoolean["pause"].collectAsState()
         Box(modifier = Modifier.fillMaxSize()) {
-          if (isAudioOnly && audioBlobEnabled) {
+          if (isAudioOnly && (audioBlobEnabled || !hasAlbumArt)) {
             BlobOverlay(isPlaying = paused == false)
           }
           PlayerControls(

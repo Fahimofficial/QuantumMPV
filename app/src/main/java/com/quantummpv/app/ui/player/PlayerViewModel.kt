@@ -445,6 +445,13 @@ class PlayerViewModel(
         tracks.any { it.isAudio } && tracks.none { it.isVideo && !it.isAlbumArtwork }
       }.stateIn(viewModelScope, SharingStarted.Eagerly, false)
 
+  val hasAlbumArt: StateFlow<Boolean> =
+    MPVLib.propNode["track-list"]
+      .map { node ->
+        val tracks = node?.toObject<List<TrackNode>>(json).orEmpty()
+        tracks.any { it.isAlbumArtwork }
+      }.stateIn(viewModelScope, SharingStarted.Eagerly, false)
+
   val chapters: StateFlow<List<dev.vivvvek.seeker.Segment>> =
     MPVLib.propNode["chapter-list"]
       .map { node ->

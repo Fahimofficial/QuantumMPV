@@ -90,6 +90,12 @@ internal class BlobRenderer(
     private var yaw = 0f
     private var pitch = 0f
 
+    @Volatile private var pinchScale = 1f
+
+    fun setPinchScale(scale: Float) {
+        pinchScale = scale.coerceIn(0.35f, 3.0f)
+    }
+
     private var startNanos = 0L
     private var previousFrameNanos = 0L
     private var frameTimeEmaMs = 16.6f
@@ -142,7 +148,7 @@ internal class BlobRenderer(
 
         val aspect = surfaceWidth.toFloat() / surfaceHeight.toFloat()
         Matrix.perspectiveM(projection, 0, 45f, aspect, 0.1f, 30f)
-        Matrix.setLookAtM(view, 0, 0f, -0.18f, 4.2f, 0f, 0f, 0f, 0f, 1f, 0f)
+        Matrix.setLookAtM(view, 0, 0f, -0.18f, zoomDistance, 0f, 0f, 0f, 0f, 1f, 0f)
     }
 
     override fun onDrawFrame(gl: GL10?) {
@@ -245,7 +251,7 @@ internal class BlobRenderer(
         val idleRotation = time * (4.5f + audio.mid * 5f)
         Matrix.rotateM(model, 0, yaw + idleRotation, 0f, 1f, 0f)
         Matrix.rotateM(model, 0, pitch + time * 1.7f, 1f, 0f, 0f)
-        val scale = 1.58f + audio.bass * 0.08f + audio.beat * 0.035f
+        val scale = pinchScale * (1.0f + audio.bass * 0.08f + audio.beat * 0.035f)
         Matrix.scaleM(model, 0, scale, scale, scale)
         Matrix.multiplyMM(viewModel, 0, view, 0, model, 0)
         Matrix.multiplyMM(mvp, 0, projection, 0, viewModel, 0)
