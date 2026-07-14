@@ -40,7 +40,7 @@ class WebDavClient(private val connection: NetworkConnection) : NetworkClient {
         if (basePath.isEmpty()) {
           "$protocol://${connection.host}:${connection.port}/"
         } else {
-          "$protocol://${connection.host}:${connection.port}/$basePath"
+          "$protocol://${connection.host}:${connection.port}/$basePath/"
         }
       }
       basePath.isEmpty() -> "$protocol://${connection.host}:${connection.port}/$cleanPath"
@@ -56,9 +56,12 @@ class WebDavClient(private val connection: NetworkConnection) : NetworkClient {
           client.setCredentials(connection.username, connection.password)
         }
 
-        // Test connection by checking if base path exists
+        // Validate with WebDAV's native PROPFIND operation. Some compliant servers do not
+        // implement HEAD, which Sardine's exists() uses.
         val testUrl = buildUrl("")
-        client.exists(testUrl)
+        if (client.list(testUrl, 0).isEmpty()) {
+          throw IllegalStateException("WebDAV base path returned no resources")
+        }
 
         sardine = client
         Result.success(Unit)

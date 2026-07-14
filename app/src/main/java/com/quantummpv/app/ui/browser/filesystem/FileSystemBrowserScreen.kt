@@ -825,7 +825,7 @@ fun FileSystemBrowserScreen(path: String? = null) {
         onRenameClick = { renameDialogOpen.value = true },
         onDeleteClick = { deleteDialogOpen = true },
         onAddToPlaylistClick = { addToPlaylistDialogOpen.value = true },
-        showDownscale = selectedVideos.size == 1 && selectedFolders.isEmpty(),
+        showDownscale = selectedVideos.size == 1 && selectedFolders.isEmpty() && selectedVideos.none { it.isAudio },
         showRename = selectionManager.isSingleSelection,
         showAddToPlaylist = !BuildConfig.ENABLE_UPDATE_FEATURE && onlyVideosSelected,
         modifier = Modifier.padding(bottom = if (com.quantummpv.app.ui.browser.NavigationBarState.shouldHideNavigationBar) 0.dp else navigationBarHeight)

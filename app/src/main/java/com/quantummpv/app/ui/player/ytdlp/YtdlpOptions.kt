@@ -38,6 +38,17 @@ enum class YtdlAudioPreference(val title: String) {
   WEBM("WebM"),
 }
 
+enum class YtdlAudioQuality(
+  val title: String,
+  val maxBitrateKbps: Int?,
+) {
+  AUTO("Auto / Best", null),
+  KBPS_64("Prefer up to 64 kbps", 64),
+  KBPS_128("Prefer up to 128 kbps", 128),
+  KBPS_192("Prefer up to 192 kbps", 192),
+  KBPS_256("Prefer up to 256 kbps", 256),
+}
+
 
 data class YtdlpOptionSettings(
   val codecPreference: YtdlCodecPreference = YtdlCodecPreference.AUTO,
@@ -47,6 +58,7 @@ data class YtdlpOptionSettings(
   val hdrPreference: YtdlHdrPreference = YtdlHdrPreference.ANY,
   val containerPreference: YtdlContainerPreference = YtdlContainerPreference.ANY,
   val audioPreference: YtdlAudioPreference = YtdlAudioPreference.AUTO,
+  val audioQuality: YtdlAudioQuality = YtdlAudioQuality.AUTO,
   val formatSort: String = "",
   val mergeOutputFormat: String = "",
   val writeSubs: Boolean = true,
@@ -79,6 +91,7 @@ data class YtdlpOptionSettings(
         hdrPreference = ytdlPreferences.hdrPreference.get(),
         containerPreference = ytdlPreferences.containerPreference.get(),
         audioPreference = ytdlPreferences.audioPreference.get(),
+        audioQuality = ytdlPreferences.audioQuality.get(),
         formatSort = ytdlPreferences.formatSort.get(),
         mergeOutputFormat = ytdlPreferences.mergeOutputFormat.get(),
         writeSubs = ytdlPreferences.writeSubs.get(),
@@ -153,14 +166,16 @@ object YtdlpOptionsBuilder {
     )
   }
 
-  private fun YtdlAudioPreference.audioSelector(): String =
-    when (this) {
+  private fun YtdlAudioPreference.audioSelector(quality: YtdlAudioQuality): String {
+    val selector = when (this) {
       YtdlAudioPreference.AUTO -> "ba"
       YtdlAudioPreference.AAC -> "ba[acodec^=?aac]"
       YtdlAudioPreference.OPUS -> "ba[acodec^=?opus]"
       YtdlAudioPreference.M4A -> "ba[ext=m4a]"
       YtdlAudioPreference.WEBM -> "ba[ext=webm]"
     }
+    return quality.maxBitrateKbps?.let { "$selector[abr<=?$it]" } ?: selector
+  }
 
   fun buildFormat(settings: YtdlpOptionSettings): String {
     val codec = if (settings.codecPreference == YtdlCodecPreference.AUTO && settings.legacyPreferH264) {
@@ -169,18 +184,19 @@ object YtdlpOptionsBuilder {
       settings.codecPreference
     }
 
-    val audioSel = settings.audioPreference.audioSelector()
+    val audioSel = settings.audioPreference.audioSelector(settings.audioQuality)
 
     val videoSelectors = codec.videoSelectors(settings.containerPreference)
       .map { selector -> selector + settings.formatFilters() }
     val videoGroup = videoSelectors.joinToString("/")
-    val singleGroup = "b*" + settings.formatFilters()
+    val audioBitrateFilter = settings.audioQuality.maxBitrateKbps?.let { "[abr<=?$it]" }.orEmpty()
+    val singleGroup = "b*" + settings.formatFilters() + audioBitrateFilter
     val primary = if (videoGroup.isBlank()) {
       singleGroup
     } else {
       "($videoGroup)+$audioSel/$singleGroup"
     }
-    return "$primary/bv*+$audioSel/b"
+    return "$primary/bv*+$audioSel/b$audioBitrateFilter"
   }
 
   fun parseRawOptions(raw: String): List<RawYtdlpOption> =

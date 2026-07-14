@@ -20,7 +20,7 @@ data class TrackNode(
   val title: String? = null,
   val lang: String? = null,
   val image: Boolean? = null,
-  @SerialName("albumArt") val albumArt: Boolean? = null,
+  @SerialName("albumart") val albumArt: Boolean? = null,
   val default: Boolean? = null,
   val forced: Boolean? = null,
   val dependent: Boolean? = null,
@@ -62,6 +62,8 @@ data class TrackNode(
   val metadata: Map<String, String?>? = null,
 ) {
   val isAudio = type == "audio"
+  val isVideo = type == "video"
+  val isAlbumArtwork = albumArt == true || image == true
   val isSubtitle = type == "sub"
   val isSelected = selected == true
 }

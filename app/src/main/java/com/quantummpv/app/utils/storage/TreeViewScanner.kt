@@ -83,6 +83,7 @@ object TreeViewScanner {
     playedMediaTitles: Set<String> = emptySet(),
     showNewLabels: Boolean = false,
     thresholdDays: Int = 7,
+    maxAutoFlattenLevels: Int = -1,
   ): List<FolderData> = withContext(Dispatchers.IO) {
     val allFolders =
       getOrBuildTreeViewData(
@@ -94,7 +95,7 @@ object TreeViewScanner {
         thresholdDays = thresholdDays,
       )
 
-    getEffectiveChildren(parentPath, allFolders)
+    getEffectiveChildren(parentPath, allFolders, maxAutoFlattenLevels)
       .map(::toFolderData)
       .sortedBy { it.name.lowercase(Locale.getDefault()) }
   }
@@ -214,6 +215,16 @@ object TreeViewScanner {
     val currentTimeMs = System.currentTimeMillis()
 
     scanMediaStoreRecursive(context, allFolders, noMediaPathFilter, newBadgeConfig, currentTimeMs)
+    if (options.includeAudio) {
+      scanAudioMediaStoreRecursive(
+        context,
+        allFolders,
+        noMediaPathFilter,
+        newBadgeConfig,
+        currentTimeMs,
+        options,
+      )
+    }
     scanFileSystemRoots(
       context = context,
       folders = allFolders,
@@ -329,6 +340,75 @@ object TreeViewScanner {
     )
   }
 
+  private fun scanAudioMediaStoreRecursive(
+    context: Context,
+    folders: MutableMap<String, FolderNode>,
+    noMediaPathFilter: NoMediaPathFilter,
+    newBadgeConfig: NewBadgeConfig,
+    currentTimeMs: Long,
+    options: MediaScanOptions,
+  ) {
+    val projection =
+      arrayOf(
+        MediaStore.Audio.Media.DATA,
+        MediaStore.Audio.Media.DISPLAY_NAME,
+        MediaStore.Audio.Media.SIZE,
+        MediaStore.Audio.Media.DURATION,
+        MediaStore.Audio.Media.DATE_MODIFIED,
+      )
+    try {
+      context.contentResolver.query(
+        MediaStore.Audio.Media.EXTERNAL_CONTENT_URI,
+        projection,
+        null,
+        null,
+        null,
+      )?.use { cursor ->
+        val dataColumn = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.DATA)
+        val nameColumn = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.DISPLAY_NAME)
+        val sizeColumn = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.SIZE)
+        val durationColumn = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.DURATION)
+        val dateColumn = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.DATE_MODIFIED)
+        val audioByFolder = mutableMapOf<String, FolderAggregate>()
+
+        while (cursor.moveToNext()) {
+          val file = File(cursor.getString(dataColumn))
+          if (!file.exists() || noMediaPathFilter.shouldExcludeDirectory(file.parentFile)) continue
+          val duration = cursor.getLong(durationColumn)
+          if (!options.includesAudioDuration(duration)) continue
+          val folderPath = normalizeStoragePath(file.parent) ?: continue
+          val folderKey = storagePathKey(folderPath) ?: continue
+          audioByFolder.getOrPut(folderKey) { FolderAggregate(folderPath) }.videos +=
+            VideoInfo(
+              displayName = cursor.getString(nameColumn) ?: file.name,
+              size = cursor.getLong(sizeColumn),
+              duration = duration,
+              dateModified = cursor.getLong(dateColumn),
+            )
+        }
+
+        for ((folderKey, aggregate) in audioByFolder) {
+          val audioNode = createDirectNode(aggregate.path, aggregate.videos, newBadgeConfig, currentTimeMs)
+          val existing = folders[folderKey]
+          folders[folderKey] =
+            if (existing == null) {
+              audioNode
+            } else {
+              existing.apply {
+                directVideoCount += audioNode.directVideoCount
+                directSize += audioNode.directSize
+                directDuration += audioNode.directDuration
+                directLastModified = maxOf(directLastModified, audioNode.directLastModified)
+                directNewCount += audioNode.directNewCount
+              }
+            }
+        }
+      }
+    } catch (e: Exception) {
+      Log.e(TAG, "MediaStore audio tree scan error", e)
+    }
+  }
+
   private fun isVideoNew(
     displayName: String,
     dateModifiedSeconds: Long,
@@ -407,7 +487,7 @@ object TreeViewScanner {
 
     try {
       val files = directory.listFiles() ?: return
-      val videoFiles = mutableListOf<File>()
+      val mediaFiles = mutableListOf<File>()
       val subdirectories = mutableListOf<File>()
 
       for (file in files) {
@@ -423,9 +503,12 @@ object TreeViewScanner {
               if (FileFilterUtils.shouldSkipFile(file, options, noMediaPathFilter)) {
                 continue
               }
-              val extension = file.extension.lowercase(Locale.getDefault())
-              if (FileTypeUtils.VIDEO_EXTENSIONS.contains(extension)) {
-                videoFiles.add(file)
+              if (FileTypeUtils.isSupportedMediaFile(file, options)) {
+                val isAudio = FileTypeUtils.isAudioFile(file)
+                val duration = if (isAudio) FileTypeUtils.getDurationMs(file) else 0L
+                if (!isAudio || options.includesAudioDuration(duration)) {
+                  mediaFiles.add(file)
+                }
               }
             }
           }
@@ -436,11 +519,11 @@ object TreeViewScanner {
       val folderPath = normalizeStoragePath(directory.absolutePath) ?: return
       val folderKey = storagePathKey(folderPath) ?: return
 
-      if (videoFiles.isNotEmpty()) {
+      if (mediaFiles.isNotEmpty()) {
         val existingNode = folders[folderKey]
         val directNewCount =
           if (newBadgeConfig.enabled) {
-            videoFiles.count { file ->
+            mediaFiles.count { file ->
               isVideoNew(
                 displayName = file.name,
                 dateModifiedSeconds = file.lastModified() / 1000L,
@@ -457,10 +540,10 @@ object TreeViewScanner {
             FolderNode(
               path = folderPath,
               name = leafStorageName(folderPath),
-              directVideoCount = videoFiles.size,
-              directSize = videoFiles.sumOf { it.length() },
-              directDuration = 0L,
-              directLastModified = (videoFiles.maxOfOrNull { it.lastModified() } ?: 0L) / 1000L,
+              directVideoCount = mediaFiles.size,
+              directSize = mediaFiles.sumOf { it.length() },
+              directDuration = mediaFiles.filter(FileTypeUtils::isAudioFile).sumOf(FileTypeUtils::getDurationMs),
+              directLastModified = (mediaFiles.maxOfOrNull { it.lastModified() } ?: 0L) / 1000L,
               directNewCount = directNewCount,
               hasDirectSubfolders = subdirectories.isNotEmpty(),
             )
@@ -558,7 +641,7 @@ object TreeViewScanner {
         getDirectChildren(node.path, folders)
           .filter { it.recursiveVideoCount > 0 }
 
-      if (childrenWithMedia.size < 2 && pathKey !in storageRootKeys) {
+      if (childrenWithMedia.size == 1 && pathKey !in storageRootKeys) {
         node.isFlattened = true
       }
     }
@@ -582,13 +665,15 @@ object TreeViewScanner {
   private fun getEffectiveChildren(
     parentPath: String,
     allNodes: Map<String, FolderNode>,
+    remainingLevels: Int = -1,
   ): List<FolderNode> {
     val directChildren = getDirectChildren(parentPath, allNodes)
     val result = mutableListOf<FolderNode>()
 
     for (child in directChildren) {
-      if (child.isFlattened) {
-        result += getEffectiveChildren(child.path, allNodes)
+      if (child.isFlattened && remainingLevels != 0) {
+        val nextLevel = if (remainingLevels < 0) -1 else remainingLevels - 1
+        result += getEffectiveChildren(child.path, allNodes, nextLevel)
       } else {
         result += child
       }

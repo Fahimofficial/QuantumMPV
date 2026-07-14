@@ -418,7 +418,7 @@ data class VideoListScreen(
             onRenameClick = { renameDialogOpen.value = true },
             onDeleteClick = { deleteDialogOpen.value = true },
             onAddToPlaylistClick = { addToPlaylistDialogOpen.value = true },
-            showDownscale = selectionManager.selectedCount == 1,
+            showDownscale = selectionManager.selectedCount == 1 && selectionManager.getSelectedItems().none { it.isAudio },
             showRename = selectionManager.selectedCount > 0,
             modifier = Modifier
               .align(Alignment.BottomCenter)

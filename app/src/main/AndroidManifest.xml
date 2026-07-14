@@ -7,6 +7,7 @@
         android:name="android.permission.READ_EXTERNAL_STORAGE"
         android:maxSdkVersion="32" />
     <uses-permission android:name="android.permission.READ_MEDIA_VIDEO" />
+    <uses-permission android:name="android.permission.READ_MEDIA_AUDIO" />
     <uses-permission
         android:name="android.permission.WRITE_EXTERNAL_STORAGE"
         android:maxSdkVersion="28"
@@ -65,6 +66,14 @@
             android:resizeableActivity="true"
             android:supportsPictureInPicture="true"
             android:theme="@style/Theme.mpvrx.Player">
+            <!-- MIME-only discovery lets external-player pickers find mpvRx before they
+                 attach the final stream URI. URI playback remains constrained below. -->
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <data android:mimeType="video/*" />
+                <data android:mimeType="audio/*" />
+            </intent-filter>
             <intent-filter>
                 <action android:name="android.intent.action.VIEW" />
 
@@ -114,6 +123,9 @@
                 <data android:scheme="mmsh" />
                 <data android:scheme="tcp" />
                 <data android:scheme="udp" />
+                <data android:scheme="gopher" />
+                <data android:scheme="sctp" />
+                <data android:scheme="data" />
             </intent-filter>
             <intent-filter>
                 <action android:name="android.intent.action.SEND" />

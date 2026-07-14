@@ -1,17 +1,27 @@
 package com.quantummpv.app.ui.browser.dialogs
 
+import android.Manifest
+import android.content.pm.PackageManager
+import android.os.Build
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.platform.LocalContext
+import androidx.core.content.ContextCompat
 import com.quantummpv.app.preferences.AppearancePreferences
 import com.quantummpv.app.preferences.BrowserPreferences
 import com.quantummpv.app.preferences.FolderSortType
 import com.quantummpv.app.preferences.FolderViewMode
 import com.quantummpv.app.preferences.MediaLayoutMode
+import com.quantummpv.app.preferences.MinimumAudioDuration
 import com.quantummpv.app.preferences.SortOrder
 import com.quantummpv.app.preferences.VideoSortType
 import com.quantummpv.app.preferences.preference.collectAsState
+import com.quantummpv.app.repository.MediaFileRepository
+import com.quantummpv.app.utils.media.MediaLibraryEvents
 import com.quantummpv.app.ui.icons.Icons
 import org.koin.compose.koinInject
 
@@ -180,7 +190,7 @@ fun FolderSortDialog(
       )
       add(
         VisibilityToggle(
-          label = "Total Videos",
+          label = "Total Media",
           checked = showTotalVideosChip,
           onCheckedChange = { browserPreferences.showTotalVideosChip.set(it) },
         )
@@ -688,7 +698,7 @@ fun FileSystemSortDialog(
       )
       add(
         VisibilityToggle(
-          label = "Total Videos",
+          label = "Total Media",
           checked = showTotalVideosChip,
           onCheckedChange = { browserPreferences.showTotalVideosChip.set(it) },
         )
@@ -755,6 +765,6 @@ fun FileSystemSortDialog(
           )
         )
       }
-    }
+    },
   )
 }

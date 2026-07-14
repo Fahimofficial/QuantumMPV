@@ -42,6 +42,7 @@ class CoilVideoThumbnailDecoder(
   private val options: Options,
   private val strategy: ThumbnailStrategy,
   private val diskCache: Lazy<DiskCache?>,
+  private val isAudio: Boolean,
 ) : Decoder {
   private val diskCacheKey: String
     get() =
@@ -85,9 +86,10 @@ class CoilVideoThumbnailDecoder(
     return MediaMetadataRetriever().use { retriever ->
       retriever.setDataSource(source)
       val sourcePath = sourcePath()
+      val isAudioSource = isAudio
 
       val embeddedPicture =
-        if (strategy.prefersEmbeddedPicture()) {
+        if (isAudioSource || strategy.prefersEmbeddedPicture()) {
           EmbeddedArtworkResolver.decodeEmbeddedArtwork(sourcePath, retriever)
         } else {
           null
@@ -103,6 +105,9 @@ class CoilVideoThumbnailDecoder(
           else -> 0L
         }
       val rawBitmap =
+        if (isAudioSource) {
+          embeddedPicture ?: throw IllegalStateException("Audio file has no embedded artwork")
+        } else {
         when (strategy) {
           ThumbnailStrategy.FirstFrame -> retriever.getThumbnailFrameAt(0)
           is ThumbnailStrategy.FrameAtPercentage -> {
@@ -127,6 +132,7 @@ class CoilVideoThumbnailDecoder(
         } ?: sourcePathForFallback?.let { path ->
           decodeWithSoftwareCodec(path, fallbackTimeUs)
         } ?: throw IllegalStateException("Failed to decode video thumbnail")
+        }
 
       val rotatedBitmap = if (shouldRotate) rotateBitmapIfNeeded(retriever, rawBitmap) else rawBitmap
       val thumbnailBitmap = rotatedBitmap.scaleToThumbnailMax()
@@ -512,12 +518,13 @@ class CoilVideoThumbnailDecoder(
         options = options,
         strategy = thumbnailStrategy(),
         diskCache = lazy { imageLoader.diskCache },
+        isAudio = isAudio(result),
       )
     }
 
     private fun isApplicable(result: SourceFetchResult): Boolean {
       val mimeType = result.mimeType
-      if (mimeType != null && mimeType.startsWith("video/")) {
+      if (mimeType != null && (mimeType.startsWith("video/") || mimeType.startsWith("audio/"))) {
         return true
       }
 
@@ -530,7 +537,19 @@ class CoilVideoThumbnailDecoder(
         } ?: return false
 
       val extension = sourcePath.substringAfterLast('.', "").lowercase()
-      return FileTypeUtils.VIDEO_EXTENSIONS.contains(extension)
+      return extension in FileTypeUtils.VIDEO_EXTENSIONS || extension in FileTypeUtils.AUDIO_EXTENSIONS
+    }
+
+    private fun isAudio(result: SourceFetchResult): Boolean {
+      if (result.mimeType?.startsWith("audio/") == true) return true
+      val metadata = result.source.metadata
+      val sourcePath =
+        when {
+          metadata is ContentMetadata -> metadata.uri.toString()
+          result.source.fileSystem === FileSystem.SYSTEM -> result.source.file().toFile().path
+          else -> null
+        } ?: return false
+      return sourcePath.substringAfterLast('.', "").lowercase() in FileTypeUtils.AUDIO_EXTENSIONS
     }
   }
 }

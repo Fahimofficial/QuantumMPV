@@ -438,6 +438,20 @@ class PlayerViewModel(
           ?: persistentListOf()
       }.stateIn(viewModelScope, SharingStarted.Lazily, persistentListOf())
 
+  val isAudioOnly: StateFlow<Boolean> =
+    MPVLib.propNode["track-list"]
+      .map { node ->
+        val tracks = node?.toObject<List<TrackNode>>(json).orEmpty()
+        tracks.any { it.isAudio } && tracks.none { it.isVideo && !it.isAlbumArtwork }
+      }.stateIn(viewModelScope, SharingStarted.Eagerly, false)
+
+  val hasAlbumArt: StateFlow<Boolean> =
+    MPVLib.propNode["track-list"]
+      .map { node ->
+        val tracks = node?.toObject<List<TrackNode>>(json).orEmpty()
+        tracks.any { it.isAlbumArtwork }
+      }.stateIn(viewModelScope, SharingStarted.Eagerly, false)
+
   val chapters: StateFlow<List<dev.vivvvek.seeker.Segment>> =
     MPVLib.propNode["chapter-list"]
       .map { node ->
@@ -3354,6 +3368,10 @@ class PlayerViewModel(
   // ==================== Screen Rotation ====================
 
   fun cycleScreenRotations() {
+    if (isAudioOnly.value) {
+      host.hostRequestedOrientation = ActivityInfo.SCREEN_ORIENTATION_SENSOR_PORTRAIT
+      return
+    }
     // Temporarily cycle orientation WITHOUT modifying preferences
     // Preferences remain the single source of truth and will be reapplied on next video
     host.hostRequestedOrientation =

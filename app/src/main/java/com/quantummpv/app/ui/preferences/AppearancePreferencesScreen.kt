@@ -48,6 +48,7 @@ import com.quantummpv.app.ui.player.VideoOpenAnimation
 import com.quantummpv.app.ui.player.controls.components.sheets.toFixed
 import com.quantummpv.app.preferences.MultiChoiceSegmentedButton
 import com.quantummpv.app.preferences.ThumbnailMode
+import com.quantummpv.app.preferences.TreeFlattenDepth
 import com.quantummpv.app.preferences.preference.collectAsState
 import com.quantummpv.app.presentation.Screen
 import com.quantummpv.app.presentation.components.ConfirmDialog
@@ -90,6 +91,7 @@ object AppearancePreferencesScreen : Screen {
         val storedThumbnailMode by browserPreferences.thumbnailMode.collectAsState()
         val thumbnailFramePosition by browserPreferences.thumbnailFramePosition.collectAsState()
         val dualPaneForTablet by browserPreferences.dualPaneForTablet.collectAsState()
+        val treeFlattenDepth by browserPreferences.treeFlattenDepth.collectAsState()
         val thumbnailCacheClearedMessage = stringResource(R.string.pref_thumbnail_cache_cleared)
 
         val thumbnailMode = storedThumbnailMode
@@ -348,6 +350,25 @@ object AppearancePreferencesScreen : Screen {
 
                             PreferenceDivider()
 
+                            ListPreference(
+                                value = treeFlattenDepth,
+                                onValueChange = browserPreferences.treeFlattenDepth::set,
+                                values = TreeFlattenDepth.entries,
+                                valueToText = { AnnotatedString(it.displayName) },
+                                title = { Text(stringResource(R.string.pref_tree_flatten_depth_title)) },
+                                summary = {
+                                    Text(
+                                        stringResource(
+                                            R.string.pref_tree_flatten_depth_summary,
+                                            treeFlattenDepth.displayName,
+                                        ),
+                                        color = MaterialTheme.colorScheme.outline,
+                                    )
+                                },
+                            )
+
+                            PreferenceDivider()
+
                             SwitchPreference(
                                 value = dualPaneForTablet,
                                 onValueChange = { browserPreferences.dualPaneForTablet.set(it) },
@@ -379,6 +400,22 @@ object AppearancePreferencesScreen : Screen {
                                             id = R.string.pref_appearance_watched_threshold_summary,
                                             watchedThreshold,
                                         ),
+                                        color = MaterialTheme.colorScheme.outline,
+                                    )
+                                },
+                            )
+
+                            PreferenceDivider()
+
+                            val deleteFolderAllContents by browserPreferences.deleteFolderAllContents.collectAsState()
+                            SwitchPreference(
+                                value = deleteFolderAllContents,
+                                onValueChange = { browserPreferences.deleteFolderAllContents.set(it) },
+                                title = { Text("Delete folder + all contents") },
+                                summary = {
+                                    Text(
+                                        text = if (deleteFolderAllContents) "Deletes entire folder (all files)"
+                                               else "Only media files (audio/video) are deleted",
                                         color = MaterialTheme.colorScheme.outline,
                                     )
                                 },
