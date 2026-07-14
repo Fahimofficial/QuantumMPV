@@ -1102,6 +1102,8 @@ private fun GridContent(
           .find { it.folder.bucketId == folder.bucketId }
           ?.newVideoCount ?: 0
 
+        val isActive = isDualPaneActive && folder.bucketId == selectedFolderBucketId
+
         FolderCard(
           folder = folder,
           isSelected = selectionManager.isSelected(folder),
@@ -1123,6 +1125,7 @@ private fun GridContent(
               null
             },
           isDualPane = isDualPane,
+          isActive = isActive,
         )
       }
     }
@@ -1160,6 +1163,12 @@ private fun ListContent(
   onTogglePin: (VideoFolder) -> Unit,
   selectedFolderBucketId: String? = null,
 ) {
+  val configuration = androidx.compose.ui.platform.LocalConfiguration.current
+  val isTablet = configuration.smallestScreenWidthDp >= 600
+  val browserPreferences = org.koin.compose.koinInject<com.quantummpv.app.preferences.BrowserPreferences>()
+  val dualPaneForTablet by browserPreferences.dualPaneForTablet.collectAsState()
+  val isDualPaneActive = isTablet && dualPaneForTablet
+
   Box(modifier = Modifier.fillMaxSize()) {
     LazyColumn(
       state = listState,
@@ -1179,6 +1188,8 @@ private fun ListContent(
         val newCount = foldersWithNewCount
           .find { it.folder.bucketId == folder.bucketId }
           ?.newVideoCount ?: 0
+
+        val isActive = isDualPaneActive && folder.bucketId == selectedFolderBucketId
 
         FolderCard(
           folder = folder,
@@ -1219,6 +1230,8 @@ private fun ListContent(
             } else {
               null
             },
+          isDualPane = isDualPaneActive && selectedFolderBucketId != null,
+          isActive = isActive,
         )
       }
     }
