@@ -106,10 +106,10 @@ object AudioPreferencesScreen : Screen {
                 val snappedValue = snap(minimumAudioDurationSeconds)
                 SliderPreference(
                   value = snappedValue.toFloat(),
-                  onValueChange = { browserPreferences.minimumAudioDurationSeconds.set(snap(it.toInt())) },
+                  onValueChange = { v -> browserPreferences.minimumAudioDurationSeconds.set(snap(v.toInt())) },
                   title = { Text("Minimum audio duration") },
                   valueRange = 0f..120f,
-                  steps = 5,
+                  valueSteps = 5,
                   summary = {
                     Text(
                       when (minimumAudioDurationSeconds) {

@@ -8,7 +8,7 @@ class BlobVisualizerView(
     context: Context,
     features: AudioFeatures = AudioFeatures(),
 ) : GLSurfaceView(context) {
-    val blobRenderer = BlobRenderer(context.applicationContext, features)
+    private val blobRenderer = BlobRenderer(context.applicationContext, features)
 
     private var previousX = 0f
     private var previousY = 0f
