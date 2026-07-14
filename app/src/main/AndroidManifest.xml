@@ -123,6 +123,9 @@
                 <data android:scheme="mmsh" />
                 <data android:scheme="tcp" />
                 <data android:scheme="udp" />
+                <data android:scheme="gopher" />
+                <data android:scheme="sctp" />
+                <data android:scheme="data" />
             </intent-filter>
             <intent-filter>
                 <action android:name="android.intent.action.SEND" />

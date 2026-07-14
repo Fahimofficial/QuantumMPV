@@ -123,7 +123,7 @@ object HttpUtils {
   fun isNetworkStream(uri: Uri?): Boolean {
     if (uri == null) return false
     val scheme = uri.scheme?.lowercase()
-    return scheme in listOf("http", "https", "rtmp", "rtmps", "rtsp", "rtsps", "mms", "mmsh", "ftp", "ftps")
+    return scheme in listOf("http", "https", "rtmp", "rtmps", "rtsp", "rtsps", "mms", "mmsh", "ftp", "ftps", "gopher", "sctp")
   }
 
   fun shouldPreferResolvedMediaTitle(
