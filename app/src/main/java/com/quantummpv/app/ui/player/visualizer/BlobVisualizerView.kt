@@ -73,6 +73,6 @@ class BlobVisualizerView(
     }
 
     private fun pinchScaleFromRenderer(): Float {
-        return 1f
+        return blobRenderer.getPinchScale()
     }
 }

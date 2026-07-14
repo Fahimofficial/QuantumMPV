@@ -257,12 +257,6 @@ object PreferencesScreen : Screen {
             icon = Icons.Outlined.Folder,
             screen = FoldersPreferencesScreen,
           ),
-          SettingsDestination(
-            title = "Deletion",
-            summary = "Delete behavior: media-only or full folder deletion.",
-            icon = Icons.Default.Delete,
-            screen = DeletionPreferencesScreen,
-          ),
         ),
       ),
       SettingsSection(

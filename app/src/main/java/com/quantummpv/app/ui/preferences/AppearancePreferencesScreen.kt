@@ -404,6 +404,22 @@ object AppearancePreferencesScreen : Screen {
                                     )
                                 },
                             )
+
+                            PreferenceDivider()
+
+                            val deleteFolderAllContents by browserPreferences.deleteFolderAllContents.collectAsState()
+                            SwitchPreference(
+                                value = deleteFolderAllContents,
+                                onValueChange = { browserPreferences.deleteFolderAllContents.set(it) },
+                                title = { Text("Delete folder + all contents") },
+                                summary = {
+                                    Text(
+                                        text = if (deleteFolderAllContents) "Deletes entire folder (all files)"
+                                               else "Only media files (audio/video) are deleted",
+                                        color = MaterialTheme.colorScheme.outline,
+                                    )
+                                },
+                            )
                         }
                     }
 

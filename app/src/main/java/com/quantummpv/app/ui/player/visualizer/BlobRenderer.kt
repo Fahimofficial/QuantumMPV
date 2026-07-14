@@ -91,11 +91,13 @@ internal class BlobRenderer(
     private var pitch = 0f
 
     @Volatile private var pinchScale = 1f
-    private var zoomDistance = 2.5f
+    private var zoomDistance = 7.0f
 
     fun setPinchScale(scale: Float) {
         pinchScale = scale.coerceIn(0.35f, 3.0f)
     }
+
+    fun getPinchScale(): Float = pinchScale
 
     private var startNanos = 0L
     private var previousFrameNanos = 0L
