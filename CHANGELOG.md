@@ -7,23 +7,32 @@ These notes are written in plain English and focus on what changed for real use.
 ### 🔊 Audio Blob Visualizer
 - **OpenGL ES 3.0 blob visualizer** — when playing audio without cover art, a reactive 3D blob appears behind the player controls. The blob morphs, pulses, and shifts color based on audio energy with a bloom/glow post-process.
 - **Touch rotation**: Drag the blob to rotate it in 3D.
+- **Pinch zoom fixed**: The blob now properly shrinks/enlarges when pinching — `pinchScaleFromRenderer()` was hardcoded to always return `1f`, resetting zoom on every new gesture.
+- **Smaller default size**: Camera distance increased so the blob fits cleanly within screen bounds instead of nearly filling the height.
 - **Audio Preferences toggle**: New "Audio blob visualizer" switch in Settings > Audio to enable or disable it.
+- **Audio filter setting moved**: Audio filter (compressor/equalizer) options now live in Audio Preferences instead of the player's MoreSheet.
 
 ### 🎬 yt-dlp Changes
 - **Audio quality preferences**: Independent bitrate caps for `Auto`, 64, 128, 192, and 256 kbps — composed with existing codec, resolution, FPS, HDR, and container selectors.
 - **Serialized URL loading**: Initial and replacement URL loads now use one cancellable serialized job, preventing overlapping libmpv commands when links are pasted rapidly.
 - **Graceful error recovery**: Recoverable URL load failures return to the player UI with an error message instead of escaping to the process-wide crash handler.
+- **Audio quality removed from MoreSheet**: yt-dlp audio quality selector moved from the player's MoreSheet to yt-dlp settings.
 
 ### 📻 Audio Browsing
 - **MediaStore + filesystem discovery** for common audio formats, neutral media counts, audio MIME mapping, and Android 13 `READ_MEDIA_AUDIO` permission handling.
 - **Audio cards** show metadata titles, embedded cover artwork when available (via `audio-display=embedded-first`), and a music-note fallback icon.
 - **Portrait-only playback** — audio files force sensor-portrait orientation and prevent the rotation action from switching back to landscape.
 - **Sibling playlist includes audio** — when "Include audio" is on, the next/previous track list includes audio files from the same folder.
+- **Audio icon placeholder fix**: Exported icon now displays correctly for audio files without cover art.
+- **Audio pitch correction fix**: Pitch correction no longer persists when switching to a new video — resets to default per-file.
+- **Audio autoplay race condition fixed**: Eliminated a race condition that could cause audio files to fail starting playback.
 
 ### 🌐 Network & External Playback
 - **WebDAV PROPFIND fix**: Connection checks now use a depth-zero `PROPFIND` request instead of Sardine's `HEAD`-based `exists()` call, making it work with servers like FileBrowser Quantum that reject `HEAD` on DAV collections.
 - **WebDAV trailing slash**: Collection URLs consistently keep a trailing slash during validation and browsing.
 - **External-player discovery**: Added a MIME-only intent filter so external-player pickers can find mpvRx before attaching the final video or audio URI.
+- **More protocol support**: Added `gopher://`, `sctp://`, and `data://` to network stream detection and intent filters.
+- **Stream compatibility improved**: Better handling of edge-case media streams and improved browsing reliability.
 
 ### 🌲 Tree View Navigation
 - **Configurable path compression**: New `Off`, 1–5, and `Unlimited` choices for single-child folder flattening. Applied independently per navigation step, preserving predictable physical paths. Tree View refreshes instantly when the depth changes.
@@ -38,6 +47,25 @@ These notes are written in plain English and focus on what changed for real use.
 - **`vid=auto` before playback**: Non-M3U file loads explicitly reset the video track to auto before loading, avoiding "no video track" state from previous audio-only plays.
 - **`audio-display=embedded-first`**: Enabled MPV's embedded cover art rendering for audio files.
 - **Orientation on audio launch**: `setOrientation()` checks `isKnownAudioLaunch()` immediately, before the track-list event settles — fixes the black-screen + landscape glitch on audio start.
+- **Subtitle "Off" option**: Added an explicit "Off" choice in the player subtitle sheet so users can disable subtitles without cycling through all tracks.
+
+### 🗑️ Folder Deletion Behavior
+- **Media-only deletion (default)**: Deleting a folder now only removes audio/video files — other files (images, logs, documents) are left untouched.
+- **"Delete folder + all contents" toggle**: New option in Appearance Settings > File Browser to switch back to full recursive deletion when needed.
+- **Album View cleanup fix**: Fixed an issue where the last video file in a folder was deleted but the empty folder remained.
+
+### 📱 Tablet & Display
+- **Dynamic refresh rate**: The player can now dynamically adjust the display refresh rate to match the video frame rate for smoother playback.
+- **Dual-pane navigation fix**: Resolved a state leak that could cause crashes when navigating in tablet dual-pane mode.
+- **Dual-pane settings button hidden**: The redundant settings button is no longer shown in dual-pane mode on tablets.
+- **Folder card height fix**: Manual grid column counts now align properly with folder card heights in dual-pane layout.
+
+### 🔍 Settings Search
+- **Search history**: Recently searched terms are saved and displayed for quick re-selection.
+- **Search suggestions**: The search field now shows contextual suggestions as you type.
+- **Reflection-based fallback**: Settings search can dynamically discover settings via reflection when static indices are incomplete.
+
+
 
 ## 1.5.0-preview.2 — Preview Release
 
