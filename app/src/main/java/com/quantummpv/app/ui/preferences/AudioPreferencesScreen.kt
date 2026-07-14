@@ -26,6 +26,7 @@ import androidx.compose.ui.text.font.FontWeight
 import com.quantummpv.app.R
 import com.quantummpv.app.preferences.AudioChannels
 import com.quantummpv.app.preferences.AudioPreferences
+import com.quantummpv.app.preferences.BrowserPreferences
 import com.quantummpv.app.preferences.preference.collectAsState
 import com.quantummpv.app.presentation.Screen
 import com.quantummpv.app.ui.utils.LocalBackStack
@@ -46,6 +47,7 @@ object AudioPreferencesScreen : Screen {
     val resources = LocalResources.current
     val backstack = LocalBackStack.current
     val preferences = koinInject<AudioPreferences>()
+    val browserPreferences = koinInject<BrowserPreferences>()
 
     Scaffold(
       topBar = {
@@ -79,6 +81,74 @@ object AudioPreferencesScreen : Screen {
         ) {
           item {
             PreferenceSectionHeader(title = stringResource(R.string.pref_audio))
+          }
+
+          item {
+            PreferenceCard {
+              val includeAudioBrowser by browserPreferences.includeAudioBrowser.collectAsState()
+              SwitchPreference(
+                value = includeAudioBrowser,
+                onValueChange = { browserPreferences.includeAudioBrowser.set(it) },
+                title = { Text("Include audio files") },
+                summary = {
+                  Text(
+                    "Show audio files in the browser",
+                    color = MaterialTheme.colorScheme.outline,
+                  )
+                },
+              )
+
+              if (includeAudioBrowser) {
+                PreferenceDivider()
+                val minimumAudioDurationSeconds by browserPreferences.minimumAudioDurationSeconds.collectAsState()
+                val snapValues = listOf(0, 15, 30, 45, 60, 90, 120)
+                fun snap(v: Int) = snapValues.minByOrNull { kotlin.math.abs(it - v) } ?: 0
+                val snappedValue = snap(minimumAudioDurationSeconds)
+                SliderPreference(
+                  value = snappedValue.toFloat(),
+                  onValueChange = { browserPreferences.minimumAudioDurationSeconds.set(snap(it.toInt())) },
+                  title = { Text("Minimum audio duration") },
+                  valueRange = 0f..120f,
+                  steps = 5,
+                  summary = {
+                    Text(
+                      when (minimumAudioDurationSeconds) {
+                        0 -> "Any duration"
+                        60 -> "1 min"
+                        120 -> "2 min"
+                        else -> "${minimumAudioDurationSeconds}s"
+                      },
+                      color = MaterialTheme.colorScheme.outline,
+                    )
+                  },
+                  onSliderValueChange = { snapped ->
+                    browserPreferences.minimumAudioDurationSeconds.set(snap(snapped.toInt()))
+                  },
+                  sliderValue = snappedValue.toFloat(),
+                )
+              }
+            }
+          }
+
+          item {
+            PreferenceSectionHeader(title = "Visualizer")
+          }
+
+          item {
+            PreferenceCard {
+              val audioBlobEnabled by preferences.audioBlobEnabled.collectAsState()
+              SwitchPreference(
+                value = audioBlobEnabled,
+                onValueChange = { preferences.audioBlobEnabled.set(it) },
+                title = { Text("Audio blob visualizer") },
+                summary = {
+                  Text(
+                    "Show OpenGL blob visualizer when playing audio",
+                    color = MaterialTheme.colorScheme.outline,
+                  )
+                },
+              )
+            }
           }
           
           item {

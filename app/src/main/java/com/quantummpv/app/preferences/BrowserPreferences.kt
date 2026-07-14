@@ -75,6 +75,8 @@ class BrowserPreferences(
   val treeFlattenDepth = preferenceStore.getEnum("tree_flatten_depth", TreeFlattenDepth.Unlimited)
   val includeAudio = preferenceStore.getBoolean("include_audio", false)
   val minimumAudioDuration = preferenceStore.getEnum("minimum_audio_duration", MinimumAudioDuration.Any)
+  val includeAudioBrowser = preferenceStore.getBoolean("include_audio_browser", false)
+  val minimumAudioDurationSeconds = preferenceStore.getInt("minimum_audio_duration_seconds", 0)
 
   // Watched threshold preference (percentage 1-100)
   val watchedThreshold = preferenceStore.getInt("watched_threshold", 95)

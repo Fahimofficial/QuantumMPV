@@ -74,7 +74,6 @@ fun SortDialog(
   layoutModeSelector: ViewModeSelector? = null,
   folderGridColumnSelector: GridColumnSelector? = null,
   videoGridColumnSelector: GridColumnSelector? = null,
-  audioFilterSelector: AudioFilterSelector? = null,
   showSortOptions: Boolean = true,
   enableViewModeOptions: Boolean = true,
   enableLayoutModeOptions: Boolean = true,
@@ -192,36 +191,6 @@ fun SortDialog(
             folderGridColumnSelector = folderGridColumnSelector,
             videoGridColumnSelector = videoGridColumnSelector,
           )
-
-          if (audioFilterSelector != null) {
-            HorizontalDivider(modifier = Modifier.padding(top = 10.dp))
-            DialogSectionTitle(text = "Media filter")
-            FilterChip(
-              selected = audioFilterSelector.includeAudio,
-              onClick = { audioFilterSelector.onIncludeAudioChange(!audioFilterSelector.includeAudio) },
-              label = { Text("Include audio") },
-            )
-            if (audioFilterSelector.includeAudio) {
-              Text(
-                text = "Minimum audio duration",
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.padding(top = 6.dp),
-              )
-              FlowRow(
-                horizontalArrangement = Arrangement.spacedBy(6.dp),
-                verticalArrangement = Arrangement.spacedBy(4.dp),
-              ) {
-                audioFilterSelector.durationOptions.forEach { option ->
-                  FilterChip(
-                    selected = option.seconds == audioFilterSelector.minimumDurationSeconds,
-                    onClick = { audioFilterSelector.onMinimumDurationChange(option.seconds) },
-                    label = { Text(option.label) },
-                  )
-                }
-              }
-            }
-          }
 
           if (visibilityToggles.isNotEmpty()) {
             HorizontalDivider(modifier = Modifier.padding(top = 10.dp))
@@ -532,15 +501,4 @@ data class GridColumnSelector(
   val steps: Int = 2,
 )
 
-data class AudioDurationOption(
-  val seconds: Int,
-  val label: String,
-)
 
-data class AudioFilterSelector(
-  val includeAudio: Boolean,
-  val onIncludeAudioChange: (Boolean) -> Unit,
-  val minimumDurationSeconds: Int,
-  val onMinimumDurationChange: (Int) -> Unit,
-  val durationOptions: List<AudioDurationOption>,
-)

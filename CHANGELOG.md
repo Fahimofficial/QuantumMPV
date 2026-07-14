@@ -4,9 +4,17 @@ These notes are written in plain English and focus on what changed for real use.
 
 ## 1.5.0-preview.3 — Preview Release
 
+### 🔊 Audio Blob Visualizer
+- **OpenGL ES 3.0 blob visualizer** — when playing audio without cover art, a reactive 3D blob appears behind the player controls. The blob morphs, pulses, and shifts color based on audio energy with a bloom/glow post-process.
+- **Touch rotation**: Drag the blob to rotate it in 3D.
+- **Audio Preferences toggle**: New "Audio blob visualizer" switch in Settings > Audio to enable or disable it.
+
+### 🎬 yt-dlp Changes
+- **Audio quality preferences**: Independent bitrate caps for `Auto`, 64, 128, 192, and 256 kbps — composed with existing codec, resolution, FPS, HDR, and container selectors.
+- **Serialized URL loading**: Initial and replacement URL loads now use one cancellable serialized job, preventing overlapping libmpv commands when links are pasted rapidly.
+- **Graceful error recovery**: Recoverable URL load failures return to the player UI with an error message instead of escaping to the process-wide crash handler.
+
 ### 📻 Audio Browsing
-- **New "Include audio" filter** in folder, library, and Tree View sort/view sheets — opt-in, off by default, so video browsing stays unaffected.
-- **Minimum audio duration** filters for any length, 15 s, 30 s, and 1 min — handy for skipping notification sounds and short clips.
 - **MediaStore + filesystem discovery** for common audio formats, neutral media counts, audio MIME mapping, and Android 13 `READ_MEDIA_AUDIO` permission handling.
 - **Audio cards** show metadata titles, embedded cover artwork when available (via `audio-display=embedded-first`), and a music-note fallback icon.
 - **Portrait-only playback** — audio files force sensor-portrait orientation and prevent the rotation action from switching back to landscape.
@@ -19,11 +27,6 @@ These notes are written in plain English and focus on what changed for real use.
 
 ### 🌲 Tree View Navigation
 - **Configurable path compression**: New `Off`, 1–5, and `Unlimited` choices for single-child folder flattening. Applied independently per navigation step, preserving predictable physical paths. Tree View refreshes instantly when the depth changes.
-
-### 🎬 yt-dlp Playback
-- **Audio quality preferences**: Independent bitrate caps for `Auto`, 64, 128, 192, and 256 kbps — composed with existing codec, resolution, FPS, HDR, and container selectors. Available in yt-dlp settings and the in-player More sheet.
-- **Serialized URL loading**: Initial and replacement URL loads now use one cancellable serialized job, preventing overlapping libmpv commands when links are pasted rapidly.
-- **Graceful error recovery**: Recoverable URL load failures return to the player UI with an error message instead of escaping to the process-wide crash handler.
 
 ### 🎨 Icon Consistency
 - Converted all three `painterResource(R.drawable.ic_material_symbols_check)` usages to `Icons.Default.Check` through the app's `AppIcon` / `Icon` system.

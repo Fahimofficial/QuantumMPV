@@ -51,8 +51,8 @@ object MediaFileRepository : KoinComponent {
   private fun currentScanOptions(): MediaScanOptions =
     MediaScanOptions(
       includeNoMediaFolders = foldersPreferences.includeNoMediaFolders.get(),
-      includeAudio = browserPreferences.includeAudio.get(),
-      minimumAudioDurationSeconds = browserPreferences.minimumAudioDuration.get().seconds,
+      includeAudio = browserPreferences.includeAudioBrowser.get(),
+      minimumAudioDurationSeconds = browserPreferences.minimumAudioDurationSeconds.get(),
     )
 
   private suspend fun getTreeViewNewBadgeParams(): Triple<Boolean, Int, Set<String>> {

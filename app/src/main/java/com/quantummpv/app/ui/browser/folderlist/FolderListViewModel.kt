@@ -177,7 +177,7 @@ class FolderListViewModel(
 
   private fun currentFolderCacheKey(): String =
     "folders_${if (foldersPreferences.includeNoMediaFolders.get()) "with_nomedia" else "exclude_nomedia"}" +
-      "_audio_${browserPreferences.includeAudio.get()}_${browserPreferences.minimumAudioDuration.get().seconds}"
+      "_audio_${browserPreferences.includeAudioBrowser.get()}_${browserPreferences.minimumAudioDurationSeconds.get()}"
 
   private fun serializeFoldersToJson(folders: List<VideoFolder>): String {
     // Simple JSON serialization

@@ -53,7 +53,6 @@ fun FolderSortDialog(
   val folderGridColumnsLandscape by browserPreferences.folderGridColumnsLandscape.collectAsState()
   val videoGridColumnsPortrait by browserPreferences.videoGridColumnsPortrait.collectAsState()
   val videoGridColumnsLandscape by browserPreferences.videoGridColumnsLandscape.collectAsState()
-  val audioFilterSelector = audioFilterSelector(browserPreferences)
 
   val configuration = androidx.compose.ui.platform.LocalConfiguration.current
   val isLandscape = configuration.orientation == android.content.res.Configuration.ORIENTATION_LANDSCAPE
@@ -254,7 +253,6 @@ fun FolderSortDialog(
     },
     folderGridColumnSelector = folderGridColumnSelector,
     videoGridColumnSelector = videoGridColumnSelector,
-    audioFilterSelector = audioFilterSelector,
   )
 }
 
@@ -288,7 +286,6 @@ fun VideoSortDialog(
   val folderGridColumnsLandscape by browserPreferences.folderGridColumnsLandscape.collectAsState()
   val videoGridColumnsPortrait by browserPreferences.videoGridColumnsPortrait.collectAsState()
   val videoGridColumnsLandscape by browserPreferences.videoGridColumnsLandscape.collectAsState()
-  val audioFilterSelector = audioFilterSelector(browserPreferences)
 
   val configuration = androidx.compose.ui.platform.LocalConfiguration.current
   val isLandscape = configuration.orientation == android.content.res.Configuration.ORIENTATION_LANDSCAPE
@@ -511,7 +508,6 @@ fun VideoSortDialog(
       },
     folderGridColumnSelector = folderGridColumnSelector,
     videoGridColumnSelector = videoGridColumnSelector,
-    audioFilterSelector = audioFilterSelector,
   )
 }
 
@@ -544,7 +540,6 @@ fun FileSystemSortDialog(
   val folderGridColumnsLandscape by browserPreferences.folderGridColumnsLandscape.collectAsState()
   val videoGridColumnsPortrait by browserPreferences.videoGridColumnsPortrait.collectAsState()
   val videoGridColumnsLandscape by browserPreferences.videoGridColumnsLandscape.collectAsState()
-  val audioFilterSelector = audioFilterSelector(browserPreferences)
 
   val configuration = androidx.compose.ui.platform.LocalConfiguration.current
   val isLandscape = configuration.orientation == android.content.res.Configuration.ORIENTATION_LANDSCAPE
@@ -771,48 +766,5 @@ fun FileSystemSortDialog(
         )
       }
     },
-    audioFilterSelector = audioFilterSelector,
-  )
-}
-
-@Composable
-private fun audioFilterSelector(browserPreferences: BrowserPreferences): AudioFilterSelector {
-  val context = LocalContext.current
-  val includeAudio by browserPreferences.includeAudio.collectAsState()
-  val minimumDuration by browserPreferences.minimumAudioDuration.collectAsState()
-  fun updateIncludeAudio(enabled: Boolean) {
-    browserPreferences.includeAudio.set(enabled)
-    MediaFileRepository.clearCache()
-    MediaLibraryEvents.notifyChanged()
-  }
-  val audioPermissionLauncher =
-    rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
-      if (granted) updateIncludeAudio(true)
-    }
-  return AudioFilterSelector(
-    includeAudio = includeAudio,
-    onIncludeAudioChange = { enabled ->
-      val needsPermission =
-        enabled &&
-          Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
-          ContextCompat.checkSelfPermission(context, Manifest.permission.READ_MEDIA_AUDIO) !=
-          PackageManager.PERMISSION_GRANTED
-      if (needsPermission) {
-        audioPermissionLauncher.launch(Manifest.permission.READ_MEDIA_AUDIO)
-      } else {
-        updateIncludeAudio(enabled)
-      }
-    },
-    minimumDurationSeconds = minimumDuration.seconds,
-    onMinimumDurationChange = { seconds ->
-      MinimumAudioDuration.entries
-        .firstOrNull { it.seconds == seconds }
-        ?.let { duration ->
-          browserPreferences.minimumAudioDuration.set(duration)
-          MediaFileRepository.clearCache()
-          MediaLibraryEvents.notifyChanged()
-        }
-    },
-    durationOptions = MinimumAudioDuration.entries.map { AudioDurationOption(it.seconds, it.displayName) },
   )
 }
