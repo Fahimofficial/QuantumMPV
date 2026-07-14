@@ -69,6 +69,7 @@ import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.drawscope.clipRect
+import androidx.compose.ui.graphics.drawscope.clipPath
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
@@ -1431,18 +1432,32 @@ fun StandardSeekbar(
                     }
                 }
                 
-                // 1. Unplayed Background
-                drawRangeWithGaps(thumbGapEnd, size.width, chapterGaps, primaryColor.copy(alpha = disabledAlpha))
-
-                // 2. Buffered range ahead of current position
-                val bufferRangeStart = maxOf(playedPx, thumbGapEnd)
-                if (bufferPx > bufferRangeStart) {
-                    drawRangeWithGaps(bufferRangeStart, bufferPx, chapterGaps, primaryColor.copy(alpha = 0.55f))
+                val trackClipPath = Path().apply {
+                    addRoundRect(
+                        androidx.compose.ui.geometry.RoundRect(
+                            left = 0f,
+                            top = 0f,
+                            right = size.width,
+                            bottom = size.height,
+                            cornerRadius = CornerRadius(outerRadius)
+                        )
+                    )
                 }
-                
-                // 3. Played
-                if (thumbGapStart > 0) {
-                    drawRangeWithGaps(0f, thumbGapStart, chapterGaps, primaryColor)
+
+                clipPath(trackClipPath) {
+                    // 1. Unplayed Background
+                    drawRangeWithGaps(thumbGapEnd, size.width, chapterGaps, primaryColor.copy(alpha = disabledAlpha))
+
+                    // 2. Buffered range ahead of current position
+                    val bufferRangeStart = maxOf(playedPx, thumbGapEnd)
+                    if (bufferPx > bufferRangeStart) {
+                        drawRangeWithGaps(bufferRangeStart, bufferPx, chapterGaps, primaryColor.copy(alpha = 0.55f))
+                    }
+                    
+                    // 3. Played
+                    if (thumbGapStart > 0) {
+                        drawRangeWithGaps(0f, thumbGapStart, chapterGaps, primaryColor)
+                    }
                 }
 
                 // 3. A-B Loop Indicators

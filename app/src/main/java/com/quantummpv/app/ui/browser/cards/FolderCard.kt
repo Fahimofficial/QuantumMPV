@@ -69,6 +69,7 @@ fun FolderCard(
   onPinClick: (() -> Unit)? = null,
   thumbnail: ImageBitmap? = null,
   isDualPane: Boolean = false,
+  isActive: Boolean = false,
 ) {
   val appearancePreferences = koinInject<AppearancePreferences>()
   val browserPreferences = koinInject<BrowserPreferences>()
@@ -135,6 +136,8 @@ fun FolderCard(
   val selectionContainerColor =
     if (isSelected) {
       MaterialTheme.colorScheme.tertiary.copy(alpha = 0.3f)
+    } else if (isActive) {
+      MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.5f)
     } else {
       Color.Transparent
     }
@@ -176,7 +179,7 @@ fun FolderCard(
     colors = CardDefaults.cardColors(containerColor = Color.Transparent),
   ) {
     Box(modifier = Modifier.fillMaxWidth()) {
-      if (isSelected) {
+      if (isSelected || isActive) {
         Box(
           modifier =
             Modifier
