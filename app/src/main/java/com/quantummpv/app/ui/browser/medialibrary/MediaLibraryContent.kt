@@ -455,7 +455,7 @@ fun MediaLibraryContent() {
           onAddToPlaylistClick = { addToPlaylistDialogOpen.value = true },
           showCopy = true,
           showMove = true,
-          showDownscale = selectionManager.selectedCount == 1 && selectionManager.getSelectedItems().none { it.isAudio },
+          showDownscale = selectionManager.selectedCount == 1,
           showRename = selectionManager.selectedCount > 0,
           modifier = Modifier.padding(bottom = if (NavigationBarState.shouldHideNavigationBar) 0.dp else navigationBarHeight)
         )
