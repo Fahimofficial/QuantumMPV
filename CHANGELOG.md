@@ -4,16 +4,8 @@ These notes are written in plain English and focus on what changed for real use.
 
 ## 1.5.0-preview.3 — Preview Release
 
-### Playback Hotfix
-- **Next item actually loads**: Video and audio autoplay now replace the active mpv file instead of only changing the displayed title while the old item remains at EOF.
-- **EOF preference handling**: Autoplay, Repeat One, Repeat All, Shuffle, playlist mode, and close-at-end now have deterministic behavior, including very short audio files whose folder playlist is still loading.
-- **Seek stability for audio**: ThumbFast video previews and background frame capture are suppressed for audio without video frames, preventing crashes while scrubbing.
-- **Race-safe navigation**: Duplicate EOF events cannot queue multiple transitions, and seeking backward cancels a pending delayed autoplay transition.
-- **True beat response**: The blob now uses live FFT data when audio-capture permission is granted; synthetic fallback data no longer overwrites real audio analysis.
-- **Calmer visualizer**: Reduced brightness, bloom, and exposure while making bass onsets produce a sharper pulse.
-
 ### 🔊 Audio Blob Visualizer
-- **OpenGL ES 3.0 blob visualizer** — when enabled while playing audio, a reactive 3D blob appears behind the player controls. The blob morphs, pulses, and shifts color based on audio energy with a bloom/glow post-process.
+- **OpenGL ES 3.0 blob visualizer** — when playing audio without cover art, a reactive 3D blob appears behind the player controls. The blob morphs, pulses, and shifts color based on audio energy with a bloom/glow post-process.
 - **Touch rotation**: Drag the blob to rotate it in 3D.
 - **Pinch zoom fixed**: The blob now properly shrinks/enlarges when pinching — `pinchScaleFromRenderer()` was hardcoded to always return `1f`, resetting zoom on every new gesture.
 - **Smaller default size**: Camera distance increased so the blob fits cleanly within screen bounds instead of nearly filling the height.

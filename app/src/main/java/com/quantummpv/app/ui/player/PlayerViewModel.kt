@@ -2846,13 +2846,6 @@ class PlayerViewModel(
       return
     }
 
-    // Don't show video thumbnails for audio-only content — can crash on some
-    // devices and is not useful when there is no video stream.
-    if (shouldSuppressSeekThumbnails()) {
-      hideSeekThumbnailPreview()
-      return
-    }
-
     val clampedPosition =
       if (durationSeconds > 0f) {
         positionSeconds.coerceIn(0f, durationSeconds)
@@ -2956,7 +2949,6 @@ class PlayerViewModel(
 
   private fun warmSeekThumbnailer() {
     if (!playerPreferences.useThumbFastSeekPreview.get()) return
-    if (shouldSuppressSeekThumbnails()) return
 
     val source = resolveSeekThumbnailSource() ?: return
     if (source == warmedSeekThumbnailSource) return
@@ -2967,9 +2959,6 @@ class PlayerViewModel(
       loadSeekThumbnail(source, seekThumbnailBucket(currentPosition.toFloat()), _preciseDuration.value)
     }
   }
-
-  private fun shouldSuppressSeekThumbnails(): Boolean =
-    host.isCurrentMediaKnownAudio() || isAudioOnly.value
 
   private fun loadSeekThumbnail(
     source: String,
