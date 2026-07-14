@@ -2,32 +2,39 @@
 
 These notes are written in plain English and focus on what changed for real use.
 
-## Unreleased
+## 1.5.0-preview.3 — Preview Release
 
-### Network and external playback
-- WebDAV connection checks now use a depth-zero `PROPFIND` request instead of Sardine's `HEAD`-based `exists()` call, allowing servers such as FileBrowser Quantum that reject `HEAD` on DAV collections.
-- WebDAV collection URLs consistently retain a trailing slash during validation and browsing.
-- Added a MIME-only player discovery intent filter so external-player pickers can discover mpvRx before attaching the final video or audio URI.
+### 📻 Audio Browsing
+- **New "Include audio" filter** in folder, library, and Tree View sort/view sheets — opt-in, off by default, so video browsing stays unaffected.
+- **Minimum audio duration** filters for any length, 15 s, 30 s, and 1 min — handy for skipping notification sounds and short clips.
+- **MediaStore + filesystem discovery** for common audio formats, neutral media counts, audio MIME mapping, and Android 13 `READ_MEDIA_AUDIO` permission handling.
+- **Audio cards** show metadata titles, embedded cover artwork when available (via `audio-display=embedded-first`), and a music-note fallback icon.
+- **Portrait-only playback** — audio files force sensor-portrait orientation and prevent the rotation action from switching back to landscape.
+- **Sibling playlist includes audio** — when "Include audio" is on, the next/previous track list includes audio files from the same folder.
 
-### Tree View navigation
-- Added configurable single-child path compression with `Off`, one through five levels, and `Unlimited` choices.
-- A finite level is applied independently on each navigation step, preserving predictable physical folder paths without removing the existing fast-navigation default.
-- Tree View refreshes immediately when the compression depth changes without rebuilding the cached media topology.
+### 🌐 Network & External Playback
+- **WebDAV PROPFIND fix**: Connection checks now use a depth-zero `PROPFIND` request instead of Sardine's `HEAD`-based `exists()` call, making it work with servers like FileBrowser Quantum that reject `HEAD` on DAV collections.
+- **WebDAV trailing slash**: Collection URLs consistently keep a trailing slash during validation and browsing.
+- **External-player discovery**: Added a MIME-only intent filter so external-player pickers can find mpvRx before attaching the final video or audio URI.
 
-### yt-dlp playback
-- Added independent audio quality preferences for automatic best quality and preferred 64, 128, 192, or 256 kbps caps.
-- Audio bitrate preferences are composed with the existing codec, resolution, FPS, HDR, and container selectors and are available in both yt-dlp settings and the in-player More sheet.
-- Generated typed settings now remain the source of truth instead of an older cached format string.
-- Initial and replacement URL loads now use one cancellable serialized job, reducing overlapping libmpv commands when links are pasted rapidly.
-- Recoverable URL load failures now return to the player UI with an error instead of escaping to the process-wide crash handler.
+### 🌲 Tree View Navigation
+- **Configurable path compression**: New `Off`, 1–5, and `Unlimited` choices for single-child folder flattening. Applied independently per navigation step, preserving predictable physical paths. Tree View refreshes instantly when the depth changes.
 
-### Optional audio browsing
-- Added an opt-in `Include audio` filter to the folder, library, and Tree View sort/view sheets.
-- Added minimum audio duration filters for any length, 15 seconds, 30 seconds, and one minute, useful for excluding notification sounds and other short clips.
-- Audio inclusion and duration participate in scanner and folder cache keys so changing filters cannot reuse stale video-only results.
-- Added MediaStore and filesystem discovery for common audio formats, neutral media counts, audio MIME mapping, and Android 13 audio permission handling.
-- Audio cards use metadata titles, embedded cover artwork when available, and a music-note fallback when artwork is absent.
-- Audio-only playback ignores embedded album-art tracks when detecting media type, forces portrait orientation, and prevents the rotation action from switching back to landscape.
+### 🎬 yt-dlp Playback
+- **Audio quality preferences**: Independent bitrate caps for `Auto`, 64, 128, 192, and 256 kbps — composed with existing codec, resolution, FPS, HDR, and container selectors. Available in yt-dlp settings and the in-player More sheet.
+- **Serialized URL loading**: Initial and replacement URL loads now use one cancellable serialized job, preventing overlapping libmpv commands when links are pasted rapidly.
+- **Graceful error recovery**: Recoverable URL load failures return to the player UI with an error message instead of escaping to the process-wide crash handler.
+
+### 🎨 Icon Consistency
+- Converted all three `painterResource(R.drawable.ic_material_symbols_check)` usages to `Icons.Default.Check` through the app's `AppIcon` / `Icon` system.
+- `SectionHeader.leadingIcon` and `CompactExpressiveIconButton.imageVector` now accept `AppIcon` instead of raw `ImageVector`, keeping everything on the unified icon pipeline.
+
+### 🔊 Audio Playback Runtime Fixes
+- **`local_media_path` extra**: Internal launches now pass the resolved filesystem path alongside the content URI, giving mpv a reliable fallback when `content://` URIs fail.
+- **Serialized load dispatcher**: Added a dedicated `Dispatchers.Default.limitedParallelism(1)` dispatcher for media loading — prevents race conditions when queuing multiple load commands.
+- **`vid=auto` before playback**: Non-M3U file loads explicitly reset the video track to auto before loading, avoiding "no video track" state from previous audio-only plays.
+- **`audio-display=embedded-first`**: Enabled MPV's embedded cover art rendering for audio files.
+- **Orientation on audio launch**: `setOrientation()` checks `isKnownAudioLaunch()` immediately, before the track-list event settles — fixes the black-screen + landscape glitch on audio start.
 
 ## 1.5.0-preview.2 — Preview Release
 
