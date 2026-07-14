@@ -2610,6 +2610,9 @@ class PlayerActivity :
         return
       }
 
+      // Check if autoplay next video is enabled
+      val autoplayEnabled = playerPreferences.autoplayNextVideo.get()
+
       // Handle playlist playback
       if (playlist.isNotEmpty()) {
         val hasNextItem = if (viewModel.shuffleEnabled.value) {
@@ -2617,9 +2620,6 @@ class PlayerActivity :
         } else {
           playlistIndex < playlist.size - 1
         }
-
-        // Check if autoplay next video is enabled
-        val autoplayEnabled = playerPreferences.autoplayNextVideo.get()
 
         if (hasNextItem && (autoplayEnabled || viewModel.shouldRepeatPlaylist())) {
           // Play next item in playlist
@@ -2642,6 +2642,20 @@ class PlayerActivity :
           finishAndRemoveTask()
         }
         // If autoplay is off and closeAfterReachingEndOfVideo is off, just stay on current video
+      } else if (autoplayEnabled && playerPreferences.playlistMode.get()) {
+        // Playlist wasn't generated before playback started (e.g., short audio file).
+        // Generate it now and play the next item.
+        val path = parsePathFromIntent(intent)
+        if (path != null) {
+          lifecycleScope.launch(Dispatchers.IO) {
+            generatePlaylistFromFolderInternal(path)
+            if (playlist.isNotEmpty() && playlistIndex < playlist.size - 1) {
+              withContext(Dispatchers.Main) {
+                playNext()
+              }
+            }
+          }
+        }
       } else {
         // Single video playback (no playlist)
         if (playerPreferences.closeAfterReachingEndOfVideo.get()) {
@@ -4961,36 +4975,39 @@ class PlayerActivity :
 
   private fun generatePlaylistFromFolder(currentPath: String) {
     lifecycleScope.launch(Dispatchers.IO) {
-      runCatching {
-        val currentFile = File(currentPath)
-        if (!currentFile.exists()) return@runCatching
+      generatePlaylistFromFolderInternal(currentPath)
+    }
+  }
 
-        val launchSource = intent.getStringExtra("launch_source") ?: ""
-        val siblingFiles = resolveAutoPlaylistSiblingFiles(currentFile, launchSource)
+  private suspend fun generatePlaylistFromFolderInternal(currentPath: String) {
+    runCatching {
+      val currentFile = File(currentPath)
+      if (!currentFile.exists()) return@runCatching
 
-        if (siblingFiles.size <= 1) return@runCatching
+      val launchSource = intent.getStringExtra("launch_source") ?: ""
+      val siblingFiles = resolveAutoPlaylistSiblingFiles(currentFile, launchSource)
 
-        val newPlaylist = siblingFiles.map { it.toUri() }
-        val currentFilePath = normalizePlaylistFilePath(currentFile.absolutePath)
-        val newIndex = siblingFiles.indexOfFirst { normalizePlaylistFilePath(it.absolutePath) == currentFilePath }
+      if (siblingFiles.size <= 1) return@runCatching
 
-        if (newIndex != -1) {
-          withContext(Dispatchers.Main) {
-            playlistEntity = null
-            playlistItems = emptyList()
-            isM3uPlaylist = false
-            playlist = newPlaylist
-            playlistIndex = newIndex
-            Log.d(TAG, "Auto-playlist generated: ${playlist.size} videos")
-            // Re-initialize shuffle now that playlist is available
-            if (viewModel.shuffleEnabled.value) {
-              onShuffleToggled(true)
-            }
+      val newPlaylist = siblingFiles.map { it.toUri() }
+      val currentFilePath = normalizePlaylistFilePath(currentFile.absolutePath)
+      val newIndex = siblingFiles.indexOfFirst { normalizePlaylistFilePath(it.absolutePath) == currentFilePath }
+
+      if (newIndex != -1) {
+        withContext(Dispatchers.Main) {
+          playlistEntity = null
+          playlistItems = emptyList()
+          isM3uPlaylist = false
+          playlist = newPlaylist
+          playlistIndex = newIndex
+          Log.d(TAG, "Auto-playlist generated: ${playlist.size} videos")
+          if (viewModel.shuffleEnabled.value) {
+            onShuffleToggled(true)
           }
         }
-      }.onFailure { e ->
-        Log.e(TAG, "Failed to auto-generate playlist", e)
       }
+    }.onFailure { e ->
+      Log.e(TAG, "Failed to auto-generate playlist", e)
     }
   }
 
