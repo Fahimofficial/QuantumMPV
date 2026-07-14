@@ -2,6 +2,33 @@
 
 These notes are written in plain English and focus on what changed for real use.
 
+## Unreleased
+
+### Network and external playback
+- WebDAV connection checks now use a depth-zero `PROPFIND` request instead of Sardine's `HEAD`-based `exists()` call, allowing servers such as FileBrowser Quantum that reject `HEAD` on DAV collections.
+- WebDAV collection URLs consistently retain a trailing slash during validation and browsing.
+- Added a MIME-only player discovery intent filter so external-player pickers can discover mpvRx before attaching the final video or audio URI.
+
+### Tree View navigation
+- Added configurable single-child path compression with `Off`, one through five levels, and `Unlimited` choices.
+- A finite level is applied independently on each navigation step, preserving predictable physical folder paths without removing the existing fast-navigation default.
+- Tree View refreshes immediately when the compression depth changes without rebuilding the cached media topology.
+
+### yt-dlp playback
+- Added independent audio quality preferences for automatic best quality and preferred 64, 128, 192, or 256 kbps caps.
+- Audio bitrate preferences are composed with the existing codec, resolution, FPS, HDR, and container selectors and are available in both yt-dlp settings and the in-player More sheet.
+- Generated typed settings now remain the source of truth instead of an older cached format string.
+- Initial and replacement URL loads now use one cancellable serialized job, reducing overlapping libmpv commands when links are pasted rapidly.
+- Recoverable URL load failures now return to the player UI with an error instead of escaping to the process-wide crash handler.
+
+### Optional audio browsing
+- Added an opt-in `Include audio` filter to the folder, library, and Tree View sort/view sheets.
+- Added minimum audio duration filters for any length, 15 seconds, 30 seconds, and one minute, useful for excluding notification sounds and other short clips.
+- Audio inclusion and duration participate in scanner and folder cache keys so changing filters cannot reuse stale video-only results.
+- Added MediaStore and filesystem discovery for common audio formats, neutral media counts, audio MIME mapping, and Android 13 audio permission handling.
+- Audio cards use metadata titles, embedded cover artwork when available, and a music-note fallback when artwork is absent.
+- Audio-only playback ignores embedded album-art tracks when detecting media type, forces portrait orientation, and prevents the rotation action from switching back to landscape.
+
 ## 1.5.0-preview.2 — Preview Release
 
 ### 📦 MpvLib Update
