@@ -1036,7 +1036,7 @@ class PlayerActivity :
       val isInPip = isInPictureInPictureMode
       val shouldPause =
         PlayerLifecyclePolicy.shouldPauseOnPause(
-          automaticBackgroundPlayback = audioPreferences.automaticBackgroundPlayback.get(),
+          automaticBackgroundPlayback = shouldKeepAudioPlayingInBackground(),
           manualBackgroundPlayback = isManualBackgroundPlayback,
           isUserFinishing = isUserFinishing,
           isInPictureInPictureMode = isInPip,
@@ -1135,7 +1135,7 @@ class PlayerActivity :
 
       if (
         PlayerLifecyclePolicy.shouldStartAutomaticBackgroundPlaybackOnStop(
-          automaticBackgroundPlayback = audioPreferences.automaticBackgroundPlayback.get(),
+          automaticBackgroundPlayback = shouldKeepAudioPlayingInBackground(),
           manualBackgroundPlayback = isManualBackgroundPlayback,
           isUserFinishing = isUserFinishing,
           isFinishing = isFinishing,
@@ -2068,7 +2068,13 @@ class PlayerActivity :
   }
 
   private fun isBackgroundPlaybackActive(): Boolean =
-    isManualBackgroundPlayback || audioPreferences.automaticBackgroundPlayback.get()
+    isManualBackgroundPlayback || shouldKeepAudioPlayingInBackground()
+
+  private fun shouldKeepAudioPlayingInBackground(): Boolean =
+    audioPreferences.automaticBackgroundPlayback.get() || shouldKeepAudioFilePlayingAfterScreenLock()
+
+  private fun shouldKeepAudioFilePlayingAfterScreenLock(): Boolean =
+    audioPreferences.playAudioAfterScreenLock.get() && isCurrentMediaKnownAudio()
 
   private fun resumePlaybackAfterScreenUnlockIfNeeded() {
     if (!screenUnlockPlaybackController.consumeResumeAfterUnlockIfReady(keyguardManager.isDeviceLocked)) return
