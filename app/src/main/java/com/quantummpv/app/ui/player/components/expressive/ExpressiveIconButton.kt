@@ -13,9 +13,10 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.scale
-import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.unit.dp
 import com.quantummpv.app.ui.theme.AppMotion
+import com.quantummpv.app.ui.icons.AppIcon
+import com.quantummpv.app.ui.icons.Icon
 
 /**
  * Expressive icon button with bouncy scale on press.
@@ -53,7 +54,7 @@ fun CompactExpressiveIconButton(
   onClick: () -> Unit,
   modifier: Modifier = Modifier,
   enabled: Boolean = true,
-  imageVector: ImageVector,
+  imageVector: AppIcon,
   contentDescription: String? = null,
 ) {
   var isPressed by remember { mutableStateOf(false) }
@@ -70,7 +71,7 @@ fun CompactExpressiveIconButton(
     enabled = enabled,
     colors = IconButtonDefaults.iconButtonColors(),
   ) {
-    androidx.compose.material3.Icon(
+    Icon(
       imageVector = imageVector,
       contentDescription = contentDescription,
       modifier = Modifier.size(20.dp),

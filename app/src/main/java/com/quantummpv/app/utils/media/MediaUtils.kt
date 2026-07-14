@@ -69,7 +69,11 @@ object MediaUtils {
         is Video -> {
           val intent = Intent(Intent.ACTION_VIEW, source.uri)
           intent.setClass(context, PlayerActivity::class.java)
+          intent.addFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP)
+          intent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
           intent.putExtra("internal_launch", true) // Enables subtitle autoload
+          source.path.takeIf { java.io.File(it).isFile }?.let { intent.putExtra("local_media_path", it) }
+          intent.putExtra("is_audio", source.isAudio)
           applyPlaybackExtras(
             intent = intent,
             launchSource = launchSource,

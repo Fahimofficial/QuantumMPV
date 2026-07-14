@@ -326,6 +326,7 @@ class PlayerActivity :
   private var lastBackgroundThumbnail: Bitmap? = null
   private var currentPlayableUri: String? = null // Store current URI for notification re-entry
   private val playbackRenderDispatcher = Dispatchers.Main
+  private val mediaLoadDispatcher = Dispatchers.Default.limitedParallelism(1)
 
   // ==================== Background Playback ====================
 
@@ -588,7 +589,7 @@ class PlayerActivity :
 
     // Only set orientation immediately if NOT in Video mode
     // For Video mode, wait for video-params/aspect to become available
-    if (playerPreferences.orientation.get() != PlayerOrientation.Video) {
+    if (isKnownAudioLaunch(intent) || playerPreferences.orientation.get() != PlayerOrientation.Video) {
       setOrientation()
     }
 
@@ -2219,11 +2220,13 @@ class PlayerActivity :
    * @return The resolved file path, or null if not found
    */
   private fun parsePathFromIntent(intent: Intent): String? =
-    when (intent.action) {
-      Intent.ACTION_VIEW -> intent.data?.resolveUri(this)
-      Intent.ACTION_SEND -> parsePathFromSendIntent(intent)
-      else -> intent.getStringExtra("uri")
-    }
+    intent.getStringExtra("local_media_path")
+      ?.takeIf { path -> File(path).isFile }
+      ?: when (intent.action) {
+        Intent.ACTION_VIEW -> intent.data?.resolveUri(this)
+        Intent.ACTION_SEND -> parsePathFromSendIntent(intent)
+        else -> intent.getStringExtra("uri")
+      }
 
   /**
    * Parses the file path from a SEND intent.
@@ -2455,7 +2458,13 @@ class PlayerActivity :
    * @return A playable URI string, or null if unable to resolve
    */
   private fun getPlayableUri(intent: Intent): String? {
-    val uri = parsePathFromIntent(intent) ?: return null
+    val uri = parsePathFromIntent(intent)
+    if (uri == null) {
+      Log.e(TAG, "Unable to resolve playable media URI: ${extractUriFromIntent(intent)}")
+      viewModel.onVideoLoadCompleted()
+      viewModel.showToast(getString(R.string.toast_playback_load_failed))
+      return null
+    }
     return if (uri.startsWith("content://")) {
       uri.toUri().openContentFd(this)
     } else {
@@ -3504,6 +3513,7 @@ class PlayerActivity :
 
     // Update the intent first so getFileName uses the new intent data
     setIntent(intent)
+    if (isKnownAudioLaunch(intent)) setOrientation()
 
     when (intent.action) {
       MediaPlaybackService.ACTION_NOTIFICATION_PREVIOUS -> {
@@ -3635,7 +3645,7 @@ class PlayerActivity :
     disableVideoOnFallback: Boolean = false,
   ) {
     mediaLoadJob?.cancel()
-    mediaLoadJob = lifecycleScope.launch(playbackRenderDispatcher) {
+    mediaLoadJob = lifecycleScope.launch(mediaLoadDispatcher) {
       try {
         if (expandM3u && loadDynamicM3uPlaylist(originalUri ?: playableUri)) {
           val targetIndex = playlistIndex.coerceIn(0, playlist.lastIndex)
@@ -3647,6 +3657,7 @@ class PlayerActivity :
           MPVLib.setPropertyString("vid", "no")
           MPVLib.command("loadfile", playableUri)
         } else {
+          MPVLib.setPropertyString("vid", "auto")
           player.playFile(playableUri)
         }
       } catch (error: CancellationException) {
@@ -3748,7 +3759,7 @@ class PlayerActivity :
    * to the correct orientation, starting with landscape as fallback.
    */
   private fun setOrientation() {
-    if (viewModel.isAudioOnly.value) {
+    if (isKnownAudioLaunch(intent) || viewModel.isAudioOnly.value) {
       requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_SENSOR_PORTRAIT
       return
     }
@@ -3785,6 +3796,9 @@ class PlayerActivity :
         PlayerOrientation.SensorLandscape -> ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE
       }
   }
+
+  private fun isKnownAudioLaunch(sourceIntent: Intent): Boolean =
+    sourceIntent.getBooleanExtra("is_audio", false) || sourceIntent.type?.startsWith("audio/") == true
 
   // ==================== Key Event Handling ====================
 
@@ -4478,10 +4492,7 @@ class PlayerActivity :
     isReady = false
     viewModel.onVideoLoadStarted()
 
-    lifecycleScope.launch(Dispatchers.Default) {
-      MPVLib.setPropertyString("vid", "no")
-      MPVLib.command("loadfile", playableUri)
-    }
+    startMediaLoad(playableUri)
 
     // Update media title (this will trigger UI update)
     val shouldForceTitle =
@@ -4822,19 +4833,27 @@ class PlayerActivity :
     launchSource: String,
   ): List<File> {
     val parentFolder = currentFile.parentFile ?: return emptyList()
-    val directVideoFiles =
+    val includeAudio = browserPreferences.includeAudio.get()
+    val minimumAudioDurationMs = browserPreferences.minimumAudioDuration.get().seconds * 1000L
+    val directMediaFiles =
       parentFolder.listFiles { file ->
         file.isFile &&
-          FileTypeUtils.isVideoFile(file) &&
+          (
+            FileTypeUtils.isVideoFile(file) ||
+              (includeAudio &&
+                FileTypeUtils.isAudioFile(file) &&
+                (minimumAudioDurationMs == 0L ||
+                  FileTypeUtils.getDurationMs(file) >= minimumAudioDurationMs))
+          ) &&
           !file.name.startsWith(".")
       }?.toList().orEmpty()
 
     if (!isVideoListLaunchSource(launchSource)) {
-      return naturalSortFiles(directVideoFiles)
+      return naturalSortFiles(directMediaFiles)
     }
 
     val currentFilePath = normalizePlaylistFilePath(currentFile.absolutePath)
-    val fileByPath = directVideoFiles.associateBy { normalizePlaylistFilePath(it.absolutePath) }
+    val fileByPath = directMediaFiles.associateBy { normalizePlaylistFilePath(it.absolutePath) }
     val sortedFromLibrary =
       com.quantummpv.app.repository.MediaFileRepository
         .getVideosInFolder(context, normalizePlaylistFilePath(parentFolder.absolutePath))
@@ -4849,7 +4868,7 @@ class PlayerActivity :
     return if (sortedFromLibrary.any { normalizePlaylistFilePath(it.absolutePath) == currentFilePath }) {
       sortedFromLibrary
     } else {
-      sortSiblingFilesForVideoList(directVideoFiles)
+      sortSiblingFilesForVideoList(directMediaFiles)
     }
   }
 

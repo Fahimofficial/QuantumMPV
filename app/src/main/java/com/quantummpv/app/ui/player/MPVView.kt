@@ -334,6 +334,7 @@ class MPVView(
     // Disable MPV's automatic audio selection
     // App will handle track selection manually via TrackSelector to respect user choices
     MPVLib.setOptionString("alang", "")
+    MPVLib.setOptionString("audio-display", "embedded-first")
     MPVLib.setOptionString("audio-delay", (audioPreferences.defaultAudioDelay.get() / 1000.0).toString())
     MPVLib.setOptionString("audio-pitch-correction", audioPreferences.audioPitchCorrection.get().toString())
     MPVLib.setOptionString("volume-max", (audioPreferences.volumeBoostCap.get() + 100).toString())
