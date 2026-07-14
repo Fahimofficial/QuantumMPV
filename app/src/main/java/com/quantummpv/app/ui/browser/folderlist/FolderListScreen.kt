@@ -122,6 +122,7 @@ import com.quantummpv.app.utils.history.RecentlyPlayedOps
 import com.quantummpv.app.utils.media.MediaUtils
 import com.quantummpv.app.utils.media.MediaSearchEngine
 import com.quantummpv.app.utils.permission.PermissionUtils
+import com.quantummpv.app.utils.storage.FileTypeUtils
 import com.quantummpv.app.utils.sort.SortUtils
 import com.google.accompanist.permissions.ExperimentalPermissionsApi
 import com.google.accompanist.permissions.PermissionStatus
@@ -271,18 +272,42 @@ object FolderListScreen : Screen {
     suspend fun deleteFolders(folders: List<VideoFolder>): Pair<Int, Int> {
       var deleted = 0
       var failed = 0
+      val deleteAll = browserPreferences.deleteFolderAllContents.get()
+      val includeAudio = browserPreferences.includeAudioBrowser.get()
       for (folder in folders) {
         try {
-          val ids = setOf(folder.bucketId)
-          val videos = com.quantummpv.app.repository.MediaFileRepository.getVideosForBuckets(context, ids)
-          if (videos.isNotEmpty()) {
-            val (d, f) = viewModel.deleteVideos(videos)
-            deleted += d
-            failed += f
-          }
-          val dir = java.io.File(folder.path)
-          if (dir.exists()) {
-            if (dir.deleteRecursively()) {
+          if (deleteAll) {
+            val ids = setOf(folder.bucketId)
+            val videos = com.quantummpv.app.repository.MediaFileRepository.getVideosForBuckets(context, ids)
+            if (videos.isNotEmpty()) {
+              val (d, f) = viewModel.deleteVideos(videos)
+              deleted += d
+              failed += f
+            }
+            val dir = java.io.File(folder.path)
+            if (dir.exists()) {
+              if (dir.deleteRecursively()) {
+                deleted++
+              } else {
+                failed++
+              }
+            }
+          } else {
+            var deletedAny = false
+            val dir = java.io.File(folder.path)
+            if (dir.exists()) {
+              dir.listFiles()?.forEach { file ->
+                if (file.isFile) {
+                  val ext = file.extension.lowercase()
+                  val isVideo = ext in FileTypeUtils.VIDEO_EXTENSIONS
+                  val isAudio = includeAudio && ext in FileTypeUtils.AUDIO_EXTENSIONS
+                  if (isVideo || isAudio) {
+                    if (file.delete()) deletedAny = true
+                  }
+                }
+              }
+            }
+            if (deletedAny) {
               deleted++
             } else {
               failed++

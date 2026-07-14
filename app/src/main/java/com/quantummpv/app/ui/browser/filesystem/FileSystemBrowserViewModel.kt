@@ -16,6 +16,7 @@ import com.quantummpv.app.utils.media.MediaLibraryEvents
 import com.quantummpv.app.utils.media.MetadataRetrieval
 import com.quantummpv.app.utils.media.PlaybackStateEvents
 import com.quantummpv.app.utils.sort.SortUtils
+import com.quantummpv.app.utils.storage.FileTypeUtils
 import com.quantummpv.app.utils.storage.FolderViewScanner
 import com.quantummpv.app.utils.storage.TreeViewScanner
 import kotlinx.coroutines.Dispatchers
@@ -289,18 +290,51 @@ class FileSystemBrowserViewModel(
   fun deleteFolders(folders: List<FileSystemItem.Folder>): Pair<Int, Int> {
     var successCount = 0
     var failureCount = 0
+    val deleteAll = browserPreferences.deleteFolderAllContents.get()
+    val includeAudio = browserPreferences.includeAudioBrowser.get()
 
-    Log.d(TAG, "Deleting ${folders.size} folders")
+    Log.d(TAG, "Deleting ${folders.size} folders (deleteAll=$deleteAll, includeAudio=$includeAudio)")
 
     folders.forEach { folder ->
       try {
         val dir = File(folder.path)
-        if (dir.exists() && dir.deleteRecursively()) {
-          successCount++
-          Log.d(TAG, "Successfully deleted folder: ${folder.path}")
-        } else {
+        if (!dir.exists()) {
           failureCount++
-          Log.w(TAG, "Failed to delete folder: ${folder.path}")
+          Log.w(TAG, "Folder does not exist: ${folder.path}")
+          return@forEach
+        }
+
+        if (deleteAll) {
+          if (dir.deleteRecursively()) {
+            successCount++
+            Log.d(TAG, "Successfully deleted folder (all contents): ${folder.path}")
+          } else {
+            failureCount++
+            Log.w(TAG, "Failed to delete folder: ${folder.path}")
+          }
+        } else {
+          var deletedAny = false
+          dir.listFiles()?.forEach { file ->
+            if (file.isFile) {
+              val ext = file.extension.lowercase()
+              val isVideo = ext in FileTypeUtils.VIDEO_EXTENSIONS
+              val isAudio = includeAudio && ext in FileTypeUtils.AUDIO_EXTENSIONS
+              if (isVideo || isAudio) {
+                if (file.delete()) deletedAny = true
+              }
+            }
+          }
+          // Remove empty subdirectories
+          dir.listFiles()?.forEach { file ->
+            if (file.isDirectory) file.delete()
+          }
+          if (deletedAny) {
+            successCount++
+            Log.d(TAG, "Deleted media files from folder: ${folder.path}")
+          } else {
+            failureCount++
+            Log.w(TAG, "No media files found in folder: ${folder.path}")
+          }
         }
       } catch (e: Exception) {
         Log.e(TAG, "Exception deleting folder: ${folder.path}", e)
@@ -308,10 +342,8 @@ class FileSystemBrowserViewModel(
       }
     }
 
-    // Set flag if any deletions were successful
     if (successCount > 0) {
       _itemsWereDeletedOrMoved.value = true
-      // Notify that media library has changed
       MediaLibraryEvents.notifyChanged()
     }
 

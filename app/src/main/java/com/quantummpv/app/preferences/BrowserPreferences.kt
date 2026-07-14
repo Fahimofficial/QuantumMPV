@@ -80,6 +80,9 @@ class BrowserPreferences(
 
   // Watched threshold preference (percentage 1-100)
   val watchedThreshold = preferenceStore.getInt("watched_threshold", 95)
+
+  // When deleting a folder, delete all files instead of only media files
+  val deleteFolderAllContents = preferenceStore.getBoolean("delete_folder_all_contents", false)
 }
 
 /**

@@ -91,6 +91,7 @@ internal class BlobRenderer(
     private var pitch = 0f
 
     @Volatile private var pinchScale = 1f
+    private var zoomDistance = 2.5f
 
     fun setPinchScale(scale: Float) {
         pinchScale = scale.coerceIn(0.35f, 3.0f)
