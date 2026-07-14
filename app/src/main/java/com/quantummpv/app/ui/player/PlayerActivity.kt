@@ -3715,10 +3715,9 @@ class PlayerActivity :
         }
 
         withContext(Dispatchers.Main) { requestAudioFocus() }
-        // Reset track selection before every replacement so vid=no from an
-        // audio/M3U fallback cannot leak into the next real video.
-        MPVLib.setPropertyString("vid", if (disableVideoOnFallback) "no" else "auto")
-        player.playFile(playableUri)
+        val videoMode = if (disableVideoOnFallback) "no" else "auto"
+        MPVLib.command("loadfile", playableUri, "replace", "-1", "vid=$videoMode,pause=no")
+        MPVLib.setPropertyBoolean("pause", false)
       } catch (error: CancellationException) {
         throw error
       } catch (error: Exception) {
