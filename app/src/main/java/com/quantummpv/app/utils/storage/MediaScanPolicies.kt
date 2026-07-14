@@ -58,6 +58,12 @@ internal fun normalizeStoragePath(path: String?): String? {
 internal fun storagePathKey(path: String?): String? =
   normalizeStoragePath(path)?.lowercase(Locale.ROOT)
 
+internal fun mediaPathKey(path: String?): String? {
+  val normalizedPath = normalizeStoragePath(path) ?: return null
+  val canonicalPath = runCatching { File(normalizedPath).canonicalPath }.getOrNull()
+  return storagePathKey(canonicalPath ?: normalizedPath)
+}
+
 internal fun areEquivalentStoragePaths(
   first: String?,
   second: String?,

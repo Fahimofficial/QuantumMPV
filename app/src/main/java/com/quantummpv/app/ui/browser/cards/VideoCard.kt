@@ -120,10 +120,10 @@ fun VideoCard(
   val showUnplayedOldVideoLabel = resolvedUiConfig.showUnplayedOldVideoLabel
   val unplayedOldVideoDays = resolvedUiConfig.unplayedOldVideoDays
   val showDurationField = resolvedUiConfig.showDurationField
-  val displayName = if (video.isAudio && video.title.isNotBlank()) {
-    video.title
-  } else if (resolvedUiConfig.showExtensionField) {
+  val displayName = if (resolvedUiConfig.showExtensionField) {
     video.displayName
+  } else if (video.isAudio && video.title.isNotBlank()) {
+    video.title
   } else {
     video.displayName.substringBeforeLast('.')
   }

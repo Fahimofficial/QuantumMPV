@@ -278,6 +278,7 @@ object TreeViewScanner {
           val file = File(videoPath)
 
           if (!file.exists()) continue
+          if (!FileTypeUtils.isVideoFile(file)) continue
           if (noMediaPathFilter.shouldExcludeDirectory(file.parentFile)) continue
 
           val folderPath = normalizeStoragePath(file.parent) ?: continue
@@ -374,6 +375,7 @@ object TreeViewScanner {
         while (cursor.moveToNext()) {
           val file = File(cursor.getString(dataColumn))
           if (!file.exists() || noMediaPathFilter.shouldExcludeDirectory(file.parentFile)) continue
+          if (!FileTypeUtils.isAudioFile(file)) continue
           val duration = cursor.getLong(durationColumn)
           if (!options.includesAudioDuration(duration)) continue
           val folderPath = normalizeStoragePath(file.parent) ?: continue

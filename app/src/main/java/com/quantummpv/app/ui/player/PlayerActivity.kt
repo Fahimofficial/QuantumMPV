@@ -4939,9 +4939,22 @@ class PlayerActivity :
     reapplyShuffle: Boolean = false,
   ) {
     if (isAllVideosPlaylist(pid)) {
+      val mediaLibraryAudio = sourceIntent.getBooleanExtra("media_library_audio", false)
+      val isMediaLibraryLaunch = sourceIntent.getStringExtra("launch_source") == "media_library"
       val allVideos =
         com.quantummpv.app.utils.sort.SortUtils.sortVideos(
-          com.quantummpv.app.repository.MediaFileRepository.getAllVideos(this@PlayerActivity),
+          com.quantummpv.app.repository.MediaFileRepository
+            .getAllVideos(
+              context = this@PlayerActivity,
+              includeAudioOverride = if (isMediaLibraryLaunch) true else null,
+            )
+            .let { media ->
+              if (isMediaLibraryLaunch) {
+                media.filter { it.isAudio == mediaLibraryAudio }
+              } else {
+                media
+              }
+            },
           browserPreferences.videoSortType.get(),
           browserPreferences.videoSortOrder.get(),
         )

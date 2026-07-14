@@ -49,7 +49,10 @@ class MediaLibraryViewModel(
     viewModelScope.launch(Dispatchers.IO) {
       try {
         _isLoading.value = true
-        var videoList = MediaFileRepository.getAllVideos(getApplication())
+        var videoList = MediaFileRepository.getAllVideos(
+          context = getApplication(),
+          includeAudioOverride = true,
+        )
 
         if (MetadataRetrieval.isVideoMetadataNeeded(browserPreferences)) {
           videoList = MetadataRetrieval.enrichVideosIfNeeded(

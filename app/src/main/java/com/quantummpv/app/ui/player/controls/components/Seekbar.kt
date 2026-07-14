@@ -494,6 +494,7 @@ private fun SeekbarContent(
           Modifier
             .fillMaxWidth()
             .height(overlayTrackHeight)
+            .clip(RoundedCornerShape(percent = 50))
             .align(Alignment.Center),
       ) {
         if (skipSegmentOverlays.isNotEmpty()) {

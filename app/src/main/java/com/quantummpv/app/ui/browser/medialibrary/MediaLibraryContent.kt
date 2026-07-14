@@ -7,22 +7,28 @@ import androidx.compose.animation.core.tween
 import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.systemBars
 import androidx.compose.foundation.layout.windowInsetsPadding
+import androidx.compose.foundation.layout.weight
 import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
 import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
 import com.quantummpv.app.ui.icons.Icon
 import com.quantummpv.app.ui.icons.Icons
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.PlainTooltip
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SearchBar
 import androidx.compose.material3.SearchBarDefaults
+import androidx.compose.material3.SegmentedButton
+import androidx.compose.material3.SegmentedButtonDefaults
+import androidx.compose.material3.SingleChoiceSegmentedButtonRow
 import androidx.compose.material3.Text
 import androidx.compose.material3.TooltipAnchorPosition
 import androidx.compose.material3.TooltipBox
@@ -85,6 +91,10 @@ import java.io.File
 import kotlinx.coroutines.launch
 import org.koin.compose.koinInject
 
+private enum class MediaLibraryType {
+  Video,
+  Audio,
+}
 
 @OptIn(ExperimentalMaterial3ExpressiveApi::class)
 @Composable
@@ -108,6 +118,7 @@ fun MediaLibraryContent() {
   val videoSortType by browserPreferences.videoSortType.collectAsState()
   val videoSortOrder by browserPreferences.videoSortOrder.collectAsState()
   val playlistMode by playerPreferences.playlistMode.collectAsState()
+  var mediaType by rememberSaveable { mutableStateOf(MediaLibraryType.Video) }
   val sortedVideosWithInfo = remember(videosWithPlaybackInfo, videoSortType, videoSortOrder) {
     val infoById = videosWithPlaybackInfo.associateBy { it.video.path }
     val sortedVideos = SortUtils.sortVideos(videosWithPlaybackInfo.map { it.video }, videoSortType, videoSortOrder)
@@ -115,19 +126,24 @@ fun MediaLibraryContent() {
       infoById[video.path] ?: VideoWithPlaybackInfo(video)
     }
   }
+  val mediaTypeVideosWithInfo = remember(sortedVideosWithInfo, mediaType) {
+    sortedVideosWithInfo.filter { item ->
+      item.video.isAudio == (mediaType == MediaLibraryType.Audio)
+    }
+  }
 
   var searchQuery by rememberSaveable { mutableStateOf("") }
   var isSearching by rememberSaveable { mutableStateOf(false) }
   val keyboardController = LocalSoftwareKeyboardController.current
   val focusRequester = remember { FocusRequester() }
-  val filteredVideosWithInfo = remember(sortedVideosWithInfo, isSearching, searchQuery) {
+  val filteredVideosWithInfo = remember(mediaTypeVideosWithInfo, isSearching, searchQuery) {
     if (isSearching && searchQuery.isNotBlank()) {
-      sortedVideosWithInfo.filter { item ->
+      mediaTypeVideosWithInfo.filter { item ->
         item.video.displayName.contains(searchQuery, ignoreCase = true) ||
           item.video.path.contains(searchQuery, ignoreCase = true)
       }
     } else {
-      sortedVideosWithInfo
+      mediaTypeVideosWithInfo
     }
   }
 
@@ -205,22 +221,22 @@ fun MediaLibraryContent() {
     }
   }
 
-  LaunchedEffect(selectionManager.isInSelectionMode) {
+  LaunchedEffect(selectionManager.isInSelectionMode, mediaType) {
     showFloatingBottomBar = selectionManager.isInSelectionMode
     NavigationBarState.updateSelectionState(
       inSelectionMode = selectionManager.isInSelectionMode,
-      onlyVideos = true,
+      onlyVideos = mediaType == MediaLibraryType.Video,
     )
   }
 
   fun playFromMediaLibrary(video: Video) {
-    if (!playlistMode || sortedVideosWithInfo.size <= 1) {
+    if (!playlistMode || mediaTypeVideosWithInfo.size <= 1) {
       MediaUtils.playFile(video, context, "media_library")
       return
     }
 
     lastPlayRequestIndex.intValue =
-      sortedVideosWithInfo.indexOfFirst { it.video.path == video.path }
+      mediaTypeVideosWithInfo.indexOfFirst { it.video.path == video.path }
 
     val intent = android.content.Intent(android.content.Intent.ACTION_VIEW, video.uri).apply {
       setClass(context, PlayerActivity::class.java)
@@ -228,6 +244,7 @@ fun MediaLibraryContent() {
       putExtra("playlist_id", ALL_VIDEOS_PLAYLIST_ID)
       putExtra("playlist_index", lastPlayRequestIndex.intValue.coerceAtLeast(0))
       putExtra("launch_source", "media_library")
+      putExtra("media_library_audio", mediaType == MediaLibraryType.Audio)
       putExtra("title", video.displayName)
     }
     context.startActivity(intent)
@@ -266,7 +283,9 @@ fun MediaLibraryContent() {
               onSearch = { },
               expanded = false,
               onExpandedChange = { },
-              placeholder = { Text("Search videos...") },
+               placeholder = {
+                 Text(if (mediaType == MediaLibraryType.Audio) "Search audio..." else "Search videos...")
+               },
               leadingIcon = {
                 Icon(
                   imageVector = Icons.Filled.Search,
@@ -345,7 +364,11 @@ fun MediaLibraryContent() {
       if (filteredVideosWithInfo.isNotEmpty()) {
         TooltipBox(
           positionProvider = TooltipDefaults.rememberTooltipPositionProvider(TooltipAnchorPosition.Above),
-          tooltip = { PlainTooltip { Text("Play recently played or first video") } },
+           tooltip = {
+             PlainTooltip {
+               Text(if (mediaType == MediaLibraryType.Audio) "Play recent or first audio" else "Play recent or first video")
+             }
+           },
           state = rememberTooltipState(),
         ) {
           FloatingActionButton(
@@ -381,42 +404,73 @@ fun MediaLibraryContent() {
     val videosWereDeletedOrMoved = false
 
     Box(modifier = Modifier.fillMaxSize()) {
-      if (isSearching && filteredVideosWithInfo.isEmpty() && searchQuery.isNotBlank()) {
-        Box(
+      Column(
+        modifier = Modifier
+          .fillMaxSize()
+          .padding(padding),
+      ) {
+        SingleChoiceSegmentedButtonRow(
           modifier = Modifier
-            .fillMaxSize()
-            .padding(padding),
-          contentAlignment = Alignment.Center,
+            .fillMaxWidth()
+            .padding(horizontal = 16.dp, vertical = 8.dp),
         ) {
-          EmptyState(
-            icon = Icons.Filled.Search,
-            title = "No videos found",
-            message = "Try a different search term",
-          )
-        }
-      } else {
-        VideoListContent(
-          folderId = "media_library",
-          videosWithInfo = filteredVideosWithInfo,
-          isLoading = isLoading && videos.isEmpty(),
-          isRefreshing = isRefreshing,
-          recentlyPlayedFilePath = recentlyPlayedFilePath,
-          videosWereDeletedOrMoved = videosWereDeletedOrMoved,
-          autoScrollToLastPlayed = autoScrollToLastPlayed,
-          onRefresh = { viewModel.refresh() },
-          selectionManager = selectionManager,
-          onVideoClick = { video ->
-            if (selectionManager.isInSelectionMode) {
-              selectionManager.toggle(video)
-            } else {
-              playFromMediaLibrary(video)
+          MediaLibraryType.entries.forEachIndexed { index, type ->
+            SegmentedButton(
+              selected = mediaType == type,
+              onClick = {
+                if (mediaType != type) {
+                  selectionManager.clear()
+                  mediaType = type
+                }
+              },
+              shape = SegmentedButtonDefaults.itemShape(index, MediaLibraryType.entries.size),
+              colors = SegmentedButtonDefaults.colors(
+                activeContentColor = MaterialTheme.colorScheme.primary,
+                activeBorderColor = MaterialTheme.colorScheme.primary,
+              ),
+            ) {
+              Text(type.name)
             }
-          },
-          onVideoLongClick = { video -> selectionManager.handleLongClick(video) },
-          isFabVisible = isFabVisible,
-          modifier = Modifier.padding(padding),
-          showFloatingBottomBar = showFloatingBottomBar,
-        )
+          }
+        }
+
+        Box(modifier = Modifier.weight(1f)) {
+          if (isSearching && filteredVideosWithInfo.isEmpty() && searchQuery.isNotBlank()) {
+            Box(
+              modifier = Modifier.fillMaxSize(),
+              contentAlignment = Alignment.Center,
+            ) {
+              EmptyState(
+                icon = Icons.Filled.Search,
+                title = if (mediaType == MediaLibraryType.Audio) "No audio found" else "No videos found",
+                message = "Try a different search term",
+              )
+            }
+          } else {
+            VideoListContent(
+              folderId = "media_library_${mediaType.name.lowercase()}",
+              videosWithInfo = filteredVideosWithInfo,
+              isLoading = isLoading && videos.isEmpty(),
+              isRefreshing = isRefreshing,
+              recentlyPlayedFilePath = recentlyPlayedFilePath,
+              videosWereDeletedOrMoved = videosWereDeletedOrMoved,
+              autoScrollToLastPlayed = autoScrollToLastPlayed,
+              onRefresh = { viewModel.refresh() },
+              selectionManager = selectionManager,
+              onVideoClick = { video ->
+                if (selectionManager.isInSelectionMode) {
+                  selectionManager.toggle(video)
+                } else {
+                  playFromMediaLibrary(video)
+                }
+              },
+              onVideoLongClick = { video -> selectionManager.handleLongClick(video) },
+              isFabVisible = isFabVisible,
+              modifier = Modifier.fillMaxSize(),
+              showFloatingBottomBar = showFloatingBottomBar,
+            )
+          }
+        }
       }
 
       AnimatedVisibility(
@@ -455,7 +509,7 @@ fun MediaLibraryContent() {
           onAddToPlaylistClick = { addToPlaylistDialogOpen.value = true },
           showCopy = true,
           showMove = true,
-          showDownscale = selectionManager.selectedCount == 1,
+          showDownscale = mediaType == MediaLibraryType.Video && selectionManager.selectedCount == 1,
           showRename = selectionManager.selectedCount > 0,
           modifier = Modifier.padding(bottom = if (NavigationBarState.shouldHideNavigationBar) 0.dp else navigationBarHeight)
         )
@@ -482,7 +536,7 @@ fun MediaLibraryContent() {
         },
         itemCount = selectionManager.selectedCount,
         isOpen = deleteDialogOpen.value,
-        itemType = "video"
+        itemType = if (mediaType == MediaLibraryType.Audio) "audio file" else "video"
       )
     }
 
@@ -497,7 +551,7 @@ fun MediaLibraryContent() {
           },
           currentName = video.displayName,
           isOpen = renameDialogOpen.value,
-          itemType = "video"
+          itemType = if (mediaType == MediaLibraryType.Audio) "audio file" else "video"
         )
       }
     }

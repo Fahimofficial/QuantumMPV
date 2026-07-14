@@ -143,6 +143,7 @@ object VideoScanUtils : KoinComponent {
                     // Only direct children
                     if (!areEquivalentStoragePaths(file.parent, normalizedFolderPath)) continue
                     if (!file.exists()) continue
+                    if (!FileTypeUtils.isVideoFile(file)) continue
                     if (noMediaPathFilter.shouldExcludeDirectory(file.parentFile)) continue
 
                     val id = cursor.getLong(idColumn)
@@ -161,7 +162,7 @@ object VideoScanUtils : KoinComponent {
                         id.toString()
                     )
 
-                    val videoKey = storagePathKey(normalizedPath) ?: normalizedPath
+                    val videoKey = mediaPathKey(normalizedPath) ?: normalizedPath
                     videosMap[videoKey] = Video(
                         id = id,
                         title = title,
@@ -237,6 +238,7 @@ object VideoScanUtils : KoinComponent {
                     val file = File(path)
                     if (!areEquivalentStoragePaths(file.parent, normalizedFolderPath)) continue
                     if (!file.exists() || noMediaPathFilter.shouldExcludeDirectory(file.parentFile)) continue
+                    if (!FileTypeUtils.isAudioFile(file)) continue
                     val duration = cursor.getLong(durationColumn)
                     if (!options.includesAudioDuration(duration)) continue
                     val normalizedPath = normalizeStoragePath(path) ?: continue
@@ -245,7 +247,7 @@ object VideoScanUtils : KoinComponent {
                     val title = cursor.getString(titleColumn)?.takeIf { it.isNotBlank() } ?: file.nameWithoutExtension
                     val size = cursor.getLong(sizeColumn)
                     val uri = Uri.withAppendedPath(MediaStore.Audio.Media.EXTERNAL_CONTENT_URI, id.toString())
-                    videosMap[storagePathKey(normalizedPath) ?: normalizedPath] = Video(
+                    videosMap[mediaPathKey(normalizedPath) ?: normalizedPath] = Video(
                         id = id,
                         title = title,
                         displayName = displayName,
@@ -294,7 +296,7 @@ object VideoScanUtils : KoinComponent {
                 if (!FileTypeUtils.isSupportedMediaFile(file, options)) continue
 
                 val path = normalizeStoragePath(file.absolutePath) ?: continue
-                val videoKey = storagePathKey(path) ?: path
+                val videoKey = mediaPathKey(path) ?: path
                 if (videosMap.containsKey(videoKey)) continue
 
                 filesToProcess.add(file)
@@ -312,7 +314,7 @@ object VideoScanUtils : KoinComponent {
             for (file in filesToProcess) {
                 try {
                     val path = normalizeStoragePath(file.absolutePath) ?: continue
-                    val videoKey = storagePathKey(path) ?: path
+                    val videoKey = mediaPathKey(path) ?: path
                     val uri = Uri.fromFile(file)
                     val displayName = file.name
                     val title = file.nameWithoutExtension
@@ -419,7 +421,9 @@ object FileTypeUtils {
 
     val AUDIO_EXTENSIONS = setOf(
         "mp3", "m4a", "aac", "flac", "ogg", "oga", "opus", "wav", "wave",
-        "wma", "amr", "ac3", "eac3", "dts", "mka", "aif", "aiff", "ape"
+        "wma", "amr", "awb", "ac3", "eac3", "dts", "mka", "aif", "aiff", "aifc",
+        "ape", "mp1", "mp2", "mpa", "mpc", "tta", "tak", "caf", "au", "snd", "ra",
+        "spx", "weba", "3ga", "dsf", "dff", "mlp", "truehd", "mid", "midi"
     )
 
   /**
@@ -461,20 +465,33 @@ object FileTypeUtils {
             "wmv" -> "video/x-ms-wmv"
             "m4v" -> "video/x-m4v"
             "3gp" -> "video/3gpp"
+            "3g2" -> "video/3gpp2"
             "mpg", "mpeg" -> "video/mpeg"
-            "mp3" -> "audio/mpeg"
+            "mp1", "mp2", "mp3", "mpa" -> "audio/mpeg"
             "m4a", "aac" -> "audio/mp4"
             "flac" -> "audio/flac"
-            "ogg", "oga", "opus" -> "audio/ogg"
+            "ogg", "oga", "opus", "spx" -> "audio/ogg"
             "wav", "wave" -> "audio/wav"
             "wma" -> "audio/x-ms-wma"
-            "amr" -> "audio/amr"
+            "amr", "awb" -> "audio/amr"
             "ac3" -> "audio/ac3"
             "eac3" -> "audio/eac3"
             "dts" -> "audio/vnd.dts"
             "ape" -> "audio/ape"
             "mka" -> "audio/x-matroska"
-            "aif", "aiff" -> "audio/aiff"
+            "aif", "aiff", "aifc" -> "audio/aiff"
+            "mpc" -> "audio/x-musepack"
+            "tta" -> "audio/x-tta"
+            "tak" -> "audio/x-tak"
+            "caf" -> "audio/x-caf"
+            "au", "snd" -> "audio/basic"
+            "ra" -> "audio/vnd.rn-realaudio"
+            "weba" -> "audio/webm"
+            "3ga" -> "audio/3gpp"
+            "dsf" -> "audio/x-dsf"
+            "dff" -> "audio/x-dff"
+            "mlp", "truehd" -> "audio/vnd.dolby.mlp"
+            "mid", "midi" -> "audio/midi"
             else -> "video/*"
         }
 }
