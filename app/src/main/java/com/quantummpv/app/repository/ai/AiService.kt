@@ -9,6 +9,9 @@ import kotlinx.coroutines.withContext
 import kotlinx.serialization.builtins.ListSerializer
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.JsonPrimitive
+import kotlinx.serialization.json.contentOrNull
 import java.io.File
 import java.security.MessageDigest
 import java.util.Locale
@@ -74,6 +77,27 @@ class AiService(
     client.fetchModels(apiKey)
   }
 
+  fun fetchSpeechModelsForProvider(provider: AiProvider): Result<List<AiModelInfo>> = when (provider) {
+    AiProvider.GROQ -> Result.success(
+      listOf(
+        AiModelInfo("whisper-large-v3-turbo", "Whisper Large V3 Turbo"),
+        AiModelInfo("whisper-large-v3", "Whisper Large V3"),
+      ),
+    )
+    AiProvider.OPENAI -> Result.success(
+      listOf(
+        AiModelInfo("whisper-1", "Whisper"),
+      ),
+    )
+    AiProvider.OPENROUTER -> Result.success(
+      listOf(
+        AiModelInfo("openai/whisper-large-v3-turbo", "Whisper Large V3 Turbo"),
+        AiModelInfo("openai/whisper-large-v3", "Whisper Large V3"),
+      ),
+    )
+    else -> Result.failure(IllegalArgumentException("$provider does not provide speech-to-text in mpvRx"))
+  }
+
   suspend fun verifyKey(): Result<String> = withContext(Dispatchers.IO) {
     val provider = preferences.provider.get()
 
@@ -101,7 +125,7 @@ class AiService(
     } else {
       preferences.provider.get()
     }
-    val model = preferences.selectedModel.get()
+    val model = preferences.selectedModelFor(effectiveProvider).get()
     val apiKey = getApiKey(effectiveProvider)
 
     if (userInput.isBlank()) {
@@ -150,15 +174,21 @@ class AiService(
       if (!modelFile.exists()) {
         return@withContext Result.failure(Exception("Model file not found. Please download the model first."))
       }
-      return@withContext localAiClient.generateContent(modelFile.absolutePath, modelId, instruction, userInput, options)
+      return@withContext localAiClient.generateContent(
+        modelFile.absolutePath,
+        modelId,
+        instruction,
+        userInput,
+        options,
+      ).map { it.text }
     }
 
-    client.generateContent(apiKey, model, instruction, userInput, options)
+    client.generateContent(apiKey, model, instruction, userInput, options).map { it.text }
   }
 
   private fun generationOptionsFor(task: AiTask): AiGenerationOptions = when (task) {
-    AiTask.RENAME -> AiGenerationOptions(maxTokens = 128, temperature = 0.2)
-    AiTask.SUBTITLE_FORMAT -> AiGenerationOptions(maxTokens = 256, temperature = 0.1)
+    AiTask.RENAME -> AiGenerationOptions(maxTokens = 1024, temperature = 0.1)
+    AiTask.SUBTITLE_FORMAT -> AiGenerationOptions(maxTokens = 1024, temperature = 0.1)
     AiTask.TRANSLATE -> AiGenerationOptions(maxTokens = 2048, temperature = 0.2)
   }
 
@@ -211,13 +241,17 @@ class AiService(
     extension: String?,
   ): Result<String> = withContext(Dispatchers.IO) {
     val result = generateWithAi(currentName, AiTask.RENAME)
-    result.map { aiName ->
-      // Strip reasoning blocks that might corrupt filenames
-      val withoutThinking = aiName.replace(Regex("<think>.*?</think>", RegexOption.DOT_MATCHES_ALL), "")
-      val clean = withoutThinking.trim().removeSurrounding("\"").removeSurrounding("'")
-      if (extension != null && !clean.endsWith(extension)) {
-        "$clean$extension"
-      } else clean
+    result.mapCatching { aiName ->
+      val candidate = extractTaskValue(aiName, listOf("filename", "name", "title", "output"))
+      val normalizedExtension = extension.orEmpty()
+      val withoutExtension = if (
+        normalizedExtension.isNotBlank() && candidate.endsWith(normalizedExtension, ignoreCase = true)
+      ) {
+        candidate.dropLast(normalizedExtension.length)
+      } else candidate
+      val clean = sanitizeFileName(withoutExtension)
+      if (clean.isBlank()) throw IllegalStateException("AI returned an empty filename")
+      "$clean$normalizedExtension"
     }
   }
 
@@ -225,7 +259,12 @@ class AiService(
     fileTitle: String,
   ): Result<String> = withContext(Dispatchers.IO) {
     val result = generateWithAi(fileTitle, AiTask.SUBTITLE_FORMAT)
-    result.map { it.trim().removeSurrounding("\"").removeSurrounding("'") }
+    result.mapCatching {
+      extractTaskValue(it, listOf("query", "title", "name", "output"))
+        .replace(Regex("[\\r\\n]+"), " ")
+        .trim()
+        .ifBlank { throw IllegalStateException("AI returned an empty search title") }
+    }
   }
 
   suspend fun verifyModel(): Result<String> = withContext(Dispatchers.IO) {
@@ -238,13 +277,13 @@ class AiService(
       return@withContext Result.success("Local model is ready")
     }
 
-    val model = preferences.selectedModel.get()
+    val model = preferences.selectedModelFor(provider).get()
     if (model.isBlank()) return@withContext Result.failure(Exception("No model selected"))
 
     val apiKey = getApiKey(provider)
     if (apiKey.isBlank()) return@withContext Result.failure(Exception("API key not configured"))
 
-    val stored = preferences.availableModels.get()
+    val stored = preferences.availableModelsFor(provider).get()
     val knownModels = if (stored.isNotBlank()) {
       runCatching {
         json.decodeFromString(kotlinx.serialization.builtins.ListSerializer(AiModelInfo.serializer()), stored)
@@ -258,7 +297,13 @@ class AiService(
       sb.appendLine(if (modelInfo.isFree) "Free model" else "Paid model")
     }
     val client = clients[provider] ?: return@withContext Result.failure(Exception("Unknown provider"))
-    val testResult = client.generateContent(apiKey, model, "", "OK", AiGenerationOptions(maxTokens = 2, temperature = 0.0))
+    val testResult = client.generateContent(
+      apiKey,
+      model,
+      "Return only the word OK.",
+      "Connectivity check",
+      AiGenerationOptions(maxTokens = 512, temperature = 0.0),
+    )
     if (testResult.isSuccess) {
       sb.append("API access working")
     } else {
@@ -286,7 +331,7 @@ class AiService(
       }
       else -> {
         val apiKey = getApiKey(provider)
-        preferences.enabled.get() && apiKey.isNotBlank() && preferences.selectedModel.get().isNotBlank()
+        preferences.enabled.get() && apiKey.isNotBlank() && preferences.selectedModelFor(provider).get().isNotBlank()
       }
     }
   }
@@ -560,7 +605,12 @@ class AiService(
     } else {
       preferences.provider.get().name
     }
-    val model = preferences.selectedModel.get()
+    val provider = if (preferences.provider.get() == AiProvider.LOCAL) {
+      preferences.sttProvider.get()
+    } else {
+      preferences.provider.get()
+    }
+    val model = preferences.selectedModelFor(provider).get()
     val input = listOf(content, targetLanguage, format.orEmpty(), effectiveProvider, model).joinToString("\u001f")
     val digest = MessageDigest.getInstance("SHA-256").digest(input.toByteArray())
     return digest.joinToString("") { "%02x".format(it) }
@@ -602,5 +652,34 @@ class AiService(
       Log.w(TAG, "Could not save translation cache", it)
     }
   }
+
+  private fun extractTaskValue(raw: String, keys: List<String>): String {
+    val sanitized = AiOutputSanitizer.splitReasoning(raw).finalText
+      .trim()
+      .removeSurrounding("\"")
+      .removeSurrounding("'")
+    if (sanitized.isBlank()) return ""
+    val objectValue = runCatching {
+      val parsed = json.parseToJsonElement(AiOutputSanitizer.stripCodeFence(sanitized)) as? JsonObject
+      keys.firstNotNullOfOrNull { key ->
+        (parsed?.get(key) as? JsonPrimitive)?.contentOrNull
+      }
+    }.getOrNull()
+    val value = objectValue ?: sanitized
+    return AiOutputSanitizer.stripCodeFence(value)
+      .lineSequence()
+      .firstOrNull { it.isNotBlank() }
+      .orEmpty()
+      .trim()
+      .removeSurrounding("\"")
+      .removeSurrounding("'")
+  }
+
+  private fun sanitizeFileName(value: String): String = value
+    .replace(Regex("[\\u0000-\\u001F\\u007F/\\\\:*?\"<>|]"), " ")
+    .replace(Regex("\\s+"), " ")
+    .trim(' ', '.')
+    .take(180)
+    .trimEnd(' ', '.')
 }
 

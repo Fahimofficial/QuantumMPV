@@ -825,7 +825,8 @@ fun FileSystemBrowserScreen(path: String? = null) {
         onRenameClick = { renameDialogOpen.value = true },
         onDeleteClick = { deleteDialogOpen = true },
         onAddToPlaylistClick = { addToPlaylistDialogOpen.value = true },
-        showDownscale = selectedVideos.size == 1 && selectedFolders.isEmpty(),
+        showDownscale =
+          selectedVideos.singleOrNull()?.isAudio == false && selectedFolders.isEmpty(),
         showRename = selectionManager.isSingleSelection,
         showAddToPlaylist = !BuildConfig.ENABLE_UPDATE_FEATURE && onlyVideosSelected,
         modifier = Modifier.padding(bottom = if (com.quantummpv.app.ui.browser.NavigationBarState.shouldHideNavigationBar) 0.dp else navigationBarHeight)
@@ -903,7 +904,7 @@ fun FileSystemBrowserScreen(path: String? = null) {
 
     // Video Compressor Overlay (for file system browser)
     if (compressorDialogOpen.value) {
-      if (selectedVideos.isNotEmpty()) {
+      if (selectedVideos.isNotEmpty() && selectedVideos.none { it.isAudio }) {
         VideoCompressorOverlay(
           isOpen = true,
           videos = selectedVideos,

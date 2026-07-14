@@ -8,7 +8,6 @@ internal class ScreenUnlockPlaybackController {
     wasPlayingBeforePause: Boolean,
     isCurrentlyPaused: Boolean?,
     backgroundPlaybackActive: Boolean,
-    isInPictureInPictureMode: Boolean,
     isUserFinishing: Boolean,
     isFinishing: Boolean,
   ) {
@@ -18,10 +17,11 @@ internal class ScreenUnlockPlaybackController {
       autoplayAfterScreenUnlockEnabled &&
         wasPlayingWhenScreenTurnedOff &&
         !backgroundPlaybackActive &&
-        !isInPictureInPictureMode &&
         !isUserFinishing &&
         !isFinishing
   }
+
+  fun hasPendingResume(): Boolean = pendingResumeAfterUnlock
 
   fun consumeResumeAfterUnlockIfReady(isDeviceLocked: Boolean): Boolean {
     if (!pendingResumeAfterUnlock || isDeviceLocked) return false

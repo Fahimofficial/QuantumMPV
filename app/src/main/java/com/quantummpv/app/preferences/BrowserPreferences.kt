@@ -77,6 +77,7 @@ class BrowserPreferences(
   val minimumAudioDuration = preferenceStore.getEnum("minimum_audio_duration", MinimumAudioDuration.Any)
   val includeAudioBrowser = preferenceStore.getBoolean("include_audio_browser", false)
   val minimumAudioDurationSeconds = preferenceStore.getInt("minimum_audio_duration_seconds", 0)
+  val mediaLibraryType = preferenceStore.getEnum("media_library_type", MediaLibraryType.Video)
 
   // Watched threshold preference (percentage 1-100)
   val watchedThreshold = preferenceStore.getInt("watched_threshold", 95)
@@ -188,6 +189,11 @@ enum class MediaLayoutMode {
       LIST -> "List"
       GRID -> "Grid"
     }
+}
+
+enum class MediaLibraryType {
+  Video,
+  Audio,
 }
 
 enum class ThumbnailMode {

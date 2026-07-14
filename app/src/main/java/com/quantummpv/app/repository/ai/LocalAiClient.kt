@@ -48,7 +48,7 @@ class LocalAiClient(
     instruction: String,
     userInput: String,
     options: AiGenerationOptions,
-  ): Result<String> = withContext(Dispatchers.IO) {
+  ): Result<AiGeneratedContent> = withContext(Dispatchers.IO) {
     generationMutex.withLock {
       runCatching {
         // Guard #1: native library must be present
@@ -76,11 +76,13 @@ class LocalAiClient(
         val prompt = inference.applyChatTemplate(instruction, userInput)
           .getOrElse { LocalModelCatalog.formatPrompt(model, instruction, userInput) }
 
-        inference.generate(
+        val output = inference.generate(
           prompt = prompt,
           maxTokens = options.maxTokens,
           temperature = options.temperature.toFloat(),
         ).getOrThrow()
+        val split = AiOutputSanitizer.splitReasoning(output)
+        AiGeneratedContent(text = split.finalText, reasoning = split.reasoning)
       }
     }
   }

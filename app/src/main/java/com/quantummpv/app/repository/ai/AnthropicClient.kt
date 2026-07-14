@@ -38,17 +38,6 @@ private data class AnthropicMessage(
 )
 
 @Serializable
-private data class AnthropicContentBlock(
-  val type: String = "",
-  val text: String = "",
-)
-
-@Serializable
-private data class AnthropicResponse(
-  val content: List<AnthropicContentBlock>? = null,
-)
-
-@Serializable
 private data class AnthropicErrorBody(val error: AnthropicErrorDetail? = null)
 
 @Serializable
@@ -68,7 +57,6 @@ class AnthropicClient(
   private val json: Json,
 ) : AiClient {
   companion object {
-    private const val TAG = "AnthropicClient"
     private const val BASE_URL = "https://api.anthropic.com/v1"
     private val JSON_MEDIA_TYPE = "application/json".toMediaType()
     private const val ANTHROPIC_VERSION = "2023-06-01"
@@ -127,7 +115,7 @@ class AnthropicClient(
     instruction: String,
     userInput: String,
     options: AiGenerationOptions,
-  ): Result<String> = withContext(Dispatchers.IO) {
+  ): Result<AiGeneratedContent> = withContext(Dispatchers.IO) {
     runCatching {
       val requestBody = json.encodeToString(
         AnthropicMessagesRequest.serializer(),
@@ -155,9 +143,7 @@ class AnthropicClient(
 
       if (!response.isSuccessful) throw Exception("Anthropic generate error ${response.code}: ${parseError(body)}")
 
-      val parsed = json.decodeFromString<AnthropicResponse>(body)
-      parsed.content?.firstOrNull { it.type == "text" }?.text?.trim()
-        ?: throw Exception("No response from Anthropic")
+      AiResponseParser.anthropic(json, body, "Anthropic")
     }
   }
 

@@ -1,6 +1,5 @@
 package com.quantummpv.app.repository.ai
 
-import android.util.Log
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.SerialName
@@ -32,25 +31,6 @@ private data class GroqMessage(
 )
 
 @Serializable
-private data class GroqChoice(
-  val message: GroqMessage? = null,
-)
-
-@Serializable
-private data class GroqUsage(
-  @SerialName("prompt_tokens")
-  val promptTokens: Int = 0,
-  @SerialName("completion_tokens")
-  val completionTokens: Int = 0,
-)
-
-@Serializable
-private data class GroqResponse(
-  val choices: List<GroqChoice>? = null,
-  val usage: GroqUsage? = null,
-)
-
-@Serializable
 private data class GroqErrorBody(
   val error: GroqErrorDetail? = null,
 )
@@ -65,7 +45,6 @@ class GroqClient(
   private val json: Json,
 ) : AiClient {
   companion object {
-    private const val TAG = "GroqClient"
     private const val BASE_URL = "https://api.groq.com/openai/v1"
     private val JSON_MEDIA_TYPE = "application/json".toMediaType()
   }
@@ -95,7 +74,7 @@ class GroqClient(
 
       val parsed = json.decodeFromString<GroqModelListResponse>(body)
       parsed.data
-        .filter { !it.id.startsWith("gpt") && !it.id.startsWith("dall-e") && !it.id.startsWith("tts") && !it.id.startsWith("stt") }
+        .filter { AiModelCapabilities.isTextGenerationModel(it.id) }
         .map {
           val displayName = if (it.owned_by != null) "${it.id} (${it.owned_by})" else it.id
           AiModelInfo(
@@ -130,7 +109,7 @@ class GroqClient(
     instruction: String,
     userInput: String,
     options: AiGenerationOptions,
-  ): Result<String> = withContext(Dispatchers.IO) {
+  ): Result<AiGeneratedContent> = withContext(Dispatchers.IO) {
     runCatching {
       val requestBody = json.encodeToString(
         GroqChatRequest.serializer(),
@@ -159,14 +138,7 @@ class GroqClient(
         throw Exception("Groq generate error ${response.code}: $errorMsg")
       }
 
-      val parsed = json.decodeFromString<GroqResponse>(body)
-      val text = parsed.choices
-        ?.firstOrNull()
-        ?.message
-        ?.content
-        ?.trim()
-
-      text ?: throw Exception("No response from Groq")
+      AiResponseParser.openAiCompatible(json, body, "Groq")
     }
   }
 
@@ -183,6 +155,6 @@ private data class GroqChatRequest(
   val model: String,
   val messages: List<GroqMessage>,
   val temperature: Double = 0.3,
-  @SerialName("max_tokens")
+  @SerialName("max_completion_tokens")
   val maxTokens: Int = 200,
 )

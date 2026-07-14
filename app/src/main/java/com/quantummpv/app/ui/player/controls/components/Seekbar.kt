@@ -1336,7 +1336,8 @@ fun StandardSeekbar(
             Canvas(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .height(trackHeightDp),
+                    .height(trackHeightDp)
+                    .clip(RoundedCornerShape(percent = 50)),
             ) {
                 val min = sliderState.valueRange.start
                 val max = sliderState.valueRange.endInclusive

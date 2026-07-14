@@ -22,6 +22,7 @@ import android.net.Uri
 import android.os.Build
 import android.os.Bundle
 import android.os.IBinder
+import android.os.PowerManager
 import android.provider.MediaStore
 import android.provider.Settings
 import android.util.Log
@@ -316,10 +317,10 @@ class PlayerActivity :
 
   private var isReady = false // Single flag: true when video loaded and ready
   private var isUserFinishing = false
-  private var isManualBackgroundPlayback = false // Track manual background playback trigger
+  private var isBackgroundPlaybackSessionActive = false
   private var wasInPipMode = false
   private var handledPipDismissal = false
-  private var pendingManualBackgroundFinish = false
+  private var pendingBackgroundTransition = false
   private var noisyReceiverRegistered = false
   private var lastVid = -1 // Track video track for background playback optimization
   private var isInBackgroundPlayback = false // Track if we are currently in background playback mode
@@ -327,6 +328,7 @@ class PlayerActivity :
   private var mpvInitialized = false // Track MPV initialization state
   private var savePlaybackStateJob: Job? = null // Track ongoing save job
   private var wasPlayingBeforePause = false // Track if video was playing before pause
+  private var resumeAfterUnlockJob: Job? = null
   private var jellyfinSessionReporter: JellyfinSessionReporter? = null
   private var jellyfinProgressJob: Job? = null
   private val screenUnlockPlaybackController = ScreenUnlockPlaybackController()
@@ -363,17 +365,19 @@ class PlayerActivity :
       if (granted) {
         pendingBackgroundPlaybackStart = false
         val started = startBackgroundPlaybackInternal(bindToActivity = false)
-        if (pendingManualBackgroundFinish && started) {
-          pendingManualBackgroundFinish = false
-          finishForManualBackgroundPlayback()
+        if (pendingBackgroundTransition && started) {
+          pendingBackgroundTransition = false
+          isBackgroundPlaybackSessionActive = true
+          if (wasPlayingBeforePause && viewModel.paused == true) viewModel.unpause()
+          movePlayerToBackground()
         } else if (!started) {
-          pendingManualBackgroundFinish = false
-          isManualBackgroundPlayback = false
+          pendingBackgroundTransition = false
+          isBackgroundPlaybackSessionActive = false
         }
       } else {
         pendingBackgroundPlaybackStart = false
-        pendingManualBackgroundFinish = false
-        isManualBackgroundPlayback = false
+        pendingBackgroundTransition = false
+        isBackgroundPlaybackSessionActive = false
         Toast.makeText(
           this,
           getString(R.string.notification_permission_denied),
@@ -446,13 +450,15 @@ class PlayerActivity :
               autoplayAfterScreenUnlockEnabled = playerPreferences.autoplayAfterScreenUnlock.get(),
               wasPlayingBeforePause = wasPlayingBeforePause,
               isCurrentlyPaused = viewModel.paused,
-              backgroundPlaybackActive = isBackgroundPlaybackActive(),
-              isInPictureInPictureMode = isInPictureInPictureMode,
+              backgroundPlaybackActive = isBackgroundPlaybackEnabled(),
               isUserFinishing = isUserFinishing,
               isFinishing = isFinishing,
             )
           }
-          Intent.ACTION_USER_PRESENT -> resumePlaybackAfterScreenUnlockIfNeeded()
+          Intent.ACTION_USER_PRESENT -> {
+            resumePlaybackAfterScreenUnlockIfNeeded()
+          }
+          Intent.ACTION_SCREEN_ON -> resumePlaybackAfterScreenUnlockIfNeeded()
         }
       }
     }
@@ -906,9 +912,8 @@ class PlayerActivity :
     Log.d(TAG, "PlayerActivity onDestroy")
     val keepBackgroundPlaybackAlive =
       PlayerLifecyclePolicy.shouldKeepBackgroundPlaybackAliveOnDestroy(
-        manualBackgroundPlayback = isManualBackgroundPlayback,
-        isUserFinishing = isUserFinishing,
-        isFinishing = isFinishing,
+        backgroundPlaybackEnabled = isBackgroundPlaybackEnabled(),
+        backgroundPlaybackSessionActive = isBackgroundPlaybackSessionActive,
       )
 
     runCatching {
@@ -918,15 +923,14 @@ class PlayerActivity :
         reportJellyfinStop()
       }
 
-      // Only stop the service if we're not doing manual background playback
-      if ((isUserFinishing || isFinishing) && !isManualBackgroundPlayback) {
+      if ((isUserFinishing || isFinishing) && !keepBackgroundPlaybackAlive) {
         if (serviceBound) {
           runCatching { unbindService(serviceConnection) }
           serviceBound = false
         }
         stopService(Intent(this, MediaPlaybackService::class.java))
         mediaPlaybackService = null
-      } else if (isManualBackgroundPlayback && serviceBound) {
+      } else if (keepBackgroundPlaybackAlive && serviceBound) {
         // Unbind but keep the service running for background audio
         runCatching { unbindService(serviceConnection) }
         serviceBound = false
@@ -1022,6 +1026,7 @@ class PlayerActivity :
       val filter =
         IntentFilter().apply {
           addAction(Intent.ACTION_SCREEN_OFF)
+          addAction(Intent.ACTION_SCREEN_ON)
           addAction(Intent.ACTION_USER_PRESENT)
         }
       registerReceiver(screenStateReceiver, filter)
@@ -1036,10 +1041,10 @@ class PlayerActivity :
       val isInPip = isInPictureInPictureMode
       val shouldPause =
         PlayerLifecyclePolicy.shouldPauseOnPause(
-          automaticBackgroundPlayback = shouldKeepAudioPlayingInBackground(),
-          manualBackgroundPlayback = isManualBackgroundPlayback,
+          backgroundPlaybackEnabled = isBackgroundPlaybackEnabled(),
           isUserFinishing = isUserFinishing,
           isInPictureInPictureMode = isInPip,
+          isScreenOffOrLocked = isDeviceScreenOffOrLocked(),
         )
 
       if (!isInPip && shouldPause) {
@@ -1051,7 +1056,7 @@ class PlayerActivity :
       }
 
       // Restore UI immediately when user is finishing for instant feedback
-      if (isUserFinishing && !isInPip && !isManualBackgroundPlayback) {
+      if (isUserFinishing && !isInPip && !isBackgroundPlaybackSessionActive) {
         restoreSystemUI()
       }
 
@@ -1070,7 +1075,7 @@ class PlayerActivity :
       isReady = false
       
       // Clean up service when finishing
-      if (!isManualBackgroundPlayback) {
+      if (!isBackgroundPlaybackSessionActive) {
         endBackgroundPlayback()
       }
       
@@ -1091,7 +1096,7 @@ class PlayerActivity :
       isUserFinishing = true
       
       // Clean up service when finishing
-      if (!isManualBackgroundPlayback) {
+      if (!isBackgroundPlaybackSessionActive) {
         endBackgroundPlayback()
       }
       
@@ -1124,8 +1129,10 @@ class PlayerActivity :
       if (
         PlayerLifecyclePolicy.shouldTreatStopAsPipDismissal(
           wasInPictureInPictureMode = wasInPipMode,
+          isInPictureInPictureMode = isInPictureInPictureMode,
           isChangingConfigurations = isChangingConfigurations,
-          manualBackgroundPlayback = isManualBackgroundPlayback,
+          backgroundPlaybackEnabled = isBackgroundPlaybackEnabled(),
+          isScreenOffOrLocked = isDeviceScreenOffOrLocked(),
           alreadyHandled = handledPipDismissal,
         )
       ) {
@@ -1134,28 +1141,31 @@ class PlayerActivity :
       }
 
       if (
-        PlayerLifecyclePolicy.shouldStartAutomaticBackgroundPlaybackOnStop(
-          automaticBackgroundPlayback = shouldKeepAudioPlayingInBackground(),
-          manualBackgroundPlayback = isManualBackgroundPlayback,
+        PlayerLifecyclePolicy.shouldStartBackgroundPlaybackOnStop(
+          backgroundPlaybackEnabled = isBackgroundPlaybackEnabled(),
+          backgroundPlaybackSessionActive = isBackgroundPlaybackSessionActive,
           isUserFinishing = isUserFinishing,
           isFinishing = isFinishing,
           isInPictureInPictureMode = isInPictureInPictureMode,
+          isScreenOffOrLocked = isDeviceScreenOffOrLocked(),
         )
       ) {
         if (startBackgroundPlayback(allowUserPrompt = false) == BackgroundPlaybackStartResult.Started) {
+          isBackgroundPlaybackSessionActive = true
           disableVideoForBackground()
         } else {
+          rememberResumeAfterUnlockBeforeForcedPause()
           viewModel.pause()
         }
         return@runCatching
       }
 
-      val shouldAllowBackgroundPlayback = isManualBackgroundPlayback
-
-      if (!shouldAllowBackgroundPlayback && (isUserFinishing || isFinishing)) {
+      if (isDeviceScreenOffOrLocked() && !isBackgroundPlaybackEnabled()) {
+        rememberResumeAfterUnlockBeforeForcedPause()
         viewModel.pause()
-      } else if (!isInBackgroundPlayback) {
-        // Ensure video is disabled when hidden, even if it wasn't handled in onPause (e.g. multi-window)
+      } else if (!isBackgroundPlaybackSessionActive && (isUserFinishing || isFinishing)) {
+        viewModel.pause()
+      } else if (isBackgroundPlaybackSessionActive && !isInBackgroundPlayback) {
         disableVideoForBackground()
       }
     }.onFailure { e ->
@@ -1169,8 +1179,8 @@ class PlayerActivity :
     Log.d(TAG, "PiP dismissed; closing playback instead of continuing in background")
     handledPipDismissal = true
     isUserFinishing = true
-    isManualBackgroundPlayback = false
-    pendingManualBackgroundFinish = false
+    isBackgroundPlaybackSessionActive = false
+    pendingBackgroundTransition = false
     viewModel.pause()
     endBackgroundPlayback()
     if (!isFinishing && !isDestroyed) {
@@ -1186,11 +1196,13 @@ class PlayerActivity :
     runCatching {
       setupWindowFlags()
       setupSystemUI()
+      val deviceScreenOffOrLocked = isDeviceScreenOffOrLocked()
 
-      // Restore video if it was disabled for background playback
-      enableVideoAfterBackground()
-      if (!isInPictureInPictureMode && MediaPlaybackService.isRunning()) {
-        endBackgroundPlayback()
+      if (!deviceScreenOffOrLocked) {
+        // Foreground playback owns the session again after unlock or app return.
+        enableVideoAfterBackground()
+        if (MediaPlaybackService.isRunning()) endBackgroundPlayback()
+        isBackgroundPlaybackSessionActive = false
       }
 
       if (!noisyReceiverRegistered) {
@@ -1210,8 +1222,6 @@ class PlayerActivity :
         }
       }
       
-      // Reset manual background playback flag when returning to foreground
-      isManualBackgroundPlayback = false
       if (!isInPictureInPictureMode) {
         wasInPipMode = false
       }
@@ -2047,9 +2057,10 @@ class PlayerActivity :
 
   override fun onResume() {
     super.onResume()
-    enableVideoAfterBackground()
+    if (!isDeviceScreenOffOrLocked()) enableVideoAfterBackground()
     updateVolume()
     resumePlaybackAfterScreenUnlockIfNeeded()
+    if (!screenUnlockPlaybackController.hasPendingResume()) wasPlayingBeforePause = false
   }
 
   /**
@@ -2067,23 +2078,41 @@ class PlayerActivity :
     }
   }
 
-  private fun isBackgroundPlaybackActive(): Boolean =
-    isManualBackgroundPlayback || shouldKeepAudioPlayingInBackground()
+  private fun isBackgroundPlaybackEnabled(): Boolean = audioPreferences.backgroundPlayback.get()
 
-  private fun shouldKeepAudioPlayingInBackground(): Boolean =
-    audioPreferences.automaticBackgroundPlayback.get() || shouldKeepAudioFilePlayingAfterScreenLock()
+  private fun isDeviceScreenOffOrLocked(): Boolean {
+    val powerManager = getSystemService(Context.POWER_SERVICE) as PowerManager
+    return keyguardManager.isDeviceLocked || !powerManager.isInteractive
+  }
 
-  private fun shouldKeepAudioFilePlayingAfterScreenLock(): Boolean =
-    audioPreferences.playAudioAfterScreenLock.get() && isCurrentMediaKnownAudio()
+  private fun rememberResumeAfterUnlockBeforeForcedPause() {
+    screenUnlockPlaybackController.onScreenTurnedOff(
+      autoplayAfterScreenUnlockEnabled = playerPreferences.autoplayAfterScreenUnlock.get(),
+      wasPlayingBeforePause = wasPlayingBeforePause,
+      isCurrentlyPaused = viewModel.paused,
+      backgroundPlaybackActive = false,
+      isUserFinishing = isUserFinishing,
+      isFinishing = isFinishing,
+    )
+    wasPlayingBeforePause = viewModel.paused == false || wasPlayingBeforePause
+  }
 
   private fun resumePlaybackAfterScreenUnlockIfNeeded() {
-    if (!screenUnlockPlaybackController.consumeResumeAfterUnlockIfReady(keyguardManager.isDeviceLocked)) return
+    resumeAfterUnlockJob?.cancel()
+    if (!screenUnlockPlaybackController.hasPendingResume()) return
 
-    wasPlayingBeforePause = false
-    lifecycleScope.launch {
-      delay(300)
-      if (viewModel.paused == true) {
-        viewModel.unpause()
+    resumeAfterUnlockJob = lifecycleScope.launch {
+      repeat(50) {
+        val deviceLocked = isDeviceScreenOffOrLocked()
+        if (screenUnlockPlaybackController.consumeResumeAfterUnlockIfReady(deviceLocked)) {
+          wasPlayingBeforePause = false
+          if (viewModel.paused == true && !isFinishing && !isUserFinishing) {
+            viewModel.unpause()
+          }
+          return@launch
+        }
+        if (!screenUnlockPlaybackController.hasPendingResume()) return@launch
+        delay(100)
       }
     }
   }
@@ -3591,8 +3620,8 @@ class PlayerActivity :
         return
       }
       MediaPlaybackService.ACTION_OPEN_PLAYER -> {
-        isManualBackgroundPlayback = false
-        pendingManualBackgroundFinish = false
+        isBackgroundPlaybackSessionActive = false
+        pendingBackgroundTransition = false
         isReady = true
         viewModel.onVideoLoadCompleted()
         endBackgroundPlayback()
@@ -3600,8 +3629,8 @@ class PlayerActivity :
       }
     }
 
-    isManualBackgroundPlayback = false
-    pendingManualBackgroundFinish = false
+    isBackgroundPlaybackSessionActive = false
+    pendingBackgroundTransition = false
     handledPipDismissal = false
     if (serviceBound || mediaPlaybackService != null || MediaPlaybackService.isRunning()) {
       endBackgroundPlayback()
@@ -4248,6 +4277,8 @@ class PlayerActivity :
    */
   private fun endBackgroundPlayback() {
     Log.d(TAG, "Ending background playback service")
+    isBackgroundPlaybackSessionActive = false
+    pendingBackgroundTransition = false
     
     if (serviceBound) {
       try {
@@ -4270,31 +4301,43 @@ class PlayerActivity :
     mediaPlaybackService = null
   }
 
-  /**
-   * Manually triggers background playback when the user clicks the background playback button.
-   * This works independently of the automaticBackgroundPlayback preference.
-   */
-  fun triggerBackgroundPlayback() {
-    if (fileName.isBlank() || !isReady) {
-      Log.w(TAG, "Cannot trigger background playback: video not ready")
+  /** Uses the same persistent setting as Settings > Audio. */
+  fun toggleBackgroundPlayback() {
+    val enabled = !audioPreferences.backgroundPlayback.get()
+    audioPreferences.backgroundPlayback.set(enabled)
+
+    if (!enabled) {
+      pendingBackgroundTransition = false
+      isBackgroundPlaybackSessionActive = false
+      endBackgroundPlayback()
+      enableVideoAfterBackground()
+      viewModel.showToast("Background playback off")
       return
     }
 
-    Log.d(TAG, "User triggered background playback")
-    
-    // Set flag to enable background playback (same logic as automatic)
-    isManualBackgroundPlayback = true
+    if (fileName.isBlank() || !isReady) {
+      Log.w(TAG, "Cannot start background playback: media not ready")
+      viewModel.showToast("Background playback on")
+      return
+    }
+
+    Log.d(TAG, "Background playback enabled from player controls")
+    wasPlayingBeforePause = viewModel.paused == false
     when (startBackgroundPlayback()) {
-      BackgroundPlaybackStartResult.Started -> finishForManualBackgroundPlayback()
-      BackgroundPlaybackStartResult.PendingPermission -> pendingManualBackgroundFinish = true
+      BackgroundPlaybackStartResult.Started -> {
+        isBackgroundPlaybackSessionActive = true
+        movePlayerToBackground()
+      }
+      BackgroundPlaybackStartResult.PendingPermission -> pendingBackgroundTransition = true
       BackgroundPlaybackStartResult.Blocked -> {
-        isManualBackgroundPlayback = false
-        pendingManualBackgroundFinish = false
+        audioPreferences.backgroundPlayback.set(false)
+        isBackgroundPlaybackSessionActive = false
+        pendingBackgroundTransition = false
       }
     }
   }
 
-  private fun finishForManualBackgroundPlayback() {
+  private fun movePlayerToBackground() {
     // Restore system UI before going to background
     restoreSystemUI()
 

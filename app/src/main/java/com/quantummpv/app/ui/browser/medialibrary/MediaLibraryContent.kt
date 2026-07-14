@@ -58,6 +58,7 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import com.quantummpv.app.BuildConfig
 import com.quantummpv.app.domain.media.model.Video
 import com.quantummpv.app.preferences.BrowserPreferences
+import com.quantummpv.app.preferences.MediaLibraryType
 import com.quantummpv.app.preferences.PlayerPreferences
 import com.quantummpv.app.preferences.preference.collectAsState
 import com.quantummpv.app.ui.browser.LocalNavigationBarHeight
@@ -90,11 +91,6 @@ import java.io.File
 import kotlinx.coroutines.launch
 import org.koin.compose.koinInject
 
-private enum class MediaLibraryType {
-  Video,
-  Audio,
-}
-
 @OptIn(ExperimentalMaterial3ExpressiveApi::class)
 @Composable
 fun MediaLibraryContent() {
@@ -116,8 +112,10 @@ fun MediaLibraryContent() {
 
   val videoSortType by browserPreferences.videoSortType.collectAsState()
   val videoSortOrder by browserPreferences.videoSortOrder.collectAsState()
+  val includeAudioBrowser by browserPreferences.includeAudioBrowser.collectAsState()
+  val savedMediaType by browserPreferences.mediaLibraryType.collectAsState()
   val playlistMode by playerPreferences.playlistMode.collectAsState()
-  var mediaType by rememberSaveable { mutableStateOf(MediaLibraryType.Video) }
+  val mediaType = if (includeAudioBrowser) savedMediaType else MediaLibraryType.Video
   val sortedVideosWithInfo = remember(videosWithPlaybackInfo, videoSortType, videoSortOrder) {
     val infoById = videosWithPlaybackInfo.associateBy { it.video.path }
     val sortedVideos = SortUtils.sortVideos(videosWithPlaybackInfo.map { it.video }, videoSortType, videoSortOrder)
@@ -217,6 +215,12 @@ fun MediaLibraryContent() {
     if (isSearching) {
       focusRequester.requestFocus()
       keyboardController?.show()
+    }
+  }
+
+  LaunchedEffect(includeAudioBrowser, savedMediaType) {
+    if (!includeAudioBrowser && savedMediaType != MediaLibraryType.Video) {
+      browserPreferences.mediaLibraryType.set(MediaLibraryType.Video)
     }
   }
 
@@ -408,27 +412,29 @@ fun MediaLibraryContent() {
           .fillMaxSize()
           .padding(padding),
       ) {
-        SingleChoiceSegmentedButtonRow(
-          modifier = Modifier
-            .fillMaxWidth()
-            .padding(horizontal = 16.dp, vertical = 8.dp),
-        ) {
-          MediaLibraryType.entries.forEachIndexed { index, type ->
-            SegmentedButton(
-              selected = mediaType == type,
-              onClick = {
-                if (mediaType != type) {
-                  selectionManager.clear()
-                  mediaType = type
-                }
-              },
-              shape = SegmentedButtonDefaults.itemShape(index, MediaLibraryType.entries.size),
-              colors = SegmentedButtonDefaults.colors(
-                activeContentColor = MaterialTheme.colorScheme.primary,
-                activeBorderColor = MaterialTheme.colorScheme.primary,
-              ),
-            ) {
-              Text(type.name)
+        if (includeAudioBrowser) {
+          SingleChoiceSegmentedButtonRow(
+            modifier = Modifier
+              .fillMaxWidth()
+              .padding(horizontal = 16.dp, vertical = 8.dp),
+          ) {
+            MediaLibraryType.entries.forEachIndexed { index, type ->
+              SegmentedButton(
+                selected = mediaType == type,
+                onClick = {
+                  if (mediaType != type) {
+                    selectionManager.clear()
+                    browserPreferences.mediaLibraryType.set(type)
+                  }
+                },
+                shape = SegmentedButtonDefaults.itemShape(index, MediaLibraryType.entries.size),
+                colors = SegmentedButtonDefaults.colors(
+                  activeContentColor = MaterialTheme.colorScheme.primary,
+                  activeBorderColor = MaterialTheme.colorScheme.primary,
+                ),
+              ) {
+                Text(type.name)
+              }
             }
           }
         }
@@ -508,7 +514,7 @@ fun MediaLibraryContent() {
           onAddToPlaylistClick = { addToPlaylistDialogOpen.value = true },
           showCopy = true,
           showMove = true,
-          showDownscale = mediaType == MediaLibraryType.Video && selectionManager.selectedCount == 1,
+          showDownscale = selectionManager.getSelectedItems().singleOrNull()?.isAudio == false,
           showRename = selectionManager.selectedCount > 0,
           modifier = Modifier.padding(bottom = if (NavigationBarState.shouldHideNavigationBar) 0.dp else navigationBarHeight)
         )
@@ -616,7 +622,7 @@ fun MediaLibraryContent() {
 
     if (compressorDialogOpen.value) {
       val selectedVideos = selectionManager.getSelectedItems()
-      if (selectedVideos.isNotEmpty()) {
+      if (selectedVideos.isNotEmpty() && selectedVideos.none { it.isAudio }) {
         VideoCompressorOverlay(
           isOpen = true,
           videos = selectedVideos,

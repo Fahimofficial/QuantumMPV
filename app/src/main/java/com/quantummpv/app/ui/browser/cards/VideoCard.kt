@@ -182,7 +182,7 @@ fun VideoCard(
         ) {
         val thumbnailRepository = koinInject<ThumbnailRepository>()
         val thumbWidthDp = 160.dp
-        val aspect = 16f / 9f
+        val aspect = if (video.isAudio) 1f else 16f / 9f
         val thumbWidthPx = with(LocalDensity.current) { thumbWidthDp.roundToPx() }
         val thumbHeightPx = (thumbWidthPx / aspect).roundToInt()
 
@@ -452,9 +452,9 @@ fun VideoCard(
           verticalAlignment = Alignment.CenterVertically,
         ) {
         val thumbnailRepository = koinInject<ThumbnailRepository>()
-        // Rectangular thumbnail (16:9) with fixed width; height derives from aspect ratio
+        // Audio artwork is square; video thumbnails retain their 16:9 presentation.
         val thumbWidthDp = 128.dp
-        val aspect = 16f / 9f
+        val aspect = if (video.isAudio) 1f else 16f / 9f
         val thumbWidthPx = with(LocalDensity.current) { thumbWidthDp.roundToPx() }
         val thumbHeightPx = (thumbWidthPx / aspect).roundToInt()
 

@@ -15,30 +15,16 @@ import java.util.concurrent.TimeUnit
 @Serializable
 private data class TogModel(
   val id: String,
+  val type: String? = null,
   val display_name: String? = null,
   val displayName: String? = null,
   val pricing: JsonObject? = null,
 )
 
 @Serializable
-private data class TogModelListResponse(
-  val data: List<TogModel>? = null,
-)
-
-@Serializable
 private data class TogMessage(
   val role: String,
   val content: String,
-)
-
-@Serializable
-private data class TogChoice(
-  val message: TogMessage? = null,
-)
-
-@Serializable
-private data class TogResponse(
-  val choices: List<TogChoice>? = null,
 )
 
 @Serializable
@@ -60,7 +46,6 @@ class TogetherClient(
   private val json: Json,
 ) : AiClient {
   companion object {
-    private const val TAG = "TogetherClient"
     private const val BASE_URL = "https://api.together.xyz/v1"
     private val JSON_MEDIA_TYPE = "application/json".toMediaType()
   }
@@ -85,9 +70,10 @@ class TogetherClient(
 
       if (!response.isSuccessful) throw Exception("Together API error ${response.code}: ${parseError(body)}")
 
-      val parsed = json.decodeFromString<TogModelListResponse>(body)
-      val models = parsed.data ?: emptyList()
-      models.map { model ->
+      AiResponseParser.modelArray(json, body, "Together")
+        .mapNotNull { element -> runCatching { json.decodeFromJsonElement(TogModel.serializer(), element) }.getOrNull() }
+        .filter { it.type == null || it.type == "chat" || it.type == "language" }
+        .map { model ->
         AiModelInfo(
           id = model.id,
           displayName = model.displayName ?: model.display_name ?: model.id,
@@ -117,7 +103,7 @@ class TogetherClient(
     instruction: String,
     userInput: String,
     options: AiGenerationOptions,
-  ): Result<String> = withContext(Dispatchers.IO) {
+  ): Result<AiGeneratedContent> = withContext(Dispatchers.IO) {
     runCatching {
       val requestBody = json.encodeToString(
         TogChatRequest.serializer(),
@@ -143,9 +129,7 @@ class TogetherClient(
 
       if (!response.isSuccessful) throw Exception("Together generate error ${response.code}: ${parseError(body)}")
 
-      val parsed = json.decodeFromString<TogResponse>(body)
-      parsed.choices?.firstOrNull()?.message?.content?.trim()
-        ?: throw Exception("No response from Together")
+      AiResponseParser.openAiCompatible(json, body, "Together")
     }
   }
 

@@ -34,6 +34,7 @@ class GroqSpeechClient(
     apiKey: String,
     audioFile: File,
     language: String?,
+    model: String?,
   ): Result<SpeechTranscript> = withContext(Dispatchers.IO) {
     runCatching {
       val fileSizeMb = audioFile.length() / (1024 * 1024)
@@ -43,7 +44,7 @@ class GroqSpeechClient(
 
       val bodyBuilder = MultipartBody.Builder()
         .setType(MultipartBody.FORM)
-        .addFormDataPart("model", "whisper-large-v3-turbo")
+        .addFormDataPart("model", model?.takeIf { it.contains("whisper", ignoreCase = true) } ?: "whisper-large-v3-turbo")
         .addFormDataPart("response_format", "verbose_json")
         .addFormDataPart("temperature", "0")
         .addFormDataPart("file", audioFile.name, audioFile.asRequestBody(AUDIO_MEDIA_TYPE))

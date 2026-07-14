@@ -267,6 +267,7 @@ fun PlayerControls(
   val currentSkippableSegment by viewModel.currentSkippableSegment.collectAsState()
   val showSkipChipAuto by viewModel.showSkipChipAuto.collectAsState()
   val playlistMode by playerPreferences.playlistMode.collectAsState()
+  val playlistItems by viewModel.playlistItems.collectAsState()
     val haptic = LocalHapticFeedback.current
 
     val customButtons by viewModel.customButtons.collectAsState()
@@ -724,7 +725,7 @@ fun PlayerControls(
                 com.quantummpv.app.ui.player.RepeatMode.OFF -> "Repeat: Off"
                 com.quantummpv.app.ui.player.RepeatMode.ONE -> "Repeat: Current file"
                 com.quantummpv.app.ui.player.RepeatMode.ALL -> {
-                  if (playlistMode && viewModel.hasPlaylistSupport()) {
+                  if (playlistMode && playlistItems.isNotEmpty()) {
                     "Repeat: All playlist"
                   } else {
                     "Repeat: Current file"
@@ -737,7 +738,7 @@ fun PlayerControls(
             is PlayerUpdates.Shuffle -> {
               val enabled = (currentPlayerUpdate as PlayerUpdates.Shuffle).enabled
               val text = if (enabled) {
-                if (playlistMode && viewModel.hasPlaylistSupport()) {
+                if (playlistMode && playlistItems.isNotEmpty()) {
                   "Shuffle: On"
                 } else {
                   "Shuffle: Not available"
@@ -1095,7 +1096,7 @@ fun PlayerControls(
                   1.0f to Color.Transparent,
                 )
 
-              if (playlistMode && viewModel.hasPlaylistSupport()) {
+              if (playlistMode && playlistItems.isNotEmpty()) {
                 androidx.compose.foundation.layout.Row(
                   horizontalArrangement = Arrangement.spacedBy(24.dp),
                   verticalAlignment = Alignment.CenterVertically,

@@ -14,8 +14,11 @@ import kotlin.math.min
 
 internal class BlobRenderer(
     private val context: Context,
-    private val audio: AudioFeatures
+    private val sourceAudio: AudioFeatures
 ) : GLSurfaceView.Renderer {
+
+    private val audio = AudioFeatures()
+    private val audioSmoother = AudioReactiveSmoother()
 
     private var blobProgram = 0
     private var brightProgram = 0
@@ -160,6 +163,7 @@ internal class BlobRenderer(
         val frameMs = (now - previousFrameNanos) / 1_000_000f
         previousFrameNanos = now
         frameTimeEmaMs += (frameMs.coerceAtMost(50f) - frameTimeEmaMs) * 0.025f
+        updateSmoothedAudio(frameMs / 1_000f)
 
         if (targetsDirty) recreateTargets()
         updateAdaptiveQuality()
@@ -171,6 +175,27 @@ internal class BlobRenderer(
         blurBloom(horizontal = true)
         blurBloom(horizontal = false)
         compositeToScreen()
+    }
+
+    private fun updateSmoothedAudio(deltaSeconds: Float) {
+        val smoothed = audioSmoother.update(
+            AudioFeatureFrame(
+                energy = sourceAudio.energy,
+                bass = sourceAudio.bass,
+                mid = sourceAudio.mid,
+                treble = sourceAudio.treble,
+                centroid = sourceAudio.centroid,
+                beat = sourceAudio.beat,
+            ),
+            deltaSeconds,
+        )
+        audio.energy = smoothed.energy
+        audio.bass = smoothed.bass
+        audio.mid = smoothed.mid
+        audio.treble = smoothed.treble
+        audio.centroid = smoothed.centroid
+        audio.beat = smoothed.beat
+        audio.active = sourceAudio.active
     }
 
     private fun createMesh() {

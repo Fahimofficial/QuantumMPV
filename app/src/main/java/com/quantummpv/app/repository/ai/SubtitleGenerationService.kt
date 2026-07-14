@@ -49,6 +49,7 @@ class SubtitleGenerationService(
   private val context: Context,
   private val preferences: AiPreferences,
   private val groqSpeechClient: GroqSpeechClient,
+  private val openRouterSpeechClient: OpenRouterSpeechClient,
   private val okHttpClient: OkHttpClient,
   private val json: Json,
 ) {
@@ -233,17 +234,23 @@ class SubtitleGenerationService(
       AiProvider.GROQ -> {
         val key = preferences.groqApiKey.get()
         if (key.isBlank()) Result.failure(Exception("Groq API key not configured."))
-        else groqSpeechClient.transcribe(key, audioFile, language)
+        else groqSpeechClient.transcribe(key, audioFile, language, preferences.sttModel.get())
       }
       AiProvider.OPENAI -> {
         val key = preferences.openaiApiKey.get()
         if (key.isBlank()) Result.failure(Exception("OpenAI API key not configured."))
-        else transcribeOpenAiCompatible("https://api.openai.com/v1/audio/transcriptions", key, "whisper-1", audioFile, language)
+        else transcribeOpenAiCompatible(
+          "https://api.openai.com/v1/audio/transcriptions",
+          key,
+          preferences.sttModel.get().takeIf { it.startsWith("whisper") || it.contains("transcribe") } ?: "whisper-1",
+          audioFile,
+          language,
+        )
       }
       AiProvider.OPENROUTER -> {
         val key = preferences.openrouterApiKey.get()
         if (key.isBlank()) Result.failure(Exception("OpenRouter API key not configured."))
-        else transcribeOpenAiCompatible("https://openrouter.ai/api/v1/audio/transcriptions", key, "openai/whisper-1", audioFile, language)
+        else openRouterSpeechClient.transcribe(key, audioFile, language, preferences.sttModel.get())
       }
       else -> Result.failure(Exception("Only online providers (Groq, OpenAI, OpenRouter) are supported."))
     }

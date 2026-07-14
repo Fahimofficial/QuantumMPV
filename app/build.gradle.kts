@@ -20,8 +20,8 @@ android {
     applicationId = "com.quantummpv.app"
     minSdk = 26
     targetSdk = 36
-    versionCode = 151
-    versionName = "1.5.0-preview.3"
+    versionCode = 152
+    versionName = "1.5.0-preview.4"
 
     vectorDrawables {
       useSupportLibrary = true

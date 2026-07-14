@@ -38,16 +38,6 @@ private data class OrMessage(
 )
 
 @Serializable
-private data class OrChoice(
-  val message: OrMessage? = null,
-)
-
-@Serializable
-private data class OrResponse(
-  val choices: List<OrChoice>? = null,
-)
-
-@Serializable
 private data class OrErrorBody(val error: OrErrorDetail? = null)
 
 @Serializable
@@ -66,7 +56,6 @@ class OpenRouterClient(
   private val json: Json,
 ) : AiClient {
   companion object {
-    private const val TAG = "OpenRouterClient"
     private const val BASE_URL = "https://openrouter.ai/api/v1"
     private val JSON_MEDIA_TYPE = "application/json".toMediaType()
   }
@@ -92,7 +81,7 @@ class OpenRouterClient(
       if (!response.isSuccessful) throw Exception("OpenRouter API error ${response.code}: ${parseError(body)}")
 
       val parsed = json.decodeFromString<OrModelListResponse>(body)
-      parsed.data.map { model ->
+      parsed.data.filter { AiModelCapabilities.isTextGenerationModel(it.id) }.map { model ->
         val isFree = model.pricing?.let { p ->
           p.prompt.toDoubleOrNull() == 0.0 &&
             p.completion.toDoubleOrNull() == 0.0 &&
@@ -128,7 +117,7 @@ class OpenRouterClient(
     instruction: String,
     userInput: String,
     options: AiGenerationOptions,
-  ): Result<String> = withContext(Dispatchers.IO) {
+  ): Result<AiGeneratedContent> = withContext(Dispatchers.IO) {
     runCatching {
       val requestBody = json.encodeToString(
         OrChatRequest.serializer(),
@@ -147,7 +136,7 @@ class OpenRouterClient(
         .url("$BASE_URL/chat/completions")
         .header("Authorization", "Bearer $apiKey")
         .header("HTTP-Referer", "https://mpvrx.app")
-        .header("X-Title", "mpvRx")
+        .header("X-OpenRouter-Title", "mpvRx")
         .post(requestBody.toRequestBody(JSON_MEDIA_TYPE))
         .build()
 
@@ -156,9 +145,7 @@ class OpenRouterClient(
 
       if (!response.isSuccessful) throw Exception("OpenRouter generate error ${response.code}: ${parseError(body)}")
 
-      val parsed = json.decodeFromString<OrResponse>(body)
-      parsed.choices?.firstOrNull()?.message?.content?.trim()
-        ?: throw Exception("No response from OpenRouter")
+      AiResponseParser.openAiCompatible(json, body, "OpenRouter")
     }
   }
 
