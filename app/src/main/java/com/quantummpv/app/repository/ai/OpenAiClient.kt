@@ -30,23 +30,6 @@ private data class OpenAiMessage(
 )
 
 @Serializable
-private data class OpenAiChoice(
-  val message: OpenAiMessage? = null,
-)
-
-@Serializable
-private data class OpenAiUsage(
-  @SerialName("prompt_tokens") val promptTokens: Int = 0,
-  @SerialName("completion_tokens") val completionTokens: Int = 0,
-)
-
-@Serializable
-private data class OpenAiResponse(
-  val choices: List<OpenAiChoice>? = null,
-  val usage: OpenAiUsage? = null,
-)
-
-@Serializable
 private data class OpenAiErrorBody(val error: OpenAiErrorDetail? = null)
 
 @Serializable
@@ -56,8 +39,8 @@ private data class OpenAiErrorDetail(val message: String? = null)
 private data class OpenAiChatRequest(
   val model: String,
   val messages: List<OpenAiMessage>,
-  val temperature: Double = 0.3,
-  @SerialName("max_tokens") val maxTokens: Int = 200,
+  val temperature: Double? = null,
+  @SerialName("max_completion_tokens") val maxCompletionTokens: Int = 200,
 )
 
 class OpenAiClient(
@@ -65,7 +48,6 @@ class OpenAiClient(
   private val json: Json,
 ) : AiClient {
   companion object {
-    private const val TAG = "OpenAiClient"
     private const val BASE_URL = "https://api.openai.com/v1"
     private val JSON_MEDIA_TYPE = "application/json".toMediaType()
   }
@@ -91,7 +73,7 @@ class OpenAiClient(
       if (!response.isSuccessful) throw Exception("OpenAI API error ${response.code}: ${parseError(body)}")
 
       val parsed = json.decodeFromString<OpenAiModelListResponse>(body)
-      parsed.data.map { model ->
+      parsed.data.filter { AiModelCapabilities.isTextGenerationModel(it.id) }.map { model ->
         AiModelInfo(
           id = model.id,
           displayName = model.id,
@@ -121,18 +103,18 @@ class OpenAiClient(
     instruction: String,
     userInput: String,
     options: AiGenerationOptions,
-  ): Result<String> = withContext(Dispatchers.IO) {
+  ): Result<AiGeneratedContent> = withContext(Dispatchers.IO) {
     runCatching {
       val requestBody = json.encodeToString(
         OpenAiChatRequest.serializer(),
         OpenAiChatRequest(
           model = model,
           messages = listOf(
-            OpenAiMessage(role = "system", content = instruction),
+            OpenAiMessage(role = if (isReasoningModel(model)) "developer" else "system", content = instruction),
             OpenAiMessage(role = "user", content = userInput),
           ),
-          temperature = options.temperature,
-          maxTokens = options.maxTokens,
+          temperature = options.temperature.takeUnless { isReasoningModel(model) },
+          maxCompletionTokens = options.maxTokens,
         ),
       )
 
@@ -147,9 +129,7 @@ class OpenAiClient(
 
       if (!response.isSuccessful) throw Exception("OpenAI generate error ${response.code}: ${parseError(body)}")
 
-      val parsed = json.decodeFromString<OpenAiResponse>(body)
-      parsed.choices?.firstOrNull()?.message?.content?.trim()
-        ?: throw Exception("No response from OpenAI")
+      AiResponseParser.openAiCompatible(json, body, "OpenAI")
     }
   }
 
@@ -158,5 +138,11 @@ class OpenAiClient(
     error.error?.message ?: body
   } catch (_: Exception) {
     body.take(200)
+  }
+
+  private fun isReasoningModel(model: String): Boolean {
+    val id = model.substringAfterLast('/').lowercase()
+    return id.startsWith("o1") || id.startsWith("o3") || id.startsWith("o4") ||
+      id.startsWith("gpt-5") || id.contains("codex")
   }
 }

@@ -21,6 +21,13 @@ These notes are written in plain English and focus on what changed for real use.
 - **Rounded streaming cache indicator**: Buffered seekbar progress is clipped to the same pill-shaped ends as the normal seek track.
 - **Smoother natural visualizer**: Higher-rate spectrum capture, tuned frequency envelopes, frame-time-aware interpolation, and responsive beat decay make the audio blob react fluidly without harsh jumps.
 
+### AI Providers & Smart Tools
+- **Current provider protocols**: OpenAI, Anthropic, Groq, OpenRouter, Together, and OpenCode Zen requests now follow their current API shapes; OpenCode models are routed through Responses, Messages, Gemini, or Chat Completions as required.
+- **Resilient response parsing**: Text, multipart content, reasoning blocks, citations, provider errors, and both object- and array-based model lists are parsed without relying on one rigid response schema.
+- **Thinking-model rename fixes**: AI rename and subtitle-title output now discard reasoning and code fences, accept structured JSON fields, preserve extensions, and reject empty or unsafe names.
+- **Provider-specific model memory**: Each provider keeps its own selected model and cached model list, preventing stale selections when switching services.
+- **Correct speech endpoints**: Groq and OpenAI use supported transcription models, while OpenRouter speech requests use its current base64 JSON audio format.
+
 ## 1.5.0-preview.3 — Preview Release
 
 ### Playback Hotfix

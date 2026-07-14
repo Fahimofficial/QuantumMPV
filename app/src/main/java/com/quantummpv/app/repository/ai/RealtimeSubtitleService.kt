@@ -41,6 +41,7 @@ class RealtimeSubtitleService(
   private val context: Context,
   private val preferences: AiPreferences,
   private val groqSpeechClient: GroqSpeechClient,
+  private val openRouterSpeechClient: OpenRouterSpeechClient,
   private val okHttpClient: OkHttpClient,
   private val json: Json,
 ) {
@@ -248,7 +249,7 @@ class RealtimeSubtitleService(
       AiProvider.GROQ -> {
         val key = preferences.groqApiKey.get()
         if (key.isBlank()) return null
-        groqSpeechClient.transcribe(key, audioFile, language).getOrNull()
+        groqSpeechClient.transcribe(key, audioFile, language, sttModel).getOrNull()
       }
 
       AiProvider.OPENAI -> {
@@ -257,7 +258,7 @@ class RealtimeSubtitleService(
         transcribeOpenAiCompatible(
           baseUrl = "https://api.openai.com/v1/audio/transcriptions",
           apiKey = key,
-          model = sttModel.ifBlank { "whisper-1" },
+          model = sttModel.takeIf { it.startsWith("whisper") || it.contains("transcribe") } ?: "whisper-1",
           audioFile = audioFile,
           language = language,
         )
@@ -266,19 +267,13 @@ class RealtimeSubtitleService(
       AiProvider.OPENROUTER -> {
         val key = preferences.openrouterApiKey.get()
         if (key.isBlank()) return null
-        transcribeOpenAiCompatible(
-          baseUrl = "https://openrouter.ai/api/v1/audio/transcriptions",
-          apiKey = key,
-          model = sttModel.ifBlank { "openai/whisper-1" },
-          audioFile = audioFile,
-          language = language,
-        )
+        openRouterSpeechClient.transcribe(key, audioFile, language, sttModel).getOrNull()
       }
 
       else -> {
         val groqKey = preferences.groqApiKey.get()
         if (groqKey.isNotBlank()) {
-          groqSpeechClient.transcribe(groqKey, audioFile, language).getOrNull()
+          groqSpeechClient.transcribe(groqKey, audioFile, language, sttModel).getOrNull()
         } else {
           null
         }

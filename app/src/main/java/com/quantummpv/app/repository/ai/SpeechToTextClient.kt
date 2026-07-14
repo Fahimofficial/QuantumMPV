@@ -21,5 +21,6 @@ interface SpeechToTextClient {
     apiKey: String,
     audioFile: File,
     language: String?,
+    model: String? = null,
   ): Result<SpeechTranscript>
 }
