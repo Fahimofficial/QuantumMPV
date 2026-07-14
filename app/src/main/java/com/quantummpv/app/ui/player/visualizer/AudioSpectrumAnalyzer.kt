@@ -23,7 +23,7 @@ class AudioSpectrumAnalyzer(
 
     @Synchronized
     fun start(audioSessionId: Int): Result<Unit> {
-        stop()
+        stop(resetFeatures = false)
         var pendingInstance: Visualizer? = null
         return runCatching {
             val instance = Visualizer(audioSessionId)
@@ -61,7 +61,7 @@ class AudioSpectrumAnalyzer(
             pendingInstance = null
             features.active = true
         }.onFailure {
-            features.reset()
+            features.active = false
             runCatching { pendingInstance?.release() }
             runCatching { visualizer?.release() }
             visualizer = null
@@ -69,18 +69,22 @@ class AudioSpectrumAnalyzer(
     }
 
     @Synchronized
-    fun stop() {
+    fun stop(resetFeatures: Boolean = true) {
         visualizer?.let { instance ->
             runCatching { instance.enabled = false }
             runCatching { instance.setDataCaptureListener(null, 0, false, false) }
             runCatching { instance.release() }
         }
         visualizer = null
-        features.reset()
-        smoothEnergy = 0f
-        smoothBass = 0f
-        smoothMid = 0f
-        smoothTreble = 0f
+        if (resetFeatures) {
+            features.reset()
+        } else {
+            features.active = false
+        }
+        smoothEnergy = features.energy
+        smoothBass = features.bass
+        smoothMid = features.mid
+        smoothTreble = features.treble
         beatEnvelope = 0f
         previousBass = 0f
         beatCooldownFrames = 0

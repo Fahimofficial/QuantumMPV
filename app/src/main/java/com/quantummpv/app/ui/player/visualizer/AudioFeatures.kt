@@ -18,4 +18,13 @@ class AudioFeatures {
         centroid = 0.35f
         active = false
     }
+
+    fun decay(factor: Float, beatFactor: Float = factor) {
+        bass *= factor
+        mid *= factor
+        treble *= factor
+        energy *= factor
+        beat *= beatFactor
+        active = false
+    }
 }

@@ -49,14 +49,24 @@ fun BlobOverlay(
         if (!hasRecordPermission) recordPermissionLauncher.launch(Manifest.permission.RECORD_AUDIO)
     }
 
-    // Try real FFT capture via Visualizer API
+    // Keep the analyzer resilient across player/audio-session changes. Some devices briefly
+    // reject Visualizer creation while mpv swaps files; retry without recreating the GL view so
+    // the blob keeps its animation state instead of stuttering or snapping to idle.
     DisposableEffect(hasRecordPermission) {
         val analyzer = if (hasRecordPermission) AudioSpectrumAnalyzer(features) else null
-        realAnalyzerActive.set(analyzer?.start(0)?.isSuccess == true)
+        val job = scope.launch(Dispatchers.Default) {
+            while (isActive && analyzer != null) {
+                if (!realAnalyzerActive.get()) {
+                    realAnalyzerActive.set(analyzer.start(0).isSuccess)
+                }
+                delay(if (realAnalyzerActive.get()) 1_000L else 350L)
+            }
+        }
 
         onDispose {
+            job.cancel()
             realAnalyzerActive.set(false)
-            analyzer?.stop()
+            analyzer?.stop(resetFeatures = false)
         }
     }
 
@@ -77,11 +87,7 @@ fun BlobOverlay(
                     features.centroid = 0.35f
                     features.active = false
                 } else {
-                    features.bass *= 0.90f
-                    features.mid *= 0.90f
-                    features.treble *= 0.90f
-                    features.energy *= 0.90f
-                    features.beat *= 0.75f
+                    features.decay(0.90f, beatFactor = 0.75f)
                 }
                 delay(33)
             }

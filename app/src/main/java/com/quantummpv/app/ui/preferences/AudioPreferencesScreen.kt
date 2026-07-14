@@ -211,6 +211,20 @@ object AudioPreferencesScreen : Screen {
               )
 
               PreferenceDivider()
+              val playAudioAfterScreenLock by preferences.playAudioAfterScreenLock.collectAsState()
+              SwitchPreference(
+                value = playAudioAfterScreenLock,
+                onValueChange = { preferences.playAudioAfterScreenLock.set(it) },
+                title = { Text("Play audio after screen lock") },
+                summary = {
+                  Text(
+                    "Keep audio files playing when the screen turns off or the device locks",
+                    color = MaterialTheme.colorScheme.outline,
+                  )
+                },
+              )
+
+              PreferenceDivider()
               val audioChannel by preferences.audioChannels.collectAsState()
               ListPreference(
                 value = audioChannel,
