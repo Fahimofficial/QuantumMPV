@@ -5,10 +5,16 @@ import android.content.pm.PackageManager
 import android.opengl.GLSurfaceView
 import android.os.Build
 import android.view.ViewGroup
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.viewinterop.AndroidView
@@ -17,6 +23,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
+import java.util.concurrent.atomic.AtomicBoolean
 import kotlin.math.cos
 import kotlin.math.sin
 import kotlin.random.Random
@@ -29,18 +36,32 @@ fun BlobOverlay(
     val context = LocalContext.current
     val features = remember { AudioFeatures() }
     val scope = rememberCoroutineScope()
-
-    // Try real FFT capture via Visualizer API
-    DisposableEffect(Unit) {
-        val hasRecordPermission =
+    val realAnalyzerActive = remember { AtomicBoolean(false) }
+    var hasRecordPermission by remember {
+        mutableStateOf(
             Build.VERSION.SDK_INT < 23 ||
                 ContextCompat.checkSelfPermission(context, Manifest.permission.RECORD_AUDIO) ==
                 PackageManager.PERMISSION_GRANTED
-        val analyzer = if (hasRecordPermission) {
-            AudioSpectrumAnalyzer(features).also { it.start(0) }
-        } else null
+        )
+    }
+    val recordPermissionLauncher =
+        rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
+            hasRecordPermission = granted
+        }
+
+    LaunchedEffect(hasRecordPermission) {
+        if (!hasRecordPermission) {
+            recordPermissionLauncher.launch(Manifest.permission.RECORD_AUDIO)
+        }
+    }
+
+    // Try real FFT capture via Visualizer API
+    DisposableEffect(hasRecordPermission) {
+        val analyzer = if (hasRecordPermission) AudioSpectrumAnalyzer(features) else null
+        realAnalyzerActive.set(analyzer?.start(0)?.isSuccess == true)
 
         onDispose {
+            realAnalyzerActive.set(false)
             analyzer?.stop()
         }
     }
@@ -49,7 +70,12 @@ fun BlobOverlay(
     DisposableEffect(isPlaying) {
         val job = scope.launch(Dispatchers.Default) {
             while (isActive) {
-                if (isPlaying) {
+                if (realAnalyzerActive.get()) {
+                    // Live FFT owns these values. Mixing in synthetic motion
+                    // makes the blob visibly drift away from the actual beat.
+                    delay(33)
+                    continue
+                } else if (isPlaying) {
                     val time = System.nanoTime() / 1_000_000_000f
                     val noise = Random.nextFloat() * 0.3f + 0.1f
                     features.energy = (sin(time * 2.3f) * 0.15f + 0.25f + noise * 0.3f).coerceIn(0f, 1f)

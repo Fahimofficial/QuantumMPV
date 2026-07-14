@@ -254,16 +254,18 @@ internal class BlobRenderer(
         val idleRotation = time * (4.5f + audio.mid * 5f)
         Matrix.rotateM(model, 0, yaw + idleRotation, 0f, 1f, 0f)
         Matrix.rotateM(model, 0, pitch + time * 1.7f, 1f, 0f, 0f)
-        val scale = pinchScale * (1.0f + audio.bass * 0.08f + audio.beat * 0.035f)
+        // Make beat-driven scale more responsive while keeping base scale lower
+        val scale = pinchScale * (0.96f + audio.bass * 0.06f + audio.beat * 0.06f)
         Matrix.scaleM(model, 0, scale, scale, scale)
         Matrix.multiplyMM(viewModel, 0, view, 0, model, 0)
         Matrix.multiplyMM(mvp, 0, projection, 0, viewModel, 0)
     }
 
     private fun updateColor(time: Float) {
-        val reactiveHue = fract(0.73f + audio.centroid * 0.54f + time * 0.018f + audio.beat * 0.07f)
-        val saturation = (0.68f + audio.treble * 0.28f).coerceIn(0f, 1f)
-        val value = (0.82f + audio.energy * 0.18f).coerceIn(0f, 1f)
+        val reactiveHue = fract(0.73f + audio.centroid * 0.54f + time * 0.018f + audio.beat * 0.08f)
+        val saturation = (0.62f + audio.treble * 0.24f).coerceIn(0f, 1f)
+        // Reduce overall brightness (value) so blob is less intense by default
+        val value = (0.70f + audio.energy * 0.18f).coerceIn(0f, 1f)
         hsvToRgb(reactiveHue, saturation, value, rgb)
 
         val colorSpeed = 0.035f + audio.energy * 0.06f + audio.beat * 0.10f
@@ -289,9 +291,11 @@ internal class BlobRenderer(
         GLES30.glUniform1f(uBlobTreble, audio.treble)
         GLES30.glUniform1f(uBlobBeat, audio.beat)
         GLES30.glUniform3f(uBlobColor, smoothR, smoothG, smoothB)
+        // Lower base intensity and tune audio/beat influence for crisper, less
+        // blinding visuals while still reacting strongly to beats.
         GLES30.glUniform1f(
             uBlobIntensity,
-            0.90f + audio.energy * 0.85f + audio.beat * 0.55f
+            0.60f + audio.energy * 0.50f + audio.beat * 0.90f
         )
 
         GLES30.glLineWidth(1.5f)
@@ -310,7 +314,7 @@ internal class BlobRenderer(
         bindTexture(0, sceneTarget.texture, uBrightScene)
         GLES30.glUniform1f(
             uBrightThreshold,
-            (0.26f - audio.energy * 0.08f - audio.beat * 0.05f).coerceAtLeast(0.10f)
+            (0.36f - audio.energy * 0.06f - audio.beat * 0.04f).coerceAtLeast(0.12f)
         )
         drawQuad()
     }
@@ -340,9 +344,9 @@ internal class BlobRenderer(
         bindTexture(1, bloomA.texture, uCompositeBloom)
         GLES30.glUniform1f(
             uCompositeBloomStrength,
-            1.20f + audio.energy * 0.90f + audio.beat * 0.80f
+            0.90f + audio.energy * 0.60f + audio.beat * 0.80f
         )
-        GLES30.glUniform1f(uCompositeExposure, 1.05f)
+        GLES30.glUniform1f(uCompositeExposure, 1.00f)
         drawQuad()
     }
 

@@ -35,4 +35,5 @@ interface PlayerHost {
   fun currentMediaLookupHint(): String? = null
   fun currentPlayerLookupHints(): PlayerLookupHints = PlayerLookupHints()
   fun currentThumbnailSource(): String? = null
+  fun isCurrentMediaKnownAudio(): Boolean = false
 }
