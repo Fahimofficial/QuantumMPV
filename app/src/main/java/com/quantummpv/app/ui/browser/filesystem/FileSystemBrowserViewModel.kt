@@ -190,6 +190,14 @@ class FileSystemBrowserViewModel(
           loadCurrentDirectory()
         }
     }
+
+    // The cached media topology is reusable; only the visible flatten depth changes.
+    viewModelScope.launch {
+      browserPreferences.treeFlattenDepth
+        .changes()
+        .drop(1)
+        .collectLatest { loadCurrentDirectory() }
+    }
   }
 
   /**

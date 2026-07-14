@@ -83,6 +83,7 @@ import `is`.xyz.mpv.MPVLib
 import `is`.xyz.mpv.MPVNode
 import `is`.xyz.mpv.Utils
 import kotlinx.coroutines.DelicateCoroutinesApi
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
@@ -319,6 +320,7 @@ class PlayerActivity :
   private var systemBarsAutoHideJob: Job? = null
   private var videoParamRefreshJob: Job? = null
   private var intentSubtitleJob: Job? = null
+  private var mediaLoadJob: Job? = null
   private var pendingVideoParamRefreshRequiresShaderReload = false
   private var lastBackgroundThumbnailKey: String? = null
   private var lastBackgroundThumbnail: Bitmap? = null
@@ -577,21 +579,9 @@ class PlayerActivity :
           hasPlaylistId = playlistId != null,
         )
         if (shouldExpandM3u) {
-          lifecycleScope.launch(Dispatchers.Main) {
-            val success = loadDynamicM3uPlaylist(originalUri?.toString() ?: playableUri)
-            if (success) {
-              val targetIndex = playlistIndex.coerceIn(0, playlist.lastIndex)
-              loadPlaylistItem(targetIndex)
-            } else {
-              lifecycleScope.launch(Dispatchers.Default) {
-                player.playFile(playableUri)
-              }
-            }
-          }
+          startMediaLoad(playableUri, originalUri?.toString(), expandM3u = true)
         } else {
-          lifecycleScope.launch(Dispatchers.Default) {
-            player.playFile(playableUri)
-          }
+          startMediaLoad(playableUri)
         }
       }
     }
@@ -2886,6 +2876,13 @@ class PlayerActivity :
       }
     }
 
+    // Audio track information becomes available only after FILE_LOADED. Re-apply
+    // orientation once the track list settles so album art is not treated as video.
+    lifecycleScope.launch {
+      delay(100)
+      if (mpvInitialized && !player.isExiting && !isFinishing) setOrientation()
+    }
+
     applySubtitlePreferences()
     applyVideoFilterPreferences()
     viewModel.restoreSavedVideoAspect(showUpdate = false)
@@ -3618,22 +3615,46 @@ class PlayerActivity :
         hasPlaylistId = playlistId != null,
       )
       if (shouldExpandM3u) {
-        lifecycleScope.launch(Dispatchers.Main) {
-          val success = loadDynamicM3uPlaylist(originalUri?.toString() ?: uri)
-          if (success) {
-            val targetIndex = playlistIndex.coerceIn(0, playlist.lastIndex)
-            loadPlaylistItem(targetIndex)
-          } else {
-            lifecycleScope.launch(Dispatchers.Default) {
-              MPVLib.setPropertyString("vid", "no")
-              MPVLib.command("loadfile", uri)
-            }
-          }
-        }
+        startMediaLoad(
+          playableUri = uri,
+          originalUri = originalUri?.toString(),
+          expandM3u = true,
+          disableVideoOnFallback = true,
+        )
       } else {
-        lifecycleScope.launch(Dispatchers.Default) {
-          player.playFile(uri)
+        startMediaLoad(uri)
+      }
+    }
+
+  }
+
+  private fun startMediaLoad(
+    playableUri: String,
+    originalUri: String? = null,
+    expandM3u: Boolean = false,
+    disableVideoOnFallback: Boolean = false,
+  ) {
+    mediaLoadJob?.cancel()
+    mediaLoadJob = lifecycleScope.launch(playbackRenderDispatcher) {
+      try {
+        if (expandM3u && loadDynamicM3uPlaylist(originalUri ?: playableUri)) {
+          val targetIndex = playlistIndex.coerceIn(0, playlist.lastIndex)
+          loadPlaylistItem(targetIndex)
+          return@launch
         }
+
+        if (disableVideoOnFallback) {
+          MPVLib.setPropertyString("vid", "no")
+          MPVLib.command("loadfile", playableUri)
+        } else {
+          player.playFile(playableUri)
+        }
+      } catch (error: CancellationException) {
+        throw error
+      } catch (error: Exception) {
+        Log.e(TAG, "Failed to load media URL", error)
+        viewModel.onVideoLoadCompleted()
+        viewModel.showToast(getString(R.string.toast_playback_load_failed))
       }
     }
   }
@@ -3727,6 +3748,10 @@ class PlayerActivity :
    * to the correct orientation, starting with landscape as fallback.
    */
   private fun setOrientation() {
+    if (viewModel.isAudioOnly.value) {
+      requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_SENSOR_PORTRAIT
+      return
+    }
     val orientationPref = playerPreferences.orientation.get()
 
     requestedOrientation =

@@ -120,7 +120,9 @@ fun VideoCard(
   val showUnplayedOldVideoLabel = resolvedUiConfig.showUnplayedOldVideoLabel
   val unplayedOldVideoDays = resolvedUiConfig.unplayedOldVideoDays
   val showDurationField = resolvedUiConfig.showDurationField
-  val displayName = if (resolvedUiConfig.showExtensionField) {
+  val displayName = if (video.isAudio && video.title.isNotBlank()) {
+    video.title
+  } else if (resolvedUiConfig.showExtensionField) {
     video.displayName
   } else {
     video.displayName.substringBeforeLast('.')
@@ -239,7 +241,7 @@ fun VideoCard(
               )
             } ?: run {
               Icon(
-                Icons.Filled.PlayArrow,
+                if (video.isAudio) Icons.Filled.Audiotrack else Icons.Filled.PlayArrow,
                 contentDescription = "Play",
                 modifier = Modifier.size(48.dp),
                 tint = MaterialTheme.colorScheme.secondary,
@@ -247,7 +249,7 @@ fun VideoCard(
             }
           } else {
             Icon(
-              Icons.Filled.PlayArrow,
+              if (video.isAudio) Icons.Filled.Audiotrack else Icons.Filled.PlayArrow,
               contentDescription = "Play",
               modifier = Modifier.size(48.dp),
               tint = MaterialTheme.colorScheme.secondary,
@@ -357,7 +359,7 @@ fun VideoCard(
             horizontalArrangement = androidx.compose.foundation.layout.Arrangement.spacedBy(4.dp),
             verticalArrangement = androidx.compose.foundation.layout.Arrangement.spacedBy(4.dp)
           ) {
-            if (showSubtitleIndicator) {
+            if (showSubtitleIndicator && !video.isAudio) {
               if (video.hasEmbeddedSubtitles && video.subtitleCodec.isNotBlank()) {
                 video.subtitleCodec.split(" ").forEach { codec ->
                   Text(
@@ -391,7 +393,7 @@ fun VideoCard(
             val fpsOnly = video.resolution.substringAfter("@", "")
             val hasFps = fpsOnly.isNotEmpty()
             
-            if (showResolutionChip) {
+            if (showResolutionChip && !video.isAudio) {
               if (video.resolution != "--") {
                  val displayResolution = if (showFramerateInResolution) {
                    video.resolution
@@ -514,7 +516,7 @@ fun VideoCard(
               )
             } ?: run {
               Icon(
-                Icons.Filled.PlayArrow,
+                if (video.isAudio) Icons.Filled.Audiotrack else Icons.Filled.PlayArrow,
                 contentDescription = "Play",
                 modifier = Modifier.size(48.dp),
                 tint = MaterialTheme.colorScheme.secondary,
@@ -522,7 +524,7 @@ fun VideoCard(
             }
           } else {
             Icon(
-              Icons.Filled.PlayArrow,
+              if (video.isAudio) Icons.Filled.Audiotrack else Icons.Filled.PlayArrow,
               contentDescription = "Play",
               modifier = Modifier.size(48.dp),
               tint = MaterialTheme.colorScheme.secondary,
@@ -632,7 +634,7 @@ fun VideoCard(
             horizontalArrangement = androidx.compose.foundation.layout.Arrangement.spacedBy(4.dp),
             verticalArrangement = androidx.compose.foundation.layout.Arrangement.spacedBy(4.dp)
           ) {
-            if (showSubtitleIndicator) {
+            if (showSubtitleIndicator && !video.isAudio) {
               if (video.hasEmbeddedSubtitles && video.subtitleCodec.isNotBlank()) {
                 video.subtitleCodec.split(" ").forEach { codec ->
                   Text(
@@ -667,7 +669,7 @@ fun VideoCard(
             val fpsOnly = video.resolution.substringAfter("@", "")
             val hasFps = fpsOnly.isNotEmpty()
 
-            if (showResolutionChip) {
+            if (showResolutionChip && !video.isAudio) {
               if (video.resolution != "--") {
                 val displayResolution = if (showFramerateInResolution) {
                   video.resolution

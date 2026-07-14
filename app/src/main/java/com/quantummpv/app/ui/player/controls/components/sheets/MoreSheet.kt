@@ -54,12 +54,17 @@ import com.quantummpv.app.domain.anime4k.Anime4KManager
 import com.quantummpv.app.preferences.AdvancedPreferences
 import com.quantummpv.app.preferences.DecoderPreferences
 import com.quantummpv.app.preferences.PlayerPreferences
+import com.quantummpv.app.preferences.SubtitlesPreferences
+import com.quantummpv.app.preferences.YtdlPreferences
 import com.quantummpv.app.preferences.preference.collectAsState
 import com.quantummpv.app.presentation.components.PlayerSheet
 import com.quantummpv.app.ui.player.applyAnime4KShaderChain
 import com.quantummpv.app.ui.player.applyAnime4KStabilityOptions
 import com.quantummpv.app.ui.player.clearAnime4KShaders
 import com.quantummpv.app.ui.player.selectRuntimeStableAnime4K
+import com.quantummpv.app.ui.player.ytdlp.YtdlAudioQuality
+import com.quantummpv.app.ui.player.ytdlp.YtdlpOptionSettings
+import com.quantummpv.app.ui.player.ytdlp.YtdlpOptionsBuilder
 import com.quantummpv.app.ui.theme.AppMotion
 import com.quantummpv.app.ui.theme.AppShapeScale
 import com.quantummpv.app.ui.theme.spacing
@@ -82,6 +87,8 @@ fun MoreSheet(
   val advancedPreferences = koinInject<AdvancedPreferences>()
   val decoderPreferences = koinInject<DecoderPreferences>()
   val anime4kManager = koinInject<Anime4KManager>()
+  val ytdlPreferences = koinInject<YtdlPreferences>()
+  val subtitlesPreferences = koinInject<SubtitlesPreferences>()
   koinInject<PlayerPreferences>()
   val statisticsPage by advancedPreferences.enabledStatisticsPage.collectAsState()
   val enableLuaScripts by advancedPreferences.enableLuaScripts.collectAsState()
@@ -95,6 +102,7 @@ fun MoreSheet(
   val anime4kDeblur by decoderPreferences.anime4kDeblur.collectAsState()
   val gpuNext by decoderPreferences.gpuNext.collectAsState()
   val useVulkan by decoderPreferences.useVulkan.collectAsState()
+  val ytdlAudioQuality by ytdlPreferences.audioQuality.collectAsState()
   // Observe video dimensions reactively — avoids raw JNI calls on every recomposition
   val videoWidth by MPVLib.propInt["video-params/w"].collectAsState()
   val videoHeight by MPVLib.propInt["video-params/h"].collectAsState()
@@ -259,6 +267,38 @@ fun MoreSheet(
           )
         }
       }
+
+      Text(
+        text = stringResource(R.string.ytdl_audio_quality_title),
+        style = MaterialTheme.typography.titleMedium,
+        color = MaterialTheme.colorScheme.primary,
+      )
+      LazyRow(
+        horizontalArrangement = Arrangement.spacedBy(MaterialTheme.spacing.smaller),
+      ) {
+        items(YtdlAudioQuality.entries) { quality ->
+          FilterChip(
+            label = { Text(quality.title) },
+            selected = ytdlAudioQuality == quality,
+            leadingIcon = null,
+            onClick = {
+              ytdlPreferences.audioQuality.set(quality)
+              val settings =
+                YtdlpOptionSettings
+                  .fromPreferences(ytdlPreferences, subtitlesPreferences)
+                  .copy(audioQuality = quality)
+              val format = YtdlpOptionsBuilder.buildFormat(settings)
+              ytdlPreferences.ytdlFormat.set(format)
+              MPVLib.setPropertyString("ytdl-format", format)
+            },
+          )
+        }
+      }
+      Text(
+        text = stringResource(R.string.ytdl_audio_quality_reload_summary),
+        style = MaterialTheme.typography.bodySmall,
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
+      )
 
       // Shaders Controls
       val isHighRes = (videoWidth ?: 0) >= 3840 || (videoHeight ?: 0) >= 2160

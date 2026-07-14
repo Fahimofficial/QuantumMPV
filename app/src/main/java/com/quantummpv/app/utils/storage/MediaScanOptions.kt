@@ -6,12 +6,18 @@ import java.util.concurrent.ConcurrentHashMap
 
 data class MediaScanOptions(
   val includeNoMediaFolders: Boolean = false,
+  val includeAudio: Boolean = false,
+  val minimumAudioDurationSeconds: Int = 0,
 ) {
   val excludeNoMediaFolders: Boolean
     get() = !includeNoMediaFolders
 
   val cacheKey: String
-    get() = "includeNoMedia=$includeNoMediaFolders"
+    get() =
+      "includeNoMedia=$includeNoMediaFolders|includeAudio=$includeAudio|minAudio=$minimumAudioDurationSeconds"
+
+  fun includesAudioDuration(durationMs: Long): Boolean =
+    minimumAudioDurationSeconds == 0 || durationMs >= minimumAudioDurationSeconds * 1000L
 }
 
 class NoMediaPathFilter(

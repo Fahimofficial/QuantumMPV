@@ -7,6 +7,7 @@ import com.quantummpv.app.ui.player.ytdlp.YtdlContainerPreference
 import com.quantummpv.app.ui.player.ytdlp.YtdlHdrPreference
 import com.quantummpv.app.ui.player.ytdlp.YtdlPlaylistMode
 import com.quantummpv.app.ui.player.ytdlp.YtdlAudioPreference
+import com.quantummpv.app.ui.player.ytdlp.YtdlAudioQuality
 
 class YtdlPreferences(
   preferenceStore: PreferenceStore,
@@ -19,6 +20,7 @@ class YtdlPreferences(
   val hdrPreference = preferenceStore.getEnum("ytdl_hdr_preference", YtdlHdrPreference.ANY)
   val containerPreference = preferenceStore.getEnum("ytdl_container_preference", YtdlContainerPreference.ANY)
   val audioPreference = preferenceStore.getEnum("ytdl_audio_preference", YtdlAudioPreference.AUTO)
+  val audioQuality = preferenceStore.getEnum("ytdl_audio_quality", YtdlAudioQuality.AUTO)
   val formatSort = preferenceStore.getString("ytdl_format_sort", "")
   val mergeOutputFormat = preferenceStore.getString("ytdl_merge_output_format", "")
 

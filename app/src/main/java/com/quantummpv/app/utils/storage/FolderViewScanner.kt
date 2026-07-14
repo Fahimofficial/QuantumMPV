@@ -87,6 +87,9 @@ object FolderViewScanner {
         
         // Step 1: Scan MediaStore (fast, covers most cases)
         scanMediaStoreImmediateChildren(context, allFolders, noMediaPathFilter)
+        if (options.includeAudio) {
+            scanAudioMediaStoreImmediateChildren(context, allFolders, noMediaPathFilter, options)
+        }
         
         // Step 2: Scan filesystem for folders that MediaStore won't expose.
         scanFileSystemRoots(context, allFolders, options, noMediaPathFilter, forceFileSystemCheck)
@@ -210,6 +213,78 @@ object FolderViewScanner {
             Log.e(TAG, "MediaStore scan error", e)
         }
     }
+
+    private fun scanAudioMediaStoreImmediateChildren(
+        context: Context,
+        folders: MutableMap<String, FolderData>,
+        noMediaPathFilter: NoMediaPathFilter,
+        options: MediaScanOptions,
+    ) {
+        val projection = arrayOf(
+            MediaStore.Audio.Media.DATA,
+            MediaStore.Audio.Media.SIZE,
+            MediaStore.Audio.Media.DURATION,
+            MediaStore.Audio.Media.DATE_MODIFIED,
+        )
+        val audioByFolder = mutableMapOf<String, FolderAggregate>()
+        try {
+            context.contentResolver.query(
+                MediaStore.Audio.Media.EXTERNAL_CONTENT_URI,
+                projection,
+                null,
+                null,
+                null,
+            )?.use { cursor ->
+                val dataColumn = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.DATA)
+                val sizeColumn = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.SIZE)
+                val durationColumn = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.DURATION)
+                val dateColumn = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.DATE_MODIFIED)
+                while (cursor.moveToNext()) {
+                    val file = File(cursor.getString(dataColumn))
+                    if (!file.exists() || noMediaPathFilter.shouldExcludeDirectory(file.parentFile)) continue
+                    val duration = cursor.getLong(durationColumn)
+                    if (!options.includesAudioDuration(duration)) continue
+                    val folderPath = normalizeStoragePath(file.parent) ?: continue
+                    val folderKey = storagePathKey(folderPath) ?: continue
+                    val aggregate = audioByFolder.getOrPut(folderKey) { FolderAggregate(folderPath) }
+                    aggregate.videos += VideoInfo(cursor.getLong(sizeColumn), duration, cursor.getLong(dateColumn))
+                }
+            }
+
+            for ((folderKey, aggregate) in audioByFolder) {
+                val existing = folders[folderKey]
+                val audioSize = aggregate.videos.sumOf { it.size }
+                val audioDuration = aggregate.videos.sumOf { it.duration }
+                val audioModified = aggregate.videos.maxOfOrNull { it.dateModified } ?: 0L
+                val hasAudioSubfolders =
+                    audioByFolder.values.any { child ->
+                        areEquivalentStoragePaths(child.path.substringBeforeLast('/'), aggregate.path)
+                    }
+                folders[folderKey] =
+                    if (existing == null) {
+                        FolderData(
+                            path = aggregate.path,
+                            name = leafStorageName(aggregate.path),
+                            videoCount = aggregate.videos.size,
+                            totalSize = audioSize,
+                            totalDuration = audioDuration,
+                            lastModified = audioModified,
+                            hasSubfolders = hasAudioSubfolders,
+                        )
+                    } else {
+                        existing.copy(
+                            videoCount = existing.videoCount + aggregate.videos.size,
+                            totalSize = existing.totalSize + audioSize,
+                            totalDuration = existing.totalDuration + audioDuration,
+                            lastModified = maxOf(existing.lastModified, audioModified),
+                            hasSubfolders = existing.hasSubfolders || hasAudioSubfolders,
+                        )
+                    }
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "MediaStore audio folder scan error", e)
+        }
+    }
     
     /**
      * Scan external volumes (USB OTG, SD cards) via filesystem
@@ -270,7 +345,7 @@ object FolderViewScanner {
         try {
             val files = directory.listFiles() ?: return
             
-            val videoFiles = mutableListOf<File>()
+            val mediaFiles = mutableListOf<File>()
             val subdirectories = mutableListOf<File>()
             
             for (file in files) {
@@ -285,9 +360,12 @@ object FolderViewScanner {
                             if (FileFilterUtils.shouldSkipFile(file, options, noMediaPathFilter)) {
                                 continue
                             }
-                            val extension = file.extension.lowercase(Locale.getDefault())
-                            if (FileTypeUtils.VIDEO_EXTENSIONS.contains(extension)) {
-                                videoFiles.add(file)
+                            if (FileTypeUtils.isSupportedMediaFile(file, options)) {
+                                val isAudio = FileTypeUtils.isAudioFile(file)
+                                val duration = if (isAudio) FileTypeUtils.getDurationMs(file) else 0L
+                                if (!isAudio || options.includesAudioDuration(duration)) {
+                                    mediaFiles.add(file)
+                                }
                             }
                         }
                     }
@@ -297,7 +375,7 @@ object FolderViewScanner {
             }
             
             // Add folder if it has videos
-            if (videoFiles.isNotEmpty()) {
+            if (mediaFiles.isNotEmpty()) {
                 val folderPath = normalizeStoragePath(directory.absolutePath) ?: return
                 val folderKey = storagePathKey(folderPath) ?: return
                 
@@ -306,9 +384,11 @@ object FolderViewScanner {
                     var totalSize = 0L
                     var lastModified = 0L
                     
-                    for (video in videoFiles) {
-                        totalSize += video.length()
-                        val modified = video.lastModified()
+                    var totalDuration = 0L
+                    for (media in mediaFiles) {
+                        totalSize += media.length()
+                        if (FileTypeUtils.isAudioFile(media)) totalDuration += FileTypeUtils.getDurationMs(media)
+                        val modified = media.lastModified()
                         if (modified > lastModified) {
                             lastModified = modified
                         }
@@ -317,9 +397,9 @@ object FolderViewScanner {
                     folders[folderKey] = FolderData(
                         path = folderPath,
                         name = leafStorageName(folderPath),
-                        videoCount = videoFiles.size,
+                        videoCount = mediaFiles.size,
                         totalSize = totalSize,
-                        totalDuration = 0L, // Duration not available from filesystem
+                        totalDuration = totalDuration,
                         lastModified = lastModified / 1000,
                         hasSubfolders = subdirectories.isNotEmpty()
                     )

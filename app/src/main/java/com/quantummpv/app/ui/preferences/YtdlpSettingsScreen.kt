@@ -38,6 +38,7 @@ import org.koin.compose.koinInject
 import java.io.File
 import me.zhanghai.compose.preference.ProvidePreferenceLocals
 import com.quantummpv.app.ui.preferences.components.SwitchPreference
+import com.quantummpv.app.ui.player.ytdlp.YtdlAudioQuality
 
 @Serializable
 object YtdlpSettingsScreen : Screen {
@@ -58,6 +59,7 @@ object YtdlpSettingsScreen : Screen {
         val hdrPreference by ytdlPreferences.hdrPreference.collectAsState()
         val containerPreference by ytdlPreferences.containerPreference.collectAsState()
         val audioPreference by ytdlPreferences.audioPreference.collectAsState()
+        val audioQuality by ytdlPreferences.audioQuality.collectAsState()
         val playlistMode by ytdlPreferences.playlistMode.collectAsState()
         val geoBypass by ytdlPreferences.geoBypass.collectAsState()
         val liveFromStart by ytdlPreferences.liveFromStart.collectAsState()
@@ -386,10 +388,27 @@ object YtdlpSettingsScreen : Screen {
                             },
                         )
 
+                        OptionDropdown(
+                            title = "Audio Quality",
+                            value = audioQuality,
+                            values = YtdlAudioQuality.entries,
+                            valueLabel = { it.title },
+                            onValueChange = { selected ->
+                                ytdlPreferences.audioQuality.set(selected)
+                                updateFormatString(ytdlPreferences)
+                            },
+                        )
+
+                        Text(
+                            text = "Bitrate caps apply when yt-dlp reports audio bitrate metadata.",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+
 
                         PreferenceDivider()
 
-                        val currentFormat = remember(ytdlQuality, preferH264, codecPreference, maxFps, hdrPreference, containerPreference, audioPreference) {
+                        val currentFormat = remember(ytdlQuality, preferH264, codecPreference, maxFps, hdrPreference, containerPreference, audioPreference, audioQuality) {
                             YtdlpOptionsBuilder.buildFormat(YtdlpOptionSettings.fromYtdlPreferences(ytdlPreferences))
                         }
                         
@@ -711,6 +730,7 @@ private fun YtdlpOptionSettings.Companion.fromYtdlPreferences(prefs: YtdlPrefere
         hdrPreference = prefs.hdrPreference.get(),
         containerPreference = prefs.containerPreference.get(),
         audioPreference = prefs.audioPreference.get(),
+        audioQuality = prefs.audioQuality.get(),
     )
 
 @Composable

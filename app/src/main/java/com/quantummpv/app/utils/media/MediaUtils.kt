@@ -189,6 +189,7 @@ object MediaUtils {
   }
 
   private fun shouldForwardVideoTitle(source: Video): Boolean {
+    if (source.isAudio) return true
     val scheme = source.uri.scheme?.lowercase() ?: return false
     return scheme !in setOf("file", "content", "android.resource")
   }

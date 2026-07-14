@@ -11,6 +11,7 @@ import com.quantummpv.app.domain.media.model.Video
 import com.quantummpv.app.domain.media.model.VideoFolder
 import com.quantummpv.app.domain.playbackstate.repository.PlaybackStateRepository
 import com.quantummpv.app.preferences.AppearancePreferences
+import com.quantummpv.app.preferences.BrowserPreferences
 import com.quantummpv.app.preferences.FoldersPreferences
 import com.quantummpv.app.utils.storage.FolderViewScanner
 import com.quantummpv.app.utils.storage.TreeViewScanner
@@ -44,11 +45,14 @@ object MediaFileRepository : KoinComponent {
   private const val TAG = "MediaFileRepository"
   private val foldersPreferences: FoldersPreferences by inject()
   private val appearancePreferences: AppearancePreferences by inject()
+  private val browserPreferences: BrowserPreferences by inject()
   private val playbackStateRepository: PlaybackStateRepository by inject()
 
   private fun currentScanOptions(): MediaScanOptions =
     MediaScanOptions(
       includeNoMediaFolders = foldersPreferences.includeNoMediaFolders.get(),
+      includeAudio = browserPreferences.includeAudio.get(),
+      minimumAudioDurationSeconds = browserPreferences.minimumAudioDuration.get().seconds,
     )
 
   private suspend fun getTreeViewNewBadgeParams(): Triple<Boolean, Int, Set<String>> {
@@ -377,6 +381,7 @@ object MediaFileRepository : KoinComponent {
             playedMediaTitles = playedMediaTitles,
             showNewLabels = showNewLabels,
             thresholdDays = thresholdDays,
+            maxAutoFlattenLevels = browserPreferences.treeFlattenDepth.get().maxLevels,
           )
         folders.forEach { folderData ->
           items.add(

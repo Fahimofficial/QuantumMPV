@@ -146,8 +146,9 @@ object YtdlpManager {
         // ffmpeg's native HLS demuxer and playback fails (while MX Player/VLC play it fine).
         MPVLib.setOptionString("script-opts-append", "ytdl_hook-exclude=$DIRECT_MEDIA_EXCLUDE")
         
-        val customYtdlFormat = ytdlPreferences.ytdlFormat.get()
-        val ytdlFormat = customYtdlFormat.ifBlank { resolvedOptions.format }
+        // Always derive this from typed preferences so newly added format controls cannot
+        // be shadowed by an older cached generated string.
+        val ytdlFormat = resolvedOptions.format
         if (ytdlFormat.isNotBlank()) {
             MPVLib.setOptionString("ytdl-format", ytdlFormat)
         }

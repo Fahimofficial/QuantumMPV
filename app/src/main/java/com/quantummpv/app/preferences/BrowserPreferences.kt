@@ -71,6 +71,11 @@ class BrowserPreferences(
   // Auto-scroll to last played media preference (like MX Player)
   val autoScrollToLastPlayed = preferenceStore.getBoolean("auto_scroll_to_last_played", false)
 
+  // Maximum single-child folder levels skipped in one Tree View navigation step.
+  val treeFlattenDepth = preferenceStore.getEnum("tree_flatten_depth", TreeFlattenDepth.Unlimited)
+  val includeAudio = preferenceStore.getBoolean("include_audio", false)
+  val minimumAudioDuration = preferenceStore.getEnum("minimum_audio_duration", MinimumAudioDuration.Any)
+
   // Watched threshold preference (percentage 1-100)
   val watchedThreshold = preferenceStore.getInt("watched_threshold", 95)
 }
@@ -143,6 +148,29 @@ enum class FolderViewMode {
         FileManager -> "Tree View"
         MediaLibrary -> "Media Library"
       }
+}
+
+enum class TreeFlattenDepth(
+  val maxLevels: Int,
+  val displayName: String,
+) {
+  Off(0, "Off (show every folder)"),
+  One(1, "1 level"),
+  Two(2, "2 levels"),
+  Three(3, "3 levels"),
+  Four(4, "4 levels"),
+  Five(5, "5 levels"),
+  Unlimited(-1, "Unlimited"),
+}
+
+enum class MinimumAudioDuration(
+  val seconds: Int,
+  val displayName: String,
+) {
+  Any(0, "Any"),
+  FifteenSeconds(15, "15 sec"),
+  ThirtySeconds(30, "30 sec"),
+  OneMinute(60, "1 min"),
 }
 
 enum class MediaLayoutMode {
