@@ -418,7 +418,7 @@ data class VideoListScreen(
             onRenameClick = { renameDialogOpen.value = true },
             onDeleteClick = { deleteDialogOpen.value = true },
             onAddToPlaylistClick = { addToPlaylistDialogOpen.value = true },
-            showDownscale = selectionManager.selectedCount == 1,
+            showDownscale = selectionManager.getSelectedItems().singleOrNull()?.isAudio == false,
             showRename = selectionManager.selectedCount > 0,
             modifier = Modifier
               .align(Alignment.BottomCenter)
@@ -532,7 +532,7 @@ data class VideoListScreen(
 
       if (compressorDialogOpen.value) {
         val selectedVideos = selectionManager.getSelectedItems()
-        if (selectedVideos.isNotEmpty()) {
+        if (selectedVideos.isNotEmpty() && selectedVideos.none { it.isAudio }) {
           VideoCompressorOverlay(
             isOpen = true,
             videos = selectedVideos,

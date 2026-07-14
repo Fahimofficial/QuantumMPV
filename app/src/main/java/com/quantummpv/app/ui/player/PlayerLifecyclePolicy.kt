@@ -2,44 +2,48 @@ package com.quantummpv.app.ui.player
 
 internal object PlayerLifecyclePolicy {
   fun shouldPauseOnPause(
-    automaticBackgroundPlayback: Boolean,
-    manualBackgroundPlayback: Boolean,
+    backgroundPlaybackEnabled: Boolean,
     isUserFinishing: Boolean,
     isInPictureInPictureMode: Boolean,
+    isScreenOffOrLocked: Boolean,
   ): Boolean {
-    if (isInPictureInPictureMode) return false
+    if (isUserFinishing) return true
+    if (isInPictureInPictureMode && !isScreenOffOrLocked) return false
 
-    return (!automaticBackgroundPlayback && !manualBackgroundPlayback) ||
-      (isUserFinishing && !manualBackgroundPlayback)
+    return !backgroundPlaybackEnabled
   }
 
   fun shouldKeepBackgroundPlaybackAliveOnDestroy(
-    manualBackgroundPlayback: Boolean,
-    isUserFinishing: Boolean,
-    isFinishing: Boolean,
-  ): Boolean = manualBackgroundPlayback && (isUserFinishing || isFinishing)
+    backgroundPlaybackEnabled: Boolean,
+    backgroundPlaybackSessionActive: Boolean,
+  ): Boolean = backgroundPlaybackEnabled && backgroundPlaybackSessionActive
 
   fun shouldTreatStopAsPipDismissal(
     wasInPictureInPictureMode: Boolean,
+    isInPictureInPictureMode: Boolean,
     isChangingConfigurations: Boolean,
-    manualBackgroundPlayback: Boolean,
+    backgroundPlaybackEnabled: Boolean,
+    isScreenOffOrLocked: Boolean,
     alreadyHandled: Boolean,
   ): Boolean =
     wasInPictureInPictureMode &&
+      !isInPictureInPictureMode &&
       !isChangingConfigurations &&
-      !manualBackgroundPlayback &&
+      !backgroundPlaybackEnabled &&
+      !isScreenOffOrLocked &&
       !alreadyHandled
 
-  fun shouldStartAutomaticBackgroundPlaybackOnStop(
-    automaticBackgroundPlayback: Boolean,
-    manualBackgroundPlayback: Boolean,
+  fun shouldStartBackgroundPlaybackOnStop(
+    backgroundPlaybackEnabled: Boolean,
+    backgroundPlaybackSessionActive: Boolean,
     isUserFinishing: Boolean,
     isFinishing: Boolean,
     isInPictureInPictureMode: Boolean,
+    isScreenOffOrLocked: Boolean,
   ): Boolean =
-    automaticBackgroundPlayback &&
-      !manualBackgroundPlayback &&
+    backgroundPlaybackEnabled &&
+      !backgroundPlaybackSessionActive &&
       !isUserFinishing &&
       !isFinishing &&
-      !isInPictureInPictureMode
+      (!isInPictureInPictureMode || isScreenOffOrLocked)
 }

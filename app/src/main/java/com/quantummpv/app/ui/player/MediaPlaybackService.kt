@@ -29,6 +29,7 @@ import com.quantummpv.app.R
 import com.quantummpv.app.database.entities.PlaybackStateEntity
 import com.quantummpv.app.domain.playbackstate.repository.PlaybackStateRepository
 import com.quantummpv.app.preferences.AdvancedPreferences
+import com.quantummpv.app.preferences.AudioPreferences
 import com.quantummpv.app.preferences.BrowserPreferences
 import com.quantummpv.app.preferences.PlayerPreferences
 import com.quantummpv.app.utils.media.PlaybackStateEvents
@@ -41,6 +42,8 @@ import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.flow.collect
+import kotlinx.coroutines.flow.drop
 import org.koin.core.component.KoinComponent
 import org.koin.core.component.inject
 import java.util.Locale
@@ -93,6 +96,7 @@ class MediaPlaybackService :
   private lateinit var mediaSession: MediaSessionCompat
   private val playerPreferences: PlayerPreferences by inject()
   private val advancedPreferences: AdvancedPreferences by inject()
+  private val audioPreferences: AudioPreferences by inject()
   private val browserPreferences: BrowserPreferences by inject()
   private val playbackStateRepository: PlaybackStateRepository by inject()
 
@@ -132,6 +136,17 @@ class MediaPlaybackService :
     createNotificationChannel(this)
 
     setupMediaSession()
+
+    serviceScope.launch {
+      audioPreferences.backgroundPlayback.changes().drop(1).collect { enabled ->
+        if (!enabled) {
+          Log.d(TAG, "Background playback disabled; stopping service and pausing playback")
+          MPVLib.setPropertyBoolean("pause", true)
+          stopForegroundNotification()
+          stopSelf()
+        }
+      }
+    }
 
     // Only add MPV observer if MPV is initialized
     try {

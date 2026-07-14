@@ -13,10 +13,16 @@ class AudioPreferences(
   val audioPitchCorrection = preferenceStore.getBoolean("audio_pitch_correction", true)
   val audioChannels = preferenceStore.getEnum("audio_channels", AudioChannels.AutoSafe)
   val volumeBoostCap = preferenceStore.getInt("audio_volume_boost_cap", 30)
-  val automaticBackgroundPlayback = preferenceStore.getBoolean("automatic_background_playback", false)
-  val playAudioAfterScreenLock = preferenceStore.getBoolean("play_audio_after_screen_lock", false)
+  val backgroundPlayback = preferenceStore.getBoolean("automatic_background_playback", false)
   val volumeNormalization = preferenceStore.getBoolean("audio_volume_normalization", false)
   val audioBlobEnabled = preferenceStore.getBoolean("audio_blob_enabled", true)
+
+  init {
+    // Consolidate the old audio-only screen-lock switch into the single global setting.
+    val legacyScreenLockPlayback = preferenceStore.getBoolean("play_audio_after_screen_lock", false)
+    if (legacyScreenLockPlayback.get()) backgroundPlayback.set(true)
+    if (legacyScreenLockPlayback.isSet()) legacyScreenLockPlayback.delete()
+  }
 }
 
 enum class AudioChannels(

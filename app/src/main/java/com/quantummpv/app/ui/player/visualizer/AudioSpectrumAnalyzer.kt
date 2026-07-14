@@ -32,7 +32,7 @@ class AudioSpectrumAnalyzer(
             instance.captureSize = min(captureRange[1], 1024)
             instance.scalingMode = Visualizer.SCALING_MODE_NORMALIZED
 
-            val captureRate = min(Visualizer.getMaxCaptureRate(), 30_000)
+            val captureRate = min(Visualizer.getMaxCaptureRate(), 60_000)
             val status = instance.setDataCaptureListener(
                 object : Visualizer.OnDataCaptureListener {
                     override fun onWaveFormDataCapture(
@@ -144,11 +144,13 @@ class AudioSpectrumAnalyzer(
         val centroidHz = if (magnitudeSum > 0.0001f) weightedFrequency / magnitudeSum else 1_000f
         val centroid = clamp01((centroidHz - 120f) / 9_000f)
 
-        smoothBass = envelope(smoothBass, bass, 0.30f, 0.065f)
-        smoothMid = envelope(smoothMid, mid, 0.25f, 0.055f)
-        smoothTreble = envelope(smoothTreble, treble, 0.22f, 0.050f)
-        smoothEnergy = envelope(smoothEnergy, energy, 0.28f, 0.060f)
-        smoothCentroid += (centroid - smoothCentroid) * 0.045f
+        // Keep capture smoothing responsive; the renderer performs the slower frame-by-frame
+        // interpolation so the shape stays fluid without lagging behind the music.
+        smoothBass = envelope(smoothBass, bass, 0.46f, 0.14f)
+        smoothMid = envelope(smoothMid, mid, 0.38f, 0.12f)
+        smoothTreble = envelope(smoothTreble, treble, 0.34f, 0.11f)
+        smoothEnergy = envelope(smoothEnergy, energy, 0.42f, 0.13f)
+        smoothCentroid += (centroid - smoothCentroid) * 0.08f
 
         energyFloor += (smoothEnergy - energyFloor) * 0.025f
         if (beatCooldownFrames > 0) beatCooldownFrames--
@@ -159,7 +161,7 @@ class AudioSpectrumAnalyzer(
                 bassRise > max(0.028f, energyFloor * 0.16f) &&
                 smoothBass > smoothMid * 0.82f
         if (beatDetected) beatCooldownFrames = 5
-        beatEnvelope = if (beatDetected) 0.55f else beatEnvelope * 0.80f
+        beatEnvelope = if (beatDetected) 0.62f else beatEnvelope * 0.74f
         previousBass = smoothBass
 
         features.bass = smoothBass
