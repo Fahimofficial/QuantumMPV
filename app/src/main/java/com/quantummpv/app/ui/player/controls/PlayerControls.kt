@@ -116,6 +116,7 @@ import com.quantummpv.app.preferences.AiPreferences
 import com.quantummpv.app.preferences.AppearancePreferences
 import com.quantummpv.app.preferences.AudioPreferences
 import com.quantummpv.app.preferences.PlayerPreferences
+import com.quantummpv.app.preferences.PortraitPlaybackControlsPosition
 import com.quantummpv.app.preferences.preference.collectAsState
 import com.quantummpv.app.preferences.preference.deleteAndGet
 import com.quantummpv.app.preferences.preference.plusAssign
@@ -194,6 +195,8 @@ fun PlayerControls(
   val aiEnabled by aiPreferences.enabled.collectAsState()
   val realtimeSubsEnabled by aiPreferences.realtimeSubsEnabled.collectAsState()
   val hideBackground by appearancePreferences.hidePlayerButtonsBackground.collectAsState()
+  val portraitPlaybackControlsPosition by
+    appearancePreferences.portraitPlaybackControlsPosition.collectAsState()
   val playerPreferences = koinInject<PlayerPreferences>()
   val audioPreferences = koinInject<AudioPreferences>()
   val showSystemStatusBar by playerPreferences.showSystemStatusBar.collectAsState()
@@ -1064,10 +1067,14 @@ fun PlayerControls(
           exit = fadeOut(playerControlsExitAnimationSpec()),
           modifier =
             Modifier.constrainAs(playerPauseButton) {
-              end.linkTo(parent.absoluteRight)
               start.linkTo(parent.absoluteLeft)
-              top.linkTo(parent.top)
-              bottom.linkTo(parent.bottom)
+              end.linkTo(parent.absoluteRight)
+              if (isPortrait && portraitPlaybackControlsPosition == PortraitPlaybackControlsPosition.BelowSeekbar) {
+                bottom.linkTo(bottomRightControls.top, spacing.small)
+              } else {
+                top.linkTo(parent.top)
+                bottom.linkTo(parent.bottom)
+              }
             },
         ) {
           val showLoadingCircle by playerPreferences.showLoadingCircle.collectAsState()
@@ -1311,7 +1318,11 @@ fun PlayerControls(
               )
               .constrainAs(seekbar) {
                 if (isPortrait) {
-                  bottom.linkTo(bottomRightControls.top, spacing.medium)
+                  if (portraitPlaybackControlsPosition == PortraitPlaybackControlsPosition.BelowSeekbar) {
+                    bottom.linkTo(playerPauseButton.top, spacing.small)
+                  } else {
+                    bottom.linkTo(bottomRightControls.top, spacing.medium)
+                  }
                 } else {
                   bottom.linkTo(parent.bottom, spacing.medium)
                 }

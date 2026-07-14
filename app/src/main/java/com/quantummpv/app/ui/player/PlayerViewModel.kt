@@ -520,7 +520,6 @@ class PlayerViewModel(
   private var seekThumbnailWorkerJob: Job? = null
   private var seekThumbnailRequestId = 0L
   private var lastQueuedSeekThumbnailKey: String? = null
-  private var warmedSeekThumbnailSource: String? = null
 
   // Frame navigation
   private val _currentFrame = MutableStateFlow(0)
@@ -987,8 +986,6 @@ class PlayerViewModel(
   fun onVideoLoadStarted() {
     hideSeekThumbnailPreview()
     seekThumbnailCache.evictAll()
-    warmedSeekThumbnailSource = null
-    runCatching { MPVLib.clearThumbnailCache() }
     _videoOpenAnimationState.update {
       it.copy(
         loadToken = it.loadToken + 1,
@@ -1005,7 +1002,6 @@ class PlayerViewModel(
         current
       }
     }
-    warmSeekThumbnailer()
   }
 
   private fun setupCustomButtons() {
@@ -2846,6 +2842,11 @@ class PlayerViewModel(
       return
     }
 
+    if (host.isCurrentMediaKnownAudio() || isAudioOnly.value) {
+      hideSeekThumbnailPreview()
+      return
+    }
+
     val clampedPosition =
       if (durationSeconds > 0f) {
         positionSeconds.coerceIn(0f, durationSeconds)
@@ -2933,6 +2934,8 @@ class PlayerViewModel(
   }
 
   fun hideSeekThumbnailPreview() {
+    seekThumbnailWorkerJob?.cancel()
+    seekThumbnailWorkerJob = null
     seekThumbnailRequestId++
     lastQueuedSeekThumbnailKey = null
     synchronized(seekThumbnailRequestLock) {
@@ -2944,19 +2947,6 @@ class PlayerViewModel(
         bitmap = null,
         isLoading = false,
       )
-    }
-  }
-
-  private fun warmSeekThumbnailer() {
-    if (!playerPreferences.useThumbFastSeekPreview.get()) return
-
-    val source = resolveSeekThumbnailSource() ?: return
-    if (source == warmedSeekThumbnailSource) return
-    warmedSeekThumbnailSource = source
-
-    viewModelScope.launch(seekThumbnailDispatcher) {
-      val currentPosition = runCatching { MPVLib.getPropertyDouble("time-pos") ?: 0.0 }.getOrDefault(0.0)
-      loadSeekThumbnail(source, seekThumbnailBucket(currentPosition.toFloat()), _preciseDuration.value)
     }
   }
 

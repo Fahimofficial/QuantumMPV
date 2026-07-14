@@ -80,11 +80,11 @@ void main() {
     vec3 normal = normalize(aPosition);
     float slowNoise = snoise(aPosition * (1.65 + uMid * 0.35) + vec3(uTime * 0.22));
     float detailNoise = snoise(aPosition * (4.0 + uTreble * 1.8) - vec3(uTime * 0.34));
-    float breathing = 0.025 * sin(uTime * 1.35 + aPosition.y * 3.0);
+    float breathing = 0.014 * sin(uTime * 1.05 + aPosition.y * 3.0);
 
-    float reaction = 0.055 + uAudio * 0.42 + uBass * 0.20 + uBeat * 0.12;
+    float reaction = 0.035 + uAudio * 0.24 + uBass * 0.12 + uBeat * 0.055;
     float displacement = (slowNoise * 0.78 + detailNoise * 0.22) * reaction + breathing;
-    vec3 position = aPosition * (1.0 + uBass * 0.055 + uBeat * 0.018) + normal * displacement;
+    vec3 position = aPosition * (1.0 + uBass * 0.032 + uBeat * 0.010) + normal * displacement;
 
     vEnergy = clamp(0.45 + uAudio * 0.55 + abs(detailNoise) * uTreble * 0.25, 0.0, 1.5);
     gl_Position = uMvp * vec4(position, 1.0);

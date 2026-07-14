@@ -35,6 +35,8 @@ class AppearancePreferences(
   val unplayedOldVideoDays = preferenceStore.getInt("unplayed_old_video_days", 7)
   val showNetworkThumbnails = preferenceStore.getBoolean("show_network_thumbnails", false)
   val seekbarStyle = preferenceStore.getEnum("seekbar_style", SeekbarStyle.Thick)
+  val portraitPlaybackControlsPosition =
+    preferenceStore.getEnum("portrait_playback_controls_position", PortraitPlaybackControlsPosition.Center)
   val navigationStyle = preferenceStore.getEnum("navigation_style", NavigationStyle.Slide)
   val showHomeTab = preferenceStore.getBoolean("show_home_tab", true)
   val showRecentsTab = preferenceStore.getBoolean("show_recents_tab", true)
@@ -87,6 +89,11 @@ class AppearancePreferences(
       }.filter { it != PlayerButton.NONE }
       .filter { usedButtons.add(it) }
       .toList()
+}
+
+enum class PortraitPlaybackControlsPosition(val displayName: String) {
+  Center("Center of screen"),
+  BelowSeekbar("Between seekbar and controls"),
 }
 
 @Composable

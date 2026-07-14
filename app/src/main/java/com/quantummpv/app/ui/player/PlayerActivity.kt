@@ -224,6 +224,16 @@ class PlayerActivity :
 
   override fun currentThumbnailSource(): String? = currentPlayableUri
 
+  override fun isCurrentMediaKnownAudio(): Boolean {
+    val extension =
+      sequenceOf(fileName, currentPlayableUri)
+        .filterNotNull()
+        .map { value -> value.substringBefore('?').substringBefore('#').substringAfterLast('.', "").lowercase() }
+        .firstOrNull { it in FileTypeUtils.AUDIO_EXTENSIONS || it in FileTypeUtils.VIDEO_EXTENSIONS }
+    if (extension != null) return extension in FileTypeUtils.AUDIO_EXTENSIONS
+    return isKnownAudioLaunch(intent)
+  }
+
   // ==================== State Management ====================
 
   /**
@@ -326,6 +336,9 @@ class PlayerActivity :
   private var videoParamRefreshJob: Job? = null
   private var intentSubtitleJob: Job? = null
   private var mediaLoadJob: Job? = null
+  private var eofAdvanceJob: Job? = null
+  @Volatile private var isAdvancingAtEof = false
+  @Volatile private var playWhenFileLoaded = false
   private var pendingVideoParamRefreshRequiresShaderReload = false
   private var lastBackgroundThumbnailKey: String? = null
   private var lastBackgroundThumbnail: Bitmap? = null
@@ -772,10 +785,9 @@ class PlayerActivity :
       MpvrxTheme {
         val isAudioOnly by viewModel.isAudioOnly.collectAsState()
         val audioBlobEnabled by audioPreferences.audioBlobEnabled.collectAsState()
-        val hasAlbumArt by viewModel.hasAlbumArt.collectAsState()
         val paused by MPVLib.propBoolean["pause"].collectAsState()
         Box(modifier = Modifier.fillMaxSize()) {
-          if (isAudioOnly && (audioBlobEnabled || !hasAlbumArt)) {
+          if (isAudioOnly && isCurrentMediaKnownAudio() && audioBlobEnabled) {
             BlobOverlay(isPlaying = paused == false)
           }
           PlayerControls(
@@ -2602,52 +2614,78 @@ class PlayerActivity :
    * @param isEof true if end of file reached
    */
   private fun handleEndOfFile(isEof: Boolean) {
-    if (isEof) {
-      // Check if we should repeat the current file
-      if (viewModel.shouldRepeatCurrentFile()) {
-        MPVLib.command("seek", "0", "absolute")
-        viewModel.unpause()
+    if (!isEof) {
+      eofAdvanceJob?.cancel()
+      eofAdvanceJob = null
+      isAdvancingAtEof = false
+      return
+    }
+    if (isAdvancingAtEof) return
+
+    val repeatMode = viewModel.repeatMode.value
+    if (repeatMode == RepeatMode.ONE) {
+      restartCurrentAtEof()
+      return
+    }
+
+    val autoplay = playerPreferences.autoplayNextVideo.get()
+    val repeatAll = repeatMode == RepeatMode.ALL
+
+    if (playlist.isNotEmpty()) {
+      ensureShuffleOrder()
+      val hasNext =
+        if (viewModel.shuffleEnabled.value) {
+          shuffledPosition < shuffledIndices.lastIndex
+        } else {
+          playlistIndex < playlist.lastIndex
+        }
+      if ((autoplay && hasNext) || repeatAll) {
+        isAdvancingAtEof = true
+        playNext()
+      } else {
+        finishAtEofIfRequested()
+      }
+      return
+    }
+
+    if (playerPreferences.playlistMode.get() && (autoplay || repeatAll)) {
+      val path = parsePathFromIntent(intent)
+      if (path != null) {
+        isAdvancingAtEof = true
+        eofAdvanceJob = lifecycleScope.launch(Dispatchers.IO) {
+          generatePlaylistFromFolderInternal(path)
+          withContext(Dispatchers.Main) {
+            ensureShuffleOrder()
+            val hasNext =
+              if (viewModel.shuffleEnabled.value) {
+                shuffledPosition < shuffledIndices.lastIndex
+              } else {
+                playlistIndex < playlist.lastIndex
+              }
+            when {
+              (autoplay && hasNext) || (repeatAll && playlist.isNotEmpty()) -> playNext()
+              repeatAll -> restartCurrentAtEof()
+              else -> finishAtEofIfRequested()
+            }
+          }
+        }
         return
       }
+    }
 
-      // Handle playlist playback
-      if (playlist.isNotEmpty()) {
-        val hasNextItem = if (viewModel.shuffleEnabled.value) {
-          shuffledPosition < shuffledIndices.size - 1
-        } else {
-          playlistIndex < playlist.size - 1
-        }
+    if (repeatAll) restartCurrentAtEof() else finishAtEofIfRequested()
+  }
 
-        // Check if autoplay next video is enabled
-        val autoplayEnabled = playerPreferences.autoplayNextVideo.get()
+  private fun restartCurrentAtEof() {
+    isAdvancingAtEof = false
+    MPVLib.command("seek", "0", "absolute")
+    viewModel.unpause()
+  }
 
-        if (hasNextItem && (autoplayEnabled || viewModel.shouldRepeatPlaylist())) {
-          // Play next item in playlist
-          playNext()
-        } else if (viewModel.shouldRepeatPlaylist()) {
-          // At end of playlist with repeat ALL: restart from beginning
-          if (viewModel.shuffleEnabled.value) {
-            // Regenerate shuffle order and start from beginning
-            generateShuffledIndices()
-            shuffledPosition = 0
-            playlistIndex = shuffledIndices[0]
-            loadPlaylistItem(playlistIndex)
-          } else {
-            // Normal mode: restart from index 0
-            playlistIndex = 0
-            loadPlaylistItem(0)
-          }
-        } else if (playerPreferences.closeAfterReachingEndOfVideo.get()) {
-          // No autoplay or no next item, end of playlist: close if setting is enabled
-          finishAndRemoveTask()
-        }
-        // If autoplay is off and closeAfterReachingEndOfVideo is off, just stay on current video
-      } else {
-        // Single video playback (no playlist)
-        if (playerPreferences.closeAfterReachingEndOfVideo.get()) {
-          finishAndRemoveTask()
-        }
-      }
+  private fun finishAtEofIfRequested() {
+    isAdvancingAtEof = false
+    if (playerPreferences.closeAfterReachingEndOfVideo.get()) {
+      finishAndRemoveTask()
     }
   }
 
@@ -2784,13 +2822,21 @@ class PlayerActivity :
   internal fun event(eventId: Int) {
     when (eventId) {
       MPVLib.MpvEvent.MPV_EVENT_FILE_LOADED -> {
+        eofAdvanceJob?.cancel()
+        eofAdvanceJob = null
+        isAdvancingAtEof = false
         isReady = true
-        MPVLib.setPropertyString("vid", "auto")
+        if (playWhenFileLoaded) {
+          playWhenFileLoaded = false
+          requestAudioFocus()
+          MPVLib.setPropertyBoolean("pause", false)
+        }
         viewModel.onVideoLoadCompleted()
         handleFileLoaded()
       }
 
       MPVLib.MpvEvent.MPV_EVENT_PLAYBACK_RESTART -> {
+        isAdvancingAtEof = false
         player.isExiting = false
         if (!isReady) {
           isReady = true
@@ -3659,6 +3705,7 @@ class PlayerActivity :
     disableVideoOnFallback: Boolean = false,
   ) {
     mediaLoadJob?.cancel()
+    playWhenFileLoaded = true
     mediaLoadJob = lifecycleScope.launch(mediaLoadDispatcher) {
       try {
         if (expandM3u && loadDynamicM3uPlaylist(originalUri ?: playableUri)) {
@@ -3667,16 +3714,16 @@ class PlayerActivity :
           return@launch
         }
 
-        if (disableVideoOnFallback) {
-          MPVLib.setPropertyString("vid", "no")
-          MPVLib.command("loadfile", playableUri)
-        } else {
-          MPVLib.setPropertyString("vid", "auto")
-          player.playFile(playableUri)
-        }
+        withContext(Dispatchers.Main) { requestAudioFocus() }
+        // Reset track selection before every replacement so vid=no from an
+        // audio/M3U fallback cannot leak into the next real video.
+        MPVLib.setPropertyString("vid", if (disableVideoOnFallback) "no" else "auto")
+        player.playFile(playableUri)
       } catch (error: CancellationException) {
         throw error
       } catch (error: Exception) {
+        playWhenFileLoaded = false
+        isAdvancingAtEof = false
         Log.e(TAG, "Failed to load media URL", error)
         viewModel.onVideoLoadCompleted()
         viewModel.showToast(getString(R.string.toast_playback_load_failed))
@@ -4285,13 +4332,11 @@ class PlayerActivity :
     // With repeat ALL, there's always a "next" (loops back to beginning)
     if (viewModel.shouldRepeatPlaylist()) return true
 
-    // Use total count if we're doing windowed loading, otherwise use playlist size
-    val effectiveSize = if (playlistTotalCount > 0) playlistTotalCount else playlist.size
-
+    ensureShuffleOrder()
     return if (viewModel.shuffleEnabled.value) {
       shuffledPosition < shuffledIndices.size - 1
     } else {
-      playlistIndex < effectiveSize - 1
+      playlistIndex < playlist.lastIndex
     }
   }
 
@@ -4304,6 +4349,7 @@ class PlayerActivity :
     // With repeat ALL, there's always a "previous" (loops back to end)
     if (viewModel.shouldRepeatPlaylist()) return true
 
+    ensureShuffleOrder()
     return if (viewModel.shuffleEnabled.value) {
       shuffledPosition > 0
     } else {
@@ -4326,6 +4372,12 @@ class PlayerActivity :
     shuffledPosition = 0
   }
 
+  private fun ensureShuffleOrder() {
+    if (viewModel.shuffleEnabled.value && playlist.isNotEmpty() && shuffledIndices.isEmpty()) {
+      generateShuffledIndices()
+    }
+  }
+
   /**
    * Called when shuffle is toggled on/off
    */
@@ -4343,9 +4395,6 @@ class PlayerActivity :
    */
   fun playNext() {
     if (playlist.isEmpty()) return
-
-    // Use total count if we're doing windowed loading, otherwise use playlist size
-    val effectiveSize = if (playlistTotalCount > 0) playlistTotalCount else playlist.size
 
     if (viewModel.shuffleEnabled.value) {
       // Initialize shuffle if not done yet
@@ -4367,7 +4416,7 @@ class PlayerActivity :
       }
     } else {
       // Normal sequential playback
-      if (playlistIndex < effectiveSize - 1) {
+      if (playlistIndex < playlist.lastIndex) {
         playlistIndex++
         loadPlaylistItem(playlistIndex)
       } else if (viewModel.shouldRepeatPlaylist()) {
@@ -4383,9 +4432,6 @@ class PlayerActivity :
    */
   fun playPrevious() {
     if (playlist.isEmpty()) return
-
-    // Use total count if we're doing windowed loading, otherwise use playlist size
-    val effectiveSize = if (playlistTotalCount > 0) playlistTotalCount else playlist.size
 
     if (viewModel.shuffleEnabled.value) {
       // Initialize shuffle if not done yet
@@ -4411,7 +4457,7 @@ class PlayerActivity :
         loadPlaylistItem(playlistIndex)
       } else if (viewModel.shouldRepeatPlaylist()) {
         // At beginning of playlist with repeat ALL: go to last item
-        playlistIndex = effectiveSize - 1
+        playlistIndex = playlist.lastIndex
         loadPlaylistItem(playlistIndex)
       }
     }
@@ -4503,6 +4549,7 @@ class PlayerActivity :
 
     // Load the new video
     // Avoid blocking UI thread while mpv opens network streams (e.g., HLS).
+    isAdvancingAtEof = true
     isReady = false
     viewModel.onVideoLoadStarted()
 
@@ -4961,38 +5008,38 @@ class PlayerActivity :
 
   private fun generatePlaylistFromFolder(currentPath: String) {
     lifecycleScope.launch(Dispatchers.IO) {
-      runCatching {
-        val currentFile = File(currentPath)
-        if (!currentFile.exists()) return@runCatching
-
-        val launchSource = intent.getStringExtra("launch_source") ?: ""
-        val siblingFiles = resolveAutoPlaylistSiblingFiles(currentFile, launchSource)
-
-        if (siblingFiles.size <= 1) return@runCatching
-
-        val newPlaylist = siblingFiles.map { it.toUri() }
-        val currentFilePath = normalizePlaylistFilePath(currentFile.absolutePath)
-        val newIndex = siblingFiles.indexOfFirst { normalizePlaylistFilePath(it.absolutePath) == currentFilePath }
-
-        if (newIndex != -1) {
-          withContext(Dispatchers.Main) {
-            playlistEntity = null
-            playlistItems = emptyList()
-            isM3uPlaylist = false
-            playlist = newPlaylist
-            playlistIndex = newIndex
-            Log.d(TAG, "Auto-playlist generated: ${playlist.size} videos")
-            // Re-initialize shuffle now that playlist is available
-            if (viewModel.shuffleEnabled.value) {
-              onShuffleToggled(true)
-            }
-          }
-        }
-      }.onFailure { e ->
-        Log.e(TAG, "Failed to auto-generate playlist", e)
-      }
+      generatePlaylistFromFolderInternal(currentPath)
     }
   }
+
+  private suspend fun generatePlaylistFromFolderInternal(currentPath: String): Boolean =
+    runCatching {
+      val currentFile = File(currentPath)
+      if (!currentFile.exists()) return@runCatching false
+
+      val launchSource = intent.getStringExtra("launch_source") ?: ""
+      val siblingFiles = resolveAutoPlaylistSiblingFiles(currentFile, launchSource)
+      if (siblingFiles.size <= 1) return@runCatching false
+
+      val currentFilePath = normalizePlaylistFilePath(currentFile.absolutePath)
+      val newIndex = siblingFiles.indexOfFirst {
+        normalizePlaylistFilePath(it.absolutePath) == currentFilePath
+      }
+      if (newIndex < 0) return@runCatching false
+
+      withContext(Dispatchers.Main) {
+        playlistEntity = null
+        playlistItems = emptyList()
+        isM3uPlaylist = false
+        playlist = siblingFiles.map { it.toUri() }
+        playlistIndex = newIndex
+        if (viewModel.shuffleEnabled.value) onShuffleToggled(true)
+        Log.d(TAG, "Auto-playlist generated: ${playlist.size} items")
+      }
+      true
+    }.onFailure { error ->
+      Log.e(TAG, "Failed to auto-generate playlist", error)
+    }.getOrDefault(false)
 
   /**
    * Check if the current playlist is an M3U playlist (sourced from database).

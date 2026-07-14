@@ -47,6 +47,7 @@ import com.quantummpv.app.preferences.AppearancePreferences
 import com.quantummpv.app.preferences.PlayerButton
 import com.quantummpv.app.preferences.PlayerClockFormat
 import com.quantummpv.app.preferences.PlayerPreferences
+import com.quantummpv.app.preferences.PortraitPlaybackControlsPosition
 import com.quantummpv.app.preferences.SeekbarStyle
 import com.quantummpv.app.preferences.preference.collectAsState
 import com.quantummpv.app.presentation.Screen
@@ -234,6 +235,8 @@ object PlayerControlsPreferencesScreen : Screen {
           
           item {
             val hidePlayerButtonsBackground by appearancePrefs.hidePlayerButtonsBackground.collectAsState()
+            val portraitPlaybackControlsPosition by
+              appearancePrefs.portraitPlaybackControlsPosition.collectAsState()
             val playerTimeToDisappear by playerPrefs.playerTimeToDisappear.collectAsState()
             val clockFormat by playerPrefs.clockFormat.collectAsState()
             val predefinedTimeValues = listOf(500, 1000, 1500, 2000, 2500, 3000, 3500, 4000, 4500, 5000)
@@ -243,6 +246,17 @@ object PlayerControlsPreferencesScreen : Screen {
             var customTimeValue by remember { mutableStateOf("") }
             
             PreferenceCard {
+              ListPreference(
+                value = portraitPlaybackControlsPosition,
+                onValueChange = { appearancePrefs.portraitPlaybackControlsPosition.set(it) },
+                values = PortraitPlaybackControlsPosition.entries,
+                valueToText = { AnnotatedString(it.displayName) },
+                title = { Text("Portrait playback buttons") },
+                summary = { Text(portraitPlaybackControlsPosition.displayName) },
+              )
+
+              PreferenceDivider()
+
               SwitchPreference(
                 value = hidePlayerButtonsBackground,
                 onValueChange = { appearancePrefs.hidePlayerButtonsBackground.set(it) },

@@ -18,6 +18,8 @@ class AudioSpectrumAnalyzer(
     private var smoothCentroid = 0.35f
     private var energyFloor = 0.04f
     private var beatEnvelope = 0f
+    private var previousBass = 0f
+    private var beatCooldownFrames = 0
 
     @Synchronized
     fun start(audioSessionId: Int): Result<Unit> {
@@ -80,6 +82,8 @@ class AudioSpectrumAnalyzer(
         smoothMid = 0f
         smoothTreble = 0f
         beatEnvelope = 0f
+        previousBass = 0f
+        beatCooldownFrames = 0
         energyFloor = 0.04f
     }
 
@@ -136,15 +140,23 @@ class AudioSpectrumAnalyzer(
         val centroidHz = if (magnitudeSum > 0.0001f) weightedFrequency / magnitudeSum else 1_000f
         val centroid = clamp01((centroidHz - 120f) / 9_000f)
 
-        smoothBass = envelope(smoothBass, bass, 0.52f, 0.10f)
-        smoothMid = envelope(smoothMid, mid, 0.42f, 0.09f)
-        smoothTreble = envelope(smoothTreble, treble, 0.38f, 0.08f)
-        smoothEnergy = envelope(smoothEnergy, energy, 0.48f, 0.08f)
-        smoothCentroid += (centroid - smoothCentroid) * 0.08f
+        smoothBass = envelope(smoothBass, bass, 0.30f, 0.065f)
+        smoothMid = envelope(smoothMid, mid, 0.25f, 0.055f)
+        smoothTreble = envelope(smoothTreble, treble, 0.22f, 0.050f)
+        smoothEnergy = envelope(smoothEnergy, energy, 0.28f, 0.060f)
+        smoothCentroid += (centroid - smoothCentroid) * 0.045f
 
         energyFloor += (smoothEnergy - energyFloor) * 0.025f
-        val beatDetected = smoothBass > max(0.19f, energyFloor * 1.48f) && smoothBass > smoothMid * 0.84f
-        beatEnvelope = if (beatDetected) 1f else beatEnvelope * 0.76f
+        if (beatCooldownFrames > 0) beatCooldownFrames--
+        val bassRise = smoothBass - previousBass
+        val beatDetected =
+            beatCooldownFrames == 0 &&
+                smoothBass > max(0.16f, energyFloor * 1.35f) &&
+                bassRise > max(0.028f, energyFloor * 0.16f) &&
+                smoothBass > smoothMid * 0.82f
+        if (beatDetected) beatCooldownFrames = 5
+        beatEnvelope = if (beatDetected) 0.55f else beatEnvelope * 0.80f
+        previousBass = smoothBass
 
         features.bass = smoothBass
         features.mid = smoothMid

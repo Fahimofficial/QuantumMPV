@@ -91,10 +91,10 @@ internal class BlobRenderer(
     private var pitch = 0f
 
     @Volatile private var pinchScale = 1f
-    private var zoomDistance = 7.0f
+    private var zoomDistance = 8.6f
 
     fun setPinchScale(scale: Float) {
-        pinchScale = scale.coerceIn(0.35f, 3.0f)
+        pinchScale = scale.coerceIn(0.60f, 1.15f)
     }
 
     fun getPinchScale(): Float = pinchScale
@@ -254,16 +254,16 @@ internal class BlobRenderer(
         val idleRotation = time * (4.5f + audio.mid * 5f)
         Matrix.rotateM(model, 0, yaw + idleRotation, 0f, 1f, 0f)
         Matrix.rotateM(model, 0, pitch + time * 1.7f, 1f, 0f, 0f)
-        val scale = pinchScale * (1.0f + audio.bass * 0.08f + audio.beat * 0.035f)
+        val scale = pinchScale * (0.88f + audio.bass * 0.035f + audio.beat * 0.025f)
         Matrix.scaleM(model, 0, scale, scale, scale)
         Matrix.multiplyMM(viewModel, 0, view, 0, model, 0)
         Matrix.multiplyMM(mvp, 0, projection, 0, viewModel, 0)
     }
 
     private fun updateColor(time: Float) {
-        val reactiveHue = fract(0.73f + audio.centroid * 0.54f + time * 0.018f + audio.beat * 0.07f)
-        val saturation = (0.68f + audio.treble * 0.28f).coerceIn(0f, 1f)
-        val value = (0.82f + audio.energy * 0.18f).coerceIn(0f, 1f)
+        val reactiveHue = fract(0.73f + audio.centroid * 0.54f + time * 0.018f + audio.beat * 0.08f)
+        val saturation = (0.52f + audio.treble * 0.16f).coerceIn(0f, 1f)
+        val value = (0.52f + audio.energy * 0.12f).coerceIn(0f, 1f)
         hsvToRgb(reactiveHue, saturation, value, rgb)
 
         val colorSpeed = 0.035f + audio.energy * 0.06f + audio.beat * 0.10f
@@ -291,10 +291,10 @@ internal class BlobRenderer(
         GLES30.glUniform3f(uBlobColor, smoothR, smoothG, smoothB)
         GLES30.glUniform1f(
             uBlobIntensity,
-            0.90f + audio.energy * 0.85f + audio.beat * 0.55f
+            0.38f + audio.energy * 0.28f + audio.beat * 0.22f
         )
 
-        GLES30.glLineWidth(1.5f)
+        GLES30.glLineWidth(1.2f)
         GLES30.glBindVertexArray(meshVao)
         GLES30.glDrawElements(GLES30.GL_LINES, lineIndexCount, GLES30.GL_UNSIGNED_INT, 0)
         GLES30.glBindVertexArray(0)
@@ -310,7 +310,7 @@ internal class BlobRenderer(
         bindTexture(0, sceneTarget.texture, uBrightScene)
         GLES30.glUniform1f(
             uBrightThreshold,
-            (0.26f - audio.energy * 0.08f - audio.beat * 0.05f).coerceAtLeast(0.10f)
+            (0.52f - audio.energy * 0.04f).coerceAtLeast(0.42f)
         )
         drawQuad()
     }
@@ -340,9 +340,9 @@ internal class BlobRenderer(
         bindTexture(1, bloomA.texture, uCompositeBloom)
         GLES30.glUniform1f(
             uCompositeBloomStrength,
-            1.20f + audio.energy * 0.90f + audio.beat * 0.80f
+            0.34f + audio.energy * 0.24f + audio.beat * 0.12f
         )
-        GLES30.glUniform1f(uCompositeExposure, 1.05f)
+        GLES30.glUniform1f(uCompositeExposure, 0.82f)
         drawQuad()
     }
 

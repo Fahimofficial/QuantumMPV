@@ -7,6 +7,6 @@ in float vEnergy;
 out vec4 fragColor;
 
 void main() {
-    vec3 emissive = uColor * uIntensity * (0.72 + vEnergy * 0.48);
-    fragColor = vec4(emissive, 0.94);
+    vec3 emissive = uColor * uIntensity * (0.62 + vEnergy * 0.32);
+    fragColor = vec4(emissive, 0.72);
 }
