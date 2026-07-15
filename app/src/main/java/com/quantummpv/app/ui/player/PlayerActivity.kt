@@ -2853,8 +2853,20 @@ class PlayerActivity :
     property: String,
     value: String,
   ) {
-    when (property.substringBeforeLast("/")) {
-      "user-data/mpvrx" -> viewModel.handleLuaInvocation(property, value)
+    when (property) {
+      "sub-text" -> {
+        if (isSecondarySubtitleActive()) {
+          val primaryPosition = subtitlesPreferences.subPos.get()
+          val width = player.width.takeIf { it > 0 }?.toFloat()
+          val height = player.height.takeIf { it > 0 }?.toFloat()
+          applySubtitlePositions(primaryPosition, width, height)
+        }
+      }
+      else -> {
+        when (property.substringBeforeLast("/")) {
+          "user-data/mpvrx" -> viewModel.handleLuaInvocation(property, value)
+        }
+      }
     }
   }
 
@@ -2911,6 +2923,14 @@ class PlayerActivity :
           } catch (e: Exception) {
             android.util.Log.e(TAG, "Failed to set frame rate", e)
           }
+        }
+      }
+      "sub-scale" -> {
+        if (isSecondarySubtitleActive()) {
+          val primaryPosition = subtitlesPreferences.subPos.get()
+          val width = player.width.takeIf { it > 0 }?.toFloat()
+          val height = player.height.takeIf { it > 0 }?.toFloat()
+          applySubtitlePositions(primaryPosition, width, height)
         }
       }
     }
@@ -3348,6 +3368,8 @@ class PlayerActivity :
     applySubtitleLayout(
       primaryPosition = subtitlesPreferences.subPos.get(),
       forceAssOverride = subtitlesPreferences.overrideAssSubs.get(),
+      screenWidth = player.width.takeIf { it > 0 }?.toFloat(),
+      screenHeight = player.height.takeIf { it > 0 }?.toFloat(),
     )
 
     Log.d(TAG, "Applied subtitle preferences")
@@ -3541,6 +3563,8 @@ class PlayerActivity :
     applySubtitleLayout(
       primaryPosition = subtitlesPreferences.subPos.get(),
       forceAssOverride = subtitlesPreferences.overrideAssSubs.get(),
+      screenWidth = player.width.takeIf { it > 0 }?.toFloat(),
+      screenHeight = player.height.takeIf { it > 0 }?.toFloat(),
     )
 
     if (state.aid > 0) {

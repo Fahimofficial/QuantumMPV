@@ -52,6 +52,7 @@ import com.quantummpv.app.R
 import com.quantummpv.app.presentation.Screen
 import com.quantummpv.app.ui.theme.LocalEmphasizedTypography
 import com.quantummpv.app.ui.utils.LocalBackStack
+import com.quantummpv.app.ui.utils.LocalShowSettingsBackArrow
 import com.quantummpv.app.ui.utils.popSafely
 import kotlinx.serialization.Serializable
 
@@ -101,7 +102,8 @@ object PreferencesScreen : Screen {
             @Suppress("UNCHECKED_CAST")
             val detailBackstack = rememberNavBackStack(selectedScreen) as NavBackStack<Screen>
             CompositionLocalProvider(
-              LocalBackStack provides detailBackstack
+              LocalBackStack provides detailBackstack,
+              LocalShowSettingsBackArrow provides (detailBackstack.size > 1)
             ) {
               val activeScreen = detailBackstack.lastOrNull() ?: selectedScreen
               key(activeScreen) {

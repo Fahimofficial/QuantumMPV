@@ -57,6 +57,7 @@ import com.quantummpv.app.presentation.components.ConfirmDialog
 import com.quantummpv.app.presentation.crash.CrashActivity
 import com.quantummpv.app.ui.player.NotificationStyle
 import com.quantummpv.app.ui.utils.LocalBackStack
+import com.quantummpv.app.ui.utils.LocalShowSettingsBackArrow
 import com.quantummpv.app.ui.utils.popSafely
 import com.quantummpv.app.utils.clipboard.SafeClipboard
 import com.quantummpv.app.utils.history.RecentlyPlayedOps
@@ -229,12 +230,14 @@ object AdvancedPreferencesScreen : Screen {
             )
           },
           navigationIcon = {
-            IconButton(onClick = { backStack.popSafely() }) {
-              Icon(
-                Icons.Default.ArrowBack, 
-                contentDescription = null,
-                tint = MaterialTheme.colorScheme.secondary,
-              )
+            if (LocalShowSettingsBackArrow.current) {
+              IconButton(onClick = { backStack.popSafely() }) {
+                Icon(
+                  Icons.Default.ArrowBack, 
+                  contentDescription = null,
+                  tint = MaterialTheme.colorScheme.secondary,
+                )
+              }
             }
           },
         )

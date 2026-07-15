@@ -62,6 +62,7 @@ import com.quantummpv.app.ui.browser.components.BrowserTopBar
 import com.quantummpv.app.ui.browser.selection.SelectionState
 import com.quantummpv.app.ui.browser.states.EmptyState
 import com.quantummpv.app.ui.utils.LocalBackStack
+import com.quantummpv.app.ui.utils.LocalShowSettingsBackArrow
 import com.quantummpv.app.ui.utils.popSafely
 import com.quantummpv.app.utils.media.MediaLibraryEvents
 import kotlinx.coroutines.Dispatchers
@@ -123,7 +124,7 @@ object FoldersPreferencesScreen : Screen {
           selectedCount = selectionState.selectedCount,
           totalCount = blacklistedFoldersList.size,
           onCancelSelection = { selectionState = selectionState.clear() },
-          onBackClick = { backstack.popSafely() },
+          onBackClick = if (LocalShowSettingsBackArrow.current) { { backstack.popSafely() } } else null,
           onDeleteClick = {
             val updated = blacklistedFolders.toMutableSet().apply {
               removeAll(selectionState.selectedIds)

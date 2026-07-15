@@ -56,6 +56,7 @@ import com.quantummpv.app.preferences.SubtitlesPreferences
 import com.quantummpv.app.preferences.preference.collectAsState
 import com.quantummpv.app.presentation.Screen
 import com.quantummpv.app.ui.utils.LocalBackStack
+import com.quantummpv.app.ui.utils.LocalShowSettingsBackArrow
 import com.quantummpv.app.ui.utils.popSafely
 import com.quantummpv.app.utils.media.copyFontsFromDirectory
 import com.quantummpv.app.utils.media.loadCustomFontEntries
@@ -148,14 +149,16 @@ object SubtitlesPreferencesScreen : Screen {
             )
           },
           navigationIcon = {
-            IconButton(
-              onClick = { backstack.popSafely() },
-            ) {
-              Icon(
-                Icons.Outlined.ArrowBack,
-                contentDescription = null,
-                tint = MaterialTheme.colorScheme.secondary,
-              )
+            if (LocalShowSettingsBackArrow.current) {
+              IconButton(
+                onClick = { backstack.popSafely() },
+              ) {
+                Icon(
+                  Icons.Outlined.ArrowBack, 
+                  contentDescription = null,
+                  tint = MaterialTheme.colorScheme.secondary,
+                )
+              }
             }
           },
         )
