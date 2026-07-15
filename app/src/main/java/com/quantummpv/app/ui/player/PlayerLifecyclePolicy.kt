@@ -3,15 +3,21 @@ package com.quantummpv.app.ui.player
 internal object PlayerLifecyclePolicy {
   fun shouldPauseOnPause(
     backgroundPlaybackEnabled: Boolean,
+    backgroundPlaybackSessionActive: Boolean,
     isUserFinishing: Boolean,
     isInPictureInPictureMode: Boolean,
     isScreenOffOrLocked: Boolean,
   ): Boolean {
-    if (isUserFinishing) return true
+    if (isUserFinishing && !backgroundPlaybackSessionActive) return true
     if (isInPictureInPictureMode && !isScreenOffOrLocked) return false
 
     return !backgroundPlaybackEnabled
   }
+
+  fun shouldStartBackgroundPlaybackOnBack(
+    backgroundPlaybackEnabled: Boolean,
+    mediaReady: Boolean,
+  ): Boolean = backgroundPlaybackEnabled && mediaReady
 
   fun shouldKeepBackgroundPlaybackAliveOnDestroy(
     backgroundPlaybackEnabled: Boolean,

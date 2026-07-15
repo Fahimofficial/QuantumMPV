@@ -1,6 +1,7 @@
 package com.quantummpv.app.ui.player
 
 import android.Manifest
+import android.animation.ValueAnimator
 import android.app.KeyguardManager
 import android.content.BroadcastReceiver
 import android.content.ComponentName
@@ -29,6 +30,7 @@ import android.util.Log
 import android.view.KeyEvent
 import android.view.View
 import android.view.WindowManager
+import android.view.animation.PathInterpolator
 import android.widget.Toast
 import androidx.activity.BackEventCompat
 import androidx.activity.OnBackPressedCallback
@@ -321,6 +323,7 @@ class PlayerActivity :
   private var wasInPipMode = false
   private var handledPipDismissal = false
   private var pendingBackgroundTransition = false
+  private var pendingBackNavigationBackgroundTransition = false
   private var noisyReceiverRegistered = false
   private var lastVid = -1 // Track video track for background playback optimization
   private var isInBackgroundPlayback = false // Track if we are currently in background playback mode
@@ -370,13 +373,18 @@ class PlayerActivity :
           isBackgroundPlaybackSessionActive = true
           if (wasPlayingBeforePause && viewModel.paused == true) viewModel.unpause()
           movePlayerToBackground()
+        } else if (pendingBackNavigationBackgroundTransition && started) {
+          pendingBackNavigationBackgroundTransition = false
+          finishIntoBackgroundPlayback()
         } else if (!started) {
           pendingBackgroundTransition = false
+          pendingBackNavigationBackgroundTransition = false
           isBackgroundPlaybackSessionActive = false
         }
       } else {
         pendingBackgroundPlaybackStart = false
         pendingBackgroundTransition = false
+        pendingBackNavigationBackgroundTransition = false
         isBackgroundPlaybackSessionActive = false
         Toast.makeText(
           this,
@@ -706,8 +714,10 @@ class PlayerActivity :
         }
 
         override fun handleOnBackPressed() {
+          // Do not let the predictive-back transform compete with Android's
+          // full-screen-to-PiP surface morph.
+          resetPredictiveBackProgress(animate = false)
           handleBackPress()
-          resetPredictiveBackProgress()
         }
       }
 
@@ -721,8 +731,12 @@ class PlayerActivity :
         viewModel.sheetShown,
         viewModel.panelShown,
         playerPreferences.autoPiPOnNavigation.changes(),
-      ) { sheetShown, panelShown, autoPipOnNavigation ->
-        sheetShown != Sheets.None || panelShown != Panels.None || autoPipOnNavigation
+        audioPreferences.backgroundPlayback.changes(),
+      ) { sheetShown, panelShown, autoPipOnNavigation, backgroundPlaybackEnabled ->
+        sheetShown != Sheets.None ||
+          panelShown != Panels.None ||
+          autoPipOnNavigation ||
+          backgroundPlaybackEnabled
       }
         .distinctUntilChanged()
         .collect { callback.isEnabled = it }
@@ -732,7 +746,8 @@ class PlayerActivity :
   private fun shouldInterceptBackPress(): Boolean =
     viewModel.sheetShown.value != Sheets.None ||
       viewModel.panelShown.value != Panels.None ||
-      playerPreferences.autoPiPOnNavigation.get()
+      playerPreferences.autoPiPOnNavigation.get() ||
+      isBackgroundPlaybackEnabled()
 
   private fun applyPredictiveBackProgress(backEvent: BackEventCompat) {
     val root = binding.root
@@ -755,7 +770,17 @@ class PlayerActivity :
     binding.controls.alpha = 1f - (0.2f * progress)
   }
 
-  private fun resetPredictiveBackProgress() {
+  private fun resetPredictiveBackProgress(animate: Boolean = true) {
+    binding.root.animate().cancel()
+    binding.controls.animate().cancel()
+    if (!animate || !ValueAnimator.areAnimatorsEnabled()) {
+      binding.root.scaleX = 1f
+      binding.root.scaleY = 1f
+      binding.root.translationX = 0f
+      binding.controls.alpha = 1f
+      return
+    }
+
     binding.root.animate()
       .scaleX(1f)
       .scaleY(1f)
@@ -782,9 +807,30 @@ class PlayerActivity :
       return
     }
 
+    // Background playback takes precedence on Back: return to the browser while
+    // handing the live MPV session to the foreground service.
+    if (
+      PlayerLifecyclePolicy.shouldStartBackgroundPlaybackOnBack(
+        backgroundPlaybackEnabled = isBackgroundPlaybackEnabled(),
+        mediaReady = isReady,
+      )
+    ) {
+      when (startBackgroundPlayback()) {
+        BackgroundPlaybackStartResult.Started -> finishIntoBackgroundPlayback()
+        BackgroundPlaybackStartResult.PendingPermission -> {
+          pendingBackNavigationBackgroundTransition = true
+        }
+        BackgroundPlaybackStartResult.Blocked -> {
+          isUserFinishing = true
+          finish()
+        }
+      }
+      return
+    }
+
     // Check if auto PIP is enabled - enter PIP mode instead of finishing
     if (playerPreferences.autoPiPOnNavigation.get() && isReady) {
-      pipHelper.enterPipMode()
+      enterPipModeSmoothly()
       return
     }
 
@@ -898,7 +944,7 @@ class PlayerActivity :
     super.onUserLeaveHint()
     // Enter PIP mode when user presses home button if auto PIP is enabled
     if (playerPreferences.autoPiPOnNavigation.get() && isReady && !isFinishing) {
-      pipHelper.enterPipMode()
+      enterPipModeSmoothly()
     }
   }
 
@@ -1048,6 +1094,7 @@ class PlayerActivity :
       val shouldPause =
         PlayerLifecyclePolicy.shouldPauseOnPause(
           backgroundPlaybackEnabled = isBackgroundPlaybackEnabled(),
+          backgroundPlaybackSessionActive = isBackgroundPlaybackSessionActive,
           isUserFinishing = isUserFinishing,
           isInPictureInPictureMode = isInPip,
           isScreenOffOrLocked = isDeviceScreenOffOrLocked(),
@@ -1085,7 +1132,9 @@ class PlayerActivity :
         endBackgroundPlayback()
       }
       
-      reportJellyfinStop()
+      if (!isBackgroundPlaybackSessionActive) {
+        reportJellyfinStop()
+      }
       setReturnIntent()
     }.onFailure { e ->
       Log.e(TAG, "Error during finish", e)
@@ -3796,13 +3845,26 @@ class PlayerActivity :
       handledPipDismissal = false
     }
 
-    binding.controls.alpha = if (isInPictureInPictureMode) 0f else 1f
+    binding.controls.animate().cancel()
+    if (isInPictureInPictureMode) {
+      binding.controls.alpha = 0f
+    }
 
     runCatching {
       if (isInPictureInPictureMode) {
         enterPipUIMode()
       } else {
         exitPipUIMode()
+        if (ValueAnimator.areAnimatorsEnabled()) {
+          binding.controls.alpha = 0f
+          binding.controls.animate()
+            .alpha(1f)
+            .setDuration(180L)
+            .setInterpolator(PathInterpolator(0.25f, 1f, 0.5f, 1f))
+            .start()
+        } else {
+          binding.controls.alpha = 1f
+        }
       }
     }.onFailure { e ->
       Log.e(TAG, "Error handling PiP mode change", e)
@@ -3846,8 +3908,17 @@ class PlayerActivity :
       Log.e(TAG, "Error entering PiP mode with hidden overlay", e)
     }
 
-    binding.controls.alpha = 0f
+    enterPipModeSmoothly()
+  }
 
+  private fun enterPipModeSmoothly() {
+    binding.root.animate().cancel()
+    binding.controls.animate().cancel()
+    binding.root.scaleX = 1f
+    binding.root.scaleY = 1f
+    binding.root.translationX = 0f
+    binding.controls.alpha = 0f
+    pipHelper.updatePictureInPictureParams()
     pipHelper.enterPipMode()
   }
 
@@ -4289,6 +4360,7 @@ class PlayerActivity :
     Log.d(TAG, "Ending background playback service")
     isBackgroundPlaybackSessionActive = false
     pendingBackgroundTransition = false
+    pendingBackNavigationBackgroundTransition = false
     
     if (serviceBound) {
       try {
@@ -4356,6 +4428,14 @@ class PlayerActivity :
     // reload when the user opens the player again from the notification.
     disableVideoForBackground()
     moveTaskToBack(true)
+  }
+
+  private fun finishIntoBackgroundPlayback() {
+    isBackgroundPlaybackSessionActive = true
+    pendingBackNavigationBackgroundTransition = false
+    disableVideoForBackground()
+    isUserFinishing = true
+    finish()
   }
 
   // ==================== PlayerHost ====================

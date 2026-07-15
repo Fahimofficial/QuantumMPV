@@ -93,11 +93,14 @@ class MPVPipHelper(
       .apply {
         getVideoAspectRatio()?.let { aspectRatio ->
           setAspectRatio(aspectRatio)
-          setSourceRectHint(calculateSourceRect(aspectRatio))
+          calculateSourceRect(aspectRatio)?.let { sourceRect -> setSourceRectHint(sourceRect) }
         }
 
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
           setAutoEnterEnabled(playerPreferences.autoPiPOnNavigation.get())
+          // Video surfaces can resize continuously, so let Android morph the
+          // full-screen frame into and out of PiP instead of cross-fading it.
+          setSeamlessResizeEnabled(true)
         }
 
         setActions(createPipActions())
@@ -112,22 +115,27 @@ class MPVPipHelper(
     return Rational(width, height).takeIf { it.toFloat() in 0.5f..2.39f }
   }
 
-  private fun calculateSourceRect(aspectRatio: Rational): Rect {
-    val viewWidth = mpvView.width.toFloat()
-    val viewHeight = mpvView.height.toFloat()
+  private fun calculateSourceRect(aspectRatio: Rational): Rect? {
+    val visiblePlayerRect = Rect()
+    if (!mpvView.getGlobalVisibleRect(visiblePlayerRect) || visiblePlayerRect.isEmpty) return null
+
+    val viewWidth = visiblePlayerRect.width().toFloat()
+    val viewHeight = visiblePlayerRect.height().toFloat()
+    if (viewWidth <= 0f || viewHeight <= 0f) return null
+
     val videoAspect = aspectRatio.toFloat()
     val viewAspect = viewWidth / viewHeight
 
     return if (viewAspect < videoAspect) {
       // Letterboxed (black bars top/bottom)
       val height = viewWidth / videoAspect
-      val top = ((viewHeight - height) / 2).toInt()
-      Rect(0, top, viewWidth.toInt(), (height + top).toInt())
+      val top = visiblePlayerRect.top + ((viewHeight - height) / 2).toInt()
+      Rect(visiblePlayerRect.left, top, visiblePlayerRect.right, top + height.toInt())
     } else {
       // Pillarboxed (black bars left/right)
       val width = viewHeight * videoAspect
-      val left = ((viewWidth - width) / 2).toInt()
-      Rect(left, 0, (width + left).toInt(), viewHeight.toInt())
+      val left = visiblePlayerRect.left + ((viewWidth - width) / 2).toInt()
+      Rect(left, visiblePlayerRect.top, left + width.toInt(), visiblePlayerRect.bottom)
     }
   }
 
