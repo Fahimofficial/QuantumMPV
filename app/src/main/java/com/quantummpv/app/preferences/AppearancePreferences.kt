@@ -52,7 +52,7 @@ class AppearancePreferences(
   val topRightControls =
     preferenceStore.getString(
       "top_right_controls",
-      "CURRENT_CHAPTER,DECODER,AUDIO_TRACK,SUBTITLES,MORE_OPTIONS",
+      "CAST,CURRENT_CHAPTER,DECODER,AUDIO_TRACK,SUBTITLES,MORE_OPTIONS",
     )
 
   val bottomRightControls =
@@ -70,8 +70,32 @@ class AppearancePreferences(
   val portraitBottomControls =
     preferenceStore.getString(
       "portrait_bottom_controls",
-      "SCREEN_ROTATION,DECODER,AUDIO_TRACK,SUBTITLES,BOOKMARKS_CHAPTERS,PLAYBACK_SPEED,BACKGROUND_PLAYBACK,REPEAT_MODE,SHUFFLE,VIDEO_ZOOM,FRAME_NAVIGATION,ASPECT_RATIO,PICTURE_IN_PICTURE,LOCK_CONTROLS,MORE_OPTIONS",
+      "CAST,SCREEN_ROTATION,DECODER,AUDIO_TRACK,SUBTITLES,BOOKMARKS_CHAPTERS,PLAYBACK_SPEED,BACKGROUND_PLAYBACK,REPEAT_MODE,SHUFFLE,VIDEO_ZOOM,FRAME_NAVIGATION,ASPECT_RATIO,PICTURE_IN_PICTURE,LOCK_CONTROLS,MORE_OPTIONS",
     )
+
+  private val castButtonMigrationComplete =
+    preferenceStore.getBoolean("cast_button_migration_complete", false)
+
+  init {
+    if (!castButtonMigrationComplete.get()) {
+      val landscapeButtons =
+        listOf(
+          topLeftControls.get(),
+          topRightControls.get(),
+          bottomRightControls.get(),
+          bottomLeftControls.get(),
+        ).flatMap { it.split(',') }
+          .map { it.trim().uppercase() }
+      if ("CAST" !in landscapeButtons) {
+        topRightControls.set("CAST,${topRightControls.get()}")
+      }
+      val portraitButtons = portraitBottomControls.get().split(',').map { it.trim().uppercase() }
+      if ("CAST" !in portraitButtons) {
+        portraitBottomControls.set("CAST,${portraitBottomControls.get()}")
+      }
+      castButtonMigrationComplete.set(true)
+    }
+  }
 
   fun parseButtons(
     csv: String,

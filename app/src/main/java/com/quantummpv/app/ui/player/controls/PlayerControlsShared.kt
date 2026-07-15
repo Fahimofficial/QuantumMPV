@@ -57,6 +57,7 @@ import com.quantummpv.app.preferences.PlayerButton
 import com.quantummpv.app.preferences.PlayerClockFormat
 import com.quantummpv.app.preferences.PlayerPreferences
 import com.quantummpv.app.preferences.preference.collectAsState
+import com.quantummpv.app.ui.cast.CastPlayerButton
 import com.quantummpv.app.ui.player.Panels
 import com.quantummpv.app.ui.player.PlayerActivity
 import com.quantummpv.app.ui.player.PlayerViewModel
@@ -520,6 +521,13 @@ fun RenderPlayerButton(
         onClick = { activity.enterPipModeHidingOverlay() },
         color = if (hideBackground) controlColor else MaterialTheme.colorScheme.onSurface,
         modifier = Modifier.size(buttonSize),
+      )
+    }
+
+    PlayerButton.CAST -> {
+      CastPlayerButton(
+        hideBackground = hideBackground,
+        buttonSize = buttonSize,
       )
     }
 

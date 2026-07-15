@@ -4,6 +4,13 @@ These notes are written in plain English and focus on what changed for real use.
 
 ## 1.5.0-preview.4 — Preview Release
 
+### Google Cast
+- **Native Cast control**: Added the standard stateful Google Cast button to portrait and landscape player controls, including a one-time layout migration for existing users.
+- **Local and remote media handoff**: Receiver-accessible HTTP(S) streams are loaded directly; Android-local `file://` and `content://` media use a tokenized temporary LAN server with byte-range seeking and CORS support.
+- **Playback continuity**: The sender transfers title, play state, duration, and current position, pauses local playback after a successful receiver load, and restores local playback at the receiver position when casting ends.
+- **Complete sender controls**: Added Cast SDK expanded controls, notification/lock-screen integration, reconnection support, and receiver volume controls.
+- **Receiver compatibility guardrail**: Casting uses Google's Default Media Receiver, so containers and codecs unsupported by the selected TV/Chromecast are not transcoded automatically.
+
 ### Playback Lifecycle & Background Playback
 - **One background playback switch**: Audio preferences and the player background button now control the same persistent setting for both audio and video.
 - **Reliable screen lock and unlock handling**: Playback now follows the selected background policy across screen-off, lock-screen, unlock, and resume transitions without losing the prior play state.

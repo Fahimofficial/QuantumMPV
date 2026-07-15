@@ -77,6 +77,7 @@ MpvRx pushes the mpv-android experience further with deep customization, thermal
 | **Player Controls Animation** | 5 animation styles: Default, Elastic Bounce, Cinematic Scale, Slide Up, Minimal Fade |
 | **Always Dark Mode** | Option to keep player controls in dark theme regardless of app theme |
 | **Themed Player Controls** | Adaptive controls that match your app theme or system accent |
+| **Material 3 Expressive UI** | Expressive components, spring-based navigation, responsive grids, and polished predictive-back motion |
 
 </details>
 
@@ -90,6 +91,7 @@ MpvRx pushes the mpv-android experience further with deep customization, thermal
 | **Horizontal Swipe to Seek** | Swipe across video to seek with live time/delta overlay |
 | **Long-Press Dynamic Speed** | Long-press activates configurable speed boost; swipe left/right to adjust across 8 presets |
 | **Subtitle Drag Gesture** | Long-press center screen to drag subtitles vertically when active |
+| **Subtitle Zoom & Dialogue Seek** | Pinch subtitle text to resize it and swipe across subtitles to seek between dialogue lines |
 | **Pinch-to-Zoom with Pan** | Pinch to zoom (-1x to 3x) with simultaneous pan and single-finger pan after zoom |
 | **Volume Boost via Gesture** | Vertical swipe volume can exceed 100% into configurable boost range |
 | **Swap Volume/Brightness Sides** | Option to swap which screen side controls volume vs brightness |
@@ -155,6 +157,9 @@ MpvRx pushes the mpv-android experience further with deep customization, thermal
 | **Comprehensive Styling** | Font, size, bold, italic, border, shadow, colors, justification, scale by window |
 | **Three Online Search Modes** | Wyzie, SubtitleHub (6 aggregated sources), and Hybrid (both merged) |
 | **TMDB Integration** | Full media search with season/episode browsing for subtitles |
+| **Subtitle Font Manager** | Choose a font directory, reload fonts, clear the cache, and select a default subtitle font |
+| **Speech-to-Subtitle Generation** | Experimental subtitle generation from the active audio using supported cloud or offline Whisper providers |
+| **Explicit Subtitle Off** | Disable subtitles directly without cycling through every available track |
 
 </details>
 
@@ -164,13 +169,30 @@ MpvRx pushes the mpv-android experience further with deep customization, thermal
 | Feature | Description |
 |---|---|
 | **Fully Customizable Layout** | Four configurable zones (top-left/right, bottom-left/right) + portrait bottom row |
-| **24+ Button Types** | Mirror, Vertical Flip, A-B Loop, Custom Skip, Background Playback, Ambient, and more |
+| **25+ Button Types** | Cast, Mirror, Vertical Flip, A-B Loop, Custom Skip, Background Playback, Ambient, and more |
 | **Custom User Buttons** | Create arbitrary buttons executing Lua, JavaScript, or mpv commands |
 | **Landscape/Portrait Adaptive Layouts** | Completely different control layouts per orientation |
 | **"Slide to Unlock" Controls** | Slide mechanism when controls are locked |
 | **Hide Button Backgrounds** | Transparent buttons with only icons visible |
 | **Centralized "More Sheet"** | Quick access to all player buttons and custom controls |
 | **In-Player Settings** | Toggle 10+ settings (gestures, PiP, UI behavior) without leaving playback |
+
+</details>
+
+<details close>
+<summary><b>📺 Google Cast</b></summary>
+
+| Feature | Description |
+|---|---|
+| **Native Cast Button** | Standard stateful Google Cast route icon in both portrait and landscape player controls |
+| **Device Discovery** | Google Cast framework discovery and native device chooser for Chromecast and Cast-enabled TVs |
+| **Position Handoff** | Transfers the current title, play state, duration, and playback position to the receiver |
+| **Local File Casting** | Tokenized temporary LAN server exposes `file://` and `content://` media with byte-range seeking and CORS headers |
+| **Remote Stream Casting** | Direct handoff for receiver-accessible HTTP and HTTPS media URLs |
+| **Expanded Remote Controls** | Cast SDK controller, notification, lock-screen actions, reconnection, and receiver volume controls |
+| **Return to Phone** | Restores local playback at the receiver's latest position when the Cast session ends |
+
+> Cast uses Google's Default Media Receiver. The TV/Chromecast must support the media container and codecs; mpv-only formats are not transcoded automatically.
 
 </details>
 
@@ -197,6 +219,10 @@ MpvRx pushes the mpv-android experience further with deep customization, thermal
 | **"NEW" Badges** | Configurable threshold for new video indicators |
 | **Grid/List Layout** | Per-orientation column count settings |
 | **Multi-Protocol Network** | Built-in SMB, FTP, and WebDAV clients |
+| **Responsive & Dual-Pane Layouts** | Automatic grid sizing plus optional folder/settings dual-pane views on tablets |
+| **Audio Library Mode** | MediaStore and filesystem audio browsing with square artwork, metadata titles, and mixed sibling playlists |
+| **Safer Folder Deletion** | Media-only folder deletion by default, with an explicit option to delete every contained file |
+| **Settings Search Memory** | Search suggestions and recently used settings queries |
 
 </details>
 
@@ -205,10 +231,12 @@ MpvRx pushes the mpv-android experience further with deep customization, thermal
 
 | Feature | Description |
 |---|---|
-| **Provider Support** | OpenCode and Groq with configurable API keys and models |
+| **Provider Support** | OpenAI, Anthropic, Groq, OpenRouter, Together, and OpenCode Zen with provider-specific models and API protocols |
 | **AI Subtitle Translation** | Translate subtitles with custom prompts |
 | **AI Subtitle Formatting** | Reformat subtitle styling with custom prompts |
 | **AI File Renaming** | Bulk rename video files with custom rename prompts |
+| **Reasoning-Safe Parsing** | Removes reasoning blocks and code fences while accepting structured provider responses and citations |
+| **Speech Providers** | Cloud transcription plus experimental offline Whisper subtitle generation |
 
 </details>
 
@@ -220,6 +248,7 @@ MpvRx pushes the mpv-android experience further with deep customization, thermal
 | **Dual Language** | Lua (.lua) and JavaScript (.js) script support |
 | **Sora Code Editor** | Built-in editor with TextMate syntax highlighting |
 | **Runtime Script Loading** | Enable/disable scripts without restarting |
+| **Lua Module Support** | Recursive `script-modules/` synchronization enables custom scripts to use `require()` helpers |
 | **Config Editor** | Built-in editor for mpv.conf and input.conf |
 
 </details>
@@ -237,12 +266,17 @@ MpvRx pushes the mpv-android experience further with deep customization, thermal
 | **Frame Navigation** | Frame-by-frame forward/backward with frame number display |
 | **Sleep Timer** | Built-in with quick presets (15/30/45/60 min) |
 | **Adaptive Background Playback** | Auto-PiP on Home, auto-resume after screen unlock |
+| **Unified Background Playback** | One persistent audio/video switch; Back can return to browser lists without stopping the current media |
 | **Notification Styles** | None, Media, or Progress with Chapters (Android 16+) |
 | **Safe Area / Window Offset** | Prevents camera notch overlap |
 | **Display Cutout Mode** | Full-bleed on notch devices |
 | **Remember Brightness** | Persists brightness level set during playback |
 | **M3U Playlist Support** | Parse and play local M3U playlists |
 | **yt-dlp Integration** | High-performance streaming support for YouTube, Twitch, Bilibili, and more via a native Python bridge (SDK 29+ bypass) |
+| **yt-dlp Quality Controls** | Independent codec, resolution, FPS, HDR, container, and audio-bitrate preferences |
+| **Dynamic Refresh Rate** | Matches supported display refresh rates to the current video's frame rate for smoother motion |
+| **Audio Blob Visualizer** | OpenGL ES 3.0 FFT-reactive blob with bloom, touch rotation, pinch zoom, and an Audio Settings toggle |
+| **Screenshot Templates** | Filename placeholders for source name, playback position, and millisecond-accurate timestamps |
 
 </details>
 

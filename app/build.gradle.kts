@@ -237,6 +237,7 @@ dependencies {
   implementation(libs.mediainfo.lib)
   implementation("com.llamatik:library:1.4.0")
   implementation(libs.androidx.profileinstaller)
+  implementation(libs.google.cast.framework)
   
   implementation(files("libs/mpvlib.aar"))
 
