@@ -479,7 +479,7 @@ class CoilVideoThumbnailDecoder(
     val editor = diskCache.value?.openEditor(diskCacheKey) ?: return inBitmap
     try {
       editor.data.toFile().outputStream().use { output ->
-        inBitmap.compress(Bitmap.CompressFormat.JPEG, 90, output)
+        inBitmap.compress(Bitmap.CompressFormat.JPEG, THUMBNAIL_JPEG_QUALITY, output)
       }
       editor.commitAndOpenSnapshot()?.use { snapshot ->
         val outBitmap =

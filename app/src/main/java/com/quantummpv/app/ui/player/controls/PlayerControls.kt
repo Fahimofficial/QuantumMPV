@@ -1096,7 +1096,10 @@ fun PlayerControls(
                   1.0f to Color.Transparent,
                 )
 
-              if (playlistMode && playlistItems.isNotEmpty()) {
+              val hasPlaylistControls =
+                playlistMode && (playlistItems.size > 1 || viewModel.getPlaylistTotalCount() > 1)
+
+              if (hasPlaylistControls) {
                 androidx.compose.foundation.layout.Row(
                   horizontalArrangement = Arrangement.spacedBy(24.dp),
                   verticalAlignment = Alignment.CenterVertically,

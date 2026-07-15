@@ -238,16 +238,20 @@ fun MediaLibraryContent() {
       return
     }
 
+    val playlistVideos = mediaTypeVideosWithInfo.map { it.video }
     lastPlayRequestIndex.intValue =
-      mediaTypeVideosWithInfo.indexOfFirst { it.video.path == video.path }
+      playlistVideos.indexOfFirst { it.path == video.path }
 
     val intent = android.content.Intent(android.content.Intent.ACTION_VIEW, video.uri).apply {
       setClass(context, PlayerActivity::class.java)
+      addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
       putExtra("internal_launch", true)
       putExtra("playlist_id", ALL_VIDEOS_PLAYLIST_ID)
       putExtra("playlist_index", lastPlayRequestIndex.intValue.coerceAtLeast(0))
       putExtra("launch_source", "media_library")
       putExtra("media_library_audio", mediaType == MediaLibraryType.Audio)
+      putExtra("is_audio", video.isAudio)
+      putParcelableArrayListExtra("playlist", ArrayList(playlistVideos.map { it.uri }))
       putExtra("title", video.displayName)
     }
     context.startActivity(intent)

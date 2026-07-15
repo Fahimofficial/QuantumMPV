@@ -540,6 +540,12 @@ class PlayerActivity :
       intent.getParcelableArrayListExtra("playlist") ?: emptyList()
     }
 
+    if (playlist.isNotEmpty()) {
+      playlistIndex = playlistIndex.coerceIn(0, playlist.lastIndex)
+      playlistWindowOffset = 0
+      playlistTotalCount = playlist.size
+      viewModel.refreshPlaylistItems()
+    }
 
     // If playlist is empty but playlist_id is provided, load asynchronously from database
     // Load all items - LazyColumn handles pagination/virtualization efficiently
@@ -3655,12 +3661,16 @@ class PlayerActivity :
       playlistId = newPlaylistId
       playlistIndex = intent.getIntExtra("playlist_index", 0)
       playlistWindowOffset = 0
-      playlistTotalCount = -1
+      playlistTotalCount = playlistFromIntent.size.takeIf { it > 0 } ?: -1
       playlist = playlistFromIntent
       playlistItems = emptyList()
       playlistEntity = null
       isM3uPlaylist = false
       loadNetworkPlaylistMetadata(intent)
+      if (playlist.isNotEmpty()) {
+        playlistIndex = playlistIndex.coerceIn(0, playlist.lastIndex)
+        viewModel.refreshPlaylistItems()
+      }
     }
 
     // If playlist is empty but playlist_id is provided, load from database
@@ -5095,6 +5105,7 @@ class PlayerActivity :
         playlist = siblingFiles.map { it.toUri() }
         playlistIndex = newIndex
         if (viewModel.shuffleEnabled.value) onShuffleToggled(true)
+        viewModel.refreshPlaylistItems()
         Log.d(TAG, "Auto-playlist generated: ${playlist.size} items")
       }
       true

@@ -14,6 +14,7 @@ import com.quantummpv.app.database.repository.PlaylistRepository
 import com.quantummpv.app.database.repository.VideoMetadataCacheRepository
 import com.quantummpv.app.domain.media.model.Video
 import com.quantummpv.app.domain.recentlyplayed.repository.RecentlyPlayedRepository
+import com.quantummpv.app.utils.storage.FileTypeUtils
 import com.quantummpv.app.utils.permission.PermissionUtils
 
 
@@ -198,8 +199,19 @@ class RecentlyPlayedViewModel(application: Application) : AndroidViewModel(appli
       val bucketId = parent.hashCode().toString()
       val bucketDisplayName = File(parent).name
 
+      val extension = file.extension.lowercase()
+      val isAudio = extension in FileTypeUtils.AUDIO_EXTENSIONS
+
       // Determine mime type from extension
-      val mimeType = when (file.extension.lowercase()) {
+      val mimeType = when (extension) {
+        "mp3" -> "audio/mpeg"
+        "m4a" -> "audio/mp4"
+        "aac" -> "audio/aac"
+        "flac" -> "audio/flac"
+        "wav" -> "audio/wav"
+        "ogg" -> "audio/ogg"
+        "opus" -> "audio/opus"
+        "wma" -> "audio/x-ms-wma"
         "mp4" -> "video/mp4"
         "mkv" -> "video/x-matroska"
         "webm" -> "video/webm"
@@ -231,7 +243,8 @@ class RecentlyPlayedViewModel(application: Application) : AndroidViewModel(appli
         width = width,
         height = height,
         fps = fps,
-        resolution = formatResolution(width, height),
+        resolution = if (isAudio) "--" else formatResolution(width, height),
+        isAudio = isAudio,
       )
     } catch (e: Exception) {
       Log.e("RecentlyPlayedViewModel", "Error creating video from path: $filePath", e)

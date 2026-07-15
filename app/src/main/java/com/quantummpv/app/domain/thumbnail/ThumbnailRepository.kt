@@ -385,7 +385,7 @@ class ThumbnailRepository(
     imageLoader.diskCache?.openEditor(diskCacheKey(video))?.let { editor ->
       try {
         editor.data.toFile().outputStream().use { out ->
-          rotated.compress(Bitmap.CompressFormat.JPEG, 80, out)
+          rotated.compress(Bitmap.CompressFormat.JPEG, THUMBNAIL_JPEG_QUALITY, out)
         }
         editor.commit()
       } catch (_: Exception) {
@@ -579,7 +579,7 @@ class ThumbnailRepository(
     imageLoader.diskCache?.openEditor(diskKey)?.let { editor ->
       try {
         editor.data.toFile().outputStream().use { out ->
-          bitmap.compress(Bitmap.CompressFormat.JPEG, 80, out)
+          bitmap.compress(Bitmap.CompressFormat.JPEG, THUMBNAIL_JPEG_QUALITY, out)
         }
         editor.commit()
       } catch (_: Exception) {
@@ -639,7 +639,7 @@ class ThumbnailRepository(
     imageLoader.diskCache?.openEditor(diskKey)?.let { editor ->
       try {
         editor.data.toFile().outputStream().use { out ->
-          bitmap.compress(Bitmap.CompressFormat.JPEG, 80, out)
+          bitmap.compress(Bitmap.CompressFormat.JPEG, THUMBNAIL_JPEG_QUALITY, out)
         }
         editor.commit()
       } catch (_: Exception) {
