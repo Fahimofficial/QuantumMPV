@@ -1520,6 +1520,12 @@ class PlayerActivity :
       Log.e(TAG, "Error copying MPV config and assets", e)
     }
 
+    player.onSurfaceReady = {
+      if (!isDeviceScreenOffOrLocked() && (isInBackgroundPlayback || lastVid > 0)) {
+        enableVideoAfterBackground()
+      }
+    }
+
     // NOW initialize MPV - it will find and load the scripts we just copied
     initializePlayerWithRendererFallback()
     runCatching { MPVLib.setThumbnailJavaVM(applicationContext) }
@@ -5365,6 +5371,11 @@ class PlayerActivity :
    * Restores video decoding when returning from background playback.
    */
   private fun enableVideoAfterBackground() {
+    if ((isInBackgroundPlayback || lastVid > 0) && !player.isSurfaceReady) {
+      Log.d(TAG, "Deferring video restoration until the playback surface is ready")
+      return
+    }
+
     isInBackgroundPlayback = false
     if (lastVid > 0) {
       Log.d(TAG, "Restoring video after background playback (vid: $lastVid)")

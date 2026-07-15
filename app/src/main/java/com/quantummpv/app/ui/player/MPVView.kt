@@ -43,6 +43,9 @@ class MPVView(
 
   var isExiting = false
   var forceOpenGlFallback = false
+  var isSurfaceReady = false
+    private set
+  var onSurfaceReady: (() -> Unit)? = null
 
   private data class RenderBackendSelection(
     val vo: String,
@@ -282,7 +285,18 @@ class MPVView(
 
   override fun surfaceCreated(holder: android.view.SurfaceHolder) {
     super.surfaceCreated(holder)
+    isSurfaceReady = true
     applyFrameRate()
+    post {
+      if (isSurfaceReady && holder.surface.isValid) {
+        onSurfaceReady?.invoke()
+      }
+    }
+  }
+
+  override fun surfaceDestroyed(holder: android.view.SurfaceHolder) {
+    isSurfaceReady = false
+    super.surfaceDestroyed(holder)
   }
 
   private fun applyFrameRate() {
