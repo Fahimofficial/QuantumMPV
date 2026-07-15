@@ -365,23 +365,29 @@ class PlayerActivity :
 
   private val notificationPermissionLauncher =
     registerForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
+      val wasEnablingFromPlayerControls = pendingBackgroundTransition
       if (granted) {
         pendingBackgroundPlaybackStart = false
         val started = startBackgroundPlaybackInternal(bindToActivity = false)
         if (pendingBackgroundTransition && started) {
           pendingBackgroundTransition = false
           isBackgroundPlaybackSessionActive = true
-          if (wasPlayingBeforePause && viewModel.paused == true) viewModel.unpause()
-          movePlayerToBackground()
+          viewModel.showToast("Background playback on")
         } else if (pendingBackNavigationBackgroundTransition && started) {
           pendingBackNavigationBackgroundTransition = false
           finishIntoBackgroundPlayback()
         } else if (!started) {
+          if (wasEnablingFromPlayerControls) {
+            audioPreferences.backgroundPlayback.set(false)
+          }
           pendingBackgroundTransition = false
           pendingBackNavigationBackgroundTransition = false
           isBackgroundPlaybackSessionActive = false
         }
       } else {
+        if (wasEnablingFromPlayerControls) {
+          audioPreferences.backgroundPlayback.set(false)
+        }
         pendingBackgroundPlaybackStart = false
         pendingBackgroundTransition = false
         pendingBackNavigationBackgroundTransition = false
@@ -4404,11 +4410,10 @@ class PlayerActivity :
     }
 
     Log.d(TAG, "Background playback enabled from player controls")
-    wasPlayingBeforePause = viewModel.paused == false
     when (startBackgroundPlayback()) {
       BackgroundPlaybackStartResult.Started -> {
         isBackgroundPlaybackSessionActive = true
-        movePlayerToBackground()
+        viewModel.showToast("Background playback on")
       }
       BackgroundPlaybackStartResult.PendingPermission -> pendingBackgroundTransition = true
       BackgroundPlaybackStartResult.Blocked -> {
@@ -4417,17 +4422,6 @@ class PlayerActivity :
         pendingBackgroundTransition = false
       }
     }
-  }
-
-  private fun movePlayerToBackground() {
-    // Restore system UI before going to background
-    restoreSystemUI()
-
-    // Keep this activity and MPV instance alive in the task. Finishing here detaches
-    // the observer that owns repeat/playlist EOF handling and forces streams to
-    // reload when the user opens the player again from the notification.
-    disableVideoForBackground()
-    moveTaskToBack(true)
   }
 
   private fun finishIntoBackgroundPlayback() {
