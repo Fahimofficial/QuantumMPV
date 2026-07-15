@@ -21,6 +21,7 @@ enum class PlayerButton(
   FRAME_NAVIGATION(Icons.Default.Screenshot),
   VIDEO_ZOOM(Icons.Outlined.ZoomIn),
   PICTURE_IN_PICTURE(Icons.Outlined.PictureInPictureAlt),
+  CAST(Icons.Outlined.Cast),
   ASPECT_RATIO(Icons.Outlined.AspectRatio),
   LOCK_CONTROLS(Icons.Outlined.LockOpen),
   AUDIO_TRACK(Icons.Outlined.Audiotrack),
@@ -67,6 +68,7 @@ fun getPlayerButtonLabel(button: PlayerButton): String =
     PlayerButton.FRAME_NAVIGATION -> "Frame Navigation" // stringResource(R.string.btn_label_frame_nav)
     PlayerButton.VIDEO_ZOOM -> "Video Zoom" // stringResource(R.string.btn_label_zoom)
     PlayerButton.PICTURE_IN_PICTURE -> "Picture-in-Picture" // stringResource(R.string.btn_label_pip)
+    PlayerButton.CAST -> "Cast"
     PlayerButton.ASPECT_RATIO -> "Aspect Ratio" // stringResource(R.string.btn_label_aspect)
     PlayerButton.LOCK_CONTROLS -> "Lock Controls" // stringResource(R.string.btn_label_lock)
     PlayerButton.AUDIO_TRACK -> "Audio Track" // stringResource(R.string.btn_label_audio)

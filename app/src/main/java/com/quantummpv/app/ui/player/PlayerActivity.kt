@@ -73,6 +73,8 @@ import com.quantummpv.app.preferences.VideoSortType
 import com.quantummpv.app.ui.browser.playlist.ALL_VIDEOS_PLAYLIST_ID
 import com.quantummpv.app.ui.browser.playlist.buildAllVideosPlaylistEntity
 import com.quantummpv.app.ui.browser.playlist.isAllVideosPlaylist
+import com.quantummpv.app.ui.cast.CastMediaSnapshot
+import com.quantummpv.app.ui.cast.CastPlaybackController
 import com.quantummpv.app.preferences.preference.collectAsState
 import com.quantummpv.app.ui.player.controls.PlayerControls
 import com.quantummpv.app.ui.player.visualizer.BlobOverlay
@@ -316,6 +318,7 @@ class PlayerActivity :
    * Helper for managing Picture-in-Picture mode.
    */
   private lateinit var pipHelper: MPVPipHelper
+  private lateinit var castPlaybackController: CastPlaybackController
 
   private var isReady = false // Single flag: true when video loaded and ready
   private var isUserFinishing = false
@@ -630,6 +633,7 @@ class PlayerActivity :
         }
       }
     }
+    setupCastPlayback()
 
     // Only set orientation immediately if NOT in Video mode
     // For Video mode, wait for video-params/aspect to become available
@@ -874,6 +878,52 @@ class PlayerActivity :
     pipHelper = MPVPipHelper(activity = this, mpvView = player)
   }
 
+  private fun setupCastPlayback() {
+    castPlaybackController =
+      CastPlaybackController(
+        activity = this,
+        currentMedia = ::currentCastMediaSnapshot,
+        pauseLocal = viewModel::pause,
+        restoreLocal = { positionMs, play ->
+          if (!isFinishing && !isDestroyed) {
+            viewModel.seekTo((positionMs / 1000L).toInt().coerceAtLeast(0))
+            if (play) viewModel.unpause() else viewModel.pause()
+          }
+        },
+        notifyUser = viewModel::showToast,
+      )
+    castPlaybackController.start()
+  }
+
+  private fun currentCastMediaSnapshot(): CastMediaSnapshot? {
+    if (!isReady || fileName.isBlank()) return null
+    val source =
+      sequenceOf(
+        currentPlayableUri,
+        runCatching { MPVLib.getPropertyString("path") }.getOrNull(),
+        intent?.dataString,
+      ).filterNotNull()
+        .filter { it.isNotBlank() }
+        .map { sourceText ->
+          val parsed = Uri.parse(sourceText)
+          if (parsed.scheme.isNullOrBlank()) Uri.fromFile(File(sourceText)) else parsed
+        }.firstOrNull { uri ->
+          when (uri.scheme?.lowercase()) {
+            "content", "file" -> true
+            "http", "https" -> uri.host !in setOf("127.0.0.1", "localhost", "0.0.0.0")
+            else -> false
+          }
+        } ?: return null
+    return CastMediaSnapshot(
+      source = source,
+      title = getPreferredCurrentTitle().ifBlank { fileName },
+      mimeType = intent?.type ?: runCatching { contentResolver.getType(source) }.getOrNull(),
+      durationMs = ((MPVLib.getPropertyDouble("duration") ?: 0.0) * 1000.0).toLong(),
+      positionMs = ((MPVLib.getPropertyDouble("time-pos") ?: 0.0) * 1000.0).toLong(),
+      isPlaying = MPVLib.getPropertyBoolean("pause") == false,
+    )
+  }
+
   private fun setupAudio() {
     audioPreferences.audioChannels.get().let {
       runCatching {
@@ -975,6 +1025,7 @@ class PlayerActivity :
       )
 
     runCatching {
+      if (::castPlaybackController.isInitialized) castPlaybackController.release()
       cancelSystemBarsAutoHide()
       saveVideoPlaybackState(fileName, immediate = true)
       if (!keepBackgroundPlaybackAlive) {

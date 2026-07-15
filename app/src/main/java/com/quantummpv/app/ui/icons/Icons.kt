@@ -5,6 +5,7 @@ import com.composables.icons.materialsymbols.MaterialSymbols
 import com.composables.icons.materialsymbols.roundedfilled.R
 import com.composables.icons.materialsymbols.roundedfilled.Brand_family
 import com.composables.icons.materialsymbols.roundedfilled.Cancel
+import com.composables.icons.materialsymbols.roundedfilled.Cast
 import com.composables.icons.materialsymbols.roundedfilled.Close
 import com.composables.icons.materialsymbols.roundedfilled.Code
 import com.composables.icons.materialsymbols.roundedfilled.Developer_board
@@ -62,6 +63,7 @@ object Icons {
     val CameraAlt = AppIcon(R.drawable.materialsymbols_ic_photo_camera_rounded_filled)
     val Cancel = AppIcon(MaterialSymbols.RoundedFilled.Cancel)
     val CatchingPokemon = AppIcon(R.drawable.materialsymbols_ic_pets_rounded_filled)
+    val Cast = AppIcon(MaterialSymbols.RoundedFilled.Cast)
     val Check = AppIcon(AppR.drawable.ic_material_symbols_check)
     val CheckCircle = AppIcon(R.drawable.materialsymbols_ic_check_circle_rounded_filled)
     val Checklist = AppIcon(R.drawable.materialsymbols_ic_checklist_rounded_filled)
@@ -411,6 +413,7 @@ object Icons {
     val Bookmarks = Shared.Bookmarks
     val BlurOff = Shared.BlurOff
     val BlurOn = Shared.BlurOn
+    val Cast = Shared.Cast
     val BugReport = Shared.BugReport
     val Clear = Shared.Clear
     val Edit = Shared.Edit
