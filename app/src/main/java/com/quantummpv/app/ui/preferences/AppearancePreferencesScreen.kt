@@ -55,6 +55,7 @@ import com.quantummpv.app.presentation.components.ConfirmDialog
 import com.quantummpv.app.ui.preferences.components.ThemePicker
 import com.quantummpv.app.ui.theme.DarkMode
 import com.quantummpv.app.ui.utils.LocalBackStack
+import com.quantummpv.app.ui.utils.LocalShowSettingsBackArrow
 import com.quantummpv.app.ui.utils.popSafely
 import kotlinx.collections.immutable.persistentListOf
 import kotlinx.collections.immutable.toImmutableList
@@ -154,12 +155,14 @@ object AppearancePreferencesScreen : Screen {
                         )
                     },
                     navigationIcon = {
-                        IconButton(onClick = { backstack.popSafely() }) {
-                            Icon(
-                                Icons.Outlined.ArrowBack,
-                                contentDescription = null,
-                                tint = MaterialTheme.colorScheme.secondary,
-                            )
+                        if (LocalShowSettingsBackArrow.current) {
+                            IconButton(onClick = { backstack.popSafely() }) {
+                                Icon(
+                                    Icons.Outlined.ArrowBack,
+                                    contentDescription = null,
+                                    tint = MaterialTheme.colorScheme.secondary,
+                                )
+                            }
                         }
                     },
                 )

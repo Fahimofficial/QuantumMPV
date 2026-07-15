@@ -8,3 +8,6 @@ import com.quantummpv.app.presentation.Screen
 val LocalBackStack: ProvidableCompositionLocal<NavBackStack<Screen>> =
   compositionLocalOf { error("LocalBackStack not initialized!") }
 
+val LocalShowSettingsBackArrow: ProvidableCompositionLocal<Boolean> =
+  compositionLocalOf { true }
+
