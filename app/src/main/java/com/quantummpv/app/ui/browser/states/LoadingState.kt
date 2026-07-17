@@ -33,7 +33,7 @@ import com.quantummpv.app.ui.theme.AppShapeScale
 
 @Composable
 fun LoadingState(
-  icon: AppIcon = Icons.Filled.FolderOpen,
+  icon: AppIcon = Icons.RoundedFilled.FolderOpen,
   title: String = "Scanning for videos...",
   message: String = "Please wait while we search your device",
   modifier: Modifier = Modifier,
