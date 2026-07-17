@@ -526,7 +526,7 @@ val DatabaseModule =
       RecentlyPlayedRepositoryImpl(get<MpvRxDatabase>().recentlyPlayedDao())
     }
 
-    single { ThumbnailRepository(androidContext(), get()) }
+    single { ThumbnailRepository(androidContext()) }
 
     single {
       com.quantummpv.app.database.repository.VideoMetadataCacheRepository(

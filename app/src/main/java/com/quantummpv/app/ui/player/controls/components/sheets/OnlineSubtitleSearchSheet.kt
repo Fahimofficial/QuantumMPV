@@ -39,7 +39,7 @@ import com.quantummpv.app.repository.subtitle.subdlGroupEpisodeRange
 import com.quantummpv.app.repository.subtitle.withSelectedSubdlGroupEpisode
 import com.quantummpv.app.ui.theme.spacing
 import com.quantummpv.app.utils.media.MediaInfoParser
-import coil3.compose.AsyncImage
+import com.quantummpv.app.presentation.components.RemoteImage
 import kotlinx.collections.immutable.ImmutableList
 import kotlinx.collections.immutable.toImmutableList
 import kotlinx.coroutines.launch
@@ -619,8 +619,8 @@ fun TmdbMediaCard(
         Box {
             // Poster image
             if (posterUrl != null) {
-                AsyncImage(
-                    model = posterUrl,
+                RemoteImage(
+                    url = posterUrl,
                     contentDescription = result.title,
                     modifier = Modifier
                         .matchParentSize()
@@ -713,8 +713,8 @@ fun TmdbResultRow(
                     ),
                 contentAlignment = Alignment.Center
             ) {
-                AsyncImage(
-                    model = posterUrl,
+                RemoteImage(
+                    url = posterUrl,
                     contentDescription = result.title,
                     modifier = Modifier
                         .matchParentSize()

@@ -43,7 +43,7 @@ import com.quantummpv.app.domain.media.model.Video
 import com.quantummpv.app.domain.thumbnail.ThumbnailRepository
 import com.quantummpv.app.preferences.AppearancePreferences
 import com.quantummpv.app.preferences.preference.collectAsState
-import coil3.compose.AsyncImage
+import com.quantummpv.app.presentation.components.RemoteImage
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.filter
 import kotlinx.coroutines.withContext
@@ -195,8 +195,8 @@ fun M3UVideoCard(
             contentScale = ContentScale.Crop,
           )
         } else if (!logoUrl.isNullOrBlank()) {
-          AsyncImage(
-            model = logoUrl,
+          RemoteImage(
+            url = logoUrl,
             contentDescription = null,
             contentScale = ContentScale.Fit,
             modifier = Modifier
