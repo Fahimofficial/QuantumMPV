@@ -10,7 +10,7 @@ import android.util.LruCache
 import com.quantummpv.app.domain.media.model.Video
 import com.quantummpv.app.domain.network.NetworkConnection
 import com.quantummpv.app.preferences.ThumbnailMode
-import com.quantummpv.app.ui.browser.networkstreaming.proxy.NetworkStreamingProxy
+import com.quantummpv.app.data.network.proxy.NetworkStreamingProxy
 import `is`.xyz.mpv.FastThumbnails
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Deferred

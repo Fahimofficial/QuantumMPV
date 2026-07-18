@@ -1,9 +1,10 @@
 package com.quantummpv.app.ui.utils
 
+import androidx.compose.ui.unit.Dp
+
 import androidx.compose.runtime.Composable
 import com.quantummpv.app.preferences.preference.collectAsState
 import androidx.compose.runtime.getValue
-import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.quantummpv.app.preferences.BrowserPreferences
 import org.koin.compose.koinInject

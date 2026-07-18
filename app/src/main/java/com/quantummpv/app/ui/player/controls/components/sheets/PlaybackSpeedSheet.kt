@@ -1,5 +1,7 @@
 package com.quantummpv.app.ui.player.controls.components.sheets
 
+import androidx.compose.ui.unit.Dp
+
 import com.quantummpv.app.ui.icons.Icon
 import com.quantummpv.app.ui.icons.Icons
 
@@ -46,7 +48,6 @@ import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.quantummpv.app.R
 import com.quantummpv.app.preferences.AudioPreferences

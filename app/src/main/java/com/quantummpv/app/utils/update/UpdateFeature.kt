@@ -1,5 +1,7 @@
 package com.quantummpv.app.utils.update
 
+import kotlinx.coroutines.flow.Flow
+
 import com.quantummpv.app.ui.icons.Icon
 import com.quantummpv.app.ui.icons.Icons
 import android.app.Application
@@ -32,7 +34,6 @@ import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.quantummpv.app.BuildConfig
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow

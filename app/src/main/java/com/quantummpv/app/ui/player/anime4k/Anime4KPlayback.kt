@@ -1,8 +1,9 @@
-package com.quantummpv.app.ui.player
+package com.quantummpv.app.ui.player.anime4k
 
 import android.content.Context
 import android.util.Log
 import com.quantummpv.app.domain.anime4k.Anime4KManager
+import com.quantummpv.app.ui.player.ThermalMonitor
 import `is`.xyz.mpv.MPVLib
 
 internal data class Anime4KSelection(
@@ -52,7 +53,7 @@ internal fun selectRuntimeStableAnime4K(
     val headroom = ThermalMonitor.getHeadroom(context)
     if (ThermalMonitor.shouldThrottleAnime4K(headroom)) {
       Log.i(
-        "Anime4KShaderUtils",
+        "Anime4KPlayback",
         "Thermal headroom low (%.2f) — preemptively downgrading Anime4K to C/Fast".format(headroom),
       )
       return Anime4KSelection(

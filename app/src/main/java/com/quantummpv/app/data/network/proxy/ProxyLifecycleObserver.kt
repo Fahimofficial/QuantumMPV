@@ -1,4 +1,4 @@
-package com.quantummpv.app.ui.browser.networkstreaming.proxy
+package com.quantummpv.app.data.network.proxy
 
 import android.util.Log
 import androidx.lifecycle.DefaultLifecycleObserver

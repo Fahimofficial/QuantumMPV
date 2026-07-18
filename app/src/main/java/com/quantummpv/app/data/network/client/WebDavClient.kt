@@ -1,4 +1,4 @@
-package com.quantummpv.app.ui.browser.networkstreaming.clients
+package com.quantummpv.app.data.network.client
 
 import android.net.Uri
 import android.util.Log
