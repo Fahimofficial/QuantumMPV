@@ -4,8 +4,8 @@ import com.quantummpv.app.database.dao.NetworkConnectionDao
 import com.quantummpv.app.domain.network.ConnectionStatus
 import com.quantummpv.app.domain.network.NetworkConnection
 import com.quantummpv.app.domain.network.NetworkFile
-import com.quantummpv.app.ui.browser.networkstreaming.clients.NetworkClient
-import com.quantummpv.app.ui.browser.networkstreaming.clients.NetworkClientFactory
+import com.quantummpv.app.data.network.client.NetworkClient
+import com.quantummpv.app.data.network.client.NetworkClientFactory
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow

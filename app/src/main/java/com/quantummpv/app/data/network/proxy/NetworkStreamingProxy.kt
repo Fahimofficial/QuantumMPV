@@ -1,9 +1,9 @@
-package com.quantummpv.app.ui.browser.networkstreaming.proxy
+package com.quantummpv.app.data.network.proxy
 
 import android.util.Log
 import com.quantummpv.app.domain.network.NetworkConnection
-import com.quantummpv.app.ui.browser.networkstreaming.clients.NetworkClient
-import com.quantummpv.app.ui.browser.networkstreaming.clients.NetworkClientFactory
+import com.quantummpv.app.data.network.client.NetworkClient
+import com.quantummpv.app.data.network.client.NetworkClientFactory
 import com.hierynomus.msdtyp.AccessMask
 import com.hierynomus.mssmb2.SMB2CreateDisposition
 import com.hierynomus.mssmb2.SMB2ShareAccess
@@ -304,15 +304,15 @@ class NetworkStreamingProxy private constructor() : NanoHTTPD("127.0.0.1", 0) {
         }
 
         when (streamInfo.client) {
-          is com.quantummpv.app.ui.browser.networkstreaming.clients.SmbClient -> {
+          is com.quantummpv.app.data.network.client.SmbClient -> {
             getFileSizeSMB(streamInfo)
           }
 
-          is com.quantummpv.app.ui.browser.networkstreaming.clients.FtpClient -> {
+          is com.quantummpv.app.data.network.client.FtpClient -> {
             getFileSizeFTP(streamInfo)
           }
 
-          is com.quantummpv.app.ui.browser.networkstreaming.clients.WebDavClient -> {
+          is com.quantummpv.app.data.network.client.WebDavClient -> {
             val webDavClient = streamInfo.client
             if (!webDavClient.isConnected()) {
               webDavClient.connect().getOrThrow()
@@ -326,7 +326,7 @@ class NetworkStreamingProxy private constructor() : NanoHTTPD("127.0.0.1", 0) {
               streamInfo.client.connect().getOrThrow()
             }
             val ftpClient =
-              streamInfo.client as? com.quantummpv.app.ui.browser.networkstreaming.clients.FtpClient
+              streamInfo.client as? com.quantummpv.app.data.network.client.FtpClient
             val sizeResult = ftpClient?.getFileSize(streamInfo.filePath)
             sizeResult?.getOrNull() ?: -1L
           }

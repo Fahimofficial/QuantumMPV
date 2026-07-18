@@ -1,4 +1,4 @@
-package com.quantummpv.app.ui.browser.networkstreaming.clients
+package com.quantummpv.app.data.network.client
 
 import com.quantummpv.app.domain.network.NetworkConnection
 import com.quantummpv.app.domain.network.NetworkProtocol

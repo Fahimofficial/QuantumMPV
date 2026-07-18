@@ -14,7 +14,7 @@ import com.quantummpv.app.domain.network.NetworkConnection
 import com.quantummpv.app.domain.network.NetworkFile
 import com.quantummpv.app.domain.network.NetworkProtocol
 import com.quantummpv.app.repository.NetworkRepository
-import com.quantummpv.app.ui.browser.networkstreaming.clients.NetworkClientFactory
+import com.quantummpv.app.data.network.client.NetworkClientFactory
 import com.quantummpv.app.utils.media.M3UParser
 import com.quantummpv.app.utils.storage.FileTypeUtils
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -43,6 +43,9 @@ class NetworkBrowserViewModel(
   private val _files = MutableStateFlow<List<NetworkFile>>(emptyList())
   val files: StateFlow<List<NetworkFile>> = _files.asStateFlow()
 
+  private val _connection = MutableStateFlow<NetworkConnection?>(null)
+  val connection: StateFlow<NetworkConnection?> = _connection.asStateFlow()
+
   private val _isLoading = MutableStateFlow(false)
   val isLoading: StateFlow<Boolean> = _isLoading.asStateFlow()
 
@@ -63,6 +66,7 @@ class NetworkBrowserViewModel(
       try {
         val connection = repository.getConnectionById(connectionId)
           ?: throw Exception("Connection not found")
+        _connection.value = connection
 
         repository.listFiles(connection, currentPath)
           .onSuccess { fileList ->
@@ -240,7 +244,7 @@ class NetworkBrowserViewModel(
     useProxy: Boolean,
   ): Uri {
     return if (useProxy) {
-      val proxy = com.quantummpv.app.ui.browser.networkstreaming.proxy.NetworkStreamingProxy.getInstance()
+      val proxy = com.quantummpv.app.data.network.proxy.NetworkStreamingProxy.getInstance()
       val streamId = buildStableStreamId(file)
       val proxyUrl = proxy.registerStream(
         streamId = streamId,

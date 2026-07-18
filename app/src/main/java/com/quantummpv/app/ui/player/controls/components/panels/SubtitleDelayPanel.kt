@@ -1,5 +1,6 @@
 package com.quantummpv.app.ui.player.controls.components.panels
 
+
 import com.quantummpv.app.ui.icons.Icon
 import com.quantummpv.app.ui.icons.Icons
 
@@ -49,7 +50,6 @@ import com.quantummpv.app.ui.player.controls.panelCardsColors
 import com.quantummpv.app.ui.theme.spacing
 import `is`.xyz.mpv.MPVLib
 import kotlinx.coroutines.delay
-import org.koin.compose.koinInject
 import org.koin.compose.koinInject
 import kotlin.math.roundToInt
 

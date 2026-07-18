@@ -2,7 +2,7 @@ package com.quantummpv.app.utils.media
 
 import android.util.Log
 import com.quantummpv.app.repository.NetworkRepository
-import com.quantummpv.app.ui.browser.networkstreaming.proxy.NetworkStreamingProxy
+import com.quantummpv.app.data.network.proxy.NetworkStreamingProxy
 import `is`.xyz.mpv.MPVLib
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext

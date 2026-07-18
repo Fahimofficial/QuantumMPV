@@ -15,6 +15,10 @@ import com.quantummpv.app.preferences.PlayerPreferences
 import com.quantummpv.app.preferences.SubtitlesPreferences
 import com.quantummpv.app.preferences.YtdlPreferences
 import com.quantummpv.app.domain.anime4k.Anime4KManager
+import com.quantummpv.app.ui.player.anime4k.applyAnime4KShaderChain
+import com.quantummpv.app.ui.player.anime4k.applyAnime4KStabilityOptions
+import com.quantummpv.app.ui.player.anime4k.clearAnime4KShaders
+import com.quantummpv.app.ui.player.anime4k.selectRuntimeStableAnime4K
 import com.quantummpv.app.domain.hdr.HdrToysManager
 import com.quantummpv.app.ui.player.PlayerActivity.Companion.TAG
 import com.quantummpv.app.ui.player.ytdlp.YtdlpManager

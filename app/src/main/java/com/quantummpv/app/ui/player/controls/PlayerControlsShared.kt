@@ -1,5 +1,7 @@
 package com.quantummpv.app.ui.player.controls
 
+import androidx.compose.ui.unit.Dp
+
 import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
@@ -49,7 +51,6 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.style.TextOverflow
-import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.quantummpv.app.preferences.AdvancedPreferences
 import com.quantummpv.app.preferences.AudioPreferences

@@ -9,7 +9,7 @@ import android.os.ParcelFileDescriptor
 import android.provider.OpenableColumns
 import android.util.Log
 import com.quantummpv.app.domain.network.NetworkConnection
-import com.quantummpv.app.ui.browser.networkstreaming.clients.NetworkClientFactory
+import com.quantummpv.app.data.network.client.NetworkClientFactory
 import kotlinx.coroutines.runBlocking
 
 /**
@@ -22,7 +22,7 @@ class NetworkStreamingProvider : ContentProvider() {
     // Cache for active connections
     private val connectionCache = mutableMapOf<Long, NetworkConnection>()
     private val clientCache =
-      mutableMapOf<Long, com.quantummpv.app.ui.browser.networkstreaming.clients.NetworkClient>()
+      mutableMapOf<Long, com.quantummpv.app.data.network.client.NetworkClient>()
 
     fun getUri(context: android.content.Context, connectionId: Long, filePath: String): Uri {
       val authority = "${context.packageName}.networkstreaming"
