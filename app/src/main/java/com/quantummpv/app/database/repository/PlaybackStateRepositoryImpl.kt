@@ -1,11 +1,11 @@
 package com.quantummpv.app.database.repository
 
 import com.quantummpv.app.database.entities.PlaybackStateEntity
-import com.quantummpv.app.database.MpvRxDatabase
+import com.quantummpv.app.database.mpvRxDatabase
 import com.quantummpv.app.domain.playbackstate.repository.PlaybackStateRepository
 
 class PlaybackStateRepositoryImpl(
-  private val database: MpvRxDatabase,
+  private val database: mpvRxDatabase,
 ) : PlaybackStateRepository {
   override suspend fun upsert(playbackState: PlaybackStateEntity) {
     database.videoDataDao().upsert(playbackState)

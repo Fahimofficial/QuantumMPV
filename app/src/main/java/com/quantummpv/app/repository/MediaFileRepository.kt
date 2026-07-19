@@ -10,7 +10,7 @@ import com.quantummpv.app.domain.browser.PathComponent
 import com.quantummpv.app.domain.media.model.Video
 import com.quantummpv.app.domain.media.model.VideoFolder
 import com.quantummpv.app.domain.playbackstate.repository.PlaybackStateRepository
-import com.quantummpv.app.database.MpvRxDatabase
+import com.quantummpv.app.database.mpvRxDatabase
 import com.quantummpv.app.preferences.AppearancePreferences
 import com.quantummpv.app.preferences.BrowserPreferences
 import com.quantummpv.app.preferences.FoldersPreferences
@@ -50,7 +50,7 @@ object MediaFileRepository : KoinComponent {
   private val appearancePreferences: AppearancePreferences by inject()
   private val browserPreferences: BrowserPreferences by inject()
   private val playbackStateRepository: PlaybackStateRepository by inject()
-  private val database: MpvRxDatabase by inject()
+  private val database: mpvRxDatabase by inject()
 
   private fun currentScanOptions(includeAudioOverride: Boolean? = null): MediaScanOptions =
     MediaScanOptions(

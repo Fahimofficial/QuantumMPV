@@ -76,7 +76,7 @@ import androidx.compose.material3.Checkbox
 import androidx.compose.material3.TextButton
 import android.net.Uri
 import com.quantummpv.app.repository.subtitle.OnlineSubtitleSearchMode
-import com.quantummpv.app.repository.subtitlehub.MpvRxSubtitleHubSources
+import com.quantummpv.app.repository.subtitlehub.mpvRxSubtitleHubSources
 import com.quantummpv.app.repository.wyzie.WyzieLanguages
 import org.koin.compose.koinInject
 import java.io.File
@@ -459,11 +459,11 @@ object SubtitlesPreferencesScreen : Screen {
                   val summaryText = if (subtitleHubSources.isEmpty() || subtitleHubSources.contains("all")) {
                     stringResource(R.string.pref_all_sources)
                   } else {
-                    subtitleHubSources.mapNotNull { MpvRxSubtitleHubSources.ALL[it] }.joinToString(", ")
+                    subtitleHubSources.mapNotNull { mpvRxSubtitleHubSources.ALL[it] }.joinToString(", ")
                   }
                   Text(summaryText, color = MaterialTheme.colorScheme.outline)
                 },
-                values = MpvRxSubtitleHubSources.ALL,
+                values = mpvRxSubtitleHubSources.ALL,
                 selectedValues = subtitleHubSources,
                 onValuesChange = { preferences.subtitleHubSources.set(it) },
                 hasAllOption = true,

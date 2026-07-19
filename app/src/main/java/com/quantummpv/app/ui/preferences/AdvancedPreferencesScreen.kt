@@ -45,7 +45,7 @@ import androidx.core.net.toUri
 import androidx.documentfile.provider.DocumentFile
 import android.os.Build
 import com.quantummpv.app.R
-import com.quantummpv.app.database.MpvRxDatabase
+import com.quantummpv.app.database.mpvRxDatabase
 import com.quantummpv.app.domain.thumbnail.ThumbnailRepository
 import com.quantummpv.app.preferences.AdvancedPreferences
 import com.quantummpv.app.preferences.FoldersPreferences
@@ -525,7 +525,7 @@ object AdvancedPreferencesScreen : Screen {
           item {
             PreferenceCard {
               var isConfirmDialogShown by remember { mutableStateOf(false) }
-              val mpvrxDatabase = koinInject<MpvRxDatabase>()
+              val mpvrxDatabase = koinInject<mpvRxDatabase>()
               val enableRecentlyPlayed by preferences.enableRecentlyPlayed.collectAsState()
               var recentlyPlayedCount by remember { mutableStateOf(0) }
 

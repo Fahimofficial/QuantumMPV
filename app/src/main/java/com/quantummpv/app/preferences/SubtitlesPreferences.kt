@@ -5,7 +5,7 @@ import androidx.compose.ui.graphics.toArgb
 import com.quantummpv.app.preferences.preference.PreferenceStore
 import com.quantummpv.app.preferences.preference.getEnum
 import com.quantummpv.app.repository.subtitle.OnlineSubtitleSearchMode
-import com.quantummpv.app.repository.subtitlehub.MpvRxSubtitleHubSources
+import com.quantummpv.app.repository.subtitlehub.mpvRxSubtitleHubSources
 import com.quantummpv.app.ui.player.controls.components.panels.SubtitlesBorderStyle
 import com.quantummpv.app.ui.icons.AppIcon
 import com.quantummpv.app.ui.icons.Icons
@@ -49,7 +49,7 @@ class SubtitlesPreferences(
   val subdlLanguages = preferenceStore.getStringSet("subdl_languages", setOf("en"))
   val subtitleSearchLanguages = subdlLanguages
   val onlineSubtitleSearchMode = preferenceStore.getOnlineSubtitleSearchMode()
-  val subtitleHubSources = preferenceStore.getStringSet("subtitle_hub_sources", MpvRxSubtitleHubSources.DEFAULT)
+  val subtitleHubSources = preferenceStore.getStringSet("subtitle_hub_sources", mpvRxSubtitleHubSources.DEFAULT)
   
   val wyzieSources = preferenceStore.getStringSet("wyzie_sources", setOf("all"))
   val wyzieFormats = preferenceStore.getStringSet("wyzie_formats", setOf("srt", "ass"))

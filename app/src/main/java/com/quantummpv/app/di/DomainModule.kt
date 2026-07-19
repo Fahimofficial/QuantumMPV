@@ -6,7 +6,7 @@ import com.quantummpv.app.network.AndroidCookieJar
 import com.quantummpv.app.repository.IntroDbRepository
 import com.quantummpv.app.repository.subtitle.OnlineSubtitleFileStore
 import com.quantummpv.app.repository.subtitle.OnlineSubtitleOrchestrator
-import com.quantummpv.app.repository.subtitlehub.MpvRxSubtitleHubRepository
+import com.quantummpv.app.repository.subtitlehub.mpvRxSubtitleHubRepository
 import com.quantummpv.app.repository.wyzie.WyzieSearchRepository
 import com.quantummpv.app.repository.ai.AiClient
 import com.quantummpv.app.repository.ai.AiService
@@ -44,8 +44,8 @@ val domainModule = module {
     single { HdrToysManager(androidContext()) }
     single { OnlineSubtitleFileStore(androidContext(), get()) }
     single { WyzieSearchRepository(androidContext(), get(), get(), get(), get()) }
-    single { MpvRxSubtitleHubRepository(get(), get(), get(), get()) }
-    single { OnlineSubtitleOrchestrator(get<WyzieSearchRepository>(), get<MpvRxSubtitleHubRepository>()) }
+    single { mpvRxSubtitleHubRepository(get(), get(), get(), get()) }
+    single { OnlineSubtitleOrchestrator(get<WyzieSearchRepository>(), get<mpvRxSubtitleHubRepository>()) }
     single { IntroDbRepository(get(), get()) }
     single { OpenCodeClient(get(), get()) }
     single { GroqClient(get(), get()) }

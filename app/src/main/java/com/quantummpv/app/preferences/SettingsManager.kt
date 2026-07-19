@@ -4,7 +4,7 @@ import android.content.Context
 import android.net.Uri
 import android.util.Xml
 import com.quantummpv.app.BuildConfig
-import com.quantummpv.app.database.MpvRxDatabase
+import com.quantummpv.app.database.mpvRxDatabase
 import com.quantummpv.app.domain.network.NetworkConnection
 import com.quantummpv.app.domain.network.NetworkProtocol
 import com.quantummpv.app.preferences.preference.PreferenceStore
@@ -22,10 +22,10 @@ import java.util.Locale
 class SettingsManager(
   private val context: Context,
   private val preferenceStore: PreferenceStore,
-  private val database: MpvRxDatabase,
+  private val database: mpvRxDatabase,
 ) {
   companion object {
-    private const val TAG_ROOT = "MpvRxSettings"
+    private const val TAG_ROOT = "mpvRxSettings"
     private const val TAG_PREFERENCES = "preferences"
     private const val TAG_PREFERENCE = "preference"
     private const val TAG_DATABASE = "database"

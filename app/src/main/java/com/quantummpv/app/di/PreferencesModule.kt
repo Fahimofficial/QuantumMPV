@@ -1,6 +1,6 @@
 package com.quantummpv.app.di
 
-import com.quantummpv.app.database.MpvRxDatabase
+import com.quantummpv.app.database.mpvRxDatabase
 import com.quantummpv.app.preferences.AdvancedPreferences
 import com.quantummpv.app.preferences.AiPreferences
 import com.quantummpv.app.preferences.AppearancePreferences

@@ -4,7 +4,7 @@ import androidx.room.Room
 import androidx.room.RoomDatabase
 import androidx.room.migration.Migration
 import androidx.sqlite.db.SupportSQLiteDatabase
-import com.quantummpv.app.database.MpvRxDatabase
+import com.quantummpv.app.database.mpvRxDatabase
 import com.quantummpv.app.database.repository.PlaybackStateRepositoryImpl
 import com.quantummpv.app.database.repository.PlaylistRepository
 import com.quantummpv.app.database.repository.RecentlyPlayedRepositoryImpl
@@ -535,10 +535,10 @@ val DatabaseModule =
       }
     }
 
-    single<MpvRxDatabase> {
+    single<mpvRxDatabase> {
       val context = androidContext()
       Room
-        .databaseBuilder(context, MpvRxDatabase::class.java, "mpvrx.db")
+        .databaseBuilder(context, mpvRxDatabase::class.java, "mpvrx.db")
         .setJournalMode(RoomDatabase.JournalMode.WRITE_AHEAD_LOGGING)
         .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10)
         .fallbackToDestructiveMigration(true) // Fallback if migration fails (last resort)
@@ -548,7 +548,7 @@ val DatabaseModule =
     singleOf(::PlaybackStateRepositoryImpl).bind(PlaybackStateRepository::class)
 
     single<RecentlyPlayedRepository> {
-      RecentlyPlayedRepositoryImpl(get<MpvRxDatabase>().recentlyPlayedDao())
+      RecentlyPlayedRepositoryImpl(get<mpvRxDatabase>().recentlyPlayedDao())
     }
 
     single { ThumbnailRepository(androidContext()) }
@@ -556,14 +556,14 @@ val DatabaseModule =
     single {
       com.quantummpv.app.database.repository.VideoMetadataCacheRepository(
         context = androidContext(),
-        dao = get<MpvRxDatabase>().videoMetadataDao(),
+        dao = get<mpvRxDatabase>().videoMetadataDao(),
       )
     }
 
     // MediaFileRepository is a singleton object - no DI needed
 
     single {
-      get<MpvRxDatabase>().networkConnectionDao()
+      get<mpvRxDatabase>().networkConnectionDao()
     }
 
     single {
@@ -574,7 +574,7 @@ val DatabaseModule =
 
     single {
       PlaylistRepository(
-        playlistDao = get<MpvRxDatabase>().playlistDao(),
+        playlistDao = get<mpvRxDatabase>().playlistDao(),
       )
     }
   }
