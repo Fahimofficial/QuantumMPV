@@ -1436,4 +1436,19 @@ Bitte starten Sie die App neu, damit alle Änderungen wirksam werden.</string>
   <string name="filter_preset_soft_dreamy_anime_colors">Sanfte, verträumte Anime-Farben</string>
   <string name="filter_preset_vibrant_neon_like_colors_with_edge">Kräftige neonartige Farben mit markanter Wirkung</string>
   <string name="filter_preset_enhanced_blacks_for_oled_displays">Verbesserte Schwarztöne für OLED-Displays</string>
+  <string name="syncplay_title">Syncplay</string>
+  <string name="syncplay_open">Syncplay öffnen</string>
+  <string name="syncplay_connected_as">Als %1$s mit Raum %2$s verbunden</string>
+  <string name="syncplay_users_in_room">Benutzer im Raum:</string>
+  <string name="syncplay_disconnect">Trennen</string>
+  <string name="syncplay_server_host">Serveradresse</string>
+  <string name="syncplay_port">Port</string>
+  <string name="syncplay_username">Benutzername</string>
+  <string name="syncplay_room_name">Raumname</string>
+  <string name="syncplay_password_optional">Passwort (optional)</string>
+  <string name="syncplay_error">Fehler: %1$s</string>
+  <string name="syncplay_connection_failed">Verbindung fehlgeschlagen</string>
+  <string name="syncplay_connect">Verbinden</string>
+  <string name="syncplay_connecting">Verbindung wird hergestellt…</string>
+  <string name="syncplay_player_status">Syncplay: %1$s (%2$d Benutzer)</string>
 </resources>
