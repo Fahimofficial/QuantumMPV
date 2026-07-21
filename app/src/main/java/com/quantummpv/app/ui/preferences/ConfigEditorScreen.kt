@@ -38,7 +38,6 @@ import com.quantummpv.app.preferences.preference.collectAsState
 import com.quantummpv.app.presentation.Screen
 import com.quantummpv.app.ui.editor.MpvHelpScreen
 import com.quantummpv.app.ui.editor.MpvScriptEditor
-import com.quantummpv.app.ui.player.MpvConfigSanitizer
 import com.quantummpv.app.ui.utils.LocalBackStack
 import com.quantummpv.app.ui.utils.popSafely
 import kotlinx.coroutines.Dispatchers
@@ -96,9 +95,7 @@ data class ConfigEditorScreen(
           val tree       = DocumentFile.fromTreeUri(context, mpvConfStorageLocation.toUri())
           val configFile = tree?.findFile(fileName)
           if (configFile != null && configFile.exists()) {
-            context.contentResolver.openInputStream(configFile.uri)?.use { input ->
-              tempFile.outputStream().use { output -> input.copyTo(output) }
-            }
+            context.contentResolver.openInputStream(configFile.uri)?.copyTo(tempFile.outputStream())
             val content = tempFile.readLines().joinToString("\n")
             withContext(Dispatchers.Main) { configText = content }
           }
@@ -110,15 +107,11 @@ data class ConfigEditorScreen(
     fun saveConfig() {
       scope.launch(Dispatchers.IO) {
         try {
-          val validation =
-            if (configType == ConfigType.MPV_CONF) MpvConfigSanitizer.sanitize(configText)
-            else MpvConfigSanitizer.Result(configText, emptyList())
-          val contentToSave = validation.content
           when (configType) {
-            ConfigType.MPV_CONF   -> preferences.mpvConf.set(contentToSave)
-            ConfigType.INPUT_CONF -> preferences.inputConf.set(contentToSave)
+            ConfigType.MPV_CONF   -> preferences.mpvConf.set(configText)
+            ConfigType.INPUT_CONF -> preferences.inputConf.set(configText)
           }
-          File(context.filesDir, fileName).writeText(contentToSave)
+          File(context.filesDir, fileName).writeText(configText)
 
           if (mpvConfStorageLocation.isNotBlank()) {
             val tree = DocumentFile.fromTreeUri(context, mpvConfStorageLocation.toUri())
@@ -137,18 +130,14 @@ data class ConfigEditorScreen(
               return@launch
             }
             context.contentResolver.openOutputStream(uri, "wt")?.use { out ->
-              out.write(contentToSave.toByteArray())
+              out.write(configText.toByteArray())
               out.flush()
             }
           }
 
           withContext(Dispatchers.Main) {
-            configText = contentToSave
             hasUnsavedChanges = false
-            val message =
-              if (validation.warnings.isEmpty()) "$fileName saved"
-              else "$fileName saved; ${validation.warnings.size} incompatible option(s) disabled"
-            Toast.makeText(context, message, Toast.LENGTH_LONG).show()
+            Toast.makeText(context, "$fileName saved", Toast.LENGTH_SHORT).show()
             backStack.popSafely()
           }
         } catch (e: Exception) {
@@ -190,24 +179,6 @@ data class ConfigEditorScreen(
           }
         },
         actions = {
-          if (configType == ConfigType.MPV_CONF) {
-            IconButton(
-              onClick = {
-                val sanitized = MpvConfigSanitizer.sanitize(configText)
-                configText = sanitized.content
-                hasUnsavedChanges = hasUnsavedChanges || sanitized.warnings.isNotEmpty()
-                val message =
-                  if (sanitized.warnings.isEmpty()) "No known incompatible options found"
-                  else "Disabled ${sanitized.warnings.size} incompatible option(s)"
-                Toast.makeText(context, message, Toast.LENGTH_SHORT).show()
-              },
-            ) {
-              Icon(
-                imageVector = Icons.RoundedFilled.Clear,
-                contentDescription = androidx.compose.ui.res.stringResource(com.quantummpv.app.R.string.ui_reset_incompatible_configuration),
-              )
-            }
-          }
           IconButton(
             onClick = {
               backStack.add(MpvHelpScreen())

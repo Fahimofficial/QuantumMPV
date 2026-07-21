@@ -105,9 +105,7 @@ data class LuaScriptEditorScreen(
 
               val scriptFile = scriptsDir.findFile(scriptName)
               if (scriptFile != null && scriptFile.exists()) {
-                context.contentResolver.openInputStream(scriptFile.uri)?.use { input ->
-                  tempFile.outputStream().use { output -> input.copyTo(output) }
-                }
+                context.contentResolver.openInputStream(scriptFile.uri)?.copyTo(tempFile.outputStream())
                 val content = tempFile.readLines().joinToString("\n")
                 withContext(Dispatchers.Main) {
                   scriptContent = content
