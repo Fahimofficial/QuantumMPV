@@ -276,6 +276,12 @@
   <string name="pref_audio_volume_boost_cap">حد تعزيز مستوى الصوت</string>
   <string name="pref_advanced">متقدم</string>
   <string name="pref_advanced_summary">موقع الإعداد، mpv.conf</string>
+  <string name="pref_section_app_language">لغة التطبيق</string>
+  <string name="pref_app_language_title">اللغة</string>
+  <string name="pref_app_language_system_default">إعداد النظام الافتراضي</string>
+  <string name="pref_app_language_restart_title">إعادة التشغيل مطلوبة</string>
+  <string name="pref_app_language_restart_message">أعد تشغيل mpvRx لتطبيق اللغة الجديدة.</string>
+  <string name="pref_app_language_restart_now">إعادة التشغيل الآن</string>
   <string name="pref_advanced_mpv_conf_storage_location">اختيار موقع تخزين الإعدادات</string>
   <string name="pref_advanced_mpv_conf">تحرير mpv.conf</string>
   <string name="pref_advanced_input_conf">تحرير input.conf</string>

@@ -276,6 +276,12 @@ Siguiente: NEXT</string>
   <string name="pref_audio_volume_boost_cap">Límite de amplificación de volumen</string>
   <string name="pref_advanced">Avanzado</string>
   <string name="pref_advanced_summary">Ubicación de configuración, mpv.conf</string>
+  <string name="pref_section_app_language">Idioma de la aplicación</string>
+  <string name="pref_app_language_title">Idioma</string>
+  <string name="pref_app_language_system_default">Predeterminado del sistema</string>
+  <string name="pref_app_language_restart_title">Es necesario reiniciar</string>
+  <string name="pref_app_language_restart_message">Reinicia mpvRx para aplicar el nuevo idioma.</string>
+  <string name="pref_app_language_restart_now">Reiniciar ahora</string>
   <string name="pref_advanced_mpv_conf_storage_location">Elegir ubicación de almacenamiento de configuración</string>
   <string name="pref_advanced_mpv_conf">Editar mpv.conf</string>
   <string name="pref_advanced_input_conf">Editar input.conf</string>

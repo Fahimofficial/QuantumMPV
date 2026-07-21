@@ -268,6 +268,12 @@
   <string name="pref_audio_volume_boost_cap">Volume boost cap</string>
   <string name="pref_advanced">Advanced</string>
   <string name="pref_advanced_summary">Configuration location, mpv.conf</string>
+  <string name="pref_section_app_language">App language</string>
+  <string name="pref_app_language_title">Language</string>
+  <string name="pref_app_language_system_default">System default</string>
+  <string name="pref_app_language_restart_title">Restart required</string>
+  <string name="pref_app_language_restart_message">Restart mpvRx to apply the new language.</string>
+  <string name="pref_app_language_restart_now">Restart now</string>
   <string name="pref_advanced_mpv_conf_storage_location">Pick configuration storage location</string>
   <string name="pref_advanced_mpv_conf">Edit mpv.conf</string>
   <string name="pref_advanced_input_conf">Edit input.conf</string>

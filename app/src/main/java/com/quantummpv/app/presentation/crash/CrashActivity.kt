@@ -10,7 +10,6 @@ import android.content.ClipData
 import android.content.Intent
 import android.os.Build
 import android.os.Bundle
-import androidx.activity.ComponentActivity
 import androidx.activity.SystemBarStyle
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
@@ -55,6 +54,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.unit.dp
 import androidx.core.content.FileProvider
+import androidx.appcompat.app.AppCompatActivity
 import androidx.lifecycle.coroutineScope
 import com.quantummpv.app.BuildConfig
 import com.quantummpv.app.MainActivity
@@ -75,7 +75,7 @@ import java.io.BufferedReader
 import java.io.File
 import java.io.InputStreamReader
 
-class CrashActivity : ComponentActivity() {
+class CrashActivity : AppCompatActivity() {
   private var logcat: String = ""
   private val appearancePreferences: AppearancePreferences by inject()
 
