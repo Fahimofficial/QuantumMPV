@@ -1,5 +1,8 @@
 package com.quantummpv.app.ui.browser.videolist
 
+import androidx.compose.ui.res.stringResource
+import com.quantummpv.app.R
+
 
 import com.quantummpv.app.ui.icons.Icon
 import com.quantummpv.app.ui.icons.Icons
@@ -335,7 +338,7 @@ data class VideoListScreen(
         if (sortedVideosWithInfo.isNotEmpty()) {
           TooltipBox(
             positionProvider = TooltipDefaults.rememberTooltipPositionProvider(TooltipAnchorPosition.Above),
-            tooltip = { PlainTooltip { Text("Play recently played or first video") } },
+            tooltip = { PlainTooltip { Text(androidx.compose.ui.res.stringResource(com.quantummpv.app.R.string.ui_play_recently_played_or_first_video)) } },
             state = rememberTooltipState(),
           ) {
             FloatingActionButton(
@@ -362,7 +365,7 @@ data class VideoListScreen(
                 }
               },
             ) {
-              Icon(Icons.RoundedFilled.PlayArrow, contentDescription = "Play recently played or first video")
+              Icon(Icons.RoundedFilled.PlayArrow, contentDescription = androidx.compose.ui.res.stringResource(com.quantummpv.app.R.string.ui_play_recently_played_or_first_video))
             }
           }
         }
@@ -602,8 +605,7 @@ data class VideoListScreen(
         androidx.compose.material3.AlertDialog(
           onDismissRequest = { showPrivateSpaceCompletionDialog.value = false },
           title = {
-            Text(
-              text = "Moved to Private Space",
+            Text(text = androidx.compose.ui.res.stringResource(com.quantummpv.app.R.string.ui_moved_to_private_space),
               style = MaterialTheme.typography.headlineSmall,
             )
           },
@@ -619,7 +621,7 @@ data class VideoListScreen(
             androidx.compose.material3.Button(
               onClick = { showPrivateSpaceCompletionDialog.value = false },
             ) {
-              Text("Close")
+              Text(androidx.compose.ui.res.stringResource(com.quantummpv.app.R.string.ui_close))
             }
           },
         )
@@ -743,7 +745,7 @@ internal fun VideoListContent(
       ) {
         EmptyState(
           icon = Icons.RoundedFilled.VideoLibrary,
-          title = "No videos in this folder",
+          title = stringResource(R.string.ui_no_videos_in_folder),
           message = "Videos you add to this folder will appear here",
         )
       }

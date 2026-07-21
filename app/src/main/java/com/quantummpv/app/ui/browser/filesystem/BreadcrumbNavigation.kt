@@ -45,7 +45,7 @@ fun BreadcrumbNavigation(
       if (index > 0) {
         Icon(
           imageVector = Icons.RoundedFilled.ChevronRight,
-          contentDescription = "Separator",
+          contentDescription = androidx.compose.ui.res.stringResource(com.quantummpv.app.R.string.ui_separator),
           tint = MaterialTheme.colorScheme.onSurfaceVariant,
           modifier = Modifier.padding(horizontal = 4.dp),
         )

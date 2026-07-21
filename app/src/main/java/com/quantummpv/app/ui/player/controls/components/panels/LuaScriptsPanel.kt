@@ -1,5 +1,8 @@
 package com.quantummpv.app.ui.player.controls.components.panels
 
+import androidx.compose.ui.res.stringResource
+import com.quantummpv.app.R
+
 import com.quantummpv.app.ui.icons.Icon
 import com.quantummpv.app.ui.icons.Icons
 
@@ -80,8 +83,7 @@ fun LuaScriptsPanel(
             .padding(horizontal = MaterialTheme.spacing.medium)
             .padding(top = MaterialTheme.spacing.small),
       ) {
-        Text(
-          text = "Scripts (Lua / JS)",
+        Text(text = androidx.compose.ui.res.stringResource(com.quantummpv.app.R.string.pref_section_scripts),
           style = MaterialTheme.typography.titleLarge,
         )
         Spacer(Modifier.weight(1f))
@@ -112,13 +114,13 @@ fun LuaScriptsPanel(
         }
         mpvConfStorageLocation.isBlank() -> {
           LuaScriptsEmptyState(
-            title = "No MPV folder selected",
+            title = stringResource(R.string.lua_no_mpv_folder),
             summary = "Choose an MPV config folder in Advanced settings, then open this panel again to manage scripts.",
           )
         }
         catalog.availableScripts.isEmpty() -> {
           LuaScriptsEmptyState(
-            title = "No scripts found",
+            title = stringResource(R.string.lua_no_scripts_found),
             summary = "Put your .lua or .js files inside the MPV scripts folder to manage them here.",
           )
         }

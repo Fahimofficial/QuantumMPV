@@ -74,7 +74,7 @@ fun <T> OptionsDialog(
     confirmButton = {},
     dismissButton = {
       TextButton(onClick = onDismiss) {
-        Text(text = "Cancel")
+        Text(text = androidx.compose.ui.res.stringResource(com.quantummpv.app.R.string.generic_cancel))
       }
     },
     containerColor = MaterialTheme.colorScheme.surfaceContainerHigh,

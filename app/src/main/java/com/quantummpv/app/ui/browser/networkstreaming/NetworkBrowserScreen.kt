@@ -1,5 +1,8 @@
 package com.quantummpv.app.ui.browser.networkstreaming
 
+import androidx.compose.ui.res.stringResource
+import com.quantummpv.app.R
+
 import com.quantummpv.app.ui.icons.Icon
 import com.quantummpv.app.ui.icons.Icons
 
@@ -180,7 +183,7 @@ private fun NetworkBrowserContent(
       ) {
         EmptyState(
           icon = Icons.RoundedFilled.Folder,
-          title = "Error loading files",
+          title = stringResource(R.string.ui_error_loading_files),
           message = error,
         )
       }
@@ -193,7 +196,7 @@ private fun NetworkBrowserContent(
       ) {
         EmptyState(
           icon = Icons.RoundedFilled.Folder,
-          title = "Empty folder",
+          title = stringResource(R.string.ui_empty_folder),
           message = "This folder contains no files or directories",
         )
       }
@@ -254,8 +257,7 @@ private fun NetworkBrowserContent(
             // Folders section
             if (folders.isNotEmpty()) {
               item {
-                Text(
-                  text = "Folders",
+                Text(text = androidx.compose.ui.res.stringResource(com.quantummpv.app.R.string.pref_folders_title),
                   style = MaterialTheme.typography.titleMedium,
                   color = MaterialTheme.colorScheme.primary,
                   modifier = Modifier.padding(start = 16.dp, top = 8.dp, bottom = 8.dp),
@@ -276,8 +278,7 @@ private fun NetworkBrowserContent(
             // Videos section
             if (videos.isNotEmpty()) {
               item {
-                Text(
-                  text = "Videos",
+                Text(text = androidx.compose.ui.res.stringResource(com.quantummpv.app.R.string.ui_videos),
                   style = MaterialTheme.typography.titleMedium,
                   color = MaterialTheme.colorScheme.primary,
                   modifier = Modifier.padding(start = 16.dp, top = 16.dp, bottom = 8.dp),
