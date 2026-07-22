@@ -1,8 +1,11 @@
 package com.quantummpv.app.ui.preferences
 
+import android.content.Intent
+import android.net.Uri
 import com.quantummpv.app.ui.icons.Icon
 import com.quantummpv.app.ui.icons.Icons
 
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -19,13 +22,16 @@ import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalResources
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextDecoration
 import com.quantummpv.app.R
 import com.quantummpv.app.preferences.AudioChannels
 import com.quantummpv.app.preferences.AudioPreferences
+import com.quantummpv.app.preferences.AudioVisualizerStyle
 import com.quantummpv.app.preferences.BrowserPreferences
 import com.quantummpv.app.preferences.MediaLibraryType
 import com.quantummpv.app.preferences.preference.collectAsState
@@ -46,6 +52,7 @@ object AudioPreferencesScreen : Screen {
   @OptIn(ExperimentalMaterial3Api::class)
   @Composable
   override fun Content() {
+    val context = LocalContext.current
     val resources = LocalResources.current
     val backstack = LocalBackStack.current
     val preferences = koinInject<AudioPreferences>()
@@ -136,13 +143,50 @@ object AudioPreferencesScreen : Screen {
               SwitchPreference(
                 value = audioBlobEnabled,
                 onValueChange = { preferences.audioBlobEnabled.set(it) },
-                title = { Text(androidx.compose.ui.res.stringResource(com.quantummpv.app.R.string.ui_audio_blob_visualizer)) },
+                title = { Text(stringResource(R.string.pref_music_visualizer_title)) },
                 summary = {
-                  Text(androidx.compose.ui.res.stringResource(com.quantummpv.app.R.string.ui_show_opengl_blob_visualizer_when_playing_audio),
+                  Text(
+                    stringResource(R.string.pref_music_visualizer_summary),
                     color = MaterialTheme.colorScheme.outline,
                   )
                 },
               )
+
+              if (audioBlobEnabled) {
+                PreferenceDivider()
+                val audioVisualizerStyle by preferences.audioVisualizerStyle.collectAsState()
+                ListPreference(
+                  value = audioVisualizerStyle,
+                  onValueChange = { preferences.audioVisualizerStyle.set(it) },
+                  values = AudioVisualizerStyle.entries,
+                  valueToText = { AnnotatedString(resources.getString(it.title)) },
+                  title = { Text(stringResource(R.string.pref_audio_visualizer_style_title)) },
+                  summary = {
+                    Column {
+                      Text(
+                        stringResource(audioVisualizerStyle.title),
+                        color = MaterialTheme.colorScheme.outline,
+                      )
+                      if (audioVisualizerStyle == AudioVisualizerStyle.Galaxy) {
+                        Text(
+                          text = stringResource(R.string.pref_audio_visualizer_galaxy_credit),
+                          color = MaterialTheme.colorScheme.primary,
+                          style = MaterialTheme.typography.bodySmall,
+                          textDecoration = TextDecoration.Underline,
+                          modifier = Modifier.clickable {
+                            context.startActivity(
+                              Intent(
+                                Intent.ACTION_VIEW,
+                                Uri.parse("https://codepen.io/Zain-Raza-the-sasster/pen/ByBeKqa"),
+                              ),
+                            )
+                          },
+                        )
+                      }
+                    }
+                  },
+                )
+              }
 
               PreferenceDivider()
               val preferredLanguages by preferences.preferredLanguages.collectAsState()
