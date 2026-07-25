@@ -410,5 +410,17 @@ fun PlayerSheets(
         onDismissRequest = onDismissRequest
       )
     }
+
+    Sheets.Equalizer -> {
+      val equalizerState by viewModel.equalizerState.collectAsState()
+      com.quantummpv.app.ui.player.controls.components.sheets.EqualizerSheet(
+        state = equalizerState,
+        onEnabledChanged = viewModel::setEqualizerEnabled,
+        onPresetSelected = viewModel::applyEqualizerPreset,
+        onBandChanged = viewModel::setEqualizerBandGain,
+        onVolumeBoostChanged = viewModel::setEqualizerVolumeBoost,
+        onDismissRequest = onDismissRequest
+      )
+    }
   }
 }
