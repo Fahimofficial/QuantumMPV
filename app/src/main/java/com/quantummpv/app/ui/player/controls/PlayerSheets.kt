@@ -422,5 +422,13 @@ fun PlayerSheets(
         onDismissRequest = onDismissRequest
       )
     }
+
+    Sheets.AudioProperties -> {
+      val properties = remember { viewModel.getAudioPropertiesData() }
+      com.quantummpv.app.ui.player.controls.components.sheets.AudioPropertiesSheet(
+        properties = properties,
+        onDismissRequest = onDismissRequest
+      )
+    }
   }
 }
