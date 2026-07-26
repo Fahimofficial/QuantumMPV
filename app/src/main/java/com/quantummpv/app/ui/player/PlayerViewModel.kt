@@ -527,7 +527,7 @@ class PlayerViewModel(
 
   // Audio player UI state
   val albumArtBounds = MutableStateFlow<android.graphics.Rect?>(null)
-  val showVisualizerInAudioPlayer = MutableStateFlow(false)
+  val showVisualizerInAudioPlayer = MutableStateFlow(audioPreferences.audioBlobEnabled.get())
   val equalizerState = MutableStateFlow(EqualizerState())
   private val audioEqualizerManager = AudioEqualizerManager()
   private var equalizerMpvDebounceJob: Job? = null
@@ -621,7 +621,9 @@ class PlayerViewModel(
   }
 
   fun toggleAudioVisualizer() {
-    showVisualizerInAudioPlayer.value = !showVisualizerInAudioPlayer.value
+    val newValue = !showVisualizerInAudioPlayer.value
+    showVisualizerInAudioPlayer.value = newValue
+    audioPreferences.audioBlobEnabled.set(newValue)
   }
 
   fun getAudioPropertiesData(): List<com.quantummpv.app.ui.player.controls.components.sheets.AudioPropertyItem> {

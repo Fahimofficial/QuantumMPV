@@ -904,7 +904,7 @@ class PlayerActivity :
             viewModel.showControls()
             binding.player.visibility = View.INVISIBLE
             try {
-              WindowCompat.setDecorFitsSystemWindows(window, true)
+              WindowCompat.setDecorFitsSystemWindows(window, false)
               window.clearFlags(WindowManager.LayoutParams.FLAG_FULLSCREEN)
               binding.root.systemUiVisibility = View.SYSTEM_UI_FLAG_VISIBLE
               window.statusBarColor = android.graphics.Color.TRANSPARENT
@@ -4144,7 +4144,16 @@ class PlayerActivity :
    */
   private fun setOrientation() {
     if (isKnownAudioLaunch(intent) || viewModel.isAudioOnly.value) {
-      requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_SENSOR_PORTRAIT
+      val audioOrient = when (playerPreferences.orientation.get()) {
+        PlayerOrientation.Video, PlayerOrientation.Free -> ActivityInfo.SCREEN_ORIENTATION_SENSOR
+        PlayerOrientation.Portrait -> ActivityInfo.SCREEN_ORIENTATION_PORTRAIT
+        PlayerOrientation.ReversePortrait -> ActivityInfo.SCREEN_ORIENTATION_REVERSE_PORTRAIT
+        PlayerOrientation.SensorPortrait -> ActivityInfo.SCREEN_ORIENTATION_SENSOR_PORTRAIT
+        PlayerOrientation.Landscape -> ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE
+        PlayerOrientation.ReverseLandscape -> ActivityInfo.SCREEN_ORIENTATION_REVERSE_LANDSCAPE
+        PlayerOrientation.SensorLandscape -> ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE
+      }
+      requestedOrientation = audioOrient
       return
     }
     val orientationPref = playerPreferences.orientation.get()

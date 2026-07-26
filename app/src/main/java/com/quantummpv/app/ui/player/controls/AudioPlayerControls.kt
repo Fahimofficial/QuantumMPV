@@ -6,10 +6,18 @@ import android.media.MediaMetadataRetriever
 import android.net.Uri
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.Crossfade
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.togetherWith
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.interaction.collectIsPressedAsState
+import androidx.compose.ui.graphics.Shape
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import androidx.compose.ui.platform.LocalHapticFeedback
+import androidx.compose.ui.unit.Dp
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.Image
@@ -23,7 +31,11 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.aspectRatio
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.displayCutoutPadding
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.safeDrawing
+import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.navigationBarsPadding
@@ -60,7 +72,10 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.graphicsLayer
+import android.content.res.Configuration
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
@@ -183,11 +198,64 @@ fun AudioPlayerControls(
     return if (ext.length in 2..5 && ext.none { it.isWhitespace() }) substring(0, dotIndex) else this
   }
 
+  fun cleanSongTitle(title: String, artist: String?): String {
+    val titleWithoutExt = title.stripAudioExtension()
+    if (!artist.isNullOrBlank() && artist != "Unknown Artist") {
+      val prefixes = listOf("$artist - ", "$artist – ", "$artist — ", "$artist- ", "$artist : ")
+      for (prefix in prefixes) {
+        if (titleWithoutExt.startsWith(prefix, ignoreCase = true)) {
+          return titleWithoutExt.substring(prefix.length).trim()
+        }
+      }
+      val suffixes = listOf(" - $artist", " – $artist", " — $artist", " -$artist")
+      for (suffix in suffixes) {
+        if (titleWithoutExt.endsWith(suffix, ignoreCase = true)) {
+          return titleWithoutExt.substring(0, titleWithoutExt.length - suffix.length).trim()
+        }
+      }
+    }
+    return titleWithoutExt
+  }
+
   var lastValidTitle by remember { mutableStateOf(mediaTitle?.takeIf { it.isNotBlank() }?.stripAudioExtension() ?: "Audio Track") }
   LaunchedEffect(mediaTitle) {
     if (!mediaTitle.isNullOrBlank()) {
       lastValidTitle = mediaTitle.stripAudioExtension()
     }
+  }
+
+  val context = LocalContext.current
+  val rawArtist by MPVLib.propString["metadata/by-key/Artist"].collectAsState()
+  val rawArtistAlt by MPVLib.propString["metadata/artist"].collectAsState()
+  val rawAlbumArtist by MPVLib.propString["metadata/by-key/album_artist"].collectAsState()
+  val rawPerformer by MPVLib.propString["metadata/by-key/PERFORMER"].collectAsState()
+
+  var retrievedArtist by remember(mediaPath) { mutableStateOf<String?>(null) }
+  LaunchedEffect(mediaPath) {
+    if (!mediaPath.isNullOrBlank()) {
+      withContext(Dispatchers.IO) {
+        runCatching {
+          val retriever = MediaMetadataRetriever()
+          if (mediaPath.startsWith("content://")) {
+            retriever.setDataSource(context, Uri.parse(mediaPath))
+          } else {
+            retriever.setDataSource(mediaPath.removePrefix("file://"))
+          }
+          val art = retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_ARTIST)
+            ?: retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_ALBUMARTIST)
+            ?: retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_AUTHOR)
+            ?: retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_COMPOSER)
+          retriever.release()
+          art
+        }.getOrNull()?.let { retrievedArtist = it }
+      }
+    }
+  }
+
+  val displayArtist = remember(rawArtist, rawArtistAlt, rawAlbumArtist, rawPerformer, retrievedArtist) {
+    sequenceOf(rawArtist, rawArtistAlt, rawAlbumArtist, rawPerformer, retrievedArtist)
+      .filterNotNull()
+      .firstOrNull { it.isNotBlank() } ?: "Unknown Artist"
   }
 
   val audioPreferences = koinInject<AudioPreferences>()
@@ -227,24 +295,19 @@ fun AudioPlayerControls(
     if (showChapterIndicators) chapters.toImmutableList() else persistentListOf()
   }
 
+  val configuration = LocalConfiguration.current
+  val isPortrait = configuration.orientation == Configuration.ORIENTATION_PORTRAIT
+
   Box(
     modifier = modifier
       .fillMaxSize()
       .background(MaterialTheme.colorScheme.surface)
-      .statusBarsPadding()
-      .navigationBarsPadding()
-      .padding(start = 24.dp, end = 24.dp, top = 6.dp, bottom = 16.dp)
+      .windowInsetsPadding(WindowInsets.safeDrawing)
+      .padding(start = 16.dp, end = 16.dp, top = 6.dp, bottom = 12.dp)
   ) {
-    Column(
-      modifier = Modifier.fillMaxSize(),
-      horizontalAlignment = Alignment.CenterHorizontally,
-    ) {
-      // 1. Top Header Bar (Close on left, NOW PLAYING center, Info on top-right)
-      Box(
-        modifier = Modifier
-          .fillMaxWidth()
-      ) {
-        IconButton(
+    val headerBar = @Composable {
+      Box(modifier = Modifier.fillMaxWidth()) {
+        ReactiveIconButton(
           onClick = onBackPress,
           modifier = Modifier.align(Alignment.CenterStart)
         ) {
@@ -268,9 +331,7 @@ fun AudioPlayerControls(
           modifier = Modifier.align(Alignment.CenterEnd),
           verticalAlignment = Alignment.CenterVertically
         ) {
-          IconButton(
-            onClick = { onOpenSheet(Sheets.AudioProperties) }
-          ) {
+          ReactiveIconButton(onClick = { onOpenSheet(Sheets.AudioProperties) }) {
             Icon(
               imageVector = Icons.RoundedFilled.Info,
               contentDescription = stringResource(R.string.player_sheets_more_title),
@@ -280,9 +341,10 @@ fun AudioPlayerControls(
           }
         }
       }
+    }
 
+    val losslessBadge = @Composable {
       if (isLosslessCodecOrExt) {
-        Spacer(modifier = Modifier.height(4.dp))
         Surface(
           shape = RoundedCornerShape(4.dp),
           color = MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.6f),
@@ -300,15 +362,11 @@ fun AudioPlayerControls(
           )
         }
       }
+    }
 
-      Spacer(modifier = Modifier.height(16.dp))
-
-      // 2. Center View (Album Art Box OR Dynamic Visualizer Overlay)
+    val centerVisualizerView = @Composable { visualizerModifier: Modifier ->
       BoxWithConstraints(
-        modifier = Modifier
-          .weight(1f)
-          .fillMaxWidth()
-          .clipToBounds(),
+        modifier = visualizerModifier.clipToBounds(),
         contentAlignment = Alignment.Center
       ) {
         val maxW = maxWidth
@@ -324,7 +382,6 @@ fun AudioPlayerControls(
           modifier = Modifier.fillMaxSize(),
         ) { isVisualizerActive ->
           if (isVisualizerActive) {
-            // Dynamic, larger visualizer scaling dynamically according to screen size
             Box(
               modifier = Modifier
                 .fillMaxSize()
@@ -348,7 +405,6 @@ fun AudioPlayerControls(
               }
             }
           } else {
-            // Album Art Box Container
             val coverShape = RoundedCornerShape(32.dp)
             Box(
               modifier = Modifier.fillMaxSize(),
@@ -357,14 +413,9 @@ fun AudioPlayerControls(
               Surface(
                 modifier = Modifier
                   .aspectRatio(1f)
-                  .shadow(
-                    elevation = 24.dp,
-                    shape = coverShape,
-                    spotColor = MaterialTheme.colorScheme.scrim
-                  )
                   .clip(coverShape),
                 shape = coverShape,
-                color = MaterialTheme.colorScheme.surfaceContainer,
+                color = Color.Transparent,
               ) {
                 Crossfade(
                   targetState = albumArtBitmap,
@@ -377,18 +428,11 @@ fun AudioPlayerControls(
                       bitmap = currentBitmap.asImageBitmap(),
                       contentDescription = null,
                       contentScale = ContentScale.Crop,
-                      modifier = Modifier
-                        .fillMaxSize()
-                        .graphicsLayer {
-                          scaleX = 1.05f
-                          scaleY = 1.05f
-                        }
+                      modifier = Modifier.fillMaxSize()
                     )
                   } else {
                     Box(
-                      modifier = Modifier
-                        .fillMaxSize()
-                        .background(MaterialTheme.colorScheme.surfaceVariant),
+                      modifier = Modifier.fillMaxSize(),
                       contentAlignment = Alignment.Center
                     ) {
                       Icon(
@@ -405,24 +449,40 @@ fun AudioPlayerControls(
           }
         }
       }
+    }
 
-      Spacer(modifier = Modifier.height(16.dp))
-
-      // Track Title & Metadata
+    val trackMetadataView = @Composable {
       Column(
         modifier = Modifier.fillMaxWidth(),
         horizontalAlignment = Alignment.Start
       ) {
-        val titleText = lastValidTitle
+        val displayTitle = remember(lastValidTitle, displayArtist) {
+          cleanSongTitle(lastValidTitle, displayArtist)
+        }
+
+        // 1. Song Title Only
         Text(
-          text = titleText,
+          text = displayTitle,
           style = MaterialTheme.typography.headlineMedium.copy(fontWeight = FontWeight.ExtraBold),
           color = MaterialTheme.colorScheme.onSurface,
           maxLines = 1,
           overflow = TextOverflow.Ellipsis,
           modifier = Modifier.basicMarquee(iterations = Int.MAX_VALUE)
         )
-        Spacer(modifier = Modifier.height(4.dp))
+        Spacer(modifier = Modifier.height(2.dp))
+
+        // 2. Singer / Artist Name
+        Text(
+          text = displayArtist,
+          style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Medium),
+          color = MaterialTheme.colorScheme.onSurfaceVariant,
+          maxLines = 1,
+          overflow = TextOverflow.Ellipsis,
+          modifier = Modifier.basicMarquee(iterations = Int.MAX_VALUE)
+        )
+        Spacer(modifier = Modifier.height(2.dp))
+
+        // 3. Track Info | A-B Loop Control
         val playlistInfo = viewModel.getPlaylistInfo()
         val trackText = if (playlistInfo != null) "Track $playlistInfo" else "Audio Media"
 
@@ -432,19 +492,16 @@ fun AudioPlayerControls(
         ) {
           Text(
             text = trackText,
-            style = MaterialTheme.typography.titleMedium,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            style = MaterialTheme.typography.labelLarge,
+            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.75f),
             maxLines = 1,
             overflow = TextOverflow.Ellipsis
           )
-
           Text(
             text = "|",
-            style = MaterialTheme.typography.titleMedium,
+            style = MaterialTheme.typography.labelLarge,
             color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)
           )
-
-          // A-B Loop Control from video player
           AnimatedContent(
             targetState = abLoop.isExpanded,
             transitionSpec = {
@@ -461,10 +518,7 @@ fun AudioPlayerControls(
                 Surface(
                   shape = CircleShape,
                   color = if (abLoopA != null) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surfaceVariant,
-                  modifier = Modifier
-                    .height(30.dp)
-                    .clip(CircleShape)
-                    .clickable(onClick = { viewModel.setLoopA() }),
+                  modifier = Modifier.height(30.dp).clip(CircleShape).clickable(onClick = { viewModel.setLoopA() }),
                 ) {
                   Box(contentAlignment = Alignment.Center, modifier = Modifier.padding(horizontal = 10.dp)) {
                     Text(
@@ -474,35 +528,19 @@ fun AudioPlayerControls(
                     )
                   }
                 }
-
                 Surface(
                   shape = CircleShape,
                   color = MaterialTheme.colorScheme.surfaceVariant,
-                  modifier = Modifier
-                    .size(30.dp)
-                    .clip(CircleShape)
-                    .clickable(onClick = {
-                      viewModel.clearABLoop()
-                      viewModel.toggleABLoopExpanded()
-                    }),
+                  modifier = Modifier.size(30.dp).clip(CircleShape).clickable(onClick = { viewModel.clearABLoop(); viewModel.toggleABLoopExpanded() }),
                 ) {
                   Box(contentAlignment = Alignment.Center) {
-                    Icon(
-                      imageVector = Icons.RoundedFilled.Close,
-                      contentDescription = "Clear A-B Loop",
-                      tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                      modifier = Modifier.size(16.dp),
-                    )
+                    Icon(imageVector = Icons.RoundedFilled.Close, contentDescription = "Clear A-B Loop", tint = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.size(16.dp))
                   }
                 }
-
                 Surface(
                   shape = CircleShape,
                   color = if (abLoopB != null) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surfaceVariant,
-                  modifier = Modifier
-                    .height(30.dp)
-                    .clip(CircleShape)
-                    .clickable(onClick = { viewModel.setLoopB() }),
+                  modifier = Modifier.height(30.dp).clip(CircleShape).clickable(onClick = { viewModel.setLoopB() }),
                 ) {
                   Box(contentAlignment = Alignment.Center, modifier = Modifier.padding(horizontal = 10.dp)) {
                     Text(
@@ -517,9 +555,7 @@ fun AudioPlayerControls(
               Surface(
                 shape = CircleShape,
                 color = Color.Transparent,
-                modifier = Modifier
-                  .clip(CircleShape)
-                  .clickable(onClick = viewModel::toggleABLoopExpanded)
+                modifier = Modifier.clip(CircleShape).clickable(onClick = viewModel::toggleABLoopExpanded)
               ) {
                 AbLoopIcon(
                   modifier = Modifier.size(30.dp),
@@ -532,24 +568,17 @@ fun AudioPlayerControls(
           }
         }
       }
+    }
 
-      Spacer(modifier = Modifier.height(16.dp))
-
-      // 3. Audio Transport Controls (Video player seekbar component & style)
+    val seekbarView = @Composable {
       SeekbarWithTimers(
         position = currentPosSec,
         committedPosition = currentPosSec,
         duration = currentDurSec.coerceAtLeast(1f),
-        onValueChange = { value ->
-          viewModel.seekTo(value.toInt(), fast = true)
-        },
-        onValueChangeFinished = { targetPosition ->
-          viewModel.seekTo(targetPosition.toInt(), fast = false)
-        },
+        onValueChange = { value -> viewModel.seekTo(value.toInt(), fast = true) },
+        onValueChangeFinished = { targetPosition -> viewModel.seekTo(targetPosition.toInt(), fast = false) },
         timersInverted = Pair(false, invertDuration),
-        durationTimerOnCLick = {
-          playerPreferences.invertDuration.set(!invertDuration)
-        },
+        durationTimerOnCLick = { playerPreferences.invertDuration.set(!invertDuration) },
         positionTimerOnClick = {},
         chapters = seekbarChapters,
         skipSegments = persistentListOf(),
@@ -557,23 +586,19 @@ fun AudioPlayerControls(
         seekbarStyle = seekbarStyle,
         loopStart = abLoopA?.toFloat(),
         loopEnd = abLoopB?.toFloat(),
-        isPortrait = true,
+        isPortrait = isPortrait,
         applyHorizontalPadding = false,
         modifier = Modifier.fillMaxWidth()
       )
+    }
 
-      Spacer(modifier = Modifier.height(16.dp))
-
-      // Main Playback Controls Row (Skip Previous, Seek -30s, Play/Pause, Seek +30s, Skip Next)
+    val playbackControlsRow = @Composable {
       Row(
         modifier = Modifier.fillMaxWidth(),
         horizontalArrangement = Arrangement.SpaceEvenly,
         verticalAlignment = Alignment.CenterVertically,
       ) {
-        IconButton(
-          onClick = { viewModel.playPrevious() },
-          enabled = playlistModeEnabled
-        ) {
+        ReactiveIconButton(onClick = { viewModel.playPrevious() }, enabled = playlistModeEnabled) {
           Icon(
             imageVector = Icons.RoundedFilled.SkipPrevious,
             contentDescription = null,
@@ -581,21 +606,14 @@ fun AudioPlayerControls(
             modifier = Modifier.size(28.dp)
           )
         }
-
-        IconButton(onClick = { viewModel.seekBy(-30) }) {
-          Icon(
-            imageVector = Icons.RoundedFilled.FastRewind,
-            contentDescription = null,
-            tint = MaterialTheme.colorScheme.onSurface,
-            modifier = Modifier.size(34.dp)
-          )
+        ReactiveIconButton(onClick = { viewModel.seekBy(-30) }) {
+          Icon(imageVector = Icons.RoundedFilled.FastRewind, contentDescription = null, tint = MaterialTheme.colorScheme.onSurface, modifier = Modifier.size(34.dp))
         }
-
-        Surface(
+        ReactiveSurfaceButton(
           onClick = { viewModel.pauseUnpause() },
           shape = CircleShape,
           color = MaterialTheme.colorScheme.primary,
-          modifier = Modifier.size(76.dp),
+          modifier = Modifier.size(if (isPortrait) 76.dp else 64.dp),
           shadowElevation = 8.dp,
         ) {
           Box(contentAlignment = Alignment.Center, modifier = Modifier.fillMaxSize()) {
@@ -603,24 +621,14 @@ fun AudioPlayerControls(
               imageVector = if (isPlaying) Icons.RoundedFilled.Pause else Icons.RoundedFilled.PlayArrow,
               contentDescription = null,
               tint = MaterialTheme.colorScheme.onPrimary,
-              modifier = Modifier.size(38.dp)
+              modifier = Modifier.size(if (isPortrait) 44.dp else 36.dp)
             )
           }
         }
-
-        IconButton(onClick = { viewModel.seekBy(30) }) {
-          Icon(
-            imageVector = Icons.RoundedFilled.FastForward,
-            contentDescription = null,
-            tint = MaterialTheme.colorScheme.onSurface,
-            modifier = Modifier.size(34.dp)
-          )
+        ReactiveIconButton(onClick = { viewModel.seekBy(30) }) {
+          Icon(imageVector = Icons.RoundedFilled.FastForward, contentDescription = null, tint = MaterialTheme.colorScheme.onSurface, modifier = Modifier.size(34.dp))
         }
-
-        IconButton(
-          onClick = { viewModel.playNext() },
-          enabled = playlistModeEnabled
-        ) {
+        ReactiveIconButton(onClick = { viewModel.playNext() }, enabled = playlistModeEnabled) {
           Icon(
             imageVector = Icons.RoundedFilled.SkipNext,
             contentDescription = null,
@@ -629,96 +637,92 @@ fun AudioPlayerControls(
           )
         }
       }
+    }
 
-      Spacer(modifier = Modifier.height(24.dp))
-
-      // 4. Bottom Action Row (Equalizer on Left, Center Pill Bar, Playlist on Right)
+    val bottomActionRow = @Composable {
       Row(
         modifier = Modifier.fillMaxWidth(),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.SpaceBetween
       ) {
-        // Bottom Left: Equalizer Button
-        IconButton(
+        ReactiveIconButton(
           onClick = { onOpenSheet(Sheets.Equalizer) },
-          modifier = Modifier
-            .clip(CircleShape)
-            .background(MaterialTheme.colorScheme.surfaceContainerHigh.copy(alpha = 0.65f))
-            .size(48.dp)
+          modifier = Modifier.clip(CircleShape).background(MaterialTheme.colorScheme.surfaceContainerHigh.copy(alpha = 0.65f)).size(48.dp)
         ) {
           Box(contentAlignment = Alignment.Center, modifier = Modifier.fillMaxSize()) {
-            Icon(
-              imageVector = Icons.RoundedFilled.Equalizer,
-              contentDescription = "Equalizer",
-              tint = MaterialTheme.colorScheme.onSurface,
-              modifier = Modifier.size(24.dp)
-            )
+            Icon(imageVector = Icons.RoundedFilled.Equalizer, contentDescription = "Equalizer", tint = MaterialTheme.colorScheme.onSurface, modifier = Modifier.size(24.dp))
           }
         }
-
-        // Center Pill Bar (Shuffle, Repeat, Visualizer)
         Row(
-          modifier = Modifier
-            .clip(RoundedCornerShape(50))
-            .background(MaterialTheme.colorScheme.surfaceContainerHigh.copy(alpha = 0.65f))
-            .padding(horizontal = 12.dp, vertical = 4.dp),
+          modifier = Modifier.clip(RoundedCornerShape(50)).background(MaterialTheme.colorScheme.surfaceContainerHigh.copy(alpha = 0.65f)).padding(horizontal = 12.dp, vertical = 4.dp),
           verticalAlignment = Alignment.CenterVertically,
           horizontalArrangement = Arrangement.spacedBy(8.dp)
         ) {
-          IconButton(
-            onClick = viewModel::toggleShuffle,
-            enabled = playlistModeEnabled
-          ) {
-            Box(contentAlignment = Alignment.Center, modifier = Modifier.fillMaxSize()) {
-              Icon(
-                imageVector = if (shuffleEnabled) Icons.RoundedFilled.ShuffleOn else Icons.RoundedFilled.Shuffle,
-                contentDescription = null,
-                tint = if (shuffleEnabled) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
-              )
-            }
+          ReactiveIconButton(onClick = viewModel::toggleShuffle, enabled = playlistModeEnabled) {
+            Icon(imageVector = if (shuffleEnabled) Icons.RoundedFilled.ShuffleOn else Icons.RoundedFilled.Shuffle, contentDescription = null, tint = if (shuffleEnabled) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant)
           }
-
-          IconButton(onClick = viewModel::cycleRepeatMode) {
-            Box(contentAlignment = Alignment.Center, modifier = Modifier.fillMaxSize()) {
-              Icon(
-                imageVector = when (repeatMode) {
-                  RepeatMode.OFF -> Icons.RoundedFilled.Repeat
-                  RepeatMode.ONE -> Icons.RoundedFilled.RepeatOne
-                  RepeatMode.ALL -> Icons.RoundedFilled.RepeatOn
-                },
-                contentDescription = null,
-                tint = if (repeatMode != RepeatMode.OFF) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
-              )
-            }
-          }
-
-          IconButton(onClick = viewModel::toggleAudioVisualizer) {
-            Box(contentAlignment = Alignment.Center, modifier = Modifier.fillMaxSize()) {
-              Icon(
-                imageVector = if (showVisualizer) Icons.RoundedFilled.AutoAwesome else Icons.RoundedFilled.Audiotrack,
-                contentDescription = null,
-                tint = if (showVisualizer) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
-              )
-            }
-          }
-        }
-
-        // Bottom Right: Playlist Button
-        IconButton(
-          onClick = { onOpenSheet(Sheets.Playlist) },
-          modifier = Modifier
-            .clip(CircleShape)
-            .background(MaterialTheme.colorScheme.surfaceContainerHigh.copy(alpha = 0.65f))
-            .size(48.dp)
-        ) {
-          Box(contentAlignment = Alignment.Center, modifier = Modifier.fillMaxSize()) {
+          ReactiveIconButton(onClick = viewModel::cycleRepeatMode) {
             Icon(
-              imageVector = Icons.RoundedFilled.QueueMusic,
-              contentDescription = "Playlist",
-              tint = MaterialTheme.colorScheme.onSurface,
-              modifier = Modifier.size(24.dp)
+              imageVector = when (repeatMode) {
+                RepeatMode.OFF -> Icons.RoundedFilled.Repeat
+                RepeatMode.ONE -> Icons.RoundedFilled.RepeatOne
+                RepeatMode.ALL -> Icons.RoundedFilled.RepeatOn
+              },
+              contentDescription = null,
+              tint = if (repeatMode != RepeatMode.OFF) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
             )
           }
+          ReactiveIconButton(onClick = viewModel::toggleAudioVisualizer) {
+            Icon(imageVector = if (showVisualizer) Icons.RoundedFilled.AutoAwesome else Icons.RoundedFilled.Audiotrack, contentDescription = null, tint = if (showVisualizer) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant)
+          }
+        }
+        ReactiveIconButton(
+          onClick = { onOpenSheet(Sheets.Playlist) },
+          modifier = Modifier.clip(CircleShape).background(MaterialTheme.colorScheme.surfaceContainerHigh.copy(alpha = 0.65f)).size(48.dp)
+        ) {
+          Box(contentAlignment = Alignment.Center, modifier = Modifier.fillMaxSize()) {
+            Icon(imageVector = Icons.RoundedFilled.QueueMusic, contentDescription = "Playlist", tint = MaterialTheme.colorScheme.onSurface, modifier = Modifier.size(24.dp))
+          }
+        }
+      }
+    }
+
+    if (isPortrait) {
+      Column(
+        modifier = Modifier.fillMaxSize(),
+        horizontalAlignment = Alignment.CenterHorizontally,
+      ) {
+        headerBar()
+        losslessBadge()
+        Spacer(modifier = Modifier.height(16.dp))
+        centerVisualizerView(Modifier.weight(1f).fillMaxWidth())
+        Spacer(modifier = Modifier.height(16.dp))
+        trackMetadataView()
+        Spacer(modifier = Modifier.height(16.dp))
+        seekbarView()
+        Spacer(modifier = Modifier.height(16.dp))
+        playbackControlsRow()
+        Spacer(modifier = Modifier.height(24.dp))
+        bottomActionRow()
+      }
+    } else {
+      Row(
+        modifier = Modifier.fillMaxSize(),
+        horizontalArrangement = Arrangement.spacedBy(24.dp),
+        verticalAlignment = Alignment.CenterVertically,
+      ) {
+        centerVisualizerView(Modifier.weight(1f).fillMaxHeight())
+        Column(
+          modifier = Modifier.weight(1.2f).fillMaxHeight(),
+          verticalArrangement = Arrangement.SpaceBetween,
+          horizontalAlignment = Alignment.CenterHorizontally,
+        ) {
+          headerBar()
+          losslessBadge()
+          trackMetadataView()
+          seekbarView()
+          playbackControlsRow()
+          bottomActionRow()
         }
       }
     }
@@ -734,5 +738,77 @@ private fun formatSec(totalSeconds: Long): String {
     String.format(Locale.US, "%d:%02d:%02d", hours, minutes, remainingSecs)
   } else {
     String.format(Locale.US, "%d:%02d", minutes, remainingSecs)
+  }
+}
+
+@Composable
+private fun ReactiveIconButton(
+  onClick: () -> Unit,
+  modifier: Modifier = Modifier,
+  enabled: Boolean = true,
+  content: @Composable () -> Unit,
+) {
+  val interactionSource = remember { MutableInteractionSource() }
+  val isPressed by interactionSource.collectIsPressedAsState()
+  val haptic = LocalHapticFeedback.current
+
+  val scale by animateFloatAsState(
+    targetValue = if (isPressed) 0.82f else 1f,
+    animationSpec = spring(dampingRatio = 0.55f, stiffness = 900f),
+    label = "reactive_icon_button_scale",
+  )
+
+  IconButton(
+    onClick = {
+      haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+      onClick()
+    },
+    enabled = enabled,
+    interactionSource = interactionSource,
+    modifier = modifier.graphicsLayer {
+      scaleX = scale
+      scaleY = scale
+    },
+  ) {
+    content()
+  }
+}
+
+@Composable
+private fun ReactiveSurfaceButton(
+  onClick: () -> Unit,
+  modifier: Modifier = Modifier,
+  shape: Shape = CircleShape,
+  color: Color = MaterialTheme.colorScheme.primary,
+  shadowElevation: Dp = 0.dp,
+  enabled: Boolean = true,
+  content: @Composable () -> Unit,
+) {
+  val interactionSource = remember { MutableInteractionSource() }
+  val isPressed by interactionSource.collectIsPressedAsState()
+  val haptic = LocalHapticFeedback.current
+
+  val scale by animateFloatAsState(
+    targetValue = if (isPressed) 0.88f else 1f,
+    animationSpec = spring(dampingRatio = 0.55f, stiffness = 900f),
+    label = "reactive_surface_button_scale",
+  )
+
+  Surface(
+    onClick = {
+      haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+      onClick()
+    },
+    shape = shape,
+    color = color,
+    shadowElevation = shadowElevation,
+    enabled = enabled,
+    interactionSource = interactionSource,
+    modifier = modifier.graphicsLayer {
+      scaleX = scale
+      scaleY = scale
+    },
+  ) {
+    content()
   }
 }
