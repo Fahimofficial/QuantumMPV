@@ -530,10 +530,11 @@ class PlayerViewModel(
   val showVisualizerInAudioPlayer = MutableStateFlow(false)
   val equalizerState = MutableStateFlow(EqualizerState())
   private val audioEqualizerManager = AudioEqualizerManager()
+  private var equalizerMpvDebounceJob: Job? = null
 
   fun setEqualizerEnabled(enabled: Boolean) {
     equalizerState.value = equalizerState.value.copy(isEnabled = enabled)
-    applyEqualizerMpvFilters()
+    applyEqualizerMpvFilters(immediate = true)
   }
 
   fun applyEqualizerPreset(preset: EqualizerPreset) {
@@ -542,27 +543,29 @@ class PlayerViewModel(
       currentPreset = preset,
       bandGains = preset.gains
     )
-    applyEqualizerMpvFilters()
+    applyEqualizerMpvFilters(immediate = true)
   }
 
   fun setEqualizerBandGain(index: Int, gainDb: Int) {
     val currentGains = equalizerState.value.bandGains.toMutableList()
-    if (index in currentGains.indices) {
+    if (index in currentGains.indices && currentGains[index] != gainDb) {
       currentGains[index] = gainDb.coerceIn(EQ_MIN_DB, EQ_MAX_DB)
       equalizerState.value = equalizerState.value.copy(
         currentPreset = EqualizerPreset.CUSTOM,
         bandGains = currentGains
       )
-      applyEqualizerMpvFilters()
+      applyEqualizerMpvFilters(immediate = false)
     }
   }
 
   fun setEqualizerVolumeBoost(db: Int) {
-    equalizerState.value = equalizerState.value.copy(volumeBoostDb = db.coerceIn(0, 10))
-    applyEqualizerMpvFilters()
+    if (equalizerState.value.volumeBoostDb != db) {
+      equalizerState.value = equalizerState.value.copy(volumeBoostDb = db.coerceIn(0, 10))
+      applyEqualizerMpvFilters(immediate = false)
+    }
   }
 
-  fun applyEqualizerMpvFilters() {
+  fun applyEqualizerMpvFilters(immediate: Boolean = false) {
     val state = equalizerState.value
 
     // 1. Hardware Android AudioFx (Equalizer & LoudnessEnhancer matching AFinity)
@@ -573,6 +576,20 @@ class PlayerViewModel(
     )
 
     // 2. MPV Audio Filter Fallback
+    // Changing MPV "af" filter property during playback causes MPV to recreate audio filter graph.
+    // Debouncing while dragging prevents audio stutter/breaking.
+    equalizerMpvDebounceJob?.cancel()
+    if (immediate) {
+      updateMpvAfProperty(state)
+    } else {
+      equalizerMpvDebounceJob = viewModelScope.launch(Dispatchers.Default) {
+        delay(150)
+        updateMpvAfProperty(state)
+      }
+    }
+  }
+
+  private fun updateMpvAfProperty(state: EqualizerState) {
     if (!state.isEnabled) {
       MPVLib.setPropertyString("af", "")
       return

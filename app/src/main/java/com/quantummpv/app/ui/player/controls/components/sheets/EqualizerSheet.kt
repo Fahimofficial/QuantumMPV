@@ -29,8 +29,13 @@ import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableFloatStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.scale
 import androidx.compose.ui.graphics.Color
@@ -153,6 +158,7 @@ fun EqualizerSheet(
           PresetChip(
             preset = preset,
             isSelected = preset == state.currentPreset,
+            isEnabled = state.isEnabled,
             onClick = if (preset != EqualizerPreset.CUSTOM) {
               { onPresetSelected(preset) }
             } else null,
@@ -192,25 +198,34 @@ fun EqualizerSheet(
         Text(
           text = "VOLUME BOOST",
           style = MaterialTheme.typography.labelMedium,
-          color = MaterialTheme.colorScheme.onSurfaceVariant,
+          color = if (state.isEnabled) MaterialTheme.colorScheme.onSurfaceVariant
+          else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.38f),
           letterSpacing = 2.sp,
           fontWeight = FontWeight.SemiBold,
         )
         Text(
           text = if (state.volumeBoostDb > 0) "+${state.volumeBoostDb} dB" else "Off",
           style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold),
-          color = if (state.volumeBoostDb > 0) MaterialTheme.colorScheme.primary
-          else MaterialTheme.colorScheme.onSurfaceVariant,
+          color = if (state.isEnabled) {
+            if (state.volumeBoostDb > 0) MaterialTheme.colorScheme.primary
+            else MaterialTheme.colorScheme.onSurfaceVariant
+          } else {
+            MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.38f)
+          },
         )
       }
 
       Spacer(modifier = Modifier.height(8.dp))
 
+      var volumeBoostValue by remember(state.volumeBoostDb) { mutableFloatStateOf(state.volumeBoostDb.toFloat()) }
       Slider(
-        value = state.volumeBoostDb.toFloat(),
-        onValueChange = { onVolumeBoostChanged(it.roundToInt()) },
+        value = volumeBoostValue,
+        onValueChange = { newValue ->
+          volumeBoostValue = newValue
+          onVolumeBoostChanged(newValue.roundToInt())
+        },
         valueRange = 0f..10f,
-        steps = 9,
+        enabled = state.isEnabled,
         modifier = Modifier.fillMaxWidth(),
       )
 
@@ -221,12 +236,14 @@ fun EqualizerSheet(
         Text(
           text = "0 dB",
           style = MaterialTheme.typography.labelSmall,
-          color = MaterialTheme.colorScheme.onSurfaceVariant,
+          color = if (state.isEnabled) MaterialTheme.colorScheme.onSurfaceVariant
+          else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.38f),
         )
         Text(
           text = "+10 dB",
           style = MaterialTheme.typography.labelSmall,
-          color = MaterialTheme.colorScheme.onSurfaceVariant,
+          color = if (state.isEnabled) MaterialTheme.colorScheme.onSurfaceVariant
+          else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.38f),
         )
       }
     }
@@ -237,11 +254,13 @@ fun EqualizerSheet(
 private fun PresetChip(
   preset: EqualizerPreset,
   isSelected: Boolean,
+  isEnabled: Boolean,
   onClick: (() -> Unit)?,
 ) {
   Box(
     contentAlignment = Alignment.Center,
     modifier = Modifier
+      .alpha(if (isEnabled) 1f else 0.38f)
       .clip(RoundedCornerShape(50))
       .background(
         if (isSelected) MaterialTheme.colorScheme.primaryContainer
@@ -255,7 +274,7 @@ private fun PresetChip(
         ),
         RoundedCornerShape(50),
       )
-      .then(if (onClick != null) Modifier.clickable(onClick = onClick) else Modifier)
+      .then(if (isEnabled && onClick != null) Modifier.clickable(onClick = onClick) else Modifier)
       .padding(horizontal = 16.dp, vertical = 8.dp),
   ) {
     Text(
@@ -275,11 +294,14 @@ private fun BandColumn(
   onGainChanged: (Int) -> Unit,
   modifier: Modifier = Modifier,
 ) {
+  var sliderValue by remember(gainDb) { mutableFloatStateOf(gainDb.toFloat()) }
+
   Column(
     modifier = modifier.fillMaxHeight(),
     horizontalAlignment = Alignment.CenterHorizontally,
   ) {
-    val gainText = if (gainDb > 0) "+$gainDb" else "$gainDb"
+    val displayGain = sliderValue.roundToInt()
+    val gainText = if (displayGain > 0) "+$displayGain" else "$displayGain"
     Text(
       text = gainText,
       style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold),
@@ -289,8 +311,11 @@ private fun BandColumn(
     )
 
     Slider(
-      value = gainDb.toFloat(),
-      onValueChange = { onGainChanged(it.roundToInt()) },
+      value = sliderValue,
+      onValueChange = { newValue ->
+        sliderValue = newValue
+        onGainChanged(newValue.roundToInt())
+      },
       valueRange = EQ_MIN_DB.toFloat()..EQ_MAX_DB.toFloat(),
       enabled = isEnabled,
       modifier = Modifier
