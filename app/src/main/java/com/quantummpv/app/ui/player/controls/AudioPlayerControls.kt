@@ -106,7 +106,9 @@ import kotlinx.collections.immutable.persistentListOf
 import kotlinx.collections.immutable.toImmutableList
 import org.koin.compose.koinInject
 import com.quantummpv.app.ui.player.visualizer.GalaxyOverlay
+import com.quantummpv.app.ui.theme.AppTheme
 import com.quantummpv.app.ui.theme.DarkMode
+import com.quantummpv.app.ui.player.visualizer.VisualizerPalette
 import `is`.xyz.mpv.MPVLib
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -270,8 +272,19 @@ fun AudioPlayerControls(
     DarkMode.Light -> false
     DarkMode.System -> isSystemInDarkTheme()
   }
-  val palette = remember(appTheme, useDarkTheme, amoledMode) {
-    appTheme.toVisualizerPalette(useDarkTheme = useDarkTheme, amoledMode = amoledMode)
+  val colorScheme = MaterialTheme.colorScheme
+  val palette = remember(appTheme, useDarkTheme, amoledMode, colorScheme) {
+    if (appTheme == AppTheme.Dynamic) {
+      VisualizerPalette(
+        background = colorScheme.surface.toArgb(),
+        primary = colorScheme.primary.toArgb(),
+        secondary = colorScheme.secondary.toArgb(),
+        tertiary = colorScheme.tertiary.toArgb(),
+      )
+    } else {
+      appTheme.toVisualizerPalette(useDarkTheme = useDarkTheme, amoledMode = amoledMode)
+        .copy(background = colorScheme.surface.toArgb())
+    }
   }
 
   val isPlaying = paused == false
