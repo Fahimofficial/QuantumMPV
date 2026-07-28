@@ -37,6 +37,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextDecoration
 import com.quantummpv.app.R
 import com.quantummpv.app.preferences.AudioChannels
+import com.quantummpv.app.preferences.AudioPlayerOrientation
 import com.quantummpv.app.preferences.AudioPreferences
 import com.quantummpv.app.preferences.AudioVisualizerStyle
 import com.quantummpv.app.preferences.BrowserPreferences
@@ -198,6 +199,22 @@ object AudioPreferencesScreen : Screen {
                   },
                 )
               }
+
+              PreferenceDivider()
+              val audioOrientation by preferences.audioOrientation.collectAsState()
+              ListPreference(
+                value = audioOrientation,
+                onValueChange = { preferences.audioOrientation.set(it) },
+                values = AudioPlayerOrientation.entries,
+                valueToText = { AnnotatedString(resources.getString(it.titleRes)) },
+                title = { Text(stringResource(R.string.pref_audio_orientation_title)) },
+                summary = {
+                  Text(
+                    stringResource(audioOrientation.titleRes),
+                    color = MaterialTheme.colorScheme.outline,
+                  )
+                },
+              )
 
               PreferenceDivider()
               val preferredLanguages by preferences.preferredLanguages.collectAsState()
