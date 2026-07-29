@@ -100,6 +100,7 @@ import com.quantummpv.app.preferences.preference.collectAsState
 import com.quantummpv.app.ui.icons.Icon
 import com.quantummpv.app.ui.icons.Icons
 import com.quantummpv.app.ui.player.Panels
+import com.quantummpv.app.ui.player.PlayerActivity
 import com.quantummpv.app.ui.player.PlayerViewModel
 import com.quantummpv.app.ui.player.RepeatMode
 import com.quantummpv.app.ui.player.Sheets
@@ -272,6 +273,7 @@ fun AudioPlayerControls(
   val audioPreferences = koinInject<AudioPreferences>()
   val appearancePreferences = koinInject<AppearancePreferences>()
   val audioVisualizerStyle by audioPreferences.audioVisualizerStyle.collectAsState()
+  val backgroundPlaybackEnabled by audioPreferences.backgroundPlayback.collectAsState()
   val appTheme by appearancePreferences.appTheme.collectAsState()
   val darkMode by appearancePreferences.darkMode.collectAsState()
   val amoledMode by appearancePreferences.amoledMode.collectAsState()
@@ -696,6 +698,20 @@ fun AudioPlayerControls(
           }
           ReactiveIconButton(onClick = viewModel::toggleAudioVisualizer) {
             Icon(imageVector = if (showVisualizer) Icons.RoundedFilled.AutoAwesome else Icons.RoundedFilled.Audiotrack, contentDescription = null, tint = if (showVisualizer) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant)
+          }
+          ReactiveIconButton(onClick = {
+            val act = context as? PlayerActivity
+            if (act != null) {
+              act.toggleBackgroundPlayback()
+            } else {
+              audioPreferences.backgroundPlayback.set(!backgroundPlaybackEnabled)
+            }
+          }) {
+            Icon(
+              imageVector = Icons.RoundedFilled.Headset,
+              contentDescription = stringResource(R.string.btn_label_background_playback),
+              tint = if (backgroundPlaybackEnabled) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
+            )
           }
         }
         ReactiveIconButton(
