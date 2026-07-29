@@ -7,11 +7,6 @@
 
 package com.quantummpv.app.ui.player.controls.components.panels
 
-import androidx.compose.ui.res.stringResource
-
-import com.quantummpv.app.ui.icons.Icon
-import com.quantummpv.app.ui.icons.Icons
-
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
@@ -30,10 +25,13 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import com.quantummpv.app.preferences.DecoderPreferences
 import com.quantummpv.app.preferences.preference.collectAsState
 import com.quantummpv.app.presentation.components.ExpandableCard
+import com.quantummpv.app.ui.icons.Icon
+import com.quantummpv.app.ui.icons.Icons
 import com.quantummpv.app.ui.player.FilterPreset
 import com.quantummpv.app.ui.player.controls.CARDS_MAX_WIDTH
 import com.quantummpv.app.ui.player.controls.panelCardsColors
@@ -56,16 +54,17 @@ fun VideoSettingsFilterPresetsCard(modifier: Modifier = Modifier) {
   val sharpness by decoderPreferences.sharpnessFilter.collectAsState()
 
   // Find matching preset based on current filter values
-  val currentPreset = FilterPreset.entries.find { preset ->
-    preset.brightness == brightness &&
-      preset.saturation == saturation &&
-      preset.contrast == contrast &&
-      preset.gamma == gamma &&
-      preset.hue == hue &&
-      preset.sharpness == sharpness
-  } ?: FilterPreset.NONE.takeIf {
-    brightness == 0 && saturation == 0 && contrast == 0 && gamma == 0 && hue == 0 && sharpness == 0
-  }
+  val currentPreset =
+    FilterPreset.entries.find { preset ->
+      preset.brightness == brightness &&
+        preset.saturation == saturation &&
+        preset.contrast == contrast &&
+        preset.gamma == gamma &&
+        preset.hue == hue &&
+        preset.sharpness == sharpness
+    } ?: FilterPreset.NONE.takeIf {
+      brightness == 0 && saturation == 0 && contrast == 0 && gamma == 0 && hue == 0 && sharpness == 0
+    }
 
   ExpandableCard(
     isExpanded = isExpanded,
@@ -75,7 +74,10 @@ fun VideoSettingsFilterPresetsCard(modifier: Modifier = Modifier) {
         horizontalArrangement = Arrangement.spacedBy(MaterialTheme.spacing.medium),
       ) {
         Icon(Icons.RoundedFilled.AutoAwesome, null)
-        Text(androidx.compose.ui.res.stringResource(com.quantummpv.app.R.string.ui_filter_presets))
+        Text(
+          androidx.compose.ui.res
+            .stringResource(com.quantummpv.app.R.string.ui_filter_presets),
+        )
       }
     },
     colors = panelCardsColors(),
@@ -130,7 +132,3 @@ fun VideoSettingsFilterPresetsCard(modifier: Modifier = Modifier) {
     }
   }
 }
-
-
-
-

@@ -7,9 +7,6 @@
 
 package com.quantummpv.app.ui.player.controls.components.sheets
 
-import com.quantummpv.app.ui.icons.Icon
-import com.quantummpv.app.ui.icons.Icons
-
 import android.net.Uri
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -27,6 +24,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import com.quantummpv.app.R
+import com.quantummpv.app.ui.icons.Icon
+import com.quantummpv.app.ui.icons.Icons
 import com.quantummpv.app.ui.player.TrackNode
 import com.quantummpv.app.ui.theme.spacing
 

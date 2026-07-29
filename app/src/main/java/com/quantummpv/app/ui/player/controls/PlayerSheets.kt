@@ -14,32 +14,32 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import com.quantummpv.app.preferences.preference.collectAsState
 import com.quantummpv.app.ui.player.Decoder
 import com.quantummpv.app.ui.player.Panels
 import com.quantummpv.app.ui.player.Sheets
 import com.quantummpv.app.ui.player.TrackNode
-import com.quantummpv.app.ui.player.setTrackSelectionId
+import com.quantummpv.app.ui.player.controls.components.sheets.AmbientSheet
 import com.quantummpv.app.ui.player.controls.components.sheets.AspectRatioSheet
 import com.quantummpv.app.ui.player.controls.components.sheets.AudioTracksSheet
 import com.quantummpv.app.ui.player.controls.components.sheets.ChaptersSheet
 import com.quantummpv.app.ui.player.controls.components.sheets.DecodersSheet
 import com.quantummpv.app.ui.player.controls.components.sheets.FrameNavigationSheet
 import com.quantummpv.app.ui.player.controls.components.sheets.MoreSheet
+import com.quantummpv.app.ui.player.controls.components.sheets.OnlineSubtitleSearchSheet
 import com.quantummpv.app.ui.player.controls.components.sheets.PlaybackSpeedSheet
 import com.quantummpv.app.ui.player.controls.components.sheets.PlaylistSheet
 import com.quantummpv.app.ui.player.controls.components.sheets.SubtitlesSheet
-import com.quantummpv.app.ui.player.controls.components.sheets.OnlineSubtitleSearchSheet
 import com.quantummpv.app.ui.player.controls.components.sheets.VideoZoomSheet
-import com.quantummpv.app.ui.player.controls.components.sheets.AmbientSheet
+import com.quantummpv.app.ui.player.setTrackSelectionId
 import dev.vivvvek.seeker.Segment
 import kotlinx.collections.immutable.ImmutableList
 import kotlinx.collections.immutable.toImmutableList
 import org.koin.compose.koinInject
 import androidx.compose.runtime.collectAsState as composeCollectAsState
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
 
 @Composable
 fun PlayerSheets(
@@ -94,43 +94,46 @@ fun PlayerSheets(
       val savedPickerPath = subtitlesPreferences.pickerPath.get()
 
       val currentMediaTitle = viewModel.currentMediaTitle
-      val matchToName = if (currentMediaTitle.isNotBlank()) {
+      val matchToName =
+        if (currentMediaTitle.isNotBlank()) {
           // Remove extension if present to improve matching
           currentMediaTitle.substringBeforeLast(".")
-      } else null
+        } else {
+          null
+        }
 
       var showFilePicker by remember { mutableStateOf(false) }
 
       if (showFilePicker) {
-          com.quantummpv.app.ui.browser.dialogs.FilePickerDialog(
-              isOpen = true,
-              currentPath = savedPickerPath,
-              onDismiss = { showFilePicker = false },
-              onPathChanged = { path ->
-                  if (path != null) {
-                      subtitlesPreferences.pickerPath.set(path)
-                  }
-              },
-              onFileSelected = { path ->
-                  showFilePicker = false
-                   onAddSubtitle(Uri.parse("file://$path"))
-              },
-              onSystemPickerRequest = {
-                  showFilePicker = false
-                  subtitlesPicker.launch(
-                    arrayOf(
-                      "text/plain",
-                      "text/srt",
-                      "text/vtt",
-                      "application/x-subrip",
-                      "application/x-subtitle",
-                      "text/x-ssa",
-                      "*/*",
-                    ),
-                  )
-              },
-              matchToName = matchToName
-          )
+        com.quantummpv.app.ui.browser.dialogs.FilePickerDialog(
+          isOpen = true,
+          currentPath = savedPickerPath,
+          onDismiss = { showFilePicker = false },
+          onPathChanged = { path ->
+            if (path != null) {
+              subtitlesPreferences.pickerPath.set(path)
+            }
+          },
+          onFileSelected = { path ->
+            showFilePicker = false
+            onAddSubtitle(Uri.parse("file://$path"))
+          },
+          onSystemPickerRequest = {
+            showFilePicker = false
+            subtitlesPicker.launch(
+              arrayOf(
+                "text/plain",
+                "text/srt",
+                "text/vtt",
+                "application/x-subrip",
+                "application/x-subtitle",
+                "text/x-ssa",
+                "*/*",
+              ),
+            )
+          },
+          matchToName = matchToName,
+        )
       }
 
       val isTranslating by viewModel.isTranslatingSub.composeCollectAsState()
@@ -197,7 +200,7 @@ fun PlayerSheets(
       // Media Search / Autocomplete
       val mediaResults by viewModel.mediaSearchResults.composeCollectAsState()
       val isSearchingMedia by viewModel.isSearchingMedia.composeCollectAsState()
-      
+
       // TV Show / Seasons / Episodes
       val selectedTvShow by viewModel.selectedTvShow.composeCollectAsState()
       val isFetchingTvDetails by viewModel.isFetchingTvDetails.composeCollectAsState()
@@ -229,7 +232,7 @@ fun PlayerSheets(
         isFetchingEpisodes = isFetchingEpisodes,
         selectedEpisode = selectedEpisode,
         onSelectEpisode = { viewModel.selectEpisode(it) },
-        onClearMediaSelection = { viewModel.clearMediaSelection() }
+        onClearMediaSelection = { viewModel.clearMediaSelection() },
       )
     }
 
@@ -365,7 +368,6 @@ fun PlayerSheets(
       )
     }
 
-
     Sheets.Playlist -> {
       // Refresh playlist items when sheet is shown
       LaunchedEffect(Unit) {
@@ -379,14 +381,15 @@ fun PlayerSheets(
       val isPlaylistSwipeActive by viewModel.isPlaylistSwipeActive.collectAsState()
       val playlistSwipeOffset by viewModel.playlistSwipeOffset.collectAsState()
 
-      val filteredPlaylist = remember(playlist, isAudioOnly) {
-        if (isAudioOnly) {
-          val audioOnly = playlist.filter { it.isAudio || isAudioOnly }
-          audioOnly.ifEmpty { playlist }
-        } else {
-          playlist
+      val filteredPlaylist =
+        remember(playlist, isAudioOnly) {
+          if (isAudioOnly) {
+            val audioOnly = playlist.filter { it.isAudio || isAudioOnly }
+            audioOnly.ifEmpty { playlist }
+          } else {
+            playlist
+          }
         }
-      }
 
       if (filteredPlaylist.isNotEmpty()) {
         val playlistImmutable = filteredPlaylist.toImmutableList()
@@ -414,7 +417,7 @@ fun PlayerSheets(
     Sheets.AmbientConfig -> {
       AmbientSheet(
         viewModel = viewModel,
-        onDismissRequest = onDismissRequest
+        onDismissRequest = onDismissRequest,
       )
     }
 
@@ -426,7 +429,7 @@ fun PlayerSheets(
         onPresetSelected = viewModel::applyEqualizerPreset,
         onBandChanged = viewModel::setEqualizerBandGain,
         onVolumeBoostChanged = viewModel::setEqualizerVolumeBoost,
-        onDismissRequest = onDismissRequest
+        onDismissRequest = onDismissRequest,
       )
     }
 
@@ -434,7 +437,7 @@ fun PlayerSheets(
       val properties = remember { viewModel.getAudioPropertiesData() }
       com.quantummpv.app.ui.player.controls.components.sheets.AudioPropertiesSheet(
         properties = properties,
-        onDismissRequest = onDismissRequest
+        onDismissRequest = onDismissRequest,
       )
     }
   }

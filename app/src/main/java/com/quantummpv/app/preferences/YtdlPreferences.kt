@@ -9,12 +9,12 @@ package com.quantummpv.app.preferences
 
 import com.quantummpv.app.preferences.preference.PreferenceStore
 import com.quantummpv.app.preferences.preference.getEnum
+import com.quantummpv.app.ui.player.ytdlp.YtdlAudioPreference
+import com.quantummpv.app.ui.player.ytdlp.YtdlAudioQuality
 import com.quantummpv.app.ui.player.ytdlp.YtdlCodecPreference
 import com.quantummpv.app.ui.player.ytdlp.YtdlContainerPreference
 import com.quantummpv.app.ui.player.ytdlp.YtdlHdrPreference
 import com.quantummpv.app.ui.player.ytdlp.YtdlPlaylistMode
-import com.quantummpv.app.ui.player.ytdlp.YtdlAudioPreference
-import com.quantummpv.app.ui.player.ytdlp.YtdlAudioQuality
 
 class YtdlPreferences(
   preferenceStore: PreferenceStore,

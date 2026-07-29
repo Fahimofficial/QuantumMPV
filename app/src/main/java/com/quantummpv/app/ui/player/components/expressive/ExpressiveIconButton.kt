@@ -21,9 +21,9 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.scale
 import androidx.compose.ui.unit.dp
-import com.quantummpv.app.ui.theme.AppMotion
 import com.quantummpv.app.ui.icons.AppIcon
 import com.quantummpv.app.ui.icons.Icon
+import com.quantummpv.app.ui.theme.AppMotion
 
 /**
  * Expressive icon button with bouncy scale on press.

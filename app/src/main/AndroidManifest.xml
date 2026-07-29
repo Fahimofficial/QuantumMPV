@@ -54,7 +54,7 @@
 
         <meta-data
             android:name="com.google.android.gms.cast.framework.OPTIONS_PROVIDER_CLASS_NAME"
-            android:value="com.quantummpv.app.ui.cast.mpvRxCastOptionsProvider" />
+            android:value="com.quantummpv.app.ui.cast.MpvRxCastOptionsProvider" />
 
         <receiver
             android:name="androidx.mediarouter.media.MediaTransferReceiver"

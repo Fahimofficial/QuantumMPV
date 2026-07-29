@@ -7,9 +7,6 @@
 
 package com.quantummpv.app.ui.player.controls.components.panels
 
-import com.quantummpv.app.ui.icons.Icon
-import com.quantummpv.app.ui.icons.Icons
-
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -21,12 +18,12 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import com.quantummpv.app.R
@@ -35,14 +32,16 @@ import com.quantummpv.app.preferences.SubtitlesPreferences
 import com.quantummpv.app.preferences.preference.deleteAndGet
 import com.quantummpv.app.presentation.components.ExpandableCard
 import com.quantummpv.app.presentation.components.SliderItem
+import com.quantummpv.app.ui.icons.Icon
+import com.quantummpv.app.ui.icons.Icons
 import com.quantummpv.app.ui.player.applySubtitleLayout
 import com.quantummpv.app.ui.player.controls.CARDS_MAX_WIDTH
 import com.quantummpv.app.ui.player.controls.components.sheets.toFixed
 import com.quantummpv.app.ui.player.controls.panelCardsColors
+import com.quantummpv.app.ui.preferences.components.SwitchPreference
 import com.quantummpv.app.ui.theme.spacing
 import `is`.xyz.mpv.MPVLib
 import me.zhanghai.compose.preference.ProvidePreferenceLocals
-import com.quantummpv.app.ui.preferences.components.SwitchPreference
 import org.koin.compose.koinInject
 
 @Composable
@@ -179,7 +178,3 @@ fun SubtitlesMiscellaneousCard(modifier: Modifier = Modifier) {
     }
   }
 }
-
-
-
-

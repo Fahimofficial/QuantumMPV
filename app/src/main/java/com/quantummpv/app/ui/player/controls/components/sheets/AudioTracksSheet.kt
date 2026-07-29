@@ -7,9 +7,6 @@
 
 package com.quantummpv.app.ui.player.controls.components.sheets
 
-import com.quantummpv.app.ui.icons.Icon
-import com.quantummpv.app.ui.icons.Icons
-
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -39,6 +36,8 @@ import com.quantummpv.app.preferences.AudioChannels
 import com.quantummpv.app.preferences.AudioPreferences
 import com.quantummpv.app.preferences.preference.collectAsState
 import com.quantummpv.app.presentation.components.PlayerSheet
+import com.quantummpv.app.ui.icons.Icon
+import com.quantummpv.app.ui.icons.Icons
 import com.quantummpv.app.ui.player.TrackNode
 import com.quantummpv.app.ui.theme.spacing
 import `is`.xyz.mpv.MPVLib
@@ -79,9 +78,10 @@ fun AudioTracksSheet(
         }
         item {
           Column(
-            modifier = Modifier
-              .fillMaxWidth()
-              .padding(MaterialTheme.spacing.medium),
+            modifier =
+              Modifier
+                .fillMaxWidth()
+                .padding(MaterialTheme.spacing.medium),
           ) {
             Spacer(modifier = Modifier.height(MaterialTheme.spacing.medium))
             Text(

@@ -7,11 +7,6 @@
 
 package com.quantummpv.app.presentation.crash
 
-import androidx.compose.ui.unit.Dp
-
-import com.quantummpv.app.ui.icons.Icon
-import com.quantummpv.app.ui.icons.Icons
-
 import android.app.Activity
 import android.content.ClipData
 import android.content.Intent
@@ -20,6 +15,7 @@ import android.os.Bundle
 import androidx.activity.SystemBarStyle
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
+import androidx.appcompat.app.AppCompatActivity
 import androidx.compose.foundation.background
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Arrangement
@@ -59,15 +55,17 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontFamily
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.core.content.FileProvider
-import androidx.appcompat.app.AppCompatActivity
 import androidx.lifecycle.coroutineScope
 import com.quantummpv.app.BuildConfig
 import com.quantummpv.app.MainActivity
 import com.quantummpv.app.R
 import com.quantummpv.app.preferences.AppearancePreferences
 import com.quantummpv.app.preferences.preference.collectAsState
+import com.quantummpv.app.ui.icons.Icon
+import com.quantummpv.app.ui.icons.Icons
 import com.quantummpv.app.ui.theme.DarkMode
 import com.quantummpv.app.ui.theme.MpvrxTheme
 import com.quantummpv.app.ui.theme.spacing
@@ -352,7 +350,9 @@ class CrashActivity : AppCompatActivity() {
           style = MaterialTheme.typography.headlineSmall,
         )
         LogsContainer(exceptionString)
-        Text(androidx.compose.ui.res.stringResource(com.quantummpv.app.R.string.ui_logcat),
+        Text(
+          androidx.compose.ui.res
+            .stringResource(com.quantummpv.app.R.string.ui_logcat),
           style = MaterialTheme.typography.headlineSmall,
         )
         LogsContainer(logcat)
@@ -385,9 +385,3 @@ class CrashActivity : AppCompatActivity() {
     }
   }
 }
-
-
-
-
-
-

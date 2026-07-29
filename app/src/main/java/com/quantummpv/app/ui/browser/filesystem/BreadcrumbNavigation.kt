@@ -7,9 +7,6 @@
 
 package com.quantummpv.app.ui.browser.filesystem
 
-import com.quantummpv.app.ui.icons.Icon
-import com.quantummpv.app.ui.icons.Icons
-
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Row
@@ -26,6 +23,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.quantummpv.app.domain.browser.PathComponent
+import com.quantummpv.app.ui.icons.Icon
+import com.quantummpv.app.ui.icons.Icons
 
 @Composable
 fun BreadcrumbNavigation(
@@ -52,7 +51,9 @@ fun BreadcrumbNavigation(
       if (index > 0) {
         Icon(
           imageVector = Icons.RoundedFilled.ChevronRight,
-          contentDescription = androidx.compose.ui.res.stringResource(com.quantummpv.app.R.string.ui_separator),
+          contentDescription =
+            androidx.compose.ui.res
+              .stringResource(com.quantummpv.app.R.string.ui_separator),
           tint = MaterialTheme.colorScheme.onSurfaceVariant,
           modifier = Modifier.padding(horizontal = 4.dp),
         )
@@ -78,7 +79,3 @@ fun BreadcrumbNavigation(
     }
   }
 }
-
-
-
-

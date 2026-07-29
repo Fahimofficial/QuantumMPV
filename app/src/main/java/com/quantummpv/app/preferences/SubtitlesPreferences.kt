@@ -12,10 +12,10 @@ import androidx.compose.ui.graphics.toArgb
 import com.quantummpv.app.preferences.preference.PreferenceStore
 import com.quantummpv.app.preferences.preference.getEnum
 import com.quantummpv.app.repository.subtitle.OnlineSubtitleSearchMode
-import com.quantummpv.app.repository.subtitlehub.mpvRxSubtitleHubSources
-import com.quantummpv.app.ui.player.controls.components.panels.SubtitlesBorderStyle
+import com.quantummpv.app.repository.subtitlehub.MpvRxSubtitleHubSources
 import com.quantummpv.app.ui.icons.AppIcon
 import com.quantummpv.app.ui.icons.Icons
+import com.quantummpv.app.ui.player.controls.components.panels.SubtitlesBorderStyle
 
 class SubtitlesPreferences(
   preferenceStore: PreferenceStore,
@@ -51,13 +51,13 @@ class SubtitlesPreferences(
   val defaultSubSpeed = preferenceStore.getFloat("sub_default_speed", 1f)
 
   val pickerPath = preferenceStore.getString("sub_picker_path")
-  
+
   val subtitleSaveFolder = preferenceStore.getString("sub_save_folder", "")
   val subdlLanguages = preferenceStore.getStringSet("subdl_languages", setOf("en"))
   val subtitleSearchLanguages = subdlLanguages
   val onlineSubtitleSearchMode = preferenceStore.getOnlineSubtitleSearchMode()
-  val subtitleHubSources = preferenceStore.getStringSet("subtitle_hub_sources", mpvRxSubtitleHubSources.DEFAULT)
-  
+  val subtitleHubSources = preferenceStore.getStringSet("subtitle_hub_sources", MpvRxSubtitleHubSources.DEFAULT)
+
   val wyzieSources = preferenceStore.getStringSet("wyzie_sources", setOf("all"))
   val wyzieFormats = preferenceStore.getStringSet("wyzie_formats", setOf("srt", "ass"))
   val wyzieEncodings = preferenceStore.getStringSet("wyzie_encodings", setOf("utf-8"))
@@ -80,10 +80,12 @@ private fun PreferenceStore.getOnlineSubtitleSearchMode() =
       when (stored) {
         OnlineSubtitleSearchMode.WYZIE.name -> OnlineSubtitleSearchMode.WYZIE
         OnlineSubtitleSearchMode.SUBHUB.name,
-        "MPVRX_SUBTITLE_HUB" -> OnlineSubtitleSearchMode.SUBHUB
+        "MPVRX_SUBTITLE_HUB",
+        -> OnlineSubtitleSearchMode.SUBHUB
         OnlineSubtitleSearchMode.HYBRID.name,
         "HYBRID_SEQUENTIAL",
-        "HYBRID_PARALLEL" -> OnlineSubtitleSearchMode.HYBRID
+        "HYBRID_PARALLEL",
+        -> OnlineSubtitleSearchMode.HYBRID
         else -> OnlineSubtitleSearchMode.HYBRID
       }
     },

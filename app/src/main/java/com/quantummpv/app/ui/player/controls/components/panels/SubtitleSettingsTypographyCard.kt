@@ -7,9 +7,6 @@
 
 package com.quantummpv.app.ui.player.controls.components.panels
 
-import com.quantummpv.app.ui.icons.Icon
-import com.quantummpv.app.ui.icons.Icons
-
 import android.annotation.SuppressLint
 import androidx.annotation.StringRes
 import androidx.compose.foundation.horizontalScroll
@@ -50,6 +47,8 @@ import com.quantummpv.app.preferences.preference.deleteAndGet
 import com.quantummpv.app.presentation.components.ExpandableCard
 import com.quantummpv.app.presentation.components.ExposedTextDropDownMenu
 import com.quantummpv.app.presentation.components.SliderItem
+import com.quantummpv.app.ui.icons.Icon
+import com.quantummpv.app.ui.icons.Icons
 import com.quantummpv.app.ui.player.PlayerViewModel
 import com.quantummpv.app.ui.player.controls.CARDS_MAX_WIDTH
 import com.quantummpv.app.ui.player.controls.panelCardsColors
@@ -94,9 +93,12 @@ fun SubtitleSettingsTypographyCard(
             .filter { fileManager.isFile(it) && fileManager.getName(it).lowercase().matches(".*\\.[ot]tf$".toRegex()) }
             .mapNotNull {
               runCatching {
-                TTFFile.open(fileManager.getInputStream(it) ?: return@mapNotNull null).families.values.first()
+                TTFFile
+                  .open(fileManager.getInputStream(it) ?: return@mapNotNull null)
+                  .families.values
+                  .first()
               }.getOrNull()
-            }.distinct()
+            }.distinct(),
         )
       }
       fontsLoadingIndicator = null
@@ -130,7 +132,10 @@ fun SubtitleSettingsTypographyCard(
       val fontSize by MPVLib.propInt["sub-font-size"].collectAsState()
       val mpvBorderStyle by MPVLib.propString["sub-border-style"].collectAsState()
       val borderStyle by remember {
-        derivedStateOf { SubtitlesBorderStyle.entries.firstOrNull { it.value == mpvBorderStyle } ?: SubtitlesBorderStyle.OutlineAndShadow }
+        derivedStateOf {
+          SubtitlesBorderStyle.entries.firstOrNull { it.value == mpvBorderStyle }
+            ?: SubtitlesBorderStyle.OutlineAndShadow
+        }
       }
       val borderSize by MPVLib.propInt["sub-outline-size"].collectAsState()
       val shadowOffset by MPVLib.propInt["sub-shadow-offset"].collectAsState()
@@ -276,9 +281,10 @@ fun SubtitleSettingsTypographyCard(
       SliderItem(
         stringResource(R.string.player_sheets_subtitles_shadow_offset),
         value = localShadowOffset.coerceIn(-20, 20),
-        valueText = localShadowOffset.coerceIn(-20, 20).let {
-          if (it > 0) "+$it" else it.toString()
-        },
+        valueText =
+          localShadowOffset.coerceIn(-20, 20).let {
+            if (it > 0) "+$it" else it.toString()
+          },
         onChange = {
           localShadowOffset = it
           preferences.shadowOffset.set(it)
@@ -325,7 +331,3 @@ enum class SubtitlesBorderStyle(
   OpaqueBox("opaque-box", R.string.player_sheets_subtitles_border_style_opaque_box),
   BackgroundBox("background-box", R.string.player_sheets_subtitles_border_style_background_box),
 }
-
-
-
-

@@ -20,8 +20,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import com.quantummpv.app.ui.icons.Icon
 import com.quantummpv.app.ui.icons.AppIcon
+import com.quantummpv.app.ui.icons.Icon
 import com.quantummpv.app.ui.icons.Icons
 import com.quantummpv.app.ui.theme.AppMotion
 
@@ -44,9 +44,10 @@ fun SectionHeader(
   )
 
   Row(
-    modifier = modifier
-      .then(if (onClick != null) Modifier.clickable(onClick = onClick) else Modifier)
-      .padding(horizontal = 16.dp, vertical = 8.dp),
+    modifier =
+      modifier
+        .then(if (onClick != null) Modifier.clickable(onClick = onClick) else Modifier)
+        .padding(horizontal = 16.dp, vertical = 8.dp),
     verticalAlignment = Alignment.CenterVertically,
   ) {
     leadingIcon?.let { icon ->

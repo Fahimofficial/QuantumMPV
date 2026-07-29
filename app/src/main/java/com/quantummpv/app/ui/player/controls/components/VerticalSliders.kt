@@ -7,18 +7,11 @@
 
 package com.quantummpv.app.ui.player.controls.components
 
-import com.quantummpv.app.ui.icons.Icon
-import com.quantummpv.app.ui.icons.Icons
-
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.spring
-import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Icon
-import com.quantummpv.app.ui.theme.AppShapeScale
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -34,6 +27,9 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import com.quantummpv.app.R
+import com.quantummpv.app.ui.icons.Icon
+import com.quantummpv.app.ui.icons.Icons
+import com.quantummpv.app.ui.theme.AppShapeScale
 import com.quantummpv.app.ui.theme.spacing
 
 fun percentage(
@@ -69,7 +65,7 @@ fun VerticalSlider(
     val targetHeight by animateFloatAsState(
       percentage(coercedValue, range),
       animationSpec = spring(dampingRatio = 0.75f, stiffness = 300f),
-      label = "vsliderheight"
+      label = "vsliderheight",
     )
     Box(
       Modifier
@@ -117,7 +113,7 @@ fun VerticalSlider(
     val targetHeight by animateFloatAsState(
       percentage(coercedValue, range),
       animationSpec = spring(dampingRatio = 0.75f, stiffness = 300f),
-      label = "vsliderheight"
+      label = "vsliderheight",
     )
     Box(
       Modifier
@@ -166,7 +162,7 @@ fun BrightnessSlider(
         style = MaterialTheme.typography.titleSmall,
         fontWeight = FontWeight.Bold,
         textAlign = TextAlign.Center,
-        modifier = Modifier.widthIn(min = 48.dp)
+        modifier = Modifier.widthIn(min = 48.dp),
       )
       VerticalSlider(
         coercedBrightness.coerceIn(0f, positiveRange.endInclusive),
@@ -219,7 +215,7 @@ fun VolumeSlider(
         style = MaterialTheme.typography.titleSmall,
         fontWeight = FontWeight.Bold,
         textAlign = TextAlign.Center,
-        modifier = Modifier.widthIn(min = 48.dp)
+        modifier = Modifier.widthIn(min = 48.dp),
       )
       VerticalSlider(
         if (displayAsPercentage) percentage else volume,
@@ -271,7 +267,3 @@ val getVolumeSliderText: @Composable (Int, Int, Int, Int, Boolean) -> String =
       }
     }
   }
-
-
-
-

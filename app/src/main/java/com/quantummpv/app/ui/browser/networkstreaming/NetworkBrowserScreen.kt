@@ -7,12 +7,6 @@
 
 package com.quantummpv.app.ui.browser.networkstreaming
 
-import androidx.compose.ui.res.stringResource
-import com.quantummpv.app.R
-
-import com.quantummpv.app.ui.icons.Icon
-import com.quantummpv.app.ui.icons.Icons
-
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.PaddingValues
@@ -38,8 +32,10 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.quantummpv.app.R
 import com.quantummpv.app.domain.network.NetworkConnection
 import com.quantummpv.app.domain.network.NetworkFile
 import com.quantummpv.app.preferences.preference.collectAsState
@@ -52,6 +48,7 @@ import com.quantummpv.app.ui.browser.components.ExpressiveScrollBar
 import com.quantummpv.app.ui.browser.components.fastScrollGlyph
 import com.quantummpv.app.ui.browser.playlist.PlaylistDetailScreen
 import com.quantummpv.app.ui.browser.states.EmptyState
+import com.quantummpv.app.ui.icons.Icons
 import com.quantummpv.app.ui.preferences.PreferencesScreen
 import com.quantummpv.app.ui.utils.LocalBackStack
 import com.quantummpv.app.ui.utils.popSafely
@@ -169,9 +166,11 @@ private fun NetworkBrowserContent(
   when {
     isLoading -> {
       Box(
-        modifier = modifier
-          .fillMaxSize()
-          .padding(bottom = 80.dp), // Account for bottom navigation bar
+        modifier =
+          modifier
+            .fillMaxSize()
+            .padding(bottom = 80.dp),
+        // Account for bottom navigation bar
         contentAlignment = Alignment.Center,
       ) {
         CircularProgressIndicator(
@@ -221,10 +220,11 @@ private fun NetworkBrowserContent(
       // Animate scrollbar alpha
       val scrollbarAlpha by androidx.compose.animation.core.animateFloatAsState(
         targetValue = if (hasEnoughItems) 1f else 0f,
-        animationSpec = androidx.compose.animation.core.spring(
-          dampingRatio = com.quantummpv.app.ui.theme.AppMotion.Effect.Alpha.dampingRatio,
-          stiffness = com.quantummpv.app.ui.theme.AppMotion.Effect.Alpha.stiffness,
-        ),
+        animationSpec =
+          androidx.compose.animation.core.spring(
+            dampingRatio = com.quantummpv.app.ui.theme.AppMotion.Effect.Alpha.dampingRatio,
+            stiffness = com.quantummpv.app.ui.theme.AppMotion.Effect.Alpha.stiffness,
+          ),
         label = "scrollbarAlpha",
       )
 
@@ -234,38 +234,44 @@ private fun NetworkBrowserContent(
         listState = networkListState,
         modifier = modifier.fillMaxSize(),
       ) {
-        val scrollbarLabels = remember(folders, videos) {
-          buildList<String?> {
-            if (folders.isNotEmpty()) {
-              add(null)
-              addAll(folders.map { it.name })
-            }
-            if (videos.isNotEmpty()) {
-              add(null)
-              addAll(videos.map { it.name })
+        val scrollbarLabels =
+          remember(folders, videos) {
+            buildList<String?> {
+              if (folders.isNotEmpty()) {
+                add(null)
+                addAll(folders.map { it.name })
+              }
+              if (videos.isNotEmpty()) {
+                add(null)
+                addAll(videos.map { it.name })
+              }
             }
           }
-        }
         val navigationBarHeight = com.quantummpv.app.ui.browser.LocalNavigationBarHeight.current
         Box(
-          modifier = Modifier
-            .fillMaxSize()
-            .padding(bottom = navigationBarHeight)
+          modifier =
+            Modifier
+              .fillMaxSize()
+              .padding(bottom = navigationBarHeight),
         ) {
           LazyColumn(
             state = networkListState,
             modifier = Modifier.fillMaxSize(),
-            contentPadding = PaddingValues(
-              start = 8.dp,
-              end = 8.dp,
-              top = 8.dp,
-              bottom = navigationBarHeight
-            ),
+            contentPadding =
+              PaddingValues(
+                start = 8.dp,
+                end = 8.dp,
+                top = 8.dp,
+                bottom = navigationBarHeight,
+              ),
           ) {
             // Folders section
             if (folders.isNotEmpty()) {
               item {
-                Text(text = androidx.compose.ui.res.stringResource(com.quantummpv.app.R.string.pref_folders_title),
+                Text(
+                  text =
+                    androidx.compose.ui.res
+                      .stringResource(com.quantummpv.app.R.string.pref_folders_title),
                   style = MaterialTheme.typography.titleMedium,
                   color = MaterialTheme.colorScheme.primary,
                   modifier = Modifier.padding(start = 16.dp, top = 8.dp, bottom = 8.dp),
@@ -286,7 +292,10 @@ private fun NetworkBrowserContent(
             // Videos section
             if (videos.isNotEmpty()) {
               item {
-                Text(text = androidx.compose.ui.res.stringResource(com.quantummpv.app.R.string.ui_videos),
+                Text(
+                  text =
+                    androidx.compose.ui.res
+                      .stringResource(com.quantummpv.app.R.string.ui_videos),
                   style = MaterialTheme.typography.titleMedium,
                   color = MaterialTheme.colorScheme.primary,
                   modifier = Modifier.padding(start = 16.dp, top = 16.dp, bottom = 8.dp),
@@ -314,10 +323,11 @@ private fun NetworkBrowserContent(
               dragLabelProvider = { index: Int ->
                 fastScrollGlyph(scrollbarLabels.getOrNull(index))
               },
-              modifier = Modifier
-                .align(Alignment.CenterEnd)
-                .padding(end = 4.dp)
-                .graphicsLayer { alpha = scrollbarAlpha },
+              modifier =
+                Modifier
+                  .align(Alignment.CenterEnd)
+                  .padding(end = 4.dp)
+                  .graphicsLayer { alpha = scrollbarAlpha },
             )
           }
         }
@@ -333,11 +343,11 @@ private fun NetworkFile.isM3uFile(): Boolean {
     lowerName.endsWith(".m3u8") ||
     lowerPath.endsWith(".m3u") ||
     lowerPath.endsWith(".m3u8") ||
-    mimeType in setOf(
+    mimeType in
+    setOf(
       "application/x-mpegurl",
       "application/vnd.apple.mpegurl",
       "audio/x-mpegurl",
       "audio/mpegurl",
     )
 }
-

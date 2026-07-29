@@ -7,9 +7,6 @@
 
 package com.quantummpv.app.ui.player.controls.components.panels
 
-import com.quantummpv.app.ui.icons.Icon
-import com.quantummpv.app.ui.icons.Icons
-
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -38,6 +35,8 @@ import com.quantummpv.app.preferences.preference.collectAsState
 import com.quantummpv.app.preferences.preference.deleteAndGet
 import com.quantummpv.app.presentation.components.ExpandableCard
 import com.quantummpv.app.presentation.components.SliderItem
+import com.quantummpv.app.ui.icons.Icon
+import com.quantummpv.app.ui.icons.Icons
 import com.quantummpv.app.ui.player.DebandSettings
 import com.quantummpv.app.ui.player.Debanding
 import com.quantummpv.app.ui.player.controls.CARDS_MAX_WIDTH
@@ -144,7 +143,3 @@ fun VideoSettingsDebandCard(modifier: Modifier = Modifier) {
     }
   }
 }
-
-
-
-

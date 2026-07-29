@@ -7,9 +7,6 @@
 
 package com.quantummpv.app.ui.player.controls.components.panels
 
-import com.quantummpv.app.ui.icons.Icon
-import com.quantummpv.app.ui.icons.Icons
-
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -31,6 +28,8 @@ import com.quantummpv.app.preferences.preference.collectAsState
 import com.quantummpv.app.preferences.preference.deleteAndGet
 import com.quantummpv.app.presentation.components.ExpandableCard
 import com.quantummpv.app.presentation.components.SliderItem
+import com.quantummpv.app.ui.icons.Icon
+import com.quantummpv.app.ui.icons.Icons
 import com.quantummpv.app.ui.player.VideoFilters
 import com.quantummpv.app.ui.player.controls.CARDS_MAX_WIDTH
 import com.quantummpv.app.ui.player.controls.panelCardsColors
@@ -97,7 +96,3 @@ fun VideoSettingsFiltersCard(modifier: Modifier = Modifier) {
     }
   }
 }
-
-
-
-

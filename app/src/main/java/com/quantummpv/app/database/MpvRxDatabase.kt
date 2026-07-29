@@ -11,18 +11,18 @@ import androidx.room.Database
 import androidx.room.RoomDatabase
 import androidx.room.TypeConverters
 import com.quantummpv.app.database.converters.NetworkProtocolConverter
+import com.quantummpv.app.database.dao.DirectoryScanDao
 import com.quantummpv.app.database.dao.NetworkConnectionDao
 import com.quantummpv.app.database.dao.PlaybackStateDao
 import com.quantummpv.app.database.dao.PlaylistDao
 import com.quantummpv.app.database.dao.RecentlyPlayedDao
 import com.quantummpv.app.database.dao.VideoMetadataDao
-import com.quantummpv.app.database.dao.DirectoryScanDao
+import com.quantummpv.app.database.entities.DirectoryScanEntity
 import com.quantummpv.app.database.entities.PlaybackStateEntity
 import com.quantummpv.app.database.entities.PlaylistEntity
 import com.quantummpv.app.database.entities.PlaylistItemEntity
 import com.quantummpv.app.database.entities.RecentlyPlayedEntity
 import com.quantummpv.app.database.entities.VideoMetadataEntity
-import com.quantummpv.app.database.entities.DirectoryScanEntity
 import com.quantummpv.app.domain.network.NetworkConnection
 
 @Database(
@@ -39,7 +39,7 @@ import com.quantummpv.app.domain.network.NetworkConnection
   exportSchema = true,
 )
 @TypeConverters(NetworkProtocolConverter::class)
-abstract class mpvRxDatabase : RoomDatabase() {
+abstract class MpvRxDatabase : RoomDatabase() {
   abstract fun videoDataDao(): PlaybackStateDao
 
   abstract fun recentlyPlayedDao(): RecentlyPlayedDao
@@ -52,4 +52,3 @@ abstract class mpvRxDatabase : RoomDatabase() {
 
   abstract fun directoryScanDao(): DirectoryScanDao
 }
-

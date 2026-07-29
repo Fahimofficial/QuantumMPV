@@ -10,28 +10,27 @@ package com.quantummpv.app.repository
 import android.content.Context
 import android.net.Uri
 import android.os.Environment
-import android.provider.MediaStore
 import android.util.Log
+import com.quantummpv.app.database.MpvRxDatabase
 import com.quantummpv.app.domain.browser.FileSystemItem
 import com.quantummpv.app.domain.browser.PathComponent
 import com.quantummpv.app.domain.media.model.Video
 import com.quantummpv.app.domain.media.model.VideoFolder
 import com.quantummpv.app.domain.playbackstate.repository.PlaybackStateRepository
-import com.quantummpv.app.database.mpvRxDatabase
 import com.quantummpv.app.preferences.AppearancePreferences
 import com.quantummpv.app.preferences.BrowserPreferences
 import com.quantummpv.app.preferences.FoldersPreferences
+import com.quantummpv.app.utils.media.MediaInfoOps
+import com.quantummpv.app.utils.storage.FileTypeUtils
 import com.quantummpv.app.utils.storage.FolderViewScanner
+import com.quantummpv.app.utils.storage.MediaScanOptions
+import com.quantummpv.app.utils.storage.StorageVolumeUtils
 import com.quantummpv.app.utils.storage.TreeViewScanner
 import com.quantummpv.app.utils.storage.VideoScanUtils
-import com.quantummpv.app.utils.storage.StorageVolumeUtils
-import com.quantummpv.app.utils.storage.FileTypeUtils
-import com.quantummpv.app.utils.storage.MediaScanOptions
 import com.quantummpv.app.utils.storage.mediaPathKey
-import com.quantummpv.app.utils.media.MediaInfoOps
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.withContext
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.withContext
 import org.koin.core.component.KoinComponent
 import org.koin.core.component.inject
 import java.io.File
@@ -57,7 +56,7 @@ object MediaFileRepository : KoinComponent {
   private val appearancePreferences: AppearancePreferences by inject()
   private val browserPreferences: BrowserPreferences by inject()
   private val playbackStateRepository: PlaybackStateRepository by inject()
-  private val database: mpvRxDatabase by inject()
+  private val database: MpvRxDatabase by inject()
 
   private fun currentScanOptions(includeAudioOverride: Boolean? = null): MediaScanOptions =
     MediaScanOptions(
@@ -114,11 +113,12 @@ object MediaFileRepository : KoinComponent {
   ): List<VideoFolder> =
     withContext(Dispatchers.IO) {
       try {
-        val mediaStoreFolders = FolderViewScanner.getAllVideoFolders(
-          context,
-          currentScanOptions(includeAudioOverride),
-          forceFileSystemCheck,
-        )
+        val mediaStoreFolders =
+          FolderViewScanner.getAllVideoFolders(
+            context,
+            currentScanOptions(includeAudioOverride),
+            forceFileSystemCheck,
+          )
         val indexedFolders =
           FolderViewScanner.getIndexedNoMediaFolders(
             currentScanOptions(includeAudioOverride),
@@ -140,11 +140,12 @@ object MediaFileRepository : KoinComponent {
     forceFileSystemCheck: Boolean = false,
   ): List<VideoFolder> =
     withContext(Dispatchers.IO) {
-      FolderViewScanner.getAllVideoFolders(
-        context = context,
-        options = currentScanOptions(),
-        forceFileSystemCheck = forceFileSystemCheck,
-      ).also { onProgress?.invoke(it.size) }
+      FolderViewScanner
+        .getAllVideoFolders(
+          context = context,
+          options = currentScanOptions(),
+          forceFileSystemCheck = forceFileSystemCheck,
+        ).also { onProgress?.invoke(it.size) }
     }
 
   suspend fun getIndexedNoMediaFolders(): List<VideoFolder> =
@@ -228,7 +229,10 @@ object MediaFileRepository : KoinComponent {
       result.values.toList()
     }
 
-  private fun shouldReplaceMedia(existing: Video, candidate: Video): Boolean {
+  private fun shouldReplaceMedia(
+    existing: Video,
+    candidate: Video,
+  ): Boolean {
     val extensionIsAudio = FileTypeUtils.isAudioFile(File(candidate.path))
     val existingClassificationIsCorrect = existing.isAudio == extensionIsAudio
     val candidateClassificationIsCorrect = candidate.isAudio == extensionIsAudio
@@ -523,18 +527,19 @@ object MediaFileRepository : KoinComponent {
         val primaryStorage = Environment.getExternalStorageDirectory()
         if (primaryStorage.exists() && primaryStorage.canRead()) {
           val primaryPath = primaryStorage.absolutePath
-          
+
           // Get recursive count for this storage root
-          val folderData = TreeViewScanner.getFolderDataRecursive(
-            context,
-            primaryPath,
-            currentScanOptions(),
-            forceFileSystemCheck,
-            playedMediaTitles,
-            showNewLabels,
-            thresholdDays,
-          )
-          
+          val folderData =
+            TreeViewScanner.getFolderDataRecursive(
+              context,
+              primaryPath,
+              currentScanOptions(),
+              forceFileSystemCheck,
+              playedMediaTitles,
+              showNewLabels,
+              thresholdDays,
+            )
+
           roots.add(
             FileSystemItem.Folder(
               name = "Internal Storage",
@@ -557,18 +562,19 @@ object MediaFileRepository : KoinComponent {
             val volumeDir = File(volumePath)
             if (volumeDir.exists() && volumeDir.canRead()) {
               val volumeName = volume.getDescription(context)
-              
+
               // Get recursive count for this storage root
-              val folderData = TreeViewScanner.getFolderDataRecursive(
-                context,
-                volumePath,
-                currentScanOptions(),
-                forceFileSystemCheck,
-                playedMediaTitles,
-                showNewLabels,
-                thresholdDays,
-              )
-              
+              val folderData =
+                TreeViewScanner.getFolderDataRecursive(
+                  context,
+                  volumePath,
+                  currentScanOptions(),
+                  forceFileSystemCheck,
+                  playedMediaTitles,
+                  showNewLabels,
+                  thresholdDays,
+                )
+
               roots.add(
                 FileSystemItem.Folder(
                   name = volumeName,
@@ -658,4 +664,3 @@ object MediaFileRepository : KoinComponent {
     return "$baseResolution@$fpsFormatted"
   }
 }
-

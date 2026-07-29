@@ -7,7 +7,7 @@
 
 package com.quantummpv.app.repository.subtitlehub
 
-object mpvRxSubtitleHubSources {
+object MpvRxSubtitleHubSources {
   val ALL =
     linkedMapOf(
       "all" to "All verified SubtitleHub sources",
