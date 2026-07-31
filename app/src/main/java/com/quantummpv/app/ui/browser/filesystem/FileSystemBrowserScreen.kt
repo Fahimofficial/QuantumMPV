@@ -166,6 +166,8 @@ fun FileSystemBrowserScreen(path: String? = null) {
   val backstack = LocalBackStack.current
   val coroutineScope = rememberCoroutineScope()
   val browserPreferences = koinInject<BrowserPreferences>()
+  val appearancePreferences = koinInject<com.quantummpv.app.preferences.AppearancePreferences>()
+  val showQuickPlayFab by appearancePreferences.showQuickPlayFab.collectAsState()
   val playerPreferences = koinInject<com.quantummpv.app.preferences.PlayerPreferences>()
   val lifecycleOwner = androidx.lifecycle.compose.LocalLifecycleOwner.current
 
@@ -662,7 +664,8 @@ fun FileSystemBrowserScreen(path: String? = null) {
                     Modifier
                       .animateFloatingActionButton(
                         visible =
-                          !isInSelectionMode &&
+                          showQuickPlayFab &&
+                            !isInSelectionMode &&
                             isFabVisible.value &&
                             !com.quantummpv.app.ui.browser.MainScreen
                               .getPermissionDeniedState(),
