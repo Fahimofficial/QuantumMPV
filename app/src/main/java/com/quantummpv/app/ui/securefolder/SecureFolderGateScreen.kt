@@ -60,6 +60,7 @@ import com.quantummpv.app.ui.icons.Icon
 import com.quantummpv.app.ui.icons.Icons
 import com.quantummpv.app.ui.utils.LocalBackStack
 import com.quantummpv.app.ui.utils.popSafely
+import com.quantummpv.app.ui.utils.replaceTop
 import kotlinx.collections.immutable.persistentListOf
 import kotlinx.serialization.Serializable
 
@@ -132,7 +133,7 @@ data object SecureFolderGateScreen : Screen {
                 error = gateError,
                 onSubmit = { pin ->
                   if (viewModel.verifyPin(pin)) {
-                    backstack.add(SecureFolderScreen)
+                    backstack.replaceTop(SecureFolderScreen)
                   }
                 },
                 onForgotPin = { viewModel.startForgotPinFlow() },
@@ -143,7 +144,7 @@ data object SecureFolderGateScreen : Screen {
                 error = gateError,
                 onSubmit = { pin, question, answer ->
                   if (viewModel.submitSetup(pin, question, answer)) {
-                    backstack.add(SecureFolderScreen)
+                    backstack.replaceTop(SecureFolderScreen)
                   }
                 },
               )
