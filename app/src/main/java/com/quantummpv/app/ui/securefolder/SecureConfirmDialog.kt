@@ -24,6 +24,8 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.res.stringResource
+import com.quantummpv.app.R
 import com.quantummpv.app.preferences.preference.Preference
 import com.quantummpv.app.presentation.components.ConfirmDialog
 
@@ -72,7 +74,7 @@ fun SecureConfirmDialog(
           colors = CheckboxDefaults.colors(),
         )
         Text(
-          "Don't ask again",
+          stringResource(R.string.secure_folder_dont_ask_again),
           style = MaterialTheme.typography.bodyMedium,
         )
       }
