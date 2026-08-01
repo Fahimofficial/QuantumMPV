@@ -90,6 +90,8 @@ import com.quantummpv.app.ui.theme.MpvrxTheme
 import com.quantummpv.app.utils.history.RecentlyPlayedOps
 import com.quantummpv.app.utils.media.HttpUtils
 import com.quantummpv.app.utils.media.JellyfinSessionReporter
+import com.quantummpv.app.utils.media.fileExtension
+import com.quantummpv.app.utils.media.resolveSeekMode
 import com.quantummpv.app.utils.media.M3UParseResult
 import com.quantummpv.app.utils.media.M3UParser
 import com.quantummpv.app.utils.media.PlaybackStateEvents
@@ -256,13 +258,8 @@ class PlayerActivity :
     val extension =
       sequenceOf(fileName, currentPlayableUri)
         .filterNotNull()
-        .map { value ->
-          value
-            .substringBefore('?')
-            .substringBefore('#')
-            .substringAfterLast('.', "")
-            .lowercase()
-        }.firstOrNull { it in FileTypeUtils.AUDIO_EXTENSIONS || it in FileTypeUtils.VIDEO_EXTENSIONS }
+        .map { it.fileExtension() }
+        .firstOrNull { it in FileTypeUtils.AUDIO_EXTENSIONS || it in FileTypeUtils.VIDEO_EXTENSIONS }
     if (extension != null) return extension in FileTypeUtils.AUDIO_EXTENSIONS
     return isKnownAudioLaunch(intent)
   }

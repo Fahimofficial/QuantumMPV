@@ -41,6 +41,7 @@ import com.quantummpv.app.preferences.BrowserPreferences
 import com.quantummpv.app.preferences.PlayerPreferences
 import com.quantummpv.app.ui.icons.Icons
 import com.quantummpv.app.utils.media.PlaybackStateEvents
+import com.quantummpv.app.utils.media.resolveSeekMode
 import com.quantummpv.app.utils.storage.FileTypeUtils
 import `is`.xyz.mpv.MPVLib
 import `is`.xyz.mpv.MPVNode
@@ -323,17 +324,13 @@ class MediaPlaybackService :
 
             override fun onSkipToNext() {
               Log.d(TAG, "onSkipToNext called")
-              val duration = MPVLib.getPropertyInt("duration") ?: 0
-              val shouldUsePreciseSeeking = playerPreferences.usePreciseSeeking.get() || duration < 120
-              val seekMode = if (shouldUsePreciseSeeking) "relative+exact" else "relative+keyframes"
+              val seekMode = resolveSeekMode(playerPreferences)
               MPVLib.command("seek", "10", seekMode)
             }
 
             override fun onSkipToPrevious() {
               Log.d(TAG, "onSkipToPrevious called")
-              val duration = MPVLib.getPropertyInt("duration") ?: 0
-              val shouldUsePreciseSeeking = playerPreferences.usePreciseSeeking.get() || duration < 120
-              val seekMode = if (shouldUsePreciseSeeking) "relative+exact" else "relative+keyframes"
+              val seekMode = resolveSeekMode(playerPreferences)
               MPVLib.command("seek", "-10", seekMode)
             }
 

@@ -71,6 +71,7 @@ import com.quantummpv.app.utils.media.ChecksumUtils
 import com.quantummpv.app.utils.media.MediaInfoParser
 import com.quantummpv.app.utils.media.ParsedMediaInfo
 import com.quantummpv.app.utils.media.SubtitleHashUtils
+import com.quantummpv.app.utils.media.fileExtension
 import com.quantummpv.app.utils.media.resolveSubtitleLookupDirectories
 import com.quantummpv.app.utils.storage.FileTypeUtils
 import `is`.xyz.mpv.MPVLib
@@ -525,12 +526,7 @@ class PlayerViewModel(
       val currentPath = path?.takeIf { it.isNotBlank() } ?: streamPath
       val isFileAudioExt =
         currentPath?.let { p ->
-          val ext =
-            p
-              .substringBefore('?')
-              .substringBefore('#')
-              .substringAfterLast('.', "")
-              .lowercase()
+          val ext = p.fileExtension()
           ext in FileTypeUtils.AUDIO_EXTENSIONS
         } ?: false
 
