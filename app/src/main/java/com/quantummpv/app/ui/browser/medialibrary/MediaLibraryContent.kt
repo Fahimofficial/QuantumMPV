@@ -9,6 +9,7 @@ package com.quantummpv.app.ui.browser.medialibrary
 
 import android.content.Intent
 import android.os.Environment
+import android.widget.Toast
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -69,10 +70,12 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.quantummpv.app.BuildConfig
+import com.quantummpv.app.database.repository.SecureFolderRepository
 import com.quantummpv.app.domain.media.model.Video
 import com.quantummpv.app.preferences.BrowserPreferences
 import com.quantummpv.app.preferences.MediaLibraryType
 import com.quantummpv.app.preferences.PlayerPreferences
+import com.quantummpv.app.preferences.SecureFolderPreferences
 import com.quantummpv.app.preferences.preference.collectAsState
 import com.quantummpv.app.ui.browser.MainScreen
 import com.quantummpv.app.ui.browser.LocalNavigationBarHeight
@@ -94,6 +97,7 @@ import com.quantummpv.app.ui.browser.videolist.VideoWithPlaybackInfo
 import com.quantummpv.app.ui.icons.Icon
 import com.quantummpv.app.ui.icons.Icons
 import com.quantummpv.app.ui.player.PlayerActivity
+import com.quantummpv.app.ui.securefolder.SecureFolderGateScreen
 import com.quantummpv.app.ui.utils.LocalBackStack
 import com.quantummpv.app.utils.clipboard.SafeClipboard
 import com.quantummpv.app.utils.history.RecentlyPlayedOps
@@ -212,6 +216,37 @@ fun MediaLibraryContent() {
   val operationType = remember { mutableStateOf<CopyPasteOps.OperationType?>(null) }
   val progressDialogOpen = rememberSaveable { mutableStateOf(false) }
   val operationProgress by CopyPasteOps.operationProgress.collectAsState()
+
+  // Move-to-Secure-Folder state
+  val secureFolderRepository = koinInject<SecureFolderRepository>()
+  val secureFolderPreferences = koinInject<SecureFolderPreferences>()
+  val moveToSecureConfirmOpen = rememberSaveable { mutableStateOf(false) }
+  val moveToSecureProgressOpen = rememberSaveable { mutableStateOf(false) }
+  val secureFolderProgress by secureFolderRepository.progress.collectAsState()
+
+  fun moveSelectedToSecureFolder() {
+    val selectedVideos = selectionManager.getSelectedItems()
+    if (selectedVideos.isEmpty()) return
+    moveToSecureProgressOpen.value = true
+    coroutineScope.launch {
+      val result = secureFolderRepository.moveIn(context, selectedVideos)
+      moveToSecureProgressOpen.value = false
+      selectionManager.clear()
+      viewModel.refresh()
+      result
+        .onSuccess { batch ->
+          val message =
+            if (batch.failedIds.isEmpty()) {
+              "Moved ${batch.succeededIds.size} file(s) to Secure Folder"
+            } else {
+              "Moved ${batch.succeededIds.size}, failed ${batch.failedIds.size}"
+            }
+          Toast.makeText(context, message, Toast.LENGTH_SHORT).show()
+        }.onFailure {
+          Toast.makeText(context, "Failed to move files to Secure Folder", Toast.LENGTH_SHORT).show()
+        }
+    }
+  }
   val treePickerLauncher =
     rememberLauncherForActivityResult(OpenDocumentTreeContract()) { uri ->
       if (uri == null) {
@@ -393,6 +428,7 @@ fun MediaLibraryContent() {
           onSettingsClick = {
             backstack.add(com.quantummpv.app.ui.preferences.PreferencesScreen)
           },
+          onTitleDoubleTap = { backstack.add(SecureFolderGateScreen) },
           isSingleSelection = selectionManager.isSingleSelection,
           onInfoClick = {
             if (selectionManager.isSingleSelection) {
@@ -417,6 +453,15 @@ fun MediaLibraryContent() {
           onSelectAll = { selectionManager.selectAll() },
           onInvertSelection = { selectionManager.invertSelection() },
           onDeselectAll = { selectionManager.clear() },
+          onMoveToSecureClick = {
+            if (!secureFolderPreferences.isPinSet()) {
+              backstack.add(SecureFolderGateScreen)
+            } else if (secureFolderPreferences.dontAskBeforeMove.get()) {
+              moveSelectedToSecureFolder()
+            } else {
+              moveToSecureConfirmOpen.value = true
+            }
+          },
           onAddToPlaylistClick =
             if (!BuildConfig.ENABLE_UPDATE_FEATURE) {
               { addToPlaylistDialogOpen.value = true }
@@ -792,5 +837,25 @@ fun MediaLibraryContent() {
         )
       }
     }
+
+    // Move to Secure Folder — confirm (skippable via "don't ask again"), then progress
+    com.quantummpv.app.ui.securefolder.SecureConfirmDialog(
+      isOpen = moveToSecureConfirmOpen.value,
+      title = "Move ${selectionManager.selectedCount} item(s) to Secure Folder?",
+      subtitle = "They'll disappear from this list and everywhere else in the app until restored.",
+      dontAskAgain = secureFolderPreferences.dontAskBeforeMove,
+      onConfirm = {
+        moveToSecureConfirmOpen.value = false
+        moveSelectedToSecureFolder()
+      },
+      onDismiss = { moveToSecureConfirmOpen.value = false },
+    )
+
+    com.quantummpv.app.ui.securefolder.SecureFolderProgressDialog(
+      isOpen = moveToSecureProgressOpen.value,
+      progress = secureFolderProgress,
+      label = "Moving to Secure Folder…",
+      onCancel = { secureFolderRepository.cancelOperation() },
+    )
   }
 }

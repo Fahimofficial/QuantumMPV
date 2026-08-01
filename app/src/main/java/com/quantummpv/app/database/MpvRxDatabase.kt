@@ -16,12 +16,14 @@ import com.quantummpv.app.database.dao.NetworkConnectionDao
 import com.quantummpv.app.database.dao.PlaybackStateDao
 import com.quantummpv.app.database.dao.PlaylistDao
 import com.quantummpv.app.database.dao.RecentlyPlayedDao
+import com.quantummpv.app.database.dao.SecureMediaDao
 import com.quantummpv.app.database.dao.VideoMetadataDao
 import com.quantummpv.app.database.entities.DirectoryScanEntity
 import com.quantummpv.app.database.entities.PlaybackStateEntity
 import com.quantummpv.app.database.entities.PlaylistEntity
 import com.quantummpv.app.database.entities.PlaylistItemEntity
 import com.quantummpv.app.database.entities.RecentlyPlayedEntity
+import com.quantummpv.app.database.entities.SecureMediaEntity
 import com.quantummpv.app.database.entities.VideoMetadataEntity
 import com.quantummpv.app.domain.network.NetworkConnection
 
@@ -34,8 +36,9 @@ import com.quantummpv.app.domain.network.NetworkConnection
     PlaylistEntity::class,
     PlaylistItemEntity::class,
     DirectoryScanEntity::class,
+    SecureMediaEntity::class,
   ],
-  version = 10,
+  version = 11,
   exportSchema = true,
 )
 @TypeConverters(NetworkProtocolConverter::class)
@@ -51,4 +54,6 @@ abstract class MpvRxDatabase : RoomDatabase() {
   abstract fun playlistDao(): PlaylistDao
 
   abstract fun directoryScanDao(): DirectoryScanDao
+
+  abstract fun secureMediaDao(): SecureMediaDao
 }

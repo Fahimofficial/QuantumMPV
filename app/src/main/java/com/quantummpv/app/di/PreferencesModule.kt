@@ -16,6 +16,7 @@ import com.quantummpv.app.preferences.DecoderPreferences
 import com.quantummpv.app.preferences.FoldersPreferences
 import com.quantummpv.app.preferences.GesturePreferences
 import com.quantummpv.app.preferences.PlayerPreferences
+import com.quantummpv.app.preferences.SecureFolderPreferences
 import com.quantummpv.app.preferences.SettingsManager
 import com.quantummpv.app.preferences.SubtitlesPreferences
 import com.quantummpv.app.preferences.YtdlPreferences
@@ -42,4 +43,5 @@ val PreferencesModule =
     singleOf(::AiPreferences)
     singleOf(::YtdlPreferences)
     singleOf(::SettingsManager)
+    singleOf(::SecureFolderPreferences)
   }

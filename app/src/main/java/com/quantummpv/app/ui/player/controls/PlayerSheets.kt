@@ -34,6 +34,7 @@ import com.quantummpv.app.ui.player.controls.components.sheets.PlaybackSpeedShee
 import com.quantummpv.app.ui.player.controls.components.sheets.PlaylistSheet
 import com.quantummpv.app.ui.player.controls.components.sheets.SubtitlesSheet
 import com.quantummpv.app.ui.player.controls.components.sheets.VideoZoomSheet
+import com.quantummpv.app.ui.player.controls.components.sheets.VisualizerStyleSheet
 import com.quantummpv.app.ui.player.setTrackSelectionId
 import dev.vivvvek.seeker.Segment
 import kotlinx.collections.immutable.ImmutableList
@@ -437,6 +438,16 @@ fun PlayerSheets(
       val properties = remember { viewModel.getAudioPropertiesData() }
       com.quantummpv.app.ui.player.controls.components.sheets.AudioPropertiesSheet(
         properties = properties,
+        onDismissRequest = onDismissRequest,
+      )
+    }
+
+    Sheets.VisualizerStyle -> {
+      val audioPreferences = koinInject<com.quantummpv.app.preferences.AudioPreferences>()
+      val audioVisualizerStyle by audioPreferences.audioVisualizerStyle.collectAsState()
+      VisualizerStyleSheet(
+        selectedStyle = audioVisualizerStyle,
+        onSelectStyle = { audioPreferences.audioVisualizerStyle.set(it) },
         onDismissRequest = onDismissRequest,
       )
     }
