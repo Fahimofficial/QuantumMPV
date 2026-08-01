@@ -106,7 +106,6 @@ import com.quantummpv.app.ui.securefolder.SecureFolderProgressDialog
 import com.quantummpv.app.ui.theme.AppMotion
 import com.quantummpv.app.ui.utils.LocalBackStack
 import com.quantummpv.app.ui.utils.popSafely
-import com.quantummpv.app.utils.clipboard.SafeClipboard
 import com.quantummpv.app.utils.history.RecentlyPlayedOps
 import com.quantummpv.app.utils.media.CopyPasteOps
 import com.quantummpv.app.utils.media.MediaUtils
@@ -358,12 +357,6 @@ data class VideoListScreen(
             }
           },
           onShareClick = { selectionManager.shareSelected() },
-          onCopyClick = {
-            val selectedPaths = selectionManager.getSelectedItems().map { it.path }.distinct()
-            if (selectedPaths.isNotEmpty()) {
-              SafeClipboard.copyPlainText(context, "Selected paths", selectedPaths.joinToString("\n"))
-            }
-          },
           onPlayClick = { selectionManager.playSelected() },
           onSelectAll = { selectionManager.selectAll() },
           onInvertSelection = { selectionManager.invertSelection() },
