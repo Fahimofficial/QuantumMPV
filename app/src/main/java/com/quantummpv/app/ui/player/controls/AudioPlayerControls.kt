@@ -111,7 +111,9 @@ import com.quantummpv.app.ui.player.controls.components.SeekbarWithTimers
 import com.quantummpv.app.ui.player.visualizer.BlobOverlay
 import com.quantummpv.app.ui.player.visualizer.CuboidOverlay
 import com.quantummpv.app.ui.player.visualizer.GalaxyOverlay
+import com.quantummpv.app.ui.player.visualizer.ParticleOverlay
 import com.quantummpv.app.ui.player.visualizer.VisualizerPalette
+
 import com.quantummpv.app.ui.theme.AppTheme
 import com.quantummpv.app.ui.theme.DarkMode
 import `is`.xyz.mpv.MPVLib
@@ -482,7 +484,15 @@ fun AudioPlayerControls(
                     isSheetOpen = isSheetOpen,
                     modifier = Modifier.fillMaxSize(),
                   )
+                AudioVisualizerStyle.Particle ->
+                  ParticleOverlay(
+                    isPlaying = isPlaying,
+                    palette = palette,
+                    isSheetOpen = isSheetOpen,
+                    modifier = Modifier.fillMaxSize(),
+                  )
               }
+
             }
           } else {
             val coverShape = RoundedCornerShape(32.dp)
