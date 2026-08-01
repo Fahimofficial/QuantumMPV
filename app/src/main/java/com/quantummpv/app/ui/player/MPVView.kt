@@ -29,6 +29,7 @@ import com.quantummpv.app.ui.player.anime4k.clearAnime4KShaders
 import com.quantummpv.app.ui.player.anime4k.selectRuntimeStableAnime4K
 import com.quantummpv.app.ui.player.controls.components.panels.toColorHexString
 import com.quantummpv.app.ui.player.ytdlp.YtdlpManager
+import com.quantummpv.app.ui.player.visualizer.AudioSessionProvider
 import com.quantummpv.app.ui.preferences.VulkanUtils
 import `is`.xyz.mpv.BaseMPVView
 import `is`.xyz.mpv.KeyMapping
@@ -373,6 +374,10 @@ class MPVView(
     )
 
   private fun setupAudioOptions() {
+    // Route audio through the audiotrack AO with an app-owned session id so the visualizer FFT
+    // can attach to our own session without needing the RECORD_AUDIO permission.
+    MPVLib.setOptionString("ao", "audiotrack")
+    MPVLib.setOptionString("audiotrack-session-id", AudioSessionProvider.get(context).toString())
     // Disable MPV's automatic audio selection
     // App will handle track selection manually via TrackSelector to respect user choices
     MPVLib.setOptionString("alang", "")
