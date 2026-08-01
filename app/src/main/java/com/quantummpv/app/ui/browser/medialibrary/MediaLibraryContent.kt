@@ -101,7 +101,6 @@ import com.quantummpv.app.ui.icons.Icons
 import com.quantummpv.app.ui.player.PlayerActivity
 import com.quantummpv.app.ui.securefolder.SecureFolderGateScreen
 import com.quantummpv.app.ui.utils.LocalBackStack
-import com.quantummpv.app.utils.clipboard.SafeClipboard
 import com.quantummpv.app.utils.history.RecentlyPlayedOps
 import com.quantummpv.app.utils.media.CopyPasteOps
 import com.quantummpv.app.utils.media.MediaUtils
@@ -446,12 +445,6 @@ fun MediaLibraryContent() {
             }
           },
           onShareClick = { selectionManager.shareSelected() },
-          onCopyClick = {
-            val selectedPaths = selectionManager.getSelectedItems().map { it.path }.distinct()
-            if (selectedPaths.isNotEmpty()) {
-              SafeClipboard.copyPlainText(context, "Selected paths", selectedPaths.joinToString("\n"))
-            }
-          },
           onPlayClick = { selectionManager.playSelected() },
           onSelectAll = { selectionManager.selectAll() },
           onInvertSelection = { selectionManager.invertSelection() },

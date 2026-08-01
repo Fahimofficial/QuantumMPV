@@ -118,7 +118,6 @@ import com.quantummpv.app.ui.icons.Icons
 import com.quantummpv.app.ui.securefolder.SecureFolderGateScreen
 import com.quantummpv.app.ui.utils.LocalBackStack
 import com.quantummpv.app.ui.utils.calculateResponsiveGridSpans
-import com.quantummpv.app.utils.clipboard.SafeClipboard
 import com.quantummpv.app.utils.history.RecentlyPlayedOps
 import com.quantummpv.app.utils.media.CopyPasteOps
 import com.quantummpv.app.utils.media.MediaSearchEngine
@@ -570,12 +569,6 @@ object FolderListScreen : Screen {
                   if (allVideos.isNotEmpty()) {
                     MediaUtils.shareVideos(context, allVideos)
                   }
-                }
-              },
-              onCopyClick = {
-                val selectedPaths = selectionManager.getSelectedItems().map { it.path }.distinct()
-                if (selectedPaths.isNotEmpty()) {
-                  SafeClipboard.copyPlainText(context, "Selected folder paths", selectedPaths.joinToString("\n"))
                 }
               },
               onPlayClick = {
