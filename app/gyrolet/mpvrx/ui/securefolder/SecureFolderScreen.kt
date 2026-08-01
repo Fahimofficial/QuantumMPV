@@ -63,6 +63,7 @@ import com.quantummpv.app.ui.icons.Icon
 import com.quantummpv.app.ui.icons.Icons
 import com.quantummpv.app.ui.utils.LocalBackStack
 import com.quantummpv.app.ui.utils.popSafely
+import com.quantummpv.app.utils.media.MediaUtils
 import kotlinx.serialization.Serializable
 import java.text.DecimalFormat
 import kotlin.math.ln
@@ -180,7 +181,12 @@ data object SecureFolderScreen : Screen {
                   if (isInSelectionMode) {
                     viewModel.toggleSelection(entity.id)
                   } else {
-                    viewModel.handleLongClick(entity.id)
+                    MediaUtils.playFile(
+                      entity.secureFilePath,
+                      context,
+                      launchSource = "secure_folder",
+                      title = entity.fileName,
+                    )
                   }
                 },
                 onLongClick = { viewModel.handleLongClick(entity.id) },
