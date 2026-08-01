@@ -557,6 +557,7 @@ object FolderListScreen : Screen {
                 backstack.add(com.quantummpv.app.ui.preferences.PreferencesScreen)
               },
               onTitleDoubleTap = { backstack.add(SecureFolderGateScreen) },
+              onTitleLongPress = { backstack.add(SecureFolderGateScreen) },
               onRenameClick = null,
               isSingleSelection = selectionManager.isSingleSelection,
               onInfoClick = null,
