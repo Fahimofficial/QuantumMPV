@@ -56,9 +56,11 @@ import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.quantummpv.app.R
 import com.quantummpv.app.database.entities.SecureMediaEntity
 import com.quantummpv.app.domain.media.model.Video
 import com.quantummpv.app.domain.thumbnail.ThumbnailRepository
