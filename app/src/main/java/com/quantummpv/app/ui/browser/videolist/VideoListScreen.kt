@@ -100,6 +100,7 @@ import com.quantummpv.app.ui.browser.states.EmptyState
 import com.quantummpv.app.ui.icons.Icon
 import com.quantummpv.app.ui.icons.Icons
 import com.quantummpv.app.ui.securefolder.SecureConfirmDialog
+import com.quantummpv.app.ui.securefolder.SecureFolderGateScreen
 import com.quantummpv.app.ui.securefolder.SecureFolderProgressDialog
 import com.quantummpv.app.ui.theme.AppMotion
 import com.quantummpv.app.ui.utils.LocalBackStack
@@ -353,7 +354,9 @@ data class VideoListScreen(
           onInvertSelection = { selectionManager.invertSelection() },
           onDeselectAll = { selectionManager.clear() },
           onMoveToSecureClick = {
-            if (secureFolderPreferences.dontAskBeforeMove.get()) {
+            if (!secureFolderPreferences.isPinSet()) {
+              backstack.add(SecureFolderGateScreen)
+            } else if (secureFolderPreferences.dontAskBeforeMove.get()) {
               moveSelectedToSecureFolder()
             } else {
               moveToSecureConfirmOpen.value = true
