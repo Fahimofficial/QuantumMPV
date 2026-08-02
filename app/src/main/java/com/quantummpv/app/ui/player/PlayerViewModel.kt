@@ -71,6 +71,7 @@ import com.quantummpv.app.utils.media.ChecksumUtils
 import com.quantummpv.app.utils.media.MediaInfoParser
 import com.quantummpv.app.utils.media.ParsedMediaInfo
 import com.quantummpv.app.utils.media.SubtitleHashUtils
+import com.quantummpv.app.utils.media.fileExtension
 import com.quantummpv.app.utils.media.resolveSubtitleLookupDirectories
 import com.quantummpv.app.utils.storage.FileTypeUtils
 import `is`.xyz.mpv.MPVLib
@@ -525,12 +526,7 @@ class PlayerViewModel(
       val currentPath = path?.takeIf { it.isNotBlank() } ?: streamPath
       val isFileAudioExt =
         currentPath?.let { p ->
-          val ext =
-            p
-              .substringBefore('?')
-              .substringBefore('#')
-              .substringAfterLast('.', "")
-              .lowercase()
+          val ext = p.fileExtension()
           ext in FileTypeUtils.AUDIO_EXTENSIONS
         } ?: false
 
@@ -4898,19 +4894,16 @@ class PlayerViewModel(
     mode != HdrScreenMode.LINEAR || isLinearHdrAvailable.value
 
   private fun initialHdrScreenMode(): HdrScreenMode {
-    val savedMode =
-      decoderPreferences.hdrScreenMode.get().let { mode ->
-        if (mode == HdrScreenMode.OFF) decoderPreferences.lastHdrMode.get() else mode
-      }
-    val resolvedMode =
-      if (savedMode == HdrScreenMode.LINEAR &&
-        !(decoderPreferences.gpuNext.get() && decoderPreferences.useVulkan.get())
-      ) HdrScreenMode.defaultEnabledMode else savedMode
-    return if (resolvedMode == HdrScreenMode.OFF && decoderPreferences.hdrScreenOutput.get()) {
-      HdrScreenMode.defaultEnabledMode
-    } else {
-      resolvedMode
+    if (!decoderPreferences.hdrScreenOutput.get()) {
+      return HdrScreenMode.OFF
     }
+    val savedMode = decoderPreferences.hdrScreenMode.get()
+    if (savedMode == HdrScreenMode.OFF) {
+      return HdrScreenMode.OFF
+    }
+    return if (savedMode == HdrScreenMode.LINEAR &&
+      !(decoderPreferences.gpuNext.get() && decoderPreferences.useVulkan.get())
+    ) HdrScreenMode.defaultEnabledMode else savedMode
   }
 
   private fun reconcileHdrModeWithRenderer() {

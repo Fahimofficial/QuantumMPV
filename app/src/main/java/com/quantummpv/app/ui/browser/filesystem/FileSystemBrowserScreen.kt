@@ -112,7 +112,6 @@ import com.quantummpv.app.ui.theme.AppMotion
 import com.quantummpv.app.ui.utils.LocalBackStack
 import com.quantummpv.app.ui.utils.calculateResponsiveGridSpans
 import com.quantummpv.app.ui.utils.popSafely
-import com.quantummpv.app.utils.clipboard.SafeClipboard
 import com.quantummpv.app.utils.media.CopyPasteOps
 import com.quantummpv.app.utils.media.MediaUtils
 import com.quantummpv.app.utils.media.OpenDocumentTreeContract
@@ -602,19 +601,6 @@ fun FileSystemBrowserScreen(path: String? = null) {
                 if (videosToShare.isNotEmpty()) {
                   MediaUtils.shareVideos(context, videosToShare)
                 }
-              }
-            },
-            onCopyClick = {
-              val selectedPaths =
-                selectedItems
-                  .map { item ->
-                    when (item) {
-                      is FileSystemItem.Folder -> item.path
-                      is FileSystemItem.VideoFile -> item.video.path
-                    }
-                  }.distinct()
-              if (selectedPaths.isNotEmpty()) {
-                SafeClipboard.copyPlainText(context, "Selected paths", selectedPaths.joinToString("\n"))
               }
             },
             onPlayClick = {
