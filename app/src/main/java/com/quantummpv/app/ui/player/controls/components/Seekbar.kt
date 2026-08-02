@@ -77,6 +77,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
+import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import com.quantummpv.app.preferences.SeekbarStyle
 import com.quantummpv.app.ui.player.SkipSegment
@@ -670,7 +671,7 @@ fun SeekThumbnailPreviewBubble(
       Column(
         modifier =
           Modifier
-            .offset(x = xOffset)
+            .offset { IntOffset(xOffset.roundToPx(), 0) }
             .width(previewWidth),
         horizontalAlignment = Alignment.CenterHorizontally,
       ) {
