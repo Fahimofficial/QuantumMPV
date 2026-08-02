@@ -72,6 +72,7 @@ import com.quantummpv.app.domain.anime4k.Anime4KManager
 import com.quantummpv.app.domain.playbackstate.repository.PlaybackStateRepository
 import com.quantummpv.app.preferences.AdvancedPreferences
 import com.quantummpv.app.preferences.AppearancePreferences
+import com.quantummpv.app.preferences.AudioChannels
 import com.quantummpv.app.preferences.AudioPlayerOrientation
 import com.quantummpv.app.preferences.AudioPreferences
 import com.quantummpv.app.preferences.BrowserPreferences
@@ -986,7 +987,11 @@ class PlayerActivity :
   private fun setupAudio() {
     audioPreferences.audioChannels.get().let {
       runCatching {
-        MPVLib.setPropertyString(it.property, it.value)
+        if (it == AudioChannels.ReverseStereo) {
+          MPVLib.setPropertyString(AudioChannels.AutoSafe.property, AudioChannels.AutoSafe.value)
+        } else {
+          MPVLib.setPropertyString(it.property, it.value)
+        }
       }.onFailure { e ->
         Log.e(TAG, "Error setting audio channels: ${it.property}=${it.value}", e)
       }
