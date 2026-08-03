@@ -33,6 +33,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import com.quantummpv.app.ui.components.IconSwitch
 import com.quantummpv.app.ui.icons.AppIcon
 import com.quantummpv.app.ui.icons.Icon
 import com.quantummpv.app.ui.icons.Icons
@@ -134,8 +135,8 @@ fun SettingsSwitchItem(
   modifier: Modifier = Modifier,
   description: String? = null,
   icon: AppIcon? = null,
-  enabled: Boolean = true,
   isChecked: Boolean,
+  enabled: Boolean = true,
   onClick: () -> Unit,
   isFirstItem: Boolean = false,
   isLastItem: Boolean = false,
@@ -150,20 +151,10 @@ fun SettingsSwitchItem(
     isLastItem = isLastItem,
     modifier = modifier,
     trailing = {
-      Switch(
+      IconSwitch(
         checked = isChecked,
         onCheckedChange = null,
         enabled = enabled,
-        thumbContent = {
-          if (isChecked) {
-            Icon(
-              imageVector = Icons.RoundedFilled.Check,
-              contentDescription = null,
-              modifier = Modifier.size(SwitchDefaults.IconSize),
-              tint = MaterialTheme.colorScheme.onPrimaryContainer,
-            )
-          }
-        },
       )
     },
   )
