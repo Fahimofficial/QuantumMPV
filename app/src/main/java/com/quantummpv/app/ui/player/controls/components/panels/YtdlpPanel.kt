@@ -22,6 +22,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.quantummpv.app.preferences.YtdlPreferences
 import com.quantummpv.app.preferences.preference.collectAsState
+import com.quantummpv.app.ui.components.IconSwitch
 import com.quantummpv.app.ui.icons.Icon
 import com.quantummpv.app.ui.icons.Icons
 import com.quantummpv.app.ui.player.controls.panelCardsColors
@@ -314,7 +315,7 @@ fun YtdlpPanel(
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
               )
             }
-            Switch(
+            IconSwitch(
               checked = writeSubs,
               onCheckedChange = { ytdlPreferences.writeSubs.set(it) },
             )
@@ -343,7 +344,7 @@ fun YtdlpPanel(
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
               )
             }
-            Switch(
+            IconSwitch(
               checked = writeAutoSubs,
               onCheckedChange = { ytdlPreferences.writeAutoSubs.set(it) },
             )
