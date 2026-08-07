@@ -99,4 +99,7 @@ val domainModule =
       com.quantummpv.app.domain.syncplay
         .SyncplayManager(androidContext())
     }
+    single { com.quantummpv.app.data.lyrics.LrcLibApiService(get()) }
+    single { com.quantummpv.app.repository.lyrics.LyricsRepository(androidContext(), get()) }
   }
+

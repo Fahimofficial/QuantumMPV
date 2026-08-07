@@ -455,5 +455,13 @@ fun PlayerSheets(
         onDismissRequest = onDismissRequest,
       )
     }
+
+    Sheets.Lyrics -> {
+      com.quantummpv.app.ui.player.controls.components.sheets.LyricsSheet(
+        viewModel = viewModel,
+        onDismiss = onDismissRequest,
+      )
+    }
   }
 }
+
