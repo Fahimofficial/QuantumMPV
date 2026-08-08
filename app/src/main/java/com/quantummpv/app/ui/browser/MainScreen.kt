@@ -82,6 +82,7 @@ import com.quantummpv.app.preferences.preference.collectAsState
 import com.quantummpv.app.presentation.Screen
 import com.quantummpv.app.ui.browser.folderlist.FolderListScreen
 import com.quantummpv.app.ui.browser.medialibrary.MediaLibraryContent
+import com.quantummpv.app.ui.browser.music.MusicLibraryContent
 import com.quantummpv.app.ui.browser.networkstreaming.NetworkStreamingScreen
 import com.quantummpv.app.ui.browser.playlist.PlaylistScreen
 import com.quantummpv.app.ui.browser.recentlyplayed.RecentlyPlayedScreen
@@ -288,7 +289,7 @@ LaunchedEffect(visibleTabs) {
               val tab = visibleTabs[page]
               when (tab) {
                 MainTab.HOME -> FolderListScreen.Content()
-                MainTab.MUSIC -> MediaLibraryContent(forceAudio = true)
+                MainTab.MUSIC -> MusicLibraryContent()
                 MainTab.RECENTS -> RecentlyPlayedScreen.Content()
                 MainTab.PLAYLISTS -> PlaylistScreen.Content()
                 MainTab.NETWORK -> NetworkStreamingScreen.Content()
