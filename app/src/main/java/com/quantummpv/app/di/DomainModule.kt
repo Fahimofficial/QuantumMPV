@@ -11,6 +11,7 @@ package com.quantummpv.app.di
 
 import com.quantummpv.app.domain.anime4k.Anime4KManager
 import com.quantummpv.app.domain.hdr.HdrToysManager
+import com.quantummpv.app.domain.torrent.TorrentStreamingEngine
 import com.quantummpv.app.network.AndroidCookieJar
 import com.quantummpv.app.preferences.AiPreferences
 import com.quantummpv.app.repository.IntroDbRepository
@@ -101,5 +102,6 @@ val domainModule =
     }
     single { com.quantummpv.app.data.lyrics.LrcLibApiService(get()) }
     single { com.quantummpv.app.repository.lyrics.LyricsRepository(androidContext(), get()) }
+    single { TorrentStreamingEngine(androidContext()) }
   }
 

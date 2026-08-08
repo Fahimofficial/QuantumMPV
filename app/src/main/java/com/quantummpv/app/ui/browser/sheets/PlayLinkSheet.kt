@@ -41,11 +41,16 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.core.net.toUri
+import com.quantummpv.app.database.repository.NetworkStreamEntryRepository
+import com.quantummpv.app.domain.torrent.isTorrentSource
+import com.quantummpv.app.domain.torrent.normalizeTorrentSource
 import com.quantummpv.app.ui.icons.Icon
 import com.quantummpv.app.ui.icons.Icons
 import com.quantummpv.app.utils.history.RecentlyPlayedOps
 import com.quantummpv.app.utils.media.MediaUtils
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.launch
+import org.koin.compose.koinInject
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -60,6 +65,7 @@ fun PlayLinkSheet(
   var linkInputUrl by remember { mutableStateOf("") }
   var isLinkInputUrlValid by remember { mutableStateOf(true) }
   val coroutineScope = rememberCoroutineScope()
+  val streamEntryRepository = koinInject<NetworkStreamEntryRepository>()
 
   LaunchedEffect(isOpen) {
     if (isOpen) {
@@ -75,18 +81,30 @@ fun PlayLinkSheet(
   val handleConfirm = {
     val url = linkInputUrl.trim()
     if (url.isNotBlank() && MediaUtils.isURLValid(url)) {
-      // Optimistically record in history so it shows up immediately
+      val playableSource = normalizeTorrentSource(url) ?: url
       coroutineScope.launch {
-        val uri = url.toUri()
-        val name = uri.lastPathSegment?.substringAfterLast('/')?.ifBlank { url } ?: url
-        RecentlyPlayedOps.addRecentlyPlayed(
-          filePath = url,
-          fileName = name,
-          launchSource = "play_link",
-        )
+        val uri = playableSource.toUri()
+        val name = uri.lastPathSegment?.substringAfterLast('/')?.ifBlank { playableSource } ?: playableSource
+        if (!isTorrentSource(playableSource)) {
+          try {
+            RecentlyPlayedOps.addRecentlyPlayed(
+              filePath = playableSource,
+              fileName = name,
+              launchSource = "play_link",
+            )
+            streamEntryRepository.saveNormalEntry(
+              canonicalSourceUri = playableSource,
+              fileName = name,
+            )
+          } catch (cancellation: CancellationException) {
+            throw cancellation
+          } catch (_: Exception) {
+            // Playback must still open even if optional history persistence fails.
+          }
+        }
+        onPlayLink(playableSource)
+        onDismiss()
       }
-      onPlayLink(url)
-      onDismiss()
     }
   }
 
