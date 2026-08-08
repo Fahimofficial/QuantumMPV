@@ -10,10 +10,7 @@
 package com.quantummpv.app.ui.preferences
 
 import android.app.Application
-import android.content.Intent
 import android.net.Uri
-import androidx.activity.compose.rememberLauncherForActivityResult
-import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
@@ -57,12 +54,9 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import androidx.documentfile.provider.DocumentFile
 import com.quantummpv.app.R
 import com.quantummpv.app.domain.media.model.VideoFolder
-import com.quantummpv.app.preferences.AdvancedPreferences
 import com.quantummpv.app.preferences.FoldersPreferences
-import com.quantummpv.app.preferences.SubtitlesPreferences
 import com.quantummpv.app.preferences.preference.collectAsState
 import com.quantummpv.app.presentation.Screen
 import com.quantummpv.app.ui.browser.components.BrowserTopBar
@@ -88,33 +82,6 @@ object FoldersPreferencesScreen : Screen {
     val backstack = LocalBackStack.current
     val context = LocalContext.current
     val coroutineScope = rememberCoroutineScope()
-    val advancedPreferences = koinInject<AdvancedPreferences>()
-    val subtitlesPreferences = koinInject<SubtitlesPreferences>()
-
-    val baseStorageFolder by preferences.baseStorageFolder.collectAsState()
-
-    val storageRootPicker =
-      rememberLauncherForActivityResult(
-        ActivityResultContracts.OpenDocumentTree(),
-      ) { uri: Uri? ->
-        if (uri == null) return@rememberLauncherForActivityResult
-        context.contentResolver.takePersistableUriPermission(
-          uri,
-          Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_GRANT_WRITE_URI_PERMISSION,
-        )
-        val uriString = uri.toString()
-        val previousBaseStorageFolder = preferences.baseStorageFolder.get()
-        if (subtitlesPreferences.fontsFolder.get() == previousBaseStorageFolder) {
-          subtitlesPreferences.fontsFolder.set("")
-        }
-        preferences.baseStorageFolder.set(uriString)
-        advancedPreferences.mpvConfStorageUri.set(uriString)
-        subtitlesPreferences.subtitleSaveFolder.set(uriString)
-        val root = DocumentFile.fromTreeUri(context, uri) ?: return@rememberLauncherForActivityResult
-        listOf("fonts", "Subtitles", "scripts", "script-opts", "shaders").forEach { name ->
-          if (root.findFile(name) == null) root.createDirectory(name)
-        }
-      }
 
     val blacklistedFolders by preferences.blacklistedFolders.collectAsState()
     val includeNoMediaFolders by preferences.includeNoMediaFolders.collectAsState()

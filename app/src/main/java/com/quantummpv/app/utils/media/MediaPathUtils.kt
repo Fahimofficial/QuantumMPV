@@ -10,7 +10,7 @@
 package com.quantummpv.app.utils.media
 
 import com.quantummpv.app.preferences.PlayerPreferences
-import `is`.xyz.mpv.MPVLib
+import com.quantummpv.app.ui.player.PlaybackSession
 
 /**
  * Extracts the file extension from a path or URI string, stripping query
@@ -36,7 +36,7 @@ fun String.fileExtension(): String =
  * precise seeking for a better scrubbing experience.
  */
 fun resolveSeekMode(playerPreferences: PlayerPreferences): String {
-  val duration = MPVLib.getPropertyInt("duration") ?: 0
+  val duration = PlaybackSession.getPropertyInt("duration") ?: 0
   val usePrecise = playerPreferences.usePreciseSeeking.get() || duration < 120
   return if (usePrecise) "relative+exact" else "relative+keyframes"
 }

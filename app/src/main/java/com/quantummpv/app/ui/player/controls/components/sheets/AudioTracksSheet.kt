@@ -9,6 +9,8 @@
 
 package com.quantummpv.app.ui.player.controls.components.sheets
 
+import com.quantummpv.app.ui.player.PlaybackSession
+
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -42,7 +44,6 @@ import com.quantummpv.app.ui.icons.Icon
 import com.quantummpv.app.ui.icons.Icons
 import com.quantummpv.app.ui.player.TrackNode
 import com.quantummpv.app.ui.theme.spacing
-import `is`.xyz.mpv.MPVLib
 import kotlinx.collections.immutable.ImmutableList
 import org.koin.compose.koinInject
 
@@ -107,9 +108,9 @@ fun AudioTracksSheet(
                   onClick = {
                     audioPreferences.audioChannels.set(it)
                     if (it == AudioChannels.ReverseStereo) {
-                      MPVLib.setPropertyString(AudioChannels.AutoSafe.property, AudioChannels.AutoSafe.value)
+                      PlaybackSession.setPropertyString(AudioChannels.AutoSafe.property, AudioChannels.AutoSafe.value)
                     } else {
-                      MPVLib.setPropertyString(it.property, it.value)
+                      PlaybackSession.setPropertyString(it.property, it.value)
                     }
                   },
                   label = { Text(text = stringResource(id = it.title)) },

@@ -9,6 +9,8 @@
 
 package com.quantummpv.app.ui.player.controls.components.sheets
 
+import com.quantummpv.app.ui.player.PlaybackSession
+
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
@@ -48,7 +50,6 @@ import com.quantummpv.app.ui.icons.Icon
 import com.quantummpv.app.ui.icons.Icons
 import com.quantummpv.app.ui.preferences.components.SwitchPreference
 import com.quantummpv.app.ui.theme.spacing
-import `is`.xyz.mpv.MPVLib
 import me.zhanghai.compose.preference.ProvidePreferenceLocals
 import org.koin.compose.koinInject
 import kotlin.math.pow
@@ -214,7 +215,7 @@ fun PlaybackSpeedSheet(
           value = pitchCorrection,
           onValueChange = { newValue ->
             audioPreferences.audioPitchCorrection.set(newValue)
-            MPVLib.setPropertyBoolean("audio-pitch-correction", newValue)
+            PlaybackSession.setPropertyBoolean("audio-pitch-correction", newValue)
           },
           title = {
             Text(

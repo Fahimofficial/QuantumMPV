@@ -9,6 +9,8 @@
 
 package com.quantummpv.app.ui.player.controls
 
+import com.quantummpv.app.ui.player.PlaybackSession
+
 import android.content.res.Configuration
 import android.graphics.Bitmap
 import android.media.MediaMetadataRetriever
@@ -43,7 +45,6 @@ import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
@@ -125,10 +126,8 @@ import androidx.compose.ui.unit.IntOffset
 import kotlin.math.roundToInt
 import com.quantummpv.app.R
 import com.quantummpv.app.domain.thumbnail.EmbeddedArtworkResolver
-import com.quantummpv.app.preferences.AppearancePreferences
 import com.quantummpv.app.preferences.AudioPreferences
 import com.quantummpv.app.preferences.AudioVisualizerStyle
-import com.quantummpv.app.preferences.PlayerPreferences
 import com.quantummpv.app.preferences.preference.collectAsState
 import com.quantummpv.app.ui.icons.Icon
 import com.quantummpv.app.ui.icons.Icons
@@ -138,19 +137,15 @@ import com.quantummpv.app.ui.player.PlayerViewModel
 import com.quantummpv.app.ui.player.RepeatMode
 import com.quantummpv.app.ui.player.Sheets
 import com.quantummpv.app.ui.player.controls.components.AbLoopIcon
-import com.quantummpv.app.ui.player.controls.components.SeekbarWithTimers
+import com.quantummpv.app.ui.player.controls.components.AudioReactiveSeekbar
 import com.quantummpv.app.ui.player.visualizer.BlobOverlay
 import com.quantummpv.app.ui.player.visualizer.CuboidOverlay
 import com.quantummpv.app.ui.player.visualizer.GalaxyOverlay
 import com.quantummpv.app.ui.player.visualizer.ParticleOverlay
 import com.quantummpv.app.ui.player.visualizer.VisualizerPalette
+import com.quantummpv.app.ui.player.visualizer.rememberAudioVisualizerFeatures
 
-import com.quantummpv.app.ui.theme.AppTheme
-import com.quantummpv.app.ui.theme.DarkMode
-import `is`.xyz.mpv.MPVLib
 import com.quantummpv.app.utils.media.fileExtension
-import kotlinx.collections.immutable.persistentListOf
-import kotlinx.collections.immutable.toImmutableList
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import org.koin.compose.koinInject
@@ -231,9 +226,9 @@ fun AudioPlayerControls(
   onOpenPanel: (Panels) -> Unit,
   modifier: Modifier = Modifier,
 ) {
-  val paused by MPVLib.propBoolean["pause"].collectAsState()
-  val duration by MPVLib.propInt["duration"].collectAsState()
-  val position by MPVLib.propInt["time-pos"].collectAsState()
+  val paused by PlaybackSession.propBoolean["pause"].collectAsState()
+  val duration by PlaybackSession.propInt["duration"].collectAsState()
+  val position by PlaybackSession.propInt["time-pos"].collectAsState()
   val precisePosition by viewModel.precisePosition.collectAsState()
   val preciseDuration by viewModel.preciseDuration.collectAsState()
 
@@ -249,13 +244,13 @@ fun AudioPlayerControls(
     }
   }
 
-  val currentPath by MPVLib.propString["path"].collectAsState()
-  val currentStreamFilename by MPVLib.propString["stream-open-filename"].collectAsState()
+  val currentPath by PlaybackSession.propString["path"].collectAsState()
+  val currentStreamFilename by PlaybackSession.propString["stream-open-filename"].collectAsState()
   val mediaPath = currentPath?.takeIf { it.isNotBlank() } ?: currentStreamFilename
 
-  val audioCodec by MPVLib.propString["audio-codec-name"].collectAsState()
-  val sampleRate by MPVLib.propInt["audio-params/samplerate"].collectAsState()
-  val playbackSpeed by MPVLib.propFloat["speed"].collectAsState()
+  val audioCodec by PlaybackSession.propString["audio-codec-name"].collectAsState()
+  val sampleRate by PlaybackSession.propInt["audio-params/samplerate"].collectAsState()
+  val playbackSpeed by PlaybackSession.propFloat["speed"].collectAsState()
 
   val isLosslessCodecOrExt =
     remember(audioCodec, mediaPath) {
@@ -312,10 +307,10 @@ fun AudioPlayerControls(
   }
 
   val context = LocalContext.current
-  val rawArtist by MPVLib.propString["metadata/by-key/Artist"].collectAsState()
-  val rawArtistAlt by MPVLib.propString["metadata/artist"].collectAsState()
-  val rawAlbumArtist by MPVLib.propString["metadata/by-key/album_artist"].collectAsState()
-  val rawPerformer by MPVLib.propString["metadata/by-key/PERFORMER"].collectAsState()
+  val rawArtist by PlaybackSession.propString["metadata/by-key/Artist"].collectAsState()
+  val rawArtistAlt by PlaybackSession.propString["metadata/artist"].collectAsState()
+  val rawAlbumArtist by PlaybackSession.propString["metadata/by-key/album_artist"].collectAsState()
+  val rawPerformer by PlaybackSession.propString["metadata/by-key/PERFORMER"].collectAsState()
 
   var retrievedArtist by remember(mediaPath) { mutableStateOf<String?>(null) }
   LaunchedEffect(mediaPath) {
@@ -348,33 +343,17 @@ fun AudioPlayerControls(
     }
 
   val audioPreferences = koinInject<AudioPreferences>()
-  val appearancePreferences = koinInject<AppearancePreferences>()
   val audioVisualizerStyle by audioPreferences.audioVisualizerStyle.collectAsState()
   val backgroundPlaybackEnabled by audioPreferences.audioBackgroundPlayback.collectAsState()
-  val appTheme by appearancePreferences.appTheme.collectAsState()
-  val darkMode by appearancePreferences.darkMode.collectAsState()
-  val amoledMode by appearancePreferences.amoledMode.collectAsState()
-  val useDarkTheme =
-    when (darkMode) {
-      DarkMode.Dark -> true
-      DarkMode.Light -> false
-      DarkMode.System -> isSystemInDarkTheme()
-    }
   val colorScheme = MaterialTheme.colorScheme
   val palette =
-    remember(appTheme, useDarkTheme, amoledMode, colorScheme) {
-      if (appTheme == AppTheme.Dynamic) {
-        VisualizerPalette(
-          background = colorScheme.surface.toArgb(),
-          primary = colorScheme.primary.toArgb(),
-          secondary = colorScheme.secondary.toArgb(),
-          tertiary = colorScheme.tertiary.toArgb(),
-        )
-      } else {
-        appTheme
-          .toVisualizerPalette(useDarkTheme = useDarkTheme, amoledMode = amoledMode)
-          .copy(background = colorScheme.surface.toArgb())
-      }
+    remember(colorScheme) {
+      VisualizerPalette(
+        background = colorScheme.surface.toArgb(),
+        primary = colorScheme.primary.toArgb(),
+        secondary = colorScheme.secondary.toArgb(),
+        tertiary = colorScheme.tertiary.toArgb(),
+      )
     }
 
    val isPlaying = paused == false
@@ -382,6 +361,7 @@ fun AudioPlayerControls(
    val currentDurSec = if (preciseDuration > 0f) preciseDuration else duration?.toFloat() ?: 0f
    val currentVolumePercent by viewModel.currentVolumePercent.collectAsState()
    val volumeScale = currentVolumePercent / 100f
+   val visualizerFeatures = rememberAudioVisualizerFeatures(isPlaying, volumeScale)
 
   val repeatMode by viewModel.repeatMode.collectAsState()
   val shuffleEnabled by viewModel.shuffleEnabled.collectAsState()
@@ -395,16 +375,6 @@ fun AudioPlayerControls(
   val abLoopB = abLoop.b
 
   var addToPlaylistDialogOpen by rememberSaveable { mutableStateOf(false) }
-
-  val playerPreferences = koinInject<PlayerPreferences>()
-  val seekbarStyle by appearancePreferences.seekbarStyle.collectAsState()
-  val invertDuration by playerPreferences.invertDuration.collectAsState()
-  val showChapterIndicators by playerPreferences.showChapterIndicators.collectAsState()
-  val chapters by viewModel.chapters.collectAsState()
-  val seekbarChapters =
-    remember(chapters, showChapterIndicators) {
-      if (showChapterIndicators) chapters.toImmutableList() else persistentListOf()
-    }
 
   LaunchedEffect(Unit) {
     viewModel.refreshPlaylistItems()
@@ -673,18 +643,18 @@ fun AudioPlayerControls(
                when (audioVisualizerStyle) {
                  AudioVisualizerStyle.Galaxy ->
                    GalaxyOverlay(
-                     isPlaying = isPlaying,
                      palette = palette,
                      isSheetOpen = isSheetOpen,
                      volumeScale = volumeScale,
+                     features = visualizerFeatures,
                      modifier = Modifier.fillMaxSize(),
                    )
                  AudioVisualizerStyle.Blob ->
                    BlobOverlay(
-                     isPlaying = isPlaying,
                      palette = palette,
                      isSheetOpen = isSheetOpen,
                      volumeScale = volumeScale,
+                     features = visualizerFeatures,
                      modifier = Modifier.fillMaxSize(),
                    )
                  AudioVisualizerStyle.Cuboid ->
@@ -693,14 +663,15 @@ fun AudioPlayerControls(
                      palette = palette,
                      isSheetOpen = isSheetOpen,
                      volumeScale = volumeScale,
+                     features = visualizerFeatures,
                      modifier = Modifier.fillMaxSize(),
                    )
                  AudioVisualizerStyle.Particle ->
                    ParticleOverlay(
-                     isPlaying = isPlaying,
                      palette = palette,
                      isSheetOpen = isSheetOpen,
                      volumeScale = volumeScale,
+                     features = visualizerFeatures,
                      modifier = Modifier.fillMaxSize(),
                    )
                }
@@ -735,7 +706,7 @@ fun AudioPlayerControls(
                           if (viewModel.hasPlaylistSupport()) {
                             viewModel.playNext()
                           } else {
-                            runCatching { MPVLib.command("playlist-next") }
+                            runCatching { PlaybackSession.command("playlist-next") }
                           }
                         } else if (dragVal > threshold) {
                           haptic.performHapticFeedback(HapticFeedbackType.LongPress)
@@ -748,7 +719,7 @@ fun AudioPlayerControls(
                           if (viewModel.hasPlaylistSupport()) {
                             viewModel.playPrevious()
                           } else {
-                            runCatching { MPVLib.command("playlist-prev") }
+                            runCatching { PlaybackSession.command("playlist-prev") }
                           }
                         } else {
                           animatableOffsetX.animateTo(
@@ -1032,23 +1003,15 @@ fun AudioPlayerControls(
     }
 
     val seekbarView = @Composable {
-      SeekbarWithTimers(
+      AudioReactiveSeekbar(
         position = currentPosSec,
-        committedPosition = currentPosSec,
         duration = currentDurSec.coerceAtLeast(1f),
-        onValueChange = { value -> viewModel.seekTo(value.toInt(), fast = true) },
-        onValueChangeFinished = { targetPosition -> viewModel.seekTo(targetPosition.toInt(), fast = false) },
-        timersInverted = Pair(false, invertDuration),
-        durationTimerOnCLick = { playerPreferences.invertDuration.set(!invertDuration) },
-        positionTimerOnClick = {},
-        chapters = seekbarChapters,
-        skipSegments = persistentListOf(),
-        paused = paused ?: false,
-        seekbarStyle = seekbarStyle,
-        loopStart = abLoopA?.toFloat(),
-        loopEnd = abLoopB?.toFloat(),
-        isPortrait = isPortrait,
-        applyHorizontalPadding = false,
+        features = visualizerFeatures,
+        isPlaying = isPlaying,
+        primary = MaterialTheme.colorScheme.primary,
+        secondary = MaterialTheme.colorScheme.tertiary,
+        inactive = MaterialTheme.colorScheme.onSurfaceVariant,
+        onSeekFinished = { targetPosition -> viewModel.seekTo(targetPosition.toInt(), fast = false) },
         modifier = Modifier.fillMaxWidth(),
       )
     }

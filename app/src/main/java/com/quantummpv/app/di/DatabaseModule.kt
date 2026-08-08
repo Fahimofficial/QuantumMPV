@@ -13,6 +13,8 @@ import androidx.room.Room
 import androidx.room.RoomDatabase
 import androidx.room.migration.Migration
 import androidx.sqlite.db.SupportSQLiteDatabase
+import com.quantummpv.app.data.network.credentials.AndroidNetworkCredentialKey
+import com.quantummpv.app.data.network.credentials.NetworkCredentialCipher
 import com.quantummpv.app.database.MpvRxDatabase
 import com.quantummpv.app.database.repository.PlaybackStateRepositoryImpl
 import com.quantummpv.app.database.repository.PlaylistRepository
@@ -625,8 +627,7 @@ val DatabaseModule =
           MIGRATION_9_10,
           MIGRATION_10_11,
           MIGRATION_11_12,
-        ).fallbackToDestructiveMigration(true) // Fallback if migration fails (last resort)
-        .build()
+        ).build()
     }
 
     singleOf(::PlaybackStateRepositoryImpl).bind(PlaybackStateRepository::class)
@@ -651,8 +652,13 @@ val DatabaseModule =
     }
 
     single {
+      NetworkCredentialCipher(AndroidNetworkCredentialKey::getOrCreate)
+    }
+
+    single {
       com.quantummpv.app.repository.NetworkRepository(
         dao = get(),
+        credentialCipher = get(),
       )
     }
 

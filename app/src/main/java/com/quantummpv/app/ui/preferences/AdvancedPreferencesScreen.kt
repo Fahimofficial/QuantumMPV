@@ -11,7 +11,6 @@ package com.quantummpv.app.ui.preferences
 
 import android.content.Intent
 import android.net.Uri
-import android.os.Build
 import android.os.Environment
 import android.widget.Toast
 import androidx.activity.compose.LocalActivity
@@ -65,7 +64,6 @@ import com.quantummpv.app.presentation.components.ConfirmDialog
 import com.quantummpv.app.presentation.crash.CrashActivity
 import com.quantummpv.app.ui.icons.Icon
 import com.quantummpv.app.ui.icons.Icons
-import com.quantummpv.app.ui.player.NotificationStyle
 import com.quantummpv.app.ui.preferences.components.SwitchPreference
 import com.quantummpv.app.ui.utils.LocalBackStack
 import com.quantummpv.app.ui.utils.LocalShowSettingsBackArrow
@@ -631,9 +629,15 @@ object AdvancedPreferencesScreen : Screen {
                   backStack.add(com.quantummpv.app.ui.preferences.CustomButtonScreen)
                 },
               )
+            }
+          }
 
-              PreferenceDivider()
+          item {
+            PreferenceSectionHeader(title = stringResource(R.string.ui_network))
+          }
 
+          item {
+            PreferenceCard {
               Preference(
                 title = {
                   Text(
@@ -945,37 +949,6 @@ object AdvancedPreferencesScreen : Screen {
                         ).show()
                     }
                   }
-                },
-              )
-            }
-          }
-
-          item {
-            PreferenceSectionHeader(title = stringResource(R.string.pref_section_notification))
-          }
-
-          item {
-            PreferenceCard {
-              val notificationStyle by preferences.notificationStyle.collectAsState()
-              val supportedNotificationStyles =
-                remember {
-                  NotificationStyle.entries.filter { it.isSupportedOn(Build.VERSION.SDK_INT) }
-                }
-              val selectedNotificationStyle =
-                notificationStyle.takeIf { it.isSupportedOn(Build.VERSION.SDK_INT) }
-                  ?: NotificationStyle.Media
-
-              ListPreference(
-                value = selectedNotificationStyle,
-                onValueChange = preferences.notificationStyle::set,
-                values = supportedNotificationStyles,
-                valueToText = { AnnotatedString(it.displayName) },
-                title = { Text(text = stringResource(R.string.pref_advanced_notification_style)) },
-                summary = {
-                  Text(
-                    text = selectedNotificationStyle.displayName,
-                    color = MaterialTheme.colorScheme.outline,
-                  )
                 },
               )
             }

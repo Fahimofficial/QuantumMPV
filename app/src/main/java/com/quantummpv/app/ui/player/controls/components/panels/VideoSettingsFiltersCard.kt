@@ -9,6 +9,8 @@
 
 package com.quantummpv.app.ui.player.controls.components.panels
 
+import com.quantummpv.app.ui.player.PlaybackSession
+
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -36,7 +38,6 @@ import com.quantummpv.app.ui.player.VideoFilters
 import com.quantummpv.app.ui.player.controls.CARDS_MAX_WIDTH
 import com.quantummpv.app.ui.player.controls.panelCardsColors
 import com.quantummpv.app.ui.theme.spacing
-import `is`.xyz.mpv.MPVLib
 import me.zhanghai.compose.preference.FooterPreference
 import me.zhanghai.compose.preference.ProvidePreferenceLocals
 import org.koin.compose.koinInject
@@ -65,7 +66,7 @@ fun VideoSettingsFiltersCard(modifier: Modifier = Modifier) {
         TextButton(
           onClick = {
             VideoFilters.entries.forEach {
-              MPVLib.setPropertyInt(it.mpvProperty, it.preference(decoderPreferences).deleteAndGet())
+              PlaybackSession.setPropertyInt(it.mpvProperty, it.preference(decoderPreferences).deleteAndGet())
             }
           },
         ) {
@@ -80,7 +81,7 @@ fun VideoSettingsFiltersCard(modifier: Modifier = Modifier) {
             valueText = value.toString(),
             onChange = {
               filter.preference(decoderPreferences).set(it)
-              MPVLib.setPropertyInt(filter.mpvProperty, it)
+              PlaybackSession.setPropertyInt(filter.mpvProperty, it)
             },
             max = filter.max,
             min = filter.min,

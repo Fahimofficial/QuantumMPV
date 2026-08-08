@@ -9,6 +9,8 @@
 
 package com.quantummpv.app.ui.player.controls.components.sheets
 
+import com.quantummpv.app.ui.player.PlaybackSession
+
 import androidx.compose.animation.Crossfade
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.layout.Arrangement
@@ -49,7 +51,6 @@ import com.quantummpv.app.presentation.components.SliderItem
 import com.quantummpv.app.ui.icons.Icon
 import com.quantummpv.app.ui.icons.Icons
 import com.quantummpv.app.ui.theme.spacing
-import `is`.xyz.mpv.MPVLib
 import org.koin.compose.koinInject
 
 @Composable
@@ -68,7 +69,7 @@ fun VideoZoomSheet(
   val currentOnSetVideoZoom by rememberUpdatedState(onSetVideoZoom)
 
   LaunchedEffect(Unit) {
-    val mpvZoom = MPVLib.getPropertyDouble("video-zoom")?.toFloat() ?: videoZoom
+    val mpvZoom = PlaybackSession.getPropertyDouble("video-zoom")?.toFloat() ?: videoZoom
     zoom = mpvZoom
   }
 

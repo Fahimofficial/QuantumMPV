@@ -9,8 +9,12 @@
 
 package com.quantummpv.app.ui.preferences
 
+import android.Manifest
 import android.content.ComponentName
 import android.content.pm.PackageManager
+import android.os.Build
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
@@ -40,7 +44,9 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.core.content.ContextCompat
 import com.quantummpv.app.R
+import com.quantummpv.app.preferences.AdvancedPreferences
 import com.quantummpv.app.preferences.AudioPreferences
 import com.quantummpv.app.preferences.IntroSegmentProvider
 import com.quantummpv.app.preferences.PlayerPreferences
@@ -48,6 +54,7 @@ import com.quantummpv.app.preferences.preference.collectAsState
 import com.quantummpv.app.presentation.Screen
 import com.quantummpv.app.ui.icons.Icon
 import com.quantummpv.app.ui.icons.Icons
+import com.quantummpv.app.ui.player.NotificationStyle
 import com.quantummpv.app.ui.player.PlayerOrientation
 import com.quantummpv.app.ui.player.screenshot.ScreenshotFormat
 import com.quantummpv.app.ui.preferences.components.SwitchPreference
@@ -69,9 +76,15 @@ object PlayerPreferencesScreen : Screen {
   @Composable
   override fun Content() {
     val backstack = LocalBackStack.current
+    val context = LocalContext.current
     val resources = LocalResources.current
     val preferences = koinInject<PlayerPreferences>()
     val audioPreferences = koinInject<AudioPreferences>()
+    val advancedPreferences = koinInject<AdvancedPreferences>()
+    val notificationPermissionLauncher =
+      rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.RequestPermission(),
+      ) { _ -> }
     var showTemplateDialog by remember { mutableStateOf(false) }
     var templateDraft by remember { mutableStateOf("") }
     Scaffold(
@@ -143,11 +156,43 @@ object PlayerPreferencesScreen : Screen {
               val videoBackgroundPlayback by audioPreferences.backgroundPlayback.collectAsState()
               SwitchPreference(
                 value = videoBackgroundPlayback,
-                onValueChange = { audioPreferences.backgroundPlayback.set(it) },
+                onValueChange = { enabled ->
+                  audioPreferences.backgroundPlayback.set(enabled)
+                  if (enabled && Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
+                    ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) !=
+                    PackageManager.PERMISSION_GRANTED
+                  ) {
+                    notificationPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
+                  }
+                },
                 title = { Text(stringResource(R.string.pref_video_background_playback_title)) },
                 summary = {
                   Text(
                     stringResource(R.string.pref_video_background_playback_summary),
+                    color = MaterialTheme.colorScheme.outline,
+                  )
+                },
+              )
+
+              PreferenceDivider()
+
+              val notificationStyle by advancedPreferences.notificationStyle.collectAsState()
+              val supportedNotificationStyles =
+                remember {
+                  NotificationStyle.entries.filter { it.isSupportedOn(Build.VERSION.SDK_INT) }
+                }
+              val selectedNotificationStyle =
+                notificationStyle.takeIf { it.isSupportedOn(Build.VERSION.SDK_INT) }
+                  ?: NotificationStyle.Media
+              ListPreference(
+                value = selectedNotificationStyle,
+                onValueChange = advancedPreferences.notificationStyle::set,
+                values = supportedNotificationStyles,
+                valueToText = { AnnotatedString(it.displayName) },
+                title = { Text(text = stringResource(R.string.pref_advanced_notification_style)) },
+                summary = {
+                  Text(
+                    text = selectedNotificationStyle.displayName,
                     color = MaterialTheme.colorScheme.outline,
                   )
                 },
@@ -256,7 +301,6 @@ object PlayerPreferencesScreen : Screen {
               PreferenceDivider()
 
               val enableMediaInfoIntent by preferences.enableMediaInfoIntent.collectAsState()
-              val context = LocalContext.current
               SwitchPreference(
                 value = enableMediaInfoIntent,
                 onValueChange = { enabled ->

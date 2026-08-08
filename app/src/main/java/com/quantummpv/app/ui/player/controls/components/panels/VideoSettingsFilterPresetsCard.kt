@@ -9,6 +9,8 @@
 
 package com.quantummpv.app.ui.player.controls.components.panels
 
+import com.quantummpv.app.ui.player.PlaybackSession
+
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
@@ -38,7 +40,6 @@ import com.quantummpv.app.ui.player.FilterPreset
 import com.quantummpv.app.ui.player.controls.CARDS_MAX_WIDTH
 import com.quantummpv.app.ui.player.controls.panelCardsColors
 import com.quantummpv.app.ui.theme.spacing
-import `is`.xyz.mpv.MPVLib
 import org.koin.compose.koinInject
 
 @OptIn(ExperimentalLayoutApi::class)
@@ -107,12 +108,12 @@ fun VideoSettingsFilterPresetsCard(modifier: Modifier = Modifier) {
               decoderPreferences.sharpnessFilter.set(preset.sharpness)
 
               // Apply to MPV
-              MPVLib.setPropertyInt("brightness", preset.brightness)
-              MPVLib.setPropertyInt("saturation", preset.saturation)
-              MPVLib.setPropertyInt("contrast", preset.contrast)
-              MPVLib.setPropertyInt("gamma", preset.gamma)
-              MPVLib.setPropertyInt("hue", preset.hue)
-              MPVLib.setPropertyInt("sharpen", preset.sharpness)
+              PlaybackSession.setPropertyInt("brightness", preset.brightness)
+              PlaybackSession.setPropertyInt("saturation", preset.saturation)
+              PlaybackSession.setPropertyInt("contrast", preset.contrast)
+              PlaybackSession.setPropertyInt("gamma", preset.gamma)
+              PlaybackSession.setPropertyInt("hue", preset.hue)
+              PlaybackSession.setPropertyInt("sharpen", preset.sharpness)
             },
             label = { Text(stringResource(preset.displayNameRes)) },
             leadingIcon = null,
