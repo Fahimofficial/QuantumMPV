@@ -40,7 +40,7 @@ import com.quantummpv.app.domain.network.NetworkConnection
     DirectoryScanEntity::class,
     SecureMediaEntity::class,
   ],
-  version = 11,
+  version = 12,
   exportSchema = true,
 )
 @TypeConverters(NetworkProtocolConverter::class)
