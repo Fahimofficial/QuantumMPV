@@ -629,9 +629,13 @@ fun FileSystemBrowserScreen(path: String? = null) {
       },
       floatingActionButton = {
         val navigationBarHeight = com.quantummpv.app.ui.browser.LocalNavigationBarHeight.current
+        val miniPlayerClearance = com.quantummpv.app.ui.browser.NavigationBarState.miniPlayerClearance
         if (isAtRoot) {
           FloatingActionButtonMenu(
-            modifier = Modifier.padding(bottom = (navigationBarHeight - 16.dp).coerceAtLeast(0.dp)),
+            modifier =
+              Modifier.padding(
+                bottom = (navigationBarHeight - 16.dp).coerceAtLeast(0.dp) + miniPlayerClearance,
+              ),
             expanded = isFabExpanded.value && !quickPlayFabDirect,
             button = {
               TooltipBox(
