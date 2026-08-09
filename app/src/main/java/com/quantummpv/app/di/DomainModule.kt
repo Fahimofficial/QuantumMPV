@@ -20,9 +20,6 @@ import com.quantummpv.app.repository.ai.AiService
 import com.quantummpv.app.repository.ai.AnthropicClient
 import com.quantummpv.app.repository.ai.GroqClient
 import com.quantummpv.app.repository.ai.GroqSpeechClient
-import com.quantummpv.app.repository.ai.LlamaCppInference
-import com.quantummpv.app.repository.ai.LocalAiClient
-import com.quantummpv.app.repository.ai.ModelDownloadManager
 import com.quantummpv.app.repository.ai.OpenAiClient
 import com.quantummpv.app.repository.ai.OpenCodeClient
 import com.quantummpv.app.repository.ai.OpenRouterClient
@@ -67,18 +64,12 @@ val domainModule =
     single { TogetherClient(get(), get()) }
     single { GroqSpeechClient(get(), get()) }
     single { OpenRouterSpeechClient(get(), get()) }
-    single<com.quantummpv.app.repository.ai.LlmInference> {
-      com.quantummpv.app.repository.ai
-        .LlamaCppInference()
-    }
     single<AiClient>(named("opencode")) { OpenCodeClient(get(), get()) }
     single<AiClient>(named("groq")) { GroqClient(get(), get()) }
     single<AiClient>(named("openai")) { OpenAiClient(get(), get()) }
     single<AiClient>(named("anthropic")) { AnthropicClient(get(), get()) }
     single<AiClient>(named("openrouter")) { OpenRouterClient(get(), get()) }
     single<AiClient>(named("together")) { TogetherClient(get(), get()) }
-    single { LocalAiClient(get()) }
-    single { ModelDownloadManager(get()) }
     single { SubtitleGenerationService(androidContext(), get(), get(), get(), get(), get()) }
     single { RealtimeSubtitleService(androidContext(), get(), get(), get(), get(), get()) }
     single {
@@ -91,8 +82,6 @@ val domainModule =
         get<AiClient>(named("anthropic")),
         get<AiClient>(named("openrouter")),
         get<AiClient>(named("together")),
-        get<LocalAiClient>(),
-        get<ModelDownloadManager>(),
         get<Json>(),
       )
     }

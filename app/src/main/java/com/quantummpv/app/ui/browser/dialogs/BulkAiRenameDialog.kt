@@ -49,7 +49,6 @@ import androidx.compose.ui.unit.dp
 import com.quantummpv.app.R
 import com.quantummpv.app.domain.media.model.Video
 import com.quantummpv.app.preferences.AiPreferences
-import com.quantummpv.app.preferences.AiProvider
 import com.quantummpv.app.repository.ai.AiService
 import com.quantummpv.app.ui.icons.Icon
 import com.quantummpv.app.ui.icons.Icons
@@ -100,9 +99,7 @@ fun BulkAiRenameDialog(
       checkedState.clear()
       editedNames.clear()
 
-      val provider = aiPreferences.provider.get()
-      // LOCAL model is single-threaded; cap concurrency to 1
-      val semaphore = if (provider == AiProvider.LOCAL) Semaphore(1) else Semaphore(3)
+      val semaphore = Semaphore(3)
 
       val results = mutableListOf<PreviewItem>()
       var failCount = 0
