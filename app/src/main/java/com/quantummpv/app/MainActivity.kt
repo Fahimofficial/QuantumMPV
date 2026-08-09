@@ -56,11 +56,19 @@ import androidx.navigation3.runtime.NavBackStack
 import androidx.navigation3.runtime.NavEntry
 import androidx.navigation3.runtime.rememberNavBackStack
 import androidx.navigation3.ui.NavDisplay
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.navigationBars
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.windowInsetsPadding
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.unit.dp
 import com.quantummpv.app.preferences.AppearancePreferences
 import com.quantummpv.app.preferences.PlayerPreferences
 import com.quantummpv.app.preferences.preference.collectAsState
 import com.quantummpv.app.presentation.Screen
 import com.quantummpv.app.ui.browser.MainScreen
+import com.quantummpv.app.ui.browser.components.MiniPlayer
 import com.quantummpv.app.ui.player.NavigationAnimStyle
 import com.quantummpv.app.ui.theme.AppMotion
 import com.quantummpv.app.ui.theme.DarkMode
@@ -340,31 +348,40 @@ class MainActivity : AppCompatActivity() {
       }
 
       if (hasNavEntries) {
-        NavDisplay(
-          modifier = Modifier.fillMaxSize(),
-          backStack = typedBackstack,
-          onBack = {
-            if (typedBackstack.size <= 1 || !typedBackstack.popSafely()) {
-              this@MainActivity.finish()
-            }
-          },
-          entryProvider = { route ->
-            NavEntry(route) {
-              Surface(
-                modifier = Modifier.fillMaxSize(),
-                color = MaterialTheme.colorScheme.background,
-              ) {
-                route.Content()
+        Box(modifier = Modifier.fillMaxSize()) {
+          NavDisplay(
+            modifier = Modifier.fillMaxSize(),
+            backStack = typedBackstack,
+            onBack = {
+              if (typedBackstack.size <= 1 || !typedBackstack.popSafely()) {
+                this@MainActivity.finish()
               }
-            }
-          },
-          sizeTransform = null,
-          transitionSpec = { screenNavTransition(forward = true, style = appNavStyle, speed = animSpeed) },
-          popTransitionSpec = { screenNavTransition(forward = false, style = appNavStyle, speed = animSpeed) },
-          predictivePopTransitionSpec = { _: Int ->
-            screenNavTransition(forward = false, style = appNavStyle, speed = animSpeed)
-          },
-        )
+            },
+            entryProvider = { route ->
+              NavEntry(route) {
+                Surface(
+                  modifier = Modifier.fillMaxSize(),
+                  color = MaterialTheme.colorScheme.background,
+                ) {
+                  route.Content()
+                }
+              }
+            },
+            sizeTransform = null,
+            transitionSpec = { screenNavTransition(forward = true, style = appNavStyle, speed = animSpeed) },
+            popTransitionSpec = { screenNavTransition(forward = false, style = appNavStyle, speed = animSpeed) },
+            predictivePopTransitionSpec = { _: Int ->
+              screenNavTransition(forward = false, style = appNavStyle, speed = animSpeed)
+            },
+          )
+
+          MiniPlayer(
+            modifier = Modifier
+              .align(Alignment.BottomCenter)
+              .windowInsetsPadding(WindowInsets.navigationBars)
+              .padding(bottom = 88.dp, start = 12.dp, end = 12.dp),
+          )
+        }
       }
 
       // Display Update Dialog when appropriate (only if update feature is enabled)
