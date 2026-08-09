@@ -90,6 +90,7 @@ import com.quantummpv.app.ui.player.PlaybackSession
 import com.quantummpv.app.ui.player.PlayerActivity
 import com.quantummpv.app.ui.player.TrackNode
 import com.quantummpv.app.ui.player.toObject
+import com.quantummpv.app.ui.utils.LocalBackStack
 import com.quantummpv.app.utils.media.fileExtension
 import com.quantummpv.app.utils.storage.FileTypeUtils
 import kotlinx.coroutines.Dispatchers
@@ -108,9 +109,16 @@ fun MiniPlayer(modifier: Modifier = Modifier) {
   val playerPreferences: PlayerPreferences = koinInject()
   val enableVideoMiniPlayer by playerPreferences.enableVideoMiniPlayer.collectAsState()
 
+  val backstack = LocalBackStack.current
+  val currentScreen = backstack.lastOrNull()
+  val isSettingsScreen = currentScreen != null &&
+    (currentScreen.javaClass.name.startsWith("com.quantummpv.app.ui.preferences") ||
+     currentScreen.javaClass.name.startsWith("com.quantummpv.app.ui.editor"))
+
   val currentItem = sessionState.currentItem
   val isMediaActive = isServiceRunning && currentItem != null &&
     !NavigationBarState.isInSelectionMode &&
+    !isSettingsScreen &&
     sessionState.phase != PlaybackPhase.IDLE &&
     sessionState.phase != PlaybackPhase.UNINITIALIZED &&
     sessionState.phase != PlaybackPhase.ERROR
