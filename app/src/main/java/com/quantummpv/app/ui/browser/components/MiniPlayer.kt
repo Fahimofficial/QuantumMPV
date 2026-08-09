@@ -44,7 +44,6 @@ import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -53,6 +52,7 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
@@ -80,6 +80,7 @@ import com.quantummpv.app.R
 import com.quantummpv.app.domain.thumbnail.EmbeddedArtworkResolver
 import com.quantummpv.app.preferences.PlayerPreferences
 import com.quantummpv.app.preferences.preference.collectAsState
+import com.quantummpv.app.ui.browser.NavigationBarState
 import com.quantummpv.app.ui.icons.Icon
 import com.quantummpv.app.ui.icons.Icons
 import com.quantummpv.app.ui.player.MediaPlaybackService
@@ -111,6 +112,12 @@ fun MiniPlayer(modifier: Modifier = Modifier) {
     sessionState.phase != PlaybackPhase.IDLE &&
     sessionState.phase != PlaybackPhase.UNINITIALIZED &&
     sessionState.phase != PlaybackPhase.ERROR
+
+  // Expose visibility so MainScreen can slide the nav bar aside in
+  // landscape/tablet and raise it above the full-width bar in portrait.
+  SideEffect {
+    NavigationBarState.isMiniPlayerVisible = isMediaActive
+  }
 
   AnimatedVisibility(
     visible = isMediaActive,
@@ -207,15 +214,8 @@ private fun MiniPlayerContent(
     }
   }
 
-  val containerWidthModifier = if (isVideoMode) {
-    Modifier.widthIn(max = 360.dp)
-  } else {
-    Modifier.widthIn(max = 330.dp)
-  }
-
   Surface(
     modifier = Modifier
-      .then(containerWidthModifier)
       .offset { IntOffset(offsetX.roundToInt(), 0) }
       .pointerInput(Unit) {
         detectHorizontalDragGestures(
