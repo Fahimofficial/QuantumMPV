@@ -76,6 +76,7 @@ import com.quantummpv.app.preferences.AppearancePreferences
 import com.quantummpv.app.preferences.BrowserPreferences
 import com.quantummpv.app.preferences.GesturePreferences
 import com.quantummpv.app.preferences.MediaLayoutMode
+import com.quantummpv.app.preferences.SortOrder
 import com.quantummpv.app.preferences.PlayerPreferences
 import com.quantummpv.app.preferences.SecureFolderPreferences
 import com.quantummpv.app.preferences.preference.collectAsState
@@ -163,6 +164,7 @@ data class VideoListScreen(
     val videoSortType by browserPreferences.videoSortType.collectAsState()
     val videoSortOrder by browserPreferences.videoSortOrder.collectAsState()
     val mediaLayoutMode by browserPreferences.folderViewVideoLayoutMode.collectAsState()
+    val musicCoverArtSize by browserPreferences.musicCoverArtSize.collectAsState()
     val sortedVideosWithInfo =
       remember(videosWithPlaybackInfo, videoSortType, videoSortOrder) {
         val infoById = videosWithPlaybackInfo.associateBy { it.video.id }
@@ -472,6 +474,8 @@ data class VideoListScreen(
           modifier = Modifier.padding(padding),
           showFloatingBottomBar = showFloatingBottomBar,
           mediaLayoutMode = mediaLayoutMode,
+          isAudio = isAudio,
+          musicCoverArtSize = musicCoverArtSize,
         )
 
         // Floating Material 3 Button Group overlay with animation
@@ -510,15 +514,54 @@ data class VideoListScreen(
       }
 
       // Sort Dialog
-      VideoSortDialog(
-        isOpen = sortDialogOpen.value,
-        onDismiss = { sortDialogOpen.value = false },
-        sortType = videoSortType,
-        sortOrder = videoSortOrder,
-        onSortTypeChange = { browserPreferences.videoSortType.set(it) },
-        onSortOrderChange = { browserPreferences.videoSortOrder.set(it) },
-        isDualPane = isDualPane,
-      )
+      if (isAudio) {
+        com.quantummpv.app.ui.browser.dialogs.MusicSortDialog(
+          isOpen = sortDialogOpen.value,
+          onDismiss = { sortDialogOpen.value = false },
+          sortField =
+            when (videoSortType) {
+              com.quantummpv.app.preferences.VideoSortType.Duration -> com.quantummpv.app.ui.browser.music.MusicSortField.DURATION
+              com.quantummpv.app.preferences.VideoSortType.Date -> com.quantummpv.app.ui.browser.music.MusicSortField.DATE_ADDED
+              else -> com.quantummpv.app.ui.browser.music.MusicSortField.TITLE
+            },
+          sortOrder =
+            if (videoSortOrder.isAscending) {
+              com.quantummpv.app.ui.browser.music.MusicSortOrder.ASCENDING
+            } else {
+              com.quantummpv.app.ui.browser.music.MusicSortOrder.DESCENDING
+            },
+          viewMode = if (mediaLayoutMode == MediaLayoutMode.GRID) com.quantummpv.app.ui.browser.music.MusicViewMode.GRID else com.quantummpv.app.ui.browser.music.MusicViewMode.LIST,
+          onSortFieldChange = { field ->
+            val mapped =
+              when (field) {
+                com.quantummpv.app.ui.browser.music.MusicSortField.DURATION -> com.quantummpv.app.preferences.VideoSortType.Duration
+                com.quantummpv.app.ui.browser.music.MusicSortField.DATE_ADDED -> com.quantummpv.app.preferences.VideoSortType.Date
+                else -> com.quantummpv.app.preferences.VideoSortType.Title
+              }
+            browserPreferences.videoSortType.set(mapped)
+          },
+          onSortOrderChange = { order ->
+            browserPreferences.videoSortOrder.set(
+              if (order == com.quantummpv.app.ui.browser.music.MusicSortOrder.ASCENDING) SortOrder.Ascending else SortOrder.Descending,
+            )
+          },
+          onViewModeChange = { mode ->
+            browserPreferences.folderViewVideoLayoutMode.set(
+              if (mode == com.quantummpv.app.ui.browser.music.MusicViewMode.GRID) MediaLayoutMode.GRID else MediaLayoutMode.LIST,
+            )
+          },
+        )
+      } else {
+        VideoSortDialog(
+          isOpen = sortDialogOpen.value,
+          onDismiss = { sortDialogOpen.value = false },
+          sortType = videoSortType,
+          sortOrder = videoSortOrder,
+          onSortTypeChange = { browserPreferences.videoSortType.set(it) },
+          onSortOrderChange = { browserPreferences.videoSortOrder.set(it) },
+          isDualPane = isDualPane,
+        )
+      }
 
       // Delete Dialog
       DeleteConfirmationDialog(
@@ -763,6 +806,8 @@ internal fun VideoListContent(
   modifier: Modifier = Modifier,
   showFloatingBottomBar: Boolean = false,
   mediaLayoutMode: com.quantummpv.app.preferences.MediaLayoutMode,
+  isAudio: Boolean = false,
+  musicCoverArtSize: Int = 48,
 ) {
   val thumbnailRepository = koinInject<ThumbnailRepository>()
   val gesturePreferences = koinInject<GesturePreferences>()
@@ -1162,6 +1207,8 @@ internal fun VideoListContent(
                       allowThumbnailGeneration = false,
                       allowThumbnailLoading = !isScrollbarDragging,
                       uiConfig = videoCardUiConfig,
+                      thumbnailWidthPx = if (isAudio) with(density) { musicCoverArtSize.dp.roundToPx() } else null,
+                      thumbnailHeightPx = if (isAudio) with(density) { musicCoverArtSize.dp.roundToPx() } else null,
                     )
                   }
                 }
