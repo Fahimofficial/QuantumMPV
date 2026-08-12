@@ -27,7 +27,6 @@ import com.quantummpv.app.presentation.crash.CrashActivity
 import com.quantummpv.app.presentation.crash.GlobalExceptionHandler
 import com.quantummpv.app.repository.NetworkRepository
 import com.quantummpv.app.ui.player.AndroidNativeCompat
-import com.quantummpv.app.ui.player.FlowAmbientController
 import com.quantummpv.app.ui.player.PlaybackPhase
 import com.quantummpv.app.ui.player.PlaybackSession
 import `is`.xyz.mpv.FastThumbnails
@@ -80,8 +79,6 @@ class App :
       )
     }
     registerActivityLifecycleCallbacks(this)
-    FlowAmbientController.install(applicationScope)
-
     Thread.setDefaultUncaughtExceptionHandler(GlobalExceptionHandler(applicationContext, CrashActivity::class.java))
     startIdleMpvCoreReaper()
 
