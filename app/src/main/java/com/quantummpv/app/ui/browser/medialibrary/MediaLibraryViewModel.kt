@@ -14,6 +14,7 @@ import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
+import com.quantummpv.app.database.entities.PlaybackStateEntity
 import com.quantummpv.app.domain.media.model.Video
 import com.quantummpv.app.domain.playbackstate.repository.PlaybackStateRepository
 import com.quantummpv.app.preferences.AppearancePreferences
@@ -21,11 +22,14 @@ import com.quantummpv.app.preferences.BrowserPreferences
 import com.quantummpv.app.repository.MediaFileRepository
 import com.quantummpv.app.ui.browser.base.BaseBrowserViewModel
 import com.quantummpv.app.ui.browser.videolist.VideoWithPlaybackInfo
+import com.quantummpv.app.ui.player.PlaybackIdentity
 import com.quantummpv.app.utils.media.MetadataRetrieval
+import com.quantummpv.app.utils.media.PlaybackStateEvents
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.launch
 import org.koin.core.component.KoinComponent
 import org.koin.core.component.inject
@@ -51,6 +55,11 @@ class MediaLibraryViewModel(
 
   init {
     loadData()
+    viewModelScope.launch(Dispatchers.IO) {
+      PlaybackStateEvents.changes.collect {
+        if (_videos.value.isNotEmpty()) loadPlaybackInfo(_videos.value)
+      }
+    }
   }
 
   private fun loadData() {
@@ -95,9 +104,17 @@ class MediaLibraryViewModel(
     val watchedThreshold = browserPreferences.watchedThreshold.get()
     val playbackByTitle = playbackStates.associateBy { it.mediaTitle }
 
+    fun findPlaybackState(video: Video) =
+      linkedSetOf(
+        PlaybackIdentity.forUri(video.uri.toString()),
+        PlaybackIdentity.forUri(video.path),
+        PlaybackIdentity.forUri("file://${video.path}"),
+        video.displayName,
+      ).firstNotNullOfOrNull { playbackByTitle[it] }
+
     val videosWithInfo =
       videos.map { video ->
-        val playbackState = playbackByTitle[video.displayName]
+        val playbackState = findPlaybackState(video)
 
         val progress =
           if (playbackState != null && video.duration > 0) {
@@ -137,6 +154,43 @@ class MediaLibraryViewModel(
         )
       }
     _videosWithPlaybackInfo.value = videosWithInfo
+  }
+
+  fun setWatched(video: Video, watched: Boolean) {
+    viewModelScope.launch(Dispatchers.IO) {
+      val durationSeconds = (video.duration / 1000L).coerceAtMost(Int.MAX_VALUE.toLong()).toInt()
+      val identifiers =
+        linkedSetOf(
+          PlaybackIdentity.forUri(video.uri.toString()),
+          PlaybackIdentity.forUri(video.path),
+          PlaybackIdentity.forUri("file://${video.path}"),
+          video.displayName,
+        )
+      val existing = playbackStateRepository.getAllPlaybackStates().firstNotNullOfOrNull { state ->
+        if (state.mediaTitle in identifiers) state else null
+      }
+      playbackStateRepository.upsert(
+        (existing ?: PlaybackStateEntity(
+          mediaTitle = PlaybackIdentity.forUri(video.uri.toString()),
+          lastPosition = 0,
+          playbackSpeed = 1.0,
+          sid = -1,
+          secondarySid = -1,
+          subDelay = 0,
+          subSpeed = 1.0,
+          aid = -1,
+          audioDelay = 0,
+          timeRemaining = durationSeconds,
+          hasBeenWatched = false,
+        )).copy(
+          mediaTitle = PlaybackIdentity.forUri(video.uri.toString()),
+          lastPosition = 0,
+          timeRemaining = if (watched) 0 else durationSeconds,
+          hasBeenWatched = watched,
+        ),
+      )
+      PlaybackStateEvents.notifyChanged(PlaybackIdentity.forUri(video.uri.toString()))
+    }
   }
 
   companion object {
