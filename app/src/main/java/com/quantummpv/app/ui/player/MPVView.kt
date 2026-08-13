@@ -16,6 +16,7 @@ import android.util.Log
 import android.view.KeyCharacterMap
 import android.view.KeyEvent
 import androidx.core.view.WindowInsetsCompat
+import com.quantummpv.app.BuildConfig
 import com.quantummpv.app.domain.anime4k.Anime4KManager
 import com.quantummpv.app.domain.hdr.HdrToysManager
 import com.quantummpv.app.network.AndroidCookieJar
@@ -32,7 +33,7 @@ import com.quantummpv.app.ui.player.anime4k.clearAnime4KShaders
 import com.quantummpv.app.ui.player.anime4k.selectRuntimeStableAnime4K
 import com.quantummpv.app.ui.player.controls.components.panels.toColorHexString
 import com.quantummpv.app.ui.player.ytdlp.YtdlpManager
-import com.quantummpv.app.ui.preferences.VulkanUtils
+import com.quantummpv.app.utils.device.VulkanCapabilities
 import `is`.xyz.mpv.BaseMPVView
 import `is`.xyz.mpv.KeyMapping
 import `is`.xyz.mpv.MPVLib
@@ -624,18 +625,17 @@ class MPVView(
   }
 
   private fun shouldUseVulkan(ignoreForcedOpenGlFallback: Boolean = false): Boolean {
-    if (forceOpenGlFallback && !ignoreForcedOpenGlFallback) {
-      return false
+    val canUseVulkan =
+      RendererBackendPolicy.canUseVulkan(
+        buildIncludesVulkan = BuildConfig.MPV_SUPPORTS_VULKAN,
+        deviceSupportsVulkan = VulkanCapabilities.isDeviceSupported(context),
+        userEnabledVulkan = decoderPreferences.useVulkan.get(),
+        forceOpenGlFallback = forceOpenGlFallback && !ignoreForcedOpenGlFallback,
+      )
+    if (decoderPreferences.useVulkan.get() && !canUseVulkan) {
+      Log.w(TAG, "Vulkan is unavailable for this build or device. Forcing OpenGL.")
     }
-    if (!decoderPreferences.useVulkan.get()) {
-      return false
-    }
-
-    val supported = VulkanUtils.isVulkanSupported(context)
-    if (!supported) {
-      Log.w(TAG, "Vulkan support checks failed. Falling back to OpenGL.")
-    }
-    return supported
+    return canUseVulkan
   }
 
   private fun preferredHwdecMode(): String {

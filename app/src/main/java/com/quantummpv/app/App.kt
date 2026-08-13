@@ -22,6 +22,7 @@ import com.quantummpv.app.database.repository.VideoMetadataCacheRepository
 import com.quantummpv.app.di.DatabaseModule
 import com.quantummpv.app.di.FileManagerModule
 import com.quantummpv.app.di.PreferencesModule
+import com.quantummpv.app.preferences.DecoderPreferences
 import com.quantummpv.app.preferences.PlayerPreferences
 import com.quantummpv.app.presentation.crash.CrashActivity
 import com.quantummpv.app.presentation.crash.GlobalExceptionHandler
@@ -77,6 +78,9 @@ class App :
         FileManagerModule,
         com.quantummpv.app.di.domainModule,
       )
+    }
+    if (!BuildConfig.MPV_SUPPORTS_VULKAN) {
+      getKoin().get<DecoderPreferences>().useVulkan.set(false)
     }
     registerActivityLifecycleCallbacks(this)
     Thread.setDefaultUncaughtExceptionHandler(GlobalExceptionHandler(applicationContext, CrashActivity::class.java))

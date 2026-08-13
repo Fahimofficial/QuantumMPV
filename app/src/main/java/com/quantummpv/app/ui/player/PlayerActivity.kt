@@ -101,6 +101,7 @@ import com.quantummpv.app.ui.player.controls.PlayerControls
 import com.quantummpv.app.ui.player.ytdlp.YtdlpManager
 import com.quantummpv.app.ui.theme.MpvrxTheme
 import com.quantummpv.app.ui.torrent.TorrentSelectionActivity
+import com.quantummpv.app.utils.device.VulkanCapabilities
 import com.quantummpv.app.utils.history.RecentlyPlayedOps
 import com.quantummpv.app.utils.media.HttpUtils
 import com.quantummpv.app.utils.media.JellyfinSessionReporter
@@ -1940,7 +1941,7 @@ class PlayerActivity :
     if (firstAttempt.isSuccess) return null
 
     val firstError = firstAttempt.exceptionOrNull()
-    if (!decoderPreferences.useVulkan.get()) {
+    if (!decoderPreferences.useVulkan.get() || !VulkanCapabilities.isAvailable(this)) {
       Log.e(TAG, "Failed to initialize MPV", firstError)
       return firstError?.message ?: firstError?.toString() ?: "Unknown error"
     }

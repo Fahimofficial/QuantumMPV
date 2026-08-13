@@ -38,8 +38,11 @@ import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
+import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
@@ -92,9 +95,10 @@ import com.quantummpv.app.ui.player.TrackNode
 import com.quantummpv.app.ui.player.toObject
 import com.quantummpv.app.ui.utils.LocalBackStack
 import com.quantummpv.app.ui.utils.popSafely
+import com.quantummpv.app.utils.device.VulkanCapabilities
+import com.quantummpv.app.utils.media.fileExtension
 import com.quantummpv.app.utils.permission.PermissionUtils
 import com.quantummpv.app.utils.storage.FileTypeUtils
-import com.quantummpv.app.utils.media.fileExtension
 import com.quantummpv.app.utils.update.UpdateDialog
 import com.quantummpv.app.utils.update.UpdateViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -102,6 +106,9 @@ import kotlinx.coroutines.flow.first
 import kotlinx.serialization.json.Json
 import org.koin.android.ext.android.getKoin
 import org.koin.android.ext.android.inject
+
+private const val RENDERER_NOTICE_PREFERENCES = "renderer_build_notice"
+private const val NON_VULKAN_NOTICE_SHOWN = "non_vulkan_notice_shown"
 
 private fun screenNavTransition(
   forward: Boolean,
@@ -256,6 +263,15 @@ class MainActivity : AppCompatActivity() {
       val enableVideoMiniPlayer by playerPreferences.enableVideoMiniPlayer.collectAsState()
       val autoPiPOnNavigation by playerPreferences.autoPiPOnNavigation.collectAsState()
       val trackListNode by PlaybackSession.propNode["track-list"].collectAsState()
+      val rendererNoticePreferences =
+        remember { getSharedPreferences(RENDERER_NOTICE_PREFERENCES, MODE_PRIVATE) }
+      var showRendererBuildNotice by remember {
+        mutableStateOf(
+          !BuildConfig.MPV_SUPPORTS_VULKAN &&
+            !rendererNoticePreferences.getBoolean(NON_VULKAN_NOTICE_SHOWN, false),
+        )
+      }
+      val deviceSupportsVulkan = remember { VulkanCapabilities.isDeviceSupported(this@MainActivity) }
 
       LaunchedEffect(sessionState, enableVideoMiniPlayer, autoPiPOnNavigation, trackListNode) {
         pipHelper.updatePictureInPictureParams()
@@ -333,6 +349,32 @@ class MainActivity : AppCompatActivity() {
         MpvrxTheme(transitionState = themeTransitionState) {
           Surface(modifier = Modifier.fillMaxSize()) {
             Navigator()
+          }
+          if (showRendererBuildNotice) {
+            val acknowledgeNotice = {
+              rendererNoticePreferences.edit().putBoolean(NON_VULKAN_NOTICE_SHOWN, true).apply()
+              showRendererBuildNotice = false
+            }
+            AlertDialog(
+              onDismissRequest = acknowledgeNotice,
+              title = { Text(getString(R.string.renderer_build_notice_title)) },
+              text = {
+                Text(
+                  getString(
+                    if (deviceSupportsVulkan) {
+                      R.string.renderer_build_notice_supported_device
+                    } else {
+                      R.string.renderer_build_notice_unsupported_device
+                    },
+                  ),
+                )
+              },
+              confirmButton = {
+                TextButton(onClick = acknowledgeNotice) {
+                  Text(getString(R.string.generic_ok))
+                }
+              },
+            )
           }
         }
       }
