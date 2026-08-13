@@ -156,9 +156,10 @@ fun NetworkVideoCard(
               .background(MaterialTheme.colorScheme.surfaceContainerHigh),
           contentAlignment = Alignment.Center,
         ) {
-          if (thumbnail != null) {
+          val thumbnailBitmap = remember(thumbnail) { thumbnail?.asImageBitmap() }
+          if (thumbnailBitmap != null) {
             Image(
-              bitmap = thumbnail!!.asImageBitmap(),
+              bitmap = thumbnailBitmap,
               contentDescription =
                 androidx.compose.ui.res
                   .stringResource(com.quantummpv.app.R.string.ui_thumbnail),
@@ -249,9 +250,10 @@ fun NetworkVideoCard(
               ),
           contentAlignment = Alignment.Center,
         ) {
-          if (thumbnail != null) {
+          val listThumbnailBitmap = remember(thumbnail) { thumbnail?.asImageBitmap() }
+          if (listThumbnailBitmap != null) {
             Image(
-              bitmap = thumbnail!!.asImageBitmap(),
+              bitmap = listThumbnailBitmap,
               contentDescription =
                 androidx.compose.ui.res
                   .stringResource(com.quantummpv.app.R.string.ui_thumbnail),
