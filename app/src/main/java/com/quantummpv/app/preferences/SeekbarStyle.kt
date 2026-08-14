@@ -10,6 +10,7 @@
 package com.quantummpv.app.preferences
 
 enum class SeekbarStyle {
+  Normal,
   Standard,
   Wavy,
   Thick,
