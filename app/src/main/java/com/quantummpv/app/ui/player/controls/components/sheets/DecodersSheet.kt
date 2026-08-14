@@ -15,10 +15,12 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.res.stringResource
+import com.quantummpv.app.BuildConfig
 import com.quantummpv.app.R
 import com.quantummpv.app.presentation.components.PlayerSheet
 import com.quantummpv.app.ui.player.Decoder
 import com.quantummpv.app.ui.player.PlaybackSession
+import com.quantummpv.app.ui.player.RendererBackendPolicy
 
 @Composable
 fun DecodersSheet(
@@ -28,6 +30,11 @@ fun DecodersSheet(
 ) {
   val gpuApi by PlaybackSession.propString["gpu-api"].collectAsState()
   val isVulkanActive = gpuApi == "vulkan"
+  val directMediaCodecAllowed =
+    RendererBackendPolicy.canUseDirectMediaCodec(
+      usesVulkan = isVulkanActive,
+      buildSupportsMediaCodecVulkan = BuildConfig.MPV_SUPPORTS_MEDIACODEC_VULKAN,
+    )
 
   PlayerSheet(onDismissRequest) {
     LazyColumn {
@@ -35,7 +42,7 @@ fun DecodersSheet(
         AudioTrackRow(
           title = stringResource(R.string.player_sheets_decoder_formatted, decoder.title, decoder.value),
           isSelected = selectedDecoder == decoder,
-          enabled = !(isVulkanActive && decoder == Decoder.HWPlus),
+          enabled = decoder != Decoder.HWPlus || directMediaCodecAllowed,
           onClick = { onSelect(decoder) },
         )
       }
