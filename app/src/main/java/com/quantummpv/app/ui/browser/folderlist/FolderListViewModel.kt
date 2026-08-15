@@ -20,6 +20,7 @@ import com.quantummpv.app.preferences.AppearancePreferences
 import com.quantummpv.app.preferences.FoldersPreferences
 import com.quantummpv.app.repository.MediaFileRepository
 import com.quantummpv.app.ui.browser.base.BaseBrowserViewModel
+import com.quantummpv.app.ui.player.PlaybackIdentity
 import com.quantummpv.app.utils.media.MediaLibraryEvents
 import com.quantummpv.app.utils.media.MetadataRetrieval
 import com.quantummpv.app.utils.storage.FolderViewScanner
@@ -275,7 +276,9 @@ class FolderListViewModel(
 
                     // A video counts as "unplayed" until it has been watched to the
                     // configured threshold. Threshold 0 ("Infinitely") keeps it unplayed.
-                    val playbackState = playbackStateRepository.getVideoDataByTitle(video.displayName)
+                    val playbackState = playbackStateRepository.getVideoDataByTitle(PlaybackIdentity.forUri(video.uri.toString()))
+                      ?: playbackStateRepository.getVideoDataByTitle(PlaybackIdentity.forUri(video.path))
+                      ?: playbackStateRepository.getVideoDataByTitle(PlaybackIdentity.forUri("file://${video.path}"))
                     val isUnplayed =
                       if (playbackState != null && video.duration > 0) {
                         val durationSeconds = video.duration / 1000
