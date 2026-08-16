@@ -56,6 +56,7 @@ import com.quantummpv.app.R
 import com.quantummpv.app.domain.torrent.TorrentFileItem
 import com.quantummpv.app.domain.torrent.formatTorrentBytes
 import com.quantummpv.app.presentation.components.RemoteImage
+import com.quantummpv.app.utils.media.MediaInfoParser
 import com.quantummpv.app.ui.icons.Icon
 import com.quantummpv.app.ui.icons.Icons
 
@@ -167,12 +168,16 @@ private fun TorrentReadyScreen(
 
         val displayedFiles =
           remember(state.catalog.playableFiles, searchQuery, sortDescending) {
+            val baseList =
+              state.catalog.playableFiles.sortedWith { f1, f2 ->
+                MediaInfoParser.compareMediaFiles(f1.name, f1.index, f2.name, f2.index)
+              }
             val filtered =
               if (searchQuery.isBlank()) {
-                state.catalog.playableFiles
+                baseList
               } else {
                 val query = searchQuery.trim()
-                state.catalog.playableFiles.filter { file ->
+                baseList.filter { file ->
                   file.name.contains(query, ignoreCase = true) ||
                     file.path.contains(query, ignoreCase = true) ||
                     (file.index + 1).toString() == query

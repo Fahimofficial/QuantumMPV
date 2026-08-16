@@ -100,6 +100,7 @@ import com.quantummpv.app.domain.torrent.normalizeTorrentSource
 import com.quantummpv.app.presentation.Screen
 import com.quantummpv.app.presentation.components.RemoteImage
 import com.quantummpv.app.repository.wyzie.WyzieSearchRepository
+import com.quantummpv.app.utils.media.MediaInfoParser
 import com.quantummpv.app.ui.browser.cards.NetworkConnectionCard
 import com.quantummpv.app.ui.browser.components.BrowserTopBar
 import com.quantummpv.app.ui.browser.dialogs.AddConnectionSheet
@@ -899,12 +900,16 @@ private fun AnimeTorrentCard(
       ) {
         val displayedFiles =
           remember(visibleFiles, episodeSearchQuery, sortDescending) {
+            val baseList =
+              visibleFiles.sortedWith { e1, e2 ->
+                MediaInfoParser.compareMediaFiles(e1.fileName, e1.fileIndex, e2.fileName, e2.fileIndex)
+              }
             val filtered =
               if (episodeSearchQuery.isBlank()) {
-                visibleFiles
+                baseList
               } else {
                 val query = episodeSearchQuery.trim()
-                visibleFiles.filter { file ->
+                baseList.filter { file ->
                   file.fileName.contains(query, ignoreCase = true) ||
                     file.filePath?.contains(query, ignoreCase = true) == true ||
                     (file.fileIndex != null && (file.fileIndex + 1).toString() == query)
@@ -1312,8 +1317,12 @@ private fun StreamLinkSection(
                 modifier = Modifier.size(16.dp),
               )
               Column(modifier = Modifier.weight(1f)) {
+                val displayTitle =
+                  remember(entry.fileName, entry.canonicalSourceUri) {
+                    MediaInfoParser.parseStreamTitle(entry.canonicalSourceUri, entry.fileName)
+                  }
                 Text(
-                  text = entry.fileName,
+                  text = displayTitle,
                   style = MaterialTheme.typography.titleSmall,
                   fontWeight = FontWeight.Medium,
                   maxLines = 1,
