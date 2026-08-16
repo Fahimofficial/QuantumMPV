@@ -12,6 +12,7 @@ import com.quantummpv.app.domain.torrent.TorrentCatalog
 import com.quantummpv.app.domain.torrent.TorrentFileItem
 import com.quantummpv.app.domain.torrent.TorrentStreamingEngine
 import com.quantummpv.app.repository.wyzie.WyzieSearchRepository
+import com.quantummpv.app.repository.wyzie.WyzieTmdbResult
 import com.quantummpv.app.utils.media.MediaInfoParser
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Job
