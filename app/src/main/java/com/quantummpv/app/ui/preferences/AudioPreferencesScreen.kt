@@ -49,6 +49,7 @@ import com.quantummpv.app.preferences.AudioPreferences
 import com.quantummpv.app.preferences.AudioVisualizerStyle
 import com.quantummpv.app.preferences.BrowserPreferences
 import com.quantummpv.app.preferences.MediaLibraryType
+import com.quantummpv.app.preferences.PlayerPreferences
 import com.quantummpv.app.preferences.preference.collectAsState
 import com.quantummpv.app.presentation.Screen
 import com.quantummpv.app.ui.icons.Icon
@@ -85,6 +86,7 @@ object AudioPreferencesScreen : Screen {
     val backstack = LocalBackStack.current
     val preferences = koinInject<AudioPreferences>()
     val browserPreferences = koinInject<BrowserPreferences>()
+    val playerPreferences = koinInject<PlayerPreferences>()
     val notificationPermissionLauncher =
       rememberLauncherForActivityResult(
         contract = ActivityResultContracts.RequestPermission(),
@@ -451,6 +453,25 @@ object AudioPreferencesScreen : Screen {
                 summary = {
                   Text(
                     stringResource(R.string.pref_audio_background_playback_summary),
+                    color = MaterialTheme.colorScheme.outline,
+                  )
+                },
+              )
+
+              PreferenceDivider()
+              val autoplayNextAudio by playerPreferences.autoplayNextAudio.collectAsState()
+              SwitchPreference(
+                modifier = Modifier.settingsSearchTarget(R.string.pref_autoplay_next_audio_title),
+                value = autoplayNextAudio,
+                onValueChange = playerPreferences.autoplayNextAudio::set,
+                title = { Text(stringResource(R.string.pref_autoplay_next_audio_title)) },
+                summary = {
+                  Text(
+                    if (autoplayNextAudio) {
+                      stringResource(R.string.pref_autoplay_next_audio_summary)
+                    } else {
+                      stringResource(R.string.pref_autoplay_next_audio_summary_disabled)
+                    },
                     color = MaterialTheme.colorScheme.outline,
                   )
                 },
