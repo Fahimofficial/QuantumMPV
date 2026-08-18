@@ -1140,3 +1140,87 @@ fun MusicSortDialog(
       },
   )
 }
+
+@Composable
+fun JellyfinSortDialog(
+  isOpen: Boolean,
+  onDismiss: () -> Unit,
+  sortBy: com.quantummpv.app.domain.jellyfin.JellyfinSortBy,
+  onSortByChange: (com.quantummpv.app.domain.jellyfin.JellyfinSortBy) -> Unit,
+  sortOrder: com.quantummpv.app.domain.jellyfin.JellyfinSortOrder,
+  onSortOrderChange: (com.quantummpv.app.domain.jellyfin.JellyfinSortOrder) -> Unit,
+  isUnplayedOnly: Boolean,
+  onUnplayedOnlyChange: (Boolean) -> Unit,
+  layoutMode: MediaLayoutMode = MediaLayoutMode.GRID,
+  onLayoutModeChange: (MediaLayoutMode) -> Unit = {},
+) {
+  SortDialog(
+    isOpen = isOpen,
+    onDismiss = onDismiss,
+    title = stringResource(R.string.sort_view_options),
+    sortType = sortBy.displayName,
+    onSortTypeChange = { typeName ->
+      com.quantummpv.app.domain.jellyfin.JellyfinSortBy.entries
+        .find { it.displayName == typeName }
+        ?.let(onSortByChange)
+    },
+    sortOrderAsc = sortOrder == com.quantummpv.app.domain.jellyfin.JellyfinSortOrder.ASCENDING,
+    onSortOrderChange = { isAsc ->
+      onSortOrderChange(
+        if (isAsc) {
+          com.quantummpv.app.domain.jellyfin.JellyfinSortOrder.ASCENDING
+        } else {
+          com.quantummpv.app.domain.jellyfin.JellyfinSortOrder.DESCENDING
+        },
+      )
+    },
+    types =
+      listOf(
+        com.quantummpv.app.domain.jellyfin.JellyfinSortBy.NAME.displayName,
+        com.quantummpv.app.domain.jellyfin.JellyfinSortBy.DATE_ADDED.displayName,
+        com.quantummpv.app.domain.jellyfin.JellyfinSortBy.PREMIERE_DATE.displayName,
+        com.quantummpv.app.domain.jellyfin.JellyfinSortBy.RATING.displayName,
+        com.quantummpv.app.domain.jellyfin.JellyfinSortBy.RUNTIME.displayName,
+      ),
+    icons =
+      listOf(
+        Icons.RoundedFilled.Title,
+        Icons.RoundedFilled.CalendarToday,
+        Icons.RoundedFilled.Movie,
+        Icons.RoundedFilled.SwapVert,
+        Icons.RoundedFilled.AccessTime,
+      ),
+    getLabelForType = { type, _ ->
+      when (type) {
+        com.quantummpv.app.domain.jellyfin.JellyfinSortBy.NAME.displayName -> Pair("A-Z", "Z-A")
+        com.quantummpv.app.domain.jellyfin.JellyfinSortBy.DATE_ADDED.displayName -> Pair("Oldest", "Newest")
+        com.quantummpv.app.domain.jellyfin.JellyfinSortBy.PREMIERE_DATE.displayName -> Pair("Oldest", "Newest")
+        com.quantummpv.app.domain.jellyfin.JellyfinSortBy.RATING.displayName -> Pair("Lowest", "Highest")
+        com.quantummpv.app.domain.jellyfin.JellyfinSortBy.RUNTIME.displayName -> Pair("Shortest", "Longest")
+        else -> Pair("Asc", "Desc")
+      }
+    },
+    visibilityToggles =
+      listOf(
+        VisibilityToggle(
+          label = "Unplayed Only",
+          checked = isUnplayedOnly,
+          onCheckedChange = onUnplayedOnlyChange,
+        ),
+      ),
+    layoutModeSelector =
+      ViewModeSelector(
+        label = "Layout",
+        firstOptionLabel = "List",
+        secondOptionLabel = "Grid",
+        firstOptionIcon = Icons.RoundedFilled.ViewList,
+        secondOptionIcon = Icons.RoundedFilled.GridView,
+        isFirstOptionSelected = layoutMode == MediaLayoutMode.LIST,
+        onViewModeChange = { isList ->
+          onLayoutModeChange(if (isList) MediaLayoutMode.LIST else MediaLayoutMode.GRID)
+        },
+      ),
+    showSortOptions = true,
+  )
+}
+
