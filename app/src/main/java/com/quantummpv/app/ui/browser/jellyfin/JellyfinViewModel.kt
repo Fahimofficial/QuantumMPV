@@ -25,6 +25,8 @@ import com.quantummpv.app.domain.jellyfin.JellyfinServer
 import com.quantummpv.app.domain.jellyfin.JellyfinSortBy
 import com.quantummpv.app.domain.jellyfin.JellyfinSortOrder
 import com.quantummpv.app.domain.playbackstate.repository.PlaybackStateRepository
+import com.quantummpv.app.preferences.AudioPreferences
+import com.quantummpv.app.preferences.SubtitlesPreferences
 import com.quantummpv.app.repository.JellyfinRepository
 import com.quantummpv.app.utils.media.MediaUtils
 import com.quantummpv.app.utils.media.PlaybackSubtitleTrack
@@ -73,6 +75,8 @@ class JellyfinViewModel(
   KoinComponent {
   private val jellyfinRepository: JellyfinRepository by inject()
   private val playbackStateRepository: PlaybackStateRepository by inject()
+  private val subtitlesPreferences: SubtitlesPreferences by inject()
+  private val audioPreferences: AudioPreferences by inject()
 
   private val _uiState = MutableStateFlow(JellyfinUiState())
   val uiState: StateFlow<JellyfinUiState> = _uiState.asStateFlow()
@@ -385,6 +389,14 @@ class JellyfinViewModel(
           if (authMode == JellyfinAuthMode.CREDENTIALS) {
             val authResult =
               jellyfinRepository.authenticate(cleanUrl, username, password).getOrThrow()
+
+            if (subtitlesPreferences.preferredLanguages.get().isBlank() && !authResult.subtitleLanguage.isNullOrBlank()) {
+              subtitlesPreferences.preferredLanguages.set(authResult.subtitleLanguage)
+            }
+            if (audioPreferences.preferredLanguages.get().isBlank() && !authResult.audioLanguage.isNullOrBlank()) {
+              audioPreferences.preferredLanguages.set(authResult.audioLanguage)
+            }
+
             JellyfinServer(
               name = serverName.ifBlank { "Jellyfin (${authResult.username})" },
               serverUrl = cleanUrl,
@@ -395,6 +407,14 @@ class JellyfinViewModel(
             )
           } else {
             val user = jellyfinRepository.validateToken(cleanUrl, token).getOrThrow()
+
+            if (subtitlesPreferences.preferredLanguages.get().isBlank() && !user.subtitleLanguage.isNullOrBlank()) {
+              subtitlesPreferences.preferredLanguages.set(user.subtitleLanguage)
+            }
+            if (audioPreferences.preferredLanguages.get().isBlank() && !user.audioLanguage.isNullOrBlank()) {
+              audioPreferences.preferredLanguages.set(user.audioLanguage)
+            }
+
             JellyfinServer(
               name = serverName.ifBlank { "Jellyfin (${user.name})" },
               serverUrl = cleanUrl,
