@@ -86,9 +86,10 @@ import com.quantummpv.app.presentation.components.RemoteImage
 import com.quantummpv.app.ui.icons.Icon
 import com.quantummpv.app.ui.icons.Icons
 import com.quantummpv.app.utils.media.MediaInfoParser
+import com.quantummpv.app.utils.media.MediaUtils
 
 /**
- * Cinematic Torrent Details Modal Bottom Sheet (matching JellyCine / JellyfinDetailSheet).
+ * Cinematic Media Details Modal Bottom Sheet (Material 3 Expressive).
  * Provides full-bleed backdrop, floating poster, metadata badges, synopsis expander,
  * action buttons, and a searchable/sortable episode & file selector.
  */
@@ -283,7 +284,7 @@ fun TorrentDetailSheet(
                 color = MaterialTheme.colorScheme.primary,
               ) {
                 Text(
-                  text = "TORRENT",
+                  text = group.groupType.name,
                   style = MaterialTheme.typography.labelSmall,
                   fontWeight = FontWeight.Black,
                   color = MaterialTheme.colorScheme.onPrimary,
@@ -330,7 +331,7 @@ fun TorrentDetailSheet(
             }
           }
 
-          if (group.files.isNotEmpty()) {
+          if (group.files.size > 1) {
             Surface(
               shape = RoundedCornerShape(8.dp),
               color = MaterialTheme.colorScheme.surfaceContainerHigh,
@@ -352,6 +353,22 @@ fun TorrentDetailSheet(
             ) {
               Text(
                 text = formatTorrentBytes(group.totalSize),
+                style = MaterialTheme.typography.labelMedium,
+                fontWeight = FontWeight.Bold,
+                color = MaterialTheme.colorScheme.onSurface,
+                modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+              )
+            }
+          }
+
+          val relativeTime = MediaUtils.formatRelativeTime(group.updatedAt)
+          if (relativeTime.isNotBlank()) {
+            Surface(
+              shape = RoundedCornerShape(8.dp),
+              color = MaterialTheme.colorScheme.surfaceContainerHigh,
+            ) {
+              Text(
+                text = "Updated $relativeTime",
                 style = MaterialTheme.typography.labelMedium,
                 fontWeight = FontWeight.Bold,
                 color = MaterialTheme.colorScheme.onSurface,
