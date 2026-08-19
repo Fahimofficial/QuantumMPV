@@ -75,6 +75,7 @@ import com.quantummpv.app.domain.jellyfin.JellyfinServer
 import com.quantummpv.app.presentation.components.RemoteImage
 import com.quantummpv.app.ui.icons.Icon
 import com.quantummpv.app.ui.icons.Icons
+import kotlin.math.roundToInt
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -293,6 +294,30 @@ fun JellyfinDetailSheet(
                 )
                 Text(
                   text = "%.1f".format(rating),
+                  style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold),
+                  color = MaterialTheme.colorScheme.onSurface,
+                )
+              }
+            }
+          }
+
+          // Rotten Tomatoes / Critic Rating
+          item.criticRating?.let { critic ->
+            Surface(
+              shape = RoundedCornerShape(6.dp),
+              color = MaterialTheme.colorScheme.surfaceContainerHigh,
+            ) {
+              Row(
+                modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(4.dp),
+              ) {
+                Text(
+                  text = "🍅",
+                  style = MaterialTheme.typography.labelMedium,
+                )
+                Text(
+                  text = "${critic.roundToInt()}%",
                   style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold),
                   color = MaterialTheme.colorScheme.onSurface,
                 )
