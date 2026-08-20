@@ -100,6 +100,8 @@ import com.quantummpv.app.ui.browser.videolist.VideoListContent
 import com.quantummpv.app.ui.browser.videolist.VideoWithPlaybackInfo
 import com.quantummpv.app.ui.icons.Icon
 import com.quantummpv.app.ui.icons.Icons
+import com.quantummpv.app.ui.player.PlaybackItem
+import com.quantummpv.app.ui.player.PlaybackSession
 import com.quantummpv.app.ui.player.PlayerActivity
 import com.quantummpv.app.ui.securefolder.SecureFolderGateScreen
 import com.quantummpv.app.ui.utils.LocalBackStack
@@ -317,20 +319,33 @@ fun MediaLibraryContent(forceAudio: Boolean = false) {
     }
 
     val playlistVideos = mediaTypeVideosWithInfo.map { it.video }
-    lastPlayRequestIndex.intValue =
-      playlistVideos.indexOfFirst { it.path == video.path }
+    val index = playlistVideos.indexOfFirst { it.path == video.path }.coerceAtLeast(0)
+    lastPlayRequestIndex.intValue = index
+
+    val queueItems = playlistVideos.map { item ->
+      PlaybackItem.fromUri(
+        uri = item.uri.toString(),
+        title = item.displayName,
+        mimeType = item.mimeType,
+      )
+    }
+    PlaybackSession.replaceQueue(
+      items = queueItems,
+      currentIndex = index,
+      isExplicitQueue = true,
+    )
 
     val intent =
       android.content.Intent(android.content.Intent.ACTION_VIEW, video.uri).apply {
         setClass(context, PlayerActivity::class.java)
         addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
         putExtra("internal_launch", true)
+        putExtra(PlayerActivity.EXTRA_PREPARED_PLAYBACK_QUEUE, true)
         putExtra("playlist_id", ALL_VIDEOS_PLAYLIST_ID)
-        putExtra("playlist_index", lastPlayRequestIndex.intValue.coerceAtLeast(0))
+        putExtra("playlist_index", index)
         putExtra("launch_source", "media_library")
         putExtra("media_library_audio", mediaType == MediaLibraryType.Audio)
         putExtra("is_audio", video.isAudio)
-        putParcelableArrayListExtra("playlist", ArrayList(playlistVideos.map { it.uri }))
         putExtra("title", video.displayName)
       }
     context.startActivity(intent)
