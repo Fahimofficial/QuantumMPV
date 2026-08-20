@@ -11,6 +11,7 @@ package com.quantummpv.app.data.network.proxy
 
 import android.net.Uri
 import android.util.Log
+import com.quantummpv.app.network.SharedHttpClient
 import fi.iki.elonen.NanoHTTPD
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope

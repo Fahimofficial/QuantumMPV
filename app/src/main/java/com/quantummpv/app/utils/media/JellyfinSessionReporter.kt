@@ -11,6 +11,7 @@ package com.quantummpv.app.utils.media
 
 import android.net.Uri
 import android.util.Log
+import com.quantummpv.app.network.SharedHttpClient
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
