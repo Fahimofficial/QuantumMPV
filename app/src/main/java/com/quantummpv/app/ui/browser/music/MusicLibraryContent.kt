@@ -101,6 +101,7 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import kotlin.math.floor
 import kotlin.math.sqrt
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.quantummpv.app.R
 import com.quantummpv.app.database.entities.PlaylistEntity
@@ -125,6 +126,7 @@ import com.quantummpv.app.ui.browser.dialogs.MusicSortDialog
 import com.quantummpv.app.ui.browser.folderlist.FolderListScreen
 import com.quantummpv.app.ui.browser.playlist.PlaylistDetailScreen
 import com.quantummpv.app.ui.browser.selection.rememberSelectionManager
+import com.quantummpv.app.ui.player.PlaybackSession
 import com.quantummpv.app.ui.icons.Icon
 import com.quantummpv.app.ui.icons.Icons
 import com.quantummpv.app.ui.theme.AppShapeScale
@@ -1198,6 +1200,18 @@ private fun SongsTabContent(
     return
   }
 
+  // The recently-played row is written once when a song is tapped and never advances with the
+  // queue, so follow the live session item and keep it only as a fallback.
+  val sessionState by PlaybackSession.state.collectAsStateWithLifecycle()
+  val playingUri = sessionState.currentItem?.originalUri
+
+  fun MusicSong.isNowPlaying(): Boolean =
+    when {
+      !isPlaybackActive -> false
+      playingUri != null -> uri.toString() == playingUri || path == playingUri
+      else -> recentlyPlayedFilePath != null && path == recentlyPlayedFilePath
+    }
+
   val navBarHeight = LocalNavigationBarHeight.current.takeIf { it > 0.dp } ?: 88.dp
   Column(modifier = Modifier.fillMaxSize()) {
     if (viewMode == MusicViewMode.GRID) {
@@ -1209,11 +1223,10 @@ private fun SongsTabContent(
         horizontalArrangement = Arrangement.spacedBy(14.dp)
       ) {
         items(songs, key = { it.id }) { song ->
-          val isPlaying = isPlaybackActive && recentlyPlayedFilePath != null && song.path == recentlyPlayedFilePath
           SongGridCard(
             song = song,
             isSelected = selectionManager.isSelected(song),
-            isPlaying = isPlaying,
+            isPlaying = song.isNowPlaying(),
             onClick = { onSongClick(song) },
             onLongClick = { onSongLongClick(song) }
           )
@@ -1225,11 +1238,10 @@ private fun SongsTabContent(
         contentPadding = PaddingValues(start = 0.dp, top = 8.dp, end = 0.dp, bottom = navBarHeight + 16.dp)
       ) {
         items(songs, key = { it.id }) { song ->
-          val isPlaying = isPlaybackActive && recentlyPlayedFilePath != null && song.path == recentlyPlayedFilePath
           SongListItem(
             song = song,
             isSelected = selectionManager.isSelected(song),
-            isPlaying = isPlaying,
+            isPlaying = song.isNowPlaying(),
             coverArtSizeDp = coverArtSizeDp,
             onClick = { onSongClick(song) },
             onLongClick = { onSongLongClick(song) }
