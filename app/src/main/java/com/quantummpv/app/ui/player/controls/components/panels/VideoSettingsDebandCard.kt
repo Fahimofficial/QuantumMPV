@@ -46,12 +46,17 @@ import com.quantummpv.app.ui.player.Debanding
 import com.quantummpv.app.ui.player.controls.CARDS_MAX_WIDTH
 import com.quantummpv.app.ui.player.controls.panelCardsColors
 import com.quantummpv.app.ui.theme.spacing
+import com.quantummpv.app.ui.utils.currentMpvConfigOverrideOptions
 import me.zhanghai.compose.preference.ProvidePreferenceLocals
 import org.koin.compose.koinInject
 
 @Composable
 fun VideoSettingsDebandCard(modifier: Modifier = Modifier) {
   val decoderPreferences = koinInject<DecoderPreferences>()
+  val configOwnedOptions = currentMpvConfigOverrideOptions()
+  val modeOptions = setOf("deband", "vf")
+  val modeEnabled = modeOptions.none(configOwnedOptions::contains)
+  val debandOptions = modeOptions + DebandSettings.entries.map(DebandSettings::mpvProperty)
   val deband by decoderPreferences.debanding.collectAsState()
   var isExpanded by remember { mutableStateOf(true) }
 
@@ -79,6 +84,7 @@ fun VideoSettingsDebandCard(modifier: Modifier = Modifier) {
           Debanding.entries.forEach {
             IconToggleButton(
               checked = deband == it,
+              enabled = modeEnabled,
               onCheckedChange = { _ ->
                 decoderPreferences.debanding.set(it)
                 when (it) {
@@ -109,6 +115,7 @@ fun VideoSettingsDebandCard(modifier: Modifier = Modifier) {
 
           Spacer(Modifier.weight(1f))
           TextButton(
+            enabled = debandOptions.none(configOwnedOptions::contains),
             onClick = {
               decoderPreferences.debanding.set(Debanding.None)
               PlaybackSession.setOptionString("deband", "no")
@@ -140,6 +147,7 @@ fun VideoSettingsDebandCard(modifier: Modifier = Modifier) {
             },
             min = debandSettings.start,
             max = debandSettings.end,
+            enabled = debandSettings.mpvProperty !in configOwnedOptions,
           )
         }
       }

@@ -11,6 +11,8 @@ package com.quantummpv.app.ui.player
 
 import android.util.Log
 import com.quantummpv.app.preferences.AudioPreferences
+import com.quantummpv.app.preferences.MpvConfigControlledFeatures
+import com.quantummpv.app.preferences.MpvConfigOverridePolicy
 import com.quantummpv.app.preferences.SubtitlesPreferences
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
@@ -101,8 +103,12 @@ class TrackSelector(
         return@withContext
       }
 
-      ensureAudioTrackSelected(tracks, hasState)
-      ensureSubtitleTrackSelected(tracks, hasState)
+      if (!MpvConfigOverridePolicy.ownsAny(MpvConfigControlledFeatures.AUDIO_TRACK_SELECTION)) {
+        ensureAudioTrackSelected(tracks, hasState)
+      }
+      if (!MpvConfigOverridePolicy.ownsAny(MpvConfigControlledFeatures.SUBTITLE_TRACK_SELECTION)) {
+        ensureSubtitleTrackSelected(tracks, hasState)
+      }
     }
 
   private fun readTracks(count: Int): List<Track> {

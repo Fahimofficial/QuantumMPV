@@ -11,6 +11,8 @@ package com.quantummpv.app.utils.media
 
 import android.util.Log
 import com.quantummpv.app.domain.network.NetworkPath
+import com.quantummpv.app.preferences.MpvConfigControlledFeatures
+import com.quantummpv.app.preferences.MpvConfigOverridePolicy
 import com.quantummpv.app.repository.NetworkRepository
 import com.quantummpv.app.ui.player.PlaybackSession
 import kotlinx.coroutines.CancellationException
@@ -36,6 +38,7 @@ object SubtitleOps : KoinComponent {
     expectedGeneration: Long? = null,
   ) = withContext(Dispatchers.IO) {
     try {
+      if (MpvConfigOverridePolicy.ownsAny(MpvConfigControlledFeatures.SUBTITLE_DISCOVERY)) return@withContext
       if (!isGenerationCurrent(expectedGeneration)) return@withContext
       // Skip file descriptor URIs (these don't have a parent directory concept)
       if (videoFilePath.startsWith("fd://")) return@withContext

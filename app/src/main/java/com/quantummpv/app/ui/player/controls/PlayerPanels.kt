@@ -24,14 +24,18 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
+import com.quantummpv.app.preferences.MpvConfigControlledFeatures
 import com.quantummpv.app.ui.player.Panels
 import com.quantummpv.app.ui.player.PlayerViewModel
+import com.quantummpv.app.ui.player.controls.components.MpvConfigOwnedPanel
 import com.quantummpv.app.ui.player.controls.components.panels.AudioDelayPanel
 import com.quantummpv.app.ui.player.controls.components.panels.HdrScreenOutputPanel
 import com.quantummpv.app.ui.player.controls.components.panels.LuaScriptsPanel
 import com.quantummpv.app.ui.player.controls.components.panels.SubtitleDelayPanel
 import com.quantummpv.app.ui.player.controls.components.panels.SubtitleSettingsPanel
 import com.quantummpv.app.ui.player.controls.components.panels.VideoSettingsPanel
+import com.quantummpv.app.ui.utils.isAnyMpvOptionOwnedByConfig
+import com.quantummpv.app.ui.utils.isMpvOptionOwnedByConfig
 
 @Composable
 fun PlayerPanels(
@@ -50,6 +54,16 @@ fun PlayerPanels(
     },
     modifier = modifier,
   ) { currentPanel ->
+    val configOwned =
+      when (currentPanel) {
+        Panels.AudioDelay -> isMpvOptionOwnedByConfig("audio-delay")
+        Panels.HdrScreenOutput -> isAnyMpvOptionOwnedByConfig(MpvConfigControlledFeatures.HDR_OUTPUT)
+        else -> false
+      }
+    if (configOwned) {
+      MpvConfigOwnedPanel(onDismissRequest)
+      return@AnimatedContent
+    }
     when (currentPanel) {
       Panels.None -> {
         Box(Modifier.fillMaxHeight())

@@ -60,6 +60,7 @@ import com.quantummpv.app.ui.player.screenshot.ScreenshotFormat
 import com.quantummpv.app.ui.preferences.components.SwitchPreference
 import com.quantummpv.app.ui.utils.LocalBackStack
 import com.quantummpv.app.ui.utils.LocalShowSettingsBackArrow
+import com.quantummpv.app.ui.utils.currentMpvConfigOverrideOptions
 import com.quantummpv.app.ui.utils.popSafely
 import kotlinx.serialization.Serializable
 import me.zhanghai.compose.preference.ListPreference
@@ -79,6 +80,7 @@ object PlayerPreferencesScreen : Screen {
     val context = LocalContext.current
     val resources = LocalResources.current
     val preferences = koinInject<PlayerPreferences>()
+    val configOwnedOptions = currentMpvConfigOverrideOptions()
     val audioPreferences = koinInject<AudioPreferences>()
     val advancedPreferences = koinInject<AdvancedPreferences>()
     val notificationPermissionLauncher =
@@ -465,6 +467,7 @@ object PlayerPreferencesScreen : Screen {
               SwitchPreference(
                 modifier = Modifier.settingsSearchTarget(R.string.pref_player_use_precise_seeking),
                 value = usePreciseSeeking,
+                enabled = setOf("hr-seek", "hr-seek-framedrop").none(configOwnedOptions::contains),
                 onValueChange = preferences.usePreciseSeeking::set,
                 title = { Text(stringResource(R.string.pref_player_use_precise_seeking)) },
               )
