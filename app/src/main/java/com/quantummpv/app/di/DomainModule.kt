@@ -13,6 +13,7 @@ import com.quantummpv.app.domain.anime4k.Anime4KManager
 import com.quantummpv.app.domain.hdr.HdrToysManager
 import com.quantummpv.app.domain.torrent.TorrentStreamingEngine
 import com.quantummpv.app.network.AndroidCookieJar
+import com.quantummpv.app.network.SharedHttpClient
 import com.quantummpv.app.preferences.AiPreferences
 import com.quantummpv.app.repository.IntroDbRepository
 import com.quantummpv.app.repository.ai.AiClient
@@ -41,14 +42,11 @@ import java.util.concurrent.TimeUnit
 val domainModule =
   module {
     single { AndroidCookieJar() }
-    single {
-      OkHttpClient
-        .Builder()
-        .connectTimeout(30, TimeUnit.SECONDS)
-        .readTimeout(30, TimeUnit.SECONDS)
-        .writeTimeout(30, TimeUnit.SECONDS)
-        .cookieJar(get<AndroidCookieJar>())
-        .build()
+    single<OkHttpClient> {
+      SharedHttpClient.derive {
+        connectTimeout(30, TimeUnit.SECONDS)
+        cookieJar(get<AndroidCookieJar>())
+      }
     }
     single { Anime4KManager(androidContext()) }
     single { HdrToysManager(androidContext()) }
