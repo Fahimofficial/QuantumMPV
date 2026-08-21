@@ -107,7 +107,7 @@ fun JellyfinDetailSheet(
 ) {
   if (item == null) return
 
-  if (item.type == "MusicArtist" || item.type == "MusicAlbum" || item.type == "Playlist" || item.type == "Artist" || item.type == "AlbumArtist") {
+  if (item.type == "MusicArtist" || item.type == "MusicAlbum" || item.type == "Album" || item.type == "Playlist" || item.type == "Artist" || item.type == "AlbumArtist") {
     val queueState by PlaybackSession.queue.collectAsStateWithLifecycle()
     val currentSessionItem = queueState.currentItem
 
@@ -178,7 +178,7 @@ fun JellyfinDetailSheet(
             val isArtist = item.type == "MusicArtist" || item.type == "Artist" || item.type == "AlbumArtist"
             if (!isArtist) {
               val subtitle = item.seriesName ?: item.overview ?: ""
-              if (item.type == "MusicAlbum" && subtitle.isNotBlank()) {
+              if ((item.type == "MusicAlbum" || item.type == "Album") && subtitle.isNotBlank()) {
                 Text(
                   text = subtitle,
                   style = MaterialTheme.typography.bodyMedium,

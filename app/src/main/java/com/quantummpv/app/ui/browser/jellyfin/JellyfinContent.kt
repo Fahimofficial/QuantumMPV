@@ -551,8 +551,20 @@ fun JellyfinContent(
                               JellyfinMusicCard(
                                 item = item,
                                 server = server,
-                                onClick = { viewModel.playItem(context, item) },
-                                onLongClick = { viewModel.openDetail(item) },
+                                onClick = {
+                                  if (item.type == "MusicArtist" || item.type == "Artist" || item.type == "AlbumArtist" || item.type == "MusicAlbum" || item.type == "Album" || item.type == "Playlist") {
+                                    viewModel.openDetail(item)
+                                  } else {
+                                    viewModel.playItem(context, item)
+                                  }
+                                },
+                                onLongClick = {
+                                  if (item.type == "MusicArtist" || item.type == "Artist" || item.type == "AlbumArtist" || item.type == "MusicAlbum" || item.type == "Album" || item.type == "Playlist") {
+                                    viewModel.playItem(context, item)
+                                  } else {
+                                    viewModel.openDetail(item)
+                                  }
+                                },
                               )
                             }
                           }
@@ -575,7 +587,7 @@ fun JellyfinContent(
                   onItemClick = { item ->
                     if (selectionManager.isInSelectionMode) {
                       selectionManager.toggle(item)
-                    } else if (item.type == "MusicArtist" || item.type == "Artist" || item.type == "AlbumArtist" || item.type == "MusicAlbum" || item.type == "Playlist") {
+                    } else if (item.type == "MusicArtist" || item.type == "Artist" || item.type == "AlbumArtist" || item.type == "MusicAlbum" || item.type == "Album" || item.type == "Playlist") {
                       viewModel.openDetail(item)
                     } else if (item.isFolder || item.type == "CollectionFolder") {
                       viewModel.navigateToItem(item)

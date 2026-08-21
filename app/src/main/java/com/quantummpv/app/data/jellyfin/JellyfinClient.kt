@@ -928,6 +928,16 @@ class JellyfinClient(
     val criticRating = obj["CriticRating"]?.jsonPrimitive?.content?.toDoubleOrNull()
     val officialRating = obj["OfficialRating"]?.jsonPrimitive?.content
     val seriesName = obj["SeriesName"]?.jsonPrimitive?.content
+      ?: obj["AlbumArtist"]?.jsonPrimitive?.content
+      ?: obj["AlbumArtists"]?.jsonArray?.firstOrNull()?.let { element ->
+        if (element is JsonObject) element["Name"]?.jsonPrimitive?.content else element.jsonPrimitive.content
+      }
+      ?: obj["ArtistItems"]?.jsonArray?.firstOrNull()?.let { element ->
+        if (element is JsonObject) element["Name"]?.jsonPrimitive?.content else element.jsonPrimitive.content
+      }
+      ?: obj["Artists"]?.jsonArray?.firstOrNull()?.let { element ->
+        if (element is JsonObject) element["Name"]?.jsonPrimitive?.content else element.jsonPrimitive.content
+      }
     val seasonName = obj["SeasonName"]?.jsonPrimitive?.content
     val indexNumber = obj["IndexNumber"]?.jsonPrimitive?.intOrNull
     val parentIndexNumber = obj["ParentIndexNumber"]?.jsonPrimitive?.intOrNull
