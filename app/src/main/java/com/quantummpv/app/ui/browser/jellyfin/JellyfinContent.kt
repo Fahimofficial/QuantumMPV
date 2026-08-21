@@ -842,7 +842,10 @@ fun JellyfinContent(
         }
       }
 
-      if (!selectionManager.isInSelectionMode && uiState.activeServer != null && (uiState.currentItems.isNotEmpty() || uiState.resumeItems.isNotEmpty() || uiState.heroItems.isNotEmpty())) {
+      if (!selectionManager.isInSelectionMode && uiState.activeServer != null &&
+        (uiState.currentItems.isNotEmpty() || uiState.resumeItems.isNotEmpty() || uiState.heroItems.isNotEmpty() ||
+          uiState.latestMovies.isNotEmpty() || uiState.latestShows.isNotEmpty())
+      ) {
         // Expressive Floating Action Button Menu
         var isFabExpanded by remember { mutableStateOf(false) }
 
@@ -876,6 +879,21 @@ fun JellyfinContent(
             }
           },
         ) {
+          FloatingActionButtonMenuItem(
+            onClick = {
+              isFabExpanded = false
+              val quickPlayItem =
+                uiState.currentItems.firstOrNull { it.isVideo }
+                  ?: uiState.resumeItems.firstOrNull { it.isVideo }
+                  ?: uiState.heroItems.firstOrNull { it.isVideo }
+                  ?: uiState.latestMovies.firstOrNull { it.isVideo }
+                  ?: uiState.latestShows.firstOrNull { it.isVideo }
+              quickPlayItem?.let { viewModel.playItem(context, it) }
+            },
+            icon = { Icon(Icons.RoundedFilled.PlayArrow, contentDescription = null) },
+            text = { Text("Quick Play") },
+          )
+
           FloatingActionButtonMenuItem(
             onClick = {
               isFabExpanded = false
@@ -1065,4 +1083,3 @@ private fun ErrorView(
     }
   }
 }
-
