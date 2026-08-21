@@ -297,6 +297,7 @@ object MediaUtils {
       val playlistArrayList = if (playlist is ArrayList) playlist else ArrayList(playlist)
       intent.putParcelableArrayListExtra("playlist", playlistArrayList)
       intent.putExtra("playlistIndex", playlistIndex)
+      intent.putExtra("playlist_index", playlistIndex)
       if (playlistTitles.isNotEmpty()) {
         val titlesArrayList = if (playlistTitles is ArrayList) playlistTitles else ArrayList(playlistTitles)
         intent.putStringArrayListExtra("playlist_titles", titlesArrayList)

@@ -1090,16 +1090,19 @@ fun JellyfinMusicCard(
         color = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface,
         modifier = Modifier.fillMaxWidth(),
       )
-      val subtitle = item.seriesName ?: item.productionYear?.toString() ?: "Music"
-      Text(
-        text = subtitle,
-        style = MaterialTheme.typography.bodySmall,
-        color = MaterialTheme.colorScheme.onSurfaceVariant,
-        maxLines = 1,
-        overflow = TextOverflow.Ellipsis,
-        textAlign = TextAlign.Start,
-        modifier = Modifier.fillMaxWidth(),
-      )
+      val isArtist = item.type == "MusicArtist" || item.type == "Artist" || item.type == "AlbumArtist"
+      if (!isArtist) {
+        val subtitle = item.seriesName ?: item.productionYear?.toString() ?: "Music"
+        Text(
+          text = subtitle,
+          style = MaterialTheme.typography.bodySmall,
+          color = MaterialTheme.colorScheme.onSurfaceVariant,
+          maxLines = 1,
+          overflow = TextOverflow.Ellipsis,
+          textAlign = TextAlign.Start,
+          modifier = Modifier.fillMaxWidth(),
+        )
+      }
     }
   }
 }

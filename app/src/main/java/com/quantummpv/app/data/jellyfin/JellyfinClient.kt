@@ -9,6 +9,7 @@
 
 package com.quantummpv.app.data.jellyfin
 
+import android.net.Uri
 import android.util.Log
 import com.quantummpv.app.domain.jellyfin.JellyfinAuthResult
 import com.quantummpv.app.domain.jellyfin.JellyfinItem
@@ -458,6 +459,7 @@ class JellyfinClient(
     serverUrl: String,
     userId: String,
     parentId: String? = null,
+    artistIds: String? = null,
     searchTerm: String? = null,
     sortBy: com.quantummpv.app.domain.jellyfin.JellyfinSortBy = com.quantummpv.app.domain.jellyfin.JellyfinSortBy.NAME,
     sortOrder: com.quantummpv.app.domain.jellyfin.JellyfinSortOrder = com.quantummpv.app.domain.jellyfin.JellyfinSortOrder.ASCENDING,
@@ -479,6 +481,9 @@ class JellyfinClient(
 
         if (!parentId.isNullOrBlank()) {
           urlBuilder.append("&ParentId=$parentId")
+        }
+        if (!artistIds.isNullOrBlank()) {
+          urlBuilder.append("&ArtistIds=${java.net.URLEncoder.encode(artistIds, "UTF-8")}&Recursive=true")
         }
         if (!searchTerm.isNullOrBlank()) {
           urlBuilder.append("&SearchTerm=${java.net.URLEncoder.encode(searchTerm, "UTF-8")}&Recursive=true")
@@ -526,6 +531,56 @@ class JellyfinClient(
             }
           com.quantummpv.app.domain.jellyfin.JellyfinQueryResult(
             items = sortedItems,
+            totalRecordCount = if (totalRecordCount > 0) totalRecordCount else items.size,
+            startIndex = startIndex,
+          )
+        }
+      }
+    }
+
+  suspend fun getArtists(
+    serverUrl: String,
+    userId: String,
+    parentId: String? = null,
+    sortBy: com.quantummpv.app.domain.jellyfin.JellyfinSortBy = com.quantummpv.app.domain.jellyfin.JellyfinSortBy.NAME,
+    sortOrder: com.quantummpv.app.domain.jellyfin.JellyfinSortOrder = com.quantummpv.app.domain.jellyfin.JellyfinSortOrder.ASCENDING,
+    startIndex: Int = 0,
+    limit: Int = 500,
+    token: String,
+    albumArtistsOnly: Boolean = false,
+  ): Result<com.quantummpv.app.domain.jellyfin.JellyfinQueryResult> =
+    withContext(Dispatchers.IO) {
+      runCatching {
+        val base = normalizeUrl(serverUrl)
+        val path = if (albumArtistsOnly) "Artists/AlbumArtists" else "Artists"
+        val urlBuilder =
+          StringBuilder(
+            "$base/$path?UserId=$userId&Fields=Overview,PrimaryImageAspectRatio,UserData,ChildCount,MediaSources,MediaStreams,ProductionYear,CommunityRating,CriticRating,Genres,OfficialRating,Taglines,SeriesName,SeasonName,IndexNumber,ParentIndexNumber,PremiereDate,Status&StartIndex=$startIndex&Limit=$limit&SortBy=${sortBy.apiValue}&SortOrder=${sortOrder.apiValue}",
+          )
+        if (!parentId.isNullOrBlank()) {
+          urlBuilder.append("&ParentId=$parentId&Recursive=true")
+        }
+
+        val request =
+          Request
+            .Builder()
+            .url(urlBuilder.toString())
+            .addHeader("X-Emby-Authorization", authHeader(token))
+            .addHeader("X-Emby-Token", token)
+            .get()
+            .build()
+
+        httpClient.newCall(request).execute().use { response ->
+          if (!response.isSuccessful) {
+            throw IOException("Failed to load artists: HTTP ${response.code}")
+          }
+          val bodyStr = response.body.string()
+          val root = json.parseToJsonElement(bodyStr).jsonObject
+          val totalRecordCount = root["TotalRecordCount"]?.jsonPrimitive?.intOrNull ?: 0
+          val itemsArray = root["Items"]?.jsonArray ?: JsonArray(emptyList())
+          val items = itemsArray.map { parseItem(it.jsonObject) }
+          com.quantummpv.app.domain.jellyfin.JellyfinQueryResult(
+            items = items,
             totalRecordCount = if (totalRecordCount > 0) totalRecordCount else items.size,
             startIndex = startIndex,
           )
@@ -992,4 +1047,69 @@ class JellyfinClient(
       lastPlayedDate = lastPlayedDate,
     )
   }
+
+  suspend fun createPlaylist(
+    serverUrl: String,
+    userId: String,
+    token: String,
+    name: String,
+    itemIds: List<String> = emptyList(),
+  ): Result<String> =
+    withContext(Dispatchers.IO) {
+      try {
+        val base = normalizeUrl(serverUrl)
+        val idsParam = if (itemIds.isNotEmpty()) "&ids=${itemIds.joinToString(",")}" else ""
+        val url = "$base/Playlists?name=${Uri.encode(name)}&userId=$userId$idsParam"
+        val request =
+          Request
+            .Builder()
+            .url(url)
+            .addHeader("X-Emby-Authorization", authHeader(token))
+            .post("".toRequestBody(JSON_MEDIA_TYPE))
+            .build()
+
+        httpClient.newCall(request).execute().use { response ->
+          if (!response.isSuccessful) {
+            return@withContext Result.failure(IOException("Create playlist failed: ${response.code} ${response.message}"))
+          }
+          val bodyStr = response.body.string()
+          val root = json.parseToJsonElement(bodyStr).jsonObject
+          val id = root["Id"]?.jsonPrimitive?.content ?: ""
+          Result.success(id)
+        }
+      } catch (e: Exception) {
+        Result.failure(e)
+      }
+    }
+
+  suspend fun addToPlaylist(
+    serverUrl: String,
+    userId: String,
+    token: String,
+    playlistId: String,
+    itemIds: List<String>,
+  ): Result<Unit> =
+    withContext(Dispatchers.IO) {
+      try {
+        val base = normalizeUrl(serverUrl)
+        val idsParam = itemIds.joinToString(",")
+        val url = "$base/Playlists/$playlistId/Items?ids=$idsParam&userId=$userId"
+        val request =
+          Request
+            .Builder()
+            .url(url)
+            .addHeader("X-Emby-Authorization", authHeader(token))
+            .post("".toRequestBody(JSON_MEDIA_TYPE))
+            .build()
+
+        httpClient.newCall(request).execute().use { response ->
+          if (!response.isSuccessful) {
+            return@withContext Result.failure(IOException("Add to playlist failed: ${response.code} ${response.message}"))
+          }
+          Result.success(Unit)
+        }
+      } catch (e: Exception) {
+        Result.failure(e)
+      }
+    }
 }

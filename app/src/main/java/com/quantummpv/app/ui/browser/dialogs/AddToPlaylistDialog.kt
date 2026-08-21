@@ -48,7 +48,6 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
-import com.quantummpv.app.database.entities.PlaylistEntity
 import com.quantummpv.app.domain.media.model.Video
 import com.quantummpv.app.ui.icons.Icon
 import com.quantummpv.app.ui.icons.Icons
@@ -64,6 +63,7 @@ fun AddToPlaylistDialog(
   videos: List<Video>,
   onDismiss: () -> Unit,
   onSuccess: () -> Unit,
+  isJellyfin: Boolean = false,
   modifier: Modifier = Modifier,
 ) {
   val viewModel: AddToPlaylistViewModel = viewModel()
@@ -73,9 +73,9 @@ fun AddToPlaylistDialog(
   val context = LocalContext.current
   val isAudio = remember(videos) { videos.any { it.isAudio } }
 
-  androidx.compose.runtime.LaunchedEffect(isOpen, isAudio) {
+  androidx.compose.runtime.LaunchedEffect(isOpen, isAudio, isJellyfin) {
     if (isOpen) {
-      viewModel.loadPlaylists(isAudio = isAudio)
+      viewModel.loadPlaylists(isAudio = isAudio, isJellyfin = isJellyfin)
     }
   }
 
@@ -86,7 +86,7 @@ fun AddToPlaylistDialog(
       onDismiss = { showCreateDialog = false },
       onConfirm = { name ->
         scope.launch {
-          viewModel.createAndAdd(name, videos)
+          viewModel.createAndAdd(name, videos, isJellyfin = isJellyfin)
           val message =
             if (isAudio) {
               if (videos.size == 1) {
@@ -175,28 +175,29 @@ fun AddToPlaylistDialog(
             verticalArrangement = Arrangement.spacedBy(8.dp),
             contentPadding = PaddingValues(vertical = 4.dp),
           ) {
-            items(playlistOptions, key = { it.playlist.id }) { option ->
+            items(playlistOptions, key = { it.id }) { option ->
               PlaylistItemCard(
-                playlist = option.playlist,
-                itemCount = option.itemCount,
+                option = option,
                 onClick = {
                   scope.launch {
-                    viewModel.addToPlaylist(option.playlist.id, videos)
+                    viewModel.addToPlaylist(option, videos, isJellyfin = isJellyfin)
                     val message =
                       if (isAudio) {
                         if (videos.size == 1) {
-                          "Song added to \"${option.playlist.name}\""
+                          "Song added to \"${option.name}\""
                         } else {
-                          "${videos.size} songs added to \"${option.playlist.name}\""
+                          "${videos.size} songs added to \"${option.name}\""
                         }
                       } else {
                         if (videos.size == 1) {
-                          "Video added to \"${option.playlist.name}\""
+                          "Video added to \"${option.name}\""
                         } else {
-                          "${videos.size} videos added to \"${option.playlist.name}\""
+                          "${videos.size} videos added to \"${option.name}\""
                         }
                       }
                     Toast.makeText(context, message, Toast.LENGTH_SHORT).show()
+                    onSuccess()
+                    onDismiss()
                   }
                 },
               )
@@ -248,8 +249,7 @@ fun AddToPlaylistDialog(
 
 @Composable
 private fun PlaylistItemCard(
-  playlist: PlaylistEntity,
-  itemCount: Int,
+  option: PlaylistOption,
   onClick: () -> Unit,
 ) {
   Card(
@@ -281,7 +281,7 @@ private fun PlaylistItemCard(
         modifier = Modifier.weight(1f),
       ) {
         Text(
-          text = playlist.name,
+          text = option.name,
           style = MaterialTheme.typography.titleMedium,
           fontWeight = FontWeight.Bold,
           maxLines = 1,
@@ -289,7 +289,7 @@ private fun PlaylistItemCard(
         )
         Spacer(modifier = Modifier.height(4.dp))
         Text(
-          text = "$itemCount videos • ${formatDate(playlist.updatedAt)}",
+          text = option.subtitle ?: "${option.itemCount} items",
           style = MaterialTheme.typography.bodySmall,
           color = MaterialTheme.colorScheme.onSurfaceVariant,
         )

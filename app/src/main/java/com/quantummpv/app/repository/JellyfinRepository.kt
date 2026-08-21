@@ -90,6 +90,7 @@ class JellyfinRepository(
   suspend fun getItems(
     server: JellyfinServer,
     parentId: String? = null,
+    artistIds: String? = null,
     searchTerm: String? = null,
     sortBy: com.quantummpv.app.domain.jellyfin.JellyfinSortBy = com.quantummpv.app.domain.jellyfin.JellyfinSortBy.NAME,
     sortOrder: com.quantummpv.app.domain.jellyfin.JellyfinSortOrder = com.quantummpv.app.domain.jellyfin.JellyfinSortOrder.ASCENDING,
@@ -104,6 +105,7 @@ class JellyfinRepository(
       serverUrl = server.serverUrl,
       userId = server.userId,
       parentId = parentId,
+      artistIds = artistIds,
       searchTerm = searchTerm,
       sortBy = sortBy,
       sortOrder = sortOrder,
@@ -114,6 +116,27 @@ class JellyfinRepository(
       startIndex = startIndex,
       limit = limit,
       token = server.accessToken,
+    )
+
+  suspend fun getArtists(
+    server: JellyfinServer,
+    parentId: String? = null,
+    sortBy: com.quantummpv.app.domain.jellyfin.JellyfinSortBy = com.quantummpv.app.domain.jellyfin.JellyfinSortBy.NAME,
+    sortOrder: com.quantummpv.app.domain.jellyfin.JellyfinSortOrder = com.quantummpv.app.domain.jellyfin.JellyfinSortOrder.ASCENDING,
+    startIndex: Int = 0,
+    limit: Int = 500,
+    albumArtistsOnly: Boolean = false,
+  ): Result<com.quantummpv.app.domain.jellyfin.JellyfinQueryResult> =
+    client.getArtists(
+      serverUrl = server.serverUrl,
+      userId = server.userId,
+      parentId = parentId,
+      sortBy = sortBy,
+      sortOrder = sortOrder,
+      startIndex = startIndex,
+      limit = limit,
+      token = server.accessToken,
+      albumArtistsOnly = albumArtistsOnly,
     )
 
   suspend fun getGenres(
@@ -254,5 +277,31 @@ class JellyfinRepository(
       itemId = item.id,
       isFavorite = isFavorite,
       token = server.accessToken,
+    )
+
+  suspend fun createPlaylist(
+    server: JellyfinServer,
+    name: String,
+    itemIds: List<String> = emptyList(),
+  ): Result<String> =
+    client.createPlaylist(
+      serverUrl = server.serverUrl,
+      userId = server.userId,
+      token = server.accessToken,
+      name = name,
+      itemIds = itemIds,
+    )
+
+  suspend fun addToPlaylist(
+    server: JellyfinServer,
+    playlistId: String,
+    itemIds: List<String>,
+  ): Result<Unit> =
+    client.addToPlaylist(
+      serverUrl = server.serverUrl,
+      userId = server.userId,
+      token = server.accessToken,
+      playlistId = playlistId,
+      itemIds = itemIds,
     )
 }

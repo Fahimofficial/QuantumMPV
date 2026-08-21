@@ -55,11 +55,14 @@ import androidx.compose.material3.FilterChip
 import androidx.compose.material3.FilterChipDefaults
 import androidx.compose.material3.FloatingActionButtonMenu
 import androidx.compose.material3.FloatingActionButtonMenuItem
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.PrimaryScrollableTabRow
 import androidx.compose.material3.SearchBar
 import androidx.compose.material3.SearchBarDefaults
 import androidx.compose.material3.Surface
+import androidx.compose.material3.Tab
 import androidx.compose.material3.Text
 import androidx.compose.material3.ToggleFloatingActionButton
 import androidx.compose.material3.ToggleFloatingActionButtonDefaults.animateIcon
@@ -79,12 +82,14 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.quantummpv.app.R
 import com.quantummpv.app.domain.jellyfin.JellyfinItem
@@ -178,132 +183,182 @@ fun JellyfinContent(
       else -> stringResource(R.string.ui_jellyfin)
     }
 
+  val headerContainerColor =
+    if (MaterialTheme.colorScheme.background == Color.Black) Color.Black else MaterialTheme.colorScheme.surfaceContainer
+
   Column(
     modifier =
       modifier
         .fillMaxSize()
         .background(MaterialTheme.colorScheme.background),
   ) {
-    // Top Bar (Material 3 Expressive BrowserTopBar / SearchBar)
-    if (isSearching) {
-      Column(
-        modifier =
-          Modifier
-            .fillMaxWidth()
-            .padding(horizontal = 16.dp, vertical = 6.dp),
-        verticalArrangement = Arrangement.spacedBy(8.dp),
-      ) {
-        SearchBar(
-          inputField = {
-            SearchBarDefaults.InputField(
-              query = uiState.searchQuery,
-              onQueryChange = {
-                viewModel.onSearchQueryChanged(it)
-              },
-              onSearch = { viewModel.performSearch(uiState.searchQuery, debounceMs = 0L) },
-              expanded = false,
-              onExpandedChange = { },
-              placeholder = { Text("Search movies, shows, episodes...") },
-              leadingIcon = {
-                Icon(
-                  imageVector = Icons.RoundedFilled.Search,
-                  contentDescription = stringResource(R.string.settings_search_title),
-                )
-              },
-              trailingIcon = {
-                IconButton(
-                  onClick = {
-                    if (uiState.searchQuery.isNotEmpty()) {
-                      viewModel.onSearchQueryChanged("")
-                      viewModel.refresh()
-                    } else {
-                      isSearching = false
-                    }
-                  },
-                ) {
-                  Icon(
-                    imageVector = Icons.RoundedFilled.Close,
-                    contentDescription = stringResource(R.string.generic_cancel),
-                  )
-                }
-              },
-              modifier = Modifier.focusRequester(searchFocusRequester),
-            )
-          },
-          expanded = false,
-          onExpandedChange = { },
-          modifier = Modifier.fillMaxWidth(),
-          shape = RoundedCornerShape(28.dp),
-          tonalElevation = 6.dp,
-        ) { }
-
-        // Category Filter Chips
-        Row(
+    // Top Bar Container (Material 3 Expressive BrowserTopBar / SearchBar / TabRow)
+    Column(
+      modifier = Modifier
+        .fillMaxWidth()
+        .background(headerContainerColor),
+    ) {
+      if (isSearching) {
+        Column(
           modifier =
             Modifier
               .fillMaxWidth()
-              .horizontalScroll(rememberScrollState()),
-          horizontalArrangement = Arrangement.spacedBy(8.dp),
-          verticalAlignment = Alignment.CenterVertically,
+              .padding(horizontal = 16.dp, vertical = 6.dp),
+          verticalArrangement = Arrangement.spacedBy(8.dp),
         ) {
-          JellyfinSearchCategory.entries.forEach { category ->
-            val isSelected = uiState.searchCategory == category
-            FilterChip(
-              selected = isSelected,
-              onClick = { viewModel.setSearchCategory(category) },
-              label = { Text(category.displayName, fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal) },
-              shape = RoundedCornerShape(12.dp),
-              colors =
-                FilterChipDefaults.filterChipColors(
-                  selectedContainerColor = MaterialTheme.colorScheme.primaryContainer,
-                  selectedLabelColor = MaterialTheme.colorScheme.onPrimaryContainer,
-                ),
-            )
-          }
-        }
-      }
-    } else {
-      BrowserTopBar(
-        title = pageTitle,
-        isInSelectionMode = selectionManager.isInSelectionMode,
-        selectedCount = selectionManager.selectedCount,
-        totalCount = uiState.currentItems.size,
-        onCancelSelection = { selectionManager.clear() },
-        onSelectAll = { selectionManager.selectAll() },
-        onInvertSelection = { selectionManager.invertSelection() },
-        onDeselectAll = { selectionManager.clear() },
-        onPlayClick = { viewModel.playSelected(context, selectionManager.getSelectedItems()) },
-        isSingleSelection = selectionManager.isSingleSelection,
-        onBackClick = if (uiState.openLibrary != null) { { viewModel.navigateBack() } } else null,
-        onSortClick = if (uiState.openLibrary != null) { { isSortDialogOpen = true } } else null,
-        onSearchClick = { isSearching = true },
-        onSettingsClick = {
-          backstack.add(com.quantummpv.app.ui.preferences.PreferencesScreen)
-        },
-        additionalActions = {
-          if (!selectionManager.isInSelectionMode) {
-            IconButton(
-              onClick = { isManageServersOpen = true },
-              modifier = Modifier.padding(horizontal = 2.dp),
-            ) {
-              Icon(
-                imageVector = Icons.RoundedFilled.BringYourOwnIp,
-                contentDescription = "Manage Servers",
-                modifier = Modifier.size(24.dp),
-                tint = MaterialTheme.colorScheme.secondary,
+          SearchBar(
+            inputField = {
+              SearchBarDefaults.InputField(
+                query = uiState.searchQuery,
+                onQueryChange = {
+                  viewModel.onSearchQueryChanged(it)
+                },
+                onSearch = { viewModel.performSearch(uiState.searchQuery, debounceMs = 0L) },
+                expanded = false,
+                onExpandedChange = { },
+                placeholder = { Text("Search movies, shows, episodes...") },
+                leadingIcon = {
+                  Icon(
+                    imageVector = Icons.RoundedFilled.Search,
+                    contentDescription = stringResource(R.string.settings_search_title),
+                  )
+                },
+                trailingIcon = {
+                  IconButton(
+                    onClick = {
+                      if (uiState.searchQuery.isNotEmpty()) {
+                        viewModel.onSearchQueryChanged("")
+                        viewModel.refresh()
+                      } else {
+                        isSearching = false
+                      }
+                    },
+                  ) {
+                    Icon(
+                      imageVector = Icons.RoundedFilled.Close,
+                      contentDescription = stringResource(R.string.generic_cancel),
+                    )
+                  }
+                },
+                modifier = Modifier.focusRequester(searchFocusRequester),
+              )
+            },
+            expanded = false,
+            onExpandedChange = { },
+            modifier = Modifier.fillMaxWidth(),
+            shape = RoundedCornerShape(28.dp),
+            tonalElevation = 6.dp,
+          ) { }
+
+          // Category Filter Chips
+          Row(
+            modifier =
+              Modifier
+                .fillMaxWidth()
+                .horizontalScroll(rememberScrollState()),
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            verticalAlignment = Alignment.CenterVertically,
+          ) {
+            JellyfinSearchCategory.entries.forEach { category ->
+              val isSelected = uiState.searchCategory == category
+              FilterChip(
+                selected = isSelected,
+                onClick = { viewModel.setSearchCategory(category) },
+                label = { Text(category.displayName, fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal) },
+                shape = RoundedCornerShape(12.dp),
+                colors =
+                  FilterChipDefaults.filterChipColors(
+                    selectedContainerColor = MaterialTheme.colorScheme.primaryContainer,
+                    selectedLabelColor = MaterialTheme.colorScheme.onPrimaryContainer,
+                  ),
               )
             }
           }
-        },
-      )
-    }
+        }
+      } else {
+        BrowserTopBar(
+          title = pageTitle,
+          isInSelectionMode = selectionManager.isInSelectionMode,
+          selectedCount = selectionManager.selectedCount,
+          totalCount = uiState.currentItems.size,
+          onCancelSelection = { selectionManager.clear() },
+          onSelectAll = { selectionManager.selectAll() },
+          onInvertSelection = { selectionManager.invertSelection() },
+          onDeselectAll = { selectionManager.clear() },
+          onPlayClick = { viewModel.playSelected(context, selectionManager.getSelectedItems()) },
+          isSingleSelection = selectionManager.isSingleSelection,
+          onBackClick = if (uiState.openLibrary != null) { { viewModel.navigateBack() } } else null,
+          onSortClick = if (uiState.openLibrary != null && !(uiState.openLibrary?.isMusic == true && uiState.musicActiveTab == JellyfinMusicTab.HOME)) {
+            { isSortDialogOpen = true }
+          } else null,
+          onSearchClick = { isSearching = true },
+          onSettingsClick = {
+            backstack.add(com.quantummpv.app.ui.preferences.PreferencesScreen)
+          },
+          additionalActions = {
+            if (!selectionManager.isInSelectionMode) {
+              IconButton(
+                onClick = { isManageServersOpen = true },
+                modifier = Modifier.padding(horizontal = 2.dp),
+              ) {
+                Icon(
+                  imageVector = Icons.RoundedFilled.BringYourOwnIp,
+                  contentDescription = "Manage Servers",
+                  modifier = Modifier.size(24.dp),
+                  tint = MaterialTheme.colorScheme.secondary,
+                )
+              }
+            }
+          },
+        )
+      }
 
-    if (uiState.openLibrary != null && !isSearching) {
-      JellyfinGenreChipRow(
-        genres = uiState.availableGenres,
-        selectedGenre = uiState.selectedGenreFilter,
-        onSelectGenre = viewModel::setGenreFilter,
-      )
+      if (uiState.openLibrary != null && uiState.openLibrary?.isMusic != true && !isSearching) {
+        JellyfinGenreChipRow(
+          genres = uiState.availableGenres,
+          selectedGenre = uiState.selectedGenreFilter,
+          onSelectGenre = viewModel::setGenreFilter,
+        )
+      }
+
+      if (uiState.openLibrary?.isMusic == true && !isSearching) {
+        val visibleTabs = remember {
+          listOf(
+            JellyfinMusicTab.HOME,
+            JellyfinMusicTab.TRACKS,
+            JellyfinMusicTab.ALBUMS,
+            JellyfinMusicTab.ARTISTS,
+            JellyfinMusicTab.PLAYLISTS,
+          )
+        }
+        val selectedTabIndex = visibleTabs.indexOf(uiState.musicActiveTab).let { if (it < 0) 0 else it }
+
+        PrimaryScrollableTabRow(
+          selectedTabIndex = selectedTabIndex,
+          containerColor = Color.Transparent,
+          contentColor = MaterialTheme.colorScheme.primary,
+          edgePadding = 8.dp,
+          divider = {},
+        ) {
+          visibleTabs.forEachIndexed { index, tab ->
+            Tab(
+              selected = selectedTabIndex == index,
+              onClick = { viewModel.setMusicTab(tab) },
+              text = {
+                Text(
+                  text = tab.title,
+                  style = MaterialTheme.typography.titleMedium,
+                  fontWeight = if (selectedTabIndex == index) FontWeight.Bold else FontWeight.Medium,
+                  maxLines = 1,
+                  softWrap = false,
+                  overflow = TextOverflow.Ellipsis,
+                )
+              },
+            )
+          }
+        }
+        HorizontalDivider()
+      }
     }
 
     // Main Body Content with Pull-To-Refresh and FAB / Multi-select overlays
@@ -376,7 +431,12 @@ fun JellyfinContent(
                     }
 
                     // 2. Libraries Section (above Continue Watching)
-                    if (uiState.libraries.isNotEmpty()) {
+                    val homeLibraries = uiState.libraries.filter { library ->
+                      library.collectionType?.equals("playlists", ignoreCase = true) != true &&
+                        !library.name.equals("playlists", ignoreCase = true) &&
+                        library.type != "PlaylistsFolder"
+                    }
+                    if (homeLibraries.isNotEmpty()) {
                       item {
                         Column(
                           modifier = Modifier.fillMaxWidth(),
@@ -390,7 +450,7 @@ fun JellyfinContent(
                             horizontalArrangement = Arrangement.spacedBy(12.dp),
                             contentPadding = PaddingValues(horizontal = 16.dp),
                           ) {
-                            items(uiState.libraries, key = { it.id }) { library ->
+                            items(homeLibraries, key = { it.id }) { library ->
                               JellyfinLibraryCard(
                                 item = library,
                                 server = server,
@@ -506,9 +566,30 @@ fun JellyfinContent(
 
             // Level / Search View: Inside a Library / Folder / Season / Search results
             else -> {
-              val items = uiState.currentItems
-              val allEpisodes = items.isNotEmpty() && items.all { it.type == "Episode" }
-              val isListMode = layoutMode == MediaLayoutMode.LIST || allEpisodes
+              val openLib = uiState.openLibrary
+              if (openLib?.isMusic == true && uiState.searchQuery.isBlank() && uiState.activeServer != null) {
+                JellyfinMusicView(
+                  uiState = uiState,
+                  server = uiState.activeServer!!,
+                  onTabSelected = viewModel::setMusicTab,
+                  onItemClick = { item ->
+                    if (selectionManager.isInSelectionMode) {
+                      selectionManager.toggle(item)
+                    } else if (item.type == "MusicArtist" || item.type == "Artist" || item.type == "AlbumArtist" || item.type == "MusicAlbum" || item.type == "Playlist") {
+                      viewModel.openDetail(item)
+                    } else if (item.isFolder || item.type == "CollectionFolder") {
+                      viewModel.navigateToItem(item)
+                    } else {
+                      viewModel.playItem(context, item)
+                    }
+                  },
+                  onItemLongClick = { selectionManager.handleLongClick(it) },
+                  navigationBarHeight = navigationBarHeight,
+                )
+              } else {
+                val items = uiState.currentItems
+                val allEpisodes = items.isNotEmpty() && items.all { it.type == "Episode" }
+                val isListMode = layoutMode == MediaLayoutMode.LIST || allEpisodes
 
               if (items.isEmpty() && !uiState.isLoading) {
                 Column(
@@ -717,6 +798,7 @@ fun JellyfinContent(
             }
           }
         }
+      }
       }
 
       // Multi-Select Floating Action Pill (smoothly replaces bottom nav bar)
