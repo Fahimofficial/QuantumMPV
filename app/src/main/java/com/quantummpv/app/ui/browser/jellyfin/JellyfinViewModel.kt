@@ -844,7 +844,11 @@ class JellyfinViewModel(
 
         if (fullItem.isSeries) {
           val seasonsResult = jellyfinRepository.getSeasons(active, fullItem.id)
-          val seasons = seasonsResult.getOrDefault(emptyList())
+          val rawSeasons = seasonsResult.getOrDefault(emptyList())
+          val seasons = rawSeasons.sortedWith(
+            compareBy<JellyfinItem> { it.indexNumber ?: Int.MAX_VALUE }
+              .thenBy { it.name }
+          )
           val initialSeason = seasons.firstOrNull()
 
           _uiState.update {

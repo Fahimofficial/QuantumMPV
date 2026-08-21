@@ -611,16 +611,27 @@ class MainActivity : AppCompatActivity() {
 
               // Landscape/tablet single-pane: sit on the right side of the nav bar,
               // which slides left when the mini player appears.
-              else ->
+              else -> {
+                val isNavBarOnScreen = NavigationBarState.isNavBarVisible
+                val navBarLeft = if (NavigationBarState.navbarLeftOffset > 0.dp) NavigationBarState.navbarLeftOffset else 16.dp
+                val navBarWidth = if (NavigationBarState.navbarWidth > 0.dp) NavigationBarState.navbarWidth else 320.dp
+                val startPadding = if (isNavBarOnScreen) (navBarLeft + navBarWidth + 12.dp) else 12.dp
+                val bottomPadding = if (NavigationBarState.isInSelectionMode) {
+                  NavigationBarState.selectionBarClearance
+                } else {
+                  12.dp
+                }
+
                 Modifier
                   .align(Alignment.BottomStart)
                   .padding(
-                    start = NavigationBarState.navbarLeftOffset + NavigationBarState.navbarWidth + 12.dp,
+                    start = startPadding,
                     end = 12.dp,
                   )
                   .fillMaxWidth()
                   .windowInsetsPadding(WindowInsets.navigationBars)
-                  .padding(bottom = 12.dp)
+                  .padding(bottom = bottomPadding)
+              }
             }
 
           MiniPlayer(modifier = miniPlayerModifier)

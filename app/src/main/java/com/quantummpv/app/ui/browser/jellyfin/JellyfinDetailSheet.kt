@@ -11,6 +11,7 @@ package com.quantummpv.app.ui.browser.jellyfin
 
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.animateContentSize
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
@@ -27,6 +28,8 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.layout.wrapContentSize
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
@@ -38,6 +41,8 @@ import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.FilledTonalIconButton
@@ -719,27 +724,78 @@ fun JellyfinDetailSheet(
               color = MaterialTheme.colorScheme.onSurface,
             )
 
-            // Seasons Chips Row
-            Row(
-              modifier =
-                Modifier
-                  .fillMaxWidth()
-                  .horizontalScroll(rememberScrollState()),
-              horizontalArrangement = Arrangement.spacedBy(8.dp),
-            ) {
-              seasons.forEach { season ->
-                val isSelected = season.id == selectedSeasonId
-                FilterChip(
-                  selected = isSelected,
-                  onClick = { onSelectSeason(season.id) },
-                  label = { Text(season.name, fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal) },
-                  shape = RoundedCornerShape(12.dp),
-                  colors =
-                    FilterChipDefaults.filterChipColors(
-                      selectedContainerColor = MaterialTheme.colorScheme.primaryContainer,
-                      selectedLabelColor = MaterialTheme.colorScheme.onPrimaryContainer,
-                    ),
-                )
+            // Seasons Dropdown Menu
+            val sortedSeasons = remember(seasons) {
+              seasons.sortedWith(
+                compareBy<JellyfinItem> { it.indexNumber ?: Int.MAX_VALUE }
+                  .thenBy { it.name }
+              )
+            }
+            val selectedSeason = remember(sortedSeasons, selectedSeasonId) {
+              sortedSeasons.find { it.id == selectedSeasonId } ?: sortedSeasons.firstOrNull()
+            }
+            var isSeasonDropdownExpanded by remember { mutableStateOf(false) }
+
+            Box(modifier = Modifier.wrapContentSize()) {
+              Surface(
+                onClick = { isSeasonDropdownExpanded = !isSeasonDropdownExpanded },
+                shape = RoundedCornerShape(12.dp),
+                color = MaterialTheme.colorScheme.surfaceContainerHigh,
+                border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)),
+              ) {
+                Row(
+                  modifier = Modifier.padding(horizontal = 14.dp, vertical = 8.dp),
+                  verticalAlignment = Alignment.CenterVertically,
+                  horizontalArrangement = Arrangement.spacedBy(8.dp),
+                ) {
+                  Text(
+                    text = selectedSeason?.name ?: "Select Season",
+                    style = MaterialTheme.typography.titleSmall,
+                    fontWeight = FontWeight.SemiBold,
+                    color = MaterialTheme.colorScheme.onSurface,
+                  )
+                  Icon(
+                    imageVector = Icons.RoundedFilled.ArrowDropDown,
+                    contentDescription = "Select Season",
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                  )
+                }
+              }
+
+              DropdownMenu(
+                expanded = isSeasonDropdownExpanded,
+                onDismissRequest = { isSeasonDropdownExpanded = false },
+                modifier = Modifier
+                  .background(MaterialTheme.colorScheme.surfaceContainerHigh)
+                  .widthIn(min = 160.dp),
+              ) {
+                sortedSeasons.forEach { season ->
+                  val isSelected = season.id == selectedSeasonId
+                  DropdownMenuItem(
+                    text = {
+                      Text(
+                        text = season.name,
+                        style = MaterialTheme.typography.bodyMedium,
+                        fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
+                        color = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface,
+                      )
+                    },
+                    leadingIcon = if (isSelected) {
+                      {
+                        Icon(
+                          imageVector = Icons.RoundedFilled.Check,
+                          contentDescription = null,
+                          tint = MaterialTheme.colorScheme.primary,
+                          modifier = Modifier.size(18.dp),
+                        )
+                      }
+                    } else null,
+                    onClick = {
+                      isSeasonDropdownExpanded = false
+                      onSelectSeason(season.id)
+                    },
+                  )
+                }
               }
             }
 
