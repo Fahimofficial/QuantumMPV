@@ -375,19 +375,30 @@ fun JellyfinContent(
                       }
                     }
 
-                    // 2. Library Filter Chips
+                    // 2. Libraries Section (above Continue Watching)
                     if (uiState.libraries.isNotEmpty()) {
                       item {
-                        JellyfinLibraryChipRow(
-                          libraries = uiState.libraries,
-                          selectedLibraryId = uiState.selectedLibraryId,
-                          onSelectLibrary = { libId ->
-                            val selectedLib = uiState.libraries.find { it.id == libId }
-                            if (selectedLib != null) {
-                              viewModel.navigateToItem(selectedLib)
+                        Column(
+                          modifier = Modifier.fillMaxWidth(),
+                          verticalArrangement = Arrangement.spacedBy(8.dp),
+                        ) {
+                          JellyfinSectionHeader(
+                            title = "Libraries",
+                          )
+
+                          LazyRow(
+                            horizontalArrangement = Arrangement.spacedBy(12.dp),
+                            contentPadding = PaddingValues(horizontal = 16.dp),
+                          ) {
+                            items(uiState.libraries, key = { it.id }) { library ->
+                              JellyfinLibraryCard(
+                                item = library,
+                                server = server,
+                                onClick = { viewModel.navigateToItem(library) },
+                              )
                             }
-                          },
-                        )
+                          }
+                        }
                       }
                     }
 
@@ -456,7 +467,7 @@ fun JellyfinContent(
                       }
                     }
 
-                    // 7. Music Section (above Libraries)
+                    // 7. Music Section
                     if (uiState.latestMusic.isNotEmpty()) {
                       item {
                         Column(
@@ -482,33 +493,6 @@ fun JellyfinContent(
                                 server = server,
                                 onClick = { viewModel.playItem(context, item) },
                                 onLongClick = { viewModel.openDetail(item) },
-                              )
-                            }
-                          }
-                        }
-                      }
-                    }
-
-                    // 8. Libraries Section
-                    if (uiState.libraries.isNotEmpty()) {
-                      item {
-                        Column(
-                          modifier = Modifier.fillMaxWidth(),
-                          verticalArrangement = Arrangement.spacedBy(8.dp),
-                        ) {
-                          JellyfinSectionHeader(
-                            title = "Libraries",
-                          )
-
-                          LazyRow(
-                            horizontalArrangement = Arrangement.spacedBy(12.dp),
-                            contentPadding = PaddingValues(horizontal = 16.dp),
-                          ) {
-                            items(uiState.libraries, key = { it.id }) { library ->
-                              JellyfinLibraryCard(
-                                item = library,
-                                server = server,
-                                onClick = { viewModel.navigateToItem(library) },
                               )
                             }
                           }
