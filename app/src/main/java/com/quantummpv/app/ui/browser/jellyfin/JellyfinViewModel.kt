@@ -30,6 +30,8 @@ import com.quantummpv.app.preferences.AudioPreferences
 import com.quantummpv.app.preferences.SubtitlesPreferences
 import com.quantummpv.app.repository.JellyfinRepository
 import com.quantummpv.app.ui.player.PlaybackIdentity
+import com.quantummpv.app.ui.player.PlaybackItem
+import com.quantummpv.app.ui.player.PlaybackSession
 import com.quantummpv.app.utils.media.MediaUtils
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -786,18 +788,26 @@ class JellyfinViewModel(
     startFromBeginning: Boolean = false,
   ) {
     val server = _uiState.value.activeServer ?: return
-    val streamUrl = jellyfinRepository.getStreamUrl(server, item)
-    val mediaIdentifier = PlaybackIdentity.forUri(streamUrl)
-    val posterUrl = jellyfinRepository.getImageUrl(server, item)
-    val backdropUrl = jellyfinRepository.getBackdropUrl(server, item)
-
-    val itemTitle =
-      when {
-        item.seriesName != null && item.indexNumber != null -> "${item.seriesName} S${item.parentIndexNumber ?: 1}E${item.indexNumber} - ${item.name}"
-        else -> item.name
+    viewModelScope.launch(Dispatchers.IO) {
+      val targetItem = if (item.type == "MusicAlbum" || item.type == "MusicArtist" || (item.isFolder && item.collectionType == "music")) {
+        val tracksResult = jellyfinRepository.getItems(server = server, parentId = item.id, includeItemTypes = "Audio").getOrNull()
+        tracksResult?.items?.firstOrNull() ?: item
+      } else {
+        item
       }
 
-    viewModelScope.launch(Dispatchers.IO) {
+      val isAudio = targetItem.isAudio || targetItem.type == "Audio" || targetItem.type == "Song" || item.type == "MusicAlbum" || item.type == "MusicArtist" || item.collectionType == "music"
+      val streamUrl = jellyfinRepository.getStreamUrl(server, targetItem)
+      val mediaIdentifier = PlaybackIdentity.forUri(streamUrl)
+      val posterUrl = jellyfinRepository.getImageUrl(server, targetItem)
+      val backdropUrl = jellyfinRepository.getBackdropUrl(server, targetItem)
+
+      val itemTitle =
+        when {
+          targetItem.seriesName != null && targetItem.indexNumber != null -> "${targetItem.seriesName} S${targetItem.parentIndexNumber ?: 1}E${targetItem.indexNumber} - ${targetItem.name}"
+          else -> targetItem.name
+        }
+
       if (startFromBeginning) {
         runCatching {
           playbackStateRepository.deleteByTitle(mediaIdentifier)
@@ -808,7 +818,7 @@ class JellyfinViewModel(
       val freshItemDeferred =
         async {
           if (!startFromBeginning) {
-            jellyfinRepository.getItem(server, item.id).getOrNull()
+            jellyfinRepository.getItem(server, targetItem.id).getOrNull()
           } else {
             null
           }
@@ -816,22 +826,26 @@ class JellyfinViewModel(
 
       val subsDeferred =
         async {
-          jellyfinRepository
-            .getSubtitleTracks(server = server, itemId = item.id)
-            .getOrDefault(emptyList())
+          if (!isAudio) {
+            jellyfinRepository
+              .getSubtitleTracks(server = server, itemId = targetItem.id)
+              .getOrDefault(emptyList())
+          } else {
+            emptyList()
+          }
         }
 
-      val freshItem = freshItemDeferred.await() ?: item
+      val freshItem = freshItemDeferred.await() ?: targetItem
       val effectivePositionTicks =
         if (!startFromBeginning) {
-          freshItem.playbackPositionTicks ?: item.playbackPositionTicks ?: 0L
+          freshItem.playbackPositionTicks ?: targetItem.playbackPositionTicks ?: 0L
         } else {
           0L
         }
       val positionSeconds = (effectivePositionTicks / JellyfinClient.TICKS_PER_SECOND).toInt()
 
-      if (positionSeconds > 0) {
-        val durationSec = (freshItem.runTimeTicks ?: item.runTimeTicks ?: 0L) / JellyfinClient.TICKS_PER_SECOND
+      if (positionSeconds > 0 && !isAudio) {
+        val durationSec = (freshItem.runTimeTicks ?: targetItem.runTimeTicks ?: 0L) / JellyfinClient.TICKS_PER_SECOND
         runCatching {
           val existing = playbackStateRepository.getVideoDataByTitle(mediaIdentifier)
           val stateToSave =
@@ -860,16 +874,53 @@ class JellyfinViewModel(
         jellyfinRepository.reportPlaybackStart(
           serverUrl = server.serverUrl,
           token = server.accessToken,
-          itemId = item.id,
+          itemId = targetItem.id,
           positionTicks = effectivePositionTicks,
         )
       }
 
       val externalSubs = subsDeferred.await()
 
-      // If playing an episode, extract surrounding episode playlist from current detail list or current view
       val (playlistUris, playlistTitles, playlistIndex) =
-        if (item.type == "Episode") {
+        if (isAudio) {
+          val audioSource = if (item.type == "MusicAlbum" || item.type == "MusicArtist" || (item.isFolder && item.collectionType == "music")) {
+            jellyfinRepository.getItems(server = server, parentId = item.id, includeItemTypes = "Audio").getOrNull()?.items.orEmpty()
+          } else {
+            val source = _uiState.value.detailEpisodes.ifEmpty {
+              _uiState.value.latestMusic.ifEmpty {
+                _uiState.value.currentItems
+              }
+            }.filter { it.isAudio || it.type == "Audio" || it.type == "Song" }
+            if (source.any { it.id == targetItem.id }) source else listOf(targetItem)
+          }
+
+          if (audioSource.isNotEmpty()) {
+            val uris = ArrayList<Uri>(audioSource.size)
+            val titles = ArrayList<String>(audioSource.size)
+            var targetIdx = 0
+            val queueItems = audioSource.mapIndexed { idx, track ->
+              if (track.id == targetItem.id) targetIdx = idx
+              val tUrl = jellyfinRepository.getStreamUrl(server, track)
+              uris.add(Uri.parse(tUrl))
+              titles.add(track.name)
+              PlaybackItem.fromUri(
+                uri = tUrl,
+                title = track.name,
+                artist = track.seriesName ?: track.genres.firstOrNull() ?: targetItem.seriesName ?: "",
+                mimeType = "audio/*",
+                artworkUri = jellyfinRepository.getImageUrl(server, track),
+              )
+            }
+            PlaybackSession.replaceQueue(
+              items = queueItems,
+              currentIndex = targetIdx,
+              isExplicitQueue = true,
+            )
+            Triple(uris, titles, targetIdx)
+          } else {
+            Triple(emptyList<Uri>(), emptyList<String>(), 0)
+          }
+        } else if (targetItem.type == "Episode") {
           val episodesSource =
             _uiState.value.detailEpisodes.ifEmpty {
               _uiState.value.currentItems.filter { it.type == "Episode" }
@@ -880,7 +931,7 @@ class JellyfinViewModel(
             val titles = ArrayList<String>(episodesSource.size)
             var targetIdx = 0
             episodesSource.forEachIndexed { index, ep ->
-              if (ep.id == item.id) targetIdx = index
+              if (ep.id == targetItem.id) targetIdx = index
               uris.add(Uri.parse(jellyfinRepository.getStreamUrl(server, ep)))
               titles.add(
                 when {
@@ -908,16 +959,17 @@ class JellyfinViewModel(
         MediaUtils.playFile(
           source = streamUrl,
           context = context,
-          launchSource = "jellyfin_stream",
+          launchSource = if (isAudio) "jellyfin_music" else "jellyfin_stream",
           title = itemTitle,
           headers = headers,
-          mediaDescription = item.overview,
+          mediaDescription = targetItem.overview,
           posterUrl = posterUrl,
           backdropUrl = backdropUrl,
           subtitleTracks = externalSubs,
           playlist = playlistUris,
           playlistIndex = playlistIndex,
           playlistTitles = playlistTitles,
+          isAudio = isAudio,
         )
       }
     }
@@ -928,8 +980,12 @@ class JellyfinViewModel(
     items: List<JellyfinItem>,
   ) {
     val server = _uiState.value.activeServer ?: return
-    val playable = items.filter { it.isVideo }
+    val videoPlayable = items.filter { it.isVideo }
+    val audioPlayable = items.filter { it.isAudio || it.type == "Audio" || it.type == "Song" }
+    val isAudio = videoPlayable.isEmpty() && audioPlayable.isNotEmpty()
+    val playable = if (isAudio) audioPlayable else videoPlayable
     if (playable.isEmpty()) return
+
     val firstItem = playable.first()
     val streamUrl = jellyfinRepository.getStreamUrl(server, firstItem)
     val mediaIdentifier = PlaybackIdentity.forUri(streamUrl)
@@ -956,6 +1012,24 @@ class JellyfinViewModel(
       )
     }
 
+    if (isAudio) {
+      val queueItems = playable.map { item ->
+        val tUrl = jellyfinRepository.getStreamUrl(server, item)
+        PlaybackItem.fromUri(
+          uri = tUrl,
+          title = item.name,
+          artist = item.seriesName ?: item.genres.firstOrNull() ?: "",
+          mimeType = "audio/*",
+          artworkUri = jellyfinRepository.getImageUrl(server, item),
+        )
+      }
+      PlaybackSession.replaceQueue(
+        items = queueItems,
+        currentIndex = 0,
+        isExplicitQueue = true,
+      )
+    }
+
     val headers =
       mapOf(
         "X-Emby-Token" to server.accessToken,
@@ -967,7 +1041,7 @@ class JellyfinViewModel(
       val effectivePositionTicks = freshItem.playbackPositionTicks ?: firstItem.playbackPositionTicks ?: 0L
       val positionSeconds = (effectivePositionTicks / JellyfinClient.TICKS_PER_SECOND).toInt()
 
-      if (positionSeconds > 0) {
+      if (positionSeconds > 0 && !isAudio) {
         val durationSec = (freshItem.runTimeTicks ?: firstItem.runTimeTicks ?: 0L) / JellyfinClient.TICKS_PER_SECOND
         runCatching {
           val existing = playbackStateRepository.getVideoDataByTitle(mediaIdentifier)
@@ -1005,7 +1079,7 @@ class JellyfinViewModel(
         MediaUtils.playFile(
           source = streamUrl,
           context = context,
-          launchSource = "jellyfin_stream",
+          launchSource = if (isAudio) "jellyfin_music" else "jellyfin_stream",
           title = itemTitle,
           headers = headers,
           mediaDescription = firstItem.overview,
@@ -1014,6 +1088,7 @@ class JellyfinViewModel(
           playlist = playlistUris,
           playlistIndex = 0,
           playlistTitles = playlistTitles,
+          isAudio = isAudio,
         )
       }
     }

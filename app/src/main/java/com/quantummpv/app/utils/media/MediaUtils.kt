@@ -85,6 +85,7 @@ object MediaUtils {
     playlist: List<Uri> = emptyList(),
     playlistIndex: Int = 0,
     playlistTitles: List<String> = emptyList(),
+    isAudio: Boolean = false,
   ) {
     val uri =
       when (source) {
@@ -227,6 +228,7 @@ object MediaUtils {
       playlist = playlist,
       playlistIndex = playlistIndex,
       playlistTitles = playlistTitles,
+      isAudio = isAudio,
     )
     context.startActivity(intent)
   }
@@ -285,7 +287,12 @@ object MediaUtils {
     playlist: List<Uri> = emptyList(),
     playlistIndex: Int = 0,
     playlistTitles: List<String> = emptyList(),
+    isAudio: Boolean = false,
   ) {
+    if (isAudio) {
+      intent.putExtra("is_audio", true)
+      intent.putExtra("media_library_audio", true)
+    }
     if (playlist.isNotEmpty()) {
       val playlistArrayList = if (playlist is ArrayList) playlist else ArrayList(playlist)
       intent.putParcelableArrayListExtra("playlist", playlistArrayList)
