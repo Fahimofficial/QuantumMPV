@@ -161,10 +161,6 @@ object MainScreen : Screen {
   @SuppressLint("ComposableNaming")
   @Composable
   override fun Content() {
-    var selectedTab by remember {
-      mutableStateOf(persistentSelectedTab)
-    }
-
     val density = LocalDensity.current
     val appearancePreferences = koinInject<AppearancePreferences>()
     val playerPreferences = koinInject<PlayerPreferences>()
@@ -214,16 +210,28 @@ object MainScreen : Screen {
     val scope = rememberCoroutineScope()
 
     val pagerState = rememberPagerState(
-      initialPage = visibleTabs.indexOf(selectedTab).coerceAtLeast(0),
+      initialPage = visibleTabs.indexOf(persistentSelectedTab).coerceAtLeast(0),
       pageCount = { visibleTabs.size },
     )
+    val selectedTab = visibleTabs.getOrNull(pagerState.settledPage) ?: visibleTabs.firstOrNull() ?: MainTab.HOME
 
-    // Sync pager → selectedTab when user swipes
-    LaunchedEffect(pagerState) {
+    // PagerState is the only live navigation state. Restore first, then persist completed moves.
+    LaunchedEffect(pagerState, visibleTabs) {
+      if (visibleTabs.isEmpty()) {
+        persistentSelectedTab = MainTab.HOME
+        return@LaunchedEffect
+      }
+      val restorePage = visibleTabs.indexOf(persistentSelectedTab).takeIf { it >= 0 } ?: 0
+      if (pagerState.settledPage != restorePage) {
+        pagerState.scrollToPage(restorePage)
+      }
       snapshotFlow { pagerState.settledPage }
         .collect { page ->
-          if (page in visibleTabs.indices) {
-            selectedTab = visibleTabs[page]
+          visibleTabs.getOrNull(page)?.let { settledTab ->
+            persistentSelectedTab = settledTab
+            if (settledTab != MainTab.HOME) {
+              NavigationBarState.isDualPaneFolderSelected = false
+            }
           }
         }
     }
@@ -231,15 +239,10 @@ object MainScreen : Screen {
     val onTabSelected: (MainScreen.MainTab) -> Unit = { tab ->
       scope.launch {
         val page = visibleTabs.indexOf(tab)
-        if (page >= 0) {
+        if (page >= 0 && page != pagerState.settledPage) {
           pagerState.animateScrollToPage(page)
         }
       }
-      selectedTab = tab
-    }
-
-    val pagerPositionFloatProvider = remember(pagerState) {
-      { pagerState.currentPage + pagerState.currentPageOffsetFraction }
     }
 
     val mainNavBar = @Composable { modifier: Modifier ->
@@ -249,26 +252,6 @@ object MainScreen : Screen {
         onTabSelected = onTabSelected,
         modifier = modifier,
       )
-    }
-
-    LaunchedEffect(selectedTab) {
-      android.util.Log.d("MainScreen", "selectedTab changed to: $selectedTab (was $persistentSelectedTab)")
-      persistentSelectedTab = selectedTab
-      if (selectedTab != MainTab.HOME) {
-        NavigationBarState.isDualPaneFolderSelected = false
-      }
-    }
-
-    LaunchedEffect(visibleTabs) {
-      if (visibleTabs.isEmpty()) {
-        selectedTab = MainTab.HOME
-      } else if (!visibleTabs.contains(selectedTab)) {
-        selectedTab = visibleTabs.first()
-      }
-      val page = visibleTabs.indexOf(selectedTab)
-      if (page >= 0) {
-        pagerState.scrollToPage(page)
-      }
     }
 
     val configuration = androidx.compose.ui.platform.LocalConfiguration.current
@@ -355,12 +338,13 @@ object MainScreen : Screen {
             modifier = Modifier.fillMaxSize().nestedScroll(NavigationBarState.navScrollConnection),
             userScrollEnabled = !isPermissionDenied,
             beyondViewportPageCount = 1,
+            key = { page -> visibleTabs[page] },
           ) { page ->
             CompositionLocalProvider(
               LocalNavigationBarHeight provides contentBottomPadding,
               LocalMainNavigationBar provides mainNavBar,
             ) {
-              val tab = visibleTabs[page]
+              val tab = visibleTabs.getOrNull(page) ?: return@CompositionLocalProvider
               when (tab) {
                 MainTab.HOME -> FolderListScreen.Content()
                 MainTab.MUSIC -> MusicLibraryContent()

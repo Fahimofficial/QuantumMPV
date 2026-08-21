@@ -56,12 +56,13 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.BlurredEdgeTreatment
 import androidx.compose.ui.draw.blur
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Shadow
 import androidx.compose.ui.graphics.TransformOrigin
 import androidx.compose.ui.graphics.graphicsLayer
-import androidx.compose.ui.graphics.lerp
+import androidx.compose.ui.graphics.drawscope.clipRect
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.font.FontFamily
@@ -527,10 +528,7 @@ private fun rememberSmoothedPositionMs(
   return smoothed
 }
 
-/**
- * Letter-by-letter karaoke: each character is revealed on its own time slot inside the word's
- * duration, rising into place with a pop and a brief glow, colors sweeping dim -> active.
- */
+/** Smooth karaoke fill: a glowing active layer is revealed continuously from left to right. */
 @Composable
 private fun AnimatedLyricWord(
   word: SyncedWord,
@@ -540,7 +538,7 @@ private fun AnimatedLyricWord(
   inactiveColor: Color,
   fontSize: TextUnit = 22.sp,
 ) {
-  val text = word.word
+  val text = "${word.word} "
   val textStyle =
     MaterialTheme.typography.headlineSmall.copy(
       fontSize = fontSize,
@@ -554,43 +552,30 @@ private fun AnimatedLyricWord(
 
   val startTimeMs = word.time.toLong()
   val durationMs = (endTimeMs - startTimeMs).coerceAtLeast(1L)
-  val charSlotMs = durationMs.toFloat() / text.length
-  // Each letter animates a bit longer than its slot so neighbours overlap into a wave.
-  val charAnimMs = (charSlotMs * 2f).coerceIn(90f, 320f)
   val currentPositionMs by positionMs
+  val fillProgress = ((currentPositionMs - startTimeMs).toFloat() / durationMs).coerceIn(0f, 1f)
+  val activeStyle =
+    textStyle.copy(
+      shadow =
+        Shadow(
+          color = activeColor.copy(alpha = if (fillProgress in 0.001f..0.999f) 0.55f else 0.24f),
+          offset = Offset.Zero,
+          blurRadius = 10f,
+        ),
+    )
 
-  Row(verticalAlignment = Alignment.CenterVertically) {
-    text.forEachIndexed { index, character ->
-      val charStartMs = startTimeMs + (charSlotMs * index).toLong()
-      val rawProgress = ((currentPositionMs - charStartMs) / charAnimMs).coerceIn(0f, 1f)
-      val eased = FastOutSlowInEasing.transform(rawProgress)
-      val pop = kotlin.math.sin(eased * Math.PI).toFloat()
-      Text(
-        text = character.toString(),
-        color = lerp(inactiveColor, activeColor, eased),
-        style =
-          if (pop > 0.05f) {
-            textStyle.copy(
-              shadow =
-                Shadow(
-                  color = activeColor.copy(alpha = 0.38f * pop),
-                  offset = Offset.Zero,
-                  blurRadius = 12f * pop,
-                ),
-            )
-          } else {
-            textStyle
-          },
-        modifier =
-          Modifier.graphicsLayer {
-            translationY = -5.dp.toPx() * pop
-            val scale = 1f + 0.14f * pop
-            scaleX = scale
-            scaleY = scale
-            transformOrigin = TransformOrigin(0.5f, 1f)
-          },
-      )
-    }
-    Text(text = " ", style = textStyle)
+  Box(contentAlignment = Alignment.CenterStart) {
+    Text(text = text, color = inactiveColor, style = textStyle)
+    Text(
+      text = text,
+      color = activeColor,
+      style = activeStyle,
+      modifier =
+        Modifier.drawWithContent {
+          clipRect(right = size.width * fillProgress) {
+            this@drawWithContent.drawContent()
+          }
+        },
+    )
   }
 }
