@@ -74,6 +74,9 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import android.content.Intent
+import android.net.Uri
+import androidx.compose.ui.platform.LocalContext
 import com.quantummpv.app.data.jellyfin.JellyfinClient
 import com.quantummpv.app.domain.jellyfin.JellyfinItem
 import com.quantummpv.app.domain.jellyfin.JellyfinServer
@@ -287,6 +290,7 @@ fun JellyfinDetailSheet(
   }
 
   var isOverviewExpanded by remember { mutableStateOf(false) }
+  val context = LocalContext.current
 
   ModalBottomSheet(
     onDismissRequest = onDismiss,
@@ -630,6 +634,34 @@ fun JellyfinDetailSheet(
               fontWeight = FontWeight.Bold,
               style = MaterialTheme.typography.labelLarge,
             )
+          }
+
+          // Trailer Button for Movies & Series
+          if (item.type == "Movie" || item.isSeries || item.type == "Series") {
+            FilledTonalIconButton(
+              onClick = {
+                val rawUrl = item.remoteTrailerUrl?.takeIf { it.isNotBlank() }
+                val trailerUrl = if (!rawUrl.isNullOrBlank()) {
+                  if (rawUrl.startsWith("http://") || rawUrl.startsWith("https://")) rawUrl
+                  else "https://www.youtube.com/watch?v=$rawUrl"
+                } else {
+                  "https://www.youtube.com/results?search_query=${java.net.URLEncoder.encode("${item.name} trailer", "UTF-8")}"
+                }
+                val intent = Intent(Intent.ACTION_VIEW, Uri.parse(trailerUrl)).apply {
+                  addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                }
+                runCatching { context.startActivity(intent) }
+              },
+              shape = RoundedCornerShape(14.dp),
+              modifier = Modifier.size(48.dp),
+            ) {
+              Icon(
+                imageVector = Icons.RoundedFilled.Movie,
+                contentDescription = "Trailer",
+                tint = MaterialTheme.colorScheme.primary,
+                modifier = Modifier.size(22.dp),
+              )
+            }
           }
 
           // Favorite Toggle Button

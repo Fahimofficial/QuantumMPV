@@ -434,7 +434,7 @@ class JellyfinClient(
       runCatching {
         val base = normalizeUrl(serverUrl)
         val endpoint =
-          "$base/Users/$userId/Items/$itemId?Fields=Overview,PrimaryImageAspectRatio,UserData,SeriesName,SeasonName,IndexNumber,ParentIndexNumber,MediaSources,MediaStreams,Genres,OfficialRating,CommunityRating,CriticRating,ProductionYear,Taglines,ChildCount,PremiereDate,Status,People"
+          "$base/Users/$userId/Items/$itemId?Fields=Overview,PrimaryImageAspectRatio,UserData,SeriesName,SeasonName,IndexNumber,ParentIndexNumber,MediaSources,MediaStreams,Genres,OfficialRating,CommunityRating,CriticRating,ProductionYear,Taglines,ChildCount,PremiereDate,Status,People,RemoteTrailers"
         val request =
           Request
             .Builder()
@@ -449,8 +449,8 @@ class JellyfinClient(
             throw IOException("Failed to load item: HTTP ${response.code}")
           }
           val bodyStr = response.body.string()
-          val root = json.parseToJsonElement(bodyStr).jsonObject
-          parseItem(root)
+          val jsonObj = json.parseToJsonElement(bodyStr).jsonObject
+          parseItem(jsonObj)
         }
       }
     }
@@ -476,7 +476,7 @@ class JellyfinClient(
         val base = normalizeUrl(serverUrl)
         val urlBuilder =
           StringBuilder(
-            "$base/Users/$userId/Items?Fields=Overview,PrimaryImageAspectRatio,UserData,ChildCount,MediaSources,MediaStreams,ProductionYear,CommunityRating,CriticRating,Genres,OfficialRating,Taglines,SeriesName,SeasonName,IndexNumber,ParentIndexNumber,PremiereDate,Status&StartIndex=$startIndex&Limit=$limit&SortBy=${sortBy.apiValue}&SortOrder=${sortOrder.apiValue}",
+            "$base/Users/$userId/Items?Fields=Overview,PrimaryImageAspectRatio,UserData,ChildCount,MediaSources,MediaStreams,ProductionYear,CommunityRating,CriticRating,Genres,OfficialRating,Taglines,SeriesName,SeasonName,IndexNumber,ParentIndexNumber,PremiereDate,Status,RemoteTrailers&StartIndex=$startIndex&Limit=$limit&SortBy=${sortBy.apiValue}&SortOrder=${sortOrder.apiValue}",
           )
 
         if (!parentId.isNullOrBlank()) {
@@ -1022,6 +1022,14 @@ class JellyfinClient(
       }
     }
 
+    val remoteTrailerUrl = obj["RemoteTrailers"]?.jsonArray?.firstOrNull()?.let { element ->
+      if (element is JsonObject) {
+        element["Url"]?.jsonPrimitive?.content
+      } else {
+        element.jsonPrimitive.content
+      }
+    } ?: obj["RemoteTrailerUrl"]?.jsonPrimitive?.content
+
     return JellyfinItem(
       id = id,
       name = name,
@@ -1055,6 +1063,7 @@ class JellyfinClient(
       premiereDate = premiereDate,
       status = status,
       lastPlayedDate = lastPlayedDate,
+      remoteTrailerUrl = remoteTrailerUrl,
     )
   }
 
