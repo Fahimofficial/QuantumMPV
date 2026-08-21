@@ -588,6 +588,11 @@ class PlayerViewModel : ViewModel(),
       val queuedItem = session.currentItem
       val itemDeclaresAudio =
         queuedItem?.mimeType?.startsWith("audio/", ignoreCase = true) == true ||
+          (queuedItem != null && (
+            queuedItem.originalUri.contains("/Audio/", ignoreCase = true) ||
+            queuedItem.originalUri.contains("includeItemTypes=Audio", ignoreCase = true) ||
+            queuedItem.playableUri.contains("/Audio/", ignoreCase = true)
+          )) ||
           sequenceOf(queuedItem?.originalUri, queuedItem?.playableUri, queuedItem?.title)
             .filterNotNull()
             .any { candidate -> candidate.fileExtension() in FileTypeUtils.AUDIO_EXTENSIONS }
