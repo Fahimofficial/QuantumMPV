@@ -567,8 +567,8 @@ private fun rememberMiniPlayerCoverArt(
         EmbeddedArtworkResolver.decodeArtworkUri(context, artworkUri)?.let { return@runCatching it }
         val cleanPath =
           when {
-            pathOrUri.startsWith("file://") -> pathOrUri.removePrefix("file://")
-            pathOrUri.startsWith("content://") -> null
+            pathOrUri.startsWith("file://", ignoreCase = true) -> Uri.parse(pathOrUri).path
+            pathOrUri.startsWith("content://", ignoreCase = true) -> null
             else -> pathOrUri
           }
         val retriever = MediaMetadataRetriever()
