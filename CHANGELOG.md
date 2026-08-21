@@ -2,6 +2,12 @@
 
 These notes are written in plain English and focus on what changed for real use.
 
+## 2.2.2 — Lyrics & Navigation Hotfix
+
+- **Smooth Karaoke Fill**: Word-timed lyrics now fill continuously from left to right with a soft glow. The previous per-letter jump, scale, and layout movement have been removed.
+- **Reliable Tab Swiping**: Main browser navigation now uses the pager's settled page as its single source of truth, preventing interrupted swipes from leaving Recents and Playlists stuck between pages.
+- **Synchronized Builds**: Standard, Fongmi, and non-Vulkan packages are built together from the same release tag and app source revision.
+
 ## 2.2.1 — Playback & Lyrics Hotfix
 
 ### 🎬 Video Playback Reliability
