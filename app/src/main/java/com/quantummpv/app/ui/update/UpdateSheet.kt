@@ -43,16 +43,16 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.quantummpv.app.R
 import com.quantummpv.app.domain.update.Release
-import com.quantummpv.app.presentation.components.MarkdownText
 import com.quantummpv.app.ui.icons.Icon
 import com.quantummpv.app.ui.icons.Icons
+import com.mikepenz.markdown.m3.Markdown
 import java.text.SimpleDateFormat
 import java.util.Locale
 import java.util.TimeZone
 
 /**
  * Bottom sheet shown when a new release is available or downloaded. Release notes arrive as
- * GitHub-flavoured Markdown and are rendered through [MarkdownText].
+ * GitHub-flavoured Markdown and are rendered by the Material 3 Markdown library.
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -110,8 +110,8 @@ fun UpdateSheet(
           color = MaterialTheme.colorScheme.onSurface,
         )
         Spacer(modifier = Modifier.height(8.dp))
-        MarkdownText(
-          markdown = release.body.ifBlank { "No release notes provided." },
+        Markdown(
+          content = release.body.ifBlank { "No release notes provided." },
           modifier = Modifier.fillMaxWidth(),
         )
         Spacer(modifier = Modifier.height(16.dp))
