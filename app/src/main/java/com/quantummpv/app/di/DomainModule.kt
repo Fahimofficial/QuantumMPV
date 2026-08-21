@@ -11,6 +11,7 @@ package com.quantummpv.app.di
 
 import com.quantummpv.app.domain.anime4k.Anime4KManager
 import com.quantummpv.app.domain.hdr.HdrToysManager
+import com.quantummpv.app.domain.hdr.MpvShaderRuntime
 import com.quantummpv.app.domain.torrent.TorrentStreamingEngine
 import com.quantummpv.app.network.AndroidCookieJar
 import com.quantummpv.app.network.SharedHttpClient
@@ -32,6 +33,7 @@ import com.quantummpv.app.repository.subtitle.OnlineSubtitleFileStore
 import com.quantummpv.app.repository.subtitle.OnlineSubtitleOrchestrator
 import com.quantummpv.app.repository.subtitlehub.MpvRxSubtitleHubRepository
 import com.quantummpv.app.repository.wyzie.WyzieSearchRepository
+import com.quantummpv.app.ui.player.PlaybackSessionShaderRuntime
 import kotlinx.serialization.json.Json
 import okhttp3.OkHttpClient
 import org.koin.android.ext.koin.androidContext
@@ -49,7 +51,8 @@ val domainModule =
       }
     }
     single { Anime4KManager(androidContext()) }
-    single { HdrToysManager(androidContext()) }
+    single<MpvShaderRuntime> { PlaybackSessionShaderRuntime }
+    single { HdrToysManager(androidContext(), get()) }
     single { OnlineSubtitleFileStore(androidContext(), get()) }
     single { WyzieSearchRepository(androidContext(), get(), get(), get(), get()) }
     single { MpvRxSubtitleHubRepository(get(), get(), get(), get()) }

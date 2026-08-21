@@ -79,7 +79,7 @@ import com.quantummpv.app.ui.utils.LocalBackStack
 import com.quantummpv.app.ui.utils.LocalShowSettingsBackArrow
 import com.quantummpv.app.ui.utils.popSafely
 import com.quantummpv.app.utils.clipboard.SafeClipboard
-import com.quantummpv.app.utils.update.UpdateViewModel
+import com.quantummpv.app.ui.update.UpdateViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.serialization.Serializable
 
