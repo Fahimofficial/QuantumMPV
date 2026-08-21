@@ -12,6 +12,7 @@ package com.quantummpv.app.presentation.components
 import android.content.Context
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
+import android.net.Uri
 import android.util.LruCache
 import androidx.compose.foundation.Image
 import androidx.compose.runtime.Composable
@@ -88,6 +89,19 @@ private object RemoteImageLoader {
   ): Bitmap? {
     getFromMemory(url)?.let { return it }
 
+    val parsedUri = runCatching { Uri.parse(url) }.getOrNull()
+    val localBitmap =
+      when (parsedUri?.scheme?.lowercase()) {
+        "content", "android.resource" -> decodeSampled(context, parsedUri)
+        "file" -> parsedUri.path?.let(::File)?.let(::decodeSampled)
+        null, "" -> File(url).takeIf { it.isFile }?.let(::decodeSampled)
+        else -> null
+      }
+    if (localBitmap != null) {
+      synchronized(memoryCache) { memoryCache.put(url, localBitmap) }
+      return localBitmap
+    }
+
     val cacheDirectory = File(context.cacheDir, CACHE_DIRECTORY).apply { mkdirs() }
     val cacheFile = File(cacheDirectory, hash(url))
     decodeSampled(cacheFile)?.let { bitmap ->
@@ -97,12 +111,14 @@ private object RemoteImageLoader {
 
     val host = runCatching { java.net.URI(url).host }.getOrNull()
     val request =
-      Request
-        .Builder()
-        .url(url)
-        .header("User-Agent", "Mozilla/5.0 (Android) mpvRx")
-        .apply { if (!host.isNullOrBlank()) header("Referer", "https://$host") }
-        .build()
+      runCatching {
+        Request
+          .Builder()
+          .url(url)
+          .header("User-Agent", "Mozilla/5.0 (Android) mpvRx")
+          .apply { if (!host.isNullOrBlank()) header("Referer", "https://$host") }
+          .build()
+      }.getOrNull() ?: return null
 
     return runCatching {
       client.newCall(request).execute().use { response ->
@@ -115,6 +131,33 @@ private object RemoteImageLoader {
       }
     }.getOrNull()
   }
+
+  private fun decodeSampled(
+    context: Context,
+    uri: Uri,
+  ): Bitmap? =
+    runCatching {
+      val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
+      context.contentResolver.openInputStream(uri)?.use { input ->
+        BitmapFactory.decodeStream(input, null, bounds)
+      }
+      if (bounds.outWidth <= 0 || bounds.outHeight <= 0) return@runCatching null
+
+      var sampleSize = 1
+      while (maxOf(bounds.outWidth, bounds.outHeight) / (sampleSize * 2) >= MAX_IMAGE_DIMENSION) {
+        sampleSize *= 2
+      }
+      context.contentResolver.openInputStream(uri)?.use { input ->
+        BitmapFactory.decodeStream(
+          input,
+          null,
+          BitmapFactory.Options().apply {
+            inSampleSize = sampleSize
+            inPreferredConfig = Bitmap.Config.RGB_565
+          },
+        )
+      }
+    }.getOrNull()
 
   private fun decodeSampled(file: File): Bitmap? {
     if (!file.isFile || file.length() <= 0L) return null
