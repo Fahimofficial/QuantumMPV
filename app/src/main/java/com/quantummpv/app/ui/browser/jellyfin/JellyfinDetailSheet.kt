@@ -11,6 +11,7 @@ package com.quantummpv.app.ui.browser.jellyfin
 
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.animateContentSize
+import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -66,6 +67,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
@@ -767,13 +769,20 @@ fun JellyfinDetailSheet(
               sortedSeasons.find { it.id == selectedSeasonId } ?: sortedSeasons.firstOrNull()
             }
             var isSeasonDropdownExpanded by remember { mutableStateOf(false) }
+            val arrowRotation by animateFloatAsState(
+              targetValue = if (isSeasonDropdownExpanded) 180f else 0f,
+              label = "season_arrow_rotation",
+            )
 
             Box(modifier = Modifier.wrapContentSize()) {
               Surface(
                 onClick = { isSeasonDropdownExpanded = !isSeasonDropdownExpanded },
-                shape = RoundedCornerShape(12.dp),
-                color = MaterialTheme.colorScheme.surfaceContainerHigh,
-                border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)),
+                shape = RoundedCornerShape(10.dp),
+                color = MaterialTheme.colorScheme.surfaceContainerHighest,
+                border = BorderStroke(
+                  width = 1.dp,
+                  color = if (isSeasonDropdownExpanded) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f),
+                ),
               ) {
                 Row(
                   modifier = Modifier.padding(horizontal = 14.dp, vertical = 8.dp),
@@ -783,13 +792,14 @@ fun JellyfinDetailSheet(
                   Text(
                     text = selectedSeason?.name ?: "Select Season",
                     style = MaterialTheme.typography.titleSmall,
-                    fontWeight = FontWeight.SemiBold,
+                    fontWeight = FontWeight.Bold,
                     color = MaterialTheme.colorScheme.onSurface,
                   )
                   Icon(
                     imageVector = Icons.RoundedFilled.ArrowDropDown,
                     contentDescription = "Select Season",
-                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                    tint = if (isSeasonDropdownExpanded) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.size(20.dp).rotate(arrowRotation),
                   )
                 }
               }
@@ -797,36 +807,46 @@ fun JellyfinDetailSheet(
               DropdownMenu(
                 expanded = isSeasonDropdownExpanded,
                 onDismissRequest = { isSeasonDropdownExpanded = false },
-                modifier = Modifier
-                  .background(MaterialTheme.colorScheme.surfaceContainerHigh)
-                  .widthIn(min = 160.dp),
+                shape = RoundedCornerShape(14.dp),
+                containerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
+                border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.35f)),
+                modifier = Modifier.widthIn(min = 180.dp),
               ) {
                 sortedSeasons.forEach { season ->
                   val isSelected = season.id == selectedSeasonId
-                  DropdownMenuItem(
-                    text = {
-                      Text(
-                        text = season.name,
-                        style = MaterialTheme.typography.bodyMedium,
-                        fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
-                        color = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface,
-                      )
-                    },
-                    leadingIcon = if (isSelected) {
-                      {
-                        Icon(
-                          imageVector = Icons.RoundedFilled.Check,
-                          contentDescription = null,
-                          tint = MaterialTheme.colorScheme.primary,
-                          modifier = Modifier.size(18.dp),
-                        )
-                      }
-                    } else null,
+                  Surface(
                     onClick = {
                       isSeasonDropdownExpanded = false
                       onSelectSeason(season.id)
                     },
-                  )
+                    shape = RoundedCornerShape(8.dp),
+                    color = if (isSelected) MaterialTheme.colorScheme.primary.copy(alpha = 0.15f) else Color.Transparent,
+                    modifier = Modifier
+                      .fillMaxWidth()
+                      .padding(horizontal = 6.dp, vertical = 2.dp),
+                  ) {
+                    Row(
+                      modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 12.dp, vertical = 10.dp),
+                      verticalAlignment = Alignment.CenterVertically,
+                      horizontalArrangement = Arrangement.SpaceBetween,
+                    ) {
+                      Text(
+                        text = season.name,
+                        style = MaterialTheme.typography.bodyMedium,
+                        fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
+                        color = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface,
+                      )
+                      if (season.childCount != null && season.childCount > 0) {
+                        Text(
+                          text = "${season.childCount} ep",
+                          style = MaterialTheme.typography.labelSmall,
+                          color = if (isSelected) MaterialTheme.colorScheme.primary.copy(alpha = 0.8f) else MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                      }
+                    }
+                  }
                 }
               }
             }
