@@ -19,6 +19,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import com.quantummpv.app.R
 import com.quantummpv.app.database.entities.PlaylistEntity
+import com.quantummpv.app.database.repository.PlaylistRepository
 import com.quantummpv.app.domain.media.model.VideoFolder
 import com.quantummpv.app.ui.icons.Icons
 import com.quantummpv.app.ui.theme.AppShapeScale
@@ -97,7 +98,11 @@ fun PlaylistCard(
     onLongClick = onLongClick,
     onThumbClick = onThumbClick,
     showDateModified = true,
-    customIcon = Icons.RoundedFilled.PlaylistPlay,
+    customIcon = if (playlist.name.equals(PlaylistRepository.FAVORITES_PLAYLIST_NAME, ignoreCase = true)) {
+      Icons.RoundedFilled.Favorite
+    } else {
+      Icons.RoundedFilled.PlaylistPlay
+    },
     modifier = modifier,
     customChipContent = customChipRenderer,
     isGridMode = isGridMode,

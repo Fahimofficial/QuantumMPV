@@ -249,7 +249,9 @@ fun MusicLibraryContent(
     items = playlists,
     getId = { it.id.toLong() },
     onDeleteItems = { selectedPlaylists, _ ->
-      selectedPlaylists.forEach { musicViewModel.deletePlaylist(it) }
+      selectedPlaylists
+        .filterNot { it.name.equals(PlaylistRepository.FAVORITES_PLAYLIST_NAME, ignoreCase = true) }
+        .forEach { musicViewModel.deletePlaylist(it) }
       Pair(selectedPlaylists.size, 0)
     }
   )
@@ -1097,15 +1099,17 @@ fun MusicLibraryContent(
                   selectedPlaylistForDetail = target
                 }
               )
-              ListItem(
-                headlineContent = { Text("Delete Playlist", color = MaterialTheme.colorScheme.error) },
-                leadingContent = { Icon(Icons.RoundedFilled.Delete, contentDescription = null, tint = MaterialTheme.colorScheme.error) },
-                modifier = Modifier.clickable {
-                  val target = playlist
-                  selectedPlaylistForOptions = null
-                  showDeletePlaylistDialog = target
-                }
-              )
+              if (!playlist.name.equals(PlaylistRepository.FAVORITES_PLAYLIST_NAME, ignoreCase = true)) {
+                ListItem(
+                  headlineContent = { Text("Delete Playlist", color = MaterialTheme.colorScheme.error) },
+                  leadingContent = { Icon(Icons.RoundedFilled.Delete, contentDescription = null, tint = MaterialTheme.colorScheme.error) },
+                  modifier = Modifier.clickable {
+                    val target = playlist
+                    selectedPlaylistForOptions = null
+                    showDeletePlaylistDialog = target
+                  }
+                )
+              }
             }
           }
         }
@@ -1892,6 +1896,7 @@ private fun ArtistListCard(
 @Composable
 private fun PlaylistArtCollage(
   artUris: List<Uri>,
+  isFavorites: Boolean = false,
   modifier: Modifier = Modifier
 ) {
   val collageUris = remember(artUris) { artUris.take(4) }
@@ -1905,12 +1910,16 @@ private fun PlaylistArtCollage(
     when (collageUris.size) {
       0 -> {
         Icon(
-          imageVector = Icons.RoundedFilled.QueueMusic,
+          imageVector = if (isFavorites) Icons.RoundedFilled.Favorite else Icons.RoundedFilled.QueueMusic,
           contentDescription = "Playlist",
-          modifier = Modifier
-            .fillMaxSize()
-            .padding(12.dp),
-          tint = MaterialTheme.colorScheme.onSurfaceVariant
+          modifier = if (isFavorites) {
+            Modifier.size(24.dp)
+          } else {
+            Modifier
+              .fillMaxSize()
+              .padding(12.dp)
+          },
+          tint = if (isFavorites) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
         )
       }
       1 -> {
@@ -2073,6 +2082,7 @@ private fun MusicPlaylistCard(
   onClick: () -> Unit,
   onLongClick: () -> Unit,
 ) {
+  val isFavorites = playlist.name.equals(PlaylistRepository.FAVORITES_PLAYLIST_NAME, ignoreCase = true)
   if (isGridMode) {
     Card(
       modifier = Modifier
@@ -2091,6 +2101,7 @@ private fun MusicPlaylistCard(
         Box(modifier = Modifier.fillMaxWidth()) {
           PlaylistArtCollage(
             artUris = artUris,
+            isFavorites = isFavorites,
             modifier = Modifier.fillMaxWidth()
           )
           if (isSelected) {
@@ -2144,6 +2155,7 @@ private fun MusicPlaylistCard(
         Box(modifier = Modifier.size(coverArtSizeDp)) {
           PlaylistArtCollage(
             artUris = artUris,
+            isFavorites = isFavorites,
             modifier = Modifier.fillMaxSize()
           )
           if (isSelected) {

@@ -94,6 +94,9 @@ class MusicLibraryViewModel : ViewModel(), KoinComponent {
 
   init {
     viewModelScope.launch {
+      playlistRepository.getOrCreateFavoritesPlaylist(isAudio = true)
+    }
+    viewModelScope.launch {
       combine(
         browserPreferences.minimumAudioDurationSeconds.changes(),
         foldersPreferences.blacklistedAudioFolders.changes()
@@ -357,6 +360,7 @@ class MusicLibraryViewModel : ViewModel(), KoinComponent {
   }
 
   fun deletePlaylist(playlist: PlaylistEntity) {
+    if (playlist.name.equals(PlaylistRepository.FAVORITES_PLAYLIST_NAME, ignoreCase = true)) return
     viewModelScope.launch {
       playlistRepository.deletePlaylist(playlist)
     }

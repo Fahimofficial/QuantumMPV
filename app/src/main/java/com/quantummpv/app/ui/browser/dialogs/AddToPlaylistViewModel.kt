@@ -82,7 +82,10 @@ class AddToPlaylistViewModel :
         repository.observeAllPlaylists(isAudio).collectLatest { playlists ->
           _playlistOptions.value =
             playlists
-              .sortedBy { it.name.lowercase() }
+              .sortedWith(
+                compareByDescending<PlaylistEntity> { repository.isProtectedPlaylist(it) }
+                  .thenBy { it.name.lowercase() }
+              )
               .map { playlist ->
                 PlaylistOption(
                   id = playlist.id.toString(),

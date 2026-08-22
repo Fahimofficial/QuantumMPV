@@ -6893,7 +6893,14 @@ class PlayerActivity :
 
     val loadedPlaylist = playlistRepository.getPlaylistById(pid)
     val loadedItems = playlistRepository.getPlaylistItems(pid)
-    val items = loadedItems.map { Uri.parse(it.filePath) }
+    val items = loadedItems.map {
+      val path = it.filePath
+      when {
+        path.startsWith("content://") || path.startsWith("http://") || path.startsWith("https://") -> Uri.parse(path)
+        path.startsWith("file://") -> Uri.parse(path)
+        else -> Uri.fromFile(File(path))
+      }
+    }
     val totalCount = loadedItems.size
     if (expectedGeneration != mediaRequestGeneration) return
 

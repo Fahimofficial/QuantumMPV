@@ -1,15 +1,12 @@
-/*
- * SPDX-License-Identifier: AGPL-3.0-or-later
- *
- * This program is free software: you can redistribute it and/or modify
- * it under the terms of the GNU Affero General Public License as published
- * by the Free Software Foundation, either version 3 of the License, or
- * (at your option) any later version.
- */
-
 package com.quantummpv.app.ui.icons
 
 import androidx.annotation.DrawableRes
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.PathFillType
+import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.graphics.vector.path
+import androidx.compose.ui.unit.dp
 import com.composables.icons.materialsymbols.MaterialSymbols
 import com.composables.icons.materialsymbols.roundedfilled.*
 import com.composables.icons.materialsymbols.roundedfilled.R as MaterialSymbolsR
@@ -210,7 +207,7 @@ object Icons {
     val SortByAlpha by lazy(LazyThreadSafetyMode.NONE) { AppIcon(MaterialSymbols.RoundedFilled.Sort_by_alpha) }
     val Star by lazy(LazyThreadSafetyMode.NONE) { AppIcon(MaterialSymbols.RoundedFilled.Star) }
     val Favorite by lazy(LazyThreadSafetyMode.NONE) { AppIcon(MaterialSymbols.RoundedFilled.Favorite) }
-    val FavoriteBorder get() = Favorite
+    val FavoriteBorder by lazy(LazyThreadSafetyMode.NONE) { AppIcon(FavoriteBorderVector) }
     val Tv by lazy(LazyThreadSafetyMode.NONE) { AppIcon(MaterialSymbols.RoundedFilled.Tv) }
     val Theaters by lazy(LazyThreadSafetyMode.NONE) { AppIcon(MaterialSymbols.RoundedFilled.Theaters) }
     val FilterList by lazy(LazyThreadSafetyMode.NONE) { AppIcon(MaterialSymbols.RoundedFilled.Filter_list) }
@@ -478,4 +475,45 @@ object Icons {
 
     @DrawableRes val Next = MaterialSymbolsR.drawable.materialsymbols_ic_skip_next_rounded_filled
   }
+}
+
+private val FavoriteBorderVector: ImageVector by lazy(LazyThreadSafetyMode.NONE) {
+  ImageVector.Builder(
+    name = "FavoriteBorder",
+    defaultWidth = 24.dp,
+    defaultHeight = 24.dp,
+    viewportWidth = 24f,
+    viewportHeight = 24f,
+  ).apply {
+    path(
+      fill = SolidColor(Color.Black),
+      fillAlpha = 1.0f,
+      stroke = null,
+      strokeAlpha = 1.0f,
+      strokeLineWidth = 1.0f,
+      pathFillType = PathFillType.NonZero,
+    ) {
+      moveTo(16.5f, 3.0f)
+      curveTo(14.76f, 3.0f, 13.09f, 3.81f, 12.0f, 5.09f)
+      curveTo(10.91f, 3.81f, 9.24f, 3.0f, 7.5f, 3.0f)
+      curveTo(4.42f, 3.0f, 2.0f, 5.42f, 2.0f, 8.5f)
+      curveTo(2.0f, 12.28f, 5.4f, 15.36f, 10.55f, 20.04f)
+      lineTo(12.0f, 21.35f)
+      lineTo(13.45f, 20.03f)
+      curveTo(18.6f, 15.36f, 22.0f, 12.28f, 22.0f, 8.5f)
+      curveTo(22.0f, 5.42f, 19.58f, 3.0f, 16.5f, 3.0f)
+      close()
+      moveTo(12.1f, 18.55f)
+      lineTo(12.0f, 18.65f)
+      lineTo(11.9f, 18.55f)
+      curveTo(7.14f, 14.24f, 4.0f, 11.39f, 4.0f, 8.5f)
+      curveTo(4.0f, 6.5f, 5.5f, 5.0f, 7.5f, 5.0f)
+      curveTo(9.04f, 5.0f, 10.54f, 5.99f, 11.07f, 7.36f)
+      horizontalLineTo(12.94f)
+      curveTo(13.46f, 5.99f, 14.96f, 5.0f, 16.5f, 5.0f)
+      curveTo(18.5f, 5.0f, 20.0f, 6.5f, 20.0f, 8.5f)
+      curveTo(20.0f, 11.39f, 16.86f, 14.24f, 12.1f, 18.55f)
+      close()
+    }
+  }.build()
 }
