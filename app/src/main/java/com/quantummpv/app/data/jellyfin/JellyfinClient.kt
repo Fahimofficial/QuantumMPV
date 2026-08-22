@@ -9,8 +9,11 @@
 
 package com.quantummpv.app.data.jellyfin
 
+import android.content.Context
 import android.net.Uri
+import android.os.Build
 import android.util.Log
+import com.quantummpv.app.BuildConfig
 import com.quantummpv.app.domain.jellyfin.JellyfinAuthResult
 import com.quantummpv.app.domain.jellyfin.JellyfinItem
 import com.quantummpv.app.domain.jellyfin.JellyfinUser
@@ -31,6 +34,7 @@ import okhttp3.OkHttpClient
 import okhttp3.Request
 import okhttp3.RequestBody.Companion.toRequestBody
 import java.io.IOException
+import java.util.UUID
 
 class JellyfinClient(
   private val httpClient: OkHttpClient,
@@ -40,10 +44,57 @@ class JellyfinClient(
     const val TICKS_PER_SECOND = 10_000_000L
     private const val TAG = "JellyfinClient"
     private const val CLIENT_NAME = "mpvRx"
-    private const val DEVICE_NAME = "Android"
-    private const val DEVICE_ID = "mpvrx-android-player"
-    private const val VERSION = "2.1.0"
+    private val DEVICE_NAME: String
+      get() {
+        val model = Build.MODEL.orEmpty()
+        val manufacturer = Build.MANUFACTURER.orEmpty()
+        return if (model.startsWith(manufacturer, ignoreCase = true)) {
+          model
+        } else {
+          "$manufacturer $model".trim().ifBlank { "Android" }
+        }
+      }
+
+    @Volatile
+    private var cachedDeviceId: String? = null
+
+    fun getDeviceId(context: Context? = null): String {
+      cachedDeviceId?.let { return it }
+      val ctx = context ?: try {
+        org.koin.core.context.GlobalContext.get().get<Context>()
+      } catch (_: Exception) {
+        null
+      }
+      val id = if (ctx != null) {
+        val prefs = ctx.getSharedPreferences("jellyfin_client_prefs", Context.MODE_PRIVATE)
+        var storedId = prefs.getString("device_id", null)
+        if (storedId.isNullOrBlank()) {
+          storedId = UUID.randomUUID().toString().replace("-", "")
+          prefs.edit().putString("device_id", storedId).apply()
+        }
+        storedId
+      } else {
+        "mpvrx-android-player"
+      }
+      cachedDeviceId = id
+      return id
+    }
+
+    val VERSION: String
+      get() = BuildConfig.VERSION_NAME.ifBlank { "2.2.2" }
+
     private val JSON_MEDIA_TYPE = "application/json; charset=utf-8".toMediaType()
+
+    private fun isLocalHostOrIp(host: String): Boolean {
+      val h = host.substringBefore(":").substringBefore("/")
+      return h.equals("localhost", ignoreCase = true) ||
+        h == "127.0.0.1" ||
+        h.startsWith("192.168.") ||
+        h.startsWith("10.") ||
+        (h.startsWith("172.") && (h.substringAfter("172.").substringBefore(".").toIntOrNull() in 16..31)) ||
+        h.endsWith(".local", ignoreCase = true) ||
+        h.endsWith(".lan", ignoreCase = true)
+    }
 
     fun normalizeUrlCandidates(rawUrl: String): List<String> {
       val trimmed = rawUrl.trim().removeSuffix("/")
@@ -52,7 +103,8 @@ class JellyfinClient(
       }
       val clean = trimmed.removePrefix("//")
       val port = clean.substringAfterLast(":", "").substringBefore("/").toIntOrNull()
-      return if (port == 80 || port == 8096) {
+      val isLocal = isLocalHostOrIp(clean)
+      return if (isLocal || port == 80 || port == 8096) {
         listOf("http://$clean", "https://$clean")
       } else {
         listOf("https://$clean", "http://$clean")
@@ -63,9 +115,21 @@ class JellyfinClient(
       return normalizeUrlCandidates(rawUrl).first()
     }
 
-    fun authHeader(token: String? = null): String {
-      val base = "MediaBrowser Client=\"$CLIENT_NAME\", Device=\"$DEVICE_NAME\", DeviceId=\"$DEVICE_ID\", Version=\"$VERSION\""
+    fun authHeader(token: String? = null, context: Context? = null): String {
+      val deviceId = getDeviceId(context)
+      val base = "MediaBrowser Client=\"$CLIENT_NAME\", Device=\"$DEVICE_NAME\", DeviceId=\"$deviceId\", Version=\"$VERSION\""
       return if (!token.isNullOrBlank()) "$base, Token=\"$token\"" else base
+    }
+
+    fun Request.Builder.addJellyfinHeaders(token: String? = null, context: Context? = null): Request.Builder {
+      val auth = authHeader(token, context)
+      header("X-Emby-Authorization", auth)
+      header("Authorization", auth)
+      if (!token.isNullOrBlank()) {
+        header("X-Emby-Token", token)
+        header("X-MediaBrowser-Token", token)
+      }
+      return this
     }
 
     fun getStreamUrl(
@@ -131,7 +195,7 @@ class JellyfinClient(
             Request
               .Builder()
               .url(endpoint)
-              .addHeader("X-Emby-Authorization", authHeader())
+              .addJellyfinHeaders()
               .addHeader("Content-Type", "application/json")
               .post(payload.toRequestBody(JSON_MEDIA_TYPE))
               .build()
@@ -185,8 +249,7 @@ class JellyfinClient(
             Request
               .Builder()
               .url(endpoint)
-              .addHeader("X-Emby-Authorization", authHeader(token))
-              .addHeader("X-Emby-Token", token)
+              .addJellyfinHeaders(token)
               .get()
               .build()
 
@@ -235,8 +298,7 @@ class JellyfinClient(
           Request
             .Builder()
             .url(endpoint)
-            .addHeader("X-Emby-Authorization", authHeader(token))
-            .addHeader("X-Emby-Token", token)
+            .addJellyfinHeaders(token)
             .get()
             .build()
 
@@ -267,8 +329,7 @@ class JellyfinClient(
           Request
             .Builder()
             .url(endpoint)
-            .addHeader("X-Emby-Authorization", authHeader(token))
-            .addHeader("X-Emby-Token", token)
+            .addJellyfinHeaders(token)
             .get()
             .build()
 
@@ -298,8 +359,7 @@ class JellyfinClient(
           Request
             .Builder()
             .url(endpoint)
-            .addHeader("X-Emby-Authorization", authHeader(token))
-            .addHeader("X-Emby-Token", token)
+            .addJellyfinHeaders(token)
             .get()
             .build()
 
@@ -332,8 +392,7 @@ class JellyfinClient(
           Request
             .Builder()
             .url(endpoint)
-            .addHeader("X-Emby-Authorization", authHeader(token))
-            .addHeader("X-Emby-Token", token)
+            .addJellyfinHeaders(token)
             .get()
             .build()
 
@@ -369,8 +428,7 @@ class JellyfinClient(
           Request
             .Builder()
             .url(endpoint)
-            .addHeader("X-Emby-Authorization", authHeader(token))
-            .addHeader("X-Emby-Token", token)
+            .addJellyfinHeaders(token)
             .get()
             .build()
 
@@ -407,8 +465,7 @@ class JellyfinClient(
           Request
             .Builder()
             .url(endpoint)
-            .addHeader("X-Emby-Authorization", authHeader(token))
-            .addHeader("X-Emby-Token", token)
+            .addJellyfinHeaders(token)
             .get()
             .build()
 
@@ -439,8 +496,7 @@ class JellyfinClient(
           Request
             .Builder()
             .url(endpoint)
-            .addHeader("X-Emby-Authorization", authHeader(token))
-            .addHeader("X-Emby-Token", token)
+            .addJellyfinHeaders(token)
             .get()
             .build()
 
@@ -509,8 +565,7 @@ class JellyfinClient(
           Request
             .Builder()
             .url(urlBuilder.toString())
-            .addHeader("X-Emby-Authorization", authHeader(token))
-            .addHeader("X-Emby-Token", token)
+            .addJellyfinHeaders(token)
             .get()
             .build()
 
@@ -565,8 +620,7 @@ class JellyfinClient(
           Request
             .Builder()
             .url(urlBuilder.toString())
-            .addHeader("X-Emby-Authorization", authHeader(token))
-            .addHeader("X-Emby-Token", token)
+            .addJellyfinHeaders(token)
             .get()
             .build()
 
@@ -603,8 +657,7 @@ class JellyfinClient(
           Request
             .Builder()
             .url(endpoint)
-            .addHeader("X-Emby-Authorization", authHeader(token))
-            .addHeader("X-Emby-Token", token)
+            .addJellyfinHeaders(token)
             .get()
             .build()
 
@@ -636,8 +689,7 @@ class JellyfinClient(
           Request
             .Builder()
             .url(endpoint)
-            .addHeader("X-Emby-Authorization", authHeader(token))
-            .addHeader("X-Emby-Token", token)
+            .addJellyfinHeaders(token)
             .get()
             .build()
 
@@ -691,8 +743,7 @@ class JellyfinClient(
           Request
             .Builder()
             .url(endpoint)
-            .addHeader("X-Emby-Authorization", authHeader(token))
-            .addHeader("X-Emby-Token", token)
+            .addJellyfinHeaders(token)
             .get()
             .build()
 
@@ -758,8 +809,7 @@ class JellyfinClient(
         Request
           .Builder()
           .url(endpoint)
-          .addHeader("X-Emby-Authorization", authHeader(token))
-          .addHeader("X-Emby-Token", token)
+          .addJellyfinHeaders(token)
           .addHeader("Content-Type", "application/json")
           .post(payload.toRequestBody(JSON_MEDIA_TYPE))
           .build()
@@ -791,8 +841,7 @@ class JellyfinClient(
         Request
           .Builder()
           .url(endpoint)
-          .addHeader("X-Emby-Authorization", authHeader(token))
-          .addHeader("X-Emby-Token", token)
+          .addJellyfinHeaders(token)
           .addHeader("Content-Type", "application/json")
           .post(payload.toRequestBody(JSON_MEDIA_TYPE))
           .build()
@@ -822,8 +871,7 @@ class JellyfinClient(
         Request
           .Builder()
           .url(endpoint)
-          .addHeader("X-Emby-Authorization", authHeader(token))
-          .addHeader("X-Emby-Token", token)
+          .addJellyfinHeaders(token)
           .addHeader("Content-Type", "application/json")
           .post(payload.toRequestBody(JSON_MEDIA_TYPE))
           .build()
@@ -846,8 +894,7 @@ class JellyfinClient(
           Request
             .Builder()
             .url(endpoint)
-            .addHeader("X-Emby-Authorization", authHeader(token))
-            .addHeader("X-Emby-Token", token)
+            .addJellyfinHeaders(token)
             .post(ByteArray(0).toRequestBody(null))
             .build()
         httpClient.newCall(request).execute().use { response ->
@@ -870,8 +917,7 @@ class JellyfinClient(
           Request
             .Builder()
             .url(endpoint)
-            .addHeader("X-Emby-Authorization", authHeader(token))
-            .addHeader("X-Emby-Token", token)
+            .addJellyfinHeaders(token)
             .delete()
             .build()
         httpClient.newCall(request).execute().use { response ->
@@ -896,16 +942,14 @@ class JellyfinClient(
             Request
               .Builder()
               .url(endpoint)
-              .addHeader("X-Emby-Authorization", authHeader(token))
-              .addHeader("X-Emby-Token", token)
+              .addJellyfinHeaders(token)
               .post(ByteArray(0).toRequestBody(null))
               .build()
           } else {
             Request
               .Builder()
               .url(endpoint)
-              .addHeader("X-Emby-Authorization", authHeader(token))
-              .addHeader("X-Emby-Token", token)
+              .addJellyfinHeaders(token)
               .delete()
               .build()
           }
@@ -957,6 +1001,10 @@ class JellyfinClient(
     val imageTagsObj = obj["ImageTags"]?.jsonObject
     val primaryImageTag = imageTagsObj?.get("Primary")?.jsonPrimitive?.content
     val backdropImageTags = obj["BackdropImageTags"]?.jsonArray?.firstOrNull()?.jsonPrimitive?.content
+    val albumId = obj["AlbumId"]?.jsonPrimitive?.content ?: obj["ParentId"]?.jsonPrimitive?.content
+    val albumPrimaryImageTag = obj["AlbumPrimaryImageTag"]?.jsonPrimitive?.content
+      ?: obj["ParentPrimaryImageTag"]?.jsonPrimitive?.content
+      ?: obj["SeriesPrimaryImageTag"]?.jsonPrimitive?.content
 
     val userDataObj = obj["UserData"]?.jsonObject
     val playbackPositionTicks = userDataObj?.get("PlaybackPositionTicks")?.jsonPrimitive?.longOrNull
@@ -1053,6 +1101,8 @@ class JellyfinClient(
       isFolder = isFolder,
       primaryImageTag = primaryImageTag,
       backdropImageTag = backdropImageTags,
+      albumId = albumId,
+      albumPrimaryImageTag = albumPrimaryImageTag,
       childCount = childCount,
       container = container,
       videoCodec = videoCodec,
@@ -1083,7 +1133,7 @@ class JellyfinClient(
           Request
             .Builder()
             .url(url)
-            .addHeader("X-Emby-Authorization", authHeader(token))
+            .addJellyfinHeaders(token)
             .post("".toRequestBody(JSON_MEDIA_TYPE))
             .build()
 
@@ -1117,7 +1167,7 @@ class JellyfinClient(
           Request
             .Builder()
             .url(url)
-            .addHeader("X-Emby-Authorization", authHeader(token))
+            .addJellyfinHeaders(token)
             .post("".toRequestBody(JSON_MEDIA_TYPE))
             .build()
 

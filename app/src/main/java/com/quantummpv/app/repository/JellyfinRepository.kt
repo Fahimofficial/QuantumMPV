@@ -200,14 +200,21 @@ class JellyfinRepository(
     server: JellyfinServer,
     item: JellyfinItem,
     maxWidth: Int = 400,
-  ): String =
-    client.getImageUrl(
+  ): String {
+    val targetItemId = if (item.primaryImageTag.isNullOrBlank() && !item.albumId.isNullOrBlank() && !item.albumPrimaryImageTag.isNullOrBlank()) {
+      item.albumId
+    } else {
+      item.id
+    }
+    val targetTag = item.primaryImageTag ?: item.albumPrimaryImageTag
+    return client.getImageUrl(
       serverUrl = server.serverUrl,
-      itemId = item.id,
-      imageTag = item.primaryImageTag,
+      itemId = targetItemId,
+      imageTag = targetTag,
       maxWidth = maxWidth,
       token = server.accessToken,
     )
+  }
 
   fun getBackdropUrl(
     server: JellyfinServer,

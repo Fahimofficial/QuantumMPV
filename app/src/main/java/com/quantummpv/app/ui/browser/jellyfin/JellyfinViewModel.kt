@@ -1025,6 +1025,7 @@ class JellyfinViewModel(
     username: String = "",
     password: String = "",
     token: String = "",
+    existingServerId: Long? = null,
     onSuccess: () -> Unit,
   ) {
     viewModelScope.launch {
@@ -1046,6 +1047,7 @@ class JellyfinViewModel(
             val effectiveUrl = authResult.normalizedServerUrl.ifBlank { JellyfinClient.normalizeUrl(serverUrl) }
 
             JellyfinServer(
+              id = existingServerId ?: 0,
               name = serverName.ifBlank { "Jellyfin (${authResult.username})" },
               serverUrl = effectiveUrl,
               userId = authResult.userId,
@@ -1066,6 +1068,7 @@ class JellyfinViewModel(
             val effectiveUrl = user.normalizedServerUrl.ifBlank { JellyfinClient.normalizeUrl(serverUrl) }
 
             JellyfinServer(
+              id = existingServerId ?: 0,
               name = serverName.ifBlank { "Jellyfin (${user.name})" },
               serverUrl = effectiveUrl,
               userId = user.id,
@@ -1075,8 +1078,14 @@ class JellyfinViewModel(
             )
           }
 
-        val id = jellyfinRepository.saveServer(serverToSave)
-        val savedServer = serverToSave.copy(id = id)
+        val savedServer =
+          if (existingServerId != null && existingServerId > 0) {
+            jellyfinRepository.updateServer(serverToSave)
+            serverToSave
+          } else {
+            val id = jellyfinRepository.saveServer(serverToSave)
+            serverToSave.copy(id = id)
+          }
         _uiState.update {
           it.copy(
             isAuthenticating = false,
@@ -1219,7 +1228,7 @@ class JellyfinViewModel(
 
       val externalSubs = subsDeferred.await()
 
-      val (playlistUris, playlistTitles, playlistIndex) =
+      val playlistData =
         if (isAudio) {
           val audioSource = if (item.type == "MusicAlbum" || item.type == "MusicArtist" || (item.isFolder && item.collectionType == "music")) {
             jellyfinRepository.getItems(server = server, parentId = item.id, includeItemTypes = "Audio").getOrNull()?.items.orEmpty()
@@ -1235,18 +1244,21 @@ class JellyfinViewModel(
           if (audioSource.isNotEmpty()) {
             val uris = ArrayList<Uri>(audioSource.size)
             val titles = ArrayList<String>(audioSource.size)
+            val artworks = ArrayList<String>(audioSource.size)
             var targetIdx = 0
             val queueItems = audioSource.mapIndexed { idx, track ->
               if (track.id == targetItem.id) targetIdx = idx
               val tUrl = jellyfinRepository.getStreamUrl(server, track)
+              val aUrl = jellyfinRepository.getImageUrl(server, track)
               uris.add(Uri.parse(tUrl))
               titles.add(track.name)
+              artworks.add(aUrl)
               PlaybackItem.fromUri(
                 uri = tUrl,
                 title = track.name,
                 artist = track.seriesName ?: targetItem.seriesName ?: "",
                 mimeType = "audio/*",
-                artworkUri = jellyfinRepository.getImageUrl(server, track),
+                artworkUri = aUrl,
               )
             }
             PlaybackSession.replaceQueue(
@@ -1254,9 +1266,22 @@ class JellyfinViewModel(
               currentIndex = targetIdx,
               isExplicitQueue = true,
             )
-            Triple(uris, titles, targetIdx)
+            Triple(uris, titles, targetIdx) to artworks
           } else {
-            Triple(emptyList<Uri>(), emptyList<String>(), 0)
+            val singleItem =
+              PlaybackItem.fromUri(
+                uri = streamUrl,
+                title = targetItem.name,
+                artist = targetItem.seriesName ?: "",
+                mimeType = "audio/*",
+                artworkUri = posterUrl,
+              )
+            PlaybackSession.replaceQueue(
+              items = listOf(singleItem),
+              currentIndex = 0,
+              isExplicitQueue = true,
+            )
+            Triple(emptyList<Uri>(), emptyList<String>(), 0) to emptyList<String>()
           }
         } else if (targetItem.type == "Episode") {
           val episodesSource =
@@ -1279,13 +1304,16 @@ class JellyfinViewModel(
                 },
               )
             }
-            Triple(uris, titles, targetIdx)
+            Triple(uris, titles, targetIdx) to emptyList<String>()
           } else {
-            Triple(emptyList<Uri>(), emptyList<String>(), 0)
+            Triple(emptyList<Uri>(), emptyList<String>(), 0) to emptyList<String>()
           }
         } else {
-          Triple(emptyList<Uri>(), emptyList<String>(), 0)
+          Triple(emptyList<Uri>(), emptyList<String>(), 0) to emptyList<String>()
         }
+
+      val (playlistUris, playlistTitles, playlistIndex) = playlistData.first
+      val playlistArtworkUrls = playlistData.second
 
       val headers =
         mapOf(
@@ -1307,6 +1335,7 @@ class JellyfinViewModel(
           playlist = playlistUris,
           playlistIndex = playlistIndex,
           playlistTitles = playlistTitles,
+          playlistArtworkUrls = playlistArtworkUrls,
           isAudio = isAudio,
         )
       }
@@ -1413,6 +1442,7 @@ class JellyfinViewModel(
         )
       }
 
+      val playlistArtworks = if (isAudio) playable.map { jellyfinRepository.getImageUrl(server, it) } else emptyList()
       withContext(Dispatchers.Main) {
         MediaUtils.playFile(
           source = streamUrl,
@@ -1426,6 +1456,7 @@ class JellyfinViewModel(
           playlist = playlistUris,
           playlistIndex = 0,
           playlistTitles = playlistTitles,
+          playlistArtworkUrls = playlistArtworks,
           isAudio = isAudio,
         )
       }

@@ -124,6 +124,7 @@ fun JellyfinContent(
   val layoutMode by browserPreferences.jellyfinLayoutMode.collectAsState()
 
   var isAddDialogOpen by remember { mutableStateOf(false) }
+  var serverToReauth by remember { mutableStateOf<JellyfinServer?>(null) }
   var isManageServersOpen by rememberSaveable { mutableStateOf(false) }
   var isSearching by rememberSaveable { mutableStateOf(false) }
   var isSortDialogOpen by rememberSaveable { mutableStateOf(false) }
@@ -396,6 +397,10 @@ fun JellyfinContent(
               ErrorView(
                 message = uiState.error ?: "An error occurred",
                 onRetry = { viewModel.refresh() },
+                onReauthenticate = {
+                  serverToReauth = uiState.activeServer
+                  isAddDialogOpen = true
+                },
               )
             }
 
@@ -1052,8 +1057,13 @@ fun JellyfinContent(
     isOpen = isAddDialogOpen,
     isLoading = uiState.isAuthenticating,
     errorMessage = uiState.authError,
-    onDismiss = { isAddDialogOpen = false },
+    initialServer = serverToReauth,
+    onDismiss = {
+      isAddDialogOpen = false
+      serverToReauth = null
+    },
     onConnect = { serverUrl, serverName, authMode, username, password, token ->
+      val existingId = serverToReauth?.id
       viewModel.addServer(
         serverUrl = serverUrl,
         serverName = serverName,
@@ -1061,7 +1071,11 @@ fun JellyfinContent(
         username = username,
         password = password,
         token = token,
-        onSuccess = { isAddDialogOpen = false },
+        existingServerId = existingId,
+        onSuccess = {
+          isAddDialogOpen = false
+          serverToReauth = null
+        },
       )
     },
   )
@@ -1118,7 +1132,13 @@ private fun EmptyServersView(onAddClick: () -> Unit) {
 private fun ErrorView(
   message: String,
   onRetry: () -> Unit,
+  onReauthenticate: (() -> Unit)? = null,
 ) {
+  val isAuthError = message.contains("401", ignoreCase = true) ||
+    message.contains("unauthorized", ignoreCase = true) ||
+    message.contains("forbidden", ignoreCase = true) ||
+    message.contains("403", ignoreCase = true)
+
   Column(
     modifier = Modifier.padding(24.dp),
     horizontalAlignment = Alignment.CenterHorizontally,
@@ -1132,14 +1152,24 @@ private fun ErrorView(
     )
     Spacer(modifier = Modifier.height(12.dp))
     Text(
-      text = message,
+      text = if (isAuthError) "Authentication failed (HTTP 401). Session expired or unauthorized." else message,
       style = MaterialTheme.typography.bodyMedium,
       color = MaterialTheme.colorScheme.error,
       textAlign = TextAlign.Center,
     )
     Spacer(modifier = Modifier.height(16.dp))
-    FilledTonalButton(onClick = onRetry) {
-      Text("Retry")
+    Row(
+      horizontalArrangement = Arrangement.spacedBy(12.dp),
+      verticalAlignment = Alignment.CenterVertically,
+    ) {
+      FilledTonalButton(onClick = onRetry) {
+        Text("Retry")
+      }
+      if (isAuthError && onReauthenticate != null) {
+        Button(onClick = onReauthenticate) {
+          Text("Re-authenticate")
+        }
+      }
     }
   }
 }
