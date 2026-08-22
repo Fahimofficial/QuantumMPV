@@ -19,6 +19,7 @@ import androidx.compose.animation.fadeOut
 import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.background
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -84,6 +85,7 @@ import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
@@ -95,6 +97,7 @@ import com.quantummpv.app.R
 import com.quantummpv.app.domain.jellyfin.JellyfinItem
 import com.quantummpv.app.domain.jellyfin.JellyfinSearchCategory
 import com.quantummpv.app.domain.jellyfin.JellyfinServer
+import com.quantummpv.app.preferences.AppearancePreferences
 import com.quantummpv.app.preferences.BrowserPreferences
 import com.quantummpv.app.preferences.MediaLayoutMode
 import com.quantummpv.app.preferences.preference.collectAsState
@@ -105,6 +108,7 @@ import com.quantummpv.app.ui.browser.components.BrowserTopBar
 import com.quantummpv.app.ui.browser.components.ExpressiveScrollBar
 import com.quantummpv.app.ui.browser.components.fastScrollGlyph
 import com.quantummpv.app.ui.browser.dialogs.JellyfinSortDialog
+import com.quantummpv.app.ui.browser.fab.FabScrollHelper
 import com.quantummpv.app.ui.browser.selection.rememberSelectionManager
 import com.quantummpv.app.ui.icons.Icon
 import com.quantummpv.app.ui.icons.Icons
@@ -121,13 +125,40 @@ fun JellyfinContent(
   val context = LocalContext.current
   val backstack = LocalBackStack.current
   val browserPreferences = koinInject<BrowserPreferences>()
+  val appearancePreferences = koinInject<AppearancePreferences>()
   val layoutMode by browserPreferences.jellyfinLayoutMode.collectAsState()
+  val showQuickPlayFab by appearancePreferences.showQuickPlayFab.collectAsState()
+  val quickPlayFabDirect by appearancePreferences.quickPlayFabDirect.collectAsState()
 
   var isAddDialogOpen by remember { mutableStateOf(false) }
   var isManageServersOpen by rememberSaveable { mutableStateOf(false) }
   var isSearching by rememberSaveable { mutableStateOf(false) }
   var isSortDialogOpen by rememberSaveable { mutableStateOf(false) }
+  var isFabExpanded by remember { mutableStateOf(false) }
+  val isFabVisible = remember { mutableStateOf(true) }
   val searchFocusRequester = remember { FocusRequester() }
+
+  val homeListState = rememberLazyListState()
+  val libraryListState = remember(uiState.openLibrary, uiState.sortBy, uiState.sortOrder, uiState.isUnplayedOnly) { LazyListState() }
+  val libraryGridState = remember(uiState.openLibrary, uiState.sortBy, uiState.sortOrder, uiState.isUnplayedOnly) { LazyGridState() }
+
+  if (uiState.openLibrary == null) {
+    FabScrollHelper.trackScrollForFabVisibility(
+      listState = homeListState,
+      gridState = null,
+      isFabVisible = isFabVisible,
+      expanded = isFabExpanded,
+      onExpandedChange = { isFabExpanded = it },
+    )
+  } else {
+    FabScrollHelper.trackScrollForFabVisibility(
+      listState = libraryListState,
+      gridState = if (layoutMode == MediaLayoutMode.GRID) libraryGridState else null,
+      isFabVisible = isFabVisible,
+      expanded = isFabExpanded,
+      onExpandedChange = { isFabExpanded = it },
+    )
+  }
 
   val selectionManager =
     rememberSelectionManager(
@@ -150,9 +181,12 @@ fun JellyfinContent(
   BackHandler(
     enabled =
       isSearching || selectionManager.isInSelectionMode ||
-        uiState.detailItem != null || uiState.openLibrary != null,
+        uiState.detailItem != null || uiState.openLibrary != null || (isFabExpanded && !quickPlayFabDirect),
   ) {
     when {
+      isFabExpanded && !quickPlayFabDirect -> {
+        isFabExpanded = false
+      }
       uiState.detailItem != null -> {
         viewModel.closeDetail()
       }
@@ -401,13 +435,12 @@ fun JellyfinContent(
 
             // Root / Discovery Home View (Expressive UI)
             uiState.openLibrary == null && uiState.searchQuery.isBlank() -> {
-              val listState = rememberLazyListState()
               val server = uiState.activeServer
 
               if (server != null) {
                 Box(modifier = Modifier.fillMaxSize()) {
                   LazyColumn(
-                    state = listState,
+                    state = homeListState,
                     modifier = Modifier.fillMaxSize(),
                     contentPadding = PaddingValues(bottom = navigationBarHeight + 84.dp),
                     verticalArrangement = Arrangement.spacedBy(20.dp),
@@ -624,10 +657,7 @@ fun JellyfinContent(
                   )
                 }
               } else if (isListMode) {
-                val listState =
-                  remember(uiState.openLibrary, uiState.sortBy, uiState.sortOrder, uiState.isUnplayedOnly) {
-                    LazyListState()
-                  }
+                val listState = libraryListState
                 val hasEnoughItems = items.size > 6
                 val scrollbarAlpha by animateFloatAsState(
                   targetValue = if (hasEnoughItems) 1f else 0f,
@@ -722,10 +752,7 @@ fun JellyfinContent(
                   }
                 }
               } else {
-                val gridState =
-                  remember(uiState.openLibrary, uiState.sortBy, uiState.sortOrder, uiState.isUnplayedOnly) {
-                    LazyGridState()
-                  }
+                val gridState = libraryGridState
                 val hasEnoughItems = items.size > 6
                 val scrollbarAlpha by animateFloatAsState(
                   targetValue = if (hasEnoughItems) 1f else 0f,
@@ -920,77 +947,94 @@ fun JellyfinContent(
         }
       }
 
-      if (!selectionManager.isInSelectionMode && uiState.activeServer != null && (uiState.currentItems.isNotEmpty() || uiState.resumeItems.isNotEmpty() || uiState.heroItems.isNotEmpty())) {
-        // Expressive Floating Action Button Menu
-        var isFabExpanded by remember { mutableStateOf(false) }
+      FabScrollHelper.FabScrim(
+        visible = isFabExpanded && !quickPlayFabDirect,
+        onDismiss = { isFabExpanded = false },
+      )
 
-        FloatingActionButtonMenu(
-          modifier =
-            Modifier
-              .align(Alignment.BottomEnd)
-              .padding(end = 16.dp, bottom = navigationBarHeight + 16.dp),
-          expanded = isFabExpanded,
-          button = {
-            ToggleFloatingActionButton(
-              modifier =
-                Modifier.animateFloatingActionButton(
-                  visible = !isSearching,
-                  alignment = Alignment.BottomEnd,
-                ),
-              checked = isFabExpanded,
-              onCheckedChange = { isFabExpanded = !isFabExpanded },
+      val isFabShouldBeVisible =
+        showQuickPlayFab &&
+          !selectionManager.isInSelectionMode &&
+          !isSearching &&
+          isFabVisible.value &&
+          uiState.activeServer != null &&
+          (uiState.currentItems.isNotEmpty() || uiState.resumeItems.isNotEmpty() || uiState.heroItems.isNotEmpty())
+
+      // Expressive Floating Action Button Menu
+      FloatingActionButtonMenu(
+        modifier =
+          Modifier
+            .align(Alignment.BottomEnd)
+            .padding(end = 16.dp, bottom = navigationBarHeight + 16.dp),
+        expanded = isFabExpanded && !quickPlayFabDirect,
+        button = {
+          ToggleFloatingActionButton(
+            modifier =
+              Modifier.animateFloatingActionButton(
+                visible = isFabShouldBeVisible,
+                alignment = Alignment.BottomEnd,
+              ),
+            checked = isFabExpanded && !quickPlayFabDirect,
+              onCheckedChange = {
+                if (quickPlayFabDirect) {
+                  viewModel.resumeLastPlayed(context)
+                } else {
+                  isFabExpanded = !isFabExpanded
+                }
+              },
             ) {
-              val checkedProgress = if (isFabExpanded) 1f else 0f
+              val checkedProgress = if (isFabExpanded && !quickPlayFabDirect) 1f else 0f
               val imageVector by remember {
                 derivedStateOf {
-                  if (isFabExpanded) Icons.RoundedFilled.Close else Icons.RoundedFilled.PlayArrow
+                  if (checkedProgress > 0.5f && !quickPlayFabDirect) Icons.RoundedFilled.Close else Icons.RoundedFilled.PlayArrow
                 }
               }
               Icon(
                 imageVector = imageVector,
-                contentDescription = "Quick Menu",
-                modifier = Modifier.animateIcon({ checkedProgress }),
+                contentDescription = stringResource(R.string.ui_quick_play),
+                modifier = Modifier.animateIcon({ if (quickPlayFabDirect) 0f else checkedProgress }),
               )
             }
           },
         ) {
-          FloatingActionButtonMenuItem(
-            onClick = {
-              isFabExpanded = false
-              viewModel.playRandom(context)
-            },
-            icon = { Icon(Icons.RoundedFilled.Shuffle, contentDescription = null) },
-            text = { Text("Play Random") },
-          )
+          if (!quickPlayFabDirect) {
+            FloatingActionButtonMenuItem(
+              onClick = {
+                isFabExpanded = false
+                isSearching = true
+              },
+              icon = { Icon(Icons.RoundedFilled.Search, contentDescription = null) },
+              text = { Text("Search") },
+            )
 
-          FloatingActionButtonMenuItem(
-            onClick = {
-              isFabExpanded = false
-              isManageServersOpen = true
-            },
-            icon = { Icon(Icons.RoundedFilled.BringYourOwnIp, contentDescription = null) },
-            text = { Text("Switch Server") },
-          )
+            FloatingActionButtonMenuItem(
+              onClick = {
+                isFabExpanded = false
+                viewModel.playRandom(context)
+              },
+              icon = { Icon(Icons.RoundedFilled.Shuffle, contentDescription = null) },
+              text = { Text("Play Random") },
+            )
 
-          FloatingActionButtonMenuItem(
-            onClick = {
-              isFabExpanded = false
-              isSearching = true
-            },
-            icon = { Icon(Icons.RoundedFilled.Search, contentDescription = null) },
-            text = { Text("Search") },
-          )
+            FloatingActionButtonMenuItem(
+              onClick = {
+                isFabExpanded = false
+                isManageServersOpen = true
+              },
+              icon = { Icon(Icons.RoundedFilled.BringYourOwnIp, contentDescription = null) },
+              text = { Text("Switch Server") },
+            )
 
-          FloatingActionButtonMenuItem(
-            onClick = {
-              isFabExpanded = false
-              viewModel.resumeLastPlayed(context)
-            },
-            icon = { Icon(Icons.RoundedFilled.PlayArrow, contentDescription = null) },
-            text = { Text("Resume") },
-          )
+            FloatingActionButtonMenuItem(
+              onClick = {
+                isFabExpanded = false
+                viewModel.resumeLastPlayed(context)
+              },
+              icon = { Icon(Icons.RoundedFilled.History, contentDescription = null) },
+              text = { Text(stringResource(R.string.pref_advanced_enable_recently_played_title)) },
+            )
+          }
         }
-      }
     }
   }
 

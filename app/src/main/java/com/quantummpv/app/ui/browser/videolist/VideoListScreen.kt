@@ -14,6 +14,7 @@ import android.os.Environment
 import android.widget.Toast
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.spring
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -387,6 +388,9 @@ data class VideoListScreen(
         val navigationBarHeight = com.quantummpv.app.ui.browser.LocalNavigationBarHeight.current
         val miniPlayerClearance = com.quantummpv.app.ui.browser.NavigationBarState.miniPlayerClearance
         if (sortedVideosWithInfo.isNotEmpty()) {
+          val isFabShouldBeVisible =
+            showQuickPlayFab && !selectionManager.isInSelectionMode && isFabVisible.value
+
           TooltipBox(
             positionProvider = TooltipDefaults.rememberTooltipPositionProvider(TooltipAnchorPosition.Above),
             tooltip = {
@@ -406,7 +410,7 @@ data class VideoListScreen(
                   .windowInsetsPadding(WindowInsets.systemBars)
                   .padding(bottom = navigationBarHeight + miniPlayerClearance)
                   .animateFloatingActionButton(
-                    visible = showQuickPlayFab && !selectionManager.isInSelectionMode && isFabVisible.value,
+                    visible = isFabShouldBeVisible,
                     alignment = Alignment.BottomEnd,
                   ),
               onClick = {
@@ -816,6 +820,8 @@ internal fun VideoListContent(
   mediaLayoutMode: com.quantummpv.app.preferences.MediaLayoutMode,
   isAudio: Boolean = false,
   musicCoverArtSize: Int = 48,
+  isFabExpanded: Boolean = false,
+  onFabExpandedChange: (Boolean) -> Unit = {},
 ) {
   val thumbnailRepository = koinInject<ThumbnailRepository>()
   val gesturePreferences = koinInject<GesturePreferences>()
@@ -1062,8 +1068,8 @@ internal fun VideoListContent(
           listState = listState,
           gridState = if (mediaLayoutMode == MediaLayoutMode.GRID) gridState else null,
           isFabVisible = isFabVisible,
-          expanded = false,
-          onExpandedChange = {},
+          expanded = isFabExpanded,
+          onExpandedChange = onFabExpandedChange,
         )
 
         val coroutineScope = rememberCoroutineScope()
