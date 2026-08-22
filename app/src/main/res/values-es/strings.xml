@@ -1778,4 +1778,15 @@ Reinicia la aplicación para que se apliquen todos los cambios.</string>
   <string name="pref_mpv_conf_override_osd_summary">Anula márgenes de OSD y áreas seguras.</string>
   <string name="mpv_config_owned_title">Controlado por mpv.conf</string>
   <string name="mpv_config_owned_message">Este control de la aplicación está desactivado porque una o más opciones necesarias están asignadas a mpv.conf en los ajustes avanzados.</string>
+  <string name="pref_lyrics_translation_category">Traducción y romanización de letras</string>
+  <string name="pref_lyrics_auto_translate">Traducir automáticamente letras extranjeras</string>
+  <string name="pref_lyrics_auto_translate_summary">Traduce automáticamente letras en idiomas extranjeros al idioma preferido</string>
+  <string name="pref_lyrics_target_language">Idioma de destino predeterminado</string>
+  <string name="pref_lyrics_display_mode">Estilo de visualización de traducción</string>
+  <string name="pref_lyrics_display_dual_line">Doble línea (Original + Subtexto traducido)</string>
+  <string name="pref_lyrics_display_replace">Reemplazar línea original</string>
+  <string name="lyrics_translate_title">Traducir letra</string>
+  <string name="lyrics_translating">Traduciendo letra…</string>
+  <string name="lyrics_translation_off">Letra original</string>
+  <string name="lyrics_select_language">Seleccionar idioma de destino</string>
 </resources>

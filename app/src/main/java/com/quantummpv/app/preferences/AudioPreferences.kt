@@ -47,12 +47,23 @@ class AudioPreferences(
     },
   )
 
+  val lyricsAutoTranslate = preferenceStore.getBoolean("lyrics_auto_translate", false)
+  val lyricsTargetLanguage = preferenceStore.getString("lyrics_target_language", "en")
+  val lyricsTranslationDisplayMode = preferenceStore.getEnum("lyrics_translation_display_mode", LyricsTranslationDisplayMode.DualLine)
+
   init {
     // Consolidate the old audio-only screen-lock switch into the single global setting.
     val legacyScreenLockPlayback = preferenceStore.getBoolean("play_audio_after_screen_lock", false)
     if (legacyScreenLockPlayback.get()) backgroundPlayback.set(true)
     if (legacyScreenLockPlayback.isSet()) legacyScreenLockPlayback.delete()
   }
+}
+
+enum class LyricsTranslationDisplayMode(
+  @StringRes val title: Int,
+) {
+  DualLine(R.string.pref_lyrics_display_dual_line),
+  Replace(R.string.pref_lyrics_display_replace),
 }
 
 enum class AudioPlayerOrientation(

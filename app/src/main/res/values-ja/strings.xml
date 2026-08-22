@@ -1778,4 +1778,15 @@
   <string name="pref_mpv_conf_override_osd_summary">OSD マージンとセーフエリア設定を上書きします。</string>
   <string name="mpv_config_owned_title">mpv.conf が制御中</string>
   <string name="mpv_config_owned_message">このアプリ操作は、必要なオプションの一部または全部が詳細設定で mpv.conf に割り当てられているため無効です。</string>
+  <string name="pref_lyrics_translation_category">歌詞の翻訳・ローマ字変換</string>
+  <string name="pref_lyrics_auto_translate">外国語の歌詞を自動翻訳</string>
+  <string name="pref_lyrics_auto_translate_summary">外国語の歌詞を自動的に優先言語に翻訳</string>
+  <string name="pref_lyrics_target_language">デフォルトの翻訳先言語</string>
+  <string name="pref_lyrics_display_mode">歌詞の翻訳表示スタイル</string>
+  <string name="pref_lyrics_display_dual_line">2行表示（原文 + 翻訳サブテキスト）</string>
+  <string name="pref_lyrics_display_replace">原文を翻訳に置換</string>
+  <string name="lyrics_translate_title">歌詞を翻訳</string>
+  <string name="lyrics_translating">歌詞を翻訳中…</string>
+  <string name="lyrics_translation_off">元の歌詞</string>
+  <string name="lyrics_select_language">翻訳先言語を選択</string>
 </resources>

@@ -1776,4 +1776,15 @@
   <string name="lyrics_source_embedded">Embedded</string>
   <string name="lyrics_source_online">Online</string>
   <string name="lyrics_source_local">Local (.lrc)</string>
+  <string name="pref_lyrics_translation_category">Lyrics Translation &amp; Romanization</string>
+  <string name="pref_lyrics_auto_translate">Auto-translate foreign lyrics</string>
+  <string name="pref_lyrics_auto_translate_summary">Automatically translate foreign language lyrics</string>
+  <string name="pref_lyrics_target_language">Default target language</string>
+  <string name="pref_lyrics_display_mode">Lyrics translation style</string>
+  <string name="pref_lyrics_display_dual_line">Dual-line (Original + Translated sub-line)</string>
+  <string name="pref_lyrics_display_replace">Replace original line</string>
+  <string name="lyrics_translate_title">Translate Lyrics</string>
+  <string name="lyrics_translating">Translating lyrics…</string>
+  <string name="lyrics_translation_off">Original Lyrics</string>
+  <string name="lyrics_select_language">Select Target Language</string>
 </resources>

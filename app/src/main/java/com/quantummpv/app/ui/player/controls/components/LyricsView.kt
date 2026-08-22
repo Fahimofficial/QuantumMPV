@@ -33,6 +33,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.FilterChip
@@ -48,9 +49,11 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableLongStateOf
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.withFrameNanos
+import com.quantummpv.app.preferences.preference.collectAsState
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -74,10 +77,17 @@ import androidx.compose.ui.unit.TextUnit
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.quantummpv.app.R
+import com.quantummpv.app.data.lyrics.LyricsLanguageOptions
 import com.quantummpv.app.domain.lyrics.LyricsSourceType
 import com.quantummpv.app.domain.lyrics.SyncedLine
 import com.quantummpv.app.domain.lyrics.SyncedWord
+import com.quantummpv.app.preferences.AudioPreferences
+import com.quantummpv.app.preferences.LyricsTranslationDisplayMode
+import com.quantummpv.app.ui.icons.Icon
+import com.quantummpv.app.ui.icons.Icons
 import com.quantummpv.app.ui.player.PlayerViewModel
+import com.quantummpv.app.ui.player.controls.components.sheets.LyricsTranslateDialog
+import org.koin.compose.koinInject
 
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
@@ -88,11 +98,14 @@ fun LyricsView(
   isLyricsFullscreen: Boolean = false,
   onTap: (() -> Unit)? = null,
 ) {
+  val audioPreferences = koinInject<AudioPreferences>()
+  val translationDisplayMode by audioPreferences.lyricsTranslationDisplayMode.collectAsState()
   val state by viewModel.lyricsUiState.collectAsState()
   val precisePosition by viewModel.precisePosition.collectAsState()
   val listState = rememberLazyListState()
   val density = LocalDensity.current
   var lyricsViewportPx by remember { mutableIntStateOf(0) }
+  var showTranslateDialog by remember { mutableStateOf(false) }
 
   val currentPosMs = remember(precisePosition, state.syncOffsetMs) {
     (precisePosition * 1000).toLong() + state.syncOffsetMs
@@ -249,7 +262,7 @@ fun LyricsView(
                   drawRect(
                     brush = Brush.verticalGradient(
                       0.0f to Color.Black,
-                      0.67f to Color.Black,
+                      0.50f to Color.Black,
                       1.0f to Color.Transparent,
                     ),
                     blendMode = BlendMode.DstIn,
@@ -264,9 +277,11 @@ fun LyricsView(
                 contentType = { _, _ -> "lyric_synced_line" },
               ) { index, line ->
                 val isActiveLine = index == state.activeLineIndex
-                val (ogText, transText) = remember(line.line, line.translation) {
+                val (ogText, transText) = remember(line.line, line.translation, translationDisplayMode) {
                   val rawTrans = line.translation?.trim()
-                  if (!rawTrans.isNullOrBlank()) {
+                  if (translationDisplayMode == LyricsTranslationDisplayMode.Replace && !rawTrans.isNullOrBlank()) {
+                    Pair(rawTrans, null)
+                  } else if (!rawTrans.isNullOrBlank()) {
                     Pair(line.line.trim(), rawTrans)
                   } else if (line.line.contains("\n")) {
                     val parts = line.line.split("\n", limit = 2)
@@ -354,7 +369,7 @@ fun LyricsView(
                           positionMs = smoothPositionMs,
                           activeColor = activeColor,
                           inactiveColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.38f),
-                          fontSize = if (isLyricsFullscreen) 26.sp else 22.sp,
+                          fontSize = if (isLyricsFullscreen) 30.sp else 26.sp,
                         )
                       }
                     }
@@ -363,10 +378,10 @@ fun LyricsView(
                       text = displayText,
                       color = lineColor,
                       fontSize = when {
-                        isActiveLine && isLyricsFullscreen -> 26.sp
-                        isActiveLine -> 22.sp
-                        isLyricsFullscreen -> 21.sp
-                        else -> 19.sp
+                        isActiveLine && isLyricsFullscreen -> 30.sp
+                        isActiveLine -> 26.sp
+                        isLyricsFullscreen -> 24.sp
+                        else -> 22.sp
                       },
                       fontWeight = if (isActiveLine) FontWeight.Black else FontWeight.ExtraBold,
                       fontFamily = FontFamily.SansSerif,
@@ -386,7 +401,7 @@ fun LyricsView(
                     Text(
                       text = transText.orEmpty(),
                       color = translationColor,
-                      fontSize = if (isActiveLine) 16.sp else 14.sp,
+                      fontSize = if (isActiveLine) 18.sp else 16.sp,
                       fontWeight = FontWeight.Bold,
                       fontFamily = FontFamily.SansSerif,
                       textAlign = TextAlign.Center,
@@ -408,7 +423,7 @@ fun LyricsView(
                   drawRect(
                     brush = Brush.verticalGradient(
                       0.0f to Color.Black,
-                      0.67f to Color.Black,
+                      0.50f to Color.Black,
                       1.0f to Color.Transparent,
                     ),
                     blendMode = BlendMode.DstIn,
@@ -426,7 +441,7 @@ fun LyricsView(
                 Text(
                   text = textToDisplay,
                   color = MaterialTheme.colorScheme.onSurface,
-                  fontSize = 20.sp,
+                  fontSize = 24.sp,
                   fontWeight = FontWeight.Black,
                   fontFamily = FontFamily.SansSerif,
                   textAlign = TextAlign.Center,
@@ -456,21 +471,51 @@ fun LyricsView(
         }
       }
 
-      // Edge-to-Edge Sync Timing Adjustments
+      // Bottom Bar: Translate Button (Bottom Left) & Edge-to-Edge Sync Timing Adjustments (Only visible when synced lyrics are present)
       AnimatedVisibility(visible = state.lyrics?.synced?.isNotEmpty() == true) {
         Row(
           modifier = Modifier
             .fillMaxWidth()
-            .padding(top = 14.dp, bottom = 4.dp),
+            .padding(top = 10.dp, bottom = 4.dp),
           verticalAlignment = Alignment.CenterVertically,
           horizontalArrangement = Arrangement.SpaceBetween,
         ) {
-          Text(
-            text = "Sync: ${if (state.syncOffsetMs >= 0) "+" else ""}${state.syncOffsetMs / 1000f}s",
-            style = MaterialTheme.typography.labelSmall,
-            fontWeight = FontWeight.Bold,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-          )
+          Row(
+            verticalAlignment = Alignment.CenterVertically,
+          ) {
+            // Medium size Translate button (Square with rounded corners)
+            Surface(
+              onClick = { showTranslateDialog = true },
+              shape = RoundedCornerShape(12.dp),
+              color = if (state.isTranslationActive) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surfaceVariant,
+              modifier = Modifier.size(46.dp),
+            ) {
+              Box(contentAlignment = Alignment.Center) {
+                if (state.isTranslating) {
+                  CircularProgressIndicator(
+                    modifier = Modifier.size(22.dp),
+                    strokeWidth = 2.5.dp,
+                    color = MaterialTheme.colorScheme.primary,
+                  )
+                } else {
+                  Icon(
+                    imageVector = Icons.RoundedFilled.Translate,
+                    contentDescription = stringResource(R.string.lyrics_translate_title),
+                    tint = if (state.isTranslationActive) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.size(24.dp),
+                  )
+                }
+              }
+            }
+
+            Spacer(modifier = Modifier.width(14.dp))
+            Text(
+              text = "Sync: ${if (state.syncOffsetMs >= 0) "+" else ""}${state.syncOffsetMs / 1000f}s",
+              style = MaterialTheme.typography.labelSmall,
+              fontWeight = FontWeight.Bold,
+              color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+          }
 
           Row(horizontalArrangement = Arrangement.spacedBy(2.dp)) {
             TextButton(onClick = { viewModel.adjustLyricsSyncOffset(-500) }) { Text("-0.5s", fontWeight = FontWeight.Bold) }
@@ -482,6 +527,13 @@ fun LyricsView(
         }
       }
     }
+  }
+
+  if (showTranslateDialog) {
+    LyricsTranslateDialog(
+      viewModel = viewModel,
+      onDismiss = { showTranslateDialog = false },
+    )
   }
 }
 
@@ -526,7 +578,7 @@ private fun AnimatedLyricWord(
   positionMs: State<Long>,
   activeColor: Color,
   inactiveColor: Color,
-  fontSize: TextUnit = 22.sp,
+  fontSize: TextUnit = 26.sp,
 ) {
   val text = "${word.word} "
   val textStyle =

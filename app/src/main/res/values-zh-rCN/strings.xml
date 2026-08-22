@@ -1780,4 +1780,15 @@
   <string name="pref_mpv_conf_override_osd_summary">覆盖 OSD 边距和安全区域设置。</string>
   <string name="mpv_config_owned_title">由 mpv.conf 控制</string>
   <string name="mpv_config_owned_message">此应用控件已禁用，因为它所需的一个或多个选项已在高级设置中分配给 mpv.conf。</string>
+  <string name="pref_lyrics_translation_category">歌词翻译与注音</string>
+  <string name="pref_lyrics_auto_translate">自动翻译外语歌词</string>
+  <string name="pref_lyrics_auto_translate_summary">自动将外语歌词翻译为首选语言</string>
+  <string name="pref_lyrics_target_language">默认目标语言</string>
+  <string name="pref_lyrics_display_mode">歌词翻译显示样式</string>
+  <string name="pref_lyrics_display_dual_line">双行显示（原文 + 翻译副行）</string>
+  <string name="pref_lyrics_display_replace">替换原始歌词行</string>
+  <string name="lyrics_translate_title">翻译歌词</string>
+  <string name="lyrics_translating">正在翻译歌词…</string>
+  <string name="lyrics_translation_off">原始歌词</string>
+  <string name="lyrics_select_language">选择目标语言</string>
 </resources>
