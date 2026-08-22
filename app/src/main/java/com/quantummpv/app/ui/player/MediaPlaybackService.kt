@@ -886,14 +886,14 @@ class MediaPlaybackService :
 
   private fun stopDetachedPlaybackIfNeeded() {
     // Never kill the shared PlaybackSession media while an Activity is taking it back over.
-    if (handingBackToActivity) return
+    if (activityForeground || handingBackToActivity) return
     if (PlaybackSession.state.value.surfaceAttached) return
     torrentStreamingEngine.stopStream()
     PlaybackSession.stop(clearQueue = false)
   }
 
   private fun handleDetachedEndOfFile() {
-    if (PlaybackSession.state.value.surfaceAttached || !foregroundReady) return
+    if (activityForeground || PlaybackSession.state.value.surfaceAttached || !foregroundReady) return
     val queueState = PlaybackSession.queue.value
     val autoplay = if (notificationIsAudio) playerPreferences.autoplayNextAudio.get() else playerPreferences.autoplayNextVideo.get()
     when {
