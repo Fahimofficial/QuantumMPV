@@ -642,9 +642,9 @@ fun JellyfinResumeCard(
 
   val posterBorderModifier =
     if (isSelected) {
-      Modifier.clip(RoundedCornerShape(16.dp)).border(2.dp, MaterialTheme.colorScheme.primary, RoundedCornerShape(16.dp))
+      Modifier.clip(RoundedCornerShape(10.dp)).border(2.dp, MaterialTheme.colorScheme.primary, RoundedCornerShape(10.dp))
     } else {
-      Modifier.clip(RoundedCornerShape(16.dp))
+      Modifier.clip(RoundedCornerShape(10.dp))
     }
 
   Column(
@@ -848,9 +848,9 @@ fun JellyfinPosterCard(
 
   val posterBorderModifier =
     if (isSelected) {
-      Modifier.clip(RoundedCornerShape(14.dp)).border(2.dp, MaterialTheme.colorScheme.primary, RoundedCornerShape(14.dp))
+      Modifier.clip(RoundedCornerShape(8.dp)).border(2.dp, MaterialTheme.colorScheme.primary, RoundedCornerShape(8.dp))
     } else {
-      Modifier.clip(RoundedCornerShape(14.dp))
+      Modifier.clip(RoundedCornerShape(8.dp))
     }
 
   Column(
@@ -1043,9 +1043,9 @@ fun JellyfinMusicCard(
 
   val posterBorderModifier =
     if (isSelected) {
-      Modifier.clip(RoundedCornerShape(12.dp)).border(2.dp, MaterialTheme.colorScheme.primary, RoundedCornerShape(12.dp))
+      Modifier.clip(RoundedCornerShape(8.dp)).border(2.dp, MaterialTheme.colorScheme.primary, RoundedCornerShape(8.dp))
     } else {
-      Modifier.clip(RoundedCornerShape(12.dp))
+      Modifier.clip(RoundedCornerShape(8.dp))
     }
 
   Column(
@@ -1317,8 +1317,8 @@ fun JellyfinLibraryCard(
         Modifier
           .fillMaxWidth()
           .aspectRatio(16f / 9f)
-          .clip(RoundedCornerShape(16.dp)),
-      shape = RoundedCornerShape(16.dp),
+          .clip(RoundedCornerShape(10.dp)),
+      shape = RoundedCornerShape(10.dp),
       colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerHighest),
     ) {
       Box(modifier = Modifier.fillMaxSize()) {
@@ -1398,41 +1398,41 @@ fun JellyfinEpisodeCard(
         serverUrl = server.serverUrl,
         itemId = item.id,
         imageTag = item.primaryImageTag,
-        maxWidth = 360,
+        maxWidth = 480,
         token = server.accessToken,
       )
     }
 
-  val containerColor =
+  val backgroundColor =
     if (isSelected) {
-      MaterialTheme.colorScheme.primaryContainer
+      MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.35f)
     } else {
-      MaterialTheme.colorScheme.surfaceContainer
+      Color.Transparent
     }
 
-  Card(
+  Surface(
     modifier =
       modifier
         .fillMaxWidth()
-        .clip(RoundedCornerShape(14.dp))
+        .clip(RoundedCornerShape(8.dp))
         .combinedClickable(
           onClick = onPlay,
           onLongClick = onLongClick,
         ),
-    shape = RoundedCornerShape(14.dp),
-    colors = CardDefaults.cardColors(containerColor = containerColor),
+    shape = RoundedCornerShape(8.dp),
+    color = backgroundColor,
   ) {
     Row(
-      modifier = Modifier.padding(10.dp),
+      modifier = Modifier.padding(horizontal = 4.dp, vertical = 6.dp),
       verticalAlignment = Alignment.CenterVertically,
-      horizontalArrangement = Arrangement.spacedBy(12.dp),
+      horizontalArrangement = Arrangement.spacedBy(14.dp),
     ) {
       Box(
         modifier =
           Modifier
-            .width(112.dp)
+            .width(140.dp)
             .aspectRatio(16f / 9f)
-            .clip(RoundedCornerShape(10.dp))
+            .clip(RoundedCornerShape(8.dp))
             .background(MaterialTheme.colorScheme.surfaceContainerHighest),
       ) {
         if (!item.primaryImageTag.isNullOrBlank()) {
@@ -1451,6 +1451,7 @@ fun JellyfinEpisodeCard(
               imageVector = Icons.RoundedFilled.PlayArrow,
               contentDescription = null,
               tint = MaterialTheme.colorScheme.onSurfaceVariant,
+              modifier = Modifier.size(32.dp),
             )
           }
         }
@@ -1481,15 +1482,15 @@ fun JellyfinEpisodeCard(
             color = MaterialTheme.colorScheme.primary,
             modifier =
               Modifier
-                .padding(4.dp)
-                .size(20.dp)
+                .padding(6.dp)
+                .size(22.dp)
                 .align(Alignment.TopEnd),
           ) {
             Icon(
               imageVector = Icons.RoundedFilled.Check,
               contentDescription = null,
               tint = MaterialTheme.colorScheme.onPrimary,
-              modifier = Modifier.padding(2.dp),
+              modifier = Modifier.padding(3.dp),
             )
           }
         } else if (item.isPlayed) {
@@ -1498,7 +1499,7 @@ fun JellyfinEpisodeCard(
             color = MaterialTheme.colorScheme.primary.copy(alpha = 0.85f),
             modifier =
               Modifier
-                .padding(4.dp)
+                .padding(6.dp)
                 .size(18.dp)
                 .align(Alignment.TopEnd),
           ) {
@@ -1512,11 +1513,11 @@ fun JellyfinEpisodeCard(
         }
       }
 
-      Column(modifier = Modifier.weight(1f)) {
+      Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
         val epPrefix = if (item.indexNumber != null) "EPISODE ${item.indexNumber} • " else ""
         Text(
           text = "$epPrefix${item.name}",
-          style = MaterialTheme.typography.bodyMedium,
+          style = MaterialTheme.typography.titleMedium,
           fontWeight = FontWeight.Bold,
           maxLines = 1,
           overflow = TextOverflow.Ellipsis,
@@ -1541,7 +1542,7 @@ fun JellyfinEpisodeCard(
         if (epMeta.isNotBlank()) {
           Text(
             text = epMeta,
-            style = MaterialTheme.typography.labelSmall,
+            style = MaterialTheme.typography.labelMedium,
             color = MaterialTheme.colorScheme.primary,
             fontWeight = FontWeight.SemiBold,
             modifier = Modifier.padding(top = 2.dp),
@@ -1554,7 +1555,7 @@ fun JellyfinEpisodeCard(
           imageVector = Icons.RoundedFilled.PlayArrow,
           contentDescription = "Play",
           tint = MaterialTheme.colorScheme.primary,
-          modifier = Modifier.size(24.dp),
+          modifier = Modifier.size(26.dp),
         )
       }
     }
@@ -1581,40 +1582,40 @@ fun JellyfinListItemCard(
         serverUrl = server.serverUrl,
         itemId = item.id,
         imageTag = item.primaryImageTag,
-        maxWidth = 240,
+        maxWidth = 300,
         token = server.accessToken,
       )
     }
 
-  val containerColor =
+  val backgroundColor =
     if (isSelected) {
-      MaterialTheme.colorScheme.primaryContainer
+      MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.35f)
     } else {
-      MaterialTheme.colorScheme.surfaceContainer
+      Color.Transparent
     }
 
-  Card(
+  Surface(
     modifier =
       modifier
         .fillMaxWidth()
-        .clip(RoundedCornerShape(14.dp))
+        .clip(RoundedCornerShape(8.dp))
         .combinedClickable(
           onClick = onClick,
           onLongClick = onLongClick,
         ),
-    shape = RoundedCornerShape(14.dp),
-    colors = CardDefaults.cardColors(containerColor = containerColor),
+    shape = RoundedCornerShape(8.dp),
+    color = backgroundColor,
   ) {
     Row(
-      modifier = Modifier.padding(10.dp),
+      modifier = Modifier.padding(horizontal = 4.dp, vertical = 6.dp),
       verticalAlignment = Alignment.CenterVertically,
       horizontalArrangement = Arrangement.spacedBy(14.dp),
     ) {
       Box(
         modifier =
           Modifier
-            .size(width = 68.dp, height = 96.dp)
-            .clip(RoundedCornerShape(10.dp))
+            .size(width = 84.dp, height = 120.dp)
+            .clip(RoundedCornerShape(8.dp))
             .background(MaterialTheme.colorScheme.surfaceContainerHighest),
       ) {
         if (!item.primaryImageTag.isNullOrBlank()) {
@@ -1640,7 +1641,7 @@ fun JellyfinListItemCard(
               imageVector = placeholderIcon,
               contentDescription = null,
               tint = MaterialTheme.colorScheme.onSurfaceVariant,
-              modifier = Modifier.size(28.dp),
+              modifier = Modifier.size(34.dp),
             )
           }
         }
@@ -1670,15 +1671,15 @@ fun JellyfinListItemCard(
             color = MaterialTheme.colorScheme.primary,
             modifier =
               Modifier
-                .padding(4.dp)
-                .size(20.dp)
+                .padding(6.dp)
+                .size(22.dp)
                 .align(Alignment.TopEnd),
           ) {
             Icon(
               imageVector = Icons.RoundedFilled.Check,
               contentDescription = "Selected",
               tint = MaterialTheme.colorScheme.onPrimary,
-              modifier = Modifier.padding(2.dp),
+              modifier = Modifier.padding(3.dp),
             )
           }
         } else if (item.isPlayed) {
@@ -1687,8 +1688,8 @@ fun JellyfinListItemCard(
             color = MaterialTheme.colorScheme.primary.copy(alpha = 0.85f),
             modifier =
               Modifier
-                .padding(4.dp)
-                .size(16.dp)
+                .padding(6.dp)
+                .size(18.dp)
                 .align(Alignment.TopEnd),
           ) {
             Icon(
@@ -1703,11 +1704,11 @@ fun JellyfinListItemCard(
 
       Column(
         modifier = Modifier.weight(1f),
-        verticalArrangement = Arrangement.spacedBy(4.dp),
+        verticalArrangement = Arrangement.spacedBy(5.dp),
       ) {
         Text(
           text = item.name,
-          style = MaterialTheme.typography.titleSmall,
+          style = MaterialTheme.typography.titleMedium,
           fontWeight = FontWeight.Bold,
           maxLines = 1,
           overflow = TextOverflow.Ellipsis,
@@ -1730,7 +1731,7 @@ fun JellyfinListItemCard(
 
         Text(
           text = details,
-          style = MaterialTheme.typography.bodySmall,
+          style = MaterialTheme.typography.bodyMedium,
           color = MaterialTheme.colorScheme.onSurfaceVariant,
           maxLines = 1,
           overflow = TextOverflow.Ellipsis,
@@ -1739,7 +1740,7 @@ fun JellyfinListItemCard(
         if (!item.overview.isNullOrBlank()) {
           Text(
             text = item.overview,
-            style = MaterialTheme.typography.bodySmall,
+            style = MaterialTheme.typography.bodyMedium,
             color = MaterialTheme.colorScheme.outline,
             maxLines = 2,
             overflow = TextOverflow.Ellipsis,
@@ -1751,7 +1752,7 @@ fun JellyfinListItemCard(
         imageVector = Icons.RoundedFilled.ChevronRight,
         contentDescription = null,
         tint = MaterialTheme.colorScheme.onSurfaceVariant,
-        modifier = Modifier.size(20.dp),
+        modifier = Modifier.size(22.dp),
       )
     }
   }

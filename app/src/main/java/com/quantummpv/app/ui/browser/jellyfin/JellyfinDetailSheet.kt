@@ -144,7 +144,7 @@ fun JellyfinDetailSheet(
           Box(
             modifier = Modifier
               .size(64.dp)
-              .clip(if (item.type == "MusicArtist" || item.type == "Artist" || item.type == "AlbumArtist") CircleShape else RoundedCornerShape(12.dp))
+              .clip(if (item.type == "MusicArtist" || item.type == "Artist" || item.type == "AlbumArtist") CircleShape else RoundedCornerShape(8.dp))
               .background(MaterialTheme.colorScheme.surfaceVariant),
             contentAlignment = Alignment.Center,
           ) {
@@ -397,12 +397,12 @@ fun JellyfinDetailSheet(
           horizontalArrangement = Arrangement.spacedBy(16.dp),
         ) {
           Card(
-            shape = RoundedCornerShape(12.dp),
+            shape = RoundedCornerShape(8.dp),
             elevation = CardDefaults.cardElevation(defaultElevation = 8.dp),
             modifier =
               Modifier
                 .size(width = 86.dp, height = 126.dp)
-                .clip(RoundedCornerShape(12.dp)),
+                .clip(RoundedCornerShape(8.dp)),
           ) {
             RemoteImage(
               url = posterUrl,
