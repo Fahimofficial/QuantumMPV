@@ -9,6 +9,9 @@ import android.util.LruCache
 import com.quantummpv.app.domain.lyrics.Lyrics
 import com.quantummpv.app.domain.lyrics.SyncedLine
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonArray
@@ -150,40 +153,35 @@ class LyricsTranslationService(
   private suspend fun batchTranslate(
     texts: List<String>,
     targetLang: String,
-  ): List<TranslationResult> {
-    if (texts.isEmpty()) return emptyList()
-
-    // Process in chunks of 35 lines to prevent query length limits while keeping high performance
-    val results = mutableListOf<TranslationResult>()
-    val chunkSize = 35
-
-    for (chunk in texts.chunked(chunkSize)) {
-      val chunkResults = translateChunk(chunk, targetLang)
-      results.addAll(chunkResults)
-    }
-
-    return results
-  }
-
-  private fun translateChunk(
-    texts: List<String>,
-    targetLang: String,
-  ): List<TranslationResult> {
-    val delimiter = "\n---LYRIC_DELIM---\n"
-    val combinedText = texts.joinToString(delimiter) { it.ifBlank { " " } }
+  ): List<TranslationResult> = coroutineScope {
+    if (texts.isEmpty()) return@coroutineScope emptyList()
 
     val actualTargetLang = when (targetLang) {
       "romaji", "hinglish" -> "en"
       else -> targetLang
     }
 
+    texts.map { text ->
+      this@coroutineScope.async(Dispatchers.IO) {
+        translateSingleLine(text, actualTargetLang)
+      }
+    }.awaitAll()
+  }
+
+  private fun translateSingleLine(
+    text: String,
+    targetLang: String,
+  ): TranslationResult {
+    val trimmed = text.trim()
+    if (trimmed.isEmpty()) return TranslationResult("")
+
     val formBody = FormBody.Builder()
       .add("client", "gtx")
       .add("sl", "auto")
-      .add("tl", actualTargetLang)
+      .add("tl", targetLang)
       .add("dt", "t")
       .add("dt", "rm")
-      .add("q", combinedText)
+      .add("q", trimmed)
       .build()
 
     val request = Request.Builder()
@@ -195,63 +193,56 @@ class LyricsTranslationService(
     return try {
       okHttpClient.newCall(request).execute().use { response ->
         if (!response.isSuccessful) {
-          Log.w(TAG, "Translation failed HTTP ${response.code}")
-          return texts.map { TranslationResult(translation = it) }
+          Log.w(TAG, "Line translation failed HTTP ${response.code}")
+          return TranslationResult(translation = trimmed)
         }
 
-        val rawJson = response.body?.string().orEmpty()
-        parseTranslateResponse(rawJson, texts.size, delimiter, targetLang)
+        val rawJson = response.body.string()
+        parseSingleLineResponse(rawJson, trimmed)
       }
     } catch (e: Exception) {
-      Log.e(TAG, "Translation request exception: ${e.message}", e)
-      texts.map { TranslationResult(translation = it) }
+      Log.w(TAG, "Line translation exception: ${e.message}")
+      TranslationResult(translation = trimmed)
     }
   }
 
-  private fun parseTranslateResponse(
+  private fun parseSingleLineResponse(
     jsonStr: String,
-    expectedCount: Int,
-    delimiter: String,
-    targetLang: String,
-  ): List<TranslationResult> {
+    originalText: String,
+  ): TranslationResult {
     try {
       val root = json.parseToJsonElement(jsonStr).jsonArray
-      val sentencesArray = root.getOrNull(0)?.jsonArray ?: return List(expectedCount) { TranslationResult("") }
+      val sentencesArray = root.getOrNull(0)?.jsonArray ?: return TranslationResult(translation = originalText)
       val detectedLang = root.getOrNull(2)?.jsonPrimitive?.content
 
-      val fullTranslated = StringBuilder()
-      val fullRomanized = StringBuilder()
+      val transBuilder = StringBuilder()
+      var romText: String? = null
 
       for (element in sentencesArray) {
         val subArray = element.jsonArray
-        val translatedSegment = subArray.getOrNull(0)?.jsonPrimitive?.content
-        val romanizedSegment = subArray.getOrNull(3)?.jsonPrimitive?.content
+        val trans = subArray.getOrNull(0)?.jsonPrimitive?.content
+        val rom = subArray.getOrNull(3)?.jsonPrimitive?.content
           ?: subArray.getOrNull(2)?.jsonPrimitive?.content
 
-        if (!translatedSegment.isNullOrBlank() && translatedSegment != "null") {
-          fullTranslated.append(translatedSegment)
+        if (!trans.isNullOrBlank() && trans != "null") {
+          transBuilder.append(trans)
         }
-        if (!romanizedSegment.isNullOrBlank() && romanizedSegment != "null") {
-          fullRomanized.append(romanizedSegment)
+        if (!rom.isNullOrBlank() && rom != "null") {
+          romText = rom
         }
       }
 
-      val cleanDelim = "---LYRIC_DELIM---"
-      val translatedSegments = fullTranslated.toString().split(Regex("""[\n\r]*---[\s_]*LYRIC[\s_]*DELIM[\s_]*---[\n\r]*"""))
-      val romanizedSegments = fullRomanized.toString().split(Regex("""[\n\r]*---[\s_]*LYRIC[\s_]*DELIM[\s_]*---[\n\r]*"""))
+      val translated = transBuilder.toString().trim().ifEmpty { originalText }
+      val romanized = romText?.trim()?.takeIf { it.isNotBlank() }
 
-      return List(expectedCount) { index ->
-        val trans = translatedSegments.getOrNull(index)?.trim().orEmpty()
-        val rom = romanizedSegments.getOrNull(index)?.trim()
-        TranslationResult(
-          translation = trans,
-          romanization = rom,
-          detectedSourceLang = detectedLang,
-        )
-      }
+      return TranslationResult(
+        translation = translated,
+        romanization = romanized,
+        detectedSourceLang = detectedLang,
+      )
     } catch (e: Exception) {
-      Log.w(TAG, "Failed parsing translation response: ${e.message}")
-      return List(expectedCount) { TranslationResult("") }
+      Log.w(TAG, "Failed parsing single line response: ${e.message}")
+      return TranslationResult(translation = originalText)
     }
   }
 }

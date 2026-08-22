@@ -1318,14 +1318,23 @@ class JellyfinViewModel(
                 jellyfinRepository.getItems(server = server, parentId = item.id).getOrNull()?.items.orEmpty()
               }
             } else {
-              val source = _uiState.value.detailEpisodes.ifEmpty {
-                _uiState.value.musicFavorites.ifEmpty {
-                  _uiState.value.latestMusic.ifEmpty {
-                    _uiState.value.currentItems
-                  }
-                }
-              }.filter { it.isAudio || it.type == "Audio" || it.type == "Song" }
-              if (source.any { it.id == targetItem.id }) source else listOf(targetItem)
+              val potentialSources = listOf(
+                _uiState.value.detailEpisodes,
+                _uiState.value.musicTracks,
+                _uiState.value.musicJumpBackIn,
+                _uiState.value.musicFavorites,
+                _uiState.value.latestMusic,
+                _uiState.value.currentItems,
+              )
+              val matchedList = potentialSources.firstOrNull { list ->
+                list.any { it.id == targetItem.id }
+              }?.filter { it.isAudio || it.type == "Audio" || it.type == "Song" }
+
+              if (!matchedList.isNullOrEmpty() && matchedList.any { it.id == targetItem.id }) {
+                matchedList
+              } else {
+                listOf(targetItem)
+              }
             }
 
           if (audioSource.isNotEmpty()) {
