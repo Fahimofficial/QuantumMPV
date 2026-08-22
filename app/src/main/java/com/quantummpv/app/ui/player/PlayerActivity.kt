@@ -3371,6 +3371,7 @@ class PlayerActivity :
       return
     }
     if (isAdvancingAtEof) return
+    if (isBackgroundPlaybackSessionActive || !MediaPlaybackService.activityForeground) return
 
     val repeatMode = viewModel.repeatMode.value
     if (repeatMode == RepeatMode.ONE) {
