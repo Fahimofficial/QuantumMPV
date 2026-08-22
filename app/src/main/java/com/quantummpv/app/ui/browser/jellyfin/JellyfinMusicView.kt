@@ -170,6 +170,19 @@ private fun JellyfinMusicHomeContent(
       }
     }
 
+    if (uiState.musicPlaylists.isNotEmpty()) {
+      item(key = "music_playlists_row") {
+        JellyfinPlaylistsRowSection(
+          title = "Playlists",
+          playlists = uiState.musicPlaylists,
+          server = server,
+          onPlaylistClick = onItemClick,
+          onPlaylistLongClick = onItemLongClick,
+          onSeeAllClick = { onTabSelected(JellyfinMusicTab.PLAYLISTS) },
+        )
+      }
+    }
+
     if (uiState.musicRecentlyPlayedAlbums.isNotEmpty()) {
       item(key = "recently_played_albums") {
         JellyfinMusicAlbumRowSection(
@@ -205,6 +218,7 @@ fun JellyfinCompactTrackGridSection(
   server: JellyfinServer,
   onTrackClick: (JellyfinItem) -> Unit,
   modifier: Modifier = Modifier,
+  onSeeAllClick: (() -> Unit)? = null,
 ) {
   val isLandscape = LocalConfiguration.current.orientation == android.content.res.Configuration.ORIENTATION_LANDSCAPE
   val rowsCount = when {
@@ -217,12 +231,30 @@ fun JellyfinCompactTrackGridSection(
   val gridHeight = (rowsCount * rowHeight + (rowsCount - 1) * 12).dp
 
   Column(modifier = modifier) {
-    Text(
-      text = title,
-      style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.Bold),
-      color = MaterialTheme.colorScheme.onBackground,
-      modifier = Modifier.padding(start = 16.dp, bottom = 12.dp),
-    )
+    Row(
+      modifier = Modifier
+        .fillMaxWidth()
+        .padding(start = 16.dp, end = 16.dp, bottom = 12.dp),
+      horizontalArrangement = Arrangement.SpaceBetween,
+      verticalAlignment = Alignment.CenterVertically,
+    ) {
+      Text(
+        text = title,
+        style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.Bold),
+        color = MaterialTheme.colorScheme.onBackground,
+      )
+      if (onSeeAllClick != null) {
+        Text(
+          text = "See all",
+          style = MaterialTheme.typography.labelLarge.copy(fontWeight = FontWeight.SemiBold),
+          color = MaterialTheme.colorScheme.primary,
+          modifier = Modifier
+            .clip(RoundedCornerShape(8.dp))
+            .clickable(onClick = onSeeAllClick)
+            .padding(horizontal = 8.dp, vertical = 4.dp),
+        )
+      }
+    }
     LazyHorizontalGrid(
       rows = GridCells.Fixed(rowsCount),
       modifier = Modifier
@@ -293,6 +325,58 @@ fun JellyfinCompactTrackGridSection(
             }
           }
         }
+      }
+    }
+  }
+}
+
+@Composable
+fun JellyfinPlaylistsRowSection(
+  title: String,
+  playlists: List<JellyfinItem>,
+  server: JellyfinServer,
+  onPlaylistClick: (JellyfinItem) -> Unit,
+  onPlaylistLongClick: (JellyfinItem) -> Unit,
+  modifier: Modifier = Modifier,
+  onSeeAllClick: (() -> Unit)? = null,
+) {
+  Column(modifier = modifier) {
+    Row(
+      modifier = Modifier
+        .fillMaxWidth()
+        .padding(start = 16.dp, end = 16.dp, bottom = 12.dp),
+      horizontalArrangement = Arrangement.SpaceBetween,
+      verticalAlignment = Alignment.CenterVertically,
+    ) {
+      Text(
+        text = title,
+        style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.Bold),
+        color = MaterialTheme.colorScheme.onBackground,
+      )
+      if (onSeeAllClick != null) {
+        Text(
+          text = "See all",
+          style = MaterialTheme.typography.labelLarge.copy(fontWeight = FontWeight.SemiBold),
+          color = MaterialTheme.colorScheme.primary,
+          modifier = Modifier
+            .clip(RoundedCornerShape(8.dp))
+            .clickable(onClick = onSeeAllClick)
+            .padding(horizontal = 8.dp, vertical = 4.dp),
+        )
+      }
+    }
+    LazyRow(
+      horizontalArrangement = Arrangement.spacedBy(12.dp),
+      contentPadding = PaddingValues(horizontal = 16.dp),
+    ) {
+      items(playlists, key = { it.id }) { playlist ->
+        JellyfinMusicCard(
+          item = playlist,
+          server = server,
+          onClick = { onPlaylistClick(playlist) },
+          onLongClick = { onPlaylistLongClick(playlist) },
+          cardWidth = 140.dp,
+        )
       }
     }
   }
@@ -390,9 +474,10 @@ fun JellyfinMusicCard(
     title = item.name,
     subtitle = subtitle,
     artworkUrl = if (!item.primaryImageTag.isNullOrBlank()) imageUrl else null,
-    fallbackIcon = when (item.type) {
-      "MusicArtist", "Artist", "AlbumArtist" -> Icons.RoundedFilled.Person
-      "Playlist" -> Icons.RoundedFilled.QueueMusic
+    fallbackIcon = when {
+      item.id == "virtual_favorites_playlist" || item.id == "favorites" -> Icons.RoundedFilled.Favorite
+      item.type == "MusicArtist" || item.type == "Artist" || item.type == "AlbumArtist" -> Icons.RoundedFilled.Person
+      item.type == "Playlist" -> Icons.RoundedFilled.QueueMusic
       else -> Icons.RoundedFilled.Audiotrack
     },
     isCircular = item.type == "MusicArtist" || item.type == "Artist" || item.type == "AlbumArtist",

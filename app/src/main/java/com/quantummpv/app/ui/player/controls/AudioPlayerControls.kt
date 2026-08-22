@@ -99,6 +99,7 @@ import androidx.compose.runtime.setValue
 import kotlinx.coroutines.launch
 import androidx.palette.graphics.Palette
 import com.quantummpv.app.database.repository.PlaylistRepository
+import com.quantummpv.app.repository.JellyfinRepository
 import com.quantummpv.app.domain.media.model.Video
 import com.quantummpv.app.ui.browser.dialogs.AddToPlaylistDialog
 import com.quantummpv.app.ui.player.resolveUri
@@ -139,6 +140,7 @@ import androidx.core.content.ContextCompat
 import kotlin.math.roundToInt
 import com.quantummpv.app.R
 import com.quantummpv.app.domain.thumbnail.EmbeddedArtworkResolver
+import com.quantummpv.app.presentation.components.RemoteImage
 import com.quantummpv.app.preferences.AppearancePreferences
 import com.quantummpv.app.preferences.AudioPreferences
 import com.quantummpv.app.preferences.AudioVisualizerStyle
@@ -240,39 +242,43 @@ private object AudioPresentationMetadataCache {
             else -> pathOrUri
           }
         val explicitArtwork = EmbeddedArtworkResolver.decodeArtworkUri(context, artworkUri)
-        val retriever = MediaMetadataRetriever()
+        val isNetworkStream = pathOrUri.startsWith("http://", ignoreCase = true) || pathOrUri.startsWith("https://", ignoreCase = true)
+        val retriever = if (!isNetworkStream) MediaMetadataRetriever() else null
         val loaded =
           try {
-            if (cleanPath != null && java.io.File(cleanPath).canRead()) {
-              retriever.setDataSource(cleanPath)
-            } else if (pathOrUri.startsWith("content://")) {
-              val uri = Uri.parse(pathOrUri)
-              try {
-                context.contentResolver.openFileDescriptor(uri, "r")?.use { pfd ->
-                  retriever.setDataSource(pfd.fileDescriptor)
+            if (retriever != null) {
+              if (cleanPath != null && java.io.File(cleanPath).canRead()) {
+                retriever.setDataSource(cleanPath)
+              } else if (pathOrUri.startsWith("content://")) {
+                val uri = Uri.parse(pathOrUri)
+                try {
+                  context.contentResolver.openFileDescriptor(uri, "r")?.use { pfd ->
+                    retriever.setDataSource(pfd.fileDescriptor)
+                  }
+                } catch (_: Exception) {
+                  retriever.setDataSource(context, uri)
                 }
-              } catch (_: Exception) {
-                retriever.setDataSource(context, uri)
+              } else {
+                retriever.setDataSource(context, Uri.parse(pathOrUri))
               }
-            } else {
-              retriever.setDataSource(context, Uri.parse(pathOrUri))
             }
 
             AudioPresentationMetadata(
-              artwork = explicitArtwork ?: EmbeddedArtworkResolver.decodeEmbeddedArtwork(cleanPath ?: pathOrUri, retriever),
-              artist =
-                retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_ARTIST)
-                  ?: retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_ALBUMARTIST)
-                  ?: retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_AUTHOR)
-                  ?: retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_COMPOSER),
+              artwork = explicitArtwork ?: retriever?.let { EmbeddedArtworkResolver.decodeEmbeddedArtwork(cleanPath ?: pathOrUri, it) },
+              artist = retriever?.let {
+                it.extractMetadata(MediaMetadataRetriever.METADATA_KEY_ARTIST)
+                  ?: it.extractMetadata(MediaMetadataRetriever.METADATA_KEY_ALBUMARTIST)
+                  ?: it.extractMetadata(MediaMetadataRetriever.METADATA_KEY_AUTHOR)
+                  ?: it.extractMetadata(MediaMetadataRetriever.METADATA_KEY_COMPOSER)
+              },
             )
           } catch (_: Exception) {
-            val fallbackArtwork = explicitArtwork ?: if (cleanPath != null) {
+            val fallbackArtwork = explicitArtwork ?: if (cleanPath != null && !isNetworkStream) {
               EmbeddedArtworkResolver.decodeSidecar(cleanPath)
             } else null
             AudioPresentationMetadata(artwork = fallbackArtwork, artist = null)
           } finally {
-            runCatching { retriever.release() }
+            runCatching { retriever?.release() }
           }
 
         synchronized(cache) { cache.put(key, loaded) }
@@ -358,11 +364,21 @@ private fun CuboidSpectrumCaptureEffect(
 }
 
 @Composable
-private fun CoverArtCardImage(bitmap: Bitmap?) {
+private fun CoverArtCardImage(
+  bitmap: Bitmap?,
+  artworkUrl: String? = null,
+) {
   val imageBitmap = remember(bitmap) { bitmap?.asImageBitmap() }
   if (imageBitmap != null) {
     Image(
       bitmap = imageBitmap,
+      contentDescription = null,
+      contentScale = ContentScale.Crop,
+      modifier = Modifier.fillMaxSize(),
+    )
+  } else if (!artworkUrl.isNullOrBlank() && (artworkUrl.startsWith("http://", ignoreCase = true) || artworkUrl.startsWith("https://", ignoreCase = true))) {
+    RemoteImage(
+      url = artworkUrl,
       contentDescription = null,
       contentScale = ContentScale.Crop,
       modifier = Modifier.fillMaxSize(),
@@ -403,7 +419,13 @@ fun AudioPlayerControls(
   val duration by PlaybackSession.propInt["duration"].collectAsState()
   val preciseDuration by viewModel.preciseDuration.collectAsState()
   val playbackState by PlaybackSession.state.collectAsStateWithLifecycle()
-  val currentItem = playbackState.currentItem
+  val queueState by PlaybackSession.queue.collectAsStateWithLifecycle()
+  val currentItem = playbackState.currentItem ?: queueState.currentItem
+  val playlistItems by viewModel.playlistItems.collectAsState()
+  val filteredPlaylist =
+    remember(playlistItems) {
+      playlistItems.filter { it.isAudio }
+    }
 
   var showInPlaceLyrics by rememberSaveable { mutableStateOf(false) }
   var wasLyricsActiveBeforeLandscape by rememberSaveable { mutableStateOf(false) }
@@ -506,10 +528,14 @@ fun AudioPlayerControls(
       }
     }
 
+  val currentArtworkUri =
+    currentItem?.artworkUri?.takeIf { it.isNotBlank() }
+      ?: filteredPlaylist.firstOrNull { it.isPlaying || it.path == mediaPath || it.uri.toString() == mediaPath }?.tvgLogo?.takeIf { it.isNotBlank() }
+
   val currentAudioPresentation =
     rememberAudioPresentationMetadata(
       pathOrUri = mediaPath?.takeIf { it.isNotBlank() } ?: currentMediaSource,
-      artworkUri = currentItem?.artworkUri,
+      artworkUri = currentArtworkUri,
     )
   val albumArtBitmap = currentAudioPresentation?.artwork
 
@@ -608,11 +634,72 @@ fun AudioPlayerControls(
 
   val playerPreferences = koinInject<PlayerPreferences>()
   val playlistRepository = koinInject<PlaylistRepository>()
+  val jellyfinRepository = koinInject<JellyfinRepository>()
+  val jellyfinServers by jellyfinRepository.allServers.collectAsState(initial = emptyList())
   val coroutineScope = rememberCoroutineScope()
   val activeTrackPath = mediaPath?.takeIf { it.isNotBlank() } ?: currentMediaSource
-  val isCurrentTrackFavorite by remember(activeTrackPath, mediaPath) {
+
+  val jellyfinInfo = remember(activeTrackPath, mediaPath) {
+    val path = mediaPath?.takeIf { it.isNotBlank() } ?: activeTrackPath
+    if (path.isNullOrBlank()) null
+    else {
+      val uri = runCatching { Uri.parse(path) }.getOrNull()
+      if (uri == null) null
+      else {
+        val pathSegments = uri.pathSegments
+        val mediaIndex = pathSegments.indexOfFirst {
+          it.equals("Videos", ignoreCase = true) ||
+            it.equals("Audio", ignoreCase = true) ||
+            it.equals("Items", ignoreCase = true)
+        }
+        if (mediaIndex != -1 && mediaIndex + 1 < pathSegments.size) {
+          val itemId = pathSegments[mediaIndex + 1]
+          val apiKey = uri.getQueryParameter("api_key") ?: uri.getQueryParameter("ApiKey")
+          val scheme = uri.scheme ?: "http"
+          val authority = uri.encodedAuthority
+          val subPathSegments = pathSegments.subList(0, mediaIndex)
+          val baseUrl = if (authority != null) {
+            if (subPathSegments.isEmpty()) "$scheme://$authority"
+            else "$scheme://$authority/" + subPathSegments.joinToString("/")
+          } else null
+          if (itemId.isNotBlank() && baseUrl != null) {
+            Triple(baseUrl, itemId, apiKey)
+          } else null
+        } else null
+      }
+    }
+  }
+
+  val activeJellyfinServer = remember(jellyfinServers, jellyfinInfo) {
+    if (jellyfinInfo == null) null
+    else {
+      jellyfinServers.firstOrNull { s ->
+        s.serverUrl.contains(runCatching { Uri.parse(jellyfinInfo.first).host.orEmpty() }.getOrDefault("")) ||
+          (!jellyfinInfo.third.isNullOrBlank() && s.accessToken == jellyfinInfo.third)
+      } ?: jellyfinServers.firstOrNull()
+    }
+  }
+
+  var jellyfinFavoriteOverride by remember(activeTrackPath, mediaPath) { mutableStateOf<Boolean?>(null) }
+
+  LaunchedEffect(activeJellyfinServer, jellyfinInfo?.second) {
+    val server = activeJellyfinServer
+    val itemId = jellyfinInfo?.second
+    if (server != null && !itemId.isNullOrBlank()) {
+      val item = withContext(Dispatchers.IO) {
+        jellyfinRepository.getItem(server, itemId).getOrNull()
+      }
+      if (item != null) {
+        jellyfinFavoriteOverride = item.isFavorite
+      }
+    }
+  }
+
+  val isCurrentTrackFavoriteLocal by remember(activeTrackPath, mediaPath) {
     playlistRepository.observeIsFavorite((mediaPath?.takeIf { it.isNotBlank() } ?: activeTrackPath).orEmpty(), isAudio = true)
   }.collectAsState(initial = false)
+
+  val isCurrentTrackFavorite = jellyfinFavoriteOverride ?: isCurrentTrackFavoriteLocal
 
   val seekbarStyle by appearancePreferences.seekbarStyle.collectAsState()
   val invertDuration by playerPreferences.invertDuration.collectAsState()
@@ -627,12 +714,7 @@ fun AudioPlayerControls(
     viewModel.refreshPlaylistItems()
   }
 
-  val playlistItems by viewModel.playlistItems.collectAsState()
   val isAudioOnly by viewModel.isAudioOnly.collectAsState()
-  val filteredPlaylist =
-    remember(playlistItems) {
-      playlistItems.filter { it.isAudio }
-    }
 
   val configuration = LocalConfiguration.current
   val isPortrait = configuration.orientation == Configuration.ORIENTATION_PORTRAIT
@@ -1021,7 +1103,7 @@ fun AudioPlayerControls(
                   shape = coverShape,
                   color = Color.Transparent,
                 ) {
-                  CoverArtCardImage(bitmap = prevCoverBitmap)
+                  CoverArtCardImage(bitmap = prevCoverBitmap, artworkUrl = prevItem?.tvgLogo?.takeIf { it.isNotBlank() })
                 }
               }
 
@@ -1035,7 +1117,7 @@ fun AudioPlayerControls(
                   shape = coverShape,
                   color = Color.Transparent,
                 ) {
-                  CoverArtCardImage(bitmap = nextCoverBitmap)
+                  CoverArtCardImage(bitmap = nextCoverBitmap, artworkUrl = nextItem?.tvgLogo?.takeIf { it.isNotBlank() })
                 }
               }
 
@@ -1048,7 +1130,7 @@ fun AudioPlayerControls(
                 shape = coverShape,
                 color = Color.Transparent,
               ) {
-                CoverArtCardImage(bitmap = activeCoverOverride ?: albumArtBitmap)
+                CoverArtCardImage(bitmap = activeCoverOverride ?: albumArtBitmap, artworkUrl = currentArtworkUri)
               }
             }
           }
@@ -1262,8 +1344,20 @@ fun AudioPlayerControls(
             ReactiveIconButton(
               onClick = {
                 val path = mediaPath?.takeIf { it.isNotBlank() } ?: activeTrackPath ?: return@ReactiveIconButton
+                val server = activeJellyfinServer
+                val itemId = jellyfinInfo?.second
+                val newFavState = !isCurrentTrackFavorite
+
                 coroutineScope.launch {
+                  // Toggle local Room favorite state
                   playlistRepository.toggleFavorite(filePath = path, fileName = displayTitle, isAudio = true)
+                  // Toggle Jellyfin server favorite status via API if playing from Jellyfin
+                  if (server != null && !itemId.isNullOrBlank()) {
+                    jellyfinFavoriteOverride = newFavState
+                    withContext(Dispatchers.IO) {
+                      jellyfinRepository.toggleFavorite(server = server, itemId = itemId, isFavorite = newFavState)
+                    }
+                  }
                 }
               },
               modifier = Modifier.size(40.dp),
@@ -2002,7 +2096,9 @@ private fun UpNextPlaylistItemRow(
         shape = RoundedCornerShape(10.dp),
         color = if (isPlaying) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surfaceVariant,
       ) {
-          val itemImageBitmap = remember(itemCoverArt) { itemCoverArt?.asImageBitmap() }
+        val itemImageBitmap = remember(itemCoverArt) { itemCoverArt?.asImageBitmap() }
+        val hasRemoteImage = item.tvgLogo.isNotBlank() && (item.tvgLogo.startsWith("http://", ignoreCase = true) || item.tvgLogo.startsWith("https://", ignoreCase = true))
+        if (itemImageBitmap != null || hasRemoteImage) {
           if (itemImageBitmap != null) {
             Image(
               bitmap = itemImageBitmap,
@@ -2010,46 +2106,54 @@ private fun UpNextPlaylistItemRow(
               contentScale = ContentScale.Crop,
               modifier = Modifier.fillMaxSize(),
             )
-            if (isPlaying) {
-              val paused by PlaybackSession.propBoolean["pause"].collectAsState()
-              val isPlaybackActive = paused != true
-              Box(
-                modifier = Modifier
-                  .fillMaxSize()
-                  .background(Color.Black.copy(alpha = 0.45f)),
-                contentAlignment = Alignment.Center,
-              ) {
-                MiniAudioVisualizer(
-                  isPlaying = isPlaybackActive,
-                  color = MaterialTheme.colorScheme.primary,
-                  modifier = Modifier.size(width = 18.dp, height = 16.dp),
-                )
-              }
-            }
           } else {
-            if (isPlaying) {
-              val paused by PlaybackSession.propBoolean["pause"].collectAsState()
-              val isPlaybackActive = paused != true
-              Box(
-                modifier = Modifier.fillMaxSize(),
-                contentAlignment = Alignment.Center,
-              ) {
-                MiniAudioVisualizer(
-                  isPlaying = isPlaybackActive,
-                  color = MaterialTheme.colorScheme.onPrimary,
-                  modifier = Modifier.size(width = 18.dp, height = 16.dp),
-                )
-              }
-            } else {
-              Icon(
-                imageVector = Icons.RoundedFilled.Audiotrack,
-                contentDescription = null,
-                tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.size(20.dp),
+            RemoteImage(
+              url = item.tvgLogo,
+              contentDescription = null,
+              contentScale = ContentScale.Crop,
+              modifier = Modifier.fillMaxSize(),
+            )
+          }
+          if (isPlaying) {
+            val paused by PlaybackSession.propBoolean["pause"].collectAsState()
+            val isPlaybackActive = paused != true
+            Box(
+              modifier = Modifier
+                .fillMaxSize()
+                .background(Color.Black.copy(alpha = 0.45f)),
+              contentAlignment = Alignment.Center,
+            ) {
+              MiniAudioVisualizer(
+                isPlaying = isPlaybackActive,
+                color = MaterialTheme.colorScheme.primary,
+                modifier = Modifier.size(width = 18.dp, height = 16.dp),
               )
             }
           }
+        } else {
+          if (isPlaying) {
+            val paused by PlaybackSession.propBoolean["pause"].collectAsState()
+            val isPlaybackActive = paused != true
+            Box(
+              modifier = Modifier.fillMaxSize(),
+              contentAlignment = Alignment.Center,
+            ) {
+              MiniAudioVisualizer(
+                isPlaying = isPlaybackActive,
+                color = MaterialTheme.colorScheme.onPrimary,
+                modifier = Modifier.size(width = 18.dp, height = 16.dp),
+              )
+            }
+          } else {
+            Icon(
+              imageVector = Icons.RoundedFilled.Audiotrack,
+              contentDescription = null,
+              tint = MaterialTheme.colorScheme.onSurfaceVariant,
+              modifier = Modifier.size(20.dp),
+            )
+          }
         }
+      }
 
       Spacer(modifier = Modifier.width(12.dp))
 

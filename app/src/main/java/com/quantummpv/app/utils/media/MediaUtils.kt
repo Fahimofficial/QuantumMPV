@@ -85,6 +85,7 @@ object MediaUtils {
     playlist: List<Uri> = emptyList(),
     playlistIndex: Int = 0,
     playlistTitles: List<String> = emptyList(),
+    playlistArtworkUrls: List<String> = emptyList(),
     isAudio: Boolean = false,
   ) {
     val uri =
@@ -145,6 +146,8 @@ object MediaUtils {
             playlist = playlist,
             playlistIndex = playlistIndex,
             playlistTitles = playlistTitles,
+            playlistArtworkUrls = playlistArtworkUrls,
+            isAudio = isAudio,
           )
           context.startActivity(intent)
           return
@@ -228,6 +231,7 @@ object MediaUtils {
       playlist = playlist,
       playlistIndex = playlistIndex,
       playlistTitles = playlistTitles,
+      playlistArtworkUrls = playlistArtworkUrls,
       isAudio = isAudio,
     )
     context.startActivity(intent)
@@ -287,6 +291,7 @@ object MediaUtils {
     playlist: List<Uri> = emptyList(),
     playlistIndex: Int = 0,
     playlistTitles: List<String> = emptyList(),
+    playlistArtworkUrls: List<String> = emptyList(),
     isAudio: Boolean = false,
   ) {
     if (isAudio) {
@@ -301,6 +306,10 @@ object MediaUtils {
       if (playlistTitles.isNotEmpty()) {
         val titlesArrayList = if (playlistTitles is ArrayList) playlistTitles else ArrayList(playlistTitles)
         intent.putStringArrayListExtra("playlist_titles", titlesArrayList)
+      }
+      if (playlistArtworkUrls.isNotEmpty()) {
+        val artworksArrayList = if (playlistArtworkUrls is ArrayList) playlistArtworkUrls else ArrayList(playlistArtworkUrls)
+        intent.putStringArrayListExtra("playlist_artwork_urls", artworksArrayList)
       }
     }
     launchSource?.let { intent.putExtra("launch_source", it) }

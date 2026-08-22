@@ -84,6 +84,8 @@ data class JellyfinItem(
   val isFolder: Boolean = false,
   val primaryImageTag: String? = null,
   val backdropImageTag: String? = null,
+  val albumId: String? = null,
+  val albumPrimaryImageTag: String? = null,
   val childCount: Int? = null,
   val container: String? = null,
   val videoCodec: String? = null,

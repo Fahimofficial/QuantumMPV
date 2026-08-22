@@ -69,7 +69,7 @@ fun RemoteImage(
   }
 }
 
-private object RemoteImageLoader {
+internal object RemoteImageLoader {
   private const val MAX_IMAGE_DIMENSION = 1024
   private const val CACHE_DIRECTORY = "remote_images"
   private val memoryCache =
@@ -83,6 +83,10 @@ private object RemoteImageLoader {
     }
 
   fun getFromMemory(url: String): Bitmap? = synchronized(memoryCache) { memoryCache.get(url) }
+
+  fun putInMemory(url: String, bitmap: Bitmap) {
+    synchronized(memoryCache) { memoryCache.put(url, bitmap) }
+  }
 
   fun load(
     context: Context,

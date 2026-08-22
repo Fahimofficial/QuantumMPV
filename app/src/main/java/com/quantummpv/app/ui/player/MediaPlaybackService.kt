@@ -736,11 +736,9 @@ class MediaPlaybackService :
           EmbeddedArtworkResolver.decodeArtworkUri(this@MediaPlaybackService, artworkUri)
         } ?: return@launch
       if (mediaIdentifier != expectedIdentifier) {
-        loaded.recycle()
         return@launch
       }
       val changed = replaceOwnedThumbnail(loaded)
-      loaded.recycle()
       if (changed) {
         refreshNotificationPalette()
         updateMediaSessionMetadata()

@@ -77,6 +77,7 @@ fun AddJellyfinServerDialog(
   isOpen: Boolean,
   isLoading: Boolean,
   errorMessage: String?,
+  initialServer: JellyfinServer? = null,
   onDismiss: () -> Unit,
   onConnect: (serverUrl: String, serverName: String, authMode: JellyfinAuthMode, username: String, password: String, token: String) -> Unit,
 ) {
@@ -84,13 +85,13 @@ fun AddJellyfinServerDialog(
 
   val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
 
-  var serverUrl by remember { mutableStateOf("") }
-  var serverName by remember { mutableStateOf("") }
-  var authMode by remember { mutableStateOf(JellyfinAuthMode.CREDENTIALS) }
-  var username by remember { mutableStateOf("") }
-  var password by remember { mutableStateOf("") }
+  var serverUrl by remember(initialServer) { mutableStateOf(initialServer?.serverUrl ?: "") }
+  var serverName by remember(initialServer) { mutableStateOf(initialServer?.name ?: "") }
+  var authMode by remember(initialServer) { mutableStateOf(JellyfinAuthMode.CREDENTIALS) }
+  var username by remember(initialServer) { mutableStateOf(initialServer?.username ?: "") }
+  var password by remember(initialServer) { mutableStateOf("") }
   var isPasswordVisible by remember { mutableStateOf(false) }
-  var token by remember { mutableStateOf("") }
+  var token by remember(initialServer) { mutableStateOf("") }
 
   val canConnect =
     serverUrl.isNotBlank() &&

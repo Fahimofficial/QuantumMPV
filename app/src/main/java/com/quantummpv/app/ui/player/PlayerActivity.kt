@@ -336,6 +336,7 @@ class PlayerActivity :
    */
   private var networkPlaylistPaths: List<String> = emptyList()
   private var networkPlaylistTitles: List<String> = emptyList()
+  private var networkPlaylistArtworkUrls: List<String> = emptyList()
   private var networkPlaylistHeaders: List<Map<String, String>> = emptyList()
   private var networkPlaylistConnectionId: Long = -1L
 
@@ -6599,6 +6600,10 @@ class PlayerActivity :
         ?: intent.getStringArrayListExtra("playlist_titles")
         ?: intent.getStringArrayListExtra("titles")
         ?: emptyList()
+    networkPlaylistArtworkUrls =
+      intent.getStringArrayListExtra("playlist_artwork_urls")
+        ?: intent.getStringArrayListExtra("network_playlist_artwork_urls")
+        ?: emptyList()
     networkPlaylistHeaders = emptyList()
     networkPlaylistConnectionId = intent.getLongExtra("network_playlist_connection_id", -1L)
   }
@@ -6637,6 +6642,8 @@ class PlayerActivity :
   }
 
   private fun publishPlaylistToSession() {
+    val existingQueueItems = PlaybackSession.queue.value.items
+    val launchPosterUrl = intent.getStringExtra(MediaUtils.EXTRA_MEDIA_POSTER_URL)
     val items =
       playlist.mapIndexed { index, uri ->
         val databaseItem = playlistItems.getOrNull(index)
@@ -6664,6 +6671,8 @@ class PlayerActivity :
             ?.let { userAgent -> mapOf("User-Agent" to userAgent) }
             .orEmpty()
         val headers = buildPlaybackHeaders(uri, networkPlaylistHeaders.getOrNull(index).orEmpty(), storedHeaders)
+        val existingArtwork =
+          existingQueueItems.firstOrNull { it.originalUri == uri.toString() || it.playableUri == uri.toString() }?.artworkUri
 
         PlaybackItem.fromUri(
           uri = uri.toString(),
@@ -6673,7 +6682,11 @@ class PlayerActivity :
           headers = headers,
           networkSource = networkSource,
           playlistItemId = databaseItem?.id,
-          artworkUri = databaseItem?.tvgLogo,
+          artworkUri =
+            databaseItem?.tvgLogo?.takeIf { it.isNotBlank() }
+              ?: networkPlaylistArtworkUrls.getOrNull(index)?.takeIf { it.isNotBlank() }
+              ?: existingArtwork
+              ?: (if (index == playlistIndex) launchPosterUrl else null),
         )
       }
 
