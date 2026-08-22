@@ -53,12 +53,13 @@ import androidx.compose.runtime.setValue
 import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.BlurredEdgeTreatment
-import androidx.compose.ui.draw.blur
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.BlendMode
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.CompositingStrategy
 import androidx.compose.ui.graphics.Shadow
 import androidx.compose.ui.graphics.TransformOrigin
 import androidx.compose.ui.graphics.graphicsLayer
@@ -101,33 +102,23 @@ fun LyricsView(
   // Position polls arrive every 50-500ms; per-letter animation needs a per-frame clock.
   val smoothPositionMs = rememberSmoothedPositionMs(currentPosMs, paused == false, playbackSpeed ?: 1f)
 
-  // BetterLyrics-style focus: glide the active line to the vertical center of the viewport
-  // instead of pinning it near the top.
+  // Autoscroll: scroll current active line to the top
   LaunchedEffect(state.activeLineIndex, isLyricsFullscreen, lyricsViewportPx) {
     val target = state.activeLineIndex
     if (target < 0) return@LaunchedEffect
     runCatching {
-      val layout = listState.layoutInfo
-      val viewportCenter = (layout.viewportStartOffset + layout.viewportEndOffset) / 2
-      val item = layout.visibleItemsInfo.firstOrNull { it.index == target }
-      if (item != null) {
-        val itemCenter = item.offset + item.size / 2
-        listState.animateScrollBy(
-          (itemCenter - viewportCenter).toFloat(),
-          animationSpec = tween(durationMillis = 650, easing = FastOutSlowInEasing),
-        )
+      if (target == 0) {
+        listState.animateScrollToItem(0)
       } else {
-        // Line is off-screen (seek/jump): land near mid-viewport, then fine-center it.
-        val viewportHeight = layout.viewportEndOffset - layout.viewportStartOffset
-        listState.scrollToItem(target, scrollOffset = -viewportHeight / 2)
-        val settled = listState.layoutInfo
-        val settledCenter = (settled.viewportStartOffset + settled.viewportEndOffset) / 2
-        settled.visibleItemsInfo.firstOrNull { it.index == target }?.let { visible ->
-          val itemCenter = visible.offset + visible.size / 2
+        val topOffset = with(density) { 16.dp.roundToPx() }
+        val item = listState.layoutInfo.visibleItemsInfo.firstOrNull { it.index == target }
+        if (item != null) {
           listState.animateScrollBy(
-            (itemCenter - settledCenter).toFloat(),
-            animationSpec = tween(durationMillis = 350, easing = FastOutSlowInEasing),
+            (item.offset - topOffset).toFloat(),
+            animationSpec = tween(durationMillis = 500, easing = FastOutSlowInEasing),
           )
+        } else {
+          listState.animateScrollToItem(target, scrollOffset = 0)
         }
       }
     }
@@ -224,7 +215,7 @@ fun LyricsView(
         Spacer(modifier = Modifier.height(14.dp))
       }
 
-      // Edge-to-Edge Synced Lyrics Scroll Area
+      // Edge-to-Edge Synced Lyrics Scroll Area with bottom 33% gradient fade
       Box(
         modifier = Modifier
           .weight(1f)
@@ -248,14 +239,24 @@ fun LyricsView(
           }
 
           activeLyrics != null && !activeLyrics.synced.isNullOrEmpty() -> {
-            // Half-viewport insets let the first and last lines reach the exact center.
-            val centerInset =
-              with(density) { (lyricsViewportPx / 2 - 48.dp.roundToPx()).coerceAtLeast(0).toDp() }
             LazyColumn(
               state = listState,
-              modifier = Modifier.fillMaxSize(),
-              verticalArrangement = Arrangement.spacedBy(20.dp),
-              contentPadding = PaddingValues(top = centerInset, bottom = centerInset),
+              modifier = Modifier
+                .fillMaxSize()
+                .graphicsLayer { compositingStrategy = CompositingStrategy.Offscreen }
+                .drawWithContent {
+                  drawContent()
+                  drawRect(
+                    brush = Brush.verticalGradient(
+                      0.0f to Color.Black,
+                      0.67f to Color.Black,
+                      1.0f to Color.Transparent,
+                    ),
+                    blendMode = BlendMode.DstIn,
+                  )
+                },
+              verticalArrangement = Arrangement.spacedBy(18.dp),
+              contentPadding = PaddingValues(top = 16.dp, bottom = 220.dp),
             ) {
               itemsIndexed(
                 items = activeLyrics.synced,
@@ -288,49 +289,26 @@ fun LyricsView(
                 val distanceFromActive =
                   if (state.activeLineIndex >= 0) kotlin.math.abs(index - state.activeLineIndex) else 0
 
-                // Falloff by distance rather than a flat inactive value, so the eye is pulled to
-                // the sung line instead of a wall of evenly dim text.
                 val lineAlpha by animateFloatAsState(
                   targetValue =
                     when {
                       isActiveLine -> 1.0f
-                      distanceFromActive == 1 -> 0.52f
-                      distanceFromActive == 2 -> 0.30f
-                      distanceFromActive == 3 -> 0.18f
-                      else -> 0.10f
+                      distanceFromActive == 1 -> 0.70f
+                      distanceFromActive == 2 -> 0.50f
+                      else -> 0.38f
                     },
-                  animationSpec = tween(durationMillis = if (isActiveLine) 330 else 500, easing = FastOutSlowInEasing),
+                  animationSpec = tween(durationMillis = if (isActiveLine) 250 else 400, easing = FastOutSlowInEasing),
                   label = "LineAlpha",
                 )
 
-                // Depth of field: distant lines defocus. No-op below API 31, which degrades to
-                // the alpha falloff alone.
-                val lineBlur by animateFloatAsState(
-                  targetValue =
-                    when {
-                      isActiveLine -> 0f
-                      distanceFromActive == 1 -> 2f
-                      distanceFromActive == 2 -> 5f
-                      else -> 12f
-                    },
-                  animationSpec = tween(durationMillis = 300, easing = FastOutSlowInEasing),
-                  label = "LineBlur",
-                )
-
                 val lineScale by animateFloatAsState(
-                  targetValue = if (isActiveLine) 1f else 0.92f,
-                  animationSpec = spring(dampingRatio = 0.75f, stiffness = 220f),
+                  targetValue = if (isActiveLine) 1.02f else 1.0f,
+                  animationSpec = spring(dampingRatio = 0.80f, stiffness = 280f),
                   label = "LineScale",
                 )
 
-                val lineTranslationY by animateFloatAsState(
-                  targetValue = if (isActiveLine) 0f else (index - state.activeLineIndex) * 1.5f,
-                  animationSpec = spring(dampingRatio = 0.85f, stiffness = Spring.StiffnessLow),
-                  label = "LineTranslationY",
-                )
-
                 val activeColor = Color.White
-                val inactiveColor = Color.White.copy(alpha = 0.45f)
+                val inactiveColor = Color.White.copy(alpha = 0.55f)
 
                 val lineColor by animateColorAsState(
                   targetValue = if (isActiveLine) activeColor else inactiveColor,
@@ -341,10 +319,8 @@ fun LyricsView(
                 Column(
                   modifier = Modifier
                     .fillMaxWidth()
-                    .blur(radiusX = lineBlur.dp, radiusY = lineBlur.dp, edgeTreatment = BlurredEdgeTreatment.Unbounded)
                     .graphicsLayer {
                       alpha = lineAlpha
-                      translationY = lineTranslationY
                       scaleX = lineScale
                       scaleY = lineScale
                       transformOrigin = TransformOrigin(0.5f, 0.5f)
@@ -424,8 +400,22 @@ fun LyricsView(
 
           activeLyrics != null && !activeLyrics.plain.isNullOrEmpty() -> {
             LazyColumn(
-              modifier = Modifier.fillMaxSize(),
+              modifier = Modifier
+                .fillMaxSize()
+                .graphicsLayer { compositingStrategy = CompositingStrategy.Offscreen }
+                .drawWithContent {
+                  drawContent()
+                  drawRect(
+                    brush = Brush.verticalGradient(
+                      0.0f to Color.Black,
+                      0.67f to Color.Black,
+                      1.0f to Color.Transparent,
+                    ),
+                    blendMode = BlendMode.DstIn,
+                  )
+                },
               verticalArrangement = Arrangement.spacedBy(14.dp),
+              contentPadding = PaddingValues(top = 16.dp, bottom = 220.dp),
             ) {
               itemsIndexed(
                 items = activeLyrics.plain,
