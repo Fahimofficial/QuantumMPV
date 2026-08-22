@@ -17,8 +17,13 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
 import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutVertically
+import androidx.compose.foundation.background
+import androidx.compose.foundation.gestures.detectTapGestures
+import com.quantummpv.app.ui.browser.fab.FabScrollHelper
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.WindowInsets
@@ -65,6 +70,8 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.unit.dp
@@ -354,8 +361,9 @@ fun MediaLibraryContent(forceAudio: Boolean = false) {
     context.startActivity(intent)
   }
 
-  BackHandler(enabled = selectionManager.isInSelectionMode || isSearching) {
+  BackHandler(enabled = selectionManager.isInSelectionMode || isSearching || (isFabExpanded.value && !quickPlayFabDirect)) {
     when {
+      isFabExpanded.value && !quickPlayFabDirect -> isFabExpanded.value = false
       selectionManager.isInSelectionMode -> selectionManager.clear()
       isSearching -> {
         isSearching = false
@@ -494,40 +502,42 @@ fun MediaLibraryContent(forceAudio: Boolean = false) {
       }
     },
     floatingActionButton = {
-      if (filteredVideosWithInfo.isNotEmpty()) {
-        FloatingActionButtonMenu(
-          modifier = Modifier.padding(bottom = (navigationBarHeight - 16.dp).coerceAtLeast(0.dp)),
-          expanded = isFabExpanded.value && !quickPlayFabDirect,
-          button = {
-            TooltipBox(
-              positionProvider =
-                TooltipDefaults.rememberTooltipPositionProvider(
-                  if (isFabExpanded.value && !quickPlayFabDirect) {
-                    TooltipAnchorPosition.Start
-                  } else {
-                    TooltipAnchorPosition.Above
-                  },
+      val isFabShouldBeVisible =
+        filteredVideosWithInfo.isNotEmpty() &&
+          showQuickPlayFab &&
+          !selectionManager.isInSelectionMode &&
+          isFabVisible.value &&
+          !MainScreen.getPermissionDeniedState()
+
+      FloatingActionButtonMenu(
+        modifier = Modifier.padding(bottom = (navigationBarHeight - 16.dp).coerceAtLeast(0.dp)),
+        expanded = isFabExpanded.value && !quickPlayFabDirect,
+        button = {
+          TooltipBox(
+            positionProvider =
+              TooltipDefaults.rememberTooltipPositionProvider(
+                if (isFabExpanded.value && !quickPlayFabDirect) {
+                  TooltipAnchorPosition.Start
+                } else {
+                  TooltipAnchorPosition.Above
+                },
+              ),
+            tooltip = {
+              PlainTooltip {
+                Text(
+                  androidx.compose.ui.res.stringResource(com.quantummpv.app.R.string.ui_toggle_menu),
+                )
+              }
+            },
+            state = rememberTooltipState(),
+          ) {
+            ToggleFloatingActionButton(
+              modifier =
+                Modifier.animateFloatingActionButton(
+                  visible = isFabShouldBeVisible,
+                  alignment = Alignment.BottomEnd,
                 ),
-              tooltip = {
-                PlainTooltip {
-                  Text(
-                    androidx.compose.ui.res.stringResource(com.quantummpv.app.R.string.ui_toggle_menu),
-                  )
-                }
-              },
-              state = rememberTooltipState(),
-            ) {
-              ToggleFloatingActionButton(
-                modifier =
-                  Modifier.animateFloatingActionButton(
-                    visible =
-                      showQuickPlayFab &&
-                        !selectionManager.isInSelectionMode &&
-                        isFabVisible.value &&
-                        !MainScreen.getPermissionDeniedState(),
-                    alignment = Alignment.BottomEnd,
-                  ),
-                checked = isFabExpanded.value && !quickPlayFabDirect,
+              checked = isFabExpanded.value && !quickPlayFabDirect,
                 onCheckedChange = {
                   if (quickPlayFabDirect) {
                     coroutineScope.launch {
@@ -606,9 +616,8 @@ fun MediaLibraryContent(forceAudio: Boolean = false) {
             )
           }
         }
-      }
-    },
-  ) { padding ->
+      },
+    ) { padding ->
     val autoScrollToLastPlayed by browserPreferences.autoScrollToLastPlayed.collectAsState()
     val videosWereDeletedOrMoved = false
 
@@ -695,10 +704,17 @@ fun MediaLibraryContent(forceAudio: Boolean = false) {
               modifier = Modifier.fillMaxSize(),
               showFloatingBottomBar = showFloatingBottomBar,
               mediaLayoutMode = mediaLayoutMode,
+              isFabExpanded = isFabExpanded.value,
+              onFabExpandedChange = { isFabExpanded.value = it },
             )
           }
         }
       }
+
+      FabScrollHelper.FabScrim(
+        visible = isFabExpanded.value && !quickPlayFabDirect,
+        onDismiss = { isFabExpanded.value = false },
+      )
 
       AnimatedVisibility(
         visible = showFloatingBottomBar,

@@ -14,6 +14,12 @@ import android.widget.Toast
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.foundation.background
+import androidx.compose.foundation.gestures.detectTapGestures
+import com.quantummpv.app.ui.browser.fab.FabScrollHelper
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
@@ -56,7 +62,9 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.stringResource
@@ -223,6 +231,9 @@ object RecentlyPlayedScreen : Screen {
         )
       },
       floatingActionButton = {
+        val isFabShouldBeVisible =
+          showQuickPlayFab && !selectionManager.isInSelectionMode && isFabVisible.value && recentItems.isNotEmpty()
+
         FloatingActionButtonMenu(
           modifier =
             Modifier
@@ -252,7 +263,7 @@ object RecentlyPlayedScreen : Screen {
                 modifier =
                   Modifier
                     .animateFloatingActionButton(
-                      visible = showQuickPlayFab && !selectionManager.isInSelectionMode && isFabVisible.value,
+                      visible = isFabShouldBeVisible,
                       alignment = Alignment.BottomEnd,
                     ),
                 checked = isFabExpanded.value && !quickPlayFabDirect,
@@ -356,15 +367,18 @@ object RecentlyPlayedScreen : Screen {
         }
       },
     ) { padding ->
-      when {
-        !enableRecentlyPlayed -> {
-          Box(
-            modifier =
-              Modifier
-                .fillMaxSize()
-                .padding(padding),
-            contentAlignment = Alignment.Center,
-          ) {
+      Box(
+        modifier =
+          Modifier
+            .fillMaxSize()
+            .padding(padding),
+      ) {
+        when {
+          !enableRecentlyPlayed -> {
+            Box(
+              modifier = Modifier.fillMaxSize(),
+              contentAlignment = Alignment.Center,
+            ) {
             EmptyState(
               icon = Icons.RoundedFilled.History,
               title = stringResource(R.string.ui_recently_played_disabled),
@@ -375,10 +389,7 @@ object RecentlyPlayedScreen : Screen {
 
         isLoading && recentItems.isEmpty() -> {
           Box(
-            modifier =
-              Modifier
-                .fillMaxSize()
-                .padding(padding),
+            modifier = Modifier.fillMaxSize(),
             contentAlignment = Alignment.Center,
           ) {
             CircularProgressIndicator(
@@ -390,10 +401,7 @@ object RecentlyPlayedScreen : Screen {
 
         recentItems.isEmpty() && !isLoading -> {
           Box(
-            modifier =
-              Modifier
-                .fillMaxSize()
-                .padding(padding),
+            modifier = Modifier.fillMaxSize(),
             contentAlignment = Alignment.Center,
           ) {
             EmptyState(
@@ -428,7 +436,7 @@ object RecentlyPlayedScreen : Screen {
               // Navigate to playlist detail screen
               backStack.add(PlaylistDetailScreen(playlistItem.playlist.id))
             },
-            modifier = Modifier.padding(padding),
+            modifier = Modifier,
             isInSelectionMode = selectionManager.isInSelectionMode,
             listState = listState,
             gridState = gridState,
@@ -503,8 +511,14 @@ object RecentlyPlayedScreen : Screen {
         onDismiss = { showLinkDialog.value = false },
         onPlayLink = { url -> MediaUtils.playFile(url, context, "play_link") },
       )
+
+      FabScrollHelper.FabScrim(
+        visible = isFabExpanded.value && !quickPlayFabDirect,
+        onDismiss = { isFabExpanded.value = false },
+      )
     }
   }
+}
 }
 
 @Composable

@@ -15,7 +15,12 @@ import android.util.Log
 import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.background
+import androidx.compose.foundation.gestures.detectTapGestures
+import com.quantummpv.app.ui.browser.fab.FabScrollHelper
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
@@ -75,7 +80,9 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.res.stringResource
@@ -690,6 +697,14 @@ object FolderListScreen : Screen {
           }
         },
         floatingActionButton = {
+          val isFabShouldBeVisible =
+            showQuickPlayFab &&
+              !selectionManager.isInSelectionMode &&
+              isFabVisible.value &&
+              !com.quantummpv.app.ui.browser.MainScreen
+                .getPermissionDeniedState() &&
+              !(isDualPaneActive && selectedFolderBucketId != null)
+
           FloatingActionButtonMenu(
             modifier = Modifier.padding(bottom = (navigationBarHeight - 16.dp).coerceAtLeast(0.dp)),
             expanded = isFabExpanded.value && !quickPlayFabDirect,
@@ -716,13 +731,7 @@ object FolderListScreen : Screen {
                 ToggleFloatingActionButton(
                   modifier =
                     Modifier.animateFloatingActionButton(
-                      visible =
-                        showQuickPlayFab &&
-                          !selectionManager.isInSelectionMode &&
-                          isFabVisible.value &&
-                          !com.quantummpv.app.ui.browser.MainScreen
-                            .getPermissionDeniedState() &&
-                          !(isDualPaneActive && selectedFolderBucketId != null),
+                      visible = isFabShouldBeVisible,
                       alignment = Alignment.BottomEnd,
                     ),
                   checked = isFabExpanded.value && !quickPlayFabDirect,
@@ -956,6 +965,11 @@ object FolderListScreen : Screen {
               Modifier
                 .align(Alignment.BottomCenter)
                 .padding(bottom = 0.dp),
+          )
+
+          FabScrollHelper.FabScrim(
+            visible = isFabExpanded.value && !quickPlayFabDirect,
+            onDismiss = { isFabExpanded.value = false },
           )
         }
       }

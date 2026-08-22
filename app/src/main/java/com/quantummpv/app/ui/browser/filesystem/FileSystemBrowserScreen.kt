@@ -17,8 +17,13 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.spring
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
 import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutVertically
+import androidx.compose.foundation.background
+import androidx.compose.foundation.gestures.detectTapGestures
+import com.quantummpv.app.ui.browser.fab.FabScrollHelper
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
@@ -72,7 +77,9 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.res.stringResource
@@ -635,6 +642,13 @@ fun FileSystemBrowserScreen(path: String? = null) {
         val navigationBarHeight = com.quantummpv.app.ui.browser.LocalNavigationBarHeight.current
         val miniPlayerClearance = com.quantummpv.app.ui.browser.NavigationBarState.miniPlayerClearance
         if (isAtRoot) {
+          val isFabShouldBeVisible =
+            showQuickPlayFab &&
+              !isInSelectionMode &&
+              isFabVisible.value &&
+              !com.quantummpv.app.ui.browser.MainScreen
+                .getPermissionDeniedState()
+
           FloatingActionButtonMenu(
             modifier =
               Modifier.padding(
@@ -665,12 +679,7 @@ fun FileSystemBrowserScreen(path: String? = null) {
                   modifier =
                     Modifier
                       .animateFloatingActionButton(
-                        visible =
-                          showQuickPlayFab &&
-                            !isInSelectionMode &&
-                            isFabVisible.value &&
-                            !com.quantummpv.app.ui.browser.MainScreen
-                              .getPermissionDeniedState(),
+                        visible = isFabShouldBeVisible,
                         alignment = Alignment.BottomEnd,
                       ),
                   checked = isFabExpanded.value && !quickPlayFabDirect,
@@ -768,8 +777,8 @@ fun FileSystemBrowserScreen(path: String? = null) {
             }
           }
         }
-      },
-    ) { padding ->
+      }
+  ) { padding ->
       Box(modifier = Modifier.padding(padding)) {
         if (isPermissionSetupCompleted && permissionState.status == PermissionStatus.Granted) {
             if (isSearching) {
@@ -882,6 +891,11 @@ fun FileSystemBrowserScreen(path: String? = null) {
             modifier = Modifier,
           )
         }
+
+        FabScrollHelper.FabScrim(
+          visible = isFabExpanded.value && !quickPlayFabDirect,
+          onDismiss = { isFabExpanded.value = false },
+        )
       }
     }
 
