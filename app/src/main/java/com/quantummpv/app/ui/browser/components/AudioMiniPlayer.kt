@@ -52,6 +52,7 @@ import com.quantummpv.app.ui.icons.Icons
 import com.quantummpv.app.ui.player.MediaPlaybackService
 import com.quantummpv.app.ui.player.PlaybackSession
 import com.quantummpv.app.ui.player.PlayerActivity
+import com.quantummpv.app.ui.player.controls.components.MiniAudioVisualizer
 
 @Composable
 fun AudioMiniPlayer(modifier: Modifier = Modifier) {
@@ -125,11 +126,11 @@ fun AudioMiniPlayer(modifier: Modifier = Modifier) {
             .background(MaterialTheme.colorScheme.surfaceVariant),
         contentAlignment = Alignment.Center,
       ) {
-        Icon(
-          imageVector = Icons.RoundedFilled.Audiotrack,
-          contentDescription = null,
-          tint = MaterialTheme.colorScheme.primary,
-          modifier = Modifier.size(24.dp),
+        MiniAudioVisualizer(
+          isPlaying = isPlaying,
+          color = MaterialTheme.colorScheme.primary,
+          modifier = Modifier.size(width = 20.dp, height = 18.dp),
+          barCount = 3,
         )
       }
 
@@ -148,12 +149,23 @@ fun AudioMiniPlayer(modifier: Modifier = Modifier) {
           overflow = TextOverflow.Ellipsis,
           modifier = Modifier.basicMarquee(),
         )
-        Text(
-          text = if (isPlaying) "Playing" else "Paused",
-          style = MaterialTheme.typography.labelSmall,
-          color = MaterialTheme.colorScheme.onSurfaceVariant,
-          maxLines = 1,
-        )
+        Row(
+          verticalAlignment = Alignment.CenterVertically,
+          horizontalArrangement = Arrangement.spacedBy(5.dp),
+        ) {
+          MiniAudioVisualizer(
+            isPlaying = isPlaying,
+            color = MaterialTheme.colorScheme.primary,
+            modifier = Modifier.size(width = 12.dp, height = 10.dp),
+            barCount = 3,
+          )
+          Text(
+            text = if (isPlaying) "Playing" else "Paused",
+            style = MaterialTheme.typography.labelSmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            maxLines = 1,
+          )
+        }
       }
 
       Spacer(modifier = Modifier.width(8.dp))

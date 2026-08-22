@@ -27,6 +27,8 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -40,6 +42,8 @@ import com.quantummpv.app.presentation.components.RemoteImage
 import com.quantummpv.app.ui.icons.AppIcon
 import com.quantummpv.app.ui.icons.Icon
 import com.quantummpv.app.ui.icons.Icons
+import com.quantummpv.app.ui.player.PlaybackSession
+import com.quantummpv.app.ui.player.controls.components.MiniAudioVisualizer
 import com.quantummpv.app.ui.theme.AppShapeScale
 
 @OptIn(ExperimentalFoundationApi::class)
@@ -130,17 +134,18 @@ fun SharedMusicTrackListItem(
             )
           }
         } else if (isPlaying) {
+          val paused by PlaybackSession.propBoolean["pause"].collectAsState()
+          val isPlaybackActive = paused != true
           Box(
             modifier = Modifier
               .fillMaxSize()
               .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.55f)),
             contentAlignment = Alignment.Center,
           ) {
-            Icon(
-              imageVector = Icons.RoundedFilled.Audiotrack,
-              contentDescription = "Playing",
-              tint = Color.White,
-              modifier = Modifier.size(22.dp),
+            MiniAudioVisualizer(
+              isPlaying = isPlaybackActive,
+              color = Color.White,
+              modifier = Modifier.size(width = 18.dp, height = 16.dp),
             )
           }
         }
@@ -149,32 +154,15 @@ fun SharedMusicTrackListItem(
       Spacer(modifier = Modifier.width(14.dp))
 
       Column(modifier = Modifier.weight(1f)) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-          Text(
-            text = title,
-            style = MaterialTheme.typography.bodyLarge.copy(
-              fontWeight = if (isPlaying) FontWeight.Bold else FontWeight.SemiBold,
-            ),
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis,
-            color = if (isPlaying) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface,
-            modifier = Modifier.weight(1f, fill = false),
-          )
-          if (isPlaying) {
-            Spacer(modifier = Modifier.width(6.dp))
-            Surface(
-              shape = RoundedCornerShape(4.dp),
-              color = MaterialTheme.colorScheme.primary,
-            ) {
-              Text(
-                text = "PLAYING",
-                style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold),
-                color = MaterialTheme.colorScheme.onPrimary,
-                modifier = Modifier.padding(horizontal = 5.dp, vertical = 1.dp),
-              )
-            }
-          }
-        }
+        Text(
+          text = title,
+          style = MaterialTheme.typography.bodyLarge.copy(
+            fontWeight = if (isPlaying) FontWeight.Bold else FontWeight.SemiBold,
+          ),
+          maxLines = 1,
+          overflow = TextOverflow.Ellipsis,
+          color = if (isPlaying) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface,
+        )
         if (!subtitle.isNullOrBlank()) {
           Text(
             text = subtitle,

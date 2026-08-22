@@ -100,6 +100,7 @@ import kotlinx.coroutines.launch
 import androidx.palette.graphics.Palette
 import com.quantummpv.app.domain.media.model.Video
 import com.quantummpv.app.ui.browser.dialogs.AddToPlaylistDialog
+import com.quantummpv.app.ui.player.controls.components.MiniAudioVisualizer
 import com.quantummpv.app.ui.player.controls.components.sheets.PlaylistItem
 import sh.calvin.reorderable.ReorderableCollectionItemScope
 import sh.calvin.reorderable.ReorderableItem
@@ -1963,28 +1964,35 @@ private fun UpNextPlaylistItemRow(
               modifier = Modifier.fillMaxSize(),
             )
             if (isPlaying) {
+              val paused by PlaybackSession.propBoolean["pause"].collectAsState()
+              val isPlaybackActive = paused != true
               Box(
                 modifier = Modifier
                   .fillMaxSize()
                   .background(Color.Black.copy(alpha = 0.45f)),
                 contentAlignment = Alignment.Center,
               ) {
-                Icon(
-                  imageVector = Icons.RoundedFilled.Equalizer,
-                  contentDescription = "Now Playing",
-                  tint = MaterialTheme.colorScheme.primary,
-                  modifier = Modifier.size(22.dp),
+                MiniAudioVisualizer(
+                  isPlaying = isPlaybackActive,
+                  color = MaterialTheme.colorScheme.primary,
+                  modifier = Modifier.size(width = 18.dp, height = 16.dp),
                 )
               }
             }
           } else {
             if (isPlaying) {
-              Icon(
-                imageVector = Icons.RoundedFilled.Equalizer,
-                contentDescription = "Now Playing",
-                tint = MaterialTheme.colorScheme.onPrimary,
-                modifier = Modifier.size(22.dp),
-              )
+              val paused by PlaybackSession.propBoolean["pause"].collectAsState()
+              val isPlaybackActive = paused != true
+              Box(
+                modifier = Modifier.fillMaxSize(),
+                contentAlignment = Alignment.Center,
+              ) {
+                MiniAudioVisualizer(
+                  isPlaying = isPlaybackActive,
+                  color = MaterialTheme.colorScheme.onPrimary,
+                  modifier = Modifier.size(width = 18.dp, height = 16.dp),
+                )
+              }
             } else {
               Icon(
                 imageVector = Icons.RoundedFilled.Audiotrack,

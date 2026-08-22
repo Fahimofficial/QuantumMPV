@@ -123,6 +123,7 @@ import com.quantummpv.app.ui.browser.dialogs.AddToPlaylistDialog
 import com.quantummpv.app.ui.browser.dialogs.DeleteConfirmationDialog
 import com.quantummpv.app.ui.browser.dialogs.FolderSortDialog
 import com.quantummpv.app.ui.browser.dialogs.MusicSortDialog
+import com.quantummpv.app.ui.player.controls.components.MiniAudioVisualizer
 import com.quantummpv.app.ui.browser.folderlist.FolderListScreen
 import com.quantummpv.app.ui.browser.playlist.PlaylistDetailScreen
 import com.quantummpv.app.ui.browser.selection.rememberSelectionManager
@@ -1307,17 +1308,19 @@ private fun SongGridCard(
             )
           }
         } else if (isPlaying) {
+          val paused by PlaybackSession.propBoolean["pause"].collectAsState()
+          val isPlaybackActive = paused != true
           Box(
             modifier = Modifier
               .fillMaxSize()
               .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.55f)),
             contentAlignment = Alignment.Center
           ) {
-            Icon(
-              imageVector = Icons.RoundedFilled.Audiotrack,
-              contentDescription = "Playing",
-              tint = Color.White,
-              modifier = Modifier.size(36.dp)
+            MiniAudioVisualizer(
+              isPlaying = isPlaybackActive,
+              color = Color.White,
+              modifier = Modifier.size(width = 28.dp, height = 24.dp),
+              barCount = 4,
             )
           }
         }
@@ -2253,13 +2256,20 @@ private fun AlbumDetailSheet(
 
       Spacer(modifier = Modifier.height(16.dp))
 
+      val sessionState by PlaybackSession.state.collectAsStateWithLifecycle()
+      val playingUri = sessionState.currentItem?.originalUri
+
       LazyColumn(
         modifier = Modifier
           .fillMaxWidth()
           .height(350.dp)
       ) {
         items(songs, key = { it.id }) { song ->
-          val isPlaying = isPlaybackActive && recentlyPlayedFilePath != null && song.path == recentlyPlayedFilePath
+          val isPlaying = when {
+            !isPlaybackActive -> false
+            playingUri != null -> song.uri.toString() == playingUri || song.path == playingUri
+            else -> recentlyPlayedFilePath != null && song.path == recentlyPlayedFilePath
+          }
           SongListItem(
             song = song,
             isPlaying = isPlaying,
@@ -2326,13 +2336,20 @@ private fun ArtistDetailSheet(
 
       Spacer(modifier = Modifier.height(16.dp))
 
+      val sessionState by PlaybackSession.state.collectAsStateWithLifecycle()
+      val playingUri = sessionState.currentItem?.originalUri
+
       LazyColumn(
         modifier = Modifier
           .fillMaxWidth()
           .height(350.dp)
       ) {
         items(songs, key = { it.id }) { song ->
-          val isPlaying = isPlaybackActive && recentlyPlayedFilePath != null && song.path == recentlyPlayedFilePath
+          val isPlaying = when {
+            !isPlaybackActive -> false
+            playingUri != null -> song.uri.toString() == playingUri || song.path == playingUri
+            else -> recentlyPlayedFilePath != null && song.path == recentlyPlayedFilePath
+          }
           SongListItem(
             song = song,
             isPlaying = isPlaying,

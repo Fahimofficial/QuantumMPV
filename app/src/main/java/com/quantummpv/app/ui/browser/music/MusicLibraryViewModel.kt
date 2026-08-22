@@ -88,7 +88,7 @@ class MusicLibraryViewModel : ViewModel(), KoinComponent {
 
   val isPlaybackActive: StateFlow<Boolean> =
     PlaybackSession.state
-      .map { session -> session.currentItem != null && !session.paused }
+      .map { session -> session.currentItem != null }
       .distinctUntilChanged()
       .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), false)
 
