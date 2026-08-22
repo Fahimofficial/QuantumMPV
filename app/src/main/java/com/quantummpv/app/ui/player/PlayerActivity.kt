@@ -629,7 +629,8 @@ class PlayerActivity :
     // skipped. See issue 2.3 in the leak audit.
 
     playlistId = intent.getIntExtra("playlist_id", -1).takeIf { it != -1 }
-    playlistIndex = intent.getIntExtra("playlist_index", 0)
+    playlistIndex = intent.getIntExtra("playlist_index", -1).takeIf { it >= 0 }
+      ?: intent.getIntExtra("playlistIndex", 0)
     loadNetworkPlaylistMetadata(intent)
 
     // Load playlist from intent extras first (fast path - backward compatibility)
@@ -4599,7 +4600,8 @@ class PlayerActivity :
     } else if (hasPlaylistExtras || playlistFromIntent.isNotEmpty()) {
       val newPlaylistId = intent.getIntExtra("playlist_id", -1).takeIf { it != -1 }
       playlistId = newPlaylistId
-      playlistIndex = intent.getIntExtra("playlist_index", 0)
+      playlistIndex = intent.getIntExtra("playlist_index", -1).takeIf { it >= 0 }
+        ?: intent.getIntExtra("playlistIndex", 0)
       playlistWindowOffset = 0
       playlistTotalCount = playlistFromIntent.size.takeIf { it > 0 } ?: -1
       playlist = playlistFromIntent

@@ -1704,11 +1704,20 @@ fun AudioPlayerControls(
           )
         }
 
+      val isJellyfinMedia = remember(mediaPath) {
+        !mediaPath.isNullOrBlank() &&
+          (mediaPath.contains("api_key=", ignoreCase = true) ||
+            mediaPath.contains("/Items/", ignoreCase = true) ||
+            mediaPath.contains("/Audio/", ignoreCase = true) ||
+            mediaPath.contains("jellyfin", ignoreCase = true))
+      }
+
       AddToPlaylistDialog(
         isOpen = true,
         videos = listOf(videoForPlaylist),
         onDismiss = { addToPlaylistDialogOpen = false },
         onSuccess = { addToPlaylistDialogOpen = false },
+        isJellyfin = isJellyfinMedia,
       )
     }
   }

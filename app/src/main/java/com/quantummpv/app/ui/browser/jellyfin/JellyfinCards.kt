@@ -47,7 +47,11 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import android.content.Intent
+import android.net.Uri
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.material3.FilledTonalButton
+import androidx.compose.material3.FilledTonalIconButton
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.FilterChipDefaults
 import androidx.compose.material3.IconButton
@@ -384,6 +388,33 @@ fun JellyfinHeroBanner(
               )
               Spacer(modifier = Modifier.width(6.dp))
               Text(text = "Details", fontWeight = FontWeight.Medium)
+            }
+
+            // Trailer Icon Button
+            val heroContext = LocalContext.current
+            FilledTonalIconButton(
+              onClick = {
+                val rawUrl = item.remoteTrailerUrl?.takeIf { it.isNotBlank() }
+                val trailerUrl = if (!rawUrl.isNullOrBlank()) {
+                  if (rawUrl.startsWith("http://") || rawUrl.startsWith("https://")) rawUrl
+                  else "https://www.youtube.com/watch?v=$rawUrl"
+                } else {
+                  "https://www.youtube.com/results?search_query=${java.net.URLEncoder.encode("${item.name} trailer", "UTF-8")}"
+                }
+                val intent = Intent(Intent.ACTION_VIEW, Uri.parse(trailerUrl)).apply {
+                  addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                }
+                runCatching { heroContext.startActivity(intent) }
+              },
+              shape = RoundedCornerShape(14.dp),
+              modifier = Modifier.size(42.dp),
+            ) {
+              Icon(
+                imageVector = Icons.RoundedFilled.Movie,
+                contentDescription = "Trailer",
+                tint = MaterialTheme.colorScheme.primary,
+                modifier = Modifier.size(20.dp),
+              )
             }
           }
         }
@@ -1090,16 +1121,19 @@ fun JellyfinMusicCard(
         color = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface,
         modifier = Modifier.fillMaxWidth(),
       )
-      val subtitle = item.seriesName ?: item.productionYear?.toString() ?: "Music"
-      Text(
-        text = subtitle,
-        style = MaterialTheme.typography.bodySmall,
-        color = MaterialTheme.colorScheme.onSurfaceVariant,
-        maxLines = 1,
-        overflow = TextOverflow.Ellipsis,
-        textAlign = TextAlign.Start,
-        modifier = Modifier.fillMaxWidth(),
-      )
+      val isArtist = item.type == "MusicArtist" || item.type == "Artist" || item.type == "AlbumArtist"
+      if (!isArtist) {
+        val subtitle = item.seriesName ?: item.productionYear?.toString() ?: "Music"
+        Text(
+          text = subtitle,
+          style = MaterialTheme.typography.bodySmall,
+          color = MaterialTheme.colorScheme.onSurfaceVariant,
+          maxLines = 1,
+          overflow = TextOverflow.Ellipsis,
+          textAlign = TextAlign.Start,
+          modifier = Modifier.fillMaxWidth(),
+        )
+      }
     }
   }
 }

@@ -11,6 +11,7 @@ package com.quantummpv.app.ui.browser.jellyfin
 
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.animateContentSize
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
@@ -27,6 +28,8 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.layout.wrapContentSize
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
@@ -38,6 +41,8 @@ import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.FilledTonalIconButton
@@ -69,6 +74,9 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import android.content.Intent
+import android.net.Uri
+import androidx.compose.ui.platform.LocalContext
 import com.quantummpv.app.data.jellyfin.JellyfinClient
 import com.quantummpv.app.domain.jellyfin.JellyfinItem
 import com.quantummpv.app.domain.jellyfin.JellyfinServer
@@ -76,6 +84,10 @@ import com.quantummpv.app.presentation.components.RemoteImage
 import com.quantummpv.app.ui.icons.Icon
 import com.quantummpv.app.ui.icons.Icons
 import kotlin.math.roundToInt
+
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.quantummpv.app.ui.browser.music.SharedMusicTrackListItem
+import com.quantummpv.app.ui.player.PlaybackSession
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -98,7 +110,187 @@ fun JellyfinDetailSheet(
 ) {
   if (item == null) return
 
+  if (item.type == "MusicArtist" || item.type == "MusicAlbum" || item.type == "Album" || item.type == "Playlist" || item.type == "Artist" || item.type == "AlbumArtist") {
+    val queueState by PlaybackSession.queue.collectAsStateWithLifecycle()
+    val currentSessionItem = queueState.currentItem
+
+    ModalBottomSheet(
+      onDismissRequest = onDismiss,
+      sheetState = sheetState,
+      containerColor = MaterialTheme.colorScheme.surface,
+      contentColor = MaterialTheme.colorScheme.onSurface,
+    ) {
+      Column(
+        modifier = Modifier
+          .fillMaxWidth()
+          .verticalScroll(rememberScrollState())
+          .padding(horizontal = 16.dp, vertical = 12.dp),
+        verticalArrangement = Arrangement.spacedBy(16.dp),
+      ) {
+        // Header Row (Avatar / Artwork + Title + Play Button)
+        Row(
+          modifier = Modifier.fillMaxWidth(),
+          verticalAlignment = Alignment.CenterVertically,
+        ) {
+          val imageUrl = remember(server.serverUrl, item.id, item.primaryImageTag, server.accessToken) {
+            JellyfinClient.getImageUrl(
+              serverUrl = server.serverUrl,
+              itemId = item.id,
+              imageTag = item.primaryImageTag,
+              maxWidth = 300,
+              token = server.accessToken,
+            )
+          }
+          Box(
+            modifier = Modifier
+              .size(64.dp)
+              .clip(if (item.type == "MusicArtist" || item.type == "Artist" || item.type == "AlbumArtist") CircleShape else RoundedCornerShape(12.dp))
+              .background(MaterialTheme.colorScheme.surfaceVariant),
+            contentAlignment = Alignment.Center,
+          ) {
+            if (!item.primaryImageTag.isNullOrBlank()) {
+              RemoteImage(
+                url = imageUrl,
+                contentDescription = item.name,
+                contentScale = ContentScale.Crop,
+                modifier = Modifier.fillMaxSize(),
+              )
+            } else {
+              Icon(
+                imageVector = when (item.type) {
+                  "MusicArtist", "Artist", "AlbumArtist" -> Icons.RoundedFilled.Person
+                  "Playlist" -> Icons.RoundedFilled.QueueMusic
+                  else -> Icons.RoundedFilled.Audiotrack
+                },
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.primary,
+                modifier = Modifier.size(32.dp),
+              )
+            }
+          }
+
+          Spacer(modifier = Modifier.width(14.dp))
+
+          Column(modifier = Modifier.weight(1f)) {
+            Text(
+              text = item.name,
+              style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.Bold),
+              maxLines = 1,
+              overflow = TextOverflow.Ellipsis,
+            )
+            val isArtist = item.type == "MusicArtist" || item.type == "Artist" || item.type == "AlbumArtist"
+            if (!isArtist) {
+              val subtitle = item.seriesName ?: item.overview ?: ""
+              if ((item.type == "MusicAlbum" || item.type == "Album") && subtitle.isNotBlank()) {
+                Text(
+                  text = subtitle,
+                  style = MaterialTheme.typography.bodyMedium,
+                  color = MaterialTheme.colorScheme.onSurfaceVariant,
+                  maxLines = 1,
+                  overflow = TextOverflow.Ellipsis,
+                )
+              }
+              Text(
+                text = "${episodes.size} ${if (item.type == "Playlist") "Items" else "Tracks"}",
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.primary,
+              )
+            }
+          }
+
+          if (episodes.isNotEmpty()) {
+            Button(onClick = { onPlay(episodes.first(), false) }) {
+              Icon(imageVector = Icons.RoundedFilled.PlayArrow, contentDescription = null)
+              Spacer(modifier = Modifier.width(4.dp))
+              Text(if (item.type == "MusicArtist" || item.type == "Artist" || item.type == "AlbumArtist") "Play All" else "Play")
+            }
+          }
+        }
+
+        if (isLoading) {
+          Box(
+            modifier = Modifier
+              .fillMaxWidth()
+              .height(150.dp),
+            contentAlignment = Alignment.Center,
+          ) {
+            CircularProgressIndicator()
+          }
+        } else {
+          // Albums section for Artist Sheet
+          if ((item.type == "MusicArtist" || item.type == "Artist" || item.type == "AlbumArtist") && seasons.isNotEmpty()) {
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+              Text(
+                text = "Albums",
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.Bold,
+                color = MaterialTheme.colorScheme.onSurface,
+              )
+              LazyRow(
+                horizontalArrangement = Arrangement.spacedBy(12.dp),
+                contentPadding = PaddingValues(horizontal = 0.dp),
+              ) {
+                items(seasons, key = { it.id }) { album ->
+                  JellyfinMusicCard(
+                    item = album,
+                    server = server,
+                    onClick = { onItemClick(album) },
+                    cardWidth = 130.dp,
+                  )
+                }
+              }
+            }
+          }
+
+          // Songs / Tracks list section
+          if (episodes.isNotEmpty()) {
+            Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+              Text(
+                text = if (item.type == "MusicArtist" || item.type == "Artist" || item.type == "AlbumArtist") "Songs" else "Tracks",
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.Bold,
+                color = MaterialTheme.colorScheme.onSurface,
+              )
+              episodes.forEach { track ->
+                val trackImageUrl = remember(server.serverUrl, track.id, track.primaryImageTag, server.accessToken) {
+                  JellyfinClient.getImageUrl(
+                    serverUrl = server.serverUrl,
+                    itemId = track.id,
+                    imageTag = track.primaryImageTag,
+                    maxWidth = 200,
+                    token = server.accessToken,
+                  )
+                }
+
+                val isTrackPlaying = remember(currentSessionItem, track.id) {
+                  if (currentSessionItem == null || track.id.isBlank()) false
+                  else {
+                    val orig = currentSessionItem.originalUri
+                    val play = currentSessionItem.playableUri
+                    orig.contains(track.id, ignoreCase = true) || play.contains(track.id, ignoreCase = true)
+                  }
+                }
+                val trackSubtitle = track.seriesName ?: track.overview ?: ""
+
+                SharedMusicTrackListItem(
+                  title = track.name,
+                  subtitle = trackSubtitle,
+                  artworkUrl = if (!track.primaryImageTag.isNullOrBlank()) trackImageUrl else null,
+                  durationSeconds = track.durationSeconds,
+                  isPlaying = isTrackPlaying,
+                  onClick = { onPlay(track, false) },
+                )
+              }
+            }
+          }
+        }
+      }
+    }
+    return
+  }
+
   var isOverviewExpanded by remember { mutableStateOf(false) }
+  val context = LocalContext.current
 
   ModalBottomSheet(
     onDismissRequest = onDismiss,
@@ -444,6 +636,34 @@ fun JellyfinDetailSheet(
             )
           }
 
+          // Trailer Button for Movies & Series
+          if (item.type == "Movie" || item.isSeries || item.type == "Series") {
+            FilledTonalIconButton(
+              onClick = {
+                val rawUrl = item.remoteTrailerUrl?.takeIf { it.isNotBlank() }
+                val trailerUrl = if (!rawUrl.isNullOrBlank()) {
+                  if (rawUrl.startsWith("http://") || rawUrl.startsWith("https://")) rawUrl
+                  else "https://www.youtube.com/watch?v=$rawUrl"
+                } else {
+                  "https://www.youtube.com/results?search_query=${java.net.URLEncoder.encode("${item.name} trailer", "UTF-8")}"
+                }
+                val intent = Intent(Intent.ACTION_VIEW, Uri.parse(trailerUrl)).apply {
+                  addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                }
+                runCatching { context.startActivity(intent) }
+              },
+              shape = RoundedCornerShape(14.dp),
+              modifier = Modifier.size(48.dp),
+            ) {
+              Icon(
+                imageVector = Icons.RoundedFilled.Movie,
+                contentDescription = "Trailer",
+                tint = MaterialTheme.colorScheme.primary,
+                modifier = Modifier.size(22.dp),
+              )
+            }
+          }
+
           // Favorite Toggle Button
           FilledTonalIconButton(
             onClick = { onToggleFavorite(item) },
@@ -491,7 +711,8 @@ fun JellyfinDetailSheet(
         }
 
         // Overview / Synopsis with expand animation
-        if (!item.overview.isNullOrBlank()) {
+        val isArtistItem = item.type == "MusicArtist" || item.type == "Artist" || item.type == "AlbumArtist"
+        if (!isArtistItem && !item.overview.isNullOrBlank()) {
           Column(
             modifier =
               Modifier
@@ -535,27 +756,78 @@ fun JellyfinDetailSheet(
               color = MaterialTheme.colorScheme.onSurface,
             )
 
-            // Seasons Chips Row
-            Row(
-              modifier =
-                Modifier
-                  .fillMaxWidth()
-                  .horizontalScroll(rememberScrollState()),
-              horizontalArrangement = Arrangement.spacedBy(8.dp),
-            ) {
-              seasons.forEach { season ->
-                val isSelected = season.id == selectedSeasonId
-                FilterChip(
-                  selected = isSelected,
-                  onClick = { onSelectSeason(season.id) },
-                  label = { Text(season.name, fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal) },
-                  shape = RoundedCornerShape(12.dp),
-                  colors =
-                    FilterChipDefaults.filterChipColors(
-                      selectedContainerColor = MaterialTheme.colorScheme.primaryContainer,
-                      selectedLabelColor = MaterialTheme.colorScheme.onPrimaryContainer,
-                    ),
-                )
+            // Seasons Dropdown Menu
+            val sortedSeasons = remember(seasons) {
+              seasons.sortedWith(
+                compareBy<JellyfinItem> { it.indexNumber ?: Int.MAX_VALUE }
+                  .thenBy { it.name }
+              )
+            }
+            val selectedSeason = remember(sortedSeasons, selectedSeasonId) {
+              sortedSeasons.find { it.id == selectedSeasonId } ?: sortedSeasons.firstOrNull()
+            }
+            var isSeasonDropdownExpanded by remember { mutableStateOf(false) }
+
+            Box(modifier = Modifier.wrapContentSize()) {
+              Surface(
+                onClick = { isSeasonDropdownExpanded = !isSeasonDropdownExpanded },
+                shape = RoundedCornerShape(12.dp),
+                color = MaterialTheme.colorScheme.surfaceContainerHigh,
+                border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)),
+              ) {
+                Row(
+                  modifier = Modifier.padding(horizontal = 14.dp, vertical = 8.dp),
+                  verticalAlignment = Alignment.CenterVertically,
+                  horizontalArrangement = Arrangement.spacedBy(8.dp),
+                ) {
+                  Text(
+                    text = selectedSeason?.name ?: "Select Season",
+                    style = MaterialTheme.typography.titleSmall,
+                    fontWeight = FontWeight.SemiBold,
+                    color = MaterialTheme.colorScheme.onSurface,
+                  )
+                  Icon(
+                    imageVector = Icons.RoundedFilled.ArrowDropDown,
+                    contentDescription = "Select Season",
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                  )
+                }
+              }
+
+              DropdownMenu(
+                expanded = isSeasonDropdownExpanded,
+                onDismissRequest = { isSeasonDropdownExpanded = false },
+                modifier = Modifier
+                  .background(MaterialTheme.colorScheme.surfaceContainerHigh)
+                  .widthIn(min = 160.dp),
+              ) {
+                sortedSeasons.forEach { season ->
+                  val isSelected = season.id == selectedSeasonId
+                  DropdownMenuItem(
+                    text = {
+                      Text(
+                        text = season.name,
+                        style = MaterialTheme.typography.bodyMedium,
+                        fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
+                        color = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface,
+                      )
+                    },
+                    leadingIcon = if (isSelected) {
+                      {
+                        Icon(
+                          imageVector = Icons.RoundedFilled.Check,
+                          contentDescription = null,
+                          tint = MaterialTheme.colorScheme.primary,
+                          modifier = Modifier.size(18.dp),
+                        )
+                      }
+                    } else null,
+                    onClick = {
+                      isSeasonDropdownExpanded = false
+                      onSelectSeason(season.id)
+                    },
+                  )
+                }
               }
             }
 

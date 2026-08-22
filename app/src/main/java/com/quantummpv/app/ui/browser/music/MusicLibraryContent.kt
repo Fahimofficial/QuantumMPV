@@ -1098,7 +1098,7 @@ fun MusicLibraryContent(
 }
 
 @Composable
-private fun LocalAlbumArtImage(
+fun LocalAlbumArtImage(
   uri: Uri?,
   contentDescription: String?,
   modifier: Modifier = Modifier
@@ -1371,121 +1371,17 @@ private fun SongListItem(
   onClick: () -> Unit,
   onLongClick: (() -> Unit)? = null
 ) {
-  Surface(
-    modifier = Modifier
-      .fillMaxWidth()
-      .padding(horizontal = 8.dp, vertical = 3.dp)
-      .clip(AppShapeScale.large)
-      .then(
-        if (onLongClick != null) {
-          Modifier.combinedClickable(onClick = onClick, onLongClick = onLongClick)
-        } else {
-          Modifier.clickable(onClick = onClick)
-        }
-      ),
-    shape = AppShapeScale.large,
-    color = when {
-      isSelected -> MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.6f)
-      isPlaying -> MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.35f)
-      else -> Color.Transparent
-    }
-  ) {
-    Row(
-      modifier = Modifier
-        .fillMaxWidth()
-        .padding(horizontal = 12.dp, vertical = 8.dp),
-      verticalAlignment = Alignment.CenterVertically
-    ) {
-      Box(
-        modifier = Modifier
-          .size(coverArtSizeDp.dp)
-          .clip(AppShapeScale.medium)
-          .background(MaterialTheme.colorScheme.surfaceVariant),
-        contentAlignment = Alignment.Center
-      ) {
-        LocalAlbumArtImage(
-          uri = song.albumArtUri,
-          contentDescription = null,
-          modifier = Modifier.fillMaxSize()
-        )
-        if (isSelected) {
-          Box(
-            modifier = Modifier
-              .fillMaxSize()
-              .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.45f)),
-            contentAlignment = Alignment.Center
-          ) {
-            Icon(
-              imageVector = Icons.RoundedFilled.CheckCircle,
-              contentDescription = "Selected",
-              tint = Color.White,
-              modifier = Modifier.size(24.dp)
-            )
-          }
-        } else if (isPlaying) {
-          Box(
-            modifier = Modifier
-              .fillMaxSize()
-              .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.55f)),
-            contentAlignment = Alignment.Center
-          ) {
-            Icon(
-              imageVector = Icons.RoundedFilled.Audiotrack,
-              contentDescription = "Playing",
-              tint = Color.White,
-              modifier = Modifier.size(24.dp)
-            )
-          }
-        }
-      }
-
-      Spacer(modifier = Modifier.width(14.dp))
-
-      Column(modifier = Modifier.weight(1f)) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-          Text(
-            text = song.title,
-            style = MaterialTheme.typography.bodyLarge.copy(
-              fontWeight = if (isPlaying) FontWeight.Bold else FontWeight.SemiBold
-            ),
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis,
-            color = if (isPlaying) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface,
-            modifier = Modifier.weight(1f, fill = false)
-          )
-          if (isPlaying) {
-            Spacer(modifier = Modifier.width(6.dp))
-            Surface(
-              shape = RoundedCornerShape(4.dp),
-              color = MaterialTheme.colorScheme.primary
-            ) {
-              Text(
-                text = "PLAYING",
-                style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold),
-                color = MaterialTheme.colorScheme.onPrimary,
-                modifier = Modifier.padding(horizontal = 5.dp, vertical = 1.dp)
-              )
-            }
-          }
-        }
-        Text(
-          text = "${song.artist} • ${song.album}",
-          style = MaterialTheme.typography.bodySmall,
-          maxLines = 1,
-          overflow = TextOverflow.Ellipsis,
-          color = if (isPlaying) MaterialTheme.colorScheme.primary.copy(alpha = 0.8f) else MaterialTheme.colorScheme.onSurfaceVariant
-        )
-      }
-
-      Spacer(modifier = Modifier.width(8.dp))
-
-      Text(
-        text = DateUtils.formatElapsedTime(song.durationMs / 1000),
-        style = MaterialTheme.typography.labelMedium,
-        color = if (isPlaying) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
-      )
-    }
-  }
+  SharedMusicTrackListItem(
+    title = song.title,
+    subtitle = "${song.artist} • ${song.album}",
+    albumArtUri = song.albumArtUri,
+    durationSeconds = song.durationMs / 1000,
+    isPlaying = isPlaying,
+    isSelected = isSelected,
+    coverArtSizeDp = coverArtSizeDp,
+    onClick = onClick,
+    onLongClick = onLongClick
+  )
 }
 
 @Composable
