@@ -99,6 +99,7 @@ import androidx.compose.runtime.setValue
 import kotlinx.coroutines.launch
 import androidx.palette.graphics.Palette
 import com.quantummpv.app.database.repository.PlaylistRepository
+import com.quantummpv.app.repository.JellyfinRepository
 import com.quantummpv.app.domain.media.model.Video
 import com.quantummpv.app.ui.browser.dialogs.AddToPlaylistDialog
 import com.quantummpv.app.ui.player.resolveUri
@@ -633,11 +634,72 @@ fun AudioPlayerControls(
 
   val playerPreferences = koinInject<PlayerPreferences>()
   val playlistRepository = koinInject<PlaylistRepository>()
+  val jellyfinRepository = koinInject<JellyfinRepository>()
+  val jellyfinServers by jellyfinRepository.allServers.collectAsState(initial = emptyList())
   val coroutineScope = rememberCoroutineScope()
   val activeTrackPath = mediaPath?.takeIf { it.isNotBlank() } ?: currentMediaSource
-  val isCurrentTrackFavorite by remember(activeTrackPath, mediaPath) {
+
+  val jellyfinInfo = remember(activeTrackPath, mediaPath) {
+    val path = mediaPath?.takeIf { it.isNotBlank() } ?: activeTrackPath
+    if (path.isNullOrBlank()) null
+    else {
+      val uri = runCatching { Uri.parse(path) }.getOrNull()
+      if (uri == null) null
+      else {
+        val pathSegments = uri.pathSegments
+        val mediaIndex = pathSegments.indexOfFirst {
+          it.equals("Videos", ignoreCase = true) ||
+            it.equals("Audio", ignoreCase = true) ||
+            it.equals("Items", ignoreCase = true)
+        }
+        if (mediaIndex != -1 && mediaIndex + 1 < pathSegments.size) {
+          val itemId = pathSegments[mediaIndex + 1]
+          val apiKey = uri.getQueryParameter("api_key") ?: uri.getQueryParameter("ApiKey")
+          val scheme = uri.scheme ?: "http"
+          val authority = uri.encodedAuthority
+          val subPathSegments = pathSegments.subList(0, mediaIndex)
+          val baseUrl = if (authority != null) {
+            if (subPathSegments.isEmpty()) "$scheme://$authority"
+            else "$scheme://$authority/" + subPathSegments.joinToString("/")
+          } else null
+          if (itemId.isNotBlank() && baseUrl != null) {
+            Triple(baseUrl, itemId, apiKey)
+          } else null
+        } else null
+      }
+    }
+  }
+
+  val activeJellyfinServer = remember(jellyfinServers, jellyfinInfo) {
+    if (jellyfinInfo == null) null
+    else {
+      jellyfinServers.firstOrNull { s ->
+        s.serverUrl.contains(runCatching { Uri.parse(jellyfinInfo.first).host.orEmpty() }.getOrDefault("")) ||
+          (!jellyfinInfo.third.isNullOrBlank() && s.accessToken == jellyfinInfo.third)
+      } ?: jellyfinServers.firstOrNull()
+    }
+  }
+
+  var jellyfinFavoriteOverride by remember(activeTrackPath, mediaPath) { mutableStateOf<Boolean?>(null) }
+
+  LaunchedEffect(activeJellyfinServer, jellyfinInfo?.second) {
+    val server = activeJellyfinServer
+    val itemId = jellyfinInfo?.second
+    if (server != null && !itemId.isNullOrBlank()) {
+      val item = withContext(Dispatchers.IO) {
+        jellyfinRepository.getItem(server, itemId).getOrNull()
+      }
+      if (item != null) {
+        jellyfinFavoriteOverride = item.isFavorite
+      }
+    }
+  }
+
+  val isCurrentTrackFavoriteLocal by remember(activeTrackPath, mediaPath) {
     playlistRepository.observeIsFavorite((mediaPath?.takeIf { it.isNotBlank() } ?: activeTrackPath).orEmpty(), isAudio = true)
   }.collectAsState(initial = false)
+
+  val isCurrentTrackFavorite = jellyfinFavoriteOverride ?: isCurrentTrackFavoriteLocal
 
   val seekbarStyle by appearancePreferences.seekbarStyle.collectAsState()
   val invertDuration by playerPreferences.invertDuration.collectAsState()
@@ -1282,8 +1344,20 @@ fun AudioPlayerControls(
             ReactiveIconButton(
               onClick = {
                 val path = mediaPath?.takeIf { it.isNotBlank() } ?: activeTrackPath ?: return@ReactiveIconButton
+                val server = activeJellyfinServer
+                val itemId = jellyfinInfo?.second
+                val newFavState = !isCurrentTrackFavorite
+
                 coroutineScope.launch {
+                  // Toggle local Room favorite state
                   playlistRepository.toggleFavorite(filePath = path, fileName = displayTitle, isAudio = true)
+                  // Toggle Jellyfin server favorite status via API if playing from Jellyfin
+                  if (server != null && !itemId.isNullOrBlank()) {
+                    jellyfinFavoriteOverride = newFavState
+                    withContext(Dispatchers.IO) {
+                      jellyfinRepository.toggleFavorite(server = server, itemId = itemId, isFavorite = newFavState)
+                    }
+                  }
                 }
               },
               modifier = Modifier.size(40.dp),

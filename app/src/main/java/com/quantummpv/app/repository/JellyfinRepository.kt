@@ -286,6 +286,19 @@ class JellyfinRepository(
       token = server.accessToken,
     )
 
+  suspend fun toggleFavorite(
+    server: JellyfinServer,
+    itemId: String,
+    isFavorite: Boolean,
+  ): Result<Unit> =
+    client.toggleFavorite(
+      serverUrl = server.serverUrl,
+      userId = server.userId,
+      itemId = itemId,
+      isFavorite = isFavorite,
+      token = server.accessToken,
+    )
+
   suspend fun createPlaylist(
     server: JellyfinServer,
     name: String,
