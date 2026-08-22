@@ -281,7 +281,7 @@ fun LyricsView(
                   val rawTrans = line.translation?.trim()
                   if (translationDisplayMode == LyricsTranslationDisplayMode.Replace && !rawTrans.isNullOrBlank()) {
                     Pair(rawTrans, null)
-                  } else if (!rawTrans.isNullOrBlank()) {
+                  } else if (!rawTrans.isNullOrBlank() && !rawTrans.equals(line.line.trim(), ignoreCase = true)) {
                     Pair(line.line.trim(), rawTrans)
                   } else if (line.line.contains("\n")) {
                     val parts = line.line.split("\n", limit = 2)

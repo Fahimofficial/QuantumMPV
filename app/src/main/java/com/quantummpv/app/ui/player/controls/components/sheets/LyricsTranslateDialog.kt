@@ -23,6 +23,8 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.FilterChip
+import androidx.compose.material3.FilterChipDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -48,6 +50,8 @@ import com.quantummpv.app.R
 import com.quantummpv.app.data.lyrics.LyricsLanguageOptions
 import com.quantummpv.app.data.lyrics.SupportedLanguage
 import com.quantummpv.app.preferences.AudioPreferences
+import com.quantummpv.app.preferences.LyricsTranslationDisplayMode
+import com.quantummpv.app.preferences.preference.collectAsState
 import com.quantummpv.app.ui.icons.Icon
 import com.quantummpv.app.ui.icons.Icons
 import com.quantummpv.app.ui.player.PlayerViewModel
@@ -59,6 +63,7 @@ fun LyricsTranslateDialog(
   onDismiss: () -> Unit,
 ) {
   val audioPreferences = koinInject<AudioPreferences>()
+  val displayMode by audioPreferences.lyricsTranslationDisplayMode.collectAsState()
   val state by viewModel.lyricsUiState.collectAsState()
   var searchQuery by remember { mutableStateOf("") }
 
@@ -107,7 +112,7 @@ fun LyricsTranslateDialog(
       Column(
         modifier = Modifier
           .fillMaxWidth()
-          .heightIn(max = 420.dp),
+          .heightIn(max = 440.dp),
       ) {
         // Option to toggle off (original lyrics)
         Surface(
@@ -149,7 +154,37 @@ fun LyricsTranslateDialog(
           }
         }
 
-        Spacer(modifier = Modifier.height(12.dp))
+        Spacer(modifier = Modifier.height(10.dp))
+
+        // Display Mode Selector (Dual-Line vs Replace)
+        Row(
+          modifier = Modifier.fillMaxWidth(),
+          horizontalArrangement = Arrangement.spacedBy(8.dp),
+          verticalAlignment = Alignment.CenterVertically,
+        ) {
+          FilterChip(
+            selected = displayMode == LyricsTranslationDisplayMode.DualLine,
+            onClick = { audioPreferences.lyricsTranslationDisplayMode.set(LyricsTranslationDisplayMode.DualLine) },
+            label = { Text("Dual-Line (Under)", fontWeight = FontWeight.Bold, fontSize = 12.sp) },
+            modifier = Modifier.weight(1f),
+            colors = FilterChipDefaults.filterChipColors(
+              selectedContainerColor = MaterialTheme.colorScheme.primaryContainer,
+              selectedLabelColor = MaterialTheme.colorScheme.onPrimaryContainer,
+            ),
+          )
+          FilterChip(
+            selected = displayMode == LyricsTranslationDisplayMode.Replace,
+            onClick = { audioPreferences.lyricsTranslationDisplayMode.set(LyricsTranslationDisplayMode.Replace) },
+            label = { Text("Replace Original", fontWeight = FontWeight.Bold, fontSize = 12.sp) },
+            modifier = Modifier.weight(1f),
+            colors = FilterChipDefaults.filterChipColors(
+              selectedContainerColor = MaterialTheme.colorScheme.primaryContainer,
+              selectedLabelColor = MaterialTheme.colorScheme.onPrimaryContainer,
+            ),
+          )
+        }
+
+        Spacer(modifier = Modifier.height(10.dp))
 
         // Search Filter
         OutlinedTextField(
