@@ -86,14 +86,18 @@ class PlaylistRepository(
 
   suspend fun toggleFavorite(filePath: String, fileName: String, isAudio: Boolean = true): Boolean {
     if (filePath.isBlank()) return false
+    val cleanPath = when {
+      filePath.startsWith("file://") -> Uri.parse(filePath).path ?: filePath
+      else -> filePath
+    }
     val favPlaylist = getOrCreateFavoritesPlaylist(isAudio)
     val items = playlistDao.getPlaylistItems(favPlaylist.id)
-    val existing = items.find { isPathMatching(it.filePath, filePath) }
+    val existing = items.find { isPathMatching(it.filePath, cleanPath) }
     return if (existing != null) {
       removeItemFromPlaylist(existing)
       false
     } else {
-      addItemToPlaylist(favPlaylist.id, filePath, fileName)
+      addItemToPlaylist(favPlaylist.id, cleanPath, fileName)
       true
     }
   }
@@ -101,12 +105,15 @@ class PlaylistRepository(
   private fun isPathMatching(pathA: String, pathB: String): Boolean {
     if (pathA == pathB) return true
     if (pathA.isBlank() || pathB.isBlank()) return false
+    val cleanA = if (pathA.startsWith("file://")) Uri.parse(pathA).path ?: pathA else pathA
+    val cleanB = if (pathB.startsWith("file://")) Uri.parse(pathB).path ?: pathB else pathB
+    if (cleanA == cleanB) return true
     val uriA = runCatching { Uri.parse(pathA) }.getOrNull()
     val uriB = runCatching { Uri.parse(pathB) }.getOrNull()
     if (uriA != null && uriB != null && uriA == uriB) return true
     if (uriA?.path != null && uriB?.path != null && uriA.path == uriB.path) return true
-    if (uriA?.path != null && uriA.path == pathB) return true
-    if (uriB?.path != null && uriB.path == pathA) return true
+    if (uriA?.path != null && uriA.path == cleanB) return true
+    if (uriB?.path != null && uriB.path == cleanA) return true
     return false
   }
 
@@ -119,22 +126,31 @@ class PlaylistRepository(
     playlistDao.deletePlaylist(playlist)
   }
 
+  fun prioritizeFavorites(playlists: List<PlaylistEntity>): List<PlaylistEntity> {
+    return playlists.sortedWith(
+      compareByDescending<PlaylistEntity> { isProtectedPlaylist(it) }
+        .thenBy { it.name.lowercase() }
+    )
+  }
+
   fun observeAllPlaylists(isAudio: Boolean? = null): Flow<List<PlaylistEntity>> =
     playlistDao.observeAllPlaylists().map { playlists ->
-      if (isAudio == null) {
+      val filtered = if (isAudio == null) {
         playlists
       } else {
         classifyAndFilterPlaylists(playlists, isAudio)
       }
+      prioritizeFavorites(filtered)
     }
 
   suspend fun getAllPlaylists(isAudio: Boolean? = null): List<PlaylistEntity> {
     val playlists = playlistDao.getAllPlaylists()
-    return if (isAudio == null) {
+    val filtered = if (isAudio == null) {
       playlists
     } else {
       classifyAndFilterPlaylists(playlists, isAudio)
     }
+    return prioritizeFavorites(filtered)
   }
 
   private suspend fun classifyAndFilterPlaylists(
@@ -164,7 +180,7 @@ class PlaylistRepository(
         result.add(playlist)
       }
     }
-    return result
+    return prioritizeFavorites(result)
   }
 
   suspend fun getPlaylistById(playlistId: Int): PlaylistEntity? = playlistDao.getPlaylistById(playlistId)

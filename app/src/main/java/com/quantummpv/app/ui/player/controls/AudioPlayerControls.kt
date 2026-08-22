@@ -101,6 +101,7 @@ import androidx.palette.graphics.Palette
 import com.quantummpv.app.database.repository.PlaylistRepository
 import com.quantummpv.app.domain.media.model.Video
 import com.quantummpv.app.ui.browser.dialogs.AddToPlaylistDialog
+import com.quantummpv.app.ui.player.resolveUri
 import com.quantummpv.app.ui.player.controls.components.MiniAudioVisualizer
 import com.quantummpv.app.ui.player.controls.components.sheets.PlaylistItem
 import sh.calvin.reorderable.ReorderableCollectionItemScope
@@ -231,22 +232,34 @@ private object AudioPresentationMetadataCache {
 
         val cleanPath =
           when {
-            pathOrUri.startsWith("file://") -> pathOrUri.removePrefix("file://")
-            pathOrUri.startsWith("content://") -> null
+            pathOrUri.startsWith("file://") -> Uri.parse(pathOrUri).path ?: pathOrUri.removePrefix("file://")
+            pathOrUri.startsWith("content://") -> {
+              val uri = Uri.parse(pathOrUri)
+              uri.resolveUri(context, allowFdFallback = false)
+            }
             else -> pathOrUri
           }
         val explicitArtwork = EmbeddedArtworkResolver.decodeArtworkUri(context, artworkUri)
         val retriever = MediaMetadataRetriever()
         val loaded =
           try {
-            if (cleanPath != null) {
+            if (cleanPath != null && java.io.File(cleanPath).canRead()) {
               retriever.setDataSource(cleanPath)
+            } else if (pathOrUri.startsWith("content://")) {
+              val uri = Uri.parse(pathOrUri)
+              try {
+                context.contentResolver.openFileDescriptor(uri, "r")?.use { pfd ->
+                  retriever.setDataSource(pfd.fileDescriptor)
+                }
+              } catch (_: Exception) {
+                retriever.setDataSource(context, uri)
+              }
             } else {
               retriever.setDataSource(context, Uri.parse(pathOrUri))
             }
 
             AudioPresentationMetadata(
-              artwork = explicitArtwork ?: EmbeddedArtworkResolver.decodeEmbeddedArtwork(cleanPath, retriever),
+              artwork = explicitArtwork ?: EmbeddedArtworkResolver.decodeEmbeddedArtwork(cleanPath ?: pathOrUri, retriever),
               artist =
                 retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_ARTIST)
                   ?: retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_ALBUMARTIST)
@@ -254,7 +267,10 @@ private object AudioPresentationMetadataCache {
                   ?: retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_COMPOSER),
             )
           } catch (_: Exception) {
-            AudioPresentationMetadata(artwork = explicitArtwork, artist = null)
+            val fallbackArtwork = explicitArtwork ?: if (cleanPath != null) {
+              EmbeddedArtworkResolver.decodeSidecar(cleanPath)
+            } else null
+            AudioPresentationMetadata(artwork = fallbackArtwork, artist = null)
           } finally {
             runCatching { retriever.release() }
           }
@@ -492,7 +508,7 @@ fun AudioPlayerControls(
 
   val currentAudioPresentation =
     rememberAudioPresentationMetadata(
-      pathOrUri = currentMediaSource,
+      pathOrUri = mediaPath?.takeIf { it.isNotBlank() } ?: currentMediaSource,
       artworkUri = currentItem?.artworkUri,
     )
   val albumArtBitmap = currentAudioPresentation?.artwork
@@ -593,9 +609,9 @@ fun AudioPlayerControls(
   val playerPreferences = koinInject<PlayerPreferences>()
   val playlistRepository = koinInject<PlaylistRepository>()
   val coroutineScope = rememberCoroutineScope()
-  val activeTrackPath = currentMediaSource ?: mediaPath
-  val isCurrentTrackFavorite by remember(activeTrackPath) {
-    playlistRepository.observeIsFavorite(activeTrackPath.orEmpty(), isAudio = true)
+  val activeTrackPath = mediaPath?.takeIf { it.isNotBlank() } ?: currentMediaSource
+  val isCurrentTrackFavorite by remember(activeTrackPath, mediaPath) {
+    playlistRepository.observeIsFavorite((mediaPath?.takeIf { it.isNotBlank() } ?: activeTrackPath).orEmpty(), isAudio = true)
   }.collectAsState(initial = false)
 
   val seekbarStyle by appearancePreferences.seekbarStyle.collectAsState()
@@ -1240,12 +1256,12 @@ fun AudioPlayerControls(
 
           Row(
             verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            horizontalArrangement = Arrangement.spacedBy(4.dp),
           ) {
             // Favorite Button (right before Add to Playlist)
             ReactiveIconButton(
               onClick = {
-                val path = activeTrackPath ?: return@ReactiveIconButton
+                val path = mediaPath?.takeIf { it.isNotBlank() } ?: activeTrackPath ?: return@ReactiveIconButton
                 coroutineScope.launch {
                   playlistRepository.toggleFavorite(filePath = path, fileName = displayTitle, isAudio = true)
                 }
@@ -1256,7 +1272,7 @@ fun AudioPlayerControls(
                 imageVector = if (isCurrentTrackFavorite) Icons.RoundedFilled.Favorite else Icons.RoundedFilled.FavoriteBorder,
                 contentDescription = if (isCurrentTrackFavorite) "Remove from Favorites" else "Add to Favorites",
                 tint = if (isCurrentTrackFavorite) Color.White else MaterialTheme.colorScheme.onSurface,
-                modifier = Modifier.size(32.dp),
+                modifier = Modifier.size(30.dp),
               )
             }
 
