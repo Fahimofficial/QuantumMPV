@@ -27,6 +27,8 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import com.quantummpv.app.domain.thumbnail.EmbeddedArtworkResolver
+import okhttp3.HttpUrl.Companion.toHttpUrlOrNull
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import org.koin.compose.koinInject
@@ -87,20 +89,31 @@ private object RemoteImageLoader {
     client: OkHttpClient,
     url: String,
   ): Bitmap? {
+    if (url.isBlank()) return null
     getFromMemory(url)?.let { return it }
 
     val parsedUri = runCatching { Uri.parse(url) }.getOrNull()
+    val scheme = parsedUri?.scheme?.lowercase()
     val localBitmap =
-      when (parsedUri?.scheme?.lowercase()) {
+      when (scheme) {
         "content", "android.resource" -> decodeSampled(context, parsedUri)
+          ?: EmbeddedArtworkResolver.decodeArtworkUri(context, url)
         "file" -> parsedUri.path?.let(::File)?.let(::decodeSampled)
+          ?: EmbeddedArtworkResolver.decodeArtworkUri(context, url)
         null, "" -> File(url).takeIf { it.isFile }?.let(::decodeSampled)
+          ?: EmbeddedArtworkResolver.decodeArtworkUri(context, url)
         else -> null
       }
     if (localBitmap != null) {
       synchronized(memoryCache) { memoryCache.put(url, localBitmap) }
       return localBitmap
     }
+
+    if (scheme != "http" && scheme != "https") {
+      return null
+    }
+
+    val httpUrl = url.toHttpUrlOrNull() ?: return null
 
     val cacheDirectory = File(context.cacheDir, CACHE_DIRECTORY).apply { mkdirs() }
     val cacheFile = File(cacheDirectory, hash(url))
@@ -109,14 +122,14 @@ private object RemoteImageLoader {
       return bitmap
     }
 
-    val host = runCatching { java.net.URI(url).host }.getOrNull()
+    val host = httpUrl.host
     val request =
       runCatching {
         Request
           .Builder()
-          .url(url)
+          .url(httpUrl)
           .header("User-Agent", "Mozilla/5.0 (Android) mpvRx")
-          .apply { if (!host.isNullOrBlank()) header("Referer", "https://$host") }
+          .apply { if (host.isNotBlank()) header("Referer", "https://$host") }
           .build()
       }.getOrNull() ?: return null
 
