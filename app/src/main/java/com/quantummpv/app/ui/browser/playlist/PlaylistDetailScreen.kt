@@ -826,7 +826,7 @@ private fun PlaylistVideoListContent(
                   )
                 } else {
                   VideoCard(
-                    video = item.video,
+                    video = if (isAudio && !item.video.isAudio) item.video.copy(isAudio = true) else item.video,
                     progressPercentage = progressPercentage,
                     isRecentlyPlayed = item.playlistItem.id == mostRecentlyPlayedItem?.playlistItem?.id,
                     isSelected = selectionManager.isSelected(item),

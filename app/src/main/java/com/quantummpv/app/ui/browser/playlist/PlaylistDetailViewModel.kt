@@ -117,12 +117,13 @@ class PlaylistDetailViewModel(
               val allVideos = MediaFileRepository.getVideosForBuckets(getApplication(), bucketIds, includeAudioOverride = true)
 
               // Match videos by path, maintaining playlist order
+              val isPlaylistAudio = playlist?.isAudio == true
               val videoItems =
                 items.mapNotNull { item ->
+                  val file = File(item.filePath)
+                  val isAudioFile = isPlaylistAudio || FileTypeUtils.isAudioFile(file)
                   val matchedVideo = allVideos.find { video -> video.path == item.filePath }
-                  val video = matchedVideo ?: run {
-                    val file = File(item.filePath)
-                    val isAudioFile = FileTypeUtils.isAudioFile(file)
+                  val video = (matchedVideo?.let { if (isAudioFile && !it.isAudio) it.copy(isAudio = true) else it }) ?: run {
                     Video(
                       id = item.id.toLong(),
                       title = item.fileName,

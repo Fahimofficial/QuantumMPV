@@ -26,6 +26,10 @@ class PlaylistRepository(
   private val playlistDao: PlaylistDao,
   private val httpClient: OkHttpClient,
 ) {
+  companion object {
+    const val FAVORITES_PLAYLIST_NAME = "Favorites"
+  }
+
   // Playlist operations
   suspend fun createPlaylist(
     name: String,
@@ -42,11 +46,76 @@ class PlaylistRepository(
     )
   }
 
+  suspend fun getOrCreateFavoritesPlaylist(isAudio: Boolean = true): PlaylistEntity {
+    val existing = playlistDao.getAllPlaylists().find {
+      it.name.equals(FAVORITES_PLAYLIST_NAME, ignoreCase = true) && it.isAudio == isAudio
+    }
+    if (existing != null) return existing
+
+    val id = createPlaylist(name = FAVORITES_PLAYLIST_NAME, isAudio = isAudio)
+    return getPlaylistById(id.toInt()) ?: PlaylistEntity(
+      id = id.toInt(),
+      name = FAVORITES_PLAYLIST_NAME,
+      createdAt = System.currentTimeMillis(),
+      updatedAt = System.currentTimeMillis(),
+      isAudio = isAudio,
+    )
+  }
+
+  fun isProtectedPlaylist(playlist: PlaylistEntity): Boolean {
+    return playlist.name.equals(FAVORITES_PLAYLIST_NAME, ignoreCase = true)
+  }
+
+  fun observeIsFavorite(filePath: String, isAudio: Boolean = true): Flow<Boolean> =
+    playlistDao.observeAllPlaylists().map { playlists ->
+      if (filePath.isBlank()) return@map false
+      val favPlaylist = playlists.find { it.name.equals(FAVORITES_PLAYLIST_NAME, ignoreCase = true) && it.isAudio == isAudio }
+        ?: return@map false
+      val items = playlistDao.getPlaylistItems(favPlaylist.id)
+      items.any { isPathMatching(it.filePath, filePath) }
+    }
+
+  suspend fun isFavorite(filePath: String, isAudio: Boolean = true): Boolean {
+    if (filePath.isBlank()) return false
+    val favPlaylist = playlistDao.getAllPlaylists().find {
+      it.name.equals(FAVORITES_PLAYLIST_NAME, ignoreCase = true) && it.isAudio == isAudio
+    } ?: return false
+    val items = playlistDao.getPlaylistItems(favPlaylist.id)
+    return items.any { isPathMatching(it.filePath, filePath) }
+  }
+
+  suspend fun toggleFavorite(filePath: String, fileName: String, isAudio: Boolean = true): Boolean {
+    if (filePath.isBlank()) return false
+    val favPlaylist = getOrCreateFavoritesPlaylist(isAudio)
+    val items = playlistDao.getPlaylistItems(favPlaylist.id)
+    val existing = items.find { isPathMatching(it.filePath, filePath) }
+    return if (existing != null) {
+      removeItemFromPlaylist(existing)
+      false
+    } else {
+      addItemToPlaylist(favPlaylist.id, filePath, fileName)
+      true
+    }
+  }
+
+  private fun isPathMatching(pathA: String, pathB: String): Boolean {
+    if (pathA == pathB) return true
+    if (pathA.isBlank() || pathB.isBlank()) return false
+    val uriA = runCatching { Uri.parse(pathA) }.getOrNull()
+    val uriB = runCatching { Uri.parse(pathB) }.getOrNull()
+    if (uriA != null && uriB != null && uriA == uriB) return true
+    if (uriA?.path != null && uriB?.path != null && uriA.path == uriB.path) return true
+    if (uriA?.path != null && uriA.path == pathB) return true
+    if (uriB?.path != null && uriB.path == pathA) return true
+    return false
+  }
+
   suspend fun updatePlaylist(playlist: PlaylistEntity) {
     playlistDao.updatePlaylist(playlist.copy(updatedAt = System.currentTimeMillis()))
   }
 
   suspend fun deletePlaylist(playlist: PlaylistEntity) {
+    if (isProtectedPlaylist(playlist)) return
     playlistDao.deletePlaylist(playlist)
   }
 

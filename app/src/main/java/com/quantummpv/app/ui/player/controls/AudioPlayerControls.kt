@@ -98,6 +98,7 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import kotlinx.coroutines.launch
 import androidx.palette.graphics.Palette
+import com.quantummpv.app.database.repository.PlaylistRepository
 import com.quantummpv.app.domain.media.model.Video
 import com.quantummpv.app.ui.browser.dialogs.AddToPlaylistDialog
 import com.quantummpv.app.ui.player.controls.components.MiniAudioVisualizer
@@ -590,6 +591,13 @@ fun AudioPlayerControls(
   var addToPlaylistDialogOpen by rememberSaveable { mutableStateOf(false) }
 
   val playerPreferences = koinInject<PlayerPreferences>()
+  val playlistRepository = koinInject<PlaylistRepository>()
+  val coroutineScope = rememberCoroutineScope()
+  val activeTrackPath = currentMediaSource ?: mediaPath
+  val isCurrentTrackFavorite by remember(activeTrackPath) {
+    playlistRepository.observeIsFavorite(activeTrackPath.orEmpty(), isAudio = true)
+  }.collectAsState(initial = false)
+
   val seekbarStyle by appearancePreferences.seekbarStyle.collectAsState()
   val invertDuration by playerPreferences.invertDuration.collectAsState()
   val showChapterIndicators by playerPreferences.showChapterIndicators.collectAsState()
@@ -1230,16 +1238,39 @@ fun AudioPlayerControls(
             }
           }
 
-          ReactiveIconButton(
-            onClick = { addToPlaylistDialogOpen = true },
-            modifier = Modifier.size(40.dp),
+          Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
           ) {
-            Icon(
-              imageVector = Icons.RoundedFilled.PlaylistAdd,
-              contentDescription = stringResource(R.string.ui_add_to_playlist),
-              tint = MaterialTheme.colorScheme.onSurface,
-              modifier = Modifier.size(32.dp),
-            )
+            // Favorite Button (right before Add to Playlist)
+            ReactiveIconButton(
+              onClick = {
+                val path = activeTrackPath ?: return@ReactiveIconButton
+                coroutineScope.launch {
+                  playlistRepository.toggleFavorite(filePath = path, fileName = displayTitle, isAudio = true)
+                }
+              },
+              modifier = Modifier.size(40.dp),
+            ) {
+              Icon(
+                imageVector = if (isCurrentTrackFavorite) Icons.RoundedFilled.Favorite else Icons.RoundedFilled.FavoriteBorder,
+                contentDescription = if (isCurrentTrackFavorite) "Remove from Favorites" else "Add to Favorites",
+                tint = if (isCurrentTrackFavorite) Color.White else MaterialTheme.colorScheme.onSurface,
+                modifier = Modifier.size(32.dp),
+              )
+            }
+
+            ReactiveIconButton(
+              onClick = { addToPlaylistDialogOpen = true },
+              modifier = Modifier.size(40.dp),
+            ) {
+              Icon(
+                imageVector = Icons.RoundedFilled.PlaylistAdd,
+                contentDescription = stringResource(R.string.ui_add_to_playlist),
+                tint = MaterialTheme.colorScheme.onSurface,
+                modifier = Modifier.size(32.dp),
+              )
+            }
           }
         }
       }

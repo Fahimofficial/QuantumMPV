@@ -565,7 +565,7 @@ fun VideoCard(
           // Respect a caller-supplied size (e.g. the configurable Music cover-art size) instead of
           // always hardcoding 128dp, otherwise controls like the Cover Art Size slider have no effect
           // on this list layout.
-          val thumbWidthPx = thumbnailWidthPx?.takeIf { it > 0 } ?: with(LocalDensity.current) { 128.dp.roundToPx() }
+          val thumbWidthPx = thumbnailWidthPx?.takeIf { it > 0 } ?: with(LocalDensity.current) { (if (video.isAudio) 56.dp else 128.dp).roundToPx() }
           val thumbWidthDp = with(LocalDensity.current) { thumbWidthPx.toDp() }
           val thumbHeightPx = thumbnailHeightPx?.takeIf { it > 0 } ?: (thumbWidthPx / aspect).roundToInt()
 
