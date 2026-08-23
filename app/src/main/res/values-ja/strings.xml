@@ -1789,4 +1789,29 @@
   <string name="lyrics_translating">歌詞を翻訳中…</string>
   <string name="lyrics_translation_off">元の歌詞</string>
   <string name="lyrics_select_language">翻訳先言語を選択</string>
+
+  <!-- Clip -->
+  <string name="clip_action">クリップを作成</string>
+  <string name="clip_options">クリップのオプション</string>
+  <string name="clip_crop_action">切り抜いてクリップを作成</string>
+  <string name="clip_mark_start">開始位置をマーク</string>
+  <string name="clip_mark_end">終了位置をマーク</string>
+  <string name="clip_crop">切り抜き</string>
+  <string name="clip_save">クリップを保存</string>
+  <string name="clip_cancel">キャンセル</string>
+  <string name="clip_done">完了</string>
+  <string name="clip_clear">クリップをクリア</string>
+  <string name="clip_start_time">開始: %1$s</string>
+  <string name="clip_end_time">終了: %1$s</string>
+  <string name="clip_end_not_set">終了: 未設定</string>
+  <string name="clip_crop_size">切り抜き: %1$d × %2$d</string>
+  <string name="clip_crop_full_frame">切り抜き: フレーム全体</string>
+  <string name="clip_select_crop">残す範囲に合わせて枠のサイズを変更してください</string>
+  <string name="clip_exporting">クリップを作成中… %1$d%%</string>
+  <string name="clip_cancelling">クリップをキャンセル中…</string>
+  <string name="clip_saved">%1$s を保存しました</string>
+  <string name="clip_invalid_range">開始位置より後に終了位置をマークしてください</string>
+  <string name="clip_video_unavailable">動画のサイズはまだ利用できません</string>
+  <string name="clip_export_busy">別のクリップを作成中です</string>
+  <string name="clip_export_failed">クリップの作成に失敗しました: %1$s</string>
 </resources>

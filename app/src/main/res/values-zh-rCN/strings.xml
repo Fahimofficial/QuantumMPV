@@ -1791,4 +1791,29 @@
   <string name="lyrics_translating">正在翻译歌词…</string>
   <string name="lyrics_translation_off">原始歌词</string>
   <string name="lyrics_select_language">选择目标语言</string>
+
+  <!-- Clip -->
+  <string name="clip_action">创建片段</string>
+  <string name="clip_options">片段选项</string>
+  <string name="clip_crop_action">裁剪并创建片段</string>
+  <string name="clip_mark_start">标记开始</string>
+  <string name="clip_mark_end">标记结束</string>
+  <string name="clip_crop">裁剪</string>
+  <string name="clip_save">保存片段</string>
+  <string name="clip_cancel">取消</string>
+  <string name="clip_done">完成</string>
+  <string name="clip_clear">清除片段</string>
+  <string name="clip_start_time">开始：%1$s</string>
+  <string name="clip_end_time">结束：%1$s</string>
+  <string name="clip_end_not_set">结束：未设置</string>
+  <string name="clip_crop_size">裁剪：%1$d × %2$d</string>
+  <string name="clip_crop_full_frame">裁剪：完整画面</string>
+  <string name="clip_select_crop">调整边框大小以保留需要的区域</string>
+  <string name="clip_exporting">正在创建片段… %1$d%%</string>
+  <string name="clip_cancelling">正在取消片段…</string>
+  <string name="clip_saved">已保存 %1$s</string>
+  <string name="clip_invalid_range">请在开始点之后标记结束点</string>
+  <string name="clip_video_unavailable">视频尺寸暂不可用</string>
+  <string name="clip_export_busy">已有另一个片段正在创建</string>
+  <string name="clip_export_failed">片段创建失败：%1$s</string>
 </resources>

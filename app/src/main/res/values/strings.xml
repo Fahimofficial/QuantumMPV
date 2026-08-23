@@ -1788,4 +1788,31 @@
   <string name="lyrics_translating">Translating lyrics…</string>
   <string name="lyrics_translation_off">Original Lyrics</string>
   <string name="lyrics_select_language">Select Target Language</string>
+
+  <!-- Clip -->
+  <string name="clip_end_short">End</string>
+  <string name="clip_start_short">Start</string>
+  <string name="clip_action">Create clip</string>
+  <string name="clip_options">Clip options</string>
+  <string name="clip_crop_action">Crop &amp; create clip</string>
+  <string name="clip_mark_start">Mark start</string>
+  <string name="clip_mark_end">Mark end</string>
+  <string name="clip_crop">Crop</string>
+  <string name="clip_save">Save clip</string>
+  <string name="clip_cancel">Cancel</string>
+  <string name="clip_done">Done</string>
+  <string name="clip_clear">Clear clip</string>
+  <string name="clip_start_time">Start: %1$s</string>
+  <string name="clip_end_time">End: %1$s</string>
+  <string name="clip_end_not_set">End: Not set</string>
+  <string name="clip_crop_size">Crop: %1$d × %2$d</string>
+  <string name="clip_crop_full_frame">Crop: Full frame</string>
+  <string name="clip_select_crop">Resize the frame to keep</string>
+  <string name="clip_exporting">Creating clip… %1$d%%</string>
+  <string name="clip_cancelling">Cancelling clip…</string>
+  <string name="clip_saved">Saved %1$s</string>
+  <string name="clip_invalid_range">Mark an end point after the start point</string>
+  <string name="clip_video_unavailable">Video dimensions are not available yet</string>
+  <string name="clip_export_busy">Another clip is already being created</string>
+  <string name="clip_export_failed">Clip failed: %1$s</string>
 </resources>

@@ -1789,4 +1789,29 @@ Reinicia la aplicación para que se apliquen todos los cambios.</string>
   <string name="lyrics_translating">Traduciendo letra…</string>
   <string name="lyrics_translation_off">Letra original</string>
   <string name="lyrics_select_language">Seleccionar idioma de destino</string>
+
+  <!-- Clip -->
+  <string name="clip_action">Crear clip</string>
+  <string name="clip_options">Opciones del clip</string>
+  <string name="clip_crop_action">Recortar y crear clip</string>
+  <string name="clip_mark_start">Marcar inicio</string>
+  <string name="clip_mark_end">Marcar fin</string>
+  <string name="clip_crop">Recortar</string>
+  <string name="clip_save">Guardar clip</string>
+  <string name="clip_cancel">Cancelar</string>
+  <string name="clip_done">Listo</string>
+  <string name="clip_clear">Borrar clip</string>
+  <string name="clip_start_time">Inicio: %1$s</string>
+  <string name="clip_end_time">Fin: %1$s</string>
+  <string name="clip_end_not_set">Fin: Sin definir</string>
+  <string name="clip_crop_size">Recorte: %1$d × %2$d</string>
+  <string name="clip_crop_full_frame">Recorte: Fotograma completo</string>
+  <string name="clip_select_crop">Redimensiona el marco para conservar el área deseada</string>
+  <string name="clip_exporting">Creando clip… %1$d%%</string>
+  <string name="clip_cancelling">Cancelando clip…</string>
+  <string name="clip_saved">%1$s guardado</string>
+  <string name="clip_invalid_range">Marca un punto final después del punto inicial</string>
+  <string name="clip_video_unavailable">Las dimensiones del video aún no están disponibles</string>
+  <string name="clip_export_busy">Ya se está creando otro clip</string>
+  <string name="clip_export_failed">Error al crear el clip: %1$s</string>
 </resources>
