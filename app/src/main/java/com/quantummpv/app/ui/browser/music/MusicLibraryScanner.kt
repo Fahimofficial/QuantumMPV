@@ -60,18 +60,19 @@ object MusicLibraryScanner {
         while (cursor.moveToNext()) {
           val id = cursor.getLong(idCol)
           val path = cursor.getString(dataCol) ?: continue
+          val size = cursor.getLong(sizeCol)
+          val duration = cursor.getLong(durationCol)
           val file = File(path)
-          if (!file.exists()) continue
+          val fileExists = try { file.exists() } catch (_: Exception) { false }
+          if (!fileExists && size <= 0L && duration <= 0L) continue
 
           val title = cursor.getString(titleCol)?.takeIf { it.isNotBlank() } ?: file.nameWithoutExtension
           val artist = cursor.getString(artistCol)?.takeIf { it.isNotBlank() && it != "<unknown>" } ?: "Unknown Artist"
           val album = cursor.getString(albumCol)?.takeIf { it.isNotBlank() && it != "<unknown>" } ?: "Unknown Album"
           val albumId = cursor.getLong(albumIdCol)
-          val duration = cursor.getLong(durationCol)
           val dateAdded = cursor.getLong(dateAddedCol)
           val track = cursor.getInt(trackCol)
           val year = cursor.getInt(yearCol)
-          val size = cursor.getLong(sizeCol)
 
           val contentUri = ContentUris.withAppendedId(MediaStore.Audio.Media.EXTERNAL_CONTENT_URI, id)
           val albumArtUri = if (albumId > 0) ContentUris.withAppendedId(ALBUM_ART_BASE_URI, albumId) else null
