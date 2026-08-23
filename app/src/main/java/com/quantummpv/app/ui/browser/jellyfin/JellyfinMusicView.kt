@@ -63,6 +63,8 @@ import com.quantummpv.app.ui.icons.AppIcon
 import com.quantummpv.app.ui.icons.Icon
 import com.quantummpv.app.ui.icons.Icons
 
+import androidx.compose.foundation.pager.HorizontalPager
+import androidx.compose.foundation.pager.PagerState
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.quantummpv.app.ui.browser.music.SharedMusicGridCard
 import com.quantummpv.app.ui.browser.music.SharedMusicTrackListItem
@@ -72,72 +74,117 @@ import com.quantummpv.app.ui.player.PlaybackSession
 fun JellyfinMusicView(
   uiState: JellyfinUiState,
   server: JellyfinServer,
+  pagerState: PagerState,
+  visibleTabs: List<JellyfinMusicTab>,
   onTabSelected: (JellyfinMusicTab) -> Unit,
   onItemClick: (JellyfinItem) -> Unit,
   onItemLongClick: (JellyfinItem) -> Unit,
   navigationBarHeight: Dp,
   modifier: Modifier = Modifier,
 ) {
-  Box(
+  HorizontalPager(
+    state = pagerState,
     modifier = modifier
       .fillMaxSize()
       .background(MaterialTheme.colorScheme.background),
-  ) {
-
-    if (uiState.isMusicLoading || (uiState.isLoading && uiState.musicActiveTab != JellyfinMusicTab.HOME)) {
-      Box(
-        modifier = Modifier.fillMaxSize(),
-        contentAlignment = Alignment.Center,
-      ) {
-        CircularProgressIndicator()
-      }
-    } else {
-      when (uiState.musicActiveTab) {
+    beyondViewportPageCount = 1,
+    key = { page -> visibleTabs.getOrNull(page) ?: page },
+  ) { page ->
+    val tab = visibleTabs.getOrNull(page) ?: JellyfinMusicTab.HOME
+    Box(
+      modifier = Modifier.fillMaxSize(),
+    ) {
+      when (tab) {
         JellyfinMusicTab.HOME -> {
-          JellyfinMusicHomeContent(
-            uiState = uiState,
-            server = server,
-            onTabSelected = onTabSelected,
-            onItemClick = onItemClick,
-            onItemLongClick = onItemLongClick,
-            navigationBarHeight = navigationBarHeight,
-          )
-        }
-        JellyfinMusicTab.PLAYLISTS -> {
-          JellyfinMusicGrid(
-            items = uiState.musicPlaylists,
-            server = server,
-            onItemClick = onItemClick,
-            onItemLongClick = onItemLongClick,
-            navigationBarHeight = navigationBarHeight,
-          )
-        }
-        JellyfinMusicTab.ARTISTS -> {
-          JellyfinArtistsGrid(
-            artists = uiState.musicArtists,
-            server = server,
-            onItemClick = onItemClick,
-            onItemLongClick = onItemLongClick,
-            navigationBarHeight = navigationBarHeight,
-          )
-        }
-        JellyfinMusicTab.ALBUMS -> {
-          JellyfinMusicGrid(
-            items = uiState.musicAlbums,
-            server = server,
-            onItemClick = onItemClick,
-            onItemLongClick = onItemLongClick,
-            navigationBarHeight = navigationBarHeight,
-          )
+          if (uiState.isMusicLoading && uiState.musicJumpBackIn.isEmpty() && uiState.musicPlaylists.isEmpty() && uiState.musicRecentlyPlayedAlbums.isEmpty() && uiState.musicArtistsToExplore.isEmpty()) {
+            Box(
+              modifier = Modifier.fillMaxSize(),
+              contentAlignment = Alignment.Center,
+            ) {
+              CircularProgressIndicator()
+            }
+          } else {
+            JellyfinMusicHomeContent(
+              uiState = uiState,
+              server = server,
+              onTabSelected = onTabSelected,
+              onItemClick = onItemClick,
+              onItemLongClick = onItemLongClick,
+              navigationBarHeight = navigationBarHeight,
+            )
+          }
         }
         JellyfinMusicTab.TRACKS -> {
-          JellyfinTracksList(
-            tracks = uiState.musicTracks,
-            server = server,
-            onTrackClick = onItemClick,
-            onTrackLongClick = onItemLongClick,
-            navigationBarHeight = navigationBarHeight,
-          )
+          if (uiState.isLoading && uiState.musicTracks.isEmpty()) {
+            Box(
+              modifier = Modifier.fillMaxSize(),
+              contentAlignment = Alignment.Center,
+            ) {
+              CircularProgressIndicator()
+            }
+          } else {
+            JellyfinTracksList(
+              tracks = uiState.musicTracks,
+              server = server,
+              onTrackClick = onItemClick,
+              onTrackLongClick = onItemLongClick,
+              navigationBarHeight = navigationBarHeight,
+            )
+          }
+        }
+        JellyfinMusicTab.ALBUMS -> {
+          if (uiState.isLoading && uiState.musicAlbums.isEmpty()) {
+            Box(
+              modifier = Modifier.fillMaxSize(),
+              contentAlignment = Alignment.Center,
+            ) {
+              CircularProgressIndicator()
+            }
+          } else {
+            JellyfinMusicGrid(
+              items = uiState.musicAlbums,
+              server = server,
+              onItemClick = onItemClick,
+              onItemLongClick = onItemLongClick,
+              navigationBarHeight = navigationBarHeight,
+            )
+          }
+        }
+        JellyfinMusicTab.ARTISTS -> {
+          if (uiState.isLoading && uiState.musicArtists.isEmpty()) {
+            Box(
+              modifier = Modifier.fillMaxSize(),
+              contentAlignment = Alignment.Center,
+            ) {
+              CircularProgressIndicator()
+            }
+          } else {
+            JellyfinArtistsGrid(
+              artists = uiState.musicArtists,
+              server = server,
+              onItemClick = onItemClick,
+              onItemLongClick = onItemLongClick,
+              navigationBarHeight = navigationBarHeight,
+            )
+          }
+        }
+        JellyfinMusicTab.PLAYLISTS -> {
+          if (uiState.isLoading && uiState.musicPlaylists.isEmpty()) {
+            Box(
+              modifier = Modifier.fillMaxSize(),
+              contentAlignment = Alignment.Center,
+            ) {
+              CircularProgressIndicator()
+            }
+          } else {
+            JellyfinMusicGrid(
+              items = uiState.musicPlaylists,
+              server = server,
+              onItemClick = onItemClick,
+              onItemLongClick = onItemLongClick,
+              navigationBarHeight = navigationBarHeight,
+            )
+          }
         }
       }
     }

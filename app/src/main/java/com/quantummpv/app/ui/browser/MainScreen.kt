@@ -213,7 +213,7 @@ object MainScreen : Screen {
       initialPage = visibleTabs.indexOf(persistentSelectedTab).coerceAtLeast(0),
       pageCount = { visibleTabs.size },
     )
-    val selectedTab = visibleTabs.getOrNull(pagerState.settledPage) ?: visibleTabs.firstOrNull() ?: MainTab.HOME
+    val selectedTab = visibleTabs.getOrNull(pagerState.targetPage) ?: visibleTabs.firstOrNull() ?: MainTab.HOME
 
     // PagerState is the only live navigation state. Restore first, then persist completed moves.
     LaunchedEffect(pagerState, visibleTabs) {
@@ -239,7 +239,7 @@ object MainScreen : Screen {
     val onTabSelected: (MainScreen.MainTab) -> Unit = { tab ->
       scope.launch {
         val page = visibleTabs.indexOf(tab)
-        if (page >= 0 && page != pagerState.settledPage) {
+        if (page >= 0 && page != pagerState.targetPage) {
           pagerState.animateScrollToPage(page)
         }
       }

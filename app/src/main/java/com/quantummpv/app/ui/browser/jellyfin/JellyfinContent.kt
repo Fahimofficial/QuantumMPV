@@ -68,6 +68,8 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.ToggleFloatingActionButton
 import androidx.compose.material3.ToggleFloatingActionButtonDefaults.animateIcon
 import androidx.compose.material3.animateFloatingActionButton
+import androidx.compose.foundation.pager.rememberPagerState
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
@@ -98,6 +100,7 @@ import com.quantummpv.app.domain.jellyfin.JellyfinItem
 import com.quantummpv.app.domain.jellyfin.JellyfinSearchCategory
 import com.quantummpv.app.domain.jellyfin.JellyfinServer
 import com.quantummpv.app.preferences.AppearancePreferences
+import kotlinx.coroutines.launch
 import com.quantummpv.app.preferences.BrowserPreferences
 import com.quantummpv.app.preferences.MediaLayoutMode
 import com.quantummpv.app.preferences.preference.collectAsState
@@ -138,6 +141,36 @@ fun JellyfinContent(
   var isFabExpanded by remember { mutableStateOf(false) }
   val isFabVisible = remember { mutableStateOf(true) }
   val searchFocusRequester = remember { FocusRequester() }
+  val scope = rememberCoroutineScope()
+
+  val musicTabs = remember {
+    listOf(
+      JellyfinMusicTab.HOME,
+      JellyfinMusicTab.TRACKS,
+      JellyfinMusicTab.ALBUMS,
+      JellyfinMusicTab.ARTISTS,
+      JellyfinMusicTab.PLAYLISTS,
+    )
+  }
+  val musicPagerState = rememberPagerState(
+    initialPage = musicTabs.indexOf(uiState.musicActiveTab).coerceAtLeast(0),
+    pageCount = { musicTabs.size },
+  )
+
+  LaunchedEffect(musicPagerState.settledPage, musicTabs) {
+    musicTabs.getOrNull(musicPagerState.settledPage)?.let { tab ->
+      if (uiState.musicActiveTab != tab) {
+        viewModel.setMusicTab(tab)
+      }
+    }
+  }
+
+  LaunchedEffect(uiState.musicActiveTab, musicTabs) {
+    val targetIndex = musicTabs.indexOf(uiState.musicActiveTab)
+    if (targetIndex >= 0 && musicPagerState.currentPage != targetIndex) {
+      musicPagerState.animateScrollToPage(targetIndex)
+    }
+  }
 
   val homeListState = rememberLazyListState()
   val libraryListState = remember(uiState.openLibrary, uiState.sortBy, uiState.sortOrder, uiState.isUnplayedOnly) { LazyListState() }
@@ -357,16 +390,7 @@ fun JellyfinContent(
       }
 
       if (uiState.openLibrary?.isMusic == true && !isSearching) {
-        val visibleTabs = remember {
-          listOf(
-            JellyfinMusicTab.HOME,
-            JellyfinMusicTab.TRACKS,
-            JellyfinMusicTab.ALBUMS,
-            JellyfinMusicTab.ARTISTS,
-            JellyfinMusicTab.PLAYLISTS,
-          )
-        }
-        val selectedTabIndex = visibleTabs.indexOf(uiState.musicActiveTab).let { if (it < 0) 0 else it }
+        val selectedTabIndex = musicPagerState.currentPage.coerceIn(0, (musicTabs.size - 1).coerceAtLeast(0))
 
         PrimaryScrollableTabRow(
           selectedTabIndex = selectedTabIndex,
@@ -375,10 +399,15 @@ fun JellyfinContent(
           edgePadding = 8.dp,
           divider = {},
         ) {
-          visibleTabs.forEachIndexed { index, tab ->
+          musicTabs.forEachIndexed { index, tab ->
             Tab(
               selected = selectedTabIndex == index,
-              onClick = { viewModel.setMusicTab(tab) },
+              onClick = {
+                scope.launch {
+                  viewModel.setMusicTab(tab)
+                  musicPagerState.animateScrollToPage(index)
+                }
+              },
               text = {
                 Text(
                   text = tab.title,
@@ -621,7 +650,17 @@ fun JellyfinContent(
                 JellyfinMusicView(
                   uiState = uiState,
                   server = uiState.activeServer!!,
-                  onTabSelected = viewModel::setMusicTab,
+                  pagerState = musicPagerState,
+                  visibleTabs = musicTabs,
+                  onTabSelected = { tab ->
+                    scope.launch {
+                      viewModel.setMusicTab(tab)
+                      val targetIndex = musicTabs.indexOf(tab)
+                      if (targetIndex >= 0) {
+                        musicPagerState.animateScrollToPage(targetIndex)
+                      }
+                    }
+                  },
                   onItemClick = { item ->
                     if (selectionManager.isInSelectionMode) {
                       selectionManager.toggle(item)

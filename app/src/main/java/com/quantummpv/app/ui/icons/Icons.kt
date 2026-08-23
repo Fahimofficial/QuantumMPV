@@ -150,7 +150,7 @@ object Icons {
     val Lock by lazy(LazyThreadSafetyMode.NONE) { AppIcon(MaterialSymbols.RoundedFilled.Lock) }
     val LockOpen by lazy(LazyThreadSafetyMode.NONE) { AppIcon(MaterialSymbols.RoundedFilled.Lock_open) }
     val ListAlt by lazy(LazyThreadSafetyMode.NONE) { AppIcon(MaterialSymbols.RoundedFilled.List_alt) }
-    val Lyrics by lazy(LazyThreadSafetyMode.NONE) { AppIcon(MaterialSymbols.RoundedFilled.Lyrics) }
+    val Lyrics by lazy(LazyThreadSafetyMode.NONE) { AppIcon(LyricsVector) }
     val Memory by lazy(LazyThreadSafetyMode.NONE) { AppIcon(MaterialSymbols.RoundedFilled.Memory) }
     val Mic by lazy(LazyThreadSafetyMode.NONE) { AppIcon(MaterialSymbols.RoundedFilled.Mic) }
     val Person by lazy(LazyThreadSafetyMode.NONE) { AppIcon(MaterialSymbols.RoundedFilled.Person) }
@@ -513,6 +513,58 @@ private val FavoriteBorderVector: ImageVector by lazy(LazyThreadSafetyMode.NONE)
       curveTo(13.46f, 5.99f, 14.96f, 5.0f, 16.5f, 5.0f)
       curveTo(18.5f, 5.0f, 20.0f, 6.5f, 20.0f, 8.5f)
       curveTo(20.0f, 11.39f, 16.86f, 14.24f, 12.1f, 18.55f)
+      close()
+    }
+  }.build()
+}
+
+private val LyricsVector: ImageVector by lazy(LazyThreadSafetyMode.NONE) {
+  ImageVector.Builder(
+    name = "Lyrics",
+    defaultWidth = 24.dp,
+    defaultHeight = 24.dp,
+    viewportWidth = 24f,
+    viewportHeight = 24f,
+  ).apply {
+    path(
+      fill = SolidColor(Color.Black),
+      fillAlpha = 1.0f,
+      stroke = null,
+      strokeAlpha = 1.0f,
+      strokeLineWidth = 1.0f,
+      pathFillType = PathFillType.EvenOdd,
+    ) {
+      // Speech bubble message box (full standard 24x24 icon scale)
+      moveTo(5.5f, 3.0f)
+      horizontalLineTo(18.5f)
+      curveTo(20.43f, 3.0f, 22.0f, 4.57f, 22.0f, 6.5f)
+      verticalLineTo(14.5f)
+      curveTo(22.0f, 16.43f, 20.43f, 18.0f, 18.5f, 18.0f)
+      horizontalLineTo(8.0f)
+      lineTo(3.2f, 21.6f)
+      curveTo(2.6f, 22.05f, 2.0f, 21.6f, 2.0f, 20.8f)
+      verticalLineTo(6.5f)
+      curveTo(2.0f, 4.57f, 3.57f, 3.0f, 5.5f, 3.0f)
+      close()
+
+      // Left quotation mark (bulb top-right, tail curving down-left)
+      moveTo(9.0f, 6.5f)
+      curveTo(10.2f, 6.5f, 11.0f, 7.3f, 11.0f, 8.5f)
+      curveTo(11.0f, 11.0f, 9.2f, 13.5f, 6.6f, 14.8f)
+      curveTo(6.1f, 15.0f, 5.7f, 14.4f, 6.0f, 13.9f)
+      curveTo(7.4f, 12.3f, 8.0f, 11.0f, 7.7f, 9.7f)
+      curveTo(7.3f, 9.7f, 7.0f, 9.2f, 7.0f, 8.5f)
+      curveTo(7.0f, 7.3f, 7.8f, 6.5f, 9.0f, 6.5f)
+      close()
+
+      // Right quotation mark (bulb top-right, tail curving down-left)
+      moveTo(14.5f, 6.5f)
+      curveTo(15.7f, 6.5f, 16.5f, 7.3f, 16.5f, 8.5f)
+      curveTo(16.5f, 11.0f, 14.7f, 13.5f, 12.1f, 14.8f)
+      curveTo(11.6f, 15.0f, 11.2f, 14.4f, 11.5f, 13.9f)
+      curveTo(12.9f, 12.3f, 13.5f, 11.0f, 13.2f, 9.7f)
+      curveTo(12.8f, 9.7f, 12.5f, 9.2f, 12.5f, 8.5f)
+      curveTo(12.5f, 7.3f, 13.3f, 6.5f, 14.5f, 6.5f)
       close()
     }
   }.build()
