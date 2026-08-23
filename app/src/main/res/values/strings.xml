@@ -1283,6 +1283,7 @@
   <string name="ui_failed_to_delete">Failed to delete</string>
   <string name="ui_play_recently_played_or_first_video">Play recently played or first video</string>
   <string name="ui_videos">Videos</string>
+  <string name="ui_audio_tab">Audio</string>
   <string name="ui_add_connection">Add Connection</string>
   <string name="ui_local_network">Local Network</string>
   <string name="ui_jellyfin">Jellyfin</string>
