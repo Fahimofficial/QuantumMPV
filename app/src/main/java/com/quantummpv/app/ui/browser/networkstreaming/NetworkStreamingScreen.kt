@@ -227,76 +227,117 @@ object NetworkStreamingScreen : Screen {
 
     val pagerState = rememberPagerState { NetworkTab.entries.size }
 
+    val headerContainerColor =
+      if (MaterialTheme.colorScheme.background == Color.Black) Color.Black else MaterialTheme.colorScheme.surfaceContainer
+
     Scaffold(
+      modifier = Modifier.fillMaxSize(),
       topBar = {
-        if (isSearching) {
-          SearchBar(
-            inputField = {
-              SearchBarDefaults.InputField(
-                query = searchQuery,
-                onQueryChange = { searchQuery = it },
-                onSearch = { },
-                expanded = false,
-                onExpandedChange = { },
-                placeholder = {
-                  Text(stringResource(R.string.settings_search_title))
+        Column(
+          modifier =
+            Modifier
+              .fillMaxWidth()
+              .background(headerContainerColor),
+        ) {
+          if (isSearching) {
+            SearchBar(
+              inputField = {
+                SearchBarDefaults.InputField(
+                  query = searchQuery,
+                  onQueryChange = { searchQuery = it },
+                  onSearch = { },
+                  expanded = false,
+                  onExpandedChange = { },
+                  placeholder = {
+                    Text(stringResource(R.string.settings_search_title))
+                  },
+                  leadingIcon = {
+                    Icon(
+                      imageVector = Icons.RoundedFilled.Search,
+                      contentDescription = stringResource(R.string.settings_search_title),
+                    )
+                  },
+                  trailingIcon = {
+                    IconButton(
+                      onClick = {
+                        isSearching = false
+                        searchQuery = ""
+                      },
+                    ) {
+                      Icon(
+                        imageVector = Icons.RoundedFilled.Close,
+                        contentDescription = stringResource(R.string.generic_cancel),
+                      )
+                    }
+                  },
+                  modifier = Modifier.focusRequester(focusRequester),
+                )
+              },
+              expanded = false,
+              onExpandedChange = { },
+              modifier =
+                Modifier
+                  .fillMaxWidth()
+                  .padding(horizontal = 16.dp, vertical = 8.dp),
+              shape = RoundedCornerShape(28.dp),
+              tonalElevation = 6.dp,
+            ) {
+              // Empty search bar content
+            }
+          } else {
+            Box {
+              BrowserTopBar(
+                title = stringResource(R.string.ui_network),
+                isInSelectionMode = false,
+                selectedCount = 0,
+                totalCount = connections.size + recentLinks.size + allMediaGroups.size,
+                onBackClick = null,
+                onCancelSelection = { },
+                onSortClick = null,
+                onSearchClick = null,
+                onSettingsClick = {
+                  backstack.add(com.quantummpv.app.ui.preferences.PreferencesScreen)
                 },
-                leadingIcon = {
-                  Icon(
-                    imageVector = Icons.RoundedFilled.Search,
-                    contentDescription = stringResource(R.string.settings_search_title),
+                onDeleteClick = null,
+                onRenameClick = null,
+                isSingleSelection = false,
+                onInfoClick = null,
+                onShareClick = null,
+                onPlayClick = null,
+                onSelectAll = null,
+                onInvertSelection = null,
+                onDeselectAll = null,
+              )
+            }
+          }
+
+          PrimaryScrollableTabRow(
+            selectedTabIndex = pagerState.currentPage.coerceIn(0, (NetworkTab.entries.size - 1).coerceAtLeast(0)),
+            edgePadding = 8.dp,
+            containerColor = Color.Transparent,
+            contentColor = MaterialTheme.colorScheme.primary,
+            divider = {},
+          ) {
+            NetworkTab.entries.forEachIndexed { index, tab ->
+              Tab(
+                selected = pagerState.currentPage == index,
+                onClick = {
+                  coroutineScope.launch { pagerState.animateScrollToPage(index) }
+                },
+                text = {
+                  Text(
+                    text = stringResource(tab.titleResId),
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = if (pagerState.currentPage == index) FontWeight.Bold else FontWeight.Medium,
+                    maxLines = 1,
+                    softWrap = false,
+                    overflow = TextOverflow.Ellipsis,
                   )
                 },
-                trailingIcon = {
-                  IconButton(
-                    onClick = {
-                      isSearching = false
-                      searchQuery = ""
-                    },
-                  ) {
-                    Icon(
-                      imageVector = Icons.RoundedFilled.Close,
-                      contentDescription = stringResource(R.string.generic_cancel),
-                    )
-                  }
-                },
-                modifier = Modifier.focusRequester(focusRequester),
               )
-            },
-            expanded = false,
-            onExpandedChange = { },
-            modifier =
-              Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 16.dp),
-            shape = RoundedCornerShape(28.dp),
-            tonalElevation = 6.dp,
-          ) {
-            // Empty search bar content
+            }
           }
-        } else {
-          BrowserTopBar(
-            title = stringResource(R.string.ui_network),
-            isInSelectionMode = false,
-            selectedCount = 0,
-            totalCount = connections.size + recentLinks.size + allMediaGroups.size,
-            onBackClick = null,
-            onCancelSelection = { },
-            onSortClick = null,
-            onSearchClick = null,
-            onSettingsClick = {
-              backstack.add(com.quantummpv.app.ui.preferences.PreferencesScreen)
-            },
-            onDeleteClick = null,
-            onRenameClick = null,
-            isSingleSelection = false,
-            onInfoClick = null,
-            onShareClick = null,
-            onPlayClick = null,
-            onSelectAll = null,
-            onInvertSelection = null,
-            onDeselectAll = null,
-          )
+          HorizontalDivider()
         }
       },
       floatingActionButton = {
@@ -324,41 +365,17 @@ object NetworkStreamingScreen : Screen {
         }
       },
     ) { padding ->
-      Column(
+      Box(
         modifier =
           Modifier
             .fillMaxSize()
             .padding(padding),
       ) {
-        PrimaryScrollableTabRow(
-          selectedTabIndex = pagerState.currentPage,
-          edgePadding = 16.dp,
-          containerColor = MaterialTheme.colorScheme.surface,
-          contentColor = MaterialTheme.colorScheme.primary,
-          divider = {},
-        ) {
-          NetworkTab.entries.forEachIndexed { index, tab ->
-            Tab(
-              selected = pagerState.currentPage == index,
-              onClick = {
-                coroutineScope.launch { pagerState.animateScrollToPage(index) }
-              },
-              text = {
-                Text(
-                  text = stringResource(tab.titleResId),
-                  fontWeight = if (pagerState.currentPage == index) FontWeight.Bold else FontWeight.Normal,
-                )
-              },
-            )
-          }
-        }
-
         HorizontalPager(
           state = pagerState,
           modifier =
             Modifier
-              .fillMaxSize()
-              .weight(1f),
+              .fillMaxSize(),
           userScrollEnabled = true,
           beyondViewportPageCount = 1,
         ) { page ->
