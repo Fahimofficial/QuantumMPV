@@ -275,6 +275,7 @@ private fun normalizeSeekerSegments(
 fun SeekbarWithTimers(
   position: Float,
   duration: Float,
+  remaining: Float,
   committedPosition: Float = position,
   onValueChange: (Float) -> Unit,
   onValueChangeFinished: (Float) -> Unit,
@@ -366,7 +367,7 @@ fun SeekbarWithTimers(
         )
 
         VideoTimer(
-          value = if (timersInverted.second) position - duration else duration,
+          value = if (timersInverted.second) -remaining else duration,
           isInverted = timersInverted.second,
           textColor = timerTextColor,
           onClick = {
@@ -417,7 +418,7 @@ fun SeekbarWithTimers(
       )
 
       VideoTimer(
-        value = if (timersInverted.second) position - duration else duration,
+        value = if (timersInverted.second) -remaining else duration,
         isInverted = timersInverted.second,
         textColor = timerTextColor,
         onClick = {
@@ -1892,6 +1893,7 @@ private fun PreviewSeekBarWavy() {
   SeekbarWithTimers(
     position = 30f,
     duration = 180f,
+    remaining= 150f,
     onValueChange = {},
     onValueChangeFinished = {},
     timersInverted = Pair(false, true),
@@ -1910,6 +1912,7 @@ private fun PreviewSeekBarSlim() {
   SeekbarWithTimers(
     position = 30f,
     duration = 180f,
+    remaining= 150f,
     onValueChange = {},
     onValueChangeFinished = {},
     timersInverted = Pair(false, true),
@@ -1928,6 +1931,7 @@ private fun PreviewSeekBarSlimScrubbing() {
   SeekbarWithTimers(
     position = 30f,
     duration = 180f,
+    remaining= 150f,
     onValueChange = {},
     onValueChangeFinished = {},
     timersInverted = Pair(false, true),
