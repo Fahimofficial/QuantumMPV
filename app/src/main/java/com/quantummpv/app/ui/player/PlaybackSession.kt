@@ -262,11 +262,11 @@ object PlaybackSession : MPVLib.EventObserver {
     withCore(default = false) {
       if (!surface.isValid) return@withCore false
 
-      // Replacing an already-attached Surface must also detach the hardware video decoder first.
-      // Otherwise MediaCodec can race the old ANativeWindow while the new Surface is attached.
+      // Surface ownership is a renderer concern only. Full player, mini player, PiP and Activity
+      // recreation all hand the same live media session between Android Surfaces. Never change
+      // `vid` during that handoff or mpv can discard cached packets and refetch normal HTTP data.
       if (_state.value.surfaceAttached && attachedSurfaceOwner !== owner) {
-        suspendVideoTrackForSurfaceLossLocked()
-        runCatching { MPVLib.detachSurface() }
+        detachRendererSurfaceLocked()
       }
       MPVLib.attachSurface(surface)
       width?.takeIf { it > 0 }?.let { resolvedWidth ->
@@ -298,21 +298,20 @@ object PlaybackSession : MPVLib.EventObserver {
     withCore(Unit) {
       if (attachedSurfaceOwner !== owner) return@withCore
       if (!_state.value.surfaceAttached) return@withCore
-
-      // Never leave a hardware video decoder attached to a Surface that Android is destroying.
-      // Audio remains untouched, so background/audio-only playback continues normally.
-      if (_state.value.phase == PlaybackPhase.LOADING) {
-        deferredVideoSelectionGeneration = _state.value.generation
-        runCatching { MPVLib.setPropertyString("vid", "no") }
-      } else {
-        suspendVideoTrackForSurfaceLossLocked()
-      }
-      runCatching { MPVLib.setPropertyString("vo", "null") }
-      runCatching { MPVLib.setOptionString("force-window", "no") }
-      runCatching { MPVLib.detachSurface() }
-      attachedSurfaceOwner = null
-      updateState { it.copy(surfaceAttached = false) }
+      detachRendererSurfaceLocked()
     }
+  }
+
+  /**
+   * Detaches only Android's renderer resources. Surface transitions are not media lifecycle events:
+   * they must not change video-track selection or disturb the live demuxer/cache.
+   */
+  private fun detachRendererSurfaceLocked() {
+    runCatching { MPVLib.setPropertyString("vo", "null") }
+    runCatching { MPVLib.setOptionString("force-window", "no") }
+    runCatching { MPVLib.detachSurface() }
+    attachedSurfaceOwner = null
+    updateState { it.copy(surfaceAttached = false) }
   }
 
   fun setVideoOutput(videoOutput: String) {
