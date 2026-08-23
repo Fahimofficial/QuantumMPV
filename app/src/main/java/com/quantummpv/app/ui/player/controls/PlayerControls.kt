@@ -1527,6 +1527,7 @@ fun PlayerControls(
             val position by PlaybackSession.propInt["time-pos"].collectAsStateWithLifecycle()
             val precisePosition by viewModel.precisePosition.collectAsStateWithLifecycle()
             val invertDuration by playerPreferences.invertDuration.collectAsState()
+            val remaining  by PlaybackSession.propFloat["playtime-remaining"].collectAsState()
             val seekbarStyle by appearancePreferences.seekbarStyle.collectAsState()
             val useWavySeekbar by playerPreferences.useWavySeekbar.collectAsState()
             val displayedSeekbarPosition =
@@ -1547,6 +1548,7 @@ fun PlayerControls(
               position = displayedSeekbarPosition,
               committedPosition = precisePosition,
               duration = if (preciseDuration > 0) preciseDuration else duration?.toFloat() ?: 0f,
+              remaining = remaining?.toFloat() ?: 0f,
               onValueChange = {
                 isSeeking = true
                 resetControlsTimestamp = System.currentTimeMillis()
