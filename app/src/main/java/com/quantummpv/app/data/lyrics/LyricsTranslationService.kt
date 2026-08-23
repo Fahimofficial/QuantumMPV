@@ -70,7 +70,8 @@ class LyricsTranslationService(
 ) {
   companion object {
     private const val TAG = "LyricsTranslationService"
-    private const val CHUNK_SIZE = 25
+    private const val CHUNK_SIZE = 20
+    private const val INPUT_TOOLS_CHUNK_SIZE = 4
     private const val USER_AGENT =
       "Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36"
     private val RESULT_CONTAINER_REGEX =
@@ -179,6 +180,17 @@ class LyricsTranslationService(
     // Special handling for Romaji / Hinglish / Romanized
     if (targetLang.equals("romaji", ignoreCase = true) || targetLang.equals("hinglish", ignoreCase = true)) {
       return@coroutineScope handleRomajiTransliteration(texts)
+    }
+
+    val isSourceLatin = isPredominantlyLatin(texts)
+    val isTargetIndic = targetLang.lowercase() in listOf("hi", "bn", "ta", "te", "mr", "pa", "ur", "ar", "ru", "el")
+
+    // If source is Latin script (e.g. Hinglish) and target is Hindi/Indic native script, use InputTools directly in small chunks
+    if (isSourceLatin && isTargetIndic) {
+      val inputToolsResults = translateWithGoogleInputTools(texts, targetLang)
+      if (inputToolsResults.any { it.translation.isNotBlank() && !it.translation.equals(texts.firstOrNull()?.trim(), ignoreCase = true) }) {
+        return@coroutineScope inputToolsResults
+      }
     }
 
     val chunks = texts.chunked(CHUNK_SIZE)
@@ -377,41 +389,12 @@ class LyricsTranslationService(
     }
 
     val queryText = stringBuilder.toString().trim()
-    val isSourceLatin = isPredominantlyLatin(chunk)
-    val isTargetNonLatinScript = targetLang.lowercase() in listOf("hi", "bn", "ta", "te", "mr", "pa", "ur", "ar", "ru", "el")
-
-    // If source is Latin/Hinglish and target is Hindi/Indic native script, use Google InputTools transliteration
-    if (isSourceLatin && isTargetNonLatinScript) {
-      try {
-        val inputToolsResult = translateWithGoogleInputTools(queryText, targetLang)
-        if (!inputToolsResult.isNullOrBlank()) {
-          val parsed = parseIndexedTranslations(inputToolsResult, chunk.size, indexMap, chunk)
-          if (parsed.any { it.translation.isNotBlank() }) {
-            return parsed
-          }
-        }
-      } catch (e: Exception) {
-        Log.w(TAG, "InputTools transliteration error: ${e.message}")
-      }
-    }
 
     // 1. Primary engine: Google Mobile Web (Fast, robust, translates multiline chunks in <500ms)
     try {
       val googleResult = translateWithGoogleWeb(queryText, targetLang)
       if (!googleResult.isNullOrBlank()) {
         val parsed = parseIndexedTranslations(googleResult, chunk.size, indexMap, chunk)
-        val isStillLatin = isPredominantlyLatin(parsed.map { it.translation })
-        if (isTargetNonLatinScript && isStillLatin) {
-          // Translation returned same Latin text; try InputTools
-          val inputToolsResult = translateWithGoogleInputTools(queryText, targetLang)
-          if (!inputToolsResult.isNullOrBlank()) {
-            val inputToolsParsed = parseIndexedTranslations(inputToolsResult, chunk.size, indexMap, chunk)
-            if (inputToolsParsed.any { it.translation.isNotBlank() }) {
-              return inputToolsParsed
-            }
-          }
-        }
-
         if (parsed.any { it.translation.isNotBlank() }) {
           return parsed
         }
@@ -433,21 +416,7 @@ class LyricsTranslationService(
       Log.w(TAG, "MyMemory translation failed for chunk: ${e.message}")
     }
 
-    // 3. Fallback: Google Input Tools or Google single-call translate_a
-    if (isTargetNonLatinScript) {
-      try {
-        val inputToolsResult = translateWithGoogleInputTools(queryText, targetLang)
-        if (!inputToolsResult.isNullOrBlank()) {
-          val parsed = parseIndexedTranslations(inputToolsResult, chunk.size, indexMap, chunk)
-          if (parsed.any { it.translation.isNotBlank() }) {
-            return parsed
-          }
-        }
-      } catch (e: Exception) {
-        Log.w(TAG, "InputTools fallback error: ${e.message}")
-      }
-    }
-
+    // 3. Fallback: Google single-call translate_a
     try {
       val fallbackResult = translateWithGoogleApiFallback(queryText, targetLang)
       if (!fallbackResult.isNullOrBlank()) {
@@ -461,13 +430,26 @@ class LyricsTranslationService(
     }
 
     // Fallback: return original trimmed lines
-    return chunk.map { TranslationResult(translation = it.trim()) }
+    return chunk.map { TranslationResult(translation = it.trim(), romanization = it.trim()) }
   }
 
-  private fun translateWithGoogleInputTools(
-    query: String,
+  private suspend fun translateWithGoogleInputTools(
+    texts: List<String>,
     targetLang: String,
-  ): String? {
+  ): List<TranslationResult> = coroutineScope {
+    val subChunks = texts.chunked(INPUT_TOOLS_CHUNK_SIZE)
+    val deferred = subChunks.map { subChunk ->
+      async(Dispatchers.IO) {
+        translateSubChunkWithInputTools(subChunk, targetLang)
+      }
+    }
+    deferred.awaitAll().flatten()
+  }
+
+  private fun translateSubChunkWithInputTools(
+    subChunk: List<String>,
+    targetLang: String,
+  ): List<TranslationResult> {
     val itc = when (targetLang.lowercase()) {
       "hi" -> "hi-t-i0-und"
       "bn" -> "bn-t-i0-und"
@@ -479,37 +461,79 @@ class LyricsTranslationService(
       "ar" -> "ar-t-i0-und"
       "ru" -> "ru-t-i0-und"
       "el" -> "el-t-i0-und"
-      else -> return null
+      else -> return subChunk.map { TranslationResult(translation = it.trim(), romanization = it.trim()) }
     }
 
-    val url = HttpUrl.Builder()
-      .scheme("https")
-      .host("inputtools.google.com")
-      .addPathSegment("request")
-      .addQueryParameter("text", query)
-      .addQueryParameter("itc", itc)
-      .addQueryParameter("num", "1")
-      .addQueryParameter("app", "demopage")
-      .build()
+    val stringBuilder = StringBuilder()
+    val indexMap = mutableMapOf<Int, Int>()
+    var marker = 1
 
-    val request = Request.Builder()
-      .url(url)
-      .header("User-Agent", USER_AGENT)
-      .get()
-      .build()
-
-    client.newCall(request).execute().use { response ->
-      if (!response.isSuccessful) return null
-      val bodyStr = response.body.string()
-      val root = json.parseToJsonElement(bodyStr).jsonArray
-      val status = root.getOrNull(0)?.jsonPrimitive?.content
-      if (status != "SUCCESS") return null
-      val resultsArray = root.getOrNull(1)?.jsonArray ?: return null
-      val firstItem = resultsArray.getOrNull(0)?.jsonArray ?: return null
-      val candidateList = firstItem.getOrNull(1)?.jsonArray ?: return null
-      val trans = candidateList.getOrNull(0)?.jsonPrimitive?.content ?: return null
-      return unescapeHtml(trans).trim()
+    for ((localIdx, line) in subChunk.withIndex()) {
+      val trimmed = line.trim()
+      if (trimmed.isNotEmpty()) {
+        stringBuilder.append("[$marker] ").append(trimmed).append("\n")
+        indexMap[marker] = localIdx
+        marker++
+      }
     }
+
+    if (indexMap.isEmpty()) {
+      return subChunk.map { TranslationResult(translation = "") }
+    }
+
+    val query = stringBuilder.toString().trim()
+
+    try {
+      val url = HttpUrl.Builder()
+        .scheme("https")
+        .host("inputtools.google.com")
+        .addPathSegment("request")
+        .addQueryParameter("text", query)
+        .addQueryParameter("itc", itc)
+        .addQueryParameter("num", "1")
+        .addQueryParameter("app", "demopage")
+        .build()
+
+      val request = Request.Builder()
+        .url(url)
+        .header("User-Agent", USER_AGENT)
+        .get()
+        .build()
+
+      client.newCall(request).execute().use { response ->
+        if (response.isSuccessful) {
+          val bodyStr = response.body.string()
+          val root = json.parseToJsonElement(bodyStr).jsonArray
+          val status = root.getOrNull(0)?.jsonPrimitive?.content
+          if (status == "SUCCESS") {
+            val resultsArray = root.getOrNull(1)?.jsonArray
+            if (resultsArray != null && resultsArray.isNotEmpty()) {
+              val sb = StringBuilder()
+              for (itemElement in resultsArray) {
+                val itemArray = itemElement.jsonArray
+                val candidateList = itemArray.getOrNull(1)?.jsonArray
+                val candidate = candidateList?.getOrNull(0)?.jsonPrimitive?.content
+                if (!candidate.isNullOrBlank()) {
+                  sb.append(candidate)
+                }
+              }
+              val fullTrans = sb.toString().trim()
+              if (fullTrans.isNotEmpty()) {
+                val unescaped = unescapeHtml(fullTrans)
+                val parsed = parseIndexedTranslations(unescaped, subChunk.size, indexMap, subChunk)
+                if (parsed.any { it.translation.isNotBlank() }) {
+                  return parsed
+                }
+              }
+            }
+          }
+        }
+      }
+    } catch (e: Exception) {
+      Log.w(TAG, "InputTools sub-chunk error: ${e.message}")
+    }
+
+    return subChunk.map { TranslationResult(translation = it.trim(), romanization = it.trim()) }
   }
 
   private fun translateWithGoogleWeb(
@@ -617,8 +641,10 @@ class LyricsTranslationService(
     indexMap: Map<Int, Int>,
     originalChunk: List<String>,
   ): List<TranslationResult> {
+    // Default each position with the original line so missing markers never leave lines blank
     val results = Array(chunkSize) { idx ->
-      TranslationResult(translation = "")
+      val orig = originalChunk[idx].trim()
+      TranslationResult(translation = orig, romanization = orig)
     }
 
     // Normalize Indic/Arabic/Fullwidth digits and brackets so regex matching works across all languages
@@ -639,9 +665,10 @@ class LyricsTranslationService(
         val localIdx = indexMap[marker]
         if (localIdx != null && localIdx in 0 until chunkSize) {
           val orig = originalChunk[localIdx].trim()
+          val cleanContent = cleanLine(content)
           results[localIdx] = TranslationResult(
-            translation = content.ifEmpty { orig },
-            romanization = content.ifEmpty { orig },
+            translation = cleanContent.ifEmpty { orig },
+            romanization = cleanContent.ifEmpty { orig },
           )
         }
       }
@@ -654,9 +681,11 @@ class LyricsTranslationService(
       val sortedEntries = indexMap.entries.sortedBy { it.key }
       for ((i, entry) in sortedEntries.withIndex()) {
         val localIdx = entry.value
+        val orig = originalChunk[localIdx].trim()
+        val trans = nonBlankLines[i].ifEmpty { orig }
         results[localIdx] = TranslationResult(
-          translation = nonBlankLines[i],
-          romanization = nonBlankLines[i],
+          translation = trans,
+          romanization = trans,
         )
       }
       return results.toList()
