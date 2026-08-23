@@ -28,8 +28,12 @@ import kotlinx.coroutines.launch
 import org.koin.core.component.KoinComponent
 import org.koin.core.component.inject
 
+import com.quantummpv.app.utils.media.MediaLibraryEvents
+import kotlinx.coroutines.flow.collectLatest
+
 class MusicLibraryViewModel : ViewModel(), KoinComponent {
 
+  private val context: Context by inject()
   private val playlistRepository: PlaylistRepository by inject()
   private val browserPreferences: com.quantummpv.app.preferences.BrowserPreferences by inject()
   private val audioPreferences: com.quantummpv.app.preferences.AudioPreferences by inject()
@@ -105,6 +109,14 @@ class MusicLibraryViewModel : ViewModel(), KoinComponent {
       }
         .distinctUntilChanged()
         .collect { (minimumSeconds, blacklist) -> applyFilters(minimumSeconds, blacklist) }
+    }
+    viewModelScope.launch {
+      MediaLibraryEvents.changes.collectLatest {
+        refreshLibrary(context)
+      }
+    }
+    viewModelScope.launch {
+      refreshLibrary(context)
     }
   }
 
@@ -236,9 +248,9 @@ class MusicLibraryViewModel : ViewModel(), KoinComponent {
       }
       .sortedBy { it.name.lowercase() }
 
-  fun scanLibrary(context: Context) {
+  fun scanLibrary(context: Context? = null) {
     viewModelScope.launch {
-      refreshLibrary(context)
+      refreshLibrary(context ?: this@MusicLibraryViewModel.context)
     }
   }
 

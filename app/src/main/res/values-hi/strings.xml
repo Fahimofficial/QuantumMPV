@@ -1682,4 +1682,15 @@
   <string name="pref_mpv_conf_override_osd_summary">OSD मार्जिन और सुरक्षित क्षेत्र ओवरराइड करता है।</string>
   <string name="mpv_config_owned_title">mpv.conf द्वारा नियंत्रित</string>
   <string name="mpv_config_owned_message">यह ऐप नियंत्रण अक्षम है क्योंकि इसके लिए आवश्यक एक या अधिक विकल्प उन्नत सेटिंग में mpv.conf को सौंपे गए हैं।</string>
+  <string name="pref_lyrics_translation_category">गीत अनुवाद एवं लिप्यंतरण</string>
+  <string name="pref_lyrics_auto_translate">विदेशी गीतों का स्वतः अनुवाद करें</string>
+  <string name="pref_lyrics_auto_translate_summary">विदेशी भाषा के बोलों का स्वचालित रूप से अनुवाद करें</string>
+  <string name="pref_lyrics_target_language">डिफ़ॉल्ट लक्षित भाषा</string>
+  <string name="pref_lyrics_display_mode">गीत अनुवाद शैली</string>
+  <string name="pref_lyrics_display_dual_line">दोहरी पंक्ति (मूल + अनुवादित उप-पंक्ति)</string>
+  <string name="pref_lyrics_display_replace">मूल पंक्ति बदलें</string>
+  <string name="lyrics_translate_title">बोल अनुवाद करें</string>
+  <string name="lyrics_translating">बोल अनुवाद हो रहे हैं…</string>
+  <string name="lyrics_translation_off">मूल बोल</string>
+  <string name="lyrics_select_language">लक्षित भाषा चुनें</string>
 </resources>

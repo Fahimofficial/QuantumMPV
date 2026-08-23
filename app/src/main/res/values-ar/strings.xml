@@ -1780,4 +1780,15 @@
   <string name="pref_mpv_conf_override_osd_summary">يتجاوز هوامش OSD والمناطق الآمنة.</string>
   <string name="mpv_config_owned_title">يتحكم به mpv.conf</string>
   <string name="mpv_config_owned_message">عنصر تحكم التطبيق هذا معطل لأن خيارًا واحدًا أو أكثر من الخيارات التي يحتاجها مسند إلى mpv.conf في الإعدادات المتقدمة.</string>
+  <string name="pref_lyrics_translation_category">ترجمة كلمات الأغاني ونقلها حرفياً</string>
+  <string name="pref_lyrics_auto_translate">ترجمة كلمات الأغاني الأجنبية تلقائياً</string>
+  <string name="pref_lyrics_auto_translate_summary">ترجمة كلمات الأغاني بلغات أجنبية تلقائياً إلى اللغة المفضلة</string>
+  <string name="pref_lyrics_target_language">اللغة المستهدفة الافتراضية</string>
+  <string name="pref_lyrics_display_mode">نمط عرض ترجمة الكلمات</string>
+  <string name="pref_lyrics_display_dual_line">سطر مزدوج (النص الأصلي + سطر الترجمة الفرعي)</string>
+  <string name="pref_lyrics_display_replace">استبدال السطر الأصلي</string>
+  <string name="lyrics_translate_title">ترجمة كلمات الأغاني</string>
+  <string name="lyrics_translating">جارٍ ترجمة كلمات الأغاني…</string>
+  <string name="lyrics_translation_off">كلمات الأغاني الأصلية</string>
+  <string name="lyrics_select_language">تحديد اللغة المستهدفة</string>
 </resources>

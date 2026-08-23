@@ -1778,4 +1778,15 @@ Bitte starten Sie die App neu, damit alle Änderungen wirksam werden.</string>
   <string name="pref_mpv_conf_override_osd_summary">Überschreibt OSD-Ränder und Sicherheitsbereiche.</string>
   <string name="mpv_config_owned_title">Von mpv.conf gesteuert</string>
   <string name="mpv_config_owned_message">Dieses App-Steuerelement ist deaktiviert, weil mindestens eine benötigte Option in den erweiterten Einstellungen mpv.conf zugewiesen ist.</string>
+  <string name="pref_lyrics_translation_category">Songtext-Übersetzung &amp; Romanisierung</string>
+  <string name="pref_lyrics_auto_translate">Fremdsprachige Songtexte automatisch übersetzen</string>
+  <string name="pref_lyrics_auto_translate_summary">Fremdsprachige Songtexte automatisch in die bevorzugte Sprache übersetzen</string>
+  <string name="pref_lyrics_target_language">Standard-Zielsprache</string>
+  <string name="pref_lyrics_display_mode">Übersetzungs-Anzeigestil</string>
+  <string name="pref_lyrics_display_dual_line">Zweizeilig (Original + übersetzte Unterzeile)</string>
+  <string name="pref_lyrics_display_replace">Originalzeile ersetzen</string>
+  <string name="lyrics_translate_title">Songtext übersetzen</string>
+  <string name="lyrics_translating">Songtext wird übersetzt…</string>
+  <string name="lyrics_translation_off">Original-Songtext</string>
+  <string name="lyrics_select_language">Zielsprache auswählen</string>
 </resources>
