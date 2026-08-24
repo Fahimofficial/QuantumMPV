@@ -62,10 +62,12 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
+import kotlinx.coroutines.cancelAndJoin
 import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.drop
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withContext
 import org.koin.core.component.KoinComponent
 import org.koin.core.component.inject
@@ -1591,6 +1593,18 @@ class MediaPlaybackService :
     }
   }
 
+  private fun savePlaybackStateBeforeTaskRemoval() {
+    val identifier = mediaIdentifier
+    if (identifier.isBlank()) return
+    val snapshot = capturePlaybackStateSnapshot(identifier, oldState = null) ?: return
+
+    val pendingSave = playbackStateSaveJob
+    runBlocking(Dispatchers.IO) {
+      pendingSave?.cancelAndJoin()
+      persistPlaybackState(identifier, snapshot)
+    }
+  }
+
   private suspend fun persistPlaybackState(
     identifier: String,
     capturedSnapshot: PlaybackStateSnapshot,
@@ -1634,6 +1648,8 @@ class MediaPlaybackService :
       mediaTitle = mediaTitle.ifBlank { identifier },
       currentPosition = readMpvIntSeconds("time-pos", currentPositionSeconds.toInt()),
       duration = readMpvIntSeconds("duration", mediaDurationSeconds.toInt()),
+      isPositionRestorePending =
+        PlaybackSession.isPositionRestorePending(PlaybackSession.state.value.activeGeneration),
       playbackSpeed = readMpvDouble("speed", oldState?.playbackSpeed ?: DEFAULT_PLAYBACK_STATE_SPEED),
       videoZoom = readMpvDouble("video-zoom", oldState?.videoZoom?.toDouble() ?: 0.0).toFloat(),
       sid = readMpvTrackId("sid", oldState?.sid ?: -1),
@@ -1774,7 +1790,7 @@ class MediaPlaybackService :
 
   override fun onTaskRemoved(rootIntent: Intent?) {
     Log.d(TAG, "Task removed - keeping foreground background playback active")
-    schedulePlaybackStateSave(force = true)
+    savePlaybackStateBeforeTaskRemoval()
     super.onTaskRemoved(rootIntent)
   }
 }

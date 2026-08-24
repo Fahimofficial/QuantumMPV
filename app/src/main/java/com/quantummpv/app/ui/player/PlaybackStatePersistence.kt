@@ -84,14 +84,13 @@ internal object PlaybackStatePersistence {
     if (!savePositionOnQuit) {
       return oldState?.lastPosition ?: 0
     }
-    // FILE_LOADED makes the incoming item the active save target before its database lookup
-    // completes. Keep an existing resume point if a lifecycle save observes the initial 0 in
-    // that narrow window; a real seek/playback position remains authoritative.
-    if (isPositionRestorePending && currentPosition == 0) {
-      return oldState?.lastPosition ?: 0
+    if (isPositionRestorePending) {
+      return oldState?.lastPosition ?: currentPosition.coerceAtLeast(0)
     }
 
-    return if (currentPosition < duration - 1) currentPosition else 0
+    if (duration <= 0) return currentPosition.takeIf { it > 0 } ?: oldState?.lastPosition ?: 0
+
+    return if (currentPosition < duration - 1) currentPosition.coerceAtLeast(0) else 0
   }
 
   private fun isWatched(

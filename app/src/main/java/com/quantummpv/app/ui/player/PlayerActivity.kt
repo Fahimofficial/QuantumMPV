@@ -317,8 +317,6 @@ class PlayerActivity :
   @Volatile
   private var activeSaveMediaIdentifier: String = ""
 
-  @Volatile
-  private var pendingPositionRestoreGeneration: Long? = null
   private var pendingBackgroundPlaybackStart = false
 
   /**
@@ -3685,7 +3683,6 @@ class PlayerActivity :
       // MPV has confirmed that the incoming file is active, so subsequent lifecycle saves must
       // target it even while its database-backed resume position is still being restored.
       activeSaveMediaIdentifier = loadedMediaIdentifier
-      pendingPositionRestoreGeneration = loadGeneration
     }
     currentUri?.let { viewModel.calculateVideoHash(it) }
 
@@ -3713,10 +3710,6 @@ class PlayerActivity :
           loadGeneration = loadGeneration,
         )
       if (!PlaybackSession.isCurrentGeneration(loadGeneration)) return@launch
-
-      if (pendingPositionRestoreGeneration == loadGeneration) {
-        pendingPositionRestoreGeneration = null
-      }
 
       // Apply track selection logic (defaults only apply when no saved state)
       trackSelector.onFileLoaded(hasState)
@@ -4188,7 +4181,7 @@ class PlayerActivity :
       currentPosition = readMpvIntSeconds("time-pos", viewModel.pos ?: 0),
       duration = readMpvIntSeconds("duration", viewModel.duration ?: 0),
       isPositionRestorePending =
-        pendingPositionRestoreGeneration == PlaybackSession.state.value.activeGeneration,
+        PlaybackSession.isPositionRestorePending(PlaybackSession.state.value.activeGeneration),
       playbackSpeed = PlaybackSession.getPropertyDouble("speed") ?: DEFAULT_PLAYBACK_SPEED,
       videoZoom = PlaybackSession.getPropertyDouble("video-zoom")?.toFloat() ?: viewModel.videoZoom.value,
       sid = player.sid,
@@ -4247,6 +4240,8 @@ class PlayerActivity :
 
       if (!PlaybackSession.isCurrentGeneration(loadGeneration)) return@runCatching false
 
+      restorePlaybackPosition(state)
+      PlaybackSession.completePositionRestore(loadGeneration)
       applyPlaybackState(state)
 
       if (!PlaybackSession.isCurrentGeneration(loadGeneration)) return@runCatching false
@@ -4266,7 +4261,6 @@ class PlayerActivity :
    * Applies saved playback state to MPV.
    *
    * Restores subtitle delay, audio delay, audio and track selections, and playback speed.
-   * Also restores saved time position if enabled. Explicit player state remains authoritative.
    *
    * @param state The saved playback state entity
    */
@@ -4320,8 +4314,11 @@ class PlayerActivity :
     // Restore video zoom from saved state
     PlaybackSession.setPropertyDouble("video-zoom", state.videoZoom.toDouble())
     viewModel.setVideoZoom(state.videoZoom)
+  }
 
-    if (playerPreferences.savePositionOnQuit.get() &&
+  private fun restorePlaybackPosition(state: PlaybackStateEntity?) {
+    if (state != null &&
+      playerPreferences.savePositionOnQuit.get() &&
       state.lastPosition != 0 &&
       !viewModel.isAudioOnly.value &&
       !isCurrentMediaKnownAudio()
@@ -4946,7 +4943,12 @@ class PlayerActivity :
     requestGeneration: Long,
   ) {
     if (requestGeneration != mediaRequestGeneration) throw CancellationException("Media request was replaced")
-    val generation = PlaybackSession.load(item, selectVideo = selectVideo)
+    val generation =
+      PlaybackSession.load(
+        item = item,
+        selectVideo = selectVideo,
+        restoreSavedPosition = true,
+      )
     if (generation < 0L) throw IllegalStateException("libmpv core is unavailable")
 
     val request =

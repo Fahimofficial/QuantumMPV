@@ -156,6 +156,7 @@ object PlaybackSession : MPVLib.EventObserver {
   private var deferredVideoSelectionGeneration: Long? = null
   private var desiredPaused = true
   private var loadedGeneration = 0L
+  private var pendingPositionRestoreGeneration = 0L
   private var seekAudioGuardToken = 0L
   private var seekAudioGuardPreviousMute: Boolean? = null
   private var playbackTransitionAudioGuardToken = 0L
@@ -202,6 +203,7 @@ object PlaybackSession : MPVLib.EventObserver {
         deferredVideoSelectionGeneration = null
         desiredPaused = true
         loadedGeneration = 0L
+        pendingPositionRestoreGeneration = 0L
         clearSeekAudioGuardLocked(restoreMute = false)
         clearPlaybackTransitionAudioGuardLocked(restoreMute = false)
         resetAmbientShaderTrackingLocked()
@@ -239,6 +241,7 @@ object PlaybackSession : MPVLib.EventObserver {
           deferredVideoSelectionGeneration = null
           desiredPaused = true
           loadedGeneration = 0L
+          pendingPositionRestoreGeneration = 0L
           clearSeekAudioGuardLocked(restoreMute = false)
           clearPlaybackTransitionAudioGuardLocked(restoreMute = false)
           resetAmbientShaderTrackingLocked()
@@ -356,6 +359,7 @@ object PlaybackSession : MPVLib.EventObserver {
       deferredVideoSelectionGeneration = null
       desiredPaused = true
       loadedGeneration = 0L
+      pendingPositionRestoreGeneration = 0L
 
       // Ambient shaders contain dimensions and scale baked for one video. Never leave them attached
       // to the process-wide core after playback ends, even if the Activity/ViewModel that created
@@ -421,6 +425,7 @@ object PlaybackSession : MPVLib.EventObserver {
     updateState { it.copy(phase = PlaybackPhase.STOPPING) }
     desiredPaused = true
     loadedGeneration = 0L
+    pendingPositionRestoreGeneration = 0L
     suspendedVideoTrack = null
     deferredVideoSelectionGeneration = null
     clearSeekAudioGuardLocked(restoreMute = false)
@@ -537,10 +542,17 @@ object PlaybackSession : MPVLib.EventObserver {
   fun load(
     item: PlaybackItem,
     selectVideo: Boolean? = null,
+    restoreSavedPosition: Boolean = false,
   ): Long {
     val resolved = resolvePlayableUri(item)
     return try {
-      val generation = load(playableUri = resolved.uri, item = item, selectVideo = selectVideo)
+      val generation =
+        load(
+          playableUri = resolved.uri,
+          item = item,
+          selectVideo = selectVideo,
+          restoreSavedPosition = restoreSavedPosition,
+        )
       if (generation < 0L) {
         resolved.registration?.let(::releaseNetworkStream)
         generation
@@ -567,6 +579,7 @@ object PlaybackSession : MPVLib.EventObserver {
     playableUri: String,
     item: PlaybackItem? = null,
     selectVideo: Boolean? = null,
+    restoreSavedPosition: Boolean = false,
   ): Long =
     withCore(default = -1L) {
       // A preceding surface detach may have left the outgoing file at vid=no. Select video in the
@@ -591,6 +604,7 @@ object PlaybackSession : MPVLib.EventObserver {
       beginPlaybackTransitionAudioGuardLocked()
 
       val generation = _state.value.generation + 1L
+      pendingPositionRestoreGeneration = generation.takeIf { restoreSavedPosition } ?: 0L
       deferredVideoSelectionGeneration = generation.takeUnless { selectVideoForNewFile }
       val resolvedItem = item ?: PlaybackItem.fromUri(playableUri)
       updateState {
@@ -640,6 +654,17 @@ object PlaybackSession : MPVLib.EventObserver {
     }
 
   fun isCurrentGeneration(generation: Long): Boolean = generation > 0L && _state.value.generation == generation
+
+  fun isPositionRestorePending(generation: Long): Boolean =
+    nativeLock.withLock {
+      generation > 0L && pendingPositionRestoreGeneration == generation
+    }
+
+  fun completePositionRestore(generation: Long) {
+    nativeLock.withLock {
+      if (pendingPositionRestoreGeneration == generation) pendingPositionRestoreGeneration = 0L
+    }
+  }
 
   fun addObserver(observer: MPVLib.EventObserver) {
     observers += observer

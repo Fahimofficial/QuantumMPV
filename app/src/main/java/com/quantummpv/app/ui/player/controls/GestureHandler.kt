@@ -96,6 +96,17 @@ import kotlin.math.roundToInt
 import kotlin.math.sqrt
 
 private val holdSpeedPresets = listOf(0.5f, 1f, 1.5f, 2f, 2.5f, 3f, 3.5f, 4f)
+private const val SPEED_HOLD_INTENT_THRESHOLD_MS = 250L
+
+private enum class GestureOwner {
+  SPEED,
+  VERTICAL,
+  SUBTITLE_VERTICAL,
+  PLAYLIST,
+  PINCH,
+  HORIZONTAL_SEEK,
+  SUBTITLE_SEEK,
+}
 
 private fun nearestHoldSpeedPreset(speed: Float): Float =
   holdSpeedPresets.minByOrNull { abs(it - speed) } ?: holdSpeedPresets.first()
@@ -200,6 +211,37 @@ fun GestureHandler(
   var hasSwipedEnough by remember { mutableStateOf(false) }
   var longPressTriggeredDuringTouch by remember { mutableStateOf(false) }
   var isVerticalGestureActive by remember { mutableStateOf(false) }
+  var gestureOwner by remember { mutableStateOf<GestureOwner?>(null) }
+  var gesturePointerId by remember { mutableStateOf<Long?>(null) }
+  var gestureDownTimeMillis by remember { mutableStateOf<Long?>(null) }
+  var gestureClaimedForPointer by remember { mutableStateOf(false) }
+  var speedHoldPending by remember { mutableStateOf(false) }
+  var suppressHorizontalSeekForPointer by remember { mutableStateOf(false) }
+
+  fun beginGesture(
+    pointerId: Long,
+    downTimeMillis: Long,
+  ) {
+    if (gesturePointerId == pointerId && gestureDownTimeMillis == downTimeMillis) return
+    gesturePointerId = pointerId
+    gestureDownTimeMillis = downTimeMillis
+    gestureOwner = null
+    gestureClaimedForPointer = false
+    speedHoldPending = false
+    suppressHorizontalSeekForPointer = false
+  }
+
+  fun claimGesture(owner: GestureOwner): Boolean {
+    if (gestureOwner != null && gestureOwner != owner) return false
+    gestureOwner = owner
+    gestureClaimedForPointer = true
+    return true
+  }
+
+  fun releaseGesture(owner: GestureOwner) {
+    if (gestureOwner == owner) gestureOwner = null
+  }
+
   val currentVolumePercent by viewModel.currentVolumePercent.collectAsState()
   val currentMPVVolume by PlaybackSession.propInt["volume"].collectAsState()
   val currentBrightness by viewModel.currentBrightness.collectAsState()
@@ -284,6 +326,7 @@ fun GestureHandler(
           if (isVerticalGestureActive) return@pointerInput
           awaitEachGesture {
             val down = awaitFirstDown(requireUnconsumed = false)
+            beginGesture(down.id.value, down.uptimeMillis)
             val downPosition = down.position
             val downTime = System.currentTimeMillis()
 
@@ -301,10 +344,12 @@ fun GestureHandler(
             // Track for potential drag
             var isDrag = false
             var wasConsumedByTapGesture = false
+            var wasOwnedByAnotherGesture = gestureOwner != null
 
             do {
               val event = awaitPointerEvent()
               val pointer = event.changes.firstOrNull { it.id == down.id } ?: break
+              if (gestureOwner != null) wasOwnedByAnotherGesture = true
 
               // Check if this is a drag (not a tap)
               val distance =
@@ -320,7 +365,12 @@ fun GestureHandler(
 
               if (!pointer.pressed) {
                 // Pointer lifted - this is a tap if it wasn't a drag
-                if (!isDrag && !wasConsumedByTapGesture) {
+                if (
+                  !isDrag &&
+                  !wasConsumedByTapGesture &&
+                  !wasOwnedByAnotherGesture &&
+                  !gestureClaimedForPointer
+                ) {
                   val timeSinceLastTap = downTime - lastTapTime
                   val positionChange =
                     sqrt(
@@ -455,6 +505,7 @@ fun GestureHandler(
 
           awaitEachGesture {
             val down = awaitFirstDown(requireUnconsumed = false)
+            beginGesture(down.id.value, down.uptimeMillis)
             val startPosition = down.position
             val isVerticalGestureDeadZone =
               startPosition.y <= topGestureDeadZonePx ||
@@ -467,6 +518,7 @@ fun GestureHandler(
                 !isVerticalGestureDeadZone &&
                 hasActiveSubtitle &&
                 startPosition.x in (size.width / 3f)..(size.width * 2f / 3f)
+            speedHoldPending = paused == false && multipleSpeedGesture > 0f && !isCenterSubtitleTouch
 
             // Reset long press tracking at the start of each gesture
             longPressTriggeredDuringTouch = false
@@ -507,7 +559,7 @@ fun GestureHandler(
                     )
                   // Only trigger if still within tap threshold
                   if (distance < 10f) {
-                    if (isCenterSubtitleTouch) {
+                    if (isCenterSubtitleTouch && claimGesture(GestureOwner.SUBTITLE_VERTICAL)) {
                       longPressTriggered = true
                       isSubtitleHoldActive = true
                       longPressTriggeredDuringTouch = true
@@ -519,7 +571,12 @@ fun GestureHandler(
                           context.getString(R.string.player_move_subtitles_hint),
                         )
                       }
-                    } else if (paused == false && multipleSpeedGesture > 0f) {
+                    } else if (
+                      paused == false &&
+                      multipleSpeedGesture > 0f &&
+                      claimGesture(GestureOwner.SPEED)
+                    ) {
+                      speedHoldPending = false
                       longPressTriggered = true
                       isLongPressing = true
                       longPressTriggeredDuringTouch = true
@@ -573,11 +630,23 @@ fun GestureHandler(
                           return@forEach
                         }
                       } else {
+                        if (
+                          speedHoldPending &&
+                          isHorizontalDrag &&
+                          change.uptimeMillis - down.uptimeMillis >= SPEED_HOLD_INTENT_THRESHOLD_MS
+                        ) {
+                          suppressHorizontalSeekForPointer = true
+                        }
+                        speedHoldPending = false
                         val isCenterTouch =
                           enableCenterSwipeUpGesture && startPosition.x in (size.width * 0.35f)..(size.width * 0.65f)
                         if (isCenterTouch && isVerticalDrag) {
                           longPressJob.cancel()
-                          if (deltaY < -20f && viewModel.hasPlaylistSupport()) {
+                          if (
+                            deltaY < -20f &&
+                            viewModel.hasPlaylistSupport() &&
+                            claimGesture(GestureOwner.PLAYLIST)
+                          ) {
                             gestureType = "playlist_swipe"
                             viewModel.isPlaylistSwipeActive.value = true
                             viewModel.playlistSwipeOffset.value = deltaY
@@ -597,13 +666,22 @@ fun GestureHandler(
                           longPressJob.cancel()
 
                           // Check if we're in long press mode with dynamic speed control
-                          if (isLongPressing && isDynamicSpeedControlActive && abs(deltaX) > 10f) {
+                          if (
+                            isLongPressing &&
+                            isDynamicSpeedControlActive &&
+                            gestureOwner == GestureOwner.SPEED &&
+                            abs(deltaX) > 10f
+                          ) {
                             gestureType = "speed_control"
                           } else {
                             gestureType =
                               if (isHorizontalDrag) {
                                 "horizontal"
-                              } else if (isVerticalDrag && !isVerticalGestureDeadZone) {
+                              } else if (
+                                isVerticalDrag &&
+                                !isVerticalGestureDeadZone &&
+                                claimGesture(GestureOwner.VERTICAL)
+                              ) {
                                 "vertical"
                               } else {
                                 null
@@ -803,6 +881,7 @@ fun GestureHandler(
                 }
               } else if (pointerCount > 1) {
                 // Multi-finger gesture detected
+                speedHoldPending = false
                 longPressJob.cancel()
                 if (gestureType != null) {
                   when (gestureType) {
@@ -823,11 +902,20 @@ fun GestureHandler(
                   }
                   gestureType = null
                 }
+                when (gestureOwner) {
+                  GestureOwner.SPEED,
+                  GestureOwner.VERTICAL,
+                  GestureOwner.SUBTITLE_VERTICAL,
+                  GestureOwner.PLAYLIST,
+                  -> gestureOwner = null
+                  else -> Unit
+                }
                 break
               }
             } while (event.changes.any { it.pressed })
 
             // Handle gesture end
+            speedHoldPending = false
             longPressJob.cancel()
 
             if (isLongPressing) {
@@ -872,6 +960,15 @@ fun GestureHandler(
                 }
               }
             }
+
+            when (gestureOwner) {
+              GestureOwner.SPEED,
+              GestureOwner.VERTICAL,
+              GestureOwner.SUBTITLE_VERTICAL,
+              GestureOwner.PLAYLIST,
+              -> gestureOwner = null
+              else -> Unit
+            }
           }
         }.pointerInput(
           pinchToZoomGesture,
@@ -904,13 +1001,15 @@ fun GestureHandler(
             var sw = 0f
             var sh = 0f
 
-            awaitFirstDown(requireUnconsumed = false)
+            val down = awaitFirstDown(requireUnconsumed = false)
+            beginGesture(down.id.value, down.uptimeMillis)
 
             do {
               val event = awaitPointerEvent()
               val pressed = event.changes.filter { it.pressed }
 
               if (pressed.size == 2) {
+                if (!claimGesture(GestureOwner.PINCH)) continue
                 val p1 = pressed[0].position
                 val p2 = pressed[1].position
                 val dx = p2.x - p1.x
@@ -1016,6 +1115,7 @@ fun GestureHandler(
               subtitlesPreferences.subScale.set(lastCalculatedSubScale)
             }
 
+            releaseGesture(GestureOwner.PINCH)
             viewModel.playerUpdate.update { PlayerUpdates.None }
           }
         }.pointerInput(
@@ -1036,6 +1136,7 @@ fun GestureHandler(
 
           awaitEachGesture {
             val down = awaitFirstDown(requireUnconsumed = false)
+            beginGesture(down.id.value, down.uptimeMillis)
             val startPosition = down.position
             val startTime = System.currentTimeMillis()
 
@@ -1068,7 +1169,13 @@ fun GestureHandler(
                     val deltaY = currentPosition.y - startPosition.y
                     val timeSinceStart = System.currentTimeMillis() - startTime
 
-                    if (gestureType == null && isSubtitleTouch && abs(deltaX) > 40f && abs(deltaX) > abs(deltaY) * 2f) {
+                    if (
+                      gestureType == null &&
+                      isSubtitleTouch &&
+                      abs(deltaX) > 40f &&
+                      abs(deltaX) > abs(deltaY) * 2f &&
+                      claimGesture(GestureOwner.SUBTITLE_SEEK)
+                    ) {
                       gestureType = "subtitle_dialog_seek"
                       hasStartedSeeking = true
                       val isForward = if (isSwipeSubtitlesInverted) deltaX < 0 else deltaX > 0
@@ -1092,6 +1199,9 @@ fun GestureHandler(
                     // Only activate if this is clearly a horizontal gesture
                     // and not conflicting with other gestures
                     if (gestureType == null &&
+                      gestureOwner == null &&
+                      !speedHoldPending &&
+                      !suppressHorizontalSeekForPointer &&
                       horizontalSwipeToSeek &&
                       !isSubtitleTouch &&
                       abs(deltaX) > 30f &&
@@ -1105,15 +1215,16 @@ fun GestureHandler(
                       // Don't conflict with speed control
                       panelShown == Panels.None
                     ) { // Only when no panels are shown
+                      if (claimGesture(GestureOwner.HORIZONTAL_SEEK)) {
+                        gestureType = "horizontal_seek"
+                        hasStartedSeeking = true
+                        initialVideoPosition = position?.toFloat() ?: 0f
+                        pendingSeekPosition = initialVideoPosition
 
-                      gestureType = "horizontal_seek"
-                      hasStartedSeeking = true
-                      initialVideoPosition = position?.toFloat() ?: 0f
-                      pendingSeekPosition = initialVideoPosition
-
-                      // Show seekbar and start seeking mode (same as seekbar scrubbing)
-                      viewModel.showSeekBar()
-                      change.consume()
+                        // Show seekbar and start seeking mode (same as seekbar scrubbing)
+                        viewModel.showSeekBar()
+                        change.consume()
+                      }
                     }
 
                     if (gestureType == "horizontal_seek" && hasStartedSeeking) {
@@ -1165,6 +1276,8 @@ fun GestureHandler(
                     viewModel.hideSeekBar()
                   }
                 }
+                releaseGesture(GestureOwner.HORIZONTAL_SEEK)
+                releaseGesture(GestureOwner.SUBTITLE_SEEK)
                 break
               }
             } while (event.changes.any { it.pressed })
@@ -1191,6 +1304,8 @@ fun GestureHandler(
                 }
               }
             }
+            releaseGesture(GestureOwner.HORIZONTAL_SEEK)
+            releaseGesture(GestureOwner.SUBTITLE_SEEK)
           }
         },
   )
