@@ -10,6 +10,7 @@
 package com.quantummpv.app.ui.browser.jellyfin.seerr
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -68,84 +69,79 @@ fun SeerrMediaCard(
   cardWidth: Dp = 135.dp,
 ) {
   Column(
-    modifier = modifier
-      .width(cardWidth)
-      .clip(RoundedCornerShape(14.dp))
-      .clickable(onClick = onClick),
+    modifier = modifier.width(cardWidth),
   ) {
-    Card(
-      shape = RoundedCornerShape(14.dp),
-      colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerHighest),
-      elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
+    Box(
       modifier = Modifier
         .fillMaxWidth()
-        .aspectRatio(2f / 3f),
+        .aspectRatio(2f / 3f)
+        .clip(RoundedCornerShape(8.dp))
+        .background(MaterialTheme.colorScheme.surfaceContainerHighest)
+        .clickable(onClick = onClick),
     ) {
-      Box(modifier = Modifier.fillMaxSize()) {
-        val posterUrl = item.getPosterUrl()
-        if (!posterUrl.isNullOrBlank()) {
-          RemoteImage(
-            url = posterUrl,
-            contentDescription = item.getDisplayTitle(),
-            contentScale = ContentScale.Crop,
-            modifier = Modifier.fillMaxSize(),
-          )
-        } else {
-          Box(
-            modifier = Modifier
-              .fillMaxSize()
-              .background(MaterialTheme.colorScheme.surfaceVariant),
-            contentAlignment = Alignment.Center,
-          ) {
-            Icon(
-              if (item.getMediaType() == MediaType.TV) Icons.RoundedFilled.Tv else Icons.RoundedFilled.Movie,
-              contentDescription = null,
-              tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f),
-              modifier = Modifier.size(36.dp),
-            )
-          }
-        }
-
-        // Top Badges (Rating on left, Status on right)
-        Row(
+      val posterUrl = item.getPosterUrl()
+      if (!posterUrl.isNullOrBlank()) {
+        RemoteImage(
+          url = posterUrl,
+          contentDescription = item.getDisplayTitle(),
+          contentScale = ContentScale.Crop,
+          modifier = Modifier.fillMaxSize(),
+        )
+      } else {
+        Box(
           modifier = Modifier
-            .fillMaxWidth()
-            .padding(6.dp),
-          horizontalArrangement = Arrangement.SpaceBetween,
-          verticalAlignment = Alignment.Top,
+            .fillMaxSize()
+            .background(MaterialTheme.colorScheme.surfaceVariant),
+          contentAlignment = Alignment.Center,
         ) {
-          item.getRating()?.let { rating ->
-            Surface(
-              shape = RoundedCornerShape(8.dp),
-              color = Color.Black.copy(alpha = 0.72f),
-              contentColor = Color(0xFFFFC107),
-              modifier = Modifier.padding(2.dp),
-            ) {
-              Row(
-                verticalAlignment = Alignment.CenterVertically,
-                modifier = Modifier.padding(horizontal = 5.dp, vertical = 2.dp),
-              ) {
-                Icon(
-                  imageVector = Icons.RoundedFilled.Star,
-                  contentDescription = null,
-                  modifier = Modifier.size(11.dp),
-                  tint = Color(0xFFFFC107),
-                )
-                Spacer(modifier = Modifier.width(3.dp))
-                Text(
-                  text = rating,
-                  style = MaterialTheme.typography.labelSmall,
-                  fontWeight = FontWeight.Bold,
-                  fontSize = 10.sp,
-                )
-              }
-            }
-          } ?: Spacer(modifier = Modifier.size(1.dp))
+          Icon(
+            if (item.getMediaType() == MediaType.TV) Icons.RoundedFilled.Tv else Icons.RoundedFilled.Movie,
+            contentDescription = null,
+            tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f),
+            modifier = Modifier.size(36.dp),
+          )
+        }
+      }
 
-          val displayStatus = item.getDisplayStatus()
-          if (displayStatus != null && displayStatus != MediaStatus.UNKNOWN) {
-            SeerrStatusChip(status = displayStatus)
+      // Top Badges (Rating on left, Status on right)
+      Row(
+        modifier = Modifier
+          .fillMaxWidth()
+          .padding(6.dp),
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.Top,
+      ) {
+        item.getRating()?.let { rating ->
+          Surface(
+            shape = RoundedCornerShape(6.dp),
+            color = Color.Black.copy(alpha = 0.72f),
+            contentColor = Color(0xFFFFC107),
+            modifier = Modifier.padding(1.dp),
+          ) {
+            Row(
+              verticalAlignment = Alignment.CenterVertically,
+              modifier = Modifier.padding(horizontal = 4.dp, vertical = 2.dp),
+            ) {
+              Icon(
+                imageVector = Icons.RoundedFilled.Star,
+                contentDescription = null,
+                modifier = Modifier.size(11.dp),
+                tint = Color(0xFFFFC107),
+              )
+              Spacer(modifier = Modifier.width(2.dp))
+              Text(
+                text = rating,
+                style = MaterialTheme.typography.labelSmall,
+                fontWeight = FontWeight.Bold,
+                fontSize = 10.sp,
+              )
+            }
           }
+        } ?: Spacer(modifier = Modifier.size(1.dp))
+
+        val displayStatus = item.getDisplayStatus()
+        if (displayStatus != null && displayStatus != MediaStatus.UNKNOWN) {
+          SeerrStatusChip(status = displayStatus)
         }
       }
     }
@@ -292,226 +288,163 @@ fun SeerrRequestCard(
   baseUrl: String?,
   isAdmin: Boolean,
   onClick: () -> Unit,
-  onApprove: () -> Unit,
-  onDecline: () -> Unit,
+  onApprove: () -> Unit = {},
+  onDecline: () -> Unit = {},
   onDelete: (() -> Unit)? = null,
   modifier: Modifier = Modifier,
-  cardWidth: Dp = 260.dp,
+  cardWidth: Dp = 230.dp,
 ) {
-  val isPending = request.status == RequestStatus.PENDING.value
-
   Column(
-    modifier = modifier
-      .width(cardWidth)
-      .clip(RoundedCornerShape(16.dp))
-      .clickable(onClick = onClick),
+    modifier = modifier.width(cardWidth),
   ) {
-    Card(
-      shape = RoundedCornerShape(16.dp),
-      colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainer),
-      elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
+    Box(
       modifier = Modifier
         .fillMaxWidth()
-        .aspectRatio(16f / 9f),
+        .aspectRatio(16f / 9f)
+        .clip(RoundedCornerShape(10.dp))
+        .background(MaterialTheme.colorScheme.surfaceContainerHighest)
+        .clickable(onClick = onClick),
     ) {
+      val backdropUrl = request.media.getBackdropUrl() ?: request.media.getPosterUrl()
+      if (!backdropUrl.isNullOrBlank()) {
+        RemoteImage(
+          url = backdropUrl,
+          contentDescription = request.media.getDisplayTitle(),
+          contentScale = ContentScale.Crop,
+          modifier = Modifier.fillMaxSize(),
+        )
+      } else {
+        Box(
+          modifier = Modifier.fillMaxSize(),
+          contentAlignment = Alignment.Center,
+        ) {
+          Icon(
+            if (request.getMediaType() == MediaType.TV) Icons.RoundedFilled.Tv else Icons.RoundedFilled.Movie,
+            contentDescription = null,
+            tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f),
+            modifier = Modifier.size(36.dp),
+          )
+        }
+      }
+
+      // Subtle horizontal gradient overlay to enhance poster and text clarity
       Box(
         modifier = Modifier
           .fillMaxSize()
-          .background(MaterialTheme.colorScheme.surfaceContainerHighest),
-      ) {
-        val backdropUrl = request.media.getBackdropUrl() ?: request.media.getPosterUrl()
-        if (!backdropUrl.isNullOrBlank()) {
-          RemoteImage(
-            url = backdropUrl,
-            contentDescription = request.media.getDisplayTitle(),
-            contentScale = ContentScale.Crop,
-            modifier = Modifier.fillMaxSize(),
-          )
-        }
+          .background(
+            Brush.horizontalGradient(
+              0.0f to Color.Black.copy(alpha = 0.5f),
+              0.55f to Color.Black.copy(alpha = 0.15f),
+              1.0f to Color.Black.copy(alpha = 0.65f),
+            )
+          ),
+      )
 
-        // Gradient dark overlay
-        Box(
+      // Poster on the Right side of the thumbnail
+      val posterUrl = request.media.getPosterUrl()
+      if (!posterUrl.isNullOrBlank()) {
+        RemoteImage(
+          url = posterUrl,
+          contentDescription = null,
+          contentScale = ContentScale.Crop,
           modifier = Modifier
-            .fillMaxSize()
-            .background(
-              Brush.verticalGradient(
-                colors = listOf(
-                  Color.Black.copy(alpha = 0.45f),
-                  Color.Black.copy(alpha = 0.88f),
-                ),
-              ),
-            ),
+            .align(Alignment.CenterEnd)
+            .padding(end = 8.dp, top = 8.dp, bottom = 8.dp)
+            .fillMaxHeight()
+            .aspectRatio(2f / 3f)
+            .clip(RoundedCornerShape(6.dp))
+            .border(1.dp, Color.White.copy(alpha = 0.25f), RoundedCornerShape(6.dp)),
         )
+      }
 
-        // Poster thumbnail on the left
-        val posterUrl = request.media.getPosterUrl()
-        if (!posterUrl.isNullOrBlank()) {
+      // Top-Left status badge
+      SeerrRequestStatusChip(
+        status = request.getRequestStatus(),
+        modifier = Modifier
+          .align(Alignment.TopStart)
+          .padding(8.dp),
+      )
+
+      // Requester Photo on Bottom Left of Thumbnail
+      val rawAvatar = request.requestedBy.avatar
+      val avatarUrl = when {
+        rawAvatar.isNullOrBlank() -> null
+        rawAvatar.startsWith("http") -> rawAvatar
+        !baseUrl.isNullOrBlank() -> "${baseUrl.trimEnd('/')}/${rawAvatar.trimStart('/')}"
+        else -> null
+      }
+
+      Box(
+        modifier = Modifier
+          .align(Alignment.BottomStart)
+          .padding(8.dp),
+      ) {
+        if (avatarUrl != null) {
           RemoteImage(
-            url = posterUrl,
-            contentDescription = null,
+            url = avatarUrl,
+            contentDescription = request.requestedBy.displayName ?: request.requestedBy.username,
             contentScale = ContentScale.Crop,
             modifier = Modifier
-              .align(Alignment.CenterStart)
-              .padding(8.dp)
-              .fillMaxHeight()
-              .aspectRatio(2f / 3f)
-              .clip(RoundedCornerShape(10.dp)),
+              .size(24.dp)
+              .clip(CircleShape),
           )
         } else {
           Box(
             modifier = Modifier
-              .align(Alignment.CenterStart)
-              .padding(8.dp)
-              .fillMaxHeight()
-              .aspectRatio(2f / 3f)
-              .clip(RoundedCornerShape(10.dp))
-              .background(MaterialTheme.colorScheme.surfaceVariant),
+              .size(24.dp)
+              .clip(CircleShape)
+              .background(MaterialTheme.colorScheme.primaryContainer),
             contentAlignment = Alignment.Center,
           ) {
-            Icon(
-              if (request.getMediaType() == MediaType.TV) Icons.RoundedFilled.Tv else Icons.RoundedFilled.Movie,
-              contentDescription = null,
-              tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f),
-              modifier = Modifier.size(24.dp),
-            )
-          }
-        }
-
-        // Top-right status badge
-        SeerrRequestStatusChip(
-          status = request.getRequestStatus(),
-          modifier = Modifier
-            .align(Alignment.TopEnd)
-            .padding(8.dp),
-        )
-
-        // Content on the right: Title + Requester User Info
-        Column(
-          modifier = Modifier
-            .align(Alignment.BottomStart)
-            .padding(start = if (!posterUrl.isNullOrBlank()) 84.dp else 12.dp, end = 8.dp, bottom = 8.dp, top = 8.dp)
-            .fillMaxWidth(),
-          verticalArrangement = Arrangement.Bottom,
-        ) {
-          Text(
-            text = request.media.getDisplayTitle(),
-            style = MaterialTheme.typography.titleSmall,
-            fontWeight = FontWeight.Bold,
-            color = Color.White,
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis,
-          )
-
-          Row(
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(6.dp),
-            modifier = Modifier.padding(top = 4.dp),
-          ) {
-            val rawAvatar = request.requestedBy.avatar
-            val avatarUrl = when {
-              rawAvatar.isNullOrBlank() -> null
-              rawAvatar.startsWith("http") -> rawAvatar
-              !baseUrl.isNullOrBlank() -> "${baseUrl.trimEnd('/')}/${rawAvatar.trimStart('/')}"
-              else -> null
-            }
-
-            if (avatarUrl != null) {
-              RemoteImage(
-                url = avatarUrl,
-                contentDescription = null,
-                contentScale = ContentScale.Crop,
-                modifier = Modifier
-                  .size(20.dp)
-                  .clip(CircleShape),
-              )
-            } else {
-              Box(
-                modifier = Modifier
-                  .size(20.dp)
-                  .clip(CircleShape)
-                  .background(MaterialTheme.colorScheme.primaryContainer),
-                contentAlignment = Alignment.Center,
-              ) {
-                Text(
-                  text = (request.requestedBy.displayName ?: request.requestedBy.username ?: "U").take(1).uppercase(),
-                  style = MaterialTheme.typography.labelSmall,
-                  fontSize = 10.sp,
-                  fontWeight = FontWeight.Bold,
-                  color = MaterialTheme.colorScheme.onPrimaryContainer,
-                )
-              }
-            }
-
             Text(
-              text = request.requestedBy.displayName ?: request.requestedBy.username ?: "User",
-              style = MaterialTheme.typography.bodySmall,
-              color = Color.White.copy(alpha = 0.85f),
-              maxLines = 1,
-              overflow = TextOverflow.Ellipsis,
+              text = (request.requestedBy.displayName ?: request.requestedBy.username ?: "U").take(1).uppercase(),
+              style = MaterialTheme.typography.labelSmall,
+              fontSize = 10.sp,
+              fontWeight = FontWeight.Bold,
+              color = MaterialTheme.colorScheme.onPrimaryContainer,
             )
-          }
-
-          // Admin Approve / Decline Quick Buttons
-          if (isPending && isAdmin) {
-            Row(
-              horizontalArrangement = Arrangement.spacedBy(8.dp),
-              modifier = Modifier.padding(top = 6.dp),
-            ) {
-              FilledIconButton(
-                onClick = onApprove,
-                shape = RoundedCornerShape(8.dp),
-                colors = IconButtonDefaults.filledIconButtonColors(
-                  containerColor = MaterialTheme.colorScheme.primary,
-                  contentColor = MaterialTheme.colorScheme.onPrimary,
-                ),
-                modifier = Modifier.size(30.dp),
-              ) {
-                Icon(
-                  Icons.RoundedFilled.Check,
-                  contentDescription = stringResource(R.string.seerr_approve),
-                  modifier = Modifier.size(16.dp),
-                )
-              }
-
-              FilledTonalIconButton(
-                onClick = onDecline,
-                shape = RoundedCornerShape(8.dp),
-                colors = IconButtonDefaults.filledTonalIconButtonColors(
-                  containerColor = MaterialTheme.colorScheme.errorContainer,
-                  contentColor = MaterialTheme.colorScheme.onErrorContainer,
-                ),
-                modifier = Modifier.size(30.dp),
-              ) {
-                Icon(
-                  Icons.RoundedFilled.Close,
-                  contentDescription = stringResource(R.string.seerr_decline),
-                  modifier = Modifier.size(16.dp),
-                )
-              }
-            }
-          } else if (onDelete != null && (isAdmin || request.status == RequestStatus.DECLINED.value || request.status == RequestStatus.FAILED.value)) {
-            Row(
-              modifier = Modifier.padding(top = 6.dp),
-            ) {
-              FilledTonalIconButton(
-                onClick = onDelete,
-                shape = RoundedCornerShape(8.dp),
-                colors = IconButtonDefaults.filledTonalIconButtonColors(
-                  containerColor = MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.5f),
-                  contentColor = MaterialTheme.colorScheme.error,
-                ),
-                modifier = Modifier.size(28.dp),
-              ) {
-                Icon(
-                  Icons.RoundedFilled.Delete,
-                  contentDescription = "Delete Request",
-                  modifier = Modifier.size(15.dp),
-                )
-              }
-            }
           }
         }
       }
+    }
+
+    // Title and Requester underneath thumbnail (not clipped)
+    Spacer(modifier = Modifier.height(6.dp))
+
+    Text(
+      text = request.media.getDisplayTitle(),
+      style = MaterialTheme.typography.bodyMedium,
+      fontWeight = FontWeight.SemiBold,
+      color = MaterialTheme.colorScheme.onSurface,
+      maxLines = 1,
+      overflow = TextOverflow.Ellipsis,
+    )
+
+    Row(
+      verticalAlignment = Alignment.CenterVertically,
+      horizontalArrangement = Arrangement.spacedBy(4.dp),
+      modifier = Modifier.padding(top = 1.dp),
+    ) {
+      request.media.getReleaseYear()?.let { year ->
+        Text(
+          text = year,
+          style = MaterialTheme.typography.bodySmall,
+          color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+        Text(
+          text = "•",
+          style = MaterialTheme.typography.bodySmall,
+          color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+      }
+      val requesterName = request.requestedBy.displayName ?: request.requestedBy.username ?: "User"
+      Text(
+        text = "Requested by $requesterName",
+        style = MaterialTheme.typography.bodySmall,
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
+        maxLines = 1,
+        overflow = TextOverflow.Ellipsis,
+      )
     }
   }
 }

@@ -18,9 +18,11 @@ import com.quantummpv.app.domain.seerr.JellyseerrRequest
 import com.quantummpv.app.domain.seerr.JellyseerrSearchResult
 import com.quantummpv.app.domain.seerr.JellyseerrUser
 import com.quantummpv.app.domain.seerr.MediaDetails
+import com.quantummpv.app.domain.seerr.MediaResultsResponse
 import com.quantummpv.app.domain.seerr.MediaType
 import com.quantummpv.app.domain.seerr.PublicSettings
 import com.quantummpv.app.domain.seerr.RequestsResponse
+import com.quantummpv.app.domain.seerr.SearchResultItem
 import com.quantummpv.app.domain.seerr.UserQuotaResponse
 import com.quantummpv.app.preferences.SeerrPreferences
 import kotlinx.coroutines.Dispatchers
@@ -196,6 +198,7 @@ class SeerrRepository(
           preferences.serverUrl.set(cleanUrl)
           preferences.userEmail.set(user.email ?: email)
           preferences.userDisplayName.set(user.displayName ?: user.username ?: email)
+          preferences.username.set(user.username ?: email)
           preferences.userAvatar.set(user.avatar ?: "")
           preferences.userId.set(user.id)
           preferences.userPermissions.set(user.permissions)
@@ -235,6 +238,7 @@ class SeerrRepository(
           val user = json.decodeFromString<JellyseerrUser>(bodyStr)
           preferences.userEmail.set(user.email ?: "")
           preferences.userDisplayName.set(user.displayName ?: user.username ?: "Admin")
+          preferences.username.set(user.username ?: "Admin")
           preferences.userAvatar.set(user.avatar ?: "")
           preferences.userId.set(user.id)
           preferences.userPermissions.set(user.permissions)
@@ -275,6 +279,7 @@ class SeerrRepository(
       _isAuthenticated.value = true
       preferences.userEmail.set(user.email ?: "")
       preferences.userDisplayName.set(user.displayName ?: user.username ?: "")
+      preferences.username.set(user.username ?: "")
       preferences.userAvatar.set(user.avatar ?: "")
       preferences.userId.set(user.id)
       preferences.userPermissions.set(user.permissions)
@@ -296,6 +301,42 @@ class SeerrRepository(
   suspend fun getDiscoverSliders(): Result<List<DiscoverSlider>> {
     val req = buildRequest(path = "api/v1/discover/slider")
     return executeCall<List<DiscoverSlider>>(req, "Failed to get discover sliders")
+  }
+
+  suspend fun getRecentlyAdded(take: Int = 20): Result<List<SearchResultItem>> {
+    val req = buildRequest(
+      path = "api/v1/media",
+      queryParameters = mapOf(
+        "take" to take.toString(),
+        "filter" to "available",
+        "sort" to "mediaAddedAt",
+      ),
+    )
+    val res = executeCall<MediaResultsResponse>(req, "Failed to get recently added media")
+    return res.map { resp ->
+      resp.results.map { media ->
+        val item = media.toSearchResultItem()
+        val tmdbId = item.id
+        if (item.title.isNullOrBlank() && item.name.isNullOrBlank() && tmdbId > 0) {
+          val cached = mediaDetailsCache[item.mediaType.lowercase() to tmdbId]
+          if (cached != null) {
+            item.copy(
+              title = cached.title,
+              name = cached.name,
+              posterPath = cached.posterPath ?: item.posterPath,
+              backdropPath = cached.backdropPath ?: item.backdropPath,
+              releaseDate = cached.releaseDate ?: item.releaseDate,
+              firstAirDate = cached.firstAirDate ?: item.firstAirDate,
+              voteAverage = cached.voteAverage,
+            )
+          } else {
+            item
+          }
+        } else {
+          item
+        }
+      }
+    }
   }
 
   suspend fun getTrending(page: Int = 1): Result<JellyseerrSearchResult> {
@@ -374,18 +415,22 @@ class SeerrRepository(
     return executeCall<JellyseerrSearchResult>(req, "Search failed for '$query'")
   }
 
-  suspend fun getMovieDetails(tmdbId: Int): Result<MediaDetails> {
-    val cached = mediaDetailsCache["movie" to tmdbId]
-    if (cached != null) return Result.success(cached)
+  suspend fun getMovieDetails(tmdbId: Int, forceRefresh: Boolean = false): Result<MediaDetails> {
+    if (!forceRefresh) {
+      val cached = mediaDetailsCache["movie" to tmdbId]
+      if (cached != null) return Result.success(cached)
+    }
     val req = buildRequest(path = "api/v1/movie/$tmdbId")
     val res = executeCall<MediaDetails>(req, "Failed to get movie details for $tmdbId")
     res.onSuccess { mediaDetailsCache["movie" to tmdbId] = it }
     return res
   }
 
-  suspend fun getTvDetails(tmdbId: Int): Result<MediaDetails> {
-    val cached = mediaDetailsCache["tv" to tmdbId]
-    if (cached != null) return Result.success(cached)
+  suspend fun getTvDetails(tmdbId: Int, forceRefresh: Boolean = false): Result<MediaDetails> {
+    if (!forceRefresh) {
+      val cached = mediaDetailsCache["tv" to tmdbId]
+      if (cached != null) return Result.success(cached)
+    }
     val req = buildRequest(path = "api/v1/tv/$tmdbId")
     val res = executeCall<MediaDetails>(req, "Failed to get TV details for $tmdbId")
     res.onSuccess { mediaDetailsCache["tv" to tmdbId] = it }
@@ -480,7 +525,9 @@ class SeerrRepository(
     )
     val payload = json.encodeToString(CreateRequestBody.serializer(), body)
     val req = buildRequest(path = "api/v1/request", method = "POST", bodyJson = payload)
-    executeCall<JellyseerrRequest>(req, "Failed to create media request")
+    val res = executeCall<JellyseerrRequest>(req, "Failed to create media request")
+    res.onSuccess { clearCacheForMedia(mediaType.value, mediaId) }
+    res
   }
 
   suspend fun approveRequest(
@@ -491,7 +538,12 @@ class SeerrRepository(
       method = "POST",
       bodyJson = "{}",
     )
-    executeCall<JellyseerrRequest>(req, "Failed to approve request $requestId")
+    val res = executeCall<JellyseerrRequest>(req, "Failed to approve request $requestId")
+    res.onSuccess { r ->
+      val tmdbId = r.media.tmdbId ?: r.media.id
+      if (tmdbId > 0) clearCacheForMedia(r.media.mediaType, tmdbId)
+    }
+    res
   }
 
   suspend fun declineRequest(
@@ -502,7 +554,12 @@ class SeerrRepository(
       method = "POST",
       bodyJson = "{}",
     )
-    executeCall<JellyseerrRequest>(req, "Failed to decline request $requestId")
+    val res = executeCall<JellyseerrRequest>(req, "Failed to decline request $requestId")
+    res.onSuccess { r ->
+      val tmdbId = r.media.tmdbId ?: r.media.id
+      if (tmdbId > 0) clearCacheForMedia(r.media.mediaType, tmdbId)
+    }
+    res
   }
 
   fun clearCacheForMedia(mediaType: String, tmdbId: Int) {

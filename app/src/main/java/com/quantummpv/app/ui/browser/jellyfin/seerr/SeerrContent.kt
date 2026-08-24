@@ -177,7 +177,7 @@ fun SeerrContent(
         }
       } else {
         BrowserTopBar(
-          title = stringResource(R.string.seerr_requests),
+          title = stringResource(R.string.seerr_discover),
           isInSelectionMode = false,
           selectedCount = 0,
           totalCount = 0,
@@ -189,90 +189,51 @@ fun SeerrContent(
               onClick = { viewModel.openConnectionDialog() },
               modifier = Modifier.padding(horizontal = 2.dp),
             ) {
-              Icon(
-                imageVector = if (uiState.isConnected) Icons.RoundedFilled.CloudDone else Icons.RoundedFilled.CloudOff,
-                contentDescription = stringResource(R.string.seerr_connect_server),
-                tint = if (uiState.isConnected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.error,
-                modifier = Modifier.size(24.dp),
-              )
-            }
-          },
-        )
-      }
+              if (uiState.isConnected) {
+                val rawAvatar = uiState.currentUser?.avatar
+                val avatarUrl = when {
+                  rawAvatar.isNullOrBlank() -> null
+                  rawAvatar.startsWith("http") -> rawAvatar
+                  !uiState.serverUrl.isNullOrBlank() -> "${uiState.serverUrl.trimEnd('/')}/${rawAvatar.trimStart('/')}"
+                  else -> null
+                }
 
-      // Filter Chips
-      if (!isSearching && uiState.isConnected) {
-        Row(
-          modifier = Modifier
-            .fillMaxWidth()
-            .horizontalScroll(rememberScrollState())
-            .padding(horizontal = 16.dp, vertical = 6.dp),
-          horizontalArrangement = Arrangement.spacedBy(8.dp),
-          verticalAlignment = Alignment.CenterVertically,
-        ) {
-          FilterChip(
-            selected = uiState.selectedTab == SeerrMainTab.ALL,
-            onClick = { viewModel.setTab(SeerrMainTab.ALL) },
-            label = { Text(stringResource(R.string.seerr_tab_all)) },
-            shape = RoundedCornerShape(12.dp),
-            colors = FilterChipDefaults.filterChipColors(
-              selectedContainerColor = MaterialTheme.colorScheme.primaryContainer,
-              selectedLabelColor = MaterialTheme.colorScheme.onPrimaryContainer,
-            ),
-          )
-          FilterChip(
-            selected = uiState.selectedTab == SeerrMainTab.MOVIES,
-            onClick = { viewModel.setTab(SeerrMainTab.MOVIES) },
-            label = { Text(stringResource(R.string.seerr_tab_movies)) },
-            shape = RoundedCornerShape(12.dp),
-            colors = FilterChipDefaults.filterChipColors(
-              selectedContainerColor = MaterialTheme.colorScheme.primaryContainer,
-              selectedLabelColor = MaterialTheme.colorScheme.onPrimaryContainer,
-            ),
-          )
-          FilterChip(
-            selected = uiState.selectedTab == SeerrMainTab.TV,
-            onClick = { viewModel.setTab(SeerrMainTab.TV) },
-            label = { Text(stringResource(R.string.seerr_tab_tv)) },
-            shape = RoundedCornerShape(12.dp),
-            colors = FilterChipDefaults.filterChipColors(
-              selectedContainerColor = MaterialTheme.colorScheme.primaryContainer,
-              selectedLabelColor = MaterialTheme.colorScheme.onPrimaryContainer,
-            ),
-          )
-          FilterChip(
-            selected = uiState.selectedTab == SeerrMainTab.MY_REQUESTS,
-            onClick = { viewModel.setTab(SeerrMainTab.MY_REQUESTS) },
-            label = {
-              Row(verticalAlignment = Alignment.CenterVertically) {
-                Text(stringResource(R.string.seerr_tab_my_requests))
-                if (uiState.activeRequests.isNotEmpty()) {
-                  Spacer(modifier = Modifier.width(6.dp))
+                if (avatarUrl != null) {
+                  com.quantummpv.app.presentation.components.RemoteImage(
+                    url = avatarUrl,
+                    contentDescription = stringResource(R.string.seerr_connect_server),
+                    contentScale = androidx.compose.ui.layout.ContentScale.Crop,
+                    modifier = Modifier
+                      .size(26.dp)
+                      .clip(CircleShape),
+                  )
+                } else {
                   Surface(
                     shape = CircleShape,
-                    color = MaterialTheme.colorScheme.primary,
-                    modifier = Modifier.size(16.dp),
+                    color = MaterialTheme.colorScheme.primaryContainer,
+                    modifier = Modifier.size(26.dp),
                   ) {
                     Box(contentAlignment = Alignment.Center) {
                       Text(
-                        text = uiState.activeRequests.size.toString(),
+                        text = (uiState.currentUser?.displayName ?: uiState.currentUser?.username ?: "U").take(1).uppercase(),
                         style = MaterialTheme.typography.labelSmall,
-                        fontSize = 9.sp,
                         fontWeight = FontWeight.Bold,
-                        color = MaterialTheme.colorScheme.onPrimary,
+                        color = MaterialTheme.colorScheme.onPrimaryContainer,
                       )
                     }
                   }
                 }
+              } else {
+                Icon(
+                  imageVector = Icons.RoundedFilled.Person,
+                  contentDescription = stringResource(R.string.seerr_connect_server),
+                  tint = MaterialTheme.colorScheme.secondary,
+                  modifier = Modifier.size(24.dp),
+                )
               }
-            },
-            shape = RoundedCornerShape(12.dp),
-            colors = FilterChipDefaults.filterChipColors(
-              selectedContainerColor = MaterialTheme.colorScheme.primaryContainer,
-              selectedLabelColor = MaterialTheme.colorScheme.onPrimaryContainer,
-            ),
-          )
-        }
+            }
+          },
+        )
       }
     }
 
@@ -312,7 +273,7 @@ fun SeerrContent(
               ) {
                 Box(contentAlignment = Alignment.Center) {
                   Icon(
-                    Icons.RoundedFilled.AddToQueue,
+                    Icons.RoundedFilled.Explore,
                     contentDescription = null,
                     tint = MaterialTheme.colorScheme.onPrimaryContainer,
                     modifier = Modifier.size(32.dp),
@@ -393,123 +354,96 @@ fun SeerrContent(
             verticalArrangement = Arrangement.spacedBy(18.dp),
             modifier = Modifier.fillMaxSize(),
           ) {
-            // Active Requests Carousel
-            if (uiState.selectedTab == SeerrMainTab.ALL || uiState.selectedTab == SeerrMainTab.MY_REQUESTS) {
-              if (uiState.activeRequests.isNotEmpty()) {
-                item {
-                  Column(modifier = Modifier.fillMaxWidth()) {
-                    SeerrSectionHeader(title = stringResource(R.string.seerr_active_requests))
-                    LazyRow(
-                      contentPadding = PaddingValues(horizontal = 16.dp),
-                      horizontalArrangement = Arrangement.spacedBy(12.dp),
-                      modifier = Modifier.fillMaxWidth(),
-                    ) {
-                      items(uiState.activeRequests, key = { it.id }) { req ->
-                        SeerrRequestCard(
-                          request = req,
-                          baseUrl = uiState.serverUrl,
-                          isAdmin = uiState.currentUser?.isAdmin() == true,
-                          onClick = { viewModel.openDetailFromRequest(req) },
-                          onApprove = { viewModel.approveRequest(req.id) },
-                          onDecline = { viewModel.declineRequest(req.id) },
-                          onDelete = { viewModel.deleteRequest(req.id, req.media.tmdbId, req.media.mediaType) },
-                        )
-                      }
-                    }
-                  }
-                }
-              }
-
-              // Available Requests Carousel
-              if (uiState.availableRequests.isNotEmpty()) {
-                item {
-                  Column(modifier = Modifier.fillMaxWidth()) {
-                    SeerrSectionHeader(title = stringResource(R.string.seerr_available_requests))
-                    LazyRow(
-                      contentPadding = PaddingValues(horizontal = 16.dp),
-                      horizontalArrangement = Arrangement.spacedBy(12.dp),
-                      modifier = Modifier.fillMaxWidth(),
-                    ) {
-                      items(uiState.availableRequests, key = { it.id }) { req ->
-                        SeerrRequestCard(
-                          request = req,
-                          baseUrl = uiState.serverUrl,
-                          isAdmin = uiState.currentUser?.isAdmin() == true,
-                          onClick = { viewModel.openDetailFromRequest(req) },
-                          onApprove = { viewModel.approveRequest(req.id) },
-                          onDecline = { viewModel.declineRequest(req.id) },
-                          onDelete = { viewModel.deleteRequest(req.id, req.media.tmdbId, req.media.mediaType) },
-                        )
-                      }
-                    }
-                  }
-                }
-              }
-            }
-
-            if (uiState.selectedTab != SeerrMainTab.MY_REQUESTS) {
-              // Trending
-              if (uiState.selectedTab == SeerrMainTab.ALL) {
-                item {
-                  SeerrSliderRow(
-                    title = stringResource(R.string.seerr_trending),
-                    items = uiState.trendingItems,
-                    onItemClick = viewModel::openDetail,
-                  )
-                }
-              }
-
-              // Movies Tab / All Tab
-              if (uiState.selectedTab == SeerrMainTab.ALL || uiState.selectedTab == SeerrMainTab.MOVIES) {
-                item {
-                  SeerrSliderRow(
-                    title = stringResource(R.string.seerr_popular_movies),
-                    items = uiState.popularMovies,
-                    onItemClick = viewModel::openDetail,
-                  )
-                }
-                item {
-                  SeerrSliderRow(
-                    title = stringResource(R.string.seerr_upcoming_movies),
-                    items = uiState.upcomingMovies,
-                    onItemClick = viewModel::openDetail,
-                  )
-                }
-              }
-
-              // TV Tab / All Tab
-              if (uiState.selectedTab == SeerrMainTab.ALL || uiState.selectedTab == SeerrMainTab.TV) {
-                item {
-                  SeerrSliderRow(
-                    title = stringResource(R.string.seerr_popular_tv),
-                    items = uiState.popularTv,
-                    onItemClick = viewModel::openDetail,
-                  )
-                }
-                item {
-                  SeerrSliderRow(
-                    title = stringResource(R.string.seerr_upcoming_tv),
-                    items = uiState.upcomingTv,
-                    onItemClick = viewModel::openDetail,
-                  )
-                }
-              }
-            }
-
-            if (uiState.selectedTab == SeerrMainTab.MY_REQUESTS && uiState.activeRequests.isEmpty() && uiState.availableRequests.isEmpty()) {
+            // 1. Recently Added Section on Top
+            if (uiState.recentlyAdded.isNotEmpty()) {
               item {
-                Box(
-                  modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(32.dp),
-                  contentAlignment = Alignment.Center,
-                ) {
-                  Text(
-                    text = "No requests found",
-                    style = MaterialTheme.typography.bodyLarge,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                  )
+                SeerrSliderRow(
+                  title = stringResource(R.string.seerr_recently_added),
+                  items = uiState.recentlyAdded,
+                  onItemClick = viewModel::openDetail,
+                )
+              }
+            }
+
+            // 2. Combined Requests (Active & Available) Carousel
+            val combinedRequests = uiState.activeRequests + uiState.availableRequests
+            if (combinedRequests.isNotEmpty()) {
+              item {
+                Column(modifier = Modifier.fillMaxWidth()) {
+                  SeerrSectionHeader(title = stringResource(R.string.seerr_requests))
+                  LazyRow(
+                    contentPadding = PaddingValues(horizontal = 16.dp),
+                    horizontalArrangement = Arrangement.spacedBy(12.dp),
+                    modifier = Modifier.fillMaxWidth(),
+                  ) {
+                    items(combinedRequests, key = { it.id }) { req ->
+                      SeerrRequestCard(
+                        request = req,
+                        baseUrl = uiState.serverUrl,
+                        isAdmin = uiState.currentUser?.isAdmin() == true,
+                        onClick = { viewModel.openDetailFromRequest(req) },
+                        onApprove = { viewModel.approveRequest(req.id) },
+                        onDecline = { viewModel.declineRequest(req.id) },
+                        onDelete = { viewModel.deleteRequest(req.id, req.media.tmdbId, req.media.mediaType) },
+                      )
+                    }
+                  }
                 }
+              }
+            }
+
+            // 3. Trending
+            if (uiState.trendingItems.isNotEmpty()) {
+              item {
+                SeerrSliderRow(
+                  title = stringResource(R.string.seerr_trending),
+                  items = uiState.trendingItems,
+                  onItemClick = viewModel::openDetail,
+                )
+              }
+            }
+
+            // Popular Movies
+            if (uiState.popularMovies.isNotEmpty()) {
+              item {
+                SeerrSliderRow(
+                  title = stringResource(R.string.seerr_popular_movies),
+                  items = uiState.popularMovies,
+                  onItemClick = viewModel::openDetail,
+                )
+              }
+            }
+
+            // Popular TV Shows
+            if (uiState.popularTv.isNotEmpty()) {
+              item {
+                SeerrSliderRow(
+                  title = stringResource(R.string.seerr_popular_tv),
+                  items = uiState.popularTv,
+                  onItemClick = viewModel::openDetail,
+                )
+              }
+            }
+
+            // Upcoming Movies
+            if (uiState.upcomingMovies.isNotEmpty()) {
+              item {
+                SeerrSliderRow(
+                  title = stringResource(R.string.seerr_upcoming_movies),
+                  items = uiState.upcomingMovies,
+                  onItemClick = viewModel::openDetail,
+                )
+              }
+            }
+
+            // Upcoming TV Shows
+            if (uiState.upcomingTv.isNotEmpty()) {
+              item {
+                SeerrSliderRow(
+                  title = stringResource(R.string.seerr_upcoming_tv),
+                  items = uiState.upcomingTv,
+                  onItemClick = viewModel::openDetail,
+                )
               }
             }
           }

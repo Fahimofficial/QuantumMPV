@@ -91,6 +91,7 @@ object Icons {
     val Equalizer by lazy(LazyThreadSafetyMode.NONE) { AppIcon(MaterialSymbols.RoundedFilled.Equalizer) }
     val ErrorOutline by lazy(LazyThreadSafetyMode.NONE) { AppIcon(MaterialSymbols.RoundedFilled.Error) }
     val ExitToApp by lazy(LazyThreadSafetyMode.NONE) { AppIcon(MaterialSymbols.RoundedFilled.Exit_to_app) }
+    val Explore by lazy(LazyThreadSafetyMode.NONE) { AppIcon(MaterialSymbols.RoundedFilled.Explore) }
     val Key by lazy(LazyThreadSafetyMode.NONE) { AppIcon(MaterialSymbols.RoundedFilled.Key) }
     val ExpandLess by lazy(LazyThreadSafetyMode.NONE) { AppIcon(MaterialSymbols.RoundedFilled.Expand_less) }
     val ExpandMore by lazy(LazyThreadSafetyMode.NONE) { AppIcon(MaterialSymbols.RoundedFilled.Expand_more) }
@@ -328,6 +329,7 @@ object Icons {
     val Equalizer get() = Shared.Equalizer
     val ErrorOutline get() = Shared.ErrorOutline
     val ExitToApp get() = Shared.ExitToApp
+    val Explore get() = Shared.Explore
     val Key get() = Shared.Key
     val ExpandLess get() = Shared.ExpandLess
     val ExpandMore get() = Shared.ExpandMore

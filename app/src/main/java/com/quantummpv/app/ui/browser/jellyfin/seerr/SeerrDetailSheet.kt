@@ -391,8 +391,8 @@ fun SeerrDetailSheet(
             }
           }
 
-          // Processing (Movie or TV all seasons are processing / requested)
-          mediaStatus == MediaStatus.PROCESSING && (mediaType == MediaType.MOVIE || unrequestedSeasons.isEmpty()) -> {
+          // Processing
+          mediaStatus == MediaStatus.PROCESSING -> {
             Button(
               onClick = {},
               enabled = false,
@@ -412,8 +412,8 @@ fun SeerrDetailSheet(
             }
           }
 
-          // Pending (Movie or TV all seasons pending)
-          mediaStatus == MediaStatus.PENDING && (mediaType == MediaType.MOVIE || unrequestedSeasons.isEmpty()) -> {
+          // Pending
+          mediaStatus == MediaStatus.PENDING -> {
             Button(
               onClick = {},
               enabled = false,
@@ -480,8 +480,8 @@ fun SeerrDetailSheet(
           }
         }
 
-        // TV Show Season Selection & 4K Toggle (Only when unrequested seasons exist)
-        if (mediaType == MediaType.TV && seasons.isNotEmpty() && unrequestedSeasons.isNotEmpty()) {
+        // TV Show Season Selection & 4K Toggle (Only when unrequested / partially available and not already processing/pending/available)
+        if (mediaType == MediaType.TV && seasons.isNotEmpty() && unrequestedSeasons.isNotEmpty() && mediaStatus != MediaStatus.AVAILABLE && mediaStatus != MediaStatus.PROCESSING && mediaStatus != MediaStatus.PENDING) {
           Spacer(modifier = Modifier.height(4.dp))
           Row(
             modifier = Modifier.fillMaxWidth(),

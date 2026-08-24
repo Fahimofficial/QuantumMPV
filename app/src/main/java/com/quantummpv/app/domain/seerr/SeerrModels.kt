@@ -271,6 +271,11 @@ data class MediaInfo(
 ) {
   fun getDisplayTitle(): String = title ?: name ?: "Unknown"
 
+  fun getReleaseYear(): String? {
+    val date = releaseDate ?: firstAirDate
+    return if (!date.isNullOrBlank() && date.length >= 4) date.take(4) else null
+  }
+
   fun getPosterUrl(baseUrl: String = "https://image.tmdb.org/t/p/w500"): String? =
     posterPath?.let {
       when {
@@ -303,6 +308,19 @@ data class MediaInfo(
       raw
     }
   }
+  fun toSearchResultItem(): SearchResultItem {
+    return SearchResultItem(
+      id = tmdbId ?: id,
+      mediaType = mediaType,
+      title = title,
+      name = name,
+      posterPath = posterPath,
+      backdropPath = backdropPath,
+      releaseDate = releaseDate,
+      firstAirDate = firstAirDate,
+      mediaInfo = this,
+    )
+  }
 }
 
 @Serializable
@@ -310,6 +328,12 @@ data class MediaInfoSeason(
   @SerialName("id") val id: Int? = null,
   @SerialName("seasonNumber") val seasonNumber: Int? = null,
   @SerialName("status") val status: Int? = null,
+)
+
+@Serializable
+data class MediaResultsResponse(
+  @SerialName("pageInfo") val pageInfo: PageInfo? = null,
+  @SerialName("results") val results: List<MediaInfo> = emptyList(),
 )
 
 @Serializable

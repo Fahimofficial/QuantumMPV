@@ -1834,6 +1834,7 @@
   <string name="seerr_connected_as">Connected as %1$s</string>
   <string name="seerr_not_connected">Not connected to a Seerr server</string>
   <string name="seerr_connect_cta">Connect your Jellyseerr or Overseerr server to discover and request movies and TV shows.</string>
+  <string name="seerr_recently_added">Recently Added</string>
   <string name="seerr_active_requests">Active Requests</string>
   <string name="seerr_available_requests">Available Requests</string>
   <string name="seerr_trending">Trending Now</string>

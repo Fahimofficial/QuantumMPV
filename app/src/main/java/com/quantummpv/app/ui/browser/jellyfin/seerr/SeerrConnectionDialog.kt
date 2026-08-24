@@ -17,6 +17,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
@@ -99,6 +100,7 @@ fun SeerrConnectionDialog(
   if (!isOpen) return
 
   var authType by remember { mutableStateOf(SeerrAuthType.JELLYFIN) }
+  var isEditingServer by remember { mutableStateOf(false) }
   var serverUrl by remember(currentServerUrl, activeJellyfinServer) {
     val initial = if (currentServerUrl.isNotBlank()) {
       currentServerUrl
@@ -112,8 +114,12 @@ fun SeerrConnectionDialog(
     mutableStateOf(initial)
   }
 
-  var username by remember(activeJellyfinServer) {
-    mutableStateOf(activeJellyfinServer?.name?.takeIf { !it.contains("Server", ignoreCase = true) } ?: "")
+  var username by remember(activeJellyfinServer, currentUser) {
+    val initial = currentUser?.username
+      ?: activeJellyfinServer?.username
+      ?: currentUser?.displayName
+      ?: ""
+    mutableStateOf(initial)
   }
   var password by remember { mutableStateOf("") }
   var isPasswordVisible by remember { mutableStateOf(false) }
@@ -144,18 +150,35 @@ fun SeerrConnectionDialog(
             color = MaterialTheme.colorScheme.primaryContainer,
             modifier = Modifier.size(40.dp),
           ) {
-            Box(contentAlignment = Alignment.Center) {
-              Icon(
-                Icons.RoundedFilled.AddToQueue,
+            val rawAvatar = currentUser?.avatar
+            val avatarUrl = when {
+              rawAvatar.isNullOrBlank() -> null
+              rawAvatar.startsWith("http") -> rawAvatar
+              currentServerUrl.isNotBlank() -> "${currentServerUrl.trimEnd('/')}/${rawAvatar.trimStart('/')}"
+              else -> null
+            }
+
+            if (isConnected && avatarUrl != null) {
+              RemoteImage(
+                url = avatarUrl,
                 contentDescription = null,
-                tint = MaterialTheme.colorScheme.onPrimaryContainer,
-                modifier = Modifier.size(22.dp),
+                contentScale = ContentScale.Crop,
+                modifier = Modifier.fillMaxSize().clip(CircleShape),
               )
+            } else {
+              Box(contentAlignment = Alignment.Center) {
+                Icon(
+                  Icons.RoundedFilled.Person,
+                  contentDescription = null,
+                  tint = MaterialTheme.colorScheme.onPrimaryContainer,
+                  modifier = Modifier.size(22.dp),
+                )
+              }
             }
           }
           Column {
             Text(
-              text = stringResource(R.string.seerr_connect_server),
+              text = if (isConnected) (currentUser?.displayName ?: currentUser?.username ?: stringResource(R.string.seerr_connect_server)) else stringResource(R.string.seerr_connect_server),
               style = MaterialTheme.typography.titleMedium,
               fontWeight = FontWeight.Bold,
             )
@@ -252,6 +275,18 @@ fun SeerrConnectionDialog(
                 }
               }
             }
+
+            IconButton(
+              onClick = { isEditingServer = !isEditingServer },
+              modifier = Modifier.size(36.dp),
+            ) {
+              Icon(
+                Icons.RoundedFilled.Edit,
+                contentDescription = "Reconfigure Server",
+                tint = if (isEditingServer) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.size(20.dp),
+              )
+            }
           }
         }
 
@@ -278,19 +313,22 @@ fun SeerrConnectionDialog(
             fontWeight = FontWeight.Bold,
           )
         }
-
-        Spacer(modifier = Modifier.height(16.dp))
-        HorizontalDivider()
-        Spacer(modifier = Modifier.height(16.dp))
-        Text(
-          text = "Switch or Reconfigure Server",
-          style = MaterialTheme.typography.titleSmall,
-          fontWeight = FontWeight.Bold,
-        )
-        Spacer(modifier = Modifier.height(8.dp))
       }
 
-      // Server URL Input
+      if (!isConnected || isEditingServer) {
+        if (isConnected) {
+          Spacer(modifier = Modifier.height(16.dp))
+          HorizontalDivider()
+          Spacer(modifier = Modifier.height(16.dp))
+          Text(
+            text = "Switch or Reconfigure Server",
+            style = MaterialTheme.typography.titleSmall,
+            fontWeight = FontWeight.Bold,
+          )
+          Spacer(modifier = Modifier.height(8.dp))
+        }
+
+        // Server URL Input
       OutlinedTextField(
         value = serverUrl,
         onValueChange = { serverUrl = it },
@@ -477,8 +515,9 @@ fun SeerrConnectionDialog(
           Text(stringResource(R.string.seerr_login), fontWeight = FontWeight.Bold)
         }
       }
-
-      Spacer(modifier = Modifier.height(32.dp))
     }
+
+    Spacer(modifier = Modifier.height(32.dp))
   }
+}
 }

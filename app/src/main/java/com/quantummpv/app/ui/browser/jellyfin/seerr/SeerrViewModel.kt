@@ -51,6 +51,7 @@ data class SeerrUiState(
   val connectionError: String? = null,
   val isConnectionDialogOpen: Boolean = false,
   val isLoadingContent: Boolean = false,
+  val recentlyAdded: List<SearchResultItem> = emptyList(),
   val activeRequests: List<JellyseerrRequest> = emptyList(),
   val availableRequests: List<JellyseerrRequest> = emptyList(),
   val trendingItems: List<SearchResultItem> = emptyList(),
@@ -229,6 +230,7 @@ class SeerrViewModel(
           isConnected = false,
           currentUser = null,
           isConnectionDialogOpen = false,
+          recentlyAdded = emptyList(),
           activeRequests = emptyList(),
           availableRequests = emptyList(),
           trendingItems = emptyList(),
@@ -251,6 +253,7 @@ class SeerrViewModel(
     dashboardJob = viewModelScope.launch {
       _uiState.update { it.copy(isLoadingContent = true) }
 
+      val recentDeferred = async { seerrRepository.getRecentlyAdded(20) }
       val reqDeferred = async { seerrRepository.getRequests(take = 50) }
       val trendingDeferred = async { seerrRepository.getTrending(1) }
       val popMoviesDeferred = async { seerrRepository.getDiscoverMovies(1, "popularity.desc") }
@@ -258,6 +261,7 @@ class SeerrViewModel(
       val upMoviesDeferred = async { seerrRepository.getUpcomingMovies(1) }
       val upTvDeferred = async { seerrRepository.getUpcomingTv(1) }
 
+      val recentRes = recentDeferred.await()
       val requestsRes = reqDeferred.await()
       val trendingRes = trendingDeferred.await()
       val popMoviesRes = popMoviesDeferred.await()
@@ -272,6 +276,7 @@ class SeerrViewModel(
       _uiState.update {
         it.copy(
           isLoadingContent = false,
+          recentlyAdded = recentRes.getOrDefault(emptyList()),
           activeRequests = activeReqs,
           availableRequests = availableReqs,
           trendingItems = trendingRes.getOrNull()?.results ?: emptyList(),
@@ -387,14 +392,40 @@ class SeerrViewModel(
       )
       res.fold(
         onSuccess = { req ->
-          _uiState.update {
-            it.copy(
+          val resolvedMediaStatus = when {
+            req.media.status != null && req.media.status != MediaStatus.UNKNOWN.value -> req.media.status
+            req.status == RequestStatus.PENDING.value -> MediaStatus.PENDING.value
+            else -> MediaStatus.PROCESSING.value
+          }
+
+          val updatedMediaInfo = req.media.copy(
+            status = resolvedMediaStatus,
+            requests = listOf(req) + (req.media.requests ?: emptyList()),
+            seasons = req.media.seasons?.map { s ->
+              if (seasons?.contains(s.seasonNumber) == true) {
+                s.copy(status = MediaStatus.PROCESSING.value)
+              } else {
+                s
+              }
+            } ?: seasons?.map { com.quantummpv.app.domain.seerr.MediaInfoSeason(seasonNumber = it, status = MediaStatus.PROCESSING.value) },
+          )
+
+          _uiState.update { state ->
+            val curDetails = state.selectedMediaDetails
+            val newDetails = curDetails?.copy(mediaInfo = updatedMediaInfo)
+            val curSearchItem = state.selectedSearchItem
+            val newSearchItem = curSearchItem?.copy(mediaInfo = updatedMediaInfo)
+
+            state.copy(
               isRequesting = false,
+              selectedMediaDetails = newDetails ?: curDetails,
+              selectedSearchItem = newSearchItem ?: curSearchItem,
+              activeRequests = listOf(req) + state.activeRequests.filter { it.id != req.id },
               actionMessage = "Request submitted successfully",
             )
           }
-          // Refresh details and dashboard
-          openDetail(searchItem)
+
+          refreshDetailSilently(mediaId, mediaType)
           loadDashboard()
         },
         onFailure = { err ->
@@ -409,13 +440,40 @@ class SeerrViewModel(
     }
   }
 
+  private fun refreshDetailSilently(mediaId: Int, mediaType: MediaType) {
+    viewModelScope.launch {
+      val res = if (mediaType == MediaType.TV) {
+        seerrRepository.getTvDetails(mediaId, forceRefresh = true)
+      } else {
+        seerrRepository.getMovieDetails(mediaId, forceRefresh = true)
+      }
+      res.onSuccess { freshDetails ->
+        _uiState.update { state ->
+          if (state.selectedSearchItem?.id == mediaId) {
+            state.copy(
+              selectedMediaDetails = freshDetails,
+              selectedSearchItem = state.selectedSearchItem.copy(mediaInfo = freshDetails.mediaInfo),
+            )
+          } else {
+            state
+          }
+        }
+      }
+    }
+  }
+
   fun approveRequest(requestId: Int) {
     viewModelScope.launch {
       val res = seerrRepository.approveRequest(requestId)
-      res.onSuccess {
+      res.onSuccess { req ->
         _uiState.update { it.copy(actionMessage = "Request approved") }
+        val tmdbId = req.media.tmdbId ?: req.media.id
+        if (tmdbId > 0) {
+          val mediaType = req.getMediaType()
+          seerrRepository.clearCacheForMedia(mediaType.value, tmdbId)
+          refreshDetailSilently(tmdbId, mediaType)
+        }
         loadDashboard()
-        _uiState.value.selectedSearchItem?.let { openDetail(it) }
       }
     }
   }
@@ -423,10 +481,15 @@ class SeerrViewModel(
   fun declineRequest(requestId: Int) {
     viewModelScope.launch {
       val res = seerrRepository.declineRequest(requestId)
-      res.onSuccess {
+      res.onSuccess { req ->
         _uiState.update { it.copy(actionMessage = "Request declined") }
+        val tmdbId = req.media.tmdbId ?: req.media.id
+        if (tmdbId > 0) {
+          val mediaType = req.getMediaType()
+          seerrRepository.clearCacheForMedia(mediaType.value, tmdbId)
+          refreshDetailSilently(tmdbId, mediaType)
+        }
         loadDashboard()
-        _uiState.value.selectedSearchItem?.let { openDetail(it) }
       }
     }
   }
@@ -441,17 +504,23 @@ class SeerrViewModel(
       res.fold(
         onSuccess = {
           _uiState.update { state ->
+            val curDetails = state.selectedMediaDetails
+            val newDetails = if (tmdbId != null && curDetails?.id == tmdbId) curDetails.copy(mediaInfo = null) else curDetails
+            val curSearchItem = state.selectedSearchItem
+            val newSearchItem = if (tmdbId != null && curSearchItem?.id == tmdbId) curSearchItem.copy(mediaInfo = null) else curSearchItem
+
             state.copy(
               activeRequests = state.activeRequests.filter { it.id != requestId },
               availableRequests = state.availableRequests.filter { it.id != requestId },
+              selectedMediaDetails = newDetails,
+              selectedSearchItem = newSearchItem,
               actionMessage = "Request deleted",
             )
           }
           if (tmdbId != null && mediaType != null) {
+            val mType = MediaType.fromApiString(mediaType)
             seerrRepository.clearCacheForMedia(mediaType, tmdbId)
-          }
-          _uiState.value.selectedSearchItem?.let { searchItem ->
-            openDetail(searchItem.copy(mediaInfo = null))
+            refreshDetailSilently(tmdbId, mType)
           }
           loadDashboard()
         },
@@ -472,17 +541,23 @@ class SeerrViewModel(
       res.fold(
         onSuccess = {
           _uiState.update { state ->
+            val curDetails = state.selectedMediaDetails
+            val newDetails = if (tmdbId != null && curDetails?.id == tmdbId) curDetails.copy(mediaInfo = null) else curDetails
+            val curSearchItem = state.selectedSearchItem
+            val newSearchItem = if (tmdbId != null && curSearchItem?.id == tmdbId) curSearchItem.copy(mediaInfo = null) else curSearchItem
+
             state.copy(
               activeRequests = state.activeRequests.filter { it.media.id != mediaId },
               availableRequests = state.availableRequests.filter { it.media.id != mediaId },
+              selectedMediaDetails = newDetails,
+              selectedSearchItem = newSearchItem,
               actionMessage = "Media deleted from Seerr",
             )
           }
           if (tmdbId != null && mediaType != null) {
+            val mType = MediaType.fromApiString(mediaType)
             seerrRepository.clearCacheForMedia(mediaType, tmdbId)
-          }
-          _uiState.value.selectedSearchItem?.let { searchItem ->
-            openDetail(searchItem.copy(mediaInfo = null))
+            refreshDetailSilently(tmdbId, mType)
           }
           loadDashboard()
         },
