@@ -261,9 +261,10 @@ object PlaybackSession : MPVLib.EventObserver {
     width: Int? = null,
     height: Int? = null,
     owner: Any,
+    ownerIsActive: () -> Boolean = { true },
   ): Boolean =
     withCore(default = false) {
-      if (!surface.isValid) return@withCore false
+      if (!ownerIsActive() || !surface.isValid) return@withCore false
 
       // Surface ownership is a renderer concern only. Full player, mini player, PiP and Activity
       // recreation all hand the same live media session between Android Surfaces. Never change
@@ -292,18 +293,22 @@ object PlaybackSession : MPVLib.EventObserver {
   fun resizeSurface(
     width: Int,
     height: Int,
-  ) {
-    if (width <= 0 || height <= 0) return
-    withCore(Unit) { MPVLib.setPropertyString("android-surface-size", "${width}x$height") }
-  }
-
-  fun unbindSurface(owner: Any) {
-    withCore(Unit) {
-      if (attachedSurfaceOwner !== owner) return@withCore
-      if (!_state.value.surfaceAttached) return@withCore
-      detachRendererSurfaceLocked()
+    owner: Any,
+  ): Boolean =
+    withCore(default = false) {
+      if (width <= 0 || height <= 0 || attachedSurfaceOwner !== owner || !_state.value.surfaceAttached) {
+        return@withCore false
+      }
+      MPVLib.setPropertyString("android-surface-size", "${width}x$height")
+      true
     }
-  }
+
+  fun unbindSurface(owner: Any): Boolean =
+    withCore(default = false) {
+      if (attachedSurfaceOwner !== owner || !_state.value.surfaceAttached) return@withCore false
+      detachRendererSurfaceLocked()
+      true
+    }
 
   /** Releases a stale Activity/mini-player renderer before a different media item is published. */
   internal fun detachSurfaceForMediaReplacement() {
@@ -611,10 +616,7 @@ object PlaybackSession : MPVLib.EventObserver {
         it.copy(
           phase = PlaybackPhase.LOADING,
           generation = generation,
-          // loadfile is deliberately issued with pause=yes. Keep the UI honest until mpv has
-          // actually opened the file; desiredPaused still records that normal playback should
-          // begin as soon as FILE_LOADED arrives.
-          paused = true,
+          paused = desiredPaused,
           currentItem = resolvedItem,
           error = null,
         )
@@ -630,7 +632,7 @@ object PlaybackSession : MPVLib.EventObserver {
 
       val loadOptions = if (selectVideoForNewFile) "pause=yes,vid=auto" else "pause=yes"
       MPVLib.command("loadfile", playableUri, "replace", "-1", loadOptions)
-      propBoolean.emit("pause", true)
+      propBoolean.emit("pause", desiredPaused)
       generation
     }
 

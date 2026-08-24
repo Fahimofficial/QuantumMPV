@@ -1102,6 +1102,7 @@
   <string name="lua_no_mpv_folder">No MPV folder selected</string>
   <string name="lua_no_scripts_found">No scripts found</string>
   <string name="ambient_frame_extend">Frame Extend</string>
+  <string name="ambient_youtube_auto_hint">YouTube mode is fully automatic — the bars are lit by a soft blurred projection of the current frame, just like YouTube’s Ambient Mode.</string>
   <string name="lua_delete_script_title">Delete Script?</string>
   <string name="lua_delete_script_message">Are you sure you want to delete \"%1$s\"? This action cannot be undone.</string>
   <string name="search_category_advanced">Advanced</string>

@@ -1543,6 +1543,7 @@ class PlayerActivity :
 
   override fun onStop() {
     MediaPlaybackService.activityForeground = false
+    viewModel.setAmbientLifecycleActive(false)
     runCatching {
       pipHelper.onStop()
       if (!mpvInitialized) return@runCatching
@@ -1636,6 +1637,7 @@ class PlayerActivity :
       if (!deviceScreenOffOrLocked) {
         // Foreground playback owns the session again after unlock or app return.
         enableVideoAfterBackground()
+        viewModel.setAmbientLifecycleActive(true)
         if (MediaPlaybackService.isRunning()) endBackgroundPlayback()
         isBackgroundPlaybackSessionActive = false
         // The detached service released focus during the handoff; take it back over so a
@@ -2046,6 +2048,7 @@ class PlayerActivity :
       if (!isDeviceScreenOffOrLocked() && (isInBackgroundPlayback || lastVid > 0)) {
         enableVideoAfterBackground()
       }
+      viewModel.restartAmbientIfActive()
     }
 
     // NOW initialize MPV - it will find and load the scripts we just copied
@@ -5173,6 +5176,10 @@ class PlayerActivity :
     }.onFailure { e ->
       Log.e(TAG, "Error handling PiP mode change", e)
     }
+
+    // PiP changes the output dimensions without stopping the Activity. Rebuild after the
+    // transition so custom ambient shaders use the new aspect ratio; native HDR blur is idempotent.
+    viewModel.restartAmbientIfActive()
   }
 
   /**

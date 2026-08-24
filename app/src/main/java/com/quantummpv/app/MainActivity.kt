@@ -323,7 +323,11 @@ class MainActivity : AppCompatActivity() {
                 setZOrderMediaOverlay(true)
                 holder.addCallback(object : SurfaceHolder.Callback {
                   override fun surfaceCreated(holder: SurfaceHolder) {
-                    PlaybackSession.bindSurface(holder.surface, owner = this@apply)
+                    PlaybackSession.bindSurface(
+                      surface = holder.surface,
+                      owner = this@apply,
+                      ownerIsActive = { MediaPlaybackService.isForegroundActive() },
+                    )
                   }
 
                   override fun surfaceChanged(
@@ -333,7 +337,7 @@ class MainActivity : AppCompatActivity() {
                     height: Int,
                   ) {
                     if (holder.surface.isValid) {
-                      PlaybackSession.resizeSurface(width, height)
+                      PlaybackSession.resizeSurface(width, height, owner = this@apply)
                     }
                   }
 

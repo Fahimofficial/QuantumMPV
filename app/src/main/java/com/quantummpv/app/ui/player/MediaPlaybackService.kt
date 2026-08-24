@@ -122,7 +122,10 @@ class MediaPlaybackService :
      */
     fun isRunning(): Boolean = isServiceRunning && !activityForeground
 
-    fun isForegroundActive(): Boolean = activeInstance?.foregroundReady == true
+    fun isForegroundActive(): Boolean =
+      activeInstance?.let { service ->
+        service.foregroundReady && !activityForeground && !service.handingBackToActivity
+      } == true
 
     /**
      * True while a PlayerActivity is the active foreground owner of the shared playback session
@@ -253,7 +256,7 @@ class MediaPlaybackService :
   private var lastThumbnailSource: WeakReference<Bitmap>? = null
   private val serviceScope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
   private var playbackStateSaveJob: Job? = null
-  private var mpvAccessReleased = false
+  @Volatile private var mpvAccessReleased = false
   private var usesAudioBackgroundPlayback = false
   private val audioManager by lazy { getSystemService(AUDIO_SERVICE) as AudioManager }
 
@@ -276,14 +279,10 @@ class MediaPlaybackService :
   private var foregroundReady = false
   private val audioFocusChangeListener =
     AudioManager.OnAudioFocusChangeListener { change ->
+      if (mpvAccessReleased || handingBackToActivity) return@OnAudioFocusChangeListener
       when (change) {
         AudioManager.AUDIOFOCUS_LOSS -> {
           resumeAfterFocusGain = false
-          // A foreground Activity is taking over playback; do not pause the shared session.
-          if (handingBackToActivity) {
-            abandonAudioOwnership()
-            return@OnAudioFocusChangeListener
-          }
           PlaybackSession.setPropertyBoolean("pause", true)
           abandonAudioOwnership()
         }
@@ -316,7 +315,9 @@ class MediaPlaybackService :
         context: Context?,
         intent: Intent?,
       ) {
-        if (intent?.action == AudioManager.ACTION_AUDIO_BECOMING_NOISY && ownsAudioFocus) {
+        if (!mpvAccessReleased && !handingBackToActivity &&
+          intent?.action == AudioManager.ACTION_AUDIO_BECOMING_NOISY && ownsAudioFocus
+        ) {
           PlaybackSession.setPropertyBoolean("pause", true)
         }
       }

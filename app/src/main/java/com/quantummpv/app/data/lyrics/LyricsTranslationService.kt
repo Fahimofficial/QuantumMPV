@@ -279,19 +279,23 @@ class LyricsTranslationService(
     val queryText = stringBuilder.toString().trim()
 
     // 1. Primary: Fetch Google Romanization using client=it & dt=rm (authentic Japanese Romaji, Korean Romaja, etc.)
+    // Only trust this response if it covers every marked line — a partial match (e.g. Google
+    // only returning the last sentence's transliteration) would otherwise leave earlier lines
+    // stuck in their original script while later ones get romanized.
     try {
       val googleRom = fetchGoogleRomanization(queryText)
       if (!googleRom.isNullOrBlank()) {
-        val parsed = parseIndexedTranslations(googleRom, chunk.size, indexMap, chunk)
-        if (parsed.any { it.translation.isNotBlank() }) {
-          return parsed
+        val normalized = normalizeDigitsAndBrackets(googleRom)
+        val markersFound = BRACKET_PATTERN.findAll(normalized).count { it.groupValues[2].trim().isNotEmpty() }
+        if (markersFound >= indexMap.size) {
+          return parseIndexedTranslations(googleRom, chunk.size, indexMap, chunk)
         }
       }
     } catch (e: Exception) {
       Log.w(TAG, "Google romanization error: ${e.message}")
     }
 
-    // 2. Fallback: ICU transliteration for non-Kanji scripts
+    // 2. Fallback: ICU transliteration for non-Kanji scripts (applied per-line so results are consistent)
     return chunk.map { line ->
       val trimmed = line.trim()
       if (trimmed.isEmpty()) {

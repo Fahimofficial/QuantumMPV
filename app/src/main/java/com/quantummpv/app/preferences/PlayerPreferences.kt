@@ -12,7 +12,6 @@ package com.quantummpv.app.preferences
 import com.quantummpv.app.preferences.preference.DependentBooleanPreference
 import com.quantummpv.app.preferences.preference.PreferenceStore
 import com.quantummpv.app.preferences.preference.getEnum
-import com.quantummpv.app.ui.player.AmbientVisualMode
 import com.quantummpv.app.ui.player.ControlsAnimationStyle
 import com.quantummpv.app.ui.player.NavigationAnimStyle
 import com.quantummpv.app.ui.player.PlayerOrientation
@@ -138,16 +137,10 @@ class PlayerPreferences(
   val ambientMaxRadius = preferenceStore.getFloat("ambient_max_radius", 0.15f)
   val ambientGlowIntensity = preferenceStore.getFloat("ambient_glow_intensity", 1.2f)
   val ambientSatBoost = preferenceStore.getFloat("ambient_sat_boost", 1.0f)
-  val ambientDitherNoise = preferenceStore.getFloat("ambient_dither_noise", 0.0f)
-  val ambientBezelDepth = preferenceStore.getFloat("ambient_bezel_depth", 0.0f)
   val ambientVignetteStrength = preferenceStore.getFloat("ambient_vignette_strength", 0.5f)
   val ambientWarmth = preferenceStore.getFloat("ambient_warmth", 0.0f)
   val ambientFadeCurve = preferenceStore.getFloat("ambient_fade_curve", 1.5f)
   val ambientOpacity = preferenceStore.getFloat("ambient_opacity", 1.0f)
-  val ambientVisualMode = preferenceStore.getEnum("ambient_visual_mode", AmbientVisualMode.GLOW)
-  val ambientExtendStrength = preferenceStore.getFloat("ambient_extend_strength", 0.70f)
-  val ambientExtendDetailProtection = preferenceStore.getFloat("ambient_extend_detail_protection", 0.60f)
-  val ambientExtendGlowMix = preferenceStore.getFloat("ambient_extend_glow_mix", 0.20f)
   val isAmbientEnabled = preferenceStore.getBoolean("ambient_enabled", false)
   val ambientBatterySaver = preferenceStore.getBoolean("ambient_battery_saver", false)
 

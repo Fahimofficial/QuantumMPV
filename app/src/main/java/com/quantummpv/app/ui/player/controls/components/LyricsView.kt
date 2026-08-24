@@ -471,58 +471,80 @@ fun LyricsView(
         }
       }
 
-      // Bottom Bar: Translate Button (Bottom Left) & Edge-to-Edge Sync Timing Adjustments (Only visible when synced lyrics are present)
+      // Bottom Bar: Translate Button & Sync Timing Adjustments (Only visible when synced lyrics are present)
       AnimatedVisibility(visible = state.lyrics?.synced?.isNotEmpty() == true) {
-        Row(
+        Column(
           modifier = Modifier
             .fillMaxWidth()
             .padding(top = 10.dp, bottom = 4.dp),
-          verticalAlignment = Alignment.CenterVertically,
-          horizontalArrangement = Arrangement.SpaceBetween,
         ) {
-          Row(
-            verticalAlignment = Alignment.CenterVertically,
+          // Medium size Translate button (Square with rounded corners)
+          Surface(
+            onClick = { showTranslateDialog = true },
+            shape = RoundedCornerShape(12.dp),
+            color = if (state.isTranslationActive) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surfaceVariant,
+            modifier = Modifier.size(40.dp),
           ) {
-            // Medium size Translate button (Square with rounded corners)
-            Surface(
-              onClick = { showTranslateDialog = true },
-              shape = RoundedCornerShape(12.dp),
-              color = if (state.isTranslationActive) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surfaceVariant,
-              modifier = Modifier.size(46.dp),
-            ) {
-              Box(contentAlignment = Alignment.Center) {
-                if (state.isTranslating) {
-                  CircularProgressIndicator(
-                    modifier = Modifier.size(22.dp),
-                    strokeWidth = 2.5.dp,
-                    color = MaterialTheme.colorScheme.primary,
-                  )
-                } else {
-                  Icon(
-                    imageVector = Icons.RoundedFilled.Translate,
-                    contentDescription = stringResource(R.string.lyrics_translate_title),
-                    tint = if (state.isTranslationActive) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.size(24.dp),
-                  )
-                }
+            Box(contentAlignment = Alignment.Center) {
+              if (state.isTranslating) {
+                CircularProgressIndicator(
+                  modifier = Modifier.size(20.dp),
+                  strokeWidth = 2.5.dp,
+                  color = MaterialTheme.colorScheme.primary,
+                )
+              } else {
+                Icon(
+                  imageVector = Icons.RoundedFilled.Translate,
+                  contentDescription = stringResource(R.string.lyrics_translate_title),
+                  tint = if (state.isTranslationActive) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
+                  modifier = Modifier.size(22.dp),
+                )
               }
             }
-
-            Spacer(modifier = Modifier.width(14.dp))
-            Text(
-              text = "Sync: ${if (state.syncOffsetMs >= 0) "+" else ""}${state.syncOffsetMs / 1000f}s",
-              style = MaterialTheme.typography.labelSmall,
-              fontWeight = FontWeight.Bold,
-              color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
           }
 
-          Row(horizontalArrangement = Arrangement.spacedBy(2.dp)) {
-            TextButton(onClick = { viewModel.adjustLyricsSyncOffset(-500) }) { Text("-0.5s", fontWeight = FontWeight.Bold) }
-            TextButton(onClick = { viewModel.adjustLyricsSyncOffset(-100) }) { Text("-0.1s", fontWeight = FontWeight.Bold) }
-            TextButton(onClick = { viewModel.resetLyricsSyncOffset() }) { Text("0s", fontWeight = FontWeight.Bold) }
-            TextButton(onClick = { viewModel.adjustLyricsSyncOffset(100) }) { Text("+0.1s", fontWeight = FontWeight.Bold) }
-            TextButton(onClick = { viewModel.adjustLyricsSyncOffset(500) }) { Text("+0.5s", fontWeight = FontWeight.Bold) }
+          Spacer(modifier = Modifier.height(8.dp))
+
+          // Sync offset pill: equal-weight buttons that always fit the available width, with the
+          // current offset shown (and reset) via the center segment.
+          Surface(
+            shape = RoundedCornerShape(14.dp),
+            color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
+            modifier = Modifier.fillMaxWidth(),
+          ) {
+            Row(
+              modifier = Modifier
+                .fillMaxWidth()
+                .padding(vertical = 4.dp),
+              verticalAlignment = Alignment.CenterVertically,
+            ) {
+              SyncOffsetButton(
+                label = "-0.5s",
+                modifier = Modifier.weight(1f),
+                onClick = { viewModel.adjustLyricsSyncOffset(-500) },
+              )
+              SyncOffsetButton(
+                label = "-0.1s",
+                modifier = Modifier.weight(1f),
+                onClick = { viewModel.adjustLyricsSyncOffset(-100) },
+              )
+              SyncOffsetButton(
+                label = "${if (state.syncOffsetMs >= 0) "+" else ""}${state.syncOffsetMs / 1000f}s",
+                modifier = Modifier.weight(1.2f),
+                emphasized = true,
+                onClick = { viewModel.resetLyricsSyncOffset() },
+              )
+              SyncOffsetButton(
+                label = "+0.1s",
+                modifier = Modifier.weight(1f),
+                onClick = { viewModel.adjustLyricsSyncOffset(100) },
+              )
+              SyncOffsetButton(
+                label = "+0.5s",
+                modifier = Modifier.weight(1f),
+                onClick = { viewModel.adjustLyricsSyncOffset(500) },
+              )
+            }
           }
         }
       }
@@ -533,6 +555,33 @@ fun LyricsView(
     LyricsTranslateDialog(
       viewModel = viewModel,
       onDismiss = { showTranslateDialog = false },
+    )
+  }
+}
+
+// One equal-weight segment of the sync offset pill; `emphasized` marks the center reset/readout segment.
+@Composable
+private fun SyncOffsetButton(
+  label: String,
+  modifier: Modifier = Modifier,
+  emphasized: Boolean = false,
+  onClick: () -> Unit,
+) {
+  Box(
+    modifier = modifier
+      .clip(RoundedCornerShape(10.dp))
+      .clickable(onClick = onClick)
+      .padding(vertical = 8.dp),
+    contentAlignment = Alignment.Center,
+  ) {
+    Text(
+      text = label,
+      style = MaterialTheme.typography.labelMedium,
+      fontWeight = FontWeight.Bold,
+      maxLines = 1,
+      color = if (emphasized) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
+      textAlign = TextAlign.Center,
+      modifier = Modifier.fillMaxWidth(),
     )
   }
 }

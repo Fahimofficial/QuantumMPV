@@ -107,6 +107,7 @@ import com.quantummpv.app.ui.browser.videolist.VideoListContent
 import com.quantummpv.app.ui.browser.videolist.VideoWithPlaybackInfo
 import com.quantummpv.app.ui.icons.Icon
 import com.quantummpv.app.ui.icons.Icons
+import com.quantummpv.app.ui.player.MediaPlaybackService
 import com.quantummpv.app.ui.player.PlaybackIdentity
 import com.quantummpv.app.ui.player.PlaybackItem
 import com.quantummpv.app.ui.player.PlaybackSession
@@ -338,6 +339,7 @@ fun MediaLibraryContent(forceAudio: Boolean = false) {
         mimeType = item.mimeType,
       )
     }
+    MediaPlaybackService.prepareForFreshPlaybackLaunch()
     PlaybackSession.replaceQueue(
       items = queueItems,
       currentIndex = index,

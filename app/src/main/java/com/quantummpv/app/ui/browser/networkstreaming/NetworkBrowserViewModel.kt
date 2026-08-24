@@ -25,6 +25,7 @@ import com.quantummpv.app.domain.network.NetworkPath
 import com.quantummpv.app.domain.network.NetworkPlaybackUri
 import com.quantummpv.app.domain.network.NetworkProtocol
 import com.quantummpv.app.repository.NetworkRepository
+import com.quantummpv.app.ui.player.MediaPlaybackService
 import com.quantummpv.app.ui.player.NetworkPlaybackSource
 import com.quantummpv.app.ui.player.PlaybackItem
 import com.quantummpv.app.ui.player.PlaybackSession
@@ -213,6 +214,7 @@ class NetworkBrowserViewModel(
           networkSource = NetworkPlaybackSource(connection.id, networkFile.path),
         )
       }
+    MediaPlaybackService.prepareForFreshPlaybackLaunch()
     PlaybackSession.replaceQueue(
       items = queueItems,
       currentIndex = playlistIndex,

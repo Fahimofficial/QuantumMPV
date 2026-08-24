@@ -162,6 +162,8 @@ fun MiniPlayer(modifier: Modifier = Modifier) {
       context = context,
       enableVideoMiniPlayer = enableVideoMiniPlayer,
       isAudioOnlyItem = isAudioOnlyItem,
+      hasRealVideo = hasRealVideo,
+      detachedPlaybackActive = isServiceRunning,
     )
   }
 }
@@ -171,6 +173,8 @@ private fun MiniPlayerContent(
   context: Context,
   enableVideoMiniPlayer: Boolean,
   isAudioOnlyItem: Boolean,
+  hasRealVideo: Boolean,
+  detachedPlaybackActive: Boolean,
 ) {
   val sessionState by PlaybackSession.state.collectAsStateWithLifecycle()
   val queueState by PlaybackSession.queue.collectAsStateWithLifecycle()
@@ -190,7 +194,7 @@ private fun MiniPlayerContent(
       ?: currentItem?.title?.takeIf { it.isNotBlank() }
       ?: "Media Track"
 
-  val isVideoMode = !isAudioOnlyItem && enableVideoMiniPlayer
+  val isVideoMode = detachedPlaybackActive && hasRealVideo && !isAudioOnlyItem && enableVideoMiniPlayer
 
   DisposableEffect(isVideoMode) {
     if (isVideoMode) {
@@ -319,8 +323,13 @@ private fun MiniPlayerContent(
                 setZOrderMediaOverlay(true)
                 holder.addCallback(object : SurfaceHolder.Callback {
                   override fun surfaceCreated(holder: SurfaceHolder) {
-                    PlaybackSession.bindSurface(holder.surface, owner = this@apply)
-                    PlaybackSession.setPropertyBoolean("sub-visibility", false)
+                    val attached =
+                      PlaybackSession.bindSurface(
+                        surface = holder.surface,
+                        owner = this@apply,
+                        ownerIsActive = { MediaPlaybackService.isForegroundActive() },
+                      )
+                    if (attached) PlaybackSession.setPropertyBoolean("sub-visibility", false)
                   }
 
                   override fun surfaceChanged(
@@ -330,13 +339,14 @@ private fun MiniPlayerContent(
                     height: Int,
                   ) {
                     if (holder.surface.isValid) {
-                      PlaybackSession.resizeSurface(width, height)
+                      PlaybackSession.resizeSurface(width, height, owner = this@apply)
                     }
                   }
 
                   override fun surfaceDestroyed(holder: SurfaceHolder) {
-                    PlaybackSession.unbindSurface(this@apply)
-                    PlaybackSession.setPropertyBoolean("sub-visibility", true)
+                    if (PlaybackSession.unbindSurface(this@apply)) {
+                      PlaybackSession.setPropertyBoolean("sub-visibility", true)
+                    }
                   }
                 })
               }

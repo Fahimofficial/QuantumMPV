@@ -165,7 +165,7 @@ fun LyricsTranslateDialog(
           FilterChip(
             selected = displayMode == LyricsTranslationDisplayMode.DualLine,
             onClick = { audioPreferences.lyricsTranslationDisplayMode.set(LyricsTranslationDisplayMode.DualLine) },
-            label = { Text("Dual-Line (Under)", fontWeight = FontWeight.Bold, fontSize = 12.sp) },
+            label = { Text("Dual-Line", fontWeight = FontWeight.Bold, fontSize = 12.sp) },
             modifier = Modifier.weight(1f),
             colors = FilterChipDefaults.filterChipColors(
               selectedContainerColor = MaterialTheme.colorScheme.primaryContainer,

@@ -262,7 +262,14 @@ object MpvConfigControlledFeatures {
       "vd-lavc-dr",
     )
 
-  val AMBIENT = setOf("glsl-shaders", "video-scale-x", "video-scale-y")
+  val AMBIENT =
+    setOf(
+      "glsl-shaders",
+      "video-scale-x",
+      "video-scale-y",
+      "border-background",
+      "background-blur-radius",
+    )
 
   val AUDIO_TRACK_SELECTION = setOf("alang")
 

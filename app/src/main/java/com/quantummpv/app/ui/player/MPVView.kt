@@ -372,7 +372,7 @@ class MPVView(
     width: Int,
     height: Int,
   ) {
-    PlaybackSession.resizeSurface(width, height)
+    PlaybackSession.resizeSurface(width, height, owner = this)
     applyFrameRate()
   }
 
