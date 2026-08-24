@@ -19,6 +19,7 @@ object Icons {
     val AccountTree by lazy(LazyThreadSafetyMode.NONE) { AppIcon(MaterialSymbols.RoundedFilled.Account_tree) }
     val Add by lazy(LazyThreadSafetyMode.NONE) { AppIcon(MaterialSymbols.RoundedFilled.Add) }
     val AddCircle by lazy(LazyThreadSafetyMode.NONE) { AppIcon(MaterialSymbols.RoundedFilled.Add_circle) }
+    val AddToQueue by lazy(LazyThreadSafetyMode.NONE) { AppIcon(MaterialSymbols.RoundedFilled.Add_to_queue) }
     val AlignVerticalCenter by lazy(LazyThreadSafetyMode.NONE) {
       AppIcon(MaterialSymbols.RoundedFilled.Align_vertical_center)
     }
@@ -62,7 +63,9 @@ object Icons {
     val ChevronRight by lazy(LazyThreadSafetyMode.NONE) { AppIcon(MaterialSymbols.RoundedFilled.Chevron_right) }
     val Clear by lazy(LazyThreadSafetyMode.NONE) { AppIcon(MaterialSymbols.RoundedFilled.Close) }
     val Close by lazy(LazyThreadSafetyMode.NONE) { AppIcon(MaterialSymbols.RoundedFilled.Close) }
+    val CloudDone by lazy(LazyThreadSafetyMode.NONE) { AppIcon(MaterialSymbols.RoundedFilled.Cloud_done) }
     val CloudDownload by lazy(LazyThreadSafetyMode.NONE) { AppIcon(MaterialSymbols.RoundedFilled.Cloud_download) }
+    val CloudOff by lazy(LazyThreadSafetyMode.NONE) { AppIcon(MaterialSymbols.RoundedFilled.Cloud_off) }
     val Code by lazy(LazyThreadSafetyMode.NONE) { AppIcon(MaterialSymbols.RoundedFilled.Code) }
     val ContentCut by lazy(LazyThreadSafetyMode.NONE) { AppIcon(MaterialSymbols.RoundedFilled.Content_cut) }
     val ContentCopy by lazy(LazyThreadSafetyMode.NONE) { AppIcon(MaterialSymbols.RoundedFilled.Content_copy) }
@@ -86,6 +89,9 @@ object Icons {
     val Edit by lazy(LazyThreadSafetyMode.NONE) { AppIcon(MaterialSymbols.RoundedFilled.Edit) }
     val EditOff by lazy(LazyThreadSafetyMode.NONE) { AppIcon(MaterialSymbols.RoundedFilled.Edit_off) }
     val Equalizer by lazy(LazyThreadSafetyMode.NONE) { AppIcon(MaterialSymbols.RoundedFilled.Equalizer) }
+    val ErrorOutline by lazy(LazyThreadSafetyMode.NONE) { AppIcon(MaterialSymbols.RoundedFilled.Error) }
+    val ExitToApp by lazy(LazyThreadSafetyMode.NONE) { AppIcon(MaterialSymbols.RoundedFilled.Exit_to_app) }
+    val Key by lazy(LazyThreadSafetyMode.NONE) { AppIcon(MaterialSymbols.RoundedFilled.Key) }
     val ExpandLess by lazy(LazyThreadSafetyMode.NONE) { AppIcon(MaterialSymbols.RoundedFilled.Expand_less) }
     val ExpandMore by lazy(LazyThreadSafetyMode.NONE) { AppIcon(MaterialSymbols.RoundedFilled.Expand_more) }
     val FastForward by lazy(LazyThreadSafetyMode.NONE) { AppIcon(MaterialSymbols.RoundedFilled.Fast_forward) }
@@ -258,6 +264,7 @@ object Icons {
     val AccountTree get() = Shared.AccountTree
     val Add get() = Shared.Add
     val AddCircle get() = Shared.AddCircle
+    val AddToQueue get() = Shared.AddToQueue
     val AlignVerticalCenter get() = Shared.AlignVerticalCenter
     val Article get() = Shared.Article
     val ArrowBack get() = Shared.ArrowBack
@@ -299,7 +306,9 @@ object Icons {
     val ChevronRight get() = Shared.ChevronRight
     val Clear get() = Shared.Clear
     val Close get() = Shared.Close
+    val CloudDone get() = Shared.CloudDone
     val CloudDownload get() = Shared.CloudDownload
+    val CloudOff get() = Shared.CloudOff
     val Code get() = Shared.Code
     val ContentCut get() = Shared.ContentCut
     val ContentCopy get() = Shared.ContentCopy
@@ -317,6 +326,9 @@ object Icons {
     val Edit get() = Shared.Edit
     val EditOff get() = Shared.EditOff
     val Equalizer get() = Shared.Equalizer
+    val ErrorOutline get() = Shared.ErrorOutline
+    val ExitToApp get() = Shared.ExitToApp
+    val Key get() = Shared.Key
     val ExpandLess get() = Shared.ExpandLess
     val ExpandMore get() = Shared.ExpandMore
     val FastForward get() = Shared.FastForward

@@ -1114,6 +1114,7 @@ class JellyfinClient(
       status = status,
       lastPlayedDate = lastPlayedDate,
       remoteTrailerUrl = remoteTrailerUrl,
+      canDelete = obj["CanDelete"]?.jsonPrimitive?.booleanOrNull ?: true,
     )
   }
 
@@ -1174,6 +1175,34 @@ class JellyfinClient(
         httpClient.newCall(request).execute().use { response ->
           if (!response.isSuccessful) {
             return@withContext Result.failure(IOException("Add to playlist failed: ${response.code} ${response.message}"))
+          }
+          Result.success(Unit)
+        }
+      } catch (e: Exception) {
+        Result.failure(e)
+      }
+    }
+
+  suspend fun deleteItem(
+    serverUrl: String,
+    itemId: String,
+    token: String,
+  ): Result<Unit> =
+    withContext(Dispatchers.IO) {
+      try {
+        val base = normalizeUrl(serverUrl)
+        val url = "$base/Items/$itemId"
+        val request =
+          Request
+            .Builder()
+            .url(url)
+            .addJellyfinHeaders(token)
+            .delete()
+            .build()
+
+        httpClient.newCall(request).execute().use { response ->
+          if (!response.isSuccessful && response.code != 204) {
+            return@withContext Result.failure(IOException("Delete item failed: ${response.code} ${response.message}"))
           }
           Result.success(Unit)
         }

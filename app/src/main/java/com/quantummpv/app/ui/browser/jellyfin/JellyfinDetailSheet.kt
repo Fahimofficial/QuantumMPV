@@ -37,12 +37,14 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilledTonalButton
@@ -108,6 +110,7 @@ fun JellyfinDetailSheet(
   onToggleFavorite: (JellyfinItem) -> Unit,
   onTogglePlayed: (JellyfinItem) -> Unit,
   onItemClick: (JellyfinItem) -> Unit,
+  onDeleteItem: ((JellyfinItem) -> Unit)? = null,
   sheetState: SheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
 ) {
   if (item == null) return
@@ -692,6 +695,54 @@ fun JellyfinDetailSheet(
               tint = if (item.isPlayed) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
               modifier = Modifier.size(22.dp),
             )
+          }
+
+          // Delete Media Button (Allowed if user/item has deletion permissions)
+          if (onDeleteItem != null && item.canDelete) {
+            var showDeleteDialog by remember { mutableStateOf(false) }
+            FilledTonalIconButton(
+              onClick = { showDeleteDialog = true },
+              shape = RoundedCornerShape(14.dp),
+              colors = IconButtonDefaults.filledTonalIconButtonColors(
+                containerColor = MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.5f),
+                contentColor = MaterialTheme.colorScheme.error,
+              ),
+              modifier = Modifier.size(48.dp),
+            ) {
+              Icon(
+                imageVector = Icons.RoundedFilled.Delete,
+                contentDescription = "Delete Item",
+                tint = MaterialTheme.colorScheme.error,
+                modifier = Modifier.size(22.dp),
+              )
+            }
+
+            if (showDeleteDialog) {
+              AlertDialog(
+                onDismissRequest = { showDeleteDialog = false },
+                title = { Text("Delete ${if (item.isSeries) "Series" else "Item"}?") },
+                text = { Text("Are you sure you want to delete \"${item.name}\" from your Jellyfin server? This will permanently delete the media files.") },
+                confirmButton = {
+                  Button(
+                    onClick = {
+                      showDeleteDialog = false
+                      onDeleteItem(item)
+                    },
+                    colors = ButtonDefaults.buttonColors(
+                      containerColor = MaterialTheme.colorScheme.error,
+                      contentColor = MaterialTheme.colorScheme.onError,
+                    ),
+                  ) {
+                    Text("Delete")
+                  }
+                },
+                dismissButton = {
+                  TextButton(onClick = { showDeleteDialog = false }) {
+                    Text("Cancel")
+                  }
+                },
+              )
+            }
           }
         }
 

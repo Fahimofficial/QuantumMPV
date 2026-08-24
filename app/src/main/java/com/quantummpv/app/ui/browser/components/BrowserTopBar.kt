@@ -72,6 +72,7 @@ fun BrowserTopBar(
   onBackClick: (() -> Unit)? = null,
   onSortClick: (() -> Unit)? = null,
   onSearchClick: (() -> Unit)? = null,
+  onRequestClick: (() -> Unit)? = null,
   onSettingsClick: (() -> Unit)? = null,
   onDeleteClick: (() -> Unit)? = null,
   onRenameClick: (() -> Unit)? = null,
@@ -124,6 +125,7 @@ fun BrowserTopBar(
       onBackClick = onBackClick,
       onSortClick = onSortClick,
       onSearchClick = onSearchClick,
+      onRequestClick = onRequestClick,
       onSettingsClick = onSettingsClick,
       additionalActions = additionalActions,
       modifier = modifier,
@@ -145,6 +147,7 @@ private fun NormalTopBar(
   onBackClick: (() -> Unit)?,
   onSortClick: (() -> Unit)?,
   onSearchClick: (() -> Unit)?,
+  onRequestClick: (() -> Unit)? = null,
   onSettingsClick: (() -> Unit)?,
   additionalActions: @Composable RowScope.() -> Unit,
   modifier: Modifier = Modifier,
@@ -283,6 +286,22 @@ private fun NormalTopBar(
             contentDescription =
               androidx.compose.ui.res.stringResource(
                 com.quantummpv.app.R.string.settings_search_title,
+              ),
+            modifier = Modifier.size(24.dp),
+            tint = MaterialTheme.colorScheme.secondary,
+          )
+        }
+      }
+      if (onRequestClick != null) {
+        IconButton(
+          onClick = onRequestClick,
+          modifier = Modifier.padding(horizontal = 2.dp),
+        ) {
+          Icon(
+            Icons.RoundedFilled.AddToQueue,
+            contentDescription =
+              androidx.compose.ui.res.stringResource(
+                com.quantummpv.app.R.string.seerr_requests,
               ),
             modifier = Modifier.size(24.dp),
             tint = MaterialTheme.colorScheme.secondary,
