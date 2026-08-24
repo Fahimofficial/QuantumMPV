@@ -77,7 +77,7 @@ class AppearancePreferences(
   val bottomRightControls =
     preferenceStore.getString(
       "bottom_right_controls",
-      "FRAME_NAVIGATION,VIDEO_ZOOM,PICTURE_IN_PICTURE,ASPECT_RATIO",
+      "FRAME_NAVIGATION,CLIP,VIDEO_ZOOM,PICTURE_IN_PICTURE,ASPECT_RATIO",
     )
 
   val bottomLeftControls =
@@ -89,11 +89,13 @@ class AppearancePreferences(
   val portraitBottomControls =
     preferenceStore.getString(
       "portrait_bottom_controls",
-      "CAST,SCREEN_ROTATION,DECODER,AUDIO_TRACK,SUBTITLES,BOOKMARKS_CHAPTERS,PLAYBACK_SPEED,BACKGROUND_PLAYBACK,REPEAT_MODE,SHUFFLE,VIDEO_ZOOM,FRAME_NAVIGATION,ASPECT_RATIO,PICTURE_IN_PICTURE,LOCK_CONTROLS,MORE_OPTIONS",
+      "CAST,SCREEN_ROTATION,DECODER,AUDIO_TRACK,SUBTITLES,BOOKMARKS_CHAPTERS,PLAYBACK_SPEED,BACKGROUND_PLAYBACK,REPEAT_MODE,SHUFFLE,VIDEO_ZOOM,FRAME_NAVIGATION,CLIP,ASPECT_RATIO,PICTURE_IN_PICTURE,LOCK_CONTROLS,MORE_OPTIONS",
     )
 
   private val castButtonMigrationComplete =
     preferenceStore.getBoolean("cast_button_migration_complete", false)
+  private val clipButtonMigrationComplete =
+    preferenceStore.getBoolean("clip_button_migration_complete", false)
 
   init {
     if (!castButtonMigrationComplete.get()) {
@@ -113,6 +115,25 @@ class AppearancePreferences(
         portraitBottomControls.set("CAST,${portraitBottomControls.get()}")
       }
       castButtonMigrationComplete.set(true)
+    }
+
+    if (!clipButtonMigrationComplete.get()) {
+      val landscapeButtons =
+        listOf(
+          topLeftControls.get(),
+          topRightControls.get(),
+          bottomRightControls.get(),
+          bottomLeftControls.get(),
+        ).flatMap { it.split(',') }
+          .map { it.trim().uppercase() }
+      if ("CLIP" !in landscapeButtons) {
+        bottomRightControls.set("${bottomRightControls.get()},CLIP")
+      }
+      val portraitButtons = portraitBottomControls.get().split(',').map { it.trim().uppercase() }
+      if ("CLIP" !in portraitButtons) {
+        portraitBottomControls.set("${portraitBottomControls.get()},CLIP")
+      }
+      clipButtonMigrationComplete.set(true)
     }
   }
 

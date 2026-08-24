@@ -18,6 +18,7 @@ import android.graphics.RectF
 import android.graphics.Typeface
 import android.util.AttributeSet
 import android.view.Gravity
+import android.view.HapticFeedbackConstants
 import android.view.MotionEvent
 import android.view.View
 import android.view.ViewGroup
@@ -25,6 +26,8 @@ import android.widget.FrameLayout
 import android.widget.Toast
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -33,7 +36,10 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.text.KeyboardActions
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.Button
 import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.IconButton
@@ -41,17 +47,29 @@ import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.RangeSlider
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.platform.ComposeView
+import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.platform.ViewCompositionStrategy
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.core.view.ViewCompat
 import androidx.core.view.WindowInsetsCompat
@@ -65,16 +83,19 @@ import com.quantummpv.app.ui.player.PlayerActivity
 import com.quantummpv.app.ui.player.PlayerViewModel
 import com.quantummpv.app.ui.player.controls.components.panels.DraggablePanel
 import com.quantummpv.app.ui.theme.MpvrxTheme
+import com.quantummpv.app.ui.theme.spacing
 import java.util.Locale
 import kotlin.math.abs
 import kotlin.math.ceil
 import kotlin.math.floor
 import kotlin.math.min
 import kotlin.math.roundToInt
+import kotlin.math.roundToLong
+
+private const val MIN_CLIP_SECONDS = 0.05
 
 private data class ClipPanelState(
-  val startTime: String = "--:--",
-  val endTime: String? = null,
+  val clipDuration: String? = null,
   val startSeconds: Float = 0f,
   val endSeconds: Float? = null,
   val durationSeconds: Float = 0f,
@@ -84,6 +105,7 @@ private data class ClipPanelState(
   val cancelling: Boolean = false,
   val progress: Int = 0,
   val panelActive: Boolean = false,
+  val cropActive: Boolean = false,
 )
 
 /**
@@ -99,6 +121,7 @@ class ClipOverlayView @JvmOverloads constructor(
   attrs: AttributeSet? = null,
 ) : FrameLayout(context, attrs) {
   private data class ClipDraft(
+    val itemId: String,
     var startSeconds: Double,
     var endSeconds: Double? = null,
     var crop: ClipCrop? = null,
@@ -111,13 +134,13 @@ class ClipOverlayView @JvmOverloads constructor(
   private var cropView: CropSelectionView? = null
   private var cropControls: ComposeView? = null
   private var pausedBeforeCrop = true
-  private var reopenPanelAfterCrop = true
   private var lastTerminalState: ClipExportState? = null
   private var bottomInset = 0
 
   private val pollState =
     object : Runnable {
       override fun run() {
+        clearDraftIfMediaChanged()
         updateExportState()
         postDelayed(this, STATE_POLL_MS)
       }
@@ -146,6 +169,10 @@ class ClipOverlayView @JvmOverloads constructor(
   override fun onDetachedFromWindow() {
     removeCallbacks(pollState)
     if (cropView != null) exitCropMode(keepSelection = false)
+    draft = null
+    ClipEditorUiState.clear()
+    panelState = ClipPanelState()
+    panelView.visibility = GONE
     super.onDetachedFromWindow()
   }
 
@@ -162,57 +189,8 @@ class ClipOverlayView @JvmOverloads constructor(
   override fun onTouchEvent(event: MotionEvent): Boolean =
     if (cropView != null) true else super.onTouchEvent(event)
 
-  /** Opens the compact Clip editor from a long-press on the player control. */
-  fun openClip(cropImmediately: Boolean = false) {
-    beginClip(cropImmediately)
-  }
-
-  /** Marks the current playback position as the quick Clip start without opening the editor. */
-  fun markStartAtCurrent() {
-    if (PlaybackSession.state.value.currentItem == null) {
-      toast(R.string.clip_video_unavailable)
-      return
-    }
-    val current = currentPosition() ?: return
-    val active = draft ?: ClipDraft(startSeconds = current, endSeconds = null).also { draft = it }
-    active.startSeconds = current
-    if ((active.endSeconds ?: Double.POSITIVE_INFINITY) <= current + MIN_CLIP_SECONDS) {
-      active.endSeconds = null
-    }
-    // Quick Start behaves like A/B Loop point A: update the range without hiding player controls.
-    refreshDraftUi()
-  }
-
-  /** Marks the current playback position as the quick Clip end without opening the editor. */
-  fun markEndAtCurrent() {
-    if (PlaybackSession.state.value.currentItem == null) {
-      toast(R.string.clip_video_unavailable)
-      return
-    }
-    val current = currentPosition() ?: return
-    val active =
-      draft ?: ClipDraft(
-        startSeconds = (current - DEFAULT_CLIP_SECONDS).coerceAtLeast(0.0),
-        endSeconds = null,
-      ).also { draft = it }
-    if (current <= active.startSeconds + MIN_CLIP_SECONDS) {
-      toast(R.string.clip_invalid_range)
-      return
-    }
-    active.endSeconds = current
-    // Quick End behaves like A/B Loop point B: update the range without hiding player controls.
-    refreshDraftUi()
-  }
-
-  /** Opens only crop UI; Done/Cancel returns directly to normal player controls. */
-  fun openCrop() {
-    if (PlaybackSession.state.value.currentItem == null) {
-      toast(R.string.clip_video_unavailable)
-      return
-    }
-    ensureDraft()
-    refreshDraftUi()
-    enterCropMode(reopenEditorAfterCrop = false)
+  fun openClip() {
+    beginClip()
   }
 
   private fun playerViewModel(): PlayerViewModel? {
@@ -231,9 +209,12 @@ class ClipOverlayView @JvmOverloads constructor(
           ClipEditorPanel(
             state = panelState,
             onRangeChange = ::updateClipRange,
+            onStartTimeChange = ::updateClipStart,
+            onEndTimeChange = ::updateClipEnd,
             onMarkStart = ::markClipStart,
             onMarkEnd = ::markClipEnd,
             onCrop = ::enterCropMode,
+            onCropCancel = { exitCropMode(keepSelection = false) },
             onCancel = ::cancelOrClose,
             onSave = ::saveOrCancelExport,
           )
@@ -246,7 +227,7 @@ class ClipOverlayView @JvmOverloads constructor(
     )
   }
 
-  private fun beginClip(cropImmediately: Boolean) {
+  private fun beginClip() {
     if (PlaybackSession.state.value.currentItem == null) {
       toast(R.string.clip_video_unavailable)
       return
@@ -259,19 +240,18 @@ class ClipOverlayView @JvmOverloads constructor(
       return
     }
 
-    ensureDraft()
+    ensureDraft() ?: return
     refreshDraftUi()
     panelState = panelState.copy(panelActive = true)
     panelView.visibility = VISIBLE
 
     // Keep the seekbar visible while the draggable editor is open, without covering the video in controls.
     playerViewModel()?.autoHideControls()
-
-    if (cropImmediately) enterCropMode()
   }
 
-  private fun ensureDraft(): ClipDraft {
-    draft?.let { return it }
+  private fun ensureDraft(): ClipDraft? {
+    val itemId = PlaybackSession.state.value.currentItem?.stableId ?: return null
+    draft?.takeIf { it.itemId == itemId }?.let { return it }
 
     val duration = mediaDurationSeconds()
     var start = (currentPosition() ?: 0.0).coerceAtLeast(0.0)
@@ -286,6 +266,7 @@ class ClipOverlayView @JvmOverloads constructor(
       }
 
     return ClipDraft(
+      itemId = itemId,
       startSeconds = start,
       endSeconds = end.coerceAtLeast(start + MIN_CLIP_SECONDS),
     ).also {
@@ -299,7 +280,7 @@ class ClipOverlayView @JvmOverloads constructor(
     end: Float,
     preview: Float,
   ) {
-    val active = ensureDraft()
+    val active = ensureDraft() ?: return
     val duration = mediaDurationSeconds().takeIf { it > MIN_CLIP_SECONDS }
     val maxEnd = duration?.toFloat() ?: maxOf(end, start + 0.05f)
     val safeStart = start.coerceIn(0f, (maxEnd - 0.05f).coerceAtLeast(0f))
@@ -314,9 +295,19 @@ class ClipOverlayView @JvmOverloads constructor(
     playerViewModel()?.autoHideControls()
   }
 
+  private fun updateClipStart(seconds: Float) {
+    val end = ensureDraft()?.endSeconds?.toFloat() ?: return
+    updateClipRange(seconds, end, seconds)
+  }
+
+  private fun updateClipEnd(seconds: Float) {
+    val start = ensureDraft()?.startSeconds?.toFloat() ?: return
+    updateClipRange(start, seconds, seconds)
+  }
+
   private fun markClipStart() {
     val current = currentPosition() ?: return
-    val active = ensureDraft()
+    val active = ensureDraft() ?: return
     active.startSeconds = current
     if ((active.endSeconds ?: Double.POSITIVE_INFINITY) <= current + MIN_CLIP_SECONDS) {
       active.endSeconds = null
@@ -326,7 +317,7 @@ class ClipOverlayView @JvmOverloads constructor(
   }
 
   private fun markClipEnd() {
-    val active = ensureDraft()
+    val active = ensureDraft() ?: return
     val current = currentPosition() ?: return
     if (current <= active.startSeconds + MIN_CLIP_SECONDS) {
       toast(R.string.clip_invalid_range)
@@ -348,7 +339,12 @@ class ClipOverlayView @JvmOverloads constructor(
     val active = draft ?: return
     val end = active.endSeconds
     val item = PlaybackSession.state.value.currentItem
-    if (end == null || end <= active.startSeconds + MIN_CLIP_SECONDS || item == null) {
+    if (item == null || item.stableId != active.itemId) {
+      closeDraft()
+      toast(R.string.clip_video_unavailable)
+      return
+    }
+    if (end == null || end <= active.startSeconds + MIN_CLIP_SECONDS) {
       toast(R.string.clip_invalid_range)
       return
     }
@@ -386,13 +382,8 @@ class ClipOverlayView @JvmOverloads constructor(
   }
 
   private fun enterCropMode() {
-    enterCropMode(reopenEditorAfterCrop = true)
-  }
-
-  private fun enterCropMode(reopenEditorAfterCrop: Boolean) {
     if (cropView != null) return
-    this.reopenPanelAfterCrop = reopenEditorAfterCrop
-    val active = ensureDraft()
+    val active = ensureDraft() ?: return
     val sourceWidth = PlaybackSession.getPropertyInt("video-params/w") ?: 0
     val sourceHeight = PlaybackSession.getPropertyInt("video-params/h") ?: 0
     if (sourceWidth <= 0 || sourceHeight <= 0) {
@@ -408,7 +399,7 @@ class ClipOverlayView @JvmOverloads constructor(
     pausedBeforeCrop = PlaybackSession.getPropertyBoolean("pause") ?: true
     if (!pausedBeforeCrop) PlaybackSession.setPropertyBoolean("pause", true)
 
-    panelState = panelState.copy(panelActive = false)
+    panelState = panelState.copy(panelActive = false, cropActive = true)
     panelView.visibility = GONE
     val selector =
       CropSelectionView(
@@ -419,6 +410,7 @@ class ClipOverlayView @JvmOverloads constructor(
         displayHeight = outputHeight,
         rotation = rotation,
         initialCrop = active.crop,
+        onSelectionChanged = ::positionCropControls,
       )
     cropView = selector
     addView(selector, LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT))
@@ -427,18 +419,19 @@ class ClipOverlayView @JvmOverloads constructor(
     cropControls = controls
     addView(
       controls,
-      LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT, Gravity.BOTTOM).apply {
-        leftMargin = dp(8)
-        rightMargin = dp(8)
-        bottomMargin = bottomInset + dp(24)
-      },
+      LayoutParams(
+        dp(CROP_PILL_WIDTH_DP),
+        dp(CROP_PILL_HEIGHT_DP),
+        Gravity.START or Gravity.TOP,
+      ),
     )
+    controls.post { positionCropControls(selector.selectionBounds()) }
   }
 
   private fun buildCropControls(selector: CropSelectionView): ComposeView =
     ComposeView(context).apply {
       isClickable = true
-      setViewCompositionStrategy(ViewCompositionStrategy.DisposeOnViewTreeLifecycleDestroyed)
+      setViewCompositionStrategy(ViewCompositionStrategy.DisposeOnDetachedFromWindow)
       setContent {
         MpvrxTheme {
           ClipCropControls(
@@ -459,12 +452,14 @@ class ClipOverlayView @JvmOverloads constructor(
     }
     removeView(selector)
     cropView = null
-    cropControls?.let(::removeView)
+    cropControls?.let { controls ->
+      controls.disposeComposition()
+      removeView(controls)
+    }
     cropControls = null
     if (!pausedBeforeCrop) PlaybackSession.setPropertyBoolean("pause", false)
-    val reopenPanel = draft != null && reopenPanelAfterCrop
-    reopenPanelAfterCrop = true
-    panelState = panelState.copy(panelActive = reopenPanel)
+    val reopenPanel = draft != null
+    panelState = panelState.copy(panelActive = reopenPanel, cropActive = false)
     panelView.visibility = if (reopenPanel) VISIBLE else GONE
     refreshDraftUi()
     if (reopenPanel) {
@@ -519,14 +514,26 @@ class ClipOverlayView @JvmOverloads constructor(
     }
   }
 
+  private fun clearDraftIfMediaChanged() {
+    val active = draft ?: return
+    if (ClipExportManager.state.value is ClipExportState.Exporting) return
+    if (PlaybackSession.state.value.currentItem?.stableId == active.itemId) return
+
+    draft = null
+    if (cropView != null) exitCropMode(keepSelection = false)
+    ClipEditorUiState.clear()
+    panelState = ClipPanelState()
+    panelView.visibility = GONE
+    playerViewModel()?.showControls()
+  }
+
   private fun refreshDraftUi() {
     val active = draft
     if (active == null) {
       ClipEditorUiState.clear()
       panelState =
         panelState.copy(
-          startTime = "--:--",
-          endTime = null,
+          clipDuration = null,
           startSeconds = 0f,
           endSeconds = null,
           durationSeconds = 0f,
@@ -540,8 +547,7 @@ class ClipOverlayView @JvmOverloads constructor(
     ClipEditorUiState.publish(active.startSeconds, active.endSeconds)
     panelState =
       panelState.copy(
-        startTime = formatTime(active.startSeconds),
-        endTime = active.endSeconds?.let(::formatTime),
+        clipDuration = active.endSeconds?.let { formatTime((it - active.startSeconds).coerceAtLeast(0.0)) },
         startSeconds = active.startSeconds.toFloat(),
         endSeconds = active.endSeconds?.toFloat(),
         durationSeconds = duration,
@@ -553,10 +559,34 @@ class ClipOverlayView @JvmOverloads constructor(
   }
 
   private fun updateOverlayMargins() {
-    (cropControls?.layoutParams as? LayoutParams)?.let { params ->
-      params.bottomMargin = bottomInset + dp(24)
-      cropControls?.layoutParams = params
-    }
+    cropView?.selectionBounds()?.let(::positionCropControls)
+  }
+
+  private fun positionCropControls(bounds: RectF) {
+    val controls = cropControls ?: return
+    val pillWidth = dp(CROP_PILL_WIDTH_DP)
+    val pillHeight = dp(CROP_PILL_HEIGHT_DP)
+    val inset = dp(10).toFloat()
+    val handleClearance = dp(38).toFloat()
+    val edgeInset = dp(8).toFloat()
+
+    val desiredX =
+      if (bounds.width() >= pillWidth + handleClearance + inset) {
+        bounds.right - pillWidth - handleClearance
+      } else {
+        bounds.centerX() - pillWidth / 2f
+      }
+    val desiredY =
+      if (bounds.height() >= pillHeight + handleClearance + inset) {
+        bounds.bottom - pillHeight - handleClearance
+      } else {
+        bounds.centerY() - pillHeight / 2f
+      }
+    val maxX = (width - pillWidth).toFloat().minus(edgeInset).coerceAtLeast(edgeInset)
+    val maxY =
+      (height - bottomInset - pillHeight).toFloat().minus(edgeInset).coerceAtLeast(edgeInset)
+    controls.x = desiredX.coerceIn(edgeInset, maxX)
+    controls.y = desiredY.coerceIn(edgeInset, maxY)
   }
 
   private fun mediaDurationSeconds(): Double =
@@ -592,8 +622,9 @@ class ClipOverlayView @JvmOverloads constructor(
   companion object {
     private const val OVERLAY_TAG = "mpvrx_clip_overlay"
     private const val STATE_POLL_MS = 250L
-    private const val MIN_CLIP_SECONDS = 0.05
     private const val DEFAULT_CLIP_SECONDS = 10.0
+    private const val CROP_PILL_WIDTH_DP = 97
+    private const val CROP_PILL_HEIGHT_DP = 48
 
     /** Attaches the Clip editor above the player at runtime; no player_layout.xml host is needed. */
     internal fun ensureAttached(activity: PlayerActivity): ClipOverlayView {
@@ -618,132 +649,206 @@ class ClipOverlayView @JvmOverloads constructor(
 private fun ClipEditorPanel(
   state: ClipPanelState,
   onRangeChange: (Float, Float, Float) -> Unit,
+  onStartTimeChange: (Float) -> Unit,
+  onEndTimeChange: (Float) -> Unit,
   onMarkStart: () -> Unit,
   onMarkEnd: () -> Unit,
   onCrop: () -> Unit,
+  onCropCancel: () -> Unit,
   onCancel: () -> Unit,
   onSave: () -> Unit,
 ) {
+  var startTimeValid by remember { mutableStateOf(true) }
+  var endTimeValid by remember { mutableStateOf(true) }
   BackHandler(enabled = state.panelActive, onBack = onCancel)
+  BackHandler(enabled = state.cropActive, onBack = onCropCancel)
 
   DraggablePanel(
     header = {
       Row(
         verticalAlignment = Alignment.CenterVertically,
-        modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp),
+        modifier =
+          Modifier
+            .fillMaxWidth()
+            .padding(horizontal = MaterialTheme.spacing.medium)
+            .padding(top = MaterialTheme.spacing.small),
       ) {
         AppIcon(
-imageVector = Icons.RoundedFilled.ContentCut,
-contentDescription = null,
-tint = MaterialTheme.colorScheme.primary,
-modifier = Modifier.size(20.dp),
+          imageVector = Icons.RoundedFilled.ContentCut,
+          contentDescription = null,
+          tint = MaterialTheme.colorScheme.primary,
+          modifier = Modifier.size(22.dp),
         )
         Text(
-text = stringResource(R.string.clip_action),
-style = MaterialTheme.typography.titleMedium,
-modifier = Modifier.padding(start = 8.dp),
+          text = stringResource(R.string.clip_action),
+          style = MaterialTheme.typography.titleLarge,
+          modifier = Modifier.padding(start = 10.dp),
         )
         Spacer(Modifier.weight(1f))
         IconButton(onClick = onCancel) {
-AppIcon(
-  imageVector = Icons.RoundedFilled.Close,
-  contentDescription = stringResource(R.string.clip_cancel),
-  modifier = Modifier.size(24.dp),
-)
+          AppIcon(
+            imageVector = Icons.RoundedFilled.Close,
+            contentDescription = stringResource(R.string.clip_cancel),
+            modifier = Modifier.size(24.dp),
+          )
         }
       }
     },
   ) {
-    Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)) {
-      Row(modifier = Modifier.fillMaxWidth()) {
-        ClipInfoPill(
-text = stringResource(R.string.clip_start_time, state.startTime),
-modifier = Modifier.weight(1f),
+    Column(
+      modifier = Modifier.padding(MaterialTheme.spacing.medium),
+      verticalArrangement = Arrangement.spacedBy(MaterialTheme.spacing.medium),
+    ) {
+      val end = state.endSeconds
+      val duration = state.durationSeconds
+      val maxTime = duration.takeIf { it > MIN_CLIP_SECONDS.toFloat() } ?: Float.MAX_VALUE
+      val maxStart = ((end ?: maxTime) - MIN_CLIP_SECONDS.toFloat()).coerceAtLeast(0f)
+      val minEnd = (state.startSeconds + MIN_CLIP_SECONDS.toFloat()).coerceAtMost(maxTime)
+
+      Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.spacedBy(12.dp),
+        verticalAlignment = Alignment.CenterVertically,
+      ) {
+        ClipTimeField(
+          label = stringResource(R.string.clip_start_short),
+          seconds = state.startSeconds,
+          minSeconds = 0f,
+          maxSeconds = maxStart,
+          enabled = !state.exporting,
+          onCommit = onStartTimeChange,
+          onValidityChange = { startTimeValid = it },
+          modifier = Modifier.weight(1f),
         )
-        ClipInfoPill(
-text = state.endTime?.let { stringResource(R.string.clip_end_time, it) }
-  ?: stringResource(R.string.clip_end_not_set),
-modifier = Modifier.weight(1f).padding(start = 8.dp),
+        ClipTimeField(
+          label = stringResource(R.string.clip_end_short),
+          seconds = state.endSeconds,
+          minSeconds = minEnd,
+          maxSeconds = maxTime,
+          enabled = !state.exporting,
+          onCommit = onEndTimeChange,
+          onValidityChange = { endTimeValid = it },
+          modifier = Modifier.weight(1f),
         )
       }
 
-      val end = state.endSeconds
-      val duration = state.durationSeconds
       if (end != null && duration > 0.05f) {
         val start = state.startSeconds.coerceIn(0f, duration)
         val safeEnd = end.coerceIn(start + 0.05f, duration)
+        val rangeDescription = stringResource(R.string.clip_options)
         RangeSlider(
-value = start..safeEnd,
-onValueChange = { range ->
-  val startDelta = abs(range.start - start)
-  val endDelta = abs(range.endInclusive - safeEnd)
-  val preview = if (startDelta >= endDelta) range.start else range.endInclusive
-  onRangeChange(range.start, range.endInclusive, preview)
-},
-valueRange = 0f..duration,
-enabled = !state.exporting,
-modifier = Modifier.fillMaxWidth().padding(top = 4.dp),
+          value = start..safeEnd,
+          onValueChange = { range ->
+            val startDelta = abs(range.start - start)
+            val endDelta = abs(range.endInclusive - safeEnd)
+            val preview = if (startDelta >= endDelta) range.start else range.endInclusive
+            onRangeChange(range.start, range.endInclusive, preview)
+          },
+          valueRange = 0f..duration,
+          enabled = !state.exporting,
+          modifier = Modifier.fillMaxWidth().semantics { contentDescription = rangeDescription },
         )
       }
 
-      Text(
-        text = state.crop?.let { stringResource(R.string.clip_crop_size, it.width, it.height) }
-?: stringResource(R.string.clip_crop_full_frame),
-        style = MaterialTheme.typography.bodySmall,
-        color = MaterialTheme.colorScheme.onSurfaceVariant,
-        modifier = Modifier.padding(top = 2.dp),
-      )
+      Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.spacedBy(16.dp),
+      ) {
+        ClipMetadata(
+          icon = Icons.RoundedFilled.Timer,
+          text = state.clipDuration ?: "--:--",
+          modifier = Modifier.weight(0.7f),
+        )
+        ClipMetadata(
+          icon = Icons.RoundedFilled.AspectRatio,
+          text =
+            state.crop?.let { stringResource(R.string.clip_crop_size, it.width, it.height) }
+              ?: stringResource(R.string.clip_crop_full_frame),
+          modifier = Modifier.weight(1.3f),
+        )
+      }
 
-      Row(modifier = Modifier.fillMaxWidth().padding(top = 8.dp)) {
-        FilledTonalButton(onClick = onMarkStart, enabled = !state.exporting, modifier = Modifier.weight(1f)) {
-Text(stringResource(R.string.clip_start_short), maxLines = 1)
+      Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+      ) {
+        FilledTonalButton(
+          onClick = onMarkStart,
+          enabled = !state.exporting,
+          modifier = Modifier.weight(1f).height(48.dp),
+        ) {
+          AppIcon(Icons.RoundedFilled.SkipPrevious, contentDescription = null, modifier = Modifier.size(18.dp))
+          Spacer(Modifier.width(8.dp))
+          Text(stringResource(R.string.clip_start_short), maxLines = 1)
         }
         FilledTonalButton(
-onClick = onCrop,
-enabled = !state.exporting,
-modifier = Modifier.weight(1f).padding(horizontal = 6.dp),
+          onClick = onMarkEnd,
+          enabled = !state.exporting,
+          modifier = Modifier.weight(1f).height(48.dp),
         ) {
-Text(stringResource(R.string.clip_crop), maxLines = 1)
-        }
-        FilledTonalButton(onClick = onMarkEnd, enabled = !state.exporting, modifier = Modifier.weight(1f)) {
-Text(stringResource(R.string.clip_end_short), maxLines = 1)
+          AppIcon(Icons.RoundedFilled.SkipNext, contentDescription = null, modifier = Modifier.size(18.dp))
+          Spacer(Modifier.width(8.dp))
+          Text(stringResource(R.string.clip_end_short), maxLines = 1)
         }
       }
 
-      if (state.exporting) {
-        LinearProgressIndicator(
-progress = { state.progress / 100f },
-modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
-        )
-        Text(
-text = if (state.cancelling) stringResource(R.string.clip_cancelling)
-  else stringResource(R.string.clip_exporting, state.progress),
-style = MaterialTheme.typography.bodySmall,
-color = MaterialTheme.colorScheme.onSurfaceVariant,
-modifier = Modifier.padding(top = 4.dp),
-        )
+      OutlinedButton(
+        onClick = onCrop,
+        enabled = !state.exporting,
+        modifier = Modifier.fillMaxWidth().height(48.dp),
+      ) {
+        AppIcon(Icons.RoundedFilled.AspectRatio, contentDescription = null, modifier = Modifier.size(19.dp))
+        Spacer(Modifier.width(8.dp))
+        Text(stringResource(R.string.clip_crop))
       }
 
       if (state.exporting) {
-        Button(
-onClick = onSave,
-enabled = !state.cancelling,
-modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
+        Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+          LinearProgressIndicator(
+            progress = { state.progress / 100f },
+            modifier = Modifier.fillMaxWidth(),
+          )
+          Text(
+            text =
+              if (state.cancelling) {
+                stringResource(R.string.clip_cancelling)
+              } else {
+                stringResource(R.string.clip_exporting, state.progress)
+              },
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+          )
+        }
+        OutlinedButton(
+          onClick = onSave,
+          enabled = !state.cancelling,
+          modifier = Modifier.fillMaxWidth().height(48.dp),
         ) {
-Text(stringResource(R.string.clip_cancel))
+          AppIcon(Icons.RoundedFilled.Close, contentDescription = null, modifier = Modifier.size(18.dp))
+          Spacer(Modifier.width(8.dp))
+          Text(stringResource(R.string.clip_cancel))
         }
       } else {
-        Row(modifier = Modifier.fillMaxWidth().padding(top = 8.dp)) {
-OutlinedButton(onClick = onCancel, modifier = Modifier.weight(1f)) {
-  Text(stringResource(R.string.clip_cancel))
-}
-Button(
-  onClick = onSave,
-  enabled = state.canSave,
-  modifier = Modifier.weight(1f).padding(start = 8.dp),
-) {
-  Text(stringResource(R.string.clip_save))
-}
+        Row(
+          modifier = Modifier.fillMaxWidth(),
+          horizontalArrangement = Arrangement.spacedBy(8.dp),
+          verticalAlignment = Alignment.CenterVertically,
+        ) {
+          TextButton(
+            onClick = onCancel,
+            modifier = Modifier.weight(1f).height(48.dp),
+          ) {
+            Text(stringResource(R.string.clip_cancel))
+          }
+          Button(
+            onClick = onSave,
+            enabled = state.canSave && startTimeValid && endTimeValid,
+            modifier = Modifier.weight(1.4f).height(48.dp),
+          ) {
+            AppIcon(Icons.RoundedFilled.ContentCut, contentDescription = null, modifier = Modifier.size(18.dp))
+            Spacer(Modifier.width(8.dp))
+            Text(stringResource(R.string.clip_save), maxLines = 1)
+          }
         }
       }
     }
@@ -751,20 +856,131 @@ Button(
 }
 
 @Composable
-private fun ClipInfoPill(
+private fun ClipTimeField(
+  label: String,
+  seconds: Float?,
+  minSeconds: Float,
+  maxSeconds: Float,
+  enabled: Boolean,
+  onCommit: (Float) -> Unit,
+  onValidityChange: (Boolean) -> Unit,
+  modifier: Modifier = Modifier,
+) {
+  var text by remember { mutableStateOf(seconds?.let(::formatEditableTime).orEmpty()) }
+  var focused by remember { mutableStateOf(false) }
+  val focusManager = LocalFocusManager.current
+
+  LaunchedEffect(seconds, minSeconds, maxSeconds, focused) {
+    if (!focused) {
+      text = seconds?.let(::formatEditableTime).orEmpty()
+      onValidityChange(seconds?.let { it in minSeconds..maxSeconds } == true)
+    }
+  }
+
+  fun commit() {
+    val parsed = parseClipTime(text)?.takeIf { it in minSeconds..maxSeconds }
+    if (parsed != null) onCommit(parsed)
+    text = parsed?.let(::formatEditableTime) ?: seconds?.let(::formatEditableTime).orEmpty()
+    onValidityChange(parsed != null || seconds?.let { it in minSeconds..maxSeconds } == true)
+  }
+
+  OutlinedTextField(
+    value = text,
+    onValueChange = { candidate ->
+      if (candidate.length <= 12 && candidate.all { it.isDigit() || it == ':' || it == '.' }) {
+        text = candidate
+        val parsed = parseClipTime(candidate)?.takeIf { it in minSeconds..maxSeconds }
+        onValidityChange(parsed != null)
+        parsed?.let(onCommit)
+      }
+    },
+    enabled = enabled,
+    label = { Text(label) },
+    placeholder = { Text("00:00.000") },
+    textStyle = MaterialTheme.typography.titleMedium.copy(textAlign = TextAlign.Center),
+    singleLine = true,
+    isError =
+      text.isNotBlank() &&
+        parseClipTime(text)?.let { it in minSeconds..maxSeconds } != true,
+    keyboardOptions =
+      KeyboardOptions(
+        keyboardType = KeyboardType.Ascii,
+        imeAction = ImeAction.Done,
+      ),
+    keyboardActions = KeyboardActions(onDone = { focusManager.clearFocus() }),
+    modifier =
+      modifier.onFocusChanged { state ->
+        val lostFocus = focused && !state.isFocused
+        focused = state.isFocused
+        if (lostFocus) commit()
+      },
+  )
+}
+
+private fun parseClipTime(value: String): Float? {
+  val parts = value.trim().split(':')
+  if (parts.size !in 1..3 || parts.any(String::isBlank)) return null
+  val numbers =
+    parts.mapIndexed { index, part ->
+      if (index == parts.lastIndex) {
+        part.toDoubleOrNull() ?: return null
+      } else {
+        part.toLongOrNull()?.toDouble() ?: return null
+      }
+    }
+  if (numbers.any { it < 0.0 || !it.isFinite() }) return null
+
+  val seconds =
+    when (numbers.size) {
+      1 -> numbers[0]
+      2 -> {
+        if (numbers[1] >= 60.0) return null
+        numbers[0] * 60.0 + numbers[1]
+      }
+      else -> {
+        if (numbers[1] >= 60.0 || numbers[2] >= 60.0) return null
+        numbers[0] * 3600.0 + numbers[1] * 60.0 + numbers[2]
+      }
+    }
+  return seconds.takeIf { it <= Float.MAX_VALUE }?.toFloat()
+}
+
+private fun formatEditableTime(seconds: Float): String {
+  val totalMillis = (seconds.coerceAtLeast(0f) * 1000f).roundToLong()
+  val hours = totalMillis / 3_600_000L
+  val minutes = (totalMillis / 60_000L) % 60L
+  val wholeSeconds = (totalMillis / 1000L) % 60L
+  val millis = totalMillis % 1000L
+  return if (hours > 0) {
+    "%d:%02d:%02d.%03d".format(Locale.US, hours, minutes, wholeSeconds, millis)
+  } else {
+    "%02d:%02d.%03d".format(Locale.US, minutes, wholeSeconds, millis)
+  }
+}
+
+@Composable
+private fun ClipMetadata(
+  icon: com.quantummpv.app.ui.icons.AppIcon,
   text: String,
   modifier: Modifier = Modifier,
 ) {
-  Surface(
+  Row(
     modifier = modifier,
-    shape = MaterialTheme.shapes.large,
-    color = MaterialTheme.colorScheme.surfaceContainerHighest.copy(alpha = 0.72f),
-    contentColor = MaterialTheme.colorScheme.onSurfaceVariant,
+    verticalAlignment = Alignment.CenterVertically,
   ) {
+    AppIcon(
+      imageVector = icon,
+      contentDescription = null,
+      tint = MaterialTheme.colorScheme.onSurfaceVariant,
+      modifier = Modifier.size(17.dp),
+    )
     Text(
       text = text,
-      style = MaterialTheme.typography.labelLarge,
-      modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp),
+      style = MaterialTheme.typography.bodySmall,
+      color = MaterialTheme.colorScheme.onSurfaceVariant,
+      maxLines = 1,
+      overflow = TextOverflow.Ellipsis,
+      modifier = Modifier.padding(start = 6.dp),
     )
   }
 }
@@ -774,49 +990,44 @@ private fun ClipCropControls(
   onCancel: () -> Unit,
   onDone: () -> Unit,
 ) {
-  BackHandler(onBack = onCancel)
-
-  Box(
-    modifier = Modifier.fillMaxWidth(),
-    contentAlignment = Alignment.Center,
+  Surface(
+    shape = CircleShape,
+    color = MaterialTheme.colorScheme.surfaceContainerHigh.copy(alpha = 0.96f),
+    contentColor = MaterialTheme.colorScheme.onSurface,
+    tonalElevation = 6.dp,
+    shadowElevation = 8.dp,
+    border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.55f)),
   ) {
-    Surface(
-      modifier = Modifier.widthIn(max = 460.dp).fillMaxWidth(),
-      shape = MaterialTheme.shapes.extraLarge,
-      color = MaterialTheme.colorScheme.surfaceContainerHigh.copy(alpha = 0.97f),
-      contentColor = MaterialTheme.colorScheme.onSurface,
-      tonalElevation = 6.dp,
-      shadowElevation = 8.dp,
-      border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.45f)),
+    Row(
+      modifier = Modifier.height(48.dp),
+      verticalAlignment = Alignment.CenterVertically,
     ) {
-      Column(
-        horizontalAlignment = Alignment.CenterHorizontally,
-        modifier = Modifier.padding(16.dp),
+      IconButton(
+        onClick = onCancel,
+        modifier = Modifier.size(48.dp),
       ) {
-        Text(
-          text = stringResource(R.string.clip_crop),
-          style = MaterialTheme.typography.titleMedium,
+        AppIcon(
+          imageVector = Icons.RoundedFilled.Close,
+          contentDescription = stringResource(R.string.clip_cancel),
+          modifier = Modifier.size(21.dp),
         )
-        Text(
-          text = stringResource(R.string.clip_select_crop),
-          style = MaterialTheme.typography.bodySmall,
-          color = MaterialTheme.colorScheme.onSurfaceVariant,
-          modifier = Modifier.padding(top = 4.dp),
+      }
+      Box(
+        Modifier
+          .width(1.dp)
+          .height(24.dp)
+          .background(MaterialTheme.colorScheme.outlineVariant),
+      )
+      IconButton(
+        onClick = onDone,
+        modifier = Modifier.size(48.dp),
+      ) {
+        AppIcon(
+          imageVector = Icons.RoundedFilled.Check,
+          contentDescription = stringResource(R.string.clip_done),
+          tint = MaterialTheme.colorScheme.primary,
+          modifier = Modifier.size(22.dp),
         )
-        Row(modifier = Modifier.fillMaxWidth().padding(top = 12.dp)) {
-          OutlinedButton(
-            onClick = onCancel,
-            modifier = Modifier.weight(1f),
-          ) {
-            Text(stringResource(R.string.clip_cancel))
-          }
-          Button(
-            onClick = onDone,
-            modifier = Modifier.weight(1f).padding(start = 8.dp),
-          ) {
-            Text(stringResource(R.string.clip_done))
-          }
-        }
       }
     }
   }
@@ -830,6 +1041,7 @@ private class CropSelectionView(
   displayHeight: Int,
   private val rotation: Int,
   private val initialCrop: ClipCrop?,
+  private val onSelectionChanged: (RectF) -> Unit,
 ) : View(context) {
   private enum class DragMode {
     NONE,
@@ -854,11 +1066,24 @@ private class CropSelectionView(
       style = Paint.Style.STROKE
       strokeWidth = dpF(2f)
     }
-  private val handlePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = Color.WHITE }
+  private val cornerHandlePaint =
+    Paint(Paint.ANTI_ALIAS_FLAG).apply {
+      color = Color.WHITE
+      style = Paint.Style.STROKE
+      strokeWidth = dpF(4f)
+      strokeCap = Paint.Cap.ROUND
+      strokeJoin = Paint.Join.ROUND
+    }
+  private val edgeHandlePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = Color.WHITE }
+  private val gridPaint =
+    Paint(Paint.ANTI_ALIAS_FLAG).apply {
+      color = 0x99FFFFFF.toInt()
+      strokeWidth = dpF(1f)
+    }
   private val labelPaint =
     Paint(Paint.ANTI_ALIAS_FLAG).apply {
       color = Color.WHITE
-      textSize = spF(14f)
+      textSize = spF(12f)
       typeface = Typeface.create(Typeface.DEFAULT, Typeface.BOLD)
     }
   private val labelBackgroundPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = 0xDD111111.toInt() }
@@ -868,6 +1093,7 @@ private class CropSelectionView(
   private val orientedHeight: Int
 
   private var dragMode = DragMode.NONE
+  private var activePointerId = MotionEvent.INVALID_POINTER_ID
   private var lastX = 0f
   private var lastY = 0f
   private var selectionInitialized = false
@@ -879,6 +1105,7 @@ private class CropSelectionView(
     contentAspectWidth = displayWidth.takeIf { it > 0 } ?: orientedWidth
     contentAspectHeight = displayHeight.takeIf { it > 0 } ?: orientedHeight
     isClickable = true
+    contentDescription = resources.getString(R.string.clip_select_crop)
     importantForAccessibility = IMPORTANT_FOR_ACCESSIBILITY_YES
   }
 
@@ -889,8 +1116,30 @@ private class CropSelectionView(
     oldh: Int,
   ) {
     super.onSizeChanged(w, h, oldw, oldh)
+    val normalizedSelection =
+      if (selectionInitialized && !videoBounds.isEmpty) {
+        floatArrayOf(
+          (selection.left - videoBounds.left) / videoBounds.width(),
+          (selection.top - videoBounds.top) / videoBounds.height(),
+          (selection.right - videoBounds.left) / videoBounds.width(),
+          (selection.bottom - videoBounds.top) / videoBounds.height(),
+        )
+      } else {
+        null
+      }
     updateVideoBounds(w.toFloat(), h.toFloat())
-    initializeSelectionIfNeeded()
+    if (normalizedSelection != null && !videoBounds.isEmpty) {
+      selection.set(
+        videoBounds.left + videoBounds.width() * normalizedSelection[0],
+        videoBounds.top + videoBounds.height() * normalizedSelection[1],
+        videoBounds.left + videoBounds.width() * normalizedSelection[2],
+        videoBounds.top + videoBounds.height() * normalizedSelection[3],
+      )
+      onSelectionChanged(RectF(selection))
+    } else {
+      initializeSelectionIfNeeded()
+    }
+    invalidate()
   }
 
   private fun updateVideoBounds(
@@ -931,6 +1180,7 @@ private class CropSelectionView(
       )
     }
     selectionInitialized = true
+    onSelectionChanged(RectF(selection))
   }
 
   override fun onDraw(canvas: Canvas) {
@@ -945,23 +1195,34 @@ private class CropSelectionView(
         addRoundRect(selection, dpF(4f), dpF(4f), Path.Direction.CW)
       }
     canvas.drawPath(outside, dimPaint)
+    for (step in 1..2) {
+      val x = selection.left + selection.width() * step / 3f
+      val y = selection.top + selection.height() * step / 3f
+      canvas.drawLine(x, selection.top, x, selection.bottom, gridPaint)
+      canvas.drawLine(selection.left, y, selection.right, y, gridPaint)
+    }
     canvas.drawRoundRect(selection, dpF(4f), dpF(4f), borderPaint)
-
-    val handleRadius = dpF(6f)
-    handlePoints().forEach { (x, y) -> canvas.drawCircle(x, y, handleRadius, handlePaint) }
+    drawResizeHandles(canvas)
 
     val crop = currentCrop()
-    val text = "${crop.width} × ${crop.height}"
+    val text = "${crop.width} × ${crop.height} px"
+    val maxLabelWidth = (width.toFloat() - dpF(8f)).coerceAtLeast(1f)
+    val horizontalPadding = min(dpF(10f), maxLabelWidth * 0.15f)
+    val maxTextWidth = (maxLabelWidth - horizontalPadding * 2f).coerceAtLeast(1f)
+    labelPaint.textSize = spF(12f)
+    val naturalTextWidth = labelPaint.measureText(text).coerceAtLeast(1f)
+    labelPaint.textSize *= (maxTextWidth / naturalTextWidth).coerceAtMost(1f)
     val textWidth = labelPaint.measureText(text)
     val textHeight = labelPaint.fontMetrics.run { bottom - top }
-    val horizontalPadding = dpF(10f)
     val verticalPadding = dpF(6f)
     val labelWidth = textWidth + horizontalPadding * 2f
     val labelHeight = textHeight + verticalPadding * 2f
-    val preferredTop = selection.top - labelHeight - dpF(8f)
-    val labelTop =
-      if (preferredTop >= videoBounds.top) preferredTop else min(selection.top + dpF(10f), selection.bottom - labelHeight - dpF(4f))
-    val labelLeft = (selection.centerX() - labelWidth / 2f).coerceIn(videoBounds.left, videoBounds.right - labelWidth)
+    val preferredTop = selection.top + dpF(10f)
+    val maxLabelTop = (height.toFloat() - labelHeight).coerceAtLeast(0f)
+    val maxInsideTop = (selection.bottom - labelHeight - dpF(8f)).coerceAtLeast(selection.top)
+    val labelTop = preferredTop.coerceAtMost(maxInsideTop).coerceIn(0f, maxLabelTop)
+    val maxLabelLeft = (width.toFloat() - labelWidth).coerceAtLeast(0f)
+    val labelLeft = (selection.centerX() - labelWidth / 2f).coerceIn(0f, maxLabelLeft)
     val labelRect = RectF(labelLeft, labelTop, labelLeft + labelWidth, labelTop + labelHeight)
     canvas.drawRoundRect(labelRect, dpF(12f), dpF(12f), labelBackgroundPaint)
     val baseline = labelRect.top + verticalPadding - labelPaint.fontMetrics.top
@@ -969,30 +1230,53 @@ private class CropSelectionView(
   }
 
   override fun onTouchEvent(event: MotionEvent): Boolean {
-    if (!isEnabled || selection.isEmpty) return false
+    if (!isEnabled) return false
+    initializeSelectionIfNeeded()
+    if (selection.isEmpty) return false
     when (event.actionMasked) {
       MotionEvent.ACTION_DOWN -> {
         dragMode = hitTest(event.x, event.y)
         if (dragMode == DragMode.NONE) return false
+        activePointerId = event.getPointerId(0)
+        performHapticFeedback(HapticFeedbackConstants.CLOCK_TICK)
         lastX = event.x
         lastY = event.y
         parent?.requestDisallowInterceptTouchEvent(true)
+        invalidate()
         return true
       }
       MotionEvent.ACTION_MOVE -> {
         if (dragMode == DragMode.NONE) return false
-        val dx = event.x - lastX
-        val dy = event.y - lastY
+        val pointerIndex = event.findPointerIndex(activePointerId)
+        if (pointerIndex < 0) return false
+        val pointerX = event.getX(pointerIndex)
+        val pointerY = event.getY(pointerIndex)
+        val dx = pointerX - lastX
+        val dy = pointerY - lastY
         updateSelection(dx, dy)
-        lastX = event.x
-        lastY = event.y
+        lastX = pointerX
+        lastY = pointerY
         invalidate()
+        return true
+      }
+      MotionEvent.ACTION_POINTER_UP -> {
+        val releasedIndex = event.actionIndex
+        if (event.getPointerId(releasedIndex) == activePointerId) {
+          val replacementIndex = if (releasedIndex == 0) 1 else 0
+          if (replacementIndex < event.pointerCount) {
+            activePointerId = event.getPointerId(replacementIndex)
+            lastX = event.getX(replacementIndex)
+            lastY = event.getY(replacementIndex)
+          }
+        }
         return true
       }
       MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
         if (dragMode != DragMode.NONE) {
           dragMode = DragMode.NONE
+          activePointerId = MotionEvent.INVALID_POINTER_ID
           parent?.requestDisallowInterceptTouchEvent(false)
+          invalidate()
           performClick()
           return true
         }
@@ -1033,28 +1317,53 @@ private class CropSelectionView(
     )
   }
 
+  fun selectionBounds(): RectF = RectF(selection)
+
   private fun hitTest(
     x: Float,
     y: Float,
   ): DragMode {
-    val threshold = dpF(28f)
-    val nearLeft = kotlin.math.abs(x - selection.left) <= threshold
-    val nearRight = kotlin.math.abs(x - selection.right) <= threshold
-    val nearTop = kotlin.math.abs(y - selection.top) <= threshold
-    val nearBottom = kotlin.math.abs(y - selection.bottom) <= threshold
+    val threshold = dpF(32f)
+    val leftDistance = kotlin.math.abs(x - selection.left)
+    val rightDistance = kotlin.math.abs(x - selection.right)
+    val topDistance = kotlin.math.abs(y - selection.top)
+    val bottomDistance = kotlin.math.abs(y - selection.bottom)
+    val nearLeft = leftDistance <= threshold
+    val nearRight = rightDistance <= threshold
+    val nearTop = topDistance <= threshold
+    val nearBottom = bottomDistance <= threshold
     val withinHorizontal = x in (selection.left - threshold)..(selection.right + threshold)
     val withinVertical = y in (selection.top - threshold)..(selection.bottom + threshold)
 
+    if ((nearLeft || nearRight) && (nearTop || nearBottom)) {
+      val useLeft = leftDistance <= rightDistance
+      val useTop = topDistance <= bottomDistance
+      return when {
+        useLeft && useTop -> DragMode.TOP_LEFT
+        !useLeft && useTop -> DragMode.TOP_RIGHT
+        useLeft -> DragMode.BOTTOM_LEFT
+        else -> DragMode.BOTTOM_RIGHT
+      }
+    }
+
+    val verticalEdgeDistance = minOf(leftDistance, rightDistance)
+    val horizontalEdgeDistance = minOf(topDistance, bottomDistance)
+    val canResizeVertically = withinHorizontal && horizontalEdgeDistance <= threshold
+    val canResizeHorizontally = withinVertical && verticalEdgeDistance <= threshold
+
     return when {
-      nearLeft && nearTop -> DragMode.TOP_LEFT
-      nearRight && nearTop -> DragMode.TOP_RIGHT
-      nearLeft && nearBottom -> DragMode.BOTTOM_LEFT
-      nearRight && nearBottom -> DragMode.BOTTOM_RIGHT
-      nearLeft && withinVertical -> DragMode.LEFT
-      nearRight && withinVertical -> DragMode.RIGHT
-      nearTop && withinHorizontal -> DragMode.TOP
-      nearBottom && withinHorizontal -> DragMode.BOTTOM
+      canResizeHorizontally && (!canResizeVertically || verticalEdgeDistance <= horizontalEdgeDistance) ->
+        if (leftDistance <= rightDistance) DragMode.LEFT else DragMode.RIGHT
+      canResizeVertically -> if (topDistance <= bottomDistance) DragMode.TOP else DragMode.BOTTOM
       selection.contains(x, y) -> DragMode.MOVE
+      videoBounds.contains(x, y) && x < selection.left && y < selection.top -> DragMode.TOP_LEFT
+      videoBounds.contains(x, y) && x > selection.right && y < selection.top -> DragMode.TOP_RIGHT
+      videoBounds.contains(x, y) && x < selection.left && y > selection.bottom -> DragMode.BOTTOM_LEFT
+      videoBounds.contains(x, y) && x > selection.right && y > selection.bottom -> DragMode.BOTTOM_RIGHT
+      videoBounds.contains(x, y) && x < selection.left -> DragMode.LEFT
+      videoBounds.contains(x, y) && x > selection.right -> DragMode.RIGHT
+      videoBounds.contains(x, y) && y < selection.top -> DragMode.TOP
+      videoBounds.contains(x, y) && y > selection.bottom -> DragMode.BOTTOM
       else -> DragMode.NONE
     }
   }
@@ -1063,7 +1372,8 @@ private class CropSelectionView(
     dx: Float,
     dy: Float,
   ) {
-    val minSize = dpF(48f)
+    val minWidth = min(dpF(48f), videoBounds.width() * 0.5f).coerceAtLeast(2f)
+    val minHeight = min(dpF(48f), videoBounds.height() * 0.5f).coerceAtLeast(2f)
     when (dragMode) {
       DragMode.MOVE -> {
         var moveX = dx
@@ -1074,39 +1384,79 @@ private class CropSelectionView(
         if (selection.bottom + moveY > videoBounds.bottom) moveY = videoBounds.bottom - selection.bottom
         selection.offset(moveX, moveY)
       }
-      DragMode.LEFT, DragMode.TOP_LEFT, DragMode.BOTTOM_LEFT -> {
-        selection.left = (selection.left + dx).coerceIn(videoBounds.left, selection.right - minSize)
-        if (dragMode == DragMode.TOP_LEFT) {
-          selection.top = (selection.top + dy).coerceIn(videoBounds.top, selection.bottom - minSize)
-        } else if (dragMode == DragMode.BOTTOM_LEFT) {
-          selection.bottom = (selection.bottom + dy).coerceIn(selection.top + minSize, videoBounds.bottom)
-        }
-      }
-      DragMode.RIGHT, DragMode.TOP_RIGHT, DragMode.BOTTOM_RIGHT -> {
-        selection.right = (selection.right + dx).coerceIn(selection.left + minSize, videoBounds.right)
-        if (dragMode == DragMode.TOP_RIGHT) {
-          selection.top = (selection.top + dy).coerceIn(videoBounds.top, selection.bottom - minSize)
-        } else if (dragMode == DragMode.BOTTOM_RIGHT) {
-          selection.bottom = (selection.bottom + dy).coerceIn(selection.top + minSize, videoBounds.bottom)
-        }
-      }
-      DragMode.TOP -> selection.top = (selection.top + dy).coerceIn(videoBounds.top, selection.bottom - minSize)
-      DragMode.BOTTOM -> selection.bottom = (selection.bottom + dy).coerceIn(selection.top + minSize, videoBounds.bottom)
       DragMode.NONE -> Unit
+      else -> {
+        if (dragMode == DragMode.LEFT || dragMode == DragMode.TOP_LEFT || dragMode == DragMode.BOTTOM_LEFT) {
+          selection.left = (selection.left + dx).coerceIn(videoBounds.left, selection.right - minWidth)
+        }
+        if (dragMode == DragMode.RIGHT || dragMode == DragMode.TOP_RIGHT || dragMode == DragMode.BOTTOM_RIGHT) {
+          selection.right = (selection.right + dx).coerceIn(selection.left + minWidth, videoBounds.right)
+        }
+        if (dragMode == DragMode.TOP || dragMode == DragMode.TOP_LEFT || dragMode == DragMode.TOP_RIGHT) {
+          selection.top = (selection.top + dy).coerceIn(videoBounds.top, selection.bottom - minHeight)
+        }
+        if (dragMode == DragMode.BOTTOM || dragMode == DragMode.BOTTOM_LEFT || dragMode == DragMode.BOTTOM_RIGHT) {
+          selection.bottom = (selection.bottom + dy).coerceIn(selection.top + minHeight, videoBounds.bottom)
+        }
+      }
     }
+    onSelectionChanged(RectF(selection))
   }
 
-  private fun handlePoints(): List<Pair<Float, Float>> =
-    listOf(
-      selection.left to selection.top,
-      selection.centerX() to selection.top,
-      selection.right to selection.top,
-      selection.left to selection.centerY(),
-      selection.right to selection.centerY(),
-      selection.left to selection.bottom,
-      selection.centerX() to selection.bottom,
-      selection.right to selection.bottom,
+  private fun drawResizeHandles(canvas: Canvas) {
+    val leg = min(dpF(22f), min(selection.width(), selection.height()) * 0.28f)
+    val edgeLength = min(dpF(28f), min(selection.width(), selection.height()) * 0.3f)
+    val edgeThickness = dpF(5f)
+    val edgeRadius = edgeThickness / 2f
+
+    canvas.drawLine(selection.left, selection.top, selection.left + leg, selection.top, cornerHandlePaint)
+    canvas.drawLine(selection.left, selection.top, selection.left, selection.top + leg, cornerHandlePaint)
+    canvas.drawLine(selection.right - leg, selection.top, selection.right, selection.top, cornerHandlePaint)
+    canvas.drawLine(selection.right, selection.top, selection.right, selection.top + leg, cornerHandlePaint)
+    canvas.drawLine(selection.left, selection.bottom, selection.left + leg, selection.bottom, cornerHandlePaint)
+    canvas.drawLine(selection.left, selection.bottom - leg, selection.left, selection.bottom, cornerHandlePaint)
+    canvas.drawLine(selection.right - leg, selection.bottom, selection.right, selection.bottom, cornerHandlePaint)
+    canvas.drawLine(selection.right, selection.bottom - leg, selection.right, selection.bottom, cornerHandlePaint)
+
+    val centerX = selection.centerX()
+    val centerY = selection.centerY()
+    canvas.drawRoundRect(
+      centerX - edgeLength / 2f,
+      selection.top - edgeThickness / 2f,
+      centerX + edgeLength / 2f,
+      selection.top + edgeThickness / 2f,
+      edgeRadius,
+      edgeRadius,
+      edgeHandlePaint,
     )
+    canvas.drawRoundRect(
+      centerX - edgeLength / 2f,
+      selection.bottom - edgeThickness / 2f,
+      centerX + edgeLength / 2f,
+      selection.bottom + edgeThickness / 2f,
+      edgeRadius,
+      edgeRadius,
+      edgeHandlePaint,
+    )
+    canvas.drawRoundRect(
+      selection.left - edgeThickness / 2f,
+      centerY - edgeLength / 2f,
+      selection.left + edgeThickness / 2f,
+      centerY + edgeLength / 2f,
+      edgeRadius,
+      edgeRadius,
+      edgeHandlePaint,
+    )
+    canvas.drawRoundRect(
+      selection.right - edgeThickness / 2f,
+      centerY - edgeLength / 2f,
+      selection.right + edgeThickness / 2f,
+      centerY + edgeLength / 2f,
+      edgeRadius,
+      edgeRadius,
+      edgeHandlePaint,
+    )
+  }
 
   private fun evenFloor(value: Int): Int = value and -2
 

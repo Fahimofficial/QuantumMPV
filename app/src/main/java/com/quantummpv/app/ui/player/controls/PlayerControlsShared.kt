@@ -72,7 +72,6 @@ import com.quantummpv.app.ui.icons.Icons
 import com.quantummpv.app.ui.player.Panels
 import com.quantummpv.app.ui.player.PlayerActivity
 import com.quantummpv.app.ui.player.PlayerViewModel
-import com.quantummpv.app.ui.player.clip.ClipEditorUiState
 import com.quantummpv.app.ui.player.clip.ClipOverlayView
 import com.quantummpv.app.ui.player.Sheets
 import com.quantummpv.app.ui.player.VideoAspect
@@ -700,129 +699,13 @@ fun RenderPlayerButton(
 
     PlayerButton.CLIP -> {
       val clipOverlay = remember(activity) { ClipOverlayView.ensureAttached(activity) }
-      val clipRange by ClipEditorUiState.state.collectAsState()
-      var isClipExpanded by remember { mutableStateOf(false) }
-      val clipControlColor = if (hideBackground) controlColor else MaterialTheme.colorScheme.onSurface
-
-      AnimatedContent(
-        targetState = isClipExpanded,
-        transitionSpec = {
-(fadeIn(animationSpec = tween(200)) + expandHorizontally(animationSpec = tween(250)))
-  .togetherWith(fadeOut(animationSpec = tween(200)) + shrinkHorizontally(animationSpec = tween(250)))
-  .using(SizeTransform(clip = false))
-        },
-        label = "ClipExpandCollapse",
-      ) { expanded ->
-        if (expanded) {
-Surface(
-  shape = MaterialTheme.shapes.extraLarge,
-  color = MaterialTheme.colorScheme.surfaceContainer.copy(alpha = 0.55f),
-  border =
-    if (hideBackground) null
-    else BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f)),
-  modifier = Modifier.height(buttonSize),
-) {
-  Row(
-    horizontalArrangement = Arrangement.spacedBy(2.dp),
-    verticalAlignment = Alignment.CenterVertically,
-    modifier = Modifier.padding(horizontal = 4.dp),
-  ) {
-    Surface(
-      shape = CircleShape,
-      color = if (clipRange != null) MaterialTheme.colorScheme.tertiaryContainer else Color.Transparent,
-      modifier =
-        Modifier
-          .height(buttonSize - 4.dp)
-          .widthIn(min = buttonSize - 4.dp)
-          .clip(CircleShape)
-          .clickable {
-            clickEvent()
-            clipOverlay.markStartAtCurrent()
-          },
-    ) {
-      Box(contentAlignment = Alignment.Center) {
-        Text(
-          text = androidx.compose.ui.res.stringResource(com.quantummpv.app.R.string.clip_start_short),
-          style = MaterialTheme.typography.labelLarge,
-          color = if (clipRange != null) MaterialTheme.colorScheme.onTertiaryContainer else clipControlColor,
-          modifier = Modifier.padding(horizontal = 10.dp),
-        )
-      }
-    }
-
-    @OptIn(ExperimentalFoundationApi::class)
-    Surface(
-      shape = CircleShape,
-      color = MaterialTheme.colorScheme.primaryContainer,
-      modifier =
-        Modifier
-          .height(buttonSize - 4.dp)
-          .widthIn(min = buttonSize - 4.dp)
-          .clip(CircleShape)
-          .combinedClickable(
-            onClick = {
-              clickEvent()
-              isClipExpanded = false
-              clipOverlay.openCrop()
-            },
-            onLongClick = {
-              clickEvent()
-              isClipExpanded = false
-              clipOverlay.openClip()
-            },
-          ),
-    ) {
-      Box(contentAlignment = Alignment.Center) {
-        Text(
-          text = androidx.compose.ui.res.stringResource(com.quantummpv.app.R.string.clip_crop),
-          style = MaterialTheme.typography.labelLarge,
-          color = MaterialTheme.colorScheme.onPrimaryContainer,
-          modifier = Modifier.padding(horizontal = 10.dp),
-        )
-      }
-    }
-
-    Surface(
-      shape = CircleShape,
-      color = if (clipRange?.endSeconds != null) MaterialTheme.colorScheme.tertiaryContainer else Color.Transparent,
-      modifier =
-        Modifier
-          .height(buttonSize - 4.dp)
-          .widthIn(min = buttonSize - 4.dp)
-          .clip(CircleShape)
-          .clickable {
-            clickEvent()
-            clipOverlay.markEndAtCurrent()
-          },
-    ) {
-      Box(contentAlignment = Alignment.Center) {
-        Text(
-          text = androidx.compose.ui.res.stringResource(com.quantummpv.app.R.string.clip_end_short),
-          style = MaterialTheme.typography.labelLarge,
-          color = if (clipRange?.endSeconds != null) MaterialTheme.colorScheme.onTertiaryContainer else clipControlColor,
-          modifier = Modifier.padding(horizontal = 10.dp),
-        )
-      }
-    }
-  }
-}
-        } else {
-ControlsButton(
-  icon = button.icon,
-  onClick = {
-    clickEvent()
-    isClipExpanded = true
-  },
-  onLongClick = {
-    clickEvent()
-    clipOverlay.openClip()
-  },
-  title = androidx.compose.ui.res.stringResource(com.quantummpv.app.R.string.clip_action),
-  color = clipControlColor,
-  modifier = Modifier.size(buttonSize),
-)
-        }
-      }
+      ControlsButton(
+        icon = button.icon,
+        onClick = clipOverlay::openClip,
+        title = androidx.compose.ui.res.stringResource(com.quantummpv.app.R.string.clip_action),
+        color = if (hideBackground) controlColor else MaterialTheme.colorScheme.onSurface,
+        modifier = Modifier.size(buttonSize),
+      )
     }
 
     PlayerButton.EQUALIZER -> {

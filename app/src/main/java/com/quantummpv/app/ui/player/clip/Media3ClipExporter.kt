@@ -6,8 +6,6 @@ package com.quantummpv.app.ui.player.clip
 
 import android.content.Context
 import android.net.Uri
-import android.os.Handler
-import android.os.Looper
 import androidx.media3.common.Effect
 import androidx.media3.common.MediaItem
 import androidx.media3.common.MimeTypes
@@ -45,14 +43,7 @@ import kotlin.math.roundToLong
  */
 @UnstableApi
 internal object Media3ClipExporter {
-  const val CANCELLED = "cancelled"
   private const val PROGRESS_POLL_MS = 150L
-
-  @Volatile
-  private var activeTransformer: Transformer? = null
-
-  @Volatile
-  private var activeCompletion: CompletableDeferred<String?>? = null
 
   suspend fun export(
     context: Context,
@@ -71,9 +62,7 @@ internal object Media3ClipExporter {
         File(output).delete()
 
         val completion = CompletableDeferred<String?>()
-        activeCompletion = completion
         val transformer = buildTransformer(context, headers, completion)
-        activeTransformer = transformer
 
         val mediaItem =
           MediaItem.Builder()
@@ -107,24 +96,10 @@ internal object Media3ClipExporter {
           completion.await()
         } finally {
           progressJob.cancelAndJoin()
-          if (activeTransformer === transformer) activeTransformer = null
-          if (activeCompletion === completion) activeCompletion = null
+          if (completion.isActive) transformer.cancel()
         }
       }
     }
-
-  fun cancel() {
-    val action = {
-      activeTransformer?.cancel()
-      activeCompletion?.complete(CANCELLED)
-      Unit
-    }
-    if (Looper.myLooper() == Looper.getMainLooper()) {
-      action()
-    } else {
-      Handler(Looper.getMainLooper()).post(action)
-    }
-  }
 
   private fun buildTransformer(
     context: Context,

@@ -21,8 +21,11 @@ import com.quantummpv.app.data.network.proxy.NetworkStreamingProxy
 import com.quantummpv.app.domain.network.NetworkPlaybackUri
 import com.quantummpv.app.ui.player.PlaybackItem
 import com.quantummpv.app.ui.player.PlaybackSession
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -82,6 +85,9 @@ object ClipExportManager {
   private val streamSequence = AtomicLong(0L)
   private val _state = MutableStateFlow<ClipExportState>(ClipExportState.Idle)
 
+  @Volatile
+  private var activeJob: Job? = null
+
   val state: StateFlow<ClipExportState> = _state.asStateFlow()
 
   fun export(
@@ -106,8 +112,8 @@ object ClipExportManager {
       }
 
     val appContext = context.applicationContext
-    _state.value = ClipExportState.Exporting(0f)
-    scope.launch {
+    lateinit var job: Job
+    job = scope.launch(start = CoroutineStart.LAZY) {
       var resolvedSource: ResolvedSource? = null
       var temporaryOutput: File? = null
       try {
@@ -136,11 +142,7 @@ object ClipExportManager {
           )
 
         if (error != null) {
-          if (error == Media3ClipExporter.CANCELLED) {
-            _state.value = ClipExportState.Idle
-          } else {
-            _state.value = ClipExportState.Error(error)
-          }
+          _state.value = ClipExportState.Error(error)
           return@launch
         }
 
@@ -152,6 +154,8 @@ object ClipExportManager {
         val savedUri = saveToVideoLibrary(appContext, temporaryOutput, displayName)
         temporaryOutput = null
         _state.value = ClipExportState.Success(savedUri, displayName)
+      } catch (error: CancellationException) {
+        throw error
       } catch (error: Throwable) {
         _state.value =
           ClipExportState.Error(
@@ -160,16 +164,27 @@ object ClipExportManager {
       } finally {
         resolvedSource?.close?.invoke()
         temporaryOutput?.delete()
-        exporting.set(false)
       }
     }
+    activeJob = job
+    job.invokeOnCompletion { error ->
+      if (activeJob === job) {
+        activeJob = null
+        exporting.set(false)
+        if (error is CancellationException && _state.value is ClipExportState.Exporting) {
+          _state.value = ClipExportState.Idle
+        }
+      }
+    }
+    _state.value = ClipExportState.Exporting(0f)
+    job.start()
     return true
   }
 
   fun cancel() {
     val current = _state.value as? ClipExportState.Exporting ?: return
     _state.value = current.copy(cancelling = true)
-    Media3ClipExporter.cancel()
+    activeJob?.cancel()
   }
 
   fun consumeTerminalState() {
