@@ -240,6 +240,12 @@ object PreferencesScreen : Screen {
               icon = Icons.RoundedFilled.Audiotrack,
               screen = AudioPreferencesScreen,
             ),
+            SettingsDestination(
+              title = stringResource(R.string.pref_subtitles),
+              summary = stringResource(R.string.pref_subtitles_summary),
+              icon = Icons.RoundedFilled.Subtitles,
+              screen = SubtitlesPreferencesScreen,
+            ),
           ),
       ),
       SettingsSection(
@@ -258,19 +264,6 @@ object PreferencesScreen : Screen {
               summary = stringResource(R.string.pref_layout_summary),
               icon = Icons.RoundedFilled.GridView,
               screen = PlayerControlsPreferencesScreen,
-            ),
-          ),
-      ),
-      SettingsSection(
-        title = stringResource(R.string.pref_section_subtitles),
-        tint = colorScheme.onSurfaceVariant,
-        items =
-          listOf(
-            SettingsDestination(
-              title = stringResource(R.string.pref_subtitles),
-              summary = stringResource(R.string.pref_subtitles_summary),
-              icon = Icons.RoundedFilled.Subtitles,
-              screen = SubtitlesPreferencesScreen,
             ),
           ),
       ),
