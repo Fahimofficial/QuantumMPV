@@ -884,7 +884,9 @@ class MediaPlaybackService :
 
   private fun stopDetachedPlaybackIfNeeded() {
     // Never kill the shared PlaybackSession media while an Activity is taking it back over.
-    if (activityForeground || handingBackToActivity) return
+    // A fresh launch may already have destroyed and recreated the shared session before this
+    // service's asynchronous onDestroy() callback reaches here.
+    if (mpvAccessReleased || activityForeground || handingBackToActivity) return
     if (PlaybackSession.state.value.surfaceAttached) return
     torrentStreamingEngine.stopStream()
     PlaybackSession.stop(clearQueue = false)
