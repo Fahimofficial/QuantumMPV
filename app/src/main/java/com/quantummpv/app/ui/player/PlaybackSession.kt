@@ -302,6 +302,18 @@ object PlaybackSession : MPVLib.EventObserver {
     }
   }
 
+  /** Releases a stale Activity/mini-player renderer before a different media item is published. */
+  internal fun detachSurfaceForMediaReplacement() {
+    nativeLock.withLock {
+      if (initialized && nativeCoreReady && _state.value.surfaceAttached) {
+        detachRendererSurfaceLocked()
+      } else {
+        attachedSurfaceOwner = null
+        if (_state.value.surfaceAttached) updateState { it.copy(surfaceAttached = false) }
+      }
+    }
+  }
+
   /**
    * Detaches only Android's renderer resources. Surface transitions are not media lifecycle events:
    * they must not change video-track selection or disturb the live demuxer/cache.
@@ -417,6 +429,7 @@ object PlaybackSession : MPVLib.EventObserver {
     runCatching { MPVLib.setPropertyBoolean("pause", true) }
     runCatching { MPVLib.setPropertyString("vo", "null") }
     runCatching { MPVLib.detachSurface() }
+    attachedSurfaceOwner = null
     runCatching { MPVLib.removeObserver(this) }
     runCatching { MPVLib.destroy() }
       .onFailure { error -> Log.e(TAG, "Failed to destroy libmpv", error) }

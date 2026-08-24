@@ -165,6 +165,22 @@ class MediaPlaybackService :
       }
     }
 
+    /** Stops the detached owner before a foreground Activity replaces the current media. */
+    internal fun prepareForFreshPlaybackLaunch() {
+      activeInstance?.let { service ->
+        service.handingBackToActivity = true
+        service.abandonAudioOwnership()
+        runCatching { service.releaseMpvAccessBeforeShutdown() }
+          .onFailure { error -> Log.e(TAG, "Error releasing service before fresh playback", error) }
+      }
+      if (PlaybackSession.state.value.phase !in
+        setOf(PlaybackPhase.UNINITIALIZED, PlaybackPhase.IDLE, PlaybackPhase.STOPPING)
+      ) {
+        PlaybackSession.stop(clearQueue = false)
+      }
+      PlaybackSession.detachSurfaceForMediaReplacement()
+    }
+
     internal fun isActivityHandoffInProgress(): Boolean = activeInstance?.handingBackToActivity == true
 
     /** Releases every service-owned MPV access before an Activity destroys the global core. */

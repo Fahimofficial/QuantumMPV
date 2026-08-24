@@ -301,10 +301,9 @@ class MusicLibraryViewModel : ViewModel(), KoinComponent {
     if (songList.isEmpty()) return
     val index = songList.indexOfFirst { it.id == song.id }.coerceAtLeast(0)
 
-    // The detached video service still owns the shared PlaybackSession until PlayerActivity starts.
-    // Mark the handoff before replacing the queue so its asynchronous onDestroy cannot stop the
-    // newly selected music item after the Activity has already taken over playback.
-    MediaPlaybackService.prepareForActivityHandoff()
+    // This selects different media, so quiesce the detached service and mini-player renderer
+    // before publishing the audio queue. Same-item Activity handoff must remain lossless instead.
+    MediaPlaybackService.prepareForFreshPlaybackLaunch()
 
     val queueItems = songList.map { item ->
       PlaybackItem.fromUri(
@@ -340,8 +339,7 @@ class MusicLibraryViewModel : ViewModel(), KoinComponent {
     val list = if (shuffle) songsToPlay.shuffled() else songsToPlay
     val firstSong = list.first()
 
-    // See playSong(): prevent a detached video service teardown from racing this audio launch.
-    MediaPlaybackService.prepareForActivityHandoff()
+    MediaPlaybackService.prepareForFreshPlaybackLaunch()
 
     val queueItems = list.map { item ->
       PlaybackItem.fromUri(
