@@ -1791,4 +1791,29 @@
   <string name="lyrics_translating">جارٍ ترجمة كلمات الأغاني…</string>
   <string name="lyrics_translation_off">كلمات الأغاني الأصلية</string>
   <string name="lyrics_select_language">تحديد اللغة المستهدفة</string>
+
+  <!-- Clip -->
+  <string name="clip_action">إنشاء مقطع</string>
+  <string name="clip_options">خيارات المقطع</string>
+  <string name="clip_crop_action">اقتصاص وإنشاء مقطع</string>
+  <string name="clip_mark_start">تحديد البداية</string>
+  <string name="clip_mark_end">تحديد النهاية</string>
+  <string name="clip_crop">اقتصاص</string>
+  <string name="clip_save">حفظ المقطع</string>
+  <string name="clip_cancel">إلغاء</string>
+  <string name="clip_done">تم</string>
+  <string name="clip_clear">مسح المقطع</string>
+  <string name="clip_start_time">البداية: %1$s</string>
+  <string name="clip_end_time">النهاية: %1$s</string>
+  <string name="clip_end_not_set">النهاية: غير محددة</string>
+  <string name="clip_crop_size">الاقتصاص: %1$d × %2$d</string>
+  <string name="clip_crop_full_frame">الاقتصاص: الإطار الكامل</string>
+  <string name="clip_select_crop">غيّر حجم الإطار للاحتفاظ بالجزء المطلوب</string>
+  <string name="clip_exporting">جارٍ إنشاء المقطع… %1$d%%</string>
+  <string name="clip_cancelling">جارٍ إلغاء المقطع…</string>
+  <string name="clip_saved">تم حفظ %1$s</string>
+  <string name="clip_invalid_range">حدّد نقطة نهاية بعد نقطة البداية</string>
+  <string name="clip_video_unavailable">أبعاد الفيديو غير متاحة بعد</string>
+  <string name="clip_export_busy">يجري إنشاء مقطع آخر بالفعل</string>
+  <string name="clip_export_failed">فشل إنشاء المقطع: %1$s</string>
 </resources>

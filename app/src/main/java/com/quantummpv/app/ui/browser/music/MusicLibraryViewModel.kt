@@ -11,6 +11,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.quantummpv.app.database.entities.PlaylistEntity
 import com.quantummpv.app.database.repository.PlaylistRepository
+import com.quantummpv.app.ui.player.MediaPlaybackService
 import com.quantummpv.app.ui.player.PlaybackItem
 import com.quantummpv.app.ui.player.PlaybackSession
 import com.quantummpv.app.ui.player.PlayerActivity
@@ -300,6 +301,10 @@ class MusicLibraryViewModel : ViewModel(), KoinComponent {
     if (songList.isEmpty()) return
     val index = songList.indexOfFirst { it.id == song.id }.coerceAtLeast(0)
 
+    // This selects different media, so quiesce the detached service and mini-player renderer
+    // before publishing the audio queue. Same-item Activity handoff must remain lossless instead.
+    MediaPlaybackService.prepareForFreshPlaybackLaunch()
+
     val queueItems = songList.map { item ->
       PlaybackItem.fromUri(
         uri = item.uri.toString(),
@@ -333,6 +338,8 @@ class MusicLibraryViewModel : ViewModel(), KoinComponent {
     if (songsToPlay.isEmpty()) return
     val list = if (shuffle) songsToPlay.shuffled() else songsToPlay
     val firstSong = list.first()
+
+    MediaPlaybackService.prepareForFreshPlaybackLaunch()
 
     val queueItems = list.map { item ->
       PlaybackItem.fromUri(

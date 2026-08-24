@@ -37,6 +37,7 @@ enum class PlayerButton(
   LOCK_CONTROLS(Icons.RoundedFilled.LockOpen),
   AUDIO_TRACK(Icons.RoundedFilled.Audiotrack),
   SUBTITLES(Icons.RoundedFilled.Subtitles),
+  CLIP(Icons.RoundedFilled.ContentCut),
   MORE_OPTIONS(Icons.RoundedFilled.MoreVert),
   CURRENT_CHAPTER(Icons.RoundedFilled.Bookmarks), // <-- CHANGED ICON
   REPEAT_MODE(Icons.RoundedFilled.Repeat),
@@ -84,6 +85,7 @@ fun getPlayerButtonLabel(button: PlayerButton): String =
     PlayerButton.LOCK_CONTROLS -> stringResource(R.string.btn_label_lock)
     PlayerButton.AUDIO_TRACK -> stringResource(R.string.btn_label_audio)
     PlayerButton.SUBTITLES -> stringResource(R.string.btn_label_subtitles)
+    PlayerButton.CLIP -> stringResource(R.string.clip_action)
     PlayerButton.MORE_OPTIONS -> stringResource(R.string.btn_label_more)
     PlayerButton.CURRENT_CHAPTER -> stringResource(R.string.btn_label_chapter)
     PlayerButton.REPEAT_MODE -> stringResource(R.string.btn_label_repeat_mode)

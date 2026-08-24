@@ -1877,6 +1877,7 @@ class PlayerActivity :
     }
 
     reusingPlaybackSessionOnLaunch = false
+    MediaPlaybackService.prepareForFreshPlaybackLaunch()
 
     if (MediaPlaybackService.isRunning()) {
       Log.d(TAG, "Stopping detached service before replacing its media")

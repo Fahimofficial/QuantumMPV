@@ -1789,4 +1789,29 @@
   <string name="lyrics_translating">Перевод текста песни…</string>
   <string name="lyrics_translation_off">Оригинальный текст</string>
   <string name="lyrics_select_language">Выбрать язык перевода</string>
+
+  <!-- Clip -->
+  <string name="clip_action">Создать клип</string>
+  <string name="clip_options">Параметры клипа</string>
+  <string name="clip_crop_action">Обрезать и создать клип</string>
+  <string name="clip_mark_start">Отметить начало</string>
+  <string name="clip_mark_end">Отметить конец</string>
+  <string name="clip_crop">Кадрировать</string>
+  <string name="clip_save">Сохранить клип</string>
+  <string name="clip_cancel">Отмена</string>
+  <string name="clip_done">Готово</string>
+  <string name="clip_clear">Очистить клип</string>
+  <string name="clip_start_time">Начало: %1$s</string>
+  <string name="clip_end_time">Конец: %1$s</string>
+  <string name="clip_end_not_set">Конец: Не задан</string>
+  <string name="clip_crop_size">Кадрирование: %1$d × %2$d</string>
+  <string name="clip_crop_full_frame">Кадрирование: Весь кадр</string>
+  <string name="clip_select_crop">Измените размер рамки, чтобы оставить нужную область</string>
+  <string name="clip_exporting">Создание клипа… %1$d%%</string>
+  <string name="clip_cancelling">Отмена создания клипа…</string>
+  <string name="clip_saved">%1$s сохранён</string>
+  <string name="clip_invalid_range">Отметьте конечную точку после начальной</string>
+  <string name="clip_video_unavailable">Размеры видео пока недоступны</string>
+  <string name="clip_export_busy">Другой клип уже создаётся</string>
+  <string name="clip_export_failed">Не удалось создать клип: %1$s</string>
 </resources>

@@ -126,14 +126,15 @@ fun MiniPlayer(modifier: Modifier = Modifier) {
 
   val ext = (currentItem?.originalUri ?: currentItem?.title ?: "").fileExtension()
   val mimeIsAudio = currentItem?.mimeType?.startsWith("audio/", ignoreCase = true) == true
+  val mimeIsVideo = currentItem?.mimeType?.startsWith("video/", ignoreCase = true) == true
   val extIsAudio = ext in FileTypeUtils.AUDIO_EXTENSIONS
   val extIsVideo = ext in FileTypeUtils.VIDEO_EXTENSIONS
 
   val isAudioOnlyItem =
-    if (hasRealVideo || extIsVideo) {
-      false
-    } else {
-      mimeIsAudio || extIsAudio || hasAlbumArt || tracks.any { it.isAudio }
+    when {
+      mimeIsAudio || extIsAudio -> true
+      mimeIsVideo || extIsVideo || hasRealVideo -> false
+      else -> hasAlbumArt || tracks.any { it.isAudio }
     }
 
   val isMiniPlayerAllowed = isAudioOnlyItem || enableVideoMiniPlayer

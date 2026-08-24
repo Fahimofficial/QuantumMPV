@@ -893,6 +893,7 @@ fun PlayerControls(
           val showPortraitCustomButtons = areButtonsVisible && isPortrait && customButtons.isNotEmpty()
           val customButtonsRowVerticalPadding = 2.dp
           val skipChipToButtonsSpacing = 4.dp
+          val bottomControlsToSeekbarSpacing = spacing.smaller
           val bottomRightControlsBottomOffset =
             if (bottomRightControlsTopPx != null && controlsLayoutHeightPx > 0) {
               with(density) {
@@ -1748,7 +1749,7 @@ fun PlayerControls(
                     end.linkTo(parent.end, spacing.large)
                     width = Dimension.fillToConstraints
                   } else {
-                    bottom.linkTo(seekbar.top, spacing.medium)
+                    bottom.linkTo(seekbar.top, bottomControlsToSeekbarSpacing)
                     end.linkTo(parent.end, spacing.large)
                   }
                 }.onGloballyPositioned { coordinates ->
@@ -1811,7 +1812,7 @@ fun PlayerControls(
                     Modifier
                   },
                 ).constrainAs(bottomLeftControls) {
-                  bottom.linkTo(seekbar.top, spacing.medium)
+                  bottom.linkTo(seekbar.top, bottomControlsToSeekbarSpacing)
                   start.linkTo(parent.start, spacing.large)
                   width = Dimension.fillToConstraints
                   end.linkTo(bottomRightControls.start, spacing.small)

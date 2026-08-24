@@ -52,6 +52,7 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.ripple
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
@@ -68,6 +69,7 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.graphics.PathEffect
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.drawscope.DrawScope
@@ -83,6 +85,7 @@ import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import com.quantummpv.app.preferences.SeekbarStyle
 import com.quantummpv.app.ui.player.SkipSegment
+import com.quantummpv.app.ui.player.clip.ClipEditorUiState
 import com.quantummpv.app.ui.player.controls.LocalPlayerButtonsClickEvent
 import com.quantummpv.app.ui.theme.AppMotion
 import com.quantummpv.app.ui.theme.spacing
@@ -460,6 +463,8 @@ private fun SeekbarContent(
   val isSeekerPressed by seekerInteractionSource.collectIsPressedAsState()
   val isSeekerDragged by seekerInteractionSource.collectIsDraggedAsState()
   val isVisuallyInteracting = isUserInteracting || isSeekerPressed || isSeekerDragged
+  val clipRange by ClipEditorUiState.state.collectAsState()
+  val clipRangeColor = MaterialTheme.colorScheme.tertiary
   val safeDuration = duration.takeIf { it.isFinite() && it > 0f } ?: 0f
   val seekerRange = 0f..safeDuration.coerceAtLeast(0.1f)
   val safeCommittedPosition =
@@ -649,6 +654,34 @@ private fun SeekbarContent(
             end = Offset(endX, trackHeight),
             strokeWidth = edgeStroke,
           )
+        }
+      }
+
+      val activeClip = clipRange
+      val clipEnd = activeClip?.endSeconds
+      if (activeClip != null && clipEnd != null && duration > 0f && clipEnd > activeClip.startSeconds) {
+        val startX = (activeClip.startSeconds / duration).coerceIn(0f, 1f) * size.width
+        val endX = (clipEnd / duration).coerceIn(0f, 1f) * size.width
+        if (endX > startX) {
+          drawRect(
+            color = clipRangeColor.copy(alpha = 0.08f),
+            topLeft = Offset(startX, 0f),
+            size = Size(endX - startX, size.height),
+          )
+          val stripeSpacing = 6.dp.toPx().coerceAtLeast(1f)
+          val stripeWidth = 1.25.dp.toPx()
+          val dashPattern = PathEffect.dashPathEffect(floatArrayOf(1.5.dp.toPx(), 1.75.dp.toPx()))
+          var x = startX
+          while (x <= endX) {
+            drawLine(
+              color = clipRangeColor.copy(alpha = 0.9f),
+              start = Offset(x, 0f),
+              end = Offset(x, size.height),
+              strokeWidth = stripeWidth,
+              pathEffect = dashPattern,
+            )
+            x += stripeSpacing
+          }
         }
       }
     }
