@@ -1580,6 +1580,7 @@ fun PlayerControls(
               paused = paused ?: false,
               seekbarStyle = seekbarStyle,
               useWavySeekbar = useWavySeekbar,
+              timerTextColor = Color.White,
               loopStart = abLoopA?.toFloat(),
               loopEnd = abLoopB?.toFloat(),
               bufferDuration = stableDemuxerCacheTime.takeIf { showBufferedRange && it > 0f },
