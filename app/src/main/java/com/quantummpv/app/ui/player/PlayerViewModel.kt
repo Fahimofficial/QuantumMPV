@@ -3561,6 +3561,8 @@ class PlayerViewModel : ViewModel(),
         val subtitleHubRequest =
           OnlineSubtitleSearchRequest(
             query = cleanSubHubTitle,
+            season = season,
+            episode = episode,
             year = year,
           )
         onlineSubtitleOrchestrator
