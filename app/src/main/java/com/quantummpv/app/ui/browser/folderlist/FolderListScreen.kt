@@ -139,6 +139,7 @@ import com.quantummpv.app.utils.sort.SortUtils
 import com.quantummpv.app.utils.storage.FileTypeUtils
 import com.google.accompanist.permissions.ExperimentalPermissionsApi
 import com.google.accompanist.permissions.PermissionStatus
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.serialization.Serializable
@@ -250,7 +251,24 @@ object FolderListScreen : Screen {
     var isSearchLoading by remember { mutableStateOf(false) }
     val keyboardController = LocalSoftwareKeyboardController.current
     val focusRequester = remember { FocusRequester() }
+    var searchIndexJob by remember { mutableStateOf<Job?>(null) }
     val foldersBlacklistedMessage = stringResource(com.quantummpv.app.R.string.pref_folders_blacklisted)
+
+    LaunchedEffect(internalIsSearching) {
+      if (internalIsSearching) focusRequester.requestFocus()
+    }
+
+    // Rebuilds when folders change so incrementally discovered hidden folders become searchable;
+    // chained on the previous job because buildIndex resets the shared index maps.
+    LaunchedEffect(effectiveIsSearching, videoFolders, audioOnly) {
+      if (audioOnly || !effectiveIsSearching) return@LaunchedEffect
+      val previous = searchIndexJob
+      searchIndexJob =
+        coroutineScope.launch {
+          previous?.join()
+          buildSearchIndex(context, videoFolders, audioOnly)
+        }
+    }
 
     // Search logic
     LaunchedEffect(effectiveSearchQuery, effectiveIsSearching, audioOnly, videoFolders) {
@@ -285,6 +303,7 @@ object FolderListScreen : Screen {
                 }
               matchingFolders + matchingAudioFiles
             } else {
+              searchIndexJob?.join()
               searchFoldersAndVideos(context, effectiveSearchQuery)
             }
         } catch (e: Exception) {
@@ -602,9 +621,7 @@ object FolderListScreen : Screen {
               onSortClick = { sortDialogOpen.value = true },
               onSearchClick = {
                 internalIsSearching = !internalIsSearching
-                coroutineScope.launch {
-                  buildSearchIndex(context)
-                }
+                if (!internalIsSearching) internalSearchQuery = ""
               },
               onSettingsClick = {
                 backstack.add(com.quantummpv.app.ui.preferences.PreferencesScreen)
@@ -1717,15 +1734,21 @@ object SearchManager {
   val engine = MediaSearchEngine
 }
 
-private suspend fun buildSearchIndex(context: Context) {
-  val folders =
-    com.quantummpv.app.repository.MediaFileRepository
-      .getAllVideoFoldersFast(context)
+/** Indexes the folders already on screen, so hidden (dot/.nomedia) folders stay searchable. */
+private suspend fun buildSearchIndex(
+  context: Context,
+  folders: List<VideoFolder>,
+  audioOnly: Boolean,
+) {
   val videosByFolder =
     folders.associate { folder ->
       folder.bucketId to
         com.quantummpv.app.repository.MediaFileRepository
-          .getVideosInFolder(context, folder.bucketId)
+          .getVideosInFolder(
+            context,
+            folder.bucketId,
+            includeAudioOverride = if (audioOnly) true else null,
+          )
     }
   SearchManager.engine.buildIndex(folders, videosByFolder)
 }

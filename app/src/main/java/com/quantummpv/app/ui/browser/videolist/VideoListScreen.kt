@@ -22,6 +22,7 @@ import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.systemBars
@@ -34,9 +35,12 @@ import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
 import androidx.compose.material3.FloatingActionButton
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.PlainTooltip
+import androidx.compose.material3.SearchBar
+import androidx.compose.material3.SearchBarDefaults
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TooltipAnchorPosition
@@ -61,6 +65,8 @@ import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.stringResource
@@ -113,6 +119,7 @@ import com.quantummpv.app.ui.utils.popSafely
 import com.quantummpv.app.utils.history.RecentlyPlayedOps
 import com.quantummpv.app.utils.media.CopyPasteOps
 import com.quantummpv.app.utils.media.MediaUtils
+import com.quantummpv.app.utils.media.MediaSearchEngine
 import com.quantummpv.app.utils.media.OpenDocumentTreeContract
 import com.quantummpv.app.utils.sort.SortUtils
 import kotlinx.coroutines.delay
@@ -175,6 +182,27 @@ data class VideoListScreen(
           infoById[video.id] ?: VideoWithPlaybackInfo(video)
         }
       }
+
+    var internalSearchQuery by rememberSaveable { mutableStateOf("") }
+    var internalIsSearching by rememberSaveable { mutableStateOf(false) }
+    val focusRequester = remember { FocusRequester() }
+    val displayedVideosWithInfo =
+      remember(sortedVideosWithInfo, internalSearchQuery, internalIsSearching) {
+        if (!internalIsSearching || internalSearchQuery.isBlank()) {
+          sortedVideosWithInfo
+        } else {
+          val matchingVideoIds =
+            MediaSearchEngine.searchVideos(
+              query = internalSearchQuery,
+              videos = sortedVideosWithInfo.map { it.video },
+            ).mapTo(hashSetOf()) { it.id }
+          sortedVideosWithInfo.filter { it.video.id in matchingVideoIds }
+        }
+      }
+
+    LaunchedEffect(internalIsSearching) {
+      if (internalIsSearching) focusRequester.requestFocus()
+    }
 
     // Selection manager
     val selectionManager =
@@ -323,7 +351,40 @@ data class VideoListScreen(
 
     Scaffold(
       topBar = {
-        BrowserTopBar(
+        if (internalIsSearching) {
+          SearchBar(
+            inputField = {
+              SearchBarDefaults.InputField(
+                query = internalSearchQuery,
+                onQueryChange = { internalSearchQuery = it },
+                onSearch = { },
+                expanded = false,
+                onExpandedChange = { },
+                placeholder = { Text(stringResource(R.string.ui_search_videos)) },
+                leadingIcon = {
+                  Icon(Icons.RoundedFilled.Search, contentDescription = stringResource(R.string.settings_search_title))
+                },
+                trailingIcon = {
+                  IconButton(
+                    onClick = {
+                      internalIsSearching = false
+                      internalSearchQuery = ""
+                    },
+                  ) {
+                    Icon(Icons.RoundedFilled.Close, contentDescription = stringResource(R.string.generic_cancel))
+                  }
+                },
+                modifier = Modifier.focusRequester(focusRequester),
+              )
+            },
+            expanded = false,
+            onExpandedChange = { },
+            modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp),
+            shape = androidx.compose.foundation.shape.RoundedCornerShape(28.dp),
+            tonalElevation = 6.dp,
+          ) { }
+        } else {
+          BrowserTopBar(
           title = displayFolderName,
           isInSelectionMode = selectionManager.isInSelectionMode,
           selectedCount = selectionManager.selectedCount,
@@ -341,6 +402,7 @@ data class VideoListScreen(
           },
           onCancelSelection = { selectionManager.clear() },
           onSortClick = { sortDialogOpen.value = true },
+          onSearchClick = { internalIsSearching = true },
           onSettingsClick =
             if (isDualPane) {
               null
@@ -382,7 +444,8 @@ data class VideoListScreen(
             } else {
               null
             },
-        )
+          )
+        }
       },
       floatingActionButton = {
         val navigationBarHeight = com.quantummpv.app.ui.browser.LocalNavigationBarHeight.current
@@ -452,7 +515,7 @@ data class VideoListScreen(
       Box(modifier = Modifier.fillMaxSize()) {
         VideoListContent(
           folderId = bucketId,
-          videosWithInfo = sortedVideosWithInfo,
+          videosWithInfo = displayedVideosWithInfo,
           isLoading = isLoading && videos.isEmpty(),
           isRefreshing = isRefreshing,
           recentlyPlayedFilePath = lastPlayedInFolderPath ?: recentlyPlayedFilePath,
