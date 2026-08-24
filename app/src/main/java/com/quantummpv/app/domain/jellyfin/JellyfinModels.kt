@@ -97,6 +97,7 @@ data class JellyfinItem(
   val status: String? = null,
   val lastPlayedDate: String? = null,
   val remoteTrailerUrl: String? = null,
+  val canDelete: Boolean = true,
 ) {
   val isVideo: Boolean
     get() = type == "Movie" || type == "Episode" || type == "Video"

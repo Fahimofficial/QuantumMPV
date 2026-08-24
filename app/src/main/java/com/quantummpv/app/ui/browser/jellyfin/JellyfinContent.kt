@@ -137,11 +137,20 @@ fun JellyfinContent(
   var serverToReauth by remember { mutableStateOf<JellyfinServer?>(null) }
   var isManageServersOpen by rememberSaveable { mutableStateOf(false) }
   var isSearching by rememberSaveable { mutableStateOf(false) }
+  var isSeerrRequestsOpen by rememberSaveable { mutableStateOf(false) }
   var isSortDialogOpen by rememberSaveable { mutableStateOf(false) }
   var isFabExpanded by remember { mutableStateOf(false) }
   val isFabVisible = remember { mutableStateOf(true) }
   val searchFocusRequester = remember { FocusRequester() }
   val scope = rememberCoroutineScope()
+
+  val seerrViewModel: com.quantummpv.app.ui.browser.jellyfin.seerr.SeerrViewModel =
+    androidx.lifecycle.viewmodel.compose.viewModel(
+      factory =
+        com.quantummpv.app.ui.browser.jellyfin.seerr.SeerrViewModel.factory(
+          context.applicationContext as android.app.Application,
+        ),
+    )
 
   val musicTabs = remember {
     listOf(
@@ -198,7 +207,11 @@ fun JellyfinContent(
     rememberSelectionManager(
       items = uiState.currentItems,
       getId = { it.id },
-      onDeleteItems = { _, _ -> Pair(0, 0) },
+      onDeleteItems = { selectedItems: List<com.quantummpv.app.domain.jellyfin.JellyfinItem>, _ ->
+        val count = selectedItems.size
+        viewModel.deleteItems(selectedItems.map { it.id })
+        Pair(count, 0)
+      },
     )
 
   DisposableEffect(selectionManager.isInSelectionMode) {
@@ -211,10 +224,10 @@ fun JellyfinContent(
     }
   }
 
-  // Intercept back button if searching, selecting, details open, or browsing inside a folder
+  // Intercept back button if searching, selecting, requests open, details open, or browsing inside a folder
   BackHandler(
     enabled =
-      isSearching || selectionManager.isInSelectionMode ||
+      isSeerrRequestsOpen || isSearching || selectionManager.isInSelectionMode ||
         uiState.detailItem != null || uiState.openLibrary != null || (isFabExpanded && !quickPlayFabDirect),
   ) {
     when {
@@ -223,6 +236,9 @@ fun JellyfinContent(
       }
       uiState.detailItem != null -> {
         viewModel.closeDetail()
+      }
+      isSeerrRequestsOpen -> {
+        isSeerrRequestsOpen = false
       }
       isSearching -> {
         isSearching = false
@@ -236,6 +252,20 @@ fun JellyfinContent(
         viewModel.navigateBack()
       }
     }
+  }
+
+  if (isSeerrRequestsOpen) {
+    com.quantummpv.app.ui.browser.jellyfin.seerr.SeerrContent(
+      viewModel = seerrViewModel,
+      activeJellyfinServer = uiState.activeServer,
+      onBackClick = { isSeerrRequestsOpen = false },
+      onOpenJellyfinItem = { itemId ->
+        isSeerrRequestsOpen = false
+        viewModel.openDetailById(itemId)
+      },
+      modifier = modifier,
+    )
+    return
   }
 
   LaunchedEffect(isSearching) {
@@ -360,6 +390,7 @@ fun JellyfinContent(
             { isSortDialogOpen = true }
           } else null,
           onSearchClick = { isSearching = true },
+          onRequestClick = { isSeerrRequestsOpen = true },
           onSettingsClick = {
             backstack.add(com.quantummpv.app.ui.preferences.PreferencesScreen)
           },
@@ -1099,6 +1130,11 @@ fun JellyfinContent(
       onToggleFavorite = { item -> viewModel.toggleItemFavorite(item) },
       onTogglePlayed = { item -> viewModel.togglePlayed(item) },
       onItemClick = { item -> viewModel.openDetail(item) },
+      onDeleteItem = { itemToDelete ->
+        viewModel.deleteItem(itemToDelete.id) {
+          viewModel.closeDetail()
+        }
+      },
     )
   }
 

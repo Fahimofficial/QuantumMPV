@@ -87,6 +87,12 @@ class JellyfinRepository(
   ): Result<JellyfinItem> =
     client.getItem(server.serverUrl, server.userId, itemId, server.accessToken)
 
+  suspend fun deleteItem(
+    server: JellyfinServer,
+    itemId: String,
+  ): Result<Unit> =
+    client.deleteItem(server.serverUrl, itemId, server.accessToken)
+
   suspend fun getItems(
     server: JellyfinServer,
     parentId: String? = null,

@@ -12,6 +12,7 @@ package com.quantummpv.app.ui.browser.jellyfin
 import android.app.Application
 import android.content.Context
 import android.net.Uri
+import android.util.Log
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
@@ -867,6 +868,54 @@ class JellyfinViewModel(
   // ============================================================================
   // Media Details & Series Season/Episode Browsing (Material 3 Expressive)
   // ============================================================================
+
+  fun deleteItem(itemId: String, onSuccess: (() -> Unit)? = null) {
+    val active = _uiState.value.activeServer ?: return
+    viewModelScope.launch {
+      val res = jellyfinRepository.deleteItem(active, itemId)
+      res.fold(
+        onSuccess = {
+          _uiState.update { state ->
+            state.copy(
+              currentItems = state.currentItems.filter { it.id != itemId },
+              detailItem = if (state.detailItem?.id == itemId) null else state.detailItem,
+            )
+          }
+          onSuccess?.invoke()
+          refresh()
+        },
+        onFailure = { err ->
+          Log.e("JellyfinViewModel", "Failed to delete item $itemId", err)
+        },
+      )
+    }
+  }
+
+  fun deleteItems(itemIds: List<String>, onSuccess: (() -> Unit)? = null) {
+    val active = _uiState.value.activeServer ?: return
+    viewModelScope.launch {
+      for (id in itemIds) {
+        jellyfinRepository.deleteItem(active, id)
+      }
+      _uiState.update { state ->
+        state.copy(
+          currentItems = state.currentItems.filter { it.id !in itemIds },
+        )
+      }
+      onSuccess?.invoke()
+      refresh()
+    }
+  }
+
+  fun openDetailById(itemId: String) {
+    val active = _uiState.value.activeServer ?: return
+    viewModelScope.launch {
+      val res = jellyfinRepository.getItem(active, itemId)
+      res.onSuccess { item ->
+        openDetail(item)
+      }
+    }
+  }
 
   fun openDetail(item: JellyfinItem) {
     val active = _uiState.value.activeServer ?: return
