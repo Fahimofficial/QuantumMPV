@@ -29,7 +29,6 @@ import com.quantummpv.app.preferences.PlayerPreferences
 import com.quantummpv.app.presentation.crash.CrashActivity
 import com.quantummpv.app.presentation.crash.GlobalExceptionHandler
 import com.quantummpv.app.repository.NetworkRepository
-import com.quantummpv.app.ui.player.AndroidNativeCompat
 import com.quantummpv.app.ui.player.PlaybackPhase
 import com.quantummpv.app.ui.player.PlaybackSession
 import com.quantummpv.app.ui.player.PlayerActivity
@@ -66,11 +65,6 @@ class App :
 
   override fun onCreate() {
     super.onCreate()
-
-    // Apply this before app-owned worker threads and either native MPV entry point start. Bionic's
-    // fdsan level setter is intended for single-threaded setup, and the bundled libmpv's raw-clone
-    // subprocess path otherwise corrupts its ownership bookkeeping on Android 16.
-    AndroidNativeCompat.applyMpvSubprocessWorkaround()
 
     // Initialize Koin
     startKoin {
