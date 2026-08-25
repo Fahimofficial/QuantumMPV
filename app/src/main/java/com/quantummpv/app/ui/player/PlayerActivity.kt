@@ -50,10 +50,14 @@ import androidx.activity.viewModels
 import androidx.appcompat.app.AppCompatActivity
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.ViewCompositionStrategy
+import androidx.constraintlayout.widget.ConstraintLayout
 import androidx.core.app.NotificationManagerCompat
 import androidx.core.content.ContextCompat
 import androidx.core.content.pm.PackageInfoCompat
@@ -100,6 +104,8 @@ import com.quantummpv.app.ui.browser.playlist.isAllVideosPlaylist
 import com.quantummpv.app.ui.cast.CastMediaSnapshot
 import com.quantummpv.app.ui.cast.CastPlaybackController
 import com.quantummpv.app.ui.player.controls.PlayerControls
+import com.quantummpv.app.ui.player.components.VideoAmbientBackground
+import com.quantummpv.app.ui.player.components.rememberVideoAmbientFrame
 import com.quantummpv.app.ui.player.ytdlp.YtdlpManager
 import com.quantummpv.app.ui.theme.MpvrxTheme
 import com.quantummpv.app.ui.torrent.TorrentSelectionActivity
@@ -405,6 +411,8 @@ class PlayerActivity :
   private var playbackOwnerToken = 0L
   private var startedBackgroundForPip = false
   private var wasInPipMode = false
+  private var isAmbientPipMode by mutableStateOf(false)
+  private var isVideoAmbientPresentationActive = false
   private var handledPipDismissal = false
   private var pendingBackgroundTransition = false
   private var pendingBackNavigationBackgroundTransition = false
@@ -633,6 +641,7 @@ class PlayerActivity :
     MediaPlaybackService.createNotificationChannel(this)
     setupAudio()
     setupBackPressHandler()
+    setupVideoAmbientBackground()
     setupPlayerControls()
     setupVideoTransformObserver()
     setupAudioPlayerViewObserver()
@@ -980,6 +989,94 @@ class PlayerActivity :
     }
   }
 
+  private fun setupVideoAmbientBackground() {
+    binding.ambientBackground.setViewCompositionStrategy(
+      ViewCompositionStrategy.DisposeOnViewTreeLifecycleDestroyed,
+    )
+    binding.ambientBackground.setContent {
+      val enabled by viewModel.isAmbientEnabled.collectAsState()
+      val style by viewModel.ambientStyle.collectAsState()
+      val isAudioOnly by viewModel.isAudioOnly.collectAsState()
+      val active = enabled && style == AmbientStyle.YouTube && !isAudioOnly && !isAmbientPipMode
+      val ambientFrame =
+        rememberVideoAmbientFrame(
+          surfaceView = binding.player,
+          active = active,
+          isPlayingProvider = {
+            val playbackState = PlaybackSession.state.value
+            playbackState.surfaceAttached && !playbackState.paused
+          },
+        )
+      val presentationActive = active && ambientFrame.supported
+
+      LaunchedEffect(presentationActive) {
+        setVideoAmbientPresentationActive(presentationActive)
+      }
+
+      MpvrxTheme {
+        if (presentationActive) {
+          VideoAmbientBackground(
+            frame = ambientFrame.frame,
+            baseColor = ambientFrame.base,
+            accentColor = ambientFrame.accent,
+            modifier = Modifier.fillMaxSize(),
+          )
+        }
+      }
+    }
+  }
+
+  private fun setVideoAmbientPresentationActive(active: Boolean) {
+    isVideoAmbientPresentationActive = active
+    binding.ambientBackground.visibility = if (active) View.VISIBLE else View.GONE
+    if (active) {
+      updateVideoAmbientPlayerBounds()
+    } else {
+      restoreFullSizePlayerBounds()
+    }
+  }
+
+  private fun updateVideoAmbientPlayerBounds() {
+    if (!isVideoAmbientPresentationActive || binding.player.visibility != View.VISIBLE) return
+    val containerWidth = binding.root.width
+    val containerHeight = binding.root.height
+    val videoAspect = binding.player.getVideoOutAspect()
+    if (containerWidth <= 0 || containerHeight <= 0 || videoAspect == null || videoAspect <= 0.0) return
+
+    val containerAspect = containerWidth.toDouble() / containerHeight.toDouble()
+    val videoWidth: Int
+    val videoHeight: Int
+    if (containerAspect > videoAspect) {
+      videoHeight = containerHeight
+      videoWidth = (videoHeight * videoAspect).roundToInt().coerceAtLeast(1)
+    } else {
+      videoWidth = containerWidth
+      videoHeight = (videoWidth / videoAspect).roundToInt().coerceAtLeast(1)
+    }
+
+    val params = binding.player.layoutParams as ConstraintLayout.LayoutParams
+    if (params.width == videoWidth && params.height == videoHeight) return
+    params.width = videoWidth
+    params.height = videoHeight
+    params.startToStart = ConstraintLayout.LayoutParams.PARENT_ID
+    params.endToEnd = ConstraintLayout.LayoutParams.PARENT_ID
+    params.topToTop = ConstraintLayout.LayoutParams.PARENT_ID
+    params.bottomToBottom = ConstraintLayout.LayoutParams.PARENT_ID
+    binding.player.layoutParams = params
+  }
+
+  private fun restoreFullSizePlayerBounds() {
+    val params = binding.player.layoutParams as ConstraintLayout.LayoutParams
+    if (params.width == ViewGroup.LayoutParams.MATCH_PARENT &&
+      params.height == ViewGroup.LayoutParams.MATCH_PARENT
+    ) {
+      return
+    }
+    params.width = ViewGroup.LayoutParams.MATCH_PARENT
+    params.height = ViewGroup.LayoutParams.MATCH_PARENT
+    binding.player.layoutParams = params
+  }
+
   private fun setupVideoTransformObserver() {
     lifecycleScope.launch {
       repeatOnLifecycle(Lifecycle.State.STARTED) {
@@ -1054,20 +1151,13 @@ class PlayerActivity :
               Log.e(TAG, "Failed to show system bars for audio playback", e)
             }
           } else {
-            val lp = binding.player.layoutParams as ViewGroup.MarginLayoutParams
-            if (lp.width != ViewGroup.LayoutParams.MATCH_PARENT ||
-              lp.height != ViewGroup.LayoutParams.MATCH_PARENT ||
-              lp.leftMargin != 0 ||
-              lp.topMargin != 0
-            ) {
-              lp.width = ViewGroup.LayoutParams.MATCH_PARENT
-              lp.height = ViewGroup.LayoutParams.MATCH_PARENT
-              lp.leftMargin = 0
-              lp.topMargin = 0
-              binding.player.layoutParams = lp
-            }
             binding.player.clipToOutline = false
             binding.player.visibility = View.VISIBLE
+            if (isVideoAmbientPresentationActive) {
+              binding.root.post(::updateVideoAmbientPlayerBounds)
+            } else {
+              restoreFullSizePlayerBounds()
+            }
           }
         }
       }
@@ -2137,6 +2227,7 @@ class PlayerActivity :
         enableVideoAfterBackground()
       }
       viewModel.restartAmbientIfActive()
+      binding.root.post(::updateVideoAmbientPlayerBounds)
     }
 
     // NOW initialize MPV - it will find and load the scripts we just copied
@@ -3429,6 +3520,7 @@ class PlayerActivity :
     super.onConfigurationChanged(newConfig)
     val isPortrait = newConfig.orientation == Configuration.ORIENTATION_PORTRAIT
     viewModel.onOrientationChanged(isPortrait)
+    binding.root.post(::updateVideoAmbientPlayerBounds)
     if (isReady) {
       handleConfigurationChange()
     }
@@ -3950,6 +4042,7 @@ class PlayerActivity :
     applySubtitlePreferences()
     applyVideoFilterPreferences()
     viewModel.restoreSavedVideoAspect(showUpdate = false)
+    binding.root.post(::updateVideoAmbientPlayerBounds)
 
     if (shouldForceCurrentMediaTitle()) {
       val preferredTitle = getPreferredCurrentTitle()
@@ -5360,6 +5453,8 @@ class PlayerActivity :
   ) {
     super.onPictureInPictureModeChanged(isInPictureInPictureMode, newConfig)
 
+    isAmbientPipMode = isInPictureInPictureMode
+    if (isInPictureInPictureMode) setVideoAmbientPresentationActive(false)
     pipHelper.onPictureInPictureModeChanged(isInPictureInPictureMode)
     if (isInPictureInPictureMode) {
       wasInPipMode = true

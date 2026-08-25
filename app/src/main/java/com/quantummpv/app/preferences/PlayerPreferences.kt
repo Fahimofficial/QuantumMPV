@@ -12,6 +12,7 @@ package com.quantummpv.app.preferences
 import com.quantummpv.app.preferences.preference.DependentBooleanPreference
 import com.quantummpv.app.preferences.preference.PreferenceStore
 import com.quantummpv.app.preferences.preference.getEnum
+import com.quantummpv.app.ui.player.AmbientStyle
 import com.quantummpv.app.ui.player.ControlsAnimationStyle
 import com.quantummpv.app.ui.player.NavigationAnimStyle
 import com.quantummpv.app.ui.player.PlayerOrientation
@@ -133,6 +134,7 @@ class PlayerPreferences(
   val customButtons = preferenceStore.getString("custom_buttons_json", "[]")
 
   // Ambience Mode
+  val ambientStyle = preferenceStore.getEnum("ambient_style", AmbientStyle.Glow)
   val ambientBlurSamples = preferenceStore.getInt("ambient_blur_samples", 12)
   val ambientMaxRadius = preferenceStore.getFloat("ambient_max_radius", 0.15f)
   val ambientGlowIntensity = preferenceStore.getFloat("ambient_glow_intensity", 1.2f)

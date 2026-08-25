@@ -69,7 +69,6 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
-import androidx.compose.ui.graphics.PathEffect
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.drawscope.DrawScope
@@ -464,7 +463,6 @@ private fun SeekbarContent(
   val isSeekerDragged by seekerInteractionSource.collectIsDraggedAsState()
   val isVisuallyInteracting = isUserInteracting || isSeekerPressed || isSeekerDragged
   val clipRange by ClipEditorUiState.state.collectAsState()
-  val clipRangeColor = MaterialTheme.colorScheme.tertiary
   val safeDuration = duration.takeIf { it.isFinite() && it > 0f } ?: 0f
   val seekerRange = 0f..safeDuration.coerceAtLeast(0.1f)
   val safeCommittedPosition =
@@ -657,33 +655,22 @@ private fun SeekbarContent(
         }
       }
 
-      val activeClip = clipRange
-      val clipEnd = activeClip?.endSeconds
-      if (activeClip != null && clipEnd != null && duration > 0f && clipEnd > activeClip.startSeconds) {
-        val startX = (activeClip.startSeconds / duration).coerceIn(0f, 1f) * size.width
-        val endX = (clipEnd / duration).coerceIn(0f, 1f) * size.width
-        if (endX > startX) {
-          drawRect(
-            color = clipRangeColor.copy(alpha = 0.08f),
-            topLeft = Offset(startX, 0f),
-            size = Size(endX - startX, size.height),
-          )
-          val stripeSpacing = 6.dp.toPx().coerceAtLeast(1f)
-          val stripeWidth = 1.25.dp.toPx()
-          val dashPattern = PathEffect.dashPathEffect(floatArrayOf(1.5.dp.toPx(), 1.75.dp.toPx()))
-          var x = startX
-          while (x <= endX) {
-            drawLine(
-              color = clipRangeColor.copy(alpha = 0.9f),
-              start = Offset(x, 0f),
-              end = Offset(x, size.height),
-              strokeWidth = stripeWidth,
-              pathEffect = dashPattern,
-            )
-            x += stripeSpacing
-          }
-        }
-      }
+    }
+
+    val activeClip = clipRange
+    val clipEnd = activeClip?.endSeconds
+    if (activeClip != null && clipEnd != null && safeDuration > 0f && clipEnd > activeClip.startSeconds) {
+      ClipRangeSelection(
+        startSeconds = activeClip.startSeconds,
+        endSeconds = clipEnd,
+        duration = safeDuration,
+        color = MaterialTheme.colorScheme.tertiary,
+        modifier =
+          Modifier
+            .fillMaxWidth()
+            .height(overlayTrackHeight)
+            .align(Alignment.Center),
+      )
     }
 
     Seeker(
@@ -740,6 +727,69 @@ private fun SeekbarContent(
           .height(touchAreaHeight)
           .graphicsLayer(alpha = 0f),
     )
+  }
+}
+
+@Composable
+private fun ClipRangeSelection(
+  startSeconds: Float,
+  endSeconds: Float,
+  duration: Float,
+  color: Color,
+  modifier: Modifier = Modifier,
+) {
+  val targetStart = (startSeconds / duration).coerceIn(0f, 1f)
+  val targetEnd = (endSeconds / duration).coerceIn(targetStart, 1f)
+  val boundaryMotion = AppMotion.noBounce<Float>(Spring.StiffnessMedium)
+  val animatedStart by animateFloatAsState(
+    targetValue = targetStart,
+    animationSpec = boundaryMotion,
+    label = "ClipRangeStart",
+  )
+  val animatedEnd by animateFloatAsState(
+    targetValue = targetEnd,
+    animationSpec = boundaryMotion,
+    label = "ClipRangeEnd",
+  )
+
+  Canvas(
+    modifier = modifier.clip(RoundedCornerShape(percent = 50)),
+  ) {
+    val startX = animatedStart.coerceIn(0f, 1f) * size.width
+    val endX = animatedEnd.coerceIn(animatedStart.coerceIn(0f, 1f), 1f) * size.width
+    val selectionWidth = endX - startX
+    if (selectionWidth <= 0f || size.height <= 0f) return@Canvas
+
+    val cornerRadius = CornerRadius(size.height / 2f)
+    val outlineWidth = 1.dp.toPx().coerceAtMost(size.height / 3f)
+    drawRoundRect(
+      color = color.copy(alpha = 0.20f),
+      topLeft = Offset(startX, 0f),
+      size = Size(selectionWidth, size.height),
+      cornerRadius = cornerRadius,
+    )
+    drawRoundRect(
+      color = color.copy(alpha = 0.72f),
+      topLeft = Offset(startX, 0f),
+      size = Size(selectionWidth, size.height),
+      cornerRadius = cornerRadius,
+      style = Stroke(width = outlineWidth),
+    )
+
+    val markerWidth = 2.dp.toPx().coerceAtMost(size.height / 2f)
+    val markerInset = min(1.5.dp.toPx(), size.height * 0.18f)
+    val markerHeight = (size.height - markerInset * 2f).coerceAtLeast(markerWidth)
+    val markerRadius = CornerRadius(markerWidth / 2f)
+    fun drawBoundary(markerX: Float) {
+      drawRoundRect(
+        color = color,
+        topLeft = Offset(markerX - markerWidth / 2f, markerInset),
+        size = Size(markerWidth, markerHeight),
+        cornerRadius = markerRadius,
+      )
+    }
+    drawBoundary(startX)
+    drawBoundary(endX)
   }
 }
 

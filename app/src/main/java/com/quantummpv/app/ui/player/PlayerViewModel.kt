@@ -1464,6 +1464,9 @@ class PlayerViewModel : ViewModel(),
   private val _isAmbientEnabled = MutableStateFlow(playerPreferences.isAmbientEnabled.get())
   val isAmbientEnabled: StateFlow<Boolean> = _isAmbientEnabled.asStateFlow()
 
+  private val _ambientStyle = MutableStateFlow(playerPreferences.ambientStyle.get())
+  val ambientStyle: StateFlow<AmbientStyle> = _ambientStyle.asStateFlow()
+
   private val _ambientBlurSamples = MutableStateFlow(playerPreferences.ambientBlurSamples.get())
   val ambientBlurSamples: StateFlow<Int> = _ambientBlurSamples.asStateFlow()
 
@@ -5820,17 +5823,40 @@ class PlayerViewModel : ViewModel(),
       _isAmbientEnabled.value &&
       !MpvConfigOverridePolicy.ownsAny(MpvConfigControlledFeatures.AMBIENT)
 
+  private fun isAmbientGlowRuntimeActive(): Boolean =
+    isAmbientRuntimeActive() && _ambientStyle.value == AmbientStyle.Glow
+
   fun toggleAmbientMode() {
     if (MpvConfigOverridePolicy.ownsAny(MpvConfigControlledFeatures.AMBIENT)) return
     _isAmbientEnabled.value = !_isAmbientEnabled.value
     playerPreferences.isAmbientEnabled.set(_isAmbientEnabled.value)
     if (_isAmbientEnabled.value) {
-      lastAmbientScaleX = -1.0 // Force rewrite
-      scheduleAmbientUpdate(0)
+      if (_ambientStyle.value == AmbientStyle.Glow) {
+        lastAmbientScaleX = -1.0
+        scheduleAmbientUpdate(0)
+      }
       playerUpdate.value = PlayerUpdates.ShowText(appContext.getString(R.string.player_ambience_on))
     } else {
       disableAmbientShader()
       playerUpdate.value = PlayerUpdates.ShowText(appContext.getString(R.string.player_ambience_off))
+    }
+  }
+
+  /** Switches between the shader-backed Glow and frame-captured YouTube styles. */
+  fun setAmbientStyle(style: AmbientStyle) {
+    if (MpvConfigOverridePolicy.ownsAny(MpvConfigControlledFeatures.AMBIENT)) return
+    if (_ambientStyle.value == style) return
+    _ambientStyle.value = style
+    playerPreferences.ambientStyle.set(style)
+    playerUpdate.value =
+      PlayerUpdates.ShowText(
+        appContext.getString(R.string.ambient_style_update, appContext.getString(style.titleRes)),
+      )
+    if (style == AmbientStyle.Glow) {
+      lastAmbientScaleX = -1.0
+      scheduleAmbientUpdate(0)
+    } else {
+      disableAmbientShader()
     }
   }
 
@@ -5923,7 +5949,7 @@ class PlayerViewModel : ViewModel(),
 
   private fun scheduleAmbientUpdate(delayMs: Long = 150L) {
     synchronized(ambientScheduleLock) {
-      if (!isAmbientRuntimeActive()) return
+      if (!isAmbientGlowRuntimeActive()) return
 
       val generation = ambientUpdateGeneration.incrementAndGet()
       ambientDebounceJob?.cancel()
@@ -6030,7 +6056,7 @@ class PlayerViewModel : ViewModel(),
   }
 
   private suspend fun updateAmbientStretch(generation: Long) {
-    if (!isAmbientRuntimeActive() || generation != ambientUpdateGeneration.get()) return
+    if (!isAmbientGlowRuntimeActive() || generation != ambientUpdateGeneration.get()) return
 
     runCatching {
       val osdW = PlaybackSession.getPropertyInt("osd-width") ?: 1920
@@ -6135,7 +6161,7 @@ class PlayerViewModel : ViewModel(),
       currentCoroutineContext().ensureActive()
 
       synchronized(ambientRenderLock) {
-        if (!isAmbientRuntimeActive() || generation != ambientUpdateGeneration.get()) {
+        if (!isAmbientGlowRuntimeActive() || generation != ambientUpdateGeneration.get()) {
           newFile.delete()
           return@synchronized
         }

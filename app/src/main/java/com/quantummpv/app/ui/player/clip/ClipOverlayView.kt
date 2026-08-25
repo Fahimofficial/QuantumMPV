@@ -25,6 +25,18 @@ import android.view.ViewGroup
 import android.widget.FrameLayout
 import android.widget.Toast
 import androidx.activity.compose.BackHandler
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.EnterTransition
+import androidx.compose.animation.ExitTransition
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.scaleIn
+import androidx.compose.animation.scaleOut
+import androidx.compose.animation.slideInVertically
+import androidx.compose.animation.slideOutVertically
+import androidx.compose.animation.core.MutableTransitionState
+import androidx.compose.animation.core.Spring
+import androidx.compose.animation.core.spring
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
@@ -32,6 +44,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
@@ -44,10 +57,10 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
-import androidx.compose.material3.RangeSlider
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.RangeSlider
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -82,6 +95,8 @@ import com.quantummpv.app.ui.player.PlaybackSession
 import com.quantummpv.app.ui.player.PlayerActivity
 import com.quantummpv.app.ui.player.PlayerViewModel
 import com.quantummpv.app.ui.player.controls.components.panels.DraggablePanel
+import com.quantummpv.app.ui.theme.AppMotion
+import com.quantummpv.app.ui.theme.AppShapeScale
 import com.quantummpv.app.ui.theme.MpvrxTheme
 import com.quantummpv.app.ui.theme.spacing
 import java.util.Locale
@@ -217,6 +232,7 @@ class ClipOverlayView @JvmOverloads constructor(
             onCropCancel = { exitCropMode(keepSelection = false) },
             onCancel = ::cancelOrClose,
             onSave = ::saveOrCancelExport,
+            onPanelHidden = ::onPanelHidden,
           )
         }
       }
@@ -225,6 +241,12 @@ class ClipOverlayView @JvmOverloads constructor(
       panelView,
       LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT),
     )
+  }
+
+  private fun onPanelHidden() {
+    if (panelState.panelActive) return
+    panelView.visibility = GONE
+    if (draft == null) panelState = ClipPanelState()
   }
 
   private fun beginClip() {
@@ -376,8 +398,7 @@ class ClipOverlayView @JvmOverloads constructor(
     if (cropView != null) exitCropMode(keepSelection = false)
     draft = null
     ClipEditorUiState.clear()
-    panelState = ClipPanelState()
-    panelView.visibility = GONE
+    panelState = panelState.copy(panelActive = false, cropActive = false)
     playerViewModel()?.showControls()
   }
 
@@ -400,7 +421,6 @@ class ClipOverlayView @JvmOverloads constructor(
     if (!pausedBeforeCrop) PlaybackSession.setPropertyBoolean("pause", true)
 
     panelState = panelState.copy(panelActive = false, cropActive = true)
-    panelView.visibility = GONE
     val selector =
       CropSelectionView(
         context = context,
@@ -460,7 +480,7 @@ class ClipOverlayView @JvmOverloads constructor(
     if (!pausedBeforeCrop) PlaybackSession.setPropertyBoolean("pause", false)
     val reopenPanel = draft != null
     panelState = panelState.copy(panelActive = reopenPanel, cropActive = false)
-    panelView.visibility = if (reopenPanel) VISIBLE else GONE
+    if (reopenPanel) panelView.visibility = VISIBLE
     refreshDraftUi()
     if (reopenPanel) {
       playerViewModel()?.autoHideControls()
@@ -496,8 +516,7 @@ class ClipOverlayView @JvmOverloads constructor(
           lastTerminalState = state
           draft = null
           ClipEditorUiState.clear()
-          panelState = ClipPanelState()
-          panelView.visibility = GONE
+          panelState = panelState.copy(panelActive = false, exporting = false, cancelling = false, progress = 100)
           playerViewModel()?.showControls()
           ClipExportManager.consumeTerminalState()
         }
@@ -522,8 +541,7 @@ class ClipOverlayView @JvmOverloads constructor(
     draft = null
     if (cropView != null) exitCropMode(keepSelection = false)
     ClipEditorUiState.clear()
-    panelState = ClipPanelState()
-    panelView.visibility = GONE
+    panelState = panelState.copy(panelActive = false, cropActive = false)
     playerViewModel()?.showControls()
   }
 
@@ -657,198 +675,301 @@ private fun ClipEditorPanel(
   onCropCancel: () -> Unit,
   onCancel: () -> Unit,
   onSave: () -> Unit,
+  onPanelHidden: () -> Unit,
 ) {
   var startTimeValid by remember { mutableStateOf(true) }
   var endTimeValid by remember { mutableStateOf(true) }
+  val visibilityState = remember { MutableTransitionState(false) }
+  val reduceMotion = AppMotion.shouldReduceMotion()
+
+  LaunchedEffect(state.panelActive) {
+    visibilityState.targetState = state.panelActive
+  }
+  LaunchedEffect(visibilityState.isIdle, visibilityState.currentState, state.panelActive) {
+    if (visibilityState.isIdle && !visibilityState.currentState && !state.panelActive) {
+      onPanelHidden()
+    }
+  }
+
   BackHandler(enabled = state.panelActive, onBack = onCancel)
   BackHandler(enabled = state.cropActive, onBack = onCropCancel)
 
-  DraggablePanel(
-    header = {
-      Row(
-        verticalAlignment = Alignment.CenterVertically,
-        modifier =
-          Modifier
-            .fillMaxWidth()
-            .padding(horizontal = MaterialTheme.spacing.medium)
-            .padding(top = MaterialTheme.spacing.small),
+  AnimatedVisibility(
+    visibleState = visibilityState,
+    enter = fadeIn(animationSpec = AppMotion.Effect.Alpha),
+    exit = fadeOut(animationSpec = AppMotion.Effect.Alpha),
+  ) {
+    Box(
+      modifier =
+        Modifier
+          .fillMaxSize()
+          .background(MaterialTheme.colorScheme.scrim.copy(alpha = 0.32f)),
+    ) {
+      AnimatedVisibility(
+        visible = state.panelActive,
+        enter =
+          if (reduceMotion) {
+            EnterTransition.None
+          } else {
+            scaleIn(
+              animationSpec = AppMotion.Spatial.Expressive,
+              initialScale = 0.94f,
+            ) +
+              slideInVertically(
+                animationSpec =
+                  spring(
+                    dampingRatio = Spring.DampingRatioNoBouncy,
+                    stiffness = Spring.StiffnessMedium,
+                  ),
+                initialOffsetY = { height -> height / 12 },
+              )
+          },
+        exit =
+          if (reduceMotion) {
+            ExitTransition.None
+          } else {
+            scaleOut(
+              animationSpec = AppMotion.Spatial.Standard,
+              targetScale = 0.96f,
+            ) +
+              slideOutVertically(
+                animationSpec =
+                  spring(
+                    dampingRatio = Spring.DampingRatioNoBouncy,
+                    stiffness = Spring.StiffnessMedium,
+                  ),
+                targetOffsetY = { height -> height / 16 },
+              )
+          },
       ) {
-        AppIcon(
-          imageVector = Icons.RoundedFilled.ContentCut,
-          contentDescription = null,
-          tint = MaterialTheme.colorScheme.primary,
-          modifier = Modifier.size(22.dp),
-        )
-        Text(
-          text = stringResource(R.string.clip_action),
-          style = MaterialTheme.typography.titleLarge,
-          modifier = Modifier.padding(start = 10.dp),
-        )
-        Spacer(Modifier.weight(1f))
-        IconButton(onClick = onCancel) {
-          AppIcon(
-            imageVector = Icons.RoundedFilled.Close,
-            contentDescription = stringResource(R.string.clip_cancel),
-            modifier = Modifier.size(24.dp),
+        DraggablePanel(
+          modifier = Modifier.padding(horizontal = 16.dp, vertical = 24.dp),
+          shape = AppShapeScale.extraLarge,
+          containerColor = MaterialTheme.colorScheme.surfaceContainerHigh.copy(alpha = 0.98f),
+          tonalElevation = 6.dp,
+          shadowElevation = 12.dp,
+          border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.55f)),
+          header = {
+            Row(
+              verticalAlignment = Alignment.CenterVertically,
+              modifier =
+                Modifier
+                  .fillMaxWidth()
+                  .padding(horizontal = MaterialTheme.spacing.medium)
+                  .padding(top = MaterialTheme.spacing.small),
+            ) {
+              AppIcon(
+                imageVector = Icons.RoundedFilled.ContentCut,
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.primary,
+                modifier = Modifier.size(22.dp),
+              )
+              Text(
+                text = stringResource(R.string.clip_action),
+                style = MaterialTheme.typography.titleLarge,
+                modifier = Modifier.padding(start = 10.dp),
+              )
+              Spacer(Modifier.weight(1f))
+              IconButton(onClick = onCancel) {
+                AppIcon(
+                  imageVector = Icons.RoundedFilled.Close,
+                  contentDescription = stringResource(R.string.clip_cancel),
+                  modifier = Modifier.size(24.dp),
+                )
+              }
+            }
+          },
+        ) {
+          ClipEditorPanelContent(
+            state = state,
+            startTimeValid = startTimeValid,
+            endTimeValid = endTimeValid,
+            onStartTimeValidityChange = { startTimeValid = it },
+            onEndTimeValidityChange = { endTimeValid = it },
+            onRangeChange = onRangeChange,
+            onStartTimeChange = onStartTimeChange,
+            onEndTimeChange = onEndTimeChange,
+            onMarkStart = onMarkStart,
+            onMarkEnd = onMarkEnd,
+            onCrop = onCrop,
+            onCancel = onCancel,
+            onSave = onSave,
           )
         }
       }
-    },
+    }
+  }
+}
+
+@Composable
+private fun ClipEditorPanelContent(
+  state: ClipPanelState,
+  startTimeValid: Boolean,
+  endTimeValid: Boolean,
+  onStartTimeValidityChange: (Boolean) -> Unit,
+  onEndTimeValidityChange: (Boolean) -> Unit,
+  onRangeChange: (Float, Float, Float) -> Unit,
+  onStartTimeChange: (Float) -> Unit,
+  onEndTimeChange: (Float) -> Unit,
+  onMarkStart: () -> Unit,
+  onMarkEnd: () -> Unit,
+  onCrop: () -> Unit,
+  onCancel: () -> Unit,
+  onSave: () -> Unit,
+) {
+  Column(
+    modifier = Modifier.padding(MaterialTheme.spacing.medium),
+    verticalArrangement = Arrangement.spacedBy(MaterialTheme.spacing.medium),
   ) {
-    Column(
-      modifier = Modifier.padding(MaterialTheme.spacing.medium),
-      verticalArrangement = Arrangement.spacedBy(MaterialTheme.spacing.medium),
+    val end = state.endSeconds
+    val duration = state.durationSeconds
+    val maxTime = duration.takeIf { it > MIN_CLIP_SECONDS.toFloat() } ?: Float.MAX_VALUE
+    val maxStart = ((end ?: maxTime) - MIN_CLIP_SECONDS.toFloat()).coerceAtLeast(0f)
+    val minEnd = (state.startSeconds + MIN_CLIP_SECONDS.toFloat()).coerceAtMost(maxTime)
+
+    Row(
+      modifier = Modifier.fillMaxWidth(),
+      horizontalArrangement = Arrangement.spacedBy(12.dp),
+      verticalAlignment = Alignment.CenterVertically,
     ) {
-      val end = state.endSeconds
-      val duration = state.durationSeconds
-      val maxTime = duration.takeIf { it > MIN_CLIP_SECONDS.toFloat() } ?: Float.MAX_VALUE
-      val maxStart = ((end ?: maxTime) - MIN_CLIP_SECONDS.toFloat()).coerceAtLeast(0f)
-      val minEnd = (state.startSeconds + MIN_CLIP_SECONDS.toFloat()).coerceAtMost(maxTime)
+      ClipTimeField(
+        label = stringResource(R.string.clip_start_short),
+        seconds = state.startSeconds,
+        minSeconds = 0f,
+        maxSeconds = maxStart,
+        enabled = !state.exporting,
+        onCommit = onStartTimeChange,
+        onValidityChange = onStartTimeValidityChange,
+        modifier = Modifier.weight(1f),
+      )
+      ClipTimeField(
+        label = stringResource(R.string.clip_end_short),
+        seconds = state.endSeconds,
+        minSeconds = minEnd,
+        maxSeconds = maxTime,
+        enabled = !state.exporting,
+        onCommit = onEndTimeChange,
+        onValidityChange = onEndTimeValidityChange,
+        modifier = Modifier.weight(1f),
+      )
+    }
 
-      Row(
-        modifier = Modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.spacedBy(12.dp),
-        verticalAlignment = Alignment.CenterVertically,
+    if (end != null && duration > 0.05f) {
+      val start = state.startSeconds.coerceIn(0f, duration)
+      val safeEnd = end.coerceIn(start + 0.05f, duration)
+      val rangeDescription = stringResource(R.string.clip_options)
+      RangeSlider(
+        value = start..safeEnd,
+        onValueChange = { range ->
+          val startDelta = abs(range.start - start)
+          val endDelta = abs(range.endInclusive - safeEnd)
+          val preview = if (startDelta >= endDelta) range.start else range.endInclusive
+          onRangeChange(range.start, range.endInclusive, preview)
+        },
+        valueRange = 0f..duration,
+        enabled = !state.exporting,
+        modifier = Modifier.fillMaxWidth().semantics { contentDescription = rangeDescription },
+      )
+    }
+
+    Row(
+      modifier = Modifier.fillMaxWidth(),
+      horizontalArrangement = Arrangement.spacedBy(16.dp),
+    ) {
+      ClipMetadata(
+        icon = Icons.RoundedFilled.Timer,
+        text = state.clipDuration ?: "--:--",
+        modifier = Modifier.weight(0.7f),
+      )
+      ClipMetadata(
+        icon = Icons.RoundedFilled.AspectRatio,
+        text =
+          state.crop?.let { stringResource(R.string.clip_crop_size, it.width, it.height) }
+            ?: stringResource(R.string.clip_crop_full_frame),
+        modifier = Modifier.weight(1.3f),
+      )
+    }
+
+    Row(
+      modifier = Modifier.fillMaxWidth(),
+      horizontalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+      FilledTonalButton(
+        onClick = onMarkStart,
+        enabled = !state.exporting,
+        modifier = Modifier.weight(1f).height(48.dp),
       ) {
-        ClipTimeField(
-          label = stringResource(R.string.clip_start_short),
-          seconds = state.startSeconds,
-          minSeconds = 0f,
-          maxSeconds = maxStart,
-          enabled = !state.exporting,
-          onCommit = onStartTimeChange,
-          onValidityChange = { startTimeValid = it },
-          modifier = Modifier.weight(1f),
-        )
-        ClipTimeField(
-          label = stringResource(R.string.clip_end_short),
-          seconds = state.endSeconds,
-          minSeconds = minEnd,
-          maxSeconds = maxTime,
-          enabled = !state.exporting,
-          onCommit = onEndTimeChange,
-          onValidityChange = { endTimeValid = it },
-          modifier = Modifier.weight(1f),
-        )
+        AppIcon(Icons.RoundedFilled.SkipPrevious, contentDescription = null, modifier = Modifier.size(18.dp))
+        Spacer(Modifier.width(8.dp))
+        Text(stringResource(R.string.clip_start_short), maxLines = 1)
       }
-
-      if (end != null && duration > 0.05f) {
-        val start = state.startSeconds.coerceIn(0f, duration)
-        val safeEnd = end.coerceIn(start + 0.05f, duration)
-        val rangeDescription = stringResource(R.string.clip_options)
-        RangeSlider(
-          value = start..safeEnd,
-          onValueChange = { range ->
-            val startDelta = abs(range.start - start)
-            val endDelta = abs(range.endInclusive - safeEnd)
-            val preview = if (startDelta >= endDelta) range.start else range.endInclusive
-            onRangeChange(range.start, range.endInclusive, preview)
-          },
-          valueRange = 0f..duration,
-          enabled = !state.exporting,
-          modifier = Modifier.fillMaxWidth().semantics { contentDescription = rangeDescription },
-        )
-      }
-
-      Row(
-        modifier = Modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.spacedBy(16.dp),
+      FilledTonalButton(
+        onClick = onMarkEnd,
+        enabled = !state.exporting,
+        modifier = Modifier.weight(1f).height(48.dp),
       ) {
-        ClipMetadata(
-          icon = Icons.RoundedFilled.Timer,
-          text = state.clipDuration ?: "--:--",
-          modifier = Modifier.weight(0.7f),
+        AppIcon(Icons.RoundedFilled.SkipNext, contentDescription = null, modifier = Modifier.size(18.dp))
+        Spacer(Modifier.width(8.dp))
+        Text(stringResource(R.string.clip_end_short), maxLines = 1)
+      }
+    }
+
+    OutlinedButton(
+      onClick = onCrop,
+      enabled = !state.exporting,
+      modifier = Modifier.fillMaxWidth().height(48.dp),
+    ) {
+      AppIcon(Icons.RoundedFilled.AspectRatio, contentDescription = null, modifier = Modifier.size(19.dp))
+      Spacer(Modifier.width(8.dp))
+      Text(stringResource(R.string.clip_crop))
+    }
+
+    if (state.exporting) {
+      Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+        LinearProgressIndicator(
+          progress = { state.progress / 100f },
+          modifier = Modifier.fillMaxWidth(),
         )
-        ClipMetadata(
-          icon = Icons.RoundedFilled.AspectRatio,
+        Text(
           text =
-            state.crop?.let { stringResource(R.string.clip_crop_size, it.width, it.height) }
-              ?: stringResource(R.string.clip_crop_full_frame),
-          modifier = Modifier.weight(1.3f),
+            if (state.cancelling) {
+              stringResource(R.string.clip_cancelling)
+            } else {
+              stringResource(R.string.clip_exporting, state.progress)
+            },
+          style = MaterialTheme.typography.bodySmall,
+          color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
       }
-
+      OutlinedButton(
+        onClick = onSave,
+        enabled = !state.cancelling,
+        modifier = Modifier.fillMaxWidth().height(48.dp),
+      ) {
+        AppIcon(Icons.RoundedFilled.Close, contentDescription = null, modifier = Modifier.size(18.dp))
+        Spacer(Modifier.width(8.dp))
+        Text(stringResource(R.string.clip_cancel))
+      }
+    } else {
       Row(
         modifier = Modifier.fillMaxWidth(),
         horizontalArrangement = Arrangement.spacedBy(8.dp),
+        verticalAlignment = Alignment.CenterVertically,
       ) {
-        FilledTonalButton(
-          onClick = onMarkStart,
-          enabled = !state.exporting,
+        TextButton(
+          onClick = onCancel,
           modifier = Modifier.weight(1f).height(48.dp),
         ) {
-          AppIcon(Icons.RoundedFilled.SkipPrevious, contentDescription = null, modifier = Modifier.size(18.dp))
-          Spacer(Modifier.width(8.dp))
-          Text(stringResource(R.string.clip_start_short), maxLines = 1)
-        }
-        FilledTonalButton(
-          onClick = onMarkEnd,
-          enabled = !state.exporting,
-          modifier = Modifier.weight(1f).height(48.dp),
-        ) {
-          AppIcon(Icons.RoundedFilled.SkipNext, contentDescription = null, modifier = Modifier.size(18.dp))
-          Spacer(Modifier.width(8.dp))
-          Text(stringResource(R.string.clip_end_short), maxLines = 1)
-        }
-      }
-
-      OutlinedButton(
-        onClick = onCrop,
-        enabled = !state.exporting,
-        modifier = Modifier.fillMaxWidth().height(48.dp),
-      ) {
-        AppIcon(Icons.RoundedFilled.AspectRatio, contentDescription = null, modifier = Modifier.size(19.dp))
-        Spacer(Modifier.width(8.dp))
-        Text(stringResource(R.string.clip_crop))
-      }
-
-      if (state.exporting) {
-        Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-          LinearProgressIndicator(
-            progress = { state.progress / 100f },
-            modifier = Modifier.fillMaxWidth(),
-          )
-          Text(
-            text =
-              if (state.cancelling) {
-                stringResource(R.string.clip_cancelling)
-              } else {
-                stringResource(R.string.clip_exporting, state.progress)
-              },
-            style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-          )
-        }
-        OutlinedButton(
-          onClick = onSave,
-          enabled = !state.cancelling,
-          modifier = Modifier.fillMaxWidth().height(48.dp),
-        ) {
-          AppIcon(Icons.RoundedFilled.Close, contentDescription = null, modifier = Modifier.size(18.dp))
-          Spacer(Modifier.width(8.dp))
           Text(stringResource(R.string.clip_cancel))
         }
-      } else {
-        Row(
-          modifier = Modifier.fillMaxWidth(),
-          horizontalArrangement = Arrangement.spacedBy(8.dp),
-          verticalAlignment = Alignment.CenterVertically,
+        Button(
+          onClick = onSave,
+          enabled = state.canSave && startTimeValid && endTimeValid,
+          modifier = Modifier.weight(1.4f).height(48.dp),
         ) {
-          TextButton(
-            onClick = onCancel,
-            modifier = Modifier.weight(1f).height(48.dp),
-          ) {
-            Text(stringResource(R.string.clip_cancel))
-          }
-          Button(
-            onClick = onSave,
-            enabled = state.canSave && startTimeValid && endTimeValid,
-            modifier = Modifier.weight(1.4f).height(48.dp),
-          ) {
-            AppIcon(Icons.RoundedFilled.ContentCut, contentDescription = null, modifier = Modifier.size(18.dp))
-            Spacer(Modifier.width(8.dp))
-            Text(stringResource(R.string.clip_save), maxLines = 1)
-          }
+          AppIcon(Icons.RoundedFilled.ContentCut, contentDescription = null, modifier = Modifier.size(18.dp))
+          Spacer(Modifier.width(8.dp))
+          Text(stringResource(R.string.clip_save), maxLines = 1)
         }
       }
     }
