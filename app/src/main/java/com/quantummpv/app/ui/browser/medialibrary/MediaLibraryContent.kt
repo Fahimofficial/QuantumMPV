@@ -107,10 +107,9 @@ import com.quantummpv.app.ui.browser.videolist.VideoListContent
 import com.quantummpv.app.ui.browser.videolist.VideoWithPlaybackInfo
 import com.quantummpv.app.ui.icons.Icon
 import com.quantummpv.app.ui.icons.Icons
-import com.quantummpv.app.ui.player.MediaPlaybackService
 import com.quantummpv.app.ui.player.PlaybackIdentity
 import com.quantummpv.app.ui.player.PlaybackItem
-import com.quantummpv.app.ui.player.PlaybackSession
+import com.quantummpv.app.ui.player.PreparedPlaybackLaunchStore
 import com.quantummpv.app.ui.player.PlayerActivity
 import com.quantummpv.app.ui.securefolder.SecureFolderGateScreen
 import com.quantummpv.app.ui.utils.LocalBackStack
@@ -339,8 +338,7 @@ fun MediaLibraryContent(forceAudio: Boolean = false) {
         mimeType = item.mimeType,
       )
     }
-    MediaPlaybackService.prepareForFreshPlaybackLaunch()
-    PlaybackSession.replaceQueue(
+    val launchToken = PreparedPlaybackLaunchStore.stage(
       items = queueItems,
       currentIndex = index,
       isExplicitQueue = true,
@@ -352,6 +350,7 @@ fun MediaLibraryContent(forceAudio: Boolean = false) {
         addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
         putExtra("internal_launch", true)
         putExtra(PlayerActivity.EXTRA_PREPARED_PLAYBACK_QUEUE, true)
+        putExtra(PlayerActivity.EXTRA_PREPARED_PLAYBACK_TOKEN, launchToken)
         putExtra("playlist_id", ALL_VIDEOS_PLAYLIST_ID)
         putExtra("playlist_index", index)
         putExtra("launch_source", "media_library")

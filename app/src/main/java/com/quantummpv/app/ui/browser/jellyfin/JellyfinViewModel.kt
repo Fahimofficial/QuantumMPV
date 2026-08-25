@@ -31,8 +31,6 @@ import com.quantummpv.app.preferences.AudioPreferences
 import com.quantummpv.app.preferences.SubtitlesPreferences
 import com.quantummpv.app.repository.JellyfinRepository
 import com.quantummpv.app.ui.player.PlaybackIdentity
-import com.quantummpv.app.ui.player.PlaybackItem
-import com.quantummpv.app.ui.player.PlaybackSession
 import com.quantummpv.app.utils.media.MediaUtils
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -1350,6 +1348,7 @@ class JellyfinViewModel(
 
       val externalSubs = subsDeferred.await()
 
+      var playlistArtists: List<String> = emptyList()
       val playlistData =
         if (isAudio) {
           val audioSource =
@@ -1390,42 +1389,18 @@ class JellyfinViewModel(
             val uris = ArrayList<Uri>(audioSource.size)
             val titles = ArrayList<String>(audioSource.size)
             val artworks = ArrayList<String>(audioSource.size)
+            playlistArtists = audioSource.map { track -> track.seriesName ?: targetItem.seriesName ?: "" }
             var targetIdx = 0
-            val queueItems = audioSource.mapIndexed { idx, track ->
+            audioSource.forEachIndexed { idx, track ->
               if (track.id == targetItem.id) targetIdx = idx
               val tUrl = jellyfinRepository.getStreamUrl(server, track)
               val aUrl = jellyfinRepository.getImageUrl(server, track)
               uris.add(Uri.parse(tUrl))
               titles.add(track.name)
               artworks.add(aUrl)
-              PlaybackItem.fromUri(
-                uri = tUrl,
-                title = track.name,
-                artist = track.seriesName ?: targetItem.seriesName ?: "",
-                mimeType = "audio/*",
-                artworkUri = aUrl,
-              )
             }
-            PlaybackSession.replaceQueue(
-              items = queueItems,
-              currentIndex = targetIdx,
-              isExplicitQueue = true,
-            )
             Triple(uris, titles, targetIdx) to artworks
           } else {
-            val singleItem =
-              PlaybackItem.fromUri(
-                uri = streamUrl,
-                title = targetItem.name,
-                artist = targetItem.seriesName ?: "",
-                mimeType = "audio/*",
-                artworkUri = posterUrl,
-              )
-            PlaybackSession.replaceQueue(
-              items = listOf(singleItem),
-              currentIndex = 0,
-              isExplicitQueue = true,
-            )
             Triple(emptyList<Uri>(), emptyList<String>(), 0) to emptyList<String>()
           }
         } else if (targetItem.type == "Episode") {
@@ -1480,6 +1455,7 @@ class JellyfinViewModel(
           playlist = playlistUris,
           playlistIndex = playlistIndex,
           playlistTitles = playlistTitles,
+          playlistArtists = playlistArtists,
           playlistArtworkUrls = playlistArtworkUrls,
           isAudio = isAudio,
         )
@@ -1521,24 +1497,6 @@ class JellyfinViewModel(
             "${item.seriesName} S${item.parentIndexNumber ?: 1}E${item.indexNumber} - ${item.name}"
           else -> item.name
         },
-      )
-    }
-
-    if (isAudio) {
-      val queueItems = playable.map { item ->
-        val tUrl = jellyfinRepository.getStreamUrl(server, item)
-        PlaybackItem.fromUri(
-          uri = tUrl,
-          title = item.name,
-          artist = item.seriesName ?: "",
-          mimeType = "audio/*",
-          artworkUri = jellyfinRepository.getImageUrl(server, item),
-        )
-      }
-      PlaybackSession.replaceQueue(
-        items = queueItems,
-        currentIndex = 0,
-        isExplicitQueue = true,
       )
     }
 
@@ -1601,6 +1559,7 @@ class JellyfinViewModel(
           playlist = playlistUris,
           playlistIndex = 0,
           playlistTitles = playlistTitles,
+          playlistArtists = if (isAudio) playable.map { it.seriesName.orEmpty() } else emptyList(),
           playlistArtworkUrls = playlistArtworks,
           isAudio = isAudio,
         )

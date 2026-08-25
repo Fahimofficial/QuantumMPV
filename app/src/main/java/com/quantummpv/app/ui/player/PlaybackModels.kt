@@ -9,6 +9,8 @@
 
 package com.quantummpv.app.ui.player
 
+import com.quantummpv.app.utils.media.fileExtension
+import com.quantummpv.app.utils.storage.FileTypeUtils
 import java.net.URI
 import java.security.MessageDigest
 import java.util.Locale
@@ -87,6 +89,50 @@ data class PlaybackItem(
       )
   }
 }
+
+internal enum class DeclaredPlaybackMediaKind {
+  AUDIO,
+  VIDEO,
+  UNKNOWN,
+}
+
+internal fun PlaybackItem.declaredMediaKind(): DeclaredPlaybackMediaKind {
+  if (mimeType?.startsWith("audio/", ignoreCase = true) == true) return DeclaredPlaybackMediaKind.AUDIO
+  if (mimeType?.startsWith("video/", ignoreCase = true) == true) return DeclaredPlaybackMediaKind.VIDEO
+
+  val extensions =
+    sequenceOf(originalUri, playableUri, title)
+      .filterNotNull()
+      .map(String::fileExtension)
+      .filter(String::isNotBlank)
+      .toSet()
+  if (extensions.any(FileTypeUtils.VIDEO_EXTENSIONS::contains)) return DeclaredPlaybackMediaKind.VIDEO
+  if (extensions.any(FileTypeUtils.AUDIO_EXTENSIONS::contains)) return DeclaredPlaybackMediaKind.AUDIO
+  if (sequenceOf(originalUri, playableUri).any { candidate ->
+      candidate.contains("/Audio/", ignoreCase = true) ||
+        candidate.contains("includeItemTypes=Audio", ignoreCase = true)
+    }) {
+    return DeclaredPlaybackMediaKind.AUDIO
+  }
+  return DeclaredPlaybackMediaKind.UNKNOWN
+}
+
+internal fun PlaybackItem.isDefinitelyAudioOnly(): Boolean =
+  declaredMediaKind() == DeclaredPlaybackMediaKind.AUDIO
+
+internal enum class PlaybackVideoSelection {
+  DISABLED,
+  IMMEDIATE,
+  DEFERRED,
+}
+
+internal fun PlaybackItem.videoSelection(surfaceAttached: Boolean): PlaybackVideoSelection =
+  when (declaredMediaKind()) {
+    DeclaredPlaybackMediaKind.AUDIO -> PlaybackVideoSelection.DISABLED
+    DeclaredPlaybackMediaKind.VIDEO,
+    DeclaredPlaybackMediaKind.UNKNOWN,
+    -> if (surfaceAttached) PlaybackVideoSelection.IMMEDIATE else PlaybackVideoSelection.DEFERRED
+  }
 
 data class PlaybackQueueState(
   val items: List<PlaybackItem> = emptyList(),

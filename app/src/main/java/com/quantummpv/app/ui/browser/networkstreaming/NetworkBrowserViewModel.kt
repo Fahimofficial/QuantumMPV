@@ -25,10 +25,9 @@ import com.quantummpv.app.domain.network.NetworkPath
 import com.quantummpv.app.domain.network.NetworkPlaybackUri
 import com.quantummpv.app.domain.network.NetworkProtocol
 import com.quantummpv.app.repository.NetworkRepository
-import com.quantummpv.app.ui.player.MediaPlaybackService
 import com.quantummpv.app.ui.player.NetworkPlaybackSource
 import com.quantummpv.app.ui.player.PlaybackItem
-import com.quantummpv.app.ui.player.PlaybackSession
+import com.quantummpv.app.ui.player.PreparedPlaybackLaunchStore
 import com.quantummpv.app.ui.player.PlayerActivity
 import com.quantummpv.app.utils.media.M3UParseResult
 import com.quantummpv.app.utils.media.M3UParser
@@ -214,8 +213,7 @@ class NetworkBrowserViewModel(
           networkSource = NetworkPlaybackSource(connection.id, networkFile.path),
         )
       }
-    MediaPlaybackService.prepareForFreshPlaybackLaunch()
-    PlaybackSession.replaceQueue(
+    val launchToken = PreparedPlaybackLaunchStore.stage(
       items = queueItems,
       currentIndex = playlistIndex,
       isExplicitQueue = true,
@@ -227,6 +225,7 @@ class NetworkBrowserViewModel(
     intent.putExtra("internal_launch", true)
     intent.putExtra("launch_source", "network_stream")
     intent.putExtra(PlayerActivity.EXTRA_PREPARED_PLAYBACK_QUEUE, true)
+    intent.putExtra(PlayerActivity.EXTRA_PREPARED_PLAYBACK_TOKEN, launchToken)
     intent.putExtra("title", file.name)
     intent.putExtra("filename", file.name)
     intent.putExtra("network_file_path", file.path)

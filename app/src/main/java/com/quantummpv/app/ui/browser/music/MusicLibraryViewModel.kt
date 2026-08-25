@@ -11,9 +11,9 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.quantummpv.app.database.entities.PlaylistEntity
 import com.quantummpv.app.database.repository.PlaylistRepository
-import com.quantummpv.app.ui.player.MediaPlaybackService
 import com.quantummpv.app.ui.player.PlaybackItem
 import com.quantummpv.app.ui.player.PlaybackSession
+import com.quantummpv.app.ui.player.PreparedPlaybackLaunchStore
 import com.quantummpv.app.ui.player.PlayerActivity
 import com.quantummpv.app.utils.history.RecentlyPlayedOps
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -301,10 +301,6 @@ class MusicLibraryViewModel : ViewModel(), KoinComponent {
     if (songList.isEmpty()) return
     val index = songList.indexOfFirst { it.id == song.id }.coerceAtLeast(0)
 
-    // This selects different media, so quiesce the detached service and mini-player renderer
-    // before publishing the audio queue. Same-item Activity handoff must remain lossless instead.
-    MediaPlaybackService.prepareForFreshPlaybackLaunch()
-
     val queueItems = songList.map { item ->
       PlaybackItem.fromUri(
         uri = item.uri.toString(),
@@ -314,7 +310,7 @@ class MusicLibraryViewModel : ViewModel(), KoinComponent {
         artworkUri = item.albumArtUri?.toString(),
       )
     }
-    PlaybackSession.replaceQueue(
+    val launchToken = PreparedPlaybackLaunchStore.stage(
       items = queueItems,
       currentIndex = index,
       isExplicitQueue = true,
@@ -325,6 +321,7 @@ class MusicLibraryViewModel : ViewModel(), KoinComponent {
       addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
       putExtra("internal_launch", true)
       putExtra(PlayerActivity.EXTRA_PREPARED_PLAYBACK_QUEUE, true)
+      putExtra(PlayerActivity.EXTRA_PREPARED_PLAYBACK_TOKEN, launchToken)
       putExtra("playlist_index", index)
       putExtra("launch_source", "music_library")
       putExtra("media_library_audio", true)
@@ -339,8 +336,6 @@ class MusicLibraryViewModel : ViewModel(), KoinComponent {
     val list = if (shuffle) songsToPlay.shuffled() else songsToPlay
     val firstSong = list.first()
 
-    MediaPlaybackService.prepareForFreshPlaybackLaunch()
-
     val queueItems = list.map { item ->
       PlaybackItem.fromUri(
         uri = item.uri.toString(),
@@ -350,7 +345,7 @@ class MusicLibraryViewModel : ViewModel(), KoinComponent {
         artworkUri = item.albumArtUri?.toString(),
       )
     }
-    PlaybackSession.replaceQueue(
+    val launchToken = PreparedPlaybackLaunchStore.stage(
       items = queueItems,
       currentIndex = 0,
       isExplicitQueue = true,
@@ -361,6 +356,7 @@ class MusicLibraryViewModel : ViewModel(), KoinComponent {
       addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
       putExtra("internal_launch", true)
       putExtra(PlayerActivity.EXTRA_PREPARED_PLAYBACK_QUEUE, true)
+      putExtra(PlayerActivity.EXTRA_PREPARED_PLAYBACK_TOKEN, launchToken)
       putExtra("playlist_index", 0)
       putExtra("launch_source", if (shuffle) "music_shuffle" else "music_play_all")
       putExtra("media_library_audio", true)

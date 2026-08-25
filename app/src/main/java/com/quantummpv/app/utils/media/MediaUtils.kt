@@ -18,8 +18,11 @@ import androidx.core.content.FileProvider
 import androidx.core.net.toUri
 import com.quantummpv.app.domain.media.model.Video
 import com.quantummpv.app.domain.torrent.isTorrentSource
+import com.quantummpv.app.ui.player.PlaybackIdentity
+import com.quantummpv.app.ui.player.PlaybackItem
 import com.quantummpv.app.ui.player.PlayerActivity
 import com.quantummpv.app.ui.player.PlayerLookupHints
+import com.quantummpv.app.ui.player.PreparedPlaybackLaunchStore
 import com.quantummpv.app.ui.torrent.TorrentSelectionActivity
 import com.quantummpv.app.utils.storage.FileTypeUtils
 import `is`.xyz.mpv.Utils
@@ -56,6 +59,51 @@ data class PlaybackSubtitleTrack(
  * bypassing MediaUtils.
  */
 object MediaUtils {
+  fun playFiles(
+    videos: List<Video>,
+    context: Context,
+    startIndex: Int = 0,
+    launchSource: String = "playlist",
+  ) {
+    if (videos.isEmpty()) return
+    val selectedIndex = startIndex.coerceIn(videos.indices)
+    if (videos.size == 1) {
+      playFile(videos.single(), context, launchSource)
+      return
+    }
+
+    val queueItems =
+      videos.map { video ->
+        PlaybackItem.fromUri(
+          uri = video.uri.toString(),
+          stableId = video.path.takeIf(String::isNotBlank)?.let(PlaybackIdentity::forLocalPath),
+          title = video.displayName,
+          mimeType = video.mimeType,
+        )
+      }
+    val launchToken =
+      PreparedPlaybackLaunchStore.stage(
+        items = queueItems,
+        currentIndex = selectedIndex,
+        isExplicitQueue = true,
+      )
+    val selected = videos[selectedIndex]
+    val intent =
+      Intent(Intent.ACTION_VIEW, selected.uri).apply {
+        setClass(context, PlayerActivity::class.java)
+        addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+        putExtra("internal_launch", true)
+        putExtra(PlayerActivity.EXTRA_PREPARED_PLAYBACK_QUEUE, true)
+        putExtra(PlayerActivity.EXTRA_PREPARED_PLAYBACK_TOKEN, launchToken)
+        putExtra("playlist_index", selectedIndex)
+        putExtra("launch_source", launchSource)
+        putExtra("is_audio", selected.isAudio)
+        putExtra("title", selected.displayName)
+        putExtra("local_media_path", selected.path)
+      }
+    context.startActivity(intent)
+  }
+
   /**
    * Play video content from any source.
    *
@@ -85,6 +133,7 @@ object MediaUtils {
     playlist: List<Uri> = emptyList(),
     playlistIndex: Int = 0,
     playlistTitles: List<String> = emptyList(),
+    playlistArtists: List<String> = emptyList(),
     playlistArtworkUrls: List<String> = emptyList(),
     isAudio: Boolean = false,
   ) {
@@ -146,6 +195,7 @@ object MediaUtils {
             playlist = playlist,
             playlistIndex = playlistIndex,
             playlistTitles = playlistTitles,
+            playlistArtists = playlistArtists,
             playlistArtworkUrls = playlistArtworkUrls,
             isAudio = isAudio,
           )
@@ -231,6 +281,7 @@ object MediaUtils {
       playlist = playlist,
       playlistIndex = playlistIndex,
       playlistTitles = playlistTitles,
+      playlistArtists = playlistArtists,
       playlistArtworkUrls = playlistArtworkUrls,
       isAudio = isAudio,
     )
@@ -291,6 +342,7 @@ object MediaUtils {
     playlist: List<Uri> = emptyList(),
     playlistIndex: Int = 0,
     playlistTitles: List<String> = emptyList(),
+    playlistArtists: List<String> = emptyList(),
     playlistArtworkUrls: List<String> = emptyList(),
     isAudio: Boolean = false,
   ) {
@@ -299,18 +351,31 @@ object MediaUtils {
       intent.putExtra("media_library_audio", true)
     }
     if (playlist.isNotEmpty()) {
-      val playlistArrayList = if (playlist is ArrayList) playlist else ArrayList(playlist)
-      intent.putParcelableArrayListExtra("playlist", playlistArrayList)
-      intent.putExtra("playlistIndex", playlistIndex)
-      intent.putExtra("playlist_index", playlistIndex)
-      if (playlistTitles.isNotEmpty()) {
-        val titlesArrayList = if (playlistTitles is ArrayList) playlistTitles else ArrayList(playlistTitles)
-        intent.putStringArrayListExtra("playlist_titles", titlesArrayList)
-      }
-      if (playlistArtworkUrls.isNotEmpty()) {
-        val artworksArrayList = if (playlistArtworkUrls is ArrayList) playlistArtworkUrls else ArrayList(playlistArtworkUrls)
-        intent.putStringArrayListExtra("playlist_artwork_urls", artworksArrayList)
-      }
+      val selectedIndex = playlistIndex.coerceIn(playlist.indices)
+      val queueItems =
+        playlist.mapIndexed { index, uri ->
+          PlaybackItem.fromUri(
+            uri = uri.toString(),
+            title = playlistTitles.getOrNull(index),
+            artist = playlistArtists.getOrNull(index),
+            mimeType = if (isAudio) "audio/*" else "video/*",
+            headers = headers.orEmpty(),
+            artworkUri =
+              playlistArtworkUrls.getOrNull(index)?.takeIf(String::isNotBlank)
+                ?: posterUrl?.takeIf { index == selectedIndex },
+          )
+        }
+      val launchToken =
+        PreparedPlaybackLaunchStore.stage(
+          items = queueItems,
+          currentIndex = selectedIndex,
+          isExplicitQueue = true,
+        )
+      intent.putExtra("internal_launch", true)
+      intent.putExtra(PlayerActivity.EXTRA_PREPARED_PLAYBACK_QUEUE, true)
+      intent.putExtra(PlayerActivity.EXTRA_PREPARED_PLAYBACK_TOKEN, launchToken)
+      intent.putExtra("playlistIndex", selectedIndex)
+      intent.putExtra("playlist_index", selectedIndex)
     }
     launchSource?.let { intent.putExtra("launch_source", it) }
     title?.let {

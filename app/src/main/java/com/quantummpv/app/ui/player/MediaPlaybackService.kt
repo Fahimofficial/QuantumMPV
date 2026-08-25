@@ -170,22 +170,6 @@ class MediaPlaybackService :
       }
     }
 
-    /** Stops the detached owner before a foreground Activity replaces the current media. */
-    internal fun prepareForFreshPlaybackLaunch() {
-      activeInstance?.let { service ->
-        service.handingBackToActivity = true
-        service.abandonAudioOwnership()
-        runCatching { service.releaseMpvAccessBeforeShutdown() }
-          .onFailure { error -> Log.e(TAG, "Error releasing service before fresh playback", error) }
-      }
-      if (PlaybackSession.state.value.phase !in
-        setOf(PlaybackPhase.UNINITIALIZED, PlaybackPhase.IDLE, PlaybackPhase.STOPPING)
-      ) {
-        PlaybackSession.stop(clearQueue = false)
-      }
-      PlaybackSession.detachSurfaceForMediaReplacement()
-    }
-
     internal fun isActivityHandoffInProgress(): Boolean = activeInstance?.handingBackToActivity == true
 
     /** Releases every service-owned MPV access before an Activity destroys the global core. */
@@ -458,7 +442,9 @@ class MediaPlaybackService :
       val uri = it.getStringExtra("media_uri")
       val identifier = it.getStringExtra("media_identifier")
       if (it.hasExtra("audio_background_playback")) {
-        usesAudioBackgroundPlayback = it.getBooleanExtra("audio_background_playback", false)
+        val isAudio = it.getBooleanExtra("audio_background_playback", false)
+        usesAudioBackgroundPlayback = isAudio
+        notificationIsAudio = isAudio
       }
 
       if (!title.isNullOrBlank()) {
@@ -609,6 +595,7 @@ class MediaPlaybackService :
 
   fun setPlaylistInfo(isAudio: Boolean) {
     notificationIsAudio = isAudio
+    usesAudioBackgroundPlayback = isAudio
   }
 
   fun takeAudioOwnership(): Boolean {
@@ -661,6 +648,7 @@ class MediaPlaybackService :
   }
 
   private fun playNextFromSession(): Boolean {
+    if (!canHandleDetachedTransport()) return false
     schedulePlaybackStateSave(force = true)
     val item = PlaybackSession.playNext()
     if (item == null) {
@@ -672,6 +660,7 @@ class MediaPlaybackService :
   }
 
   private fun playPreviousFromSession() {
+    if (!canHandleDetachedTransport()) return
     schedulePlaybackStateSave(force = true)
     PlaybackSession.playPrevious()?.let(::applySessionItem) ?: refreshTransportControls()
   }
@@ -723,7 +712,9 @@ class MediaPlaybackService :
   private fun applySessionItem(item: PlaybackItem) {
     val itemChanged = mediaIdentifier != item.stableId || mediaUri != item.originalUri
     val artworkChanged = activeArtworkUri != item.artworkUri
-    notificationIsAudio = resolveNotificationIsAudio(item, notificationIsAudio)
+    val isAudio = resolveNotificationIsAudio(item, notificationIsAudio)
+    notificationIsAudio = isAudio
+    usesAudioBackgroundPlayback = isAudio
     mediaIdentifier = item.stableId
     mediaTitle = FileTypeUtils.stripExtension(item.title.orEmpty()).ifBlank { getString(R.string.player_unknown_video) }
     mediaArtist = item.artist.orEmpty()
@@ -769,23 +760,12 @@ class MediaPlaybackService :
   private fun resolveNotificationIsAudio(
     item: PlaybackItem,
     fallback: Boolean,
-  ): Boolean {
-    val mimeType = item.mimeType.orEmpty()
-    if (mimeType.startsWith("audio/", ignoreCase = true)) return true
-    if (mimeType.startsWith("video/", ignoreCase = true)) return false
-
-    val extension =
-      item.originalUri
-        .substringBefore('?')
-        .substringBefore('#')
-        .substringAfterLast('.', missingDelimiterValue = "")
-        .lowercase(Locale.ROOT)
-    return when (extension) {
-      in FileTypeUtils.AUDIO_EXTENSIONS -> true
-      in FileTypeUtils.VIDEO_EXTENSIONS -> false
-      else -> fallback
+  ): Boolean =
+    when (item.declaredMediaKind()) {
+      DeclaredPlaybackMediaKind.AUDIO -> true
+      DeclaredPlaybackMediaKind.VIDEO -> false
+      DeclaredPlaybackMediaKind.UNKNOWN -> fallback
     }
-  }
 
   private fun syncQueueState(queueState: PlaybackQueueState) {
     if (!::mediaSession.isInitialized) return
@@ -876,6 +856,7 @@ class MediaPlaybackService :
   }
 
   private fun togglePlaybackFromNotification() {
+    if (!canHandleDetachedTransport()) return
     val shouldPlay = PlaybackSession.getPropertyBoolean("pause") != false
     if (shouldPlay && !PlaybackSession.state.value.surfaceAttached && !takeAudioOwnership()) return
     paused = !shouldPlay
@@ -884,6 +865,7 @@ class MediaPlaybackService :
   }
 
   private fun stopPlaybackAndService() {
+    if (!canHandleDetachedTransport()) return
     handingBackToActivity = false
     schedulePlaybackStateSave(force = true)
     torrentStreamingEngine.stopStream()
@@ -949,37 +931,44 @@ class MediaPlaybackService :
         setCallback(
           object : MediaSessionCompat.Callback() {
             override fun onPlay() {
+              if (!canHandleDetachedTransport()) return
               Log.d(TAG, "onPlay called")
               handleMediaPlayAction(shouldPlay = true)
             }
 
             override fun onPause() {
+              if (!canHandleDetachedTransport()) return
               Log.d(TAG, "onPause called")
               handleMediaPlayAction(shouldPlay = false)
             }
 
             override fun onStop() {
+              if (!canHandleDetachedTransport()) return
               Log.d(TAG, "onStop called")
               stopPlaybackAndService()
             }
 
             override fun onSkipToNext() {
+              if (!canHandleDetachedTransport()) return
               Log.d(TAG, "onSkipToNext called")
               handleMediaNextAction()
             }
 
             override fun onSkipToPrevious() {
+              if (!canHandleDetachedTransport()) return
               Log.d(TAG, "onSkipToPrevious called")
               handleMediaPreviousAction()
             }
 
             override fun onSkipToQueueItem(id: Long) {
+              if (!canHandleDetachedTransport()) return
               val index = publishedQueueIndexes[id] ?: return
               schedulePlaybackStateSave(force = true)
               PlaybackSession.playQueueItem(index)?.let(::applySessionItem)
             }
 
             override fun onSeekTo(pos: Long) {
+              if (!canHandleDetachedTransport()) return
               Log.d(TAG, "onSeekTo called: $pos")
               val duration = sanitizedDurationMs()
               val resolvedPosition = pos.coerceIn(0L, duration.takeIf { it > 0L } ?: Long.MAX_VALUE)
@@ -989,6 +978,7 @@ class MediaPlaybackService :
             }
 
             override fun onSetRepeatMode(repeatMode: Int) {
+              if (!canHandleDetachedTransport()) return
               val resolvedMode =
                 when (repeatMode) {
                   PlaybackStateCompat.REPEAT_MODE_NONE -> RepeatMode.OFF
@@ -1000,6 +990,7 @@ class MediaPlaybackService :
             }
 
             override fun onSetShuffleMode(shuffleMode: Int) {
+              if (!canHandleDetachedTransport()) return
               when (shuffleMode) {
                 PlaybackStateCompat.SHUFFLE_MODE_NONE -> PlaybackSession.setShuffleEnabled(false)
                 PlaybackStateCompat.SHUFFLE_MODE_ALL -> PlaybackSession.setShuffleEnabled(true)
@@ -1013,6 +1004,9 @@ class MediaPlaybackService :
       }
     sessionToken = mediaSession.sessionToken
   }
+
+  private fun canHandleDetachedTransport(): Boolean =
+    !mpvAccessReleased && !activityForeground && !handingBackToActivity
 
   private fun currentNotificationStyle(): NotificationStyle =
     advancedPreferences.notificationStyle

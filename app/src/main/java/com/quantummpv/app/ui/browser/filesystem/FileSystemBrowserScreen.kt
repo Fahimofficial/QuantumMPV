@@ -847,15 +847,7 @@ fun FileSystemBrowserScreen(path: String? = null) {
                           // Single video - play normally
                           MediaUtils.playFile(video, context)
                         } else {
-                          // Multiple videos - play as playlist starting from clicked video
-                          val intent = Intent(Intent.ACTION_VIEW, allVideos[startIndex].uri)
-                          intent.setClass(context, com.quantummpv.app.ui.player.PlayerActivity::class.java)
-                          intent.putExtra("internal_launch", true)
-                          intent.putParcelableArrayListExtra("playlist", ArrayList(allVideos.map { it.uri }))
-                          intent.putExtra("playlist_index", startIndex)
-                          intent.putExtra("launch_source", "playlist")
-                          intent.putExtra("is_audio", video.isAudio)
-                          context.startActivity(intent)
+                          MediaUtils.playFiles(allVideos, context, startIndex)
                         }
                       } else {
                         MediaUtils.playFile(video, context)
@@ -1284,15 +1276,7 @@ private fun playVideosAsPlaylist(
     // Single video - play normally
     MediaUtils.playFile(videos.first(), context)
   } else {
-    // Multiple videos - play as playlist
-    val intent = Intent(Intent.ACTION_VIEW, videos.first().uri)
-    intent.setClass(context, com.quantummpv.app.ui.player.PlayerActivity::class.java)
-    intent.putExtra("internal_launch", true)
-    intent.putParcelableArrayListExtra("playlist", ArrayList(videos.map { it.uri }))
-    intent.putExtra("playlist_index", 0)
-    intent.putExtra("launch_source", "playlist")
-    intent.putExtra("is_audio", videos.first().isAudio)
-    context.startActivity(intent)
+    MediaUtils.playFiles(videos, context)
   }
 }
 

@@ -85,15 +85,15 @@ import com.quantummpv.app.preferences.preference.collectAsState
 import com.quantummpv.app.ui.browser.NavigationBarState
 import com.quantummpv.app.ui.icons.Icon
 import com.quantummpv.app.ui.icons.Icons
+import com.quantummpv.app.ui.player.DeclaredPlaybackMediaKind
 import com.quantummpv.app.ui.player.MediaPlaybackService
 import com.quantummpv.app.ui.player.PlaybackPhase
 import com.quantummpv.app.ui.player.PlaybackSession
 import com.quantummpv.app.ui.player.PlayerActivity
 import com.quantummpv.app.ui.player.TrackNode
+import com.quantummpv.app.ui.player.declaredMediaKind
 import com.quantummpv.app.ui.player.toObject
 import com.quantummpv.app.ui.utils.LocalBackStack
-import com.quantummpv.app.utils.media.fileExtension
-import com.quantummpv.app.utils.storage.FileTypeUtils
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -124,17 +124,11 @@ fun MiniPlayer(modifier: Modifier = Modifier) {
   val hasRealVideo = tracks.any { it.isVideo && !it.isAlbumArtwork }
   val hasAlbumArt = tracks.any { it.isAlbumArtwork }
 
-  val ext = (currentItem?.originalUri ?: currentItem?.title ?: "").fileExtension()
-  val mimeIsAudio = currentItem?.mimeType?.startsWith("audio/", ignoreCase = true) == true
-  val mimeIsVideo = currentItem?.mimeType?.startsWith("video/", ignoreCase = true) == true
-  val extIsAudio = ext in FileTypeUtils.AUDIO_EXTENSIONS
-  val extIsVideo = ext in FileTypeUtils.VIDEO_EXTENSIONS
-
   val isAudioOnlyItem =
-    when {
-      mimeIsAudio || extIsAudio -> true
-      mimeIsVideo || extIsVideo || hasRealVideo -> false
-      else -> hasAlbumArt || tracks.any { it.isAudio }
+    when (currentItem?.declaredMediaKind() ?: DeclaredPlaybackMediaKind.UNKNOWN) {
+      DeclaredPlaybackMediaKind.AUDIO -> true
+      DeclaredPlaybackMediaKind.VIDEO -> false
+      DeclaredPlaybackMediaKind.UNKNOWN -> !hasRealVideo && (hasAlbumArt || tracks.any { it.isAudio })
     }
 
   val isMiniPlayerAllowed = isAudioOnlyItem || enableVideoMiniPlayer
@@ -143,6 +137,7 @@ fun MiniPlayer(modifier: Modifier = Modifier) {
     !isSettingsScreen &&
     isMiniPlayerAllowed &&
     sessionState.phase != PlaybackPhase.IDLE &&
+    sessionState.phase != PlaybackPhase.STOPPING &&
     sessionState.phase != PlaybackPhase.UNINITIALIZED &&
     sessionState.phase != PlaybackPhase.ERROR
 
