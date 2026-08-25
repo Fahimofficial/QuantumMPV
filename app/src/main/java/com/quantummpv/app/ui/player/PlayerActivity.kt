@@ -1019,6 +1019,7 @@ class PlayerActivity :
       repeatOnLifecycle(Lifecycle.State.STARTED) {
         viewModel.isAudioOnly.collect { isAudioOnly ->
           if (isAudioOnly) {
+            applyPlaybackBrightnessPolicy(isAudio = true)
             viewModel.showControls()
             binding.player.visibility = View.INVISIBLE
             try {
@@ -1656,17 +1657,7 @@ class PlayerActivity :
       // foreground. It is unregistered in onStop(). See issue 2.3.
       registerScreenStateReceiver()
 
-      if (playerPreferences.rememberBrightness.get()) {
-        val brightness = playerPreferences.defaultBrightness.get()
-        if (brightness != BRIGHTNESS_NOT_SET) {
-          viewModel.changeBrightnessTo(brightness)
-        }
-      } else {
-        // Adhere to the system brightness (including auto-brightness). Do not force the
-        // manual SCREEN_BRIGHTNESS value onto the window, which dims the screen when
-        // auto-brightness is active.
-        viewModel.resetBrightnessToSystem()
-      }
+      applyPlaybackBrightnessPolicy()
 
       if (!isInPictureInPictureMode) {
         wasInPipMode = false
@@ -4560,6 +4551,7 @@ class PlayerActivity :
     val previousItemWasReady = isReady
 
     setIntent(intent)
+    applyPlaybackBrightnessPolicy(isAudio = isKnownAudioLaunch(intent))
     mediaRequestGeneration++
     cancelPlaybackLoadRecovery()
     pendingSavedPlaylistSelection = null
@@ -5329,7 +5321,29 @@ class PlayerActivity :
   }
 
   private fun isKnownAudioLaunch(sourceIntent: Intent): Boolean =
-    sourceIntent.getBooleanExtra("is_audio", false) || sourceIntent.type?.startsWith("audio/") == true
+    sourceIntent.getBooleanExtra("is_audio", false) ||
+      sourceIntent.type?.startsWith("audio/") == true ||
+      sequenceOf(sourceIntent.dataString, sourceIntent.getStringExtra("local_media_path"))
+        .filterNotNull()
+        .any { source -> source.fileExtension() in FileTypeUtils.AUDIO_EXTENSIONS }
+
+  private fun applyPlaybackBrightnessPolicy(
+    isAudio: Boolean = viewModel.isAudioOnly.value || isKnownAudioLaunch(intent) || isCurrentMediaKnownAudio(),
+  ) {
+    if (isAudio || !playerPreferences.rememberBrightness.get()) {
+      // Audio playback must never hold a per-window video brightness override. Resetting to
+      // BRIGHTNESS_OVERRIDE_NONE also restores the system brightness slider immediately.
+      viewModel.resetBrightnessToSystem()
+      return
+    }
+
+    val brightness = playerPreferences.defaultBrightness.get()
+    if (brightness == BRIGHTNESS_NOT_SET) {
+      viewModel.resetBrightnessToSystem()
+    } else {
+      viewModel.changeBrightnessTo(brightness)
+    }
+  }
 
   // ==================== Key Event Handling ====================
 
@@ -6928,6 +6942,19 @@ class PlayerActivity :
         else -> Uri.fromFile(File(path))
       }
     }
+    val requestedPath = sourceIntent.getStringExtra("local_media_path")
+    val requestedUri = sourceIntent.dataString
+    // A selected item starts loading before this Room query finishes, temporarily creating a
+    // one-item queue at index 0. Resolve from immutable launch identity so that temporary queue
+    // observation cannot replace the actual selected position in the full playlist.
+    val derivedIndex =
+      loadedItems.indices.firstOrNull { index ->
+        val storedPath = loadedItems[index].filePath
+        storedPath == requestedPath || storedPath == requestedUri || items[index].toString() == requestedUri
+      }
+    val requestedIndex =
+      derivedIndex
+        ?: sourceIntent.getIntExtra("playlist_index", -1).takeIf { index -> index >= 0 }
     val totalCount = loadedItems.size
     if (expectedGeneration != mediaRequestGeneration) return
 
@@ -6938,7 +6965,7 @@ class PlayerActivity :
       isM3uPlaylist = loadedPlaylist?.isM3uPlaylist == true
       playlist = items
       networkPlaylistHeaders = emptyList()
-      playlistIndex = if (items.isEmpty()) 0 else playlistIndex.coerceIn(items.indices)
+      playlistIndex = if (items.isEmpty()) 0 else (requestedIndex ?: playlistIndex).coerceIn(items.indices)
       playlistWindowOffset = 0
       playlistTotalCount = totalCount
       Log.d(TAG, "$logPrefix all $totalCount items from playlist $pid (isM3U: $isM3uPlaylist)")
