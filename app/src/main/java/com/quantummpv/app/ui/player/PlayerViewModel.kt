@@ -71,6 +71,7 @@ import com.quantummpv.app.ui.player.controls.components.sheets.EQ_MAX_DB
 import com.quantummpv.app.ui.player.controls.components.sheets.EQ_MIN_DB
 import com.quantummpv.app.ui.player.controls.components.sheets.EqualizerPreset
 import com.quantummpv.app.ui.player.controls.components.sheets.EqualizerState
+import com.quantummpv.app.ui.player.ytdlp.YtdlpManager
 import com.quantummpv.app.ui.player.screenshot.ScreenshotSaver
 import com.quantummpv.app.ui.player.screenshot.ScreenshotSettings
 import com.quantummpv.app.ui.preferences.CustomButton
@@ -617,10 +618,20 @@ class PlayerViewModel : ViewModel(),
             .thenByDescending { track -> track.demuxFps ?: 0.0 }
             .thenByDescending { track -> track.demuxBitrate ?: 0L },
         ).toList()
-        .takeIf { qualityTracks -> qualityTracks.size > 1 }
-        ?.toImmutableList()
-        ?: persistentListOf()
+        .toImmutableList()
     }.stateIn(viewModelScope, SharingStarted.Eagerly, persistentListOf())
+
+  val showVideoQualitySelector: StateFlow<Boolean> =
+    combine(videoQualityTracks, PlaybackSession.state) { qualityTracks, session ->
+      if (qualityTracks.isEmpty()) return@combine false
+
+      val item = session.currentItem
+      val isYtdlpPage =
+        sequenceOf(item?.originalUri, item?.playableUri)
+          .filterNotNull()
+          .any(YtdlpManager::requiresYtdlp)
+      isYtdlpPage || qualityTracks.size > 1
+    }.stateIn(viewModelScope, SharingStarted.Eagerly, false)
 
   val isAudioOnly: StateFlow<Boolean> =
     combine(

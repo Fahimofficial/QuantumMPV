@@ -286,8 +286,7 @@ fun PlayerControls(
   val haptic = LocalHapticFeedback.current
 
   val customButtons by viewModel.customButtons.collectAsState()
-  val videoQualityTracks by viewModel.videoQualityTracks.collectAsState(persistentListOf())
-  val showVideoQualitySelector = videoQualityTracks.isNotEmpty()
+  val showVideoQualitySelector by viewModel.showVideoQualitySelector.collectAsState()
 
   val abLoop by viewModel.abLoopState.collectAsState()
   val abLoopA = abLoop.a
