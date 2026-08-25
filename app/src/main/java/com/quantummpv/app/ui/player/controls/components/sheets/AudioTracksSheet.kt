@@ -86,6 +86,7 @@ fun AudioTracksSheet(
         items(tracks, key = { it.id }) {
           AudioTrackRow(
             title = getTrackTitle(it),
+            details = audioTrackDetails(it),
             isSelected = it.isSelected,
             onClick = { onSelect(it) },
           )
@@ -171,6 +172,7 @@ fun AudioTrackRow(
   onClick: () -> Unit,
   modifier: Modifier = Modifier,
   enabled: Boolean = true,
+  details: String? = null,
 ) {
   Row(
     modifier =
@@ -186,10 +188,31 @@ fun AudioTrackRow(
       onClick = onClick,
       enabled = enabled,
     )
-    Text(
-      title,
-      fontWeight = if (isSelected) FontWeight.ExtraBold else FontWeight.Normal,
-      fontStyle = if (isSelected) FontStyle.Italic else FontStyle.Normal,
-    )
+    Column(modifier = Modifier.weight(1f)) {
+      Text(
+        title,
+        fontWeight = if (isSelected) FontWeight.ExtraBold else FontWeight.Normal,
+        fontStyle = if (isSelected) FontStyle.Italic else FontStyle.Normal,
+      )
+      details?.let { value ->
+        Text(
+          text = value,
+          style = MaterialTheme.typography.bodySmall,
+          color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+      }
+    }
   }
+}
+
+private fun audioTrackDetails(track: TrackNode): String? {
+  val codec = track.codecDesc?.takeIf(String::isNotBlank) ?: track.codec?.takeIf(String::isNotBlank)
+  val bitrate =
+    track.effectiveBitrate
+      ?.takeIf { it > 0L }
+      ?.let { bitsPerSecond -> "${bitsPerSecond / 1_000L} kbps" }
+  return listOfNotNull(track.ytdlFormatId?.let { "#$it" }, codec, bitrate)
+    .distinct()
+    .joinToString(" • ")
+    .takeIf(String::isNotBlank)
 }

@@ -27,12 +27,9 @@ import com.quantummpv.app.preferences.preference.collectAsState
 import com.quantummpv.app.presentation.Screen
 import com.quantummpv.app.ui.icons.Icon
 import com.quantummpv.app.ui.icons.Icons
-import com.quantummpv.app.ui.player.ytdlp.YtdlCodecPreference
 import com.quantummpv.app.ui.player.ytdlp.YtdlPlaylistMode
 import com.quantummpv.app.ui.player.ytdlp.YtdlpInstallationStatus
 import com.quantummpv.app.ui.player.ytdlp.YtdlpManager
-import com.quantummpv.app.ui.player.ytdlp.YtdlpOptionSettings
-import com.quantummpv.app.ui.player.ytdlp.YtdlpOptionsBuilder
 import com.quantummpv.app.ui.player.ytdlp.YtdlpReleaseChannel
 import com.quantummpv.app.ui.preferences.components.SwitchPreference
 import com.quantummpv.app.ui.theme.spacing
@@ -59,11 +56,7 @@ object YtdlpSettingsScreen : Screen {
 
     val ytdlPreferences = koinInject<YtdlPreferences>()
     val configOwnedOptions = currentMpvConfigOverrideOptions()
-    val formatControlsEnabled = "ytdl-format" !in configOwnedOptions
     val playbackOptionsEnabled = "ytdl-raw-options" !in configOwnedOptions
-    val ytdlQuality by ytdlPreferences.ytdlQuality.collectAsState()
-    val preferH264 by ytdlPreferences.preferH264.collectAsState()
-    val codecPreference by ytdlPreferences.codecPreference.collectAsState()
     val playlistMode by ytdlPreferences.playlistMode.collectAsState()
     val writeSubs by ytdlPreferences.writeSubs.collectAsState()
     val writeAutoSubs by ytdlPreferences.writeAutoSubs.collectAsState()
@@ -179,83 +172,6 @@ object YtdlpSettingsScreen : Screen {
             }
           }
 
-          PreferenceSectionHeader(title = stringResource(R.string.ui_playback_defaults))
-
-          PreferenceCard {
-            Column(
-              modifier = Modifier.padding(16.dp),
-              verticalArrangement = Arrangement.spacedBy(MaterialTheme.spacing.medium),
-            ) {
-              Text(
-                text = stringResource(R.string.ui_maximum_quality),
-                style = MaterialTheme.typography.bodyMedium,
-                fontWeight = FontWeight.Bold,
-              )
-              FlowRow(
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-                verticalArrangement = Arrangement.spacedBy(8.dp),
-                modifier = Modifier.fillMaxWidth(),
-              ) {
-                listOf(-1, 2160, 1440, 1080, 720, 480, 360).forEach { quality ->
-                  val label = if (quality == -1) stringResource(R.string.ui_automatic) else "${quality}p"
-                  FilterChip(
-                    selected = ytdlQuality == quality,
-                    enabled = formatControlsEnabled,
-                    onClick = {
-                      ytdlPreferences.ytdlQuality.set(quality)
-                      updateFormatString(ytdlPreferences)
-                    },
-                    label = { Text(label) },
-                    leadingIcon =
-                      if (ytdlQuality == quality) {
-                        { Icon(Icons.RoundedFilled.Check, null, modifier = Modifier.size(16.dp)) }
-                      } else {
-                        null
-                      },
-                  )
-                }
-              }
-
-              PreferenceDivider()
-
-              Text(
-                text = stringResource(R.string.ytdlp_video_codec),
-                style = MaterialTheme.typography.bodyMedium,
-                fontWeight = FontWeight.Bold,
-              )
-              FlowRow(
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-                verticalArrangement = Arrangement.spacedBy(8.dp),
-                modifier = Modifier.fillMaxWidth(),
-              ) {
-                val selectedCodec =
-                  if (codecPreference == YtdlCodecPreference.AUTO && preferH264) {
-                    YtdlCodecPreference.H264
-                  } else {
-                    codecPreference
-                  }
-                YtdlCodecPreference.commonPlaybackChoices.forEach { codec ->
-                  FilterChip(
-                    selected = selectedCodec == codec,
-                    enabled = formatControlsEnabled,
-                    onClick = {
-                      ytdlPreferences.codecPreference.set(codec)
-                      ytdlPreferences.preferH264.set(codec == YtdlCodecPreference.H264)
-                      updateFormatString(ytdlPreferences)
-                    },
-                    label = { Text(codec.title) },
-                    leadingIcon =
-                      if (codecPreference == codec) {
-                        { Icon(Icons.RoundedFilled.Check, null, modifier = Modifier.size(16.dp)) }
-                      } else {
-                        null
-                      },
-                  )
-                }
-              }
-            }
-          }
-
           PreferenceSectionHeader(title = stringResource(R.string.ytdlp_subtitles_language))
 
           PreferenceCard {
@@ -311,20 +227,4 @@ object YtdlpSettingsScreen : Screen {
     }
   }
 
-  private fun updateFormatString(prefs: YtdlPreferences) {
-    prefs.ytdlFormat.set(
-      YtdlpOptionsBuilder.buildFormat(
-        YtdlpOptionSettings(
-          codecPreference = prefs.codecPreference.get(),
-          legacyPreferH264 = prefs.preferH264.get(),
-          maxHeight = prefs.ytdlQuality.get(),
-          maxFps = prefs.maxFps.get(),
-          hdrPreference = prefs.hdrPreference.get(),
-          containerPreference = prefs.containerPreference.get(),
-          audioPreference = prefs.audioPreference.get(),
-          audioQuality = prefs.audioQuality.get(),
-        ),
-      ),
-    )
-  }
 }

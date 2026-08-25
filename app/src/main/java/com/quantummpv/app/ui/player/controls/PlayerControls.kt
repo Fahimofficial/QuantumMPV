@@ -145,8 +145,6 @@ import com.quantummpv.app.ui.player.controls.components.TextPlayerUpdate
 import com.quantummpv.app.ui.player.controls.components.VolumeSlider
 import com.quantummpv.app.ui.player.controls.components.rememberBufferingState
 import com.quantummpv.app.ui.player.controls.components.sheets.toFixed
-import com.quantummpv.app.ui.player.getTrackSelectionId
-import com.quantummpv.app.ui.player.setTrackSelectionId
 import com.quantummpv.app.ui.theme.AppMotion
 import com.quantummpv.app.ui.theme.controlColor
 import com.quantummpv.app.ui.theme.playerRippleConfiguration
@@ -357,13 +355,7 @@ fun PlayerControls(
         onRemoveSubtitle = viewModel::removeSubtitle,
         audioTracks = audioTracks.toImmutableList(),
         onAddAudio = viewModel::addAudio,
-        onSelectAudio = {
-          if (getTrackSelectionId("aid") == it.id) {
-            setTrackSelectionId("aid", null)
-          } else {
-            setTrackSelectionId("aid", it.id)
-          }
-        },
+        onSelectAudio = viewModel::selectAudioTrack,
         chapter = chapters.getOrNull(currentChapter ?: 0),
         chapters = chapters.toImmutableList(),
         onSeekToChapter = {
@@ -1872,13 +1864,7 @@ fun PlayerControls(
       onRemoveSubtitle = viewModel::removeSubtitle,
       audioTracks = audioTracks.toImmutableList(),
       onAddAudio = viewModel::addAudio,
-      onSelectAudio = {
-        if (getTrackSelectionId("aid") == it.id) {
-          setTrackSelectionId("aid", null)
-        } else {
-          setTrackSelectionId("aid", it.id)
-        }
-      },
+      onSelectAudio = viewModel::selectAudioTrack,
       chapter = chapters.getOrNull(currentChapter ?: 0),
       chapters = chapters.toImmutableList(),
       onSeekToChapter = {

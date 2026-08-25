@@ -649,6 +649,13 @@ class PlayerViewModel : ViewModel(),
     }.stateIn(viewModelScope, SharingStarted.Eagerly, false)
 
   fun selectVideoQuality(track: TrackNode) {
+    if (currentItemRequiresYtdlp() && !MpvConfigOverridePolicy.isOwnedByMpvConf("ytdl-format")) {
+      val selectedAudio = pairedYtdlTrack(track, TrackNode::isAudio)
+        ?: allTracks.value.firstOrNull { candidate -> candidate.isAudio && candidate.isSelected }
+      val selector = buildYtdlFormatSelector(videoTrack = track, audioTrack = selectedAudio)
+      if (selector != null && host.reloadCurrentYtdlFormat(selector)) return
+    }
+
     val selectedProgramIds = track.effectiveProgramIds.toSet()
     if (selectedProgramIds.isNotEmpty()) {
       allTracks.value
@@ -661,6 +668,71 @@ class PlayerViewModel : ViewModel(),
     }
     PlaybackSession.setPropertyInt("vid", track.id)
   }
+
+  fun selectAudioTrack(track: TrackNode) {
+    if (getTrackSelectionId("aid") == track.id) {
+      setTrackSelectionId("aid", null)
+      return
+    }
+
+    if (currentItemRequiresYtdlp() &&
+      !MpvConfigOverridePolicy.isOwnedByMpvConf("ytdl-format") &&
+      ytdlFormatId(track) != null
+    ) {
+      val selectedVideo = pairedYtdlTrack(track, TrackNode::isVideo)
+        ?: allTracks.value.firstOrNull { candidate -> candidate.isVideo && candidate.isSelected }
+      val selector = buildYtdlFormatSelector(videoTrack = selectedVideo, audioTrack = track)
+      if (selector != null && host.reloadCurrentYtdlFormat(selector)) return
+    }
+
+    setTrackSelectionId("aid", track.id)
+  }
+
+  private fun currentItemRequiresYtdlp(): Boolean {
+    val item = PlaybackSession.state.value.currentItem
+    return sequenceOf(item?.originalUri, item?.playableUri)
+      .filterNotNull()
+      .any(YtdlpManager::requiresYtdlp)
+  }
+
+  private fun pairedYtdlTrack(
+    track: TrackNode,
+    matchesType: (TrackNode) -> Boolean,
+  ): TrackNode? {
+    val programIds = track.effectiveProgramIds.toSet()
+    val formatId = track.ytdlFormatId ?: return null
+    if (programIds.isEmpty()) return null
+    return allTracks.value.firstOrNull { candidate ->
+      matchesType(candidate) &&
+        candidate.ytdlFormatId == formatId &&
+        candidate.effectiveProgramIds.any(programIds::contains)
+    }
+  }
+
+  private fun buildYtdlFormatSelector(
+    videoTrack: TrackNode?,
+    audioTrack: TrackNode?,
+  ): String? {
+    val videoFormatId = videoTrack?.let(::ytdlFormatId)
+    val audioFormatId = audioTrack?.let(::ytdlFormatId)
+    val videoSelector =
+      when {
+        videoFormatId != null -> videoFormatId
+        videoTrack != null && videoQualityDimension(videoTrack) > 0L ->
+          "bestvideo[height<=?${videoQualityDimension(videoTrack)}]"
+        videoTrack != null -> "bestvideo"
+        else -> null
+      }
+
+    return when {
+      videoSelector != null && videoFormatId != null && videoFormatId == audioFormatId -> "$videoSelector/best"
+      videoSelector != null -> "$videoSelector+${audioFormatId ?: "bestaudio"}/best"
+      audioFormatId != null -> "$audioFormatId/best"
+      else -> null
+    }
+  }
+
+  private fun ytdlFormatId(track: TrackNode): String? = track.ytdlFormatId
 
   private fun videoQualityDimension(track: TrackNode): Long {
     val width = track.demuxW?.takeIf { it > 0L }

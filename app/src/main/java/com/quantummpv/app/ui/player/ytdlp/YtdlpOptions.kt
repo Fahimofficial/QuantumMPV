@@ -115,16 +115,6 @@ data class YtdlpOptionSettings(
           .filter { it.isLanguageCode() }
           .joinToString(",")
       return YtdlpOptionSettings(
-        codecPreference = ytdlPreferences.codecPreference.get(),
-        legacyPreferH264 = ytdlPreferences.preferH264.get(),
-        maxHeight = ytdlPreferences.ytdlQuality.get(),
-        maxFps = ytdlPreferences.maxFps.get(),
-        hdrPreference = ytdlPreferences.hdrPreference.get(),
-        containerPreference = ytdlPreferences.containerPreference.get(),
-        audioPreference = ytdlPreferences.audioPreference.get(),
-        audioQuality = ytdlPreferences.audioQuality.get(),
-        formatSort = ytdlPreferences.formatSort.get(),
-        mergeOutputFormat = ytdlPreferences.mergeOutputFormat.get(),
         writeSubs = ytdlPreferences.writeSubs.get(),
         writeAutoSubs = ytdlPreferences.writeAutoSubs.get(),
         subtitleLanguages = explicitSubtitleLanguages.ifBlank { preferredSubtitleLanguages.ifBlank { "all" } },

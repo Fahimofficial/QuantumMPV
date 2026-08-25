@@ -141,7 +141,9 @@ private fun qualityDetails(track: TrackNode): String? {
           "${bitsPerSecond / 1_000L} kbps"
         }
       }
-  return listOfNotNull(dimensions, codec, bitrate).joinToString(" • ").takeIf(String::isNotBlank)
+  return listOfNotNull(track.ytdlFormatId?.let { "#$it" }, dimensions, codec, bitrate)
+    .joinToString(" • ")
+    .takeIf(String::isNotBlank)
 }
 
 private val QUALITY_HEIGHT_REGEX = Regex("""(?i)(\d{3,4})p""")

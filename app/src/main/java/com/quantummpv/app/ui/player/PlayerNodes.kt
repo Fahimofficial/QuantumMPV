@@ -93,4 +93,12 @@ data class TrackNode(
     get() =
       lang?.takeIf { it.isNotBlank() }
         ?: metadata?.entries?.firstOrNull { it.key.equals("language", ignoreCase = true) || it.key.equals("lang", ignoreCase = true) }?.value?.takeIf { it.isNotBlank() }
+
+  val ytdlFormatId: String?
+    get() =
+      YTDL_FORMAT_ID_REGEX.find(effectiveTitle.orEmpty())?.groupValues?.getOrNull(1)
+        ?: YTDL_MUXED_FORMAT_ID_REGEX.find(effectiveTitle.orEmpty())?.groupValues?.getOrNull(1)
 }
+
+private val YTDL_FORMAT_ID_REGEX = Regex("""^\s*([^\s]+)\s+-\s+""")
+private val YTDL_MUXED_FORMAT_ID_REGEX = Regex("""(?:^|\s)muxed-([^\s]+)(?:\s|$)""")

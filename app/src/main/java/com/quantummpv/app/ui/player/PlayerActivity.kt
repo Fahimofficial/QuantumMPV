@@ -90,6 +90,7 @@ import com.quantummpv.app.preferences.AudioPlayerOrientation
 import com.quantummpv.app.preferences.AudioPreferences
 import com.quantummpv.app.preferences.BrowserPreferences
 import com.quantummpv.app.preferences.DecoderPreferences
+import com.quantummpv.app.preferences.MpvConfigOverridePolicy
 import com.quantummpv.app.preferences.PlayerPreferences
 import com.quantummpv.app.preferences.SubtitlesPreferences
 import com.quantummpv.app.preferences.VideoSortType
@@ -361,6 +362,8 @@ class PlayerActivity :
     val generation: Long,
     val attempt: Int,
     val requestGeneration: Long,
+    val ytdlFormat: String? = null,
+    val positionRestoreOverride: PlaybackPositionRestoreOverride? = null,
   )
 
   private var pendingSavedPlaylistSelection: SavedPlaylistSelection? = null
@@ -3174,6 +3177,66 @@ class PlayerActivity :
     }
   }
 
+  override fun reloadCurrentYtdlFormat(format: String): Boolean {
+    if (MpvConfigOverridePolicy.isOwnedByMpvConf("ytdl-format")) return false
+    val session = PlaybackSession.state.value
+    val item = session.currentItem ?: return false
+    if (session.phase !in setOf(PlaybackPhase.READY, PlaybackPhase.BACKGROUND) ||
+      sequenceOf(item.originalUri, item.playableUri).none(YtdlpManager::requiresYtdlp)
+    ) {
+      return false
+    }
+
+    val duration =
+      PlaybackSession.getPropertyDouble("duration")
+        ?: PlaybackSession.getPropertyInt("duration")?.toDouble()
+    val position =
+      if (duration != null && duration > 0.0) {
+        PlaybackSession.getPropertyDouble("time-pos")
+          ?: PlaybackSession.getPropertyInt("time-pos")?.toDouble()
+      } else {
+        null
+      }
+    val restoreOverride =
+      PlaybackPositionRestoreOverride(
+        positionSeconds = position,
+        paused = PlaybackSession.getPropertyBoolean("pause") ?: session.paused,
+      )
+
+    mediaRequestGeneration++
+    val requestGeneration = mediaRequestGeneration
+    mediaLoadJob?.cancel()
+    cancelPlaybackLoadRecovery()
+    isReady = false
+    playWhenFileLoaded = true
+    viewModel.onVideoLoadStarted()
+    mediaLoadJob =
+      lifecycleScope.launch(mediaLoadDispatcher) {
+        try {
+          issuePlaybackLoad(
+            item = item,
+            selectVideo = session.surfaceAttached,
+            attempt = 0,
+            requestGeneration = requestGeneration,
+            ytdlFormat = format,
+            positionRestoreOverride = restoreOverride,
+          )
+        } catch (cancellation: CancellationException) {
+          throw cancellation
+        } catch (error: Exception) {
+          Log.e(TAG, "Unable to reload yt-dlp format: $format", error)
+          withContext(Dispatchers.Main) {
+            if (requestGeneration != mediaRequestGeneration) return@withContext
+            playWhenFileLoaded = false
+            isReady = PlaybackSession.state.value.phase in setOf(PlaybackPhase.READY, PlaybackPhase.BACKGROUND)
+            viewModel.onVideoLoadCompleted()
+            viewModel.showToast(getString(R.string.toast_playback_load_failed))
+          }
+        }
+      }
+    return true
+  }
+
   /**
    * Extracts the URI from the intent based on intent type.
    *
@@ -3639,6 +3702,10 @@ class PlayerActivity :
    */
   private fun handleFileLoaded(loadGeneration: Long) {
     if (!PlaybackSession.isCurrentGeneration(loadGeneration)) return
+    val positionRestoreOverride = PlaybackSession.positionRestoreOverride(loadGeneration)
+    positionRestoreOverride?.positionSeconds?.let { seconds ->
+      PlaybackSession.setPropertyDouble("time-pos", seconds.coerceAtLeast(0.0))
+    }
     // Extract fileName from intent only if not already set
     // This preserves fileName set in onNewIntent or onCreate
     if (fileName.isBlank()) {
@@ -3700,6 +3767,7 @@ class PlayerActivity :
           identifier = loadedMediaIdentifier,
           legacyIdentifier = loadedLegacyIdentifier,
           loadGeneration = loadGeneration,
+          positionRestoreOverride = positionRestoreOverride,
         )
       if (!PlaybackSession.isCurrentGeneration(loadGeneration)) return@launch
 
@@ -4206,8 +4274,12 @@ class PlayerActivity :
     identifier: String,
     legacyIdentifier: String?,
     loadGeneration: Long,
+    positionRestoreOverride: PlaybackPositionRestoreOverride?,
   ): Boolean {
-    if (identifier.isBlank() || !PlaybackSession.isCurrentGeneration(loadGeneration)) return false
+    if (identifier.isBlank() || !PlaybackSession.isCurrentGeneration(loadGeneration)) {
+      PlaybackSession.completePositionRestore(loadGeneration)
+      return false
+    }
 
     return runCatching {
       var state = playbackStateRepository.getVideoDataByTitle(identifier)
@@ -4232,9 +4304,8 @@ class PlayerActivity :
 
       if (!PlaybackSession.isCurrentGeneration(loadGeneration)) return@runCatching false
 
-      restorePlaybackPosition(state)
-      PlaybackSession.completePositionRestore(loadGeneration)
-      applyPlaybackState(state)
+      if (positionRestoreOverride == null) restorePlaybackPosition(state)
+      applyPlaybackState(state, restoreAudioTrack = positionRestoreOverride == null)
 
       if (!PlaybackSession.isCurrentGeneration(loadGeneration)) return@runCatching false
 
@@ -4243,10 +4314,12 @@ class PlayerActivity :
         applyDefaultSettings(state)
       }
 
-      state != null
+      state != null || positionRestoreOverride != null
     }.onFailure { e ->
       Log.e(TAG, "Error loading playback state", e)
-    }.getOrDefault(false)
+    }.getOrDefault(false).also {
+      PlaybackSession.completePositionRestore(loadGeneration)
+    }
   }
 
   /**
@@ -4256,7 +4329,10 @@ class PlayerActivity :
    *
    * @param state The saved playback state entity
    */
-  private suspend fun applyPlaybackState(state: PlaybackStateEntity?) {
+  private suspend fun applyPlaybackState(
+    state: PlaybackStateEntity?,
+    restoreAudioTrack: Boolean,
+  ) {
     if (state == null) return
 
     val subDelay = state.subDelay / DELAY_DIVISOR
@@ -4291,7 +4367,7 @@ class PlayerActivity :
       screenHeight = player.height.takeIf { it > 0 }?.toFloat(),
     )
 
-    if (state.aid > 0) {
+    if (restoreAudioTrack && state.aid > 0) {
       player.aid = state.aid
       Log.d(TAG, "Restored audio track: ${state.aid} (user selection)")
     }
@@ -4934,19 +5010,25 @@ class PlayerActivity :
     selectVideo: Boolean,
     attempt: Int,
     requestGeneration: Long,
+    ytdlFormat: String? = null,
+    positionRestoreOverride: PlaybackPositionRestoreOverride? = null,
   ) {
     if (requestGeneration != mediaRequestGeneration) throw CancellationException("Media request was replaced")
+    val requiresYtdlp = sequenceOf(item.originalUri, item.playableUri).any(YtdlpManager::requiresYtdlp)
     val ytdlpReady =
       YtdlpManager.prepareForPlayback(this, item.playableUri) { line ->
         line.trim().takeIf { it.isNotEmpty() }?.let { message -> Log.d(TAG, message) }
       }
     if (!ytdlpReady) throw IllegalStateException("yt-dlp could not be prepared for web playback")
     if (requestGeneration != mediaRequestGeneration) throw CancellationException("Media request was replaced")
+    if (requiresYtdlp) PlaybackSession.setPropertyString("ytdl-format", ytdlFormat.orEmpty())
     val generation =
       PlaybackSession.load(
         item = item,
         selectVideo = selectVideo,
         restoreSavedPosition = true,
+        positionRestoreOverride = positionRestoreOverride,
+        flattenEditions = requiresYtdlp && !MpvConfigOverridePolicy.isOwnedByMpvConf("flatten-editions"),
       )
     if (generation < 0L) throw IllegalStateException("libmpv core is unavailable")
 
@@ -4957,6 +5039,8 @@ class PlayerActivity :
         generation = generation,
         attempt = attempt,
         requestGeneration = requestGeneration,
+        ytdlFormat = ytdlFormat,
+        positionRestoreOverride = positionRestoreOverride,
       )
     withContext(Dispatchers.Main) { armPlaybackLoadRecovery(request) }
   }
@@ -5045,6 +5129,8 @@ class PlayerActivity :
             selectVideo = request.selectVideo,
             attempt = request.attempt + 1,
             requestGeneration = request.requestGeneration,
+            ytdlFormat = request.ytdlFormat,
+            positionRestoreOverride = request.positionRestoreOverride,
           )
         } catch (cancellation: CancellationException) {
           throw cancellation

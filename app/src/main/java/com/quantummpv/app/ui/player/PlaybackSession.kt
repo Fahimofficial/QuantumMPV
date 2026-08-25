@@ -43,6 +43,11 @@ data class PlaybackSessionState(
   val error: String? = null,
 )
 
+data class PlaybackPositionRestoreOverride(
+  val positionSeconds: Double?,
+  val paused: Boolean,
+)
+
 /** A native-backed property that remains safe to access before the libmpv core exists. */
 class PlaybackProperty<T> internal constructor(
   internal val format: Int,
@@ -157,6 +162,7 @@ object PlaybackSession : MPVLib.EventObserver {
   private var desiredPaused = true
   private var loadedGeneration = 0L
   private var pendingPositionRestoreGeneration = 0L
+  private var pendingPositionRestoreOverride: Pair<Long, PlaybackPositionRestoreOverride>? = null
   private var seekAudioGuardToken = 0L
   private var seekAudioGuardPreviousMute: Boolean? = null
   private var playbackTransitionAudioGuardToken = 0L
@@ -204,6 +210,7 @@ object PlaybackSession : MPVLib.EventObserver {
         desiredPaused = true
         loadedGeneration = 0L
         pendingPositionRestoreGeneration = 0L
+        pendingPositionRestoreOverride = null
         clearSeekAudioGuardLocked(restoreMute = false)
         clearPlaybackTransitionAudioGuardLocked(restoreMute = false)
         resetAmbientShaderTrackingLocked()
@@ -242,6 +249,7 @@ object PlaybackSession : MPVLib.EventObserver {
           desiredPaused = true
           loadedGeneration = 0L
           pendingPositionRestoreGeneration = 0L
+          pendingPositionRestoreOverride = null
           clearSeekAudioGuardLocked(restoreMute = false)
           clearPlaybackTransitionAudioGuardLocked(restoreMute = false)
           resetAmbientShaderTrackingLocked()
@@ -365,6 +373,7 @@ object PlaybackSession : MPVLib.EventObserver {
       desiredPaused = true
       loadedGeneration = 0L
       pendingPositionRestoreGeneration = 0L
+      pendingPositionRestoreOverride = null
 
       // Ambient shaders contain dimensions and scale baked for one video. Never leave them attached
       // to the process-wide core after playback ends, even if the Activity/ViewModel that created
@@ -431,6 +440,7 @@ object PlaybackSession : MPVLib.EventObserver {
     desiredPaused = true
     loadedGeneration = 0L
     pendingPositionRestoreGeneration = 0L
+    pendingPositionRestoreOverride = null
     suspendedVideoTrack = null
     deferredVideoSelectionGeneration = null
     clearSeekAudioGuardLocked(restoreMute = false)
@@ -548,6 +558,8 @@ object PlaybackSession : MPVLib.EventObserver {
     item: PlaybackItem,
     selectVideo: Boolean? = null,
     restoreSavedPosition: Boolean = false,
+    positionRestoreOverride: PlaybackPositionRestoreOverride? = null,
+    flattenEditions: Boolean = false,
   ): Long {
     val resolved = resolvePlayableUri(item)
     return try {
@@ -557,6 +569,8 @@ object PlaybackSession : MPVLib.EventObserver {
           item = item,
           selectVideo = selectVideo,
           restoreSavedPosition = restoreSavedPosition,
+          positionRestoreOverride = positionRestoreOverride,
+          flattenEditions = flattenEditions,
         )
       if (generation < 0L) {
         resolved.registration?.let(::releaseNetworkStream)
@@ -585,6 +599,8 @@ object PlaybackSession : MPVLib.EventObserver {
     item: PlaybackItem? = null,
     selectVideo: Boolean? = null,
     restoreSavedPosition: Boolean = false,
+    positionRestoreOverride: PlaybackPositionRestoreOverride? = null,
+    flattenEditions: Boolean = false,
   ): Long =
     withCore(default = -1L) {
       // A preceding surface detach may have left the outgoing file at vid=no. Select video in the
@@ -600,7 +616,7 @@ object PlaybackSession : MPVLib.EventObserver {
 
       // A saved video-track id belongs to the outgoing file only. Never carry it into a new load.
       suspendedVideoTrack = null
-      desiredPaused = false
+      desiredPaused = positionRestoreOverride?.paused ?: false
       clearSeekAudioGuardLocked(restoreMute = true)
 
       // Keep replacement/startup audio muted until mpv has restarted cleanly. FILE_LOADED can be
@@ -609,7 +625,9 @@ object PlaybackSession : MPVLib.EventObserver {
       beginPlaybackTransitionAudioGuardLocked()
 
       val generation = _state.value.generation + 1L
-      pendingPositionRestoreGeneration = generation.takeIf { restoreSavedPosition } ?: 0L
+      pendingPositionRestoreGeneration =
+        generation.takeIf { restoreSavedPosition || positionRestoreOverride != null } ?: 0L
+      pendingPositionRestoreOverride = positionRestoreOverride?.let { generation to it }
       deferredVideoSelectionGeneration = generation.takeUnless { selectVideoForNewFile }
       val resolvedItem = item ?: PlaybackItem.fromUri(playableUri)
       updateState {
@@ -630,7 +648,12 @@ object PlaybackSession : MPVLib.EventObserver {
 
 
 
-      val loadOptions = if (selectVideoForNewFile) "pause=yes,vid=auto" else "pause=yes"
+      val loadOptions =
+        buildList {
+          add("pause=yes")
+          if (selectVideoForNewFile) add("vid=auto")
+          if (flattenEditions) add("flatten-editions=yes")
+        }.joinToString(",")
       MPVLib.command("loadfile", playableUri, "replace", "-1", loadOptions)
       propBoolean.emit("pause", desiredPaused)
       generation
@@ -662,9 +685,15 @@ object PlaybackSession : MPVLib.EventObserver {
       generation > 0L && pendingPositionRestoreGeneration == generation
     }
 
+  fun positionRestoreOverride(generation: Long): PlaybackPositionRestoreOverride? =
+    nativeLock.withLock {
+      pendingPositionRestoreOverride?.takeIf { it.first == generation }?.second
+    }
+
   fun completePositionRestore(generation: Long) {
     nativeLock.withLock {
       if (pendingPositionRestoreGeneration == generation) pendingPositionRestoreGeneration = 0L
+      if (pendingPositionRestoreOverride?.first == generation) pendingPositionRestoreOverride = null
     }
   }
 
@@ -1063,6 +1092,8 @@ object PlaybackSession : MPVLib.EventObserver {
             deferredVideoSelectionGeneration = null
             desiredPaused = true
             loadedGeneration = 0L
+            pendingPositionRestoreGeneration = 0L
+            pendingPositionRestoreOverride = null
             clearSeekAudioGuardLocked(restoreMute = false)
             clearPlaybackTransitionAudioGuardLocked(restoreMute = false)
             resetAmbientShaderTrackingLocked()
