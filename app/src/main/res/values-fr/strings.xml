@@ -1900,4 +1900,7 @@ Veuillez redémarrer l’application pour appliquer toutes les modifications.</s
   <string name="update_unknown_size">Taille inconnue</string>
   <string name="update_beta_build_format">Bêta r%1$d</string>
   <string name="ui_beta_badge_suffix">\u0020(Bêta)</string>
+  <string name="player_video_quality">Qualité vidéo</string>
+  <string name="player_video_quality_summary">Choisissez une qualité disponible pour ce flux.</string>
+  <string name="player_video_quality_button">Qualité vidéo</string>
 </resources>

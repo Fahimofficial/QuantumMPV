@@ -104,6 +104,7 @@ enum class Sheets {
   SubtitleTracks,
   OnlineSubtitleSearch,
   AudioTracks,
+  VideoQuality,
   Chapters,
   Decoders,
   More,

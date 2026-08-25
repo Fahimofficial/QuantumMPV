@@ -1804,4 +1804,7 @@
   <string name="update_unknown_size">अज्ञात आकार</string>
   <string name="update_beta_build_format">बीटा r%1$d</string>
   <string name="ui_beta_badge_suffix">\u0020(बीटा)</string>
+  <string name="player_video_quality">वीडियो गुणवत्ता</string>
+  <string name="player_video_quality_summary">इस स्ट्रीम के लिए उपलब्ध गुणवत्ता चुनें।</string>
+  <string name="player_video_quality_button">वीडियो गुणवत्ता</string>
 </resources>

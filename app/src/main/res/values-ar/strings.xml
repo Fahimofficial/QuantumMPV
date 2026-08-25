@@ -1902,4 +1902,7 @@
   <string name="update_unknown_size">حجم غير معروف</string>
   <string name="update_beta_build_format">تجريبي r%1$d</string>
   <string name="ui_beta_badge_suffix">\u0020(تجريبي)</string>
+  <string name="player_video_quality">جودة الفيديو</string>
+  <string name="player_video_quality_summary">اختر جودة متاحة لهذا البث.</string>
+  <string name="player_video_quality_button">جودة الفيديو</string>
 </resources>

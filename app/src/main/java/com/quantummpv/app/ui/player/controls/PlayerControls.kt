@@ -286,6 +286,8 @@ fun PlayerControls(
   val haptic = LocalHapticFeedback.current
 
   val customButtons by viewModel.customButtons.collectAsState()
+  val videoQualityTracks by viewModel.videoQualityTracks.collectAsState(persistentListOf())
+  val showVideoQualitySelector = videoQualityTracks.isNotEmpty()
 
   val abLoop by viewModel.abLoopState.collectAsState()
   val abLoopA = abLoop.a
@@ -1759,6 +1761,7 @@ fun PlayerControls(
             if (isPortrait) {
               BottomPlayerControlsPortrait(
                 buttons = portraitBottomButtons,
+                showVideoQualitySelector = showVideoQualitySelector,
                 chapters = chapters,
                 currentChapter = currentChapter,
                 isSpeedNonOne = isSpeedNonOne,
@@ -1777,6 +1780,7 @@ fun PlayerControls(
             } else {
               BottomRightPlayerControlsLandscape(
                 buttons = bottomRightButtons,
+                showVideoQualitySelector = showVideoQualitySelector,
                 chapters = chapters,
                 currentChapter = currentChapter,
                 isSpeedNonOne = isSpeedNonOne,

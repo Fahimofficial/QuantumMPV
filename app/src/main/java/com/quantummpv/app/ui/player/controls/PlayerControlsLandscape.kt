@@ -270,6 +270,7 @@ fun TopRightPlayerControlsLandscape(
 @Composable
 fun BottomRightPlayerControlsLandscape(
   buttons: List<PlayerButton>,
+  showVideoQualitySelector: Boolean,
   chapters: List<Segment>,
   currentChapter: Int?,
   isSpeedNonOne: Boolean,
@@ -308,6 +309,14 @@ fun BottomRightPlayerControlsLandscape(
         viewModel = viewModel,
         activity = activity,
         buttonSize = 45.dp,
+      )
+    }
+    if (showVideoQualitySelector) {
+      ControlsButton(
+        icon = Icons.RoundedFilled.Hd,
+        onClick = { onOpenSheet(Sheets.VideoQuality) },
+        title = stringResource(R.string.player_video_quality_button),
+        modifier = Modifier.size(45.dp),
       )
     }
   }

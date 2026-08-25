@@ -1900,4 +1900,7 @@
   <string name="update_unknown_size">Размер неизвестен</string>
   <string name="update_beta_build_format">Бета r%1$d</string>
   <string name="ui_beta_badge_suffix">\u0020(Бета)</string>
+  <string name="player_video_quality">Качество видео</string>
+  <string name="player_video_quality_summary">Выберите доступное качество для этого потока.</string>
+  <string name="player_video_quality_button">Качество видео</string>
 </resources>

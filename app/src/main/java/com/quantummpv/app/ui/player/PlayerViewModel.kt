@@ -588,6 +588,40 @@ class PlayerViewModel : ViewModel(),
       .map { tracks -> tracks.filter { it.isAudio }.toImmutableList() }
       .stateIn(viewModelScope, SharingStarted.Eagerly, persistentListOf())
 
+  val videoQualityTracks: StateFlow<List<TrackNode>> =
+    combine(allTracks, PlaybackSession.state) { tracks, session ->
+      val item = session.currentItem
+      val isNetworkStream =
+        sequenceOf(item?.originalUri, item?.playableUri)
+          .filterNotNull()
+          .any { uri -> uri.startsWith("http://", true) || uri.startsWith("https://", true) }
+      if (!isNetworkStream) {
+        return@combine persistentListOf()
+      }
+
+      tracks
+        .asSequence()
+        .filter { track -> track.isVideo && !track.isAlbumArtwork }
+        .distinctBy { track ->
+          listOf(
+            track.programId,
+            track.demuxW,
+            track.demuxH,
+            track.demuxFps,
+            track.demuxBitrate,
+            track.codec,
+          )
+        }.sortedWith(
+          compareByDescending<TrackNode> { track -> track.demuxH ?: 0L }
+            .thenByDescending { track -> track.demuxW ?: 0L }
+            .thenByDescending { track -> track.demuxFps ?: 0.0 }
+            .thenByDescending { track -> track.demuxBitrate ?: 0L },
+        ).toList()
+        .takeIf { qualityTracks -> qualityTracks.size > 1 }
+        ?.toImmutableList()
+        ?: persistentListOf()
+    }.stateIn(viewModelScope, SharingStarted.Eagerly, persistentListOf())
+
   val isAudioOnly: StateFlow<Boolean> =
     combine(
       allTracks,

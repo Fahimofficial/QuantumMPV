@@ -1902,4 +1902,7 @@
   <string name="update_unknown_size">大小未知</string>
   <string name="update_beta_build_format">测试版 r%1$d</string>
   <string name="ui_beta_badge_suffix">\u0020（测试版）</string>
+  <string name="player_video_quality">视频质量</string>
+  <string name="player_video_quality_summary">选择此流可用的视频质量。</string>
+  <string name="player_video_quality_button">视频质量</string>
 </resources>

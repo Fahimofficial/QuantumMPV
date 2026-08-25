@@ -215,6 +215,7 @@ fun TopPlayerControlsPortrait(
 @Composable
 fun BottomPlayerControlsPortrait(
   buttons: List<PlayerButton>,
+  showVideoQualitySelector: Boolean,
   chapters: List<Segment>,
   currentChapter: Int?,
   isSpeedNonOne: Boolean,
@@ -258,6 +259,14 @@ fun BottomPlayerControlsPortrait(
         decoder = decoder,
         playbackSpeed = playbackSpeed,
         buttonSize = 44.dp, // Slightly more compact size
+      )
+    }
+    if (showVideoQualitySelector) {
+      ControlsButton(
+        icon = Icons.RoundedFilled.Hd,
+        onClick = { onOpenSheet(Sheets.VideoQuality) },
+        title = stringResource(R.string.player_video_quality_button),
+        modifier = Modifier.size(44.dp),
       )
     }
   }

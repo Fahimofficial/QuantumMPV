@@ -1900,4 +1900,7 @@ Bitte starten Sie die App neu, damit alle Änderungen wirksam werden.</string>
   <string name="update_unknown_size">Unbekannte Größe</string>
   <string name="update_beta_build_format">Beta r%1$d</string>
   <string name="ui_beta_badge_suffix">\u0020(Beta)</string>
+  <string name="player_video_quality">Videoqualität</string>
+  <string name="player_video_quality_summary">Wähle eine verfügbare Qualität für diesen Stream.</string>
+  <string name="player_video_quality_button">Videoqualität</string>
 </resources>

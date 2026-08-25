@@ -40,6 +40,7 @@ import com.quantummpv.app.ui.player.controls.components.sheets.PlaybackSpeedShee
 import com.quantummpv.app.ui.player.controls.components.sheets.PlaylistSheet
 import com.quantummpv.app.ui.player.controls.components.sheets.SubtitlesSheet
 import com.quantummpv.app.ui.player.controls.components.sheets.VideoZoomSheet
+import com.quantummpv.app.ui.player.controls.components.sheets.VideoQualitySheet
 import com.quantummpv.app.ui.player.controls.components.sheets.VisualizerStyleSheet
 import com.quantummpv.app.ui.player.setTrackSelectionId
 import dev.vivvvek.seeker.Segment
@@ -344,6 +345,17 @@ fun PlayerSheets(
         audioChannelsEnabled = "audio-channels" !in configOwnedOptions,
         reverseStereoEnabled = "af" !in configOwnedOptions,
         audioEffectsEnabled = "af" !in configOwnedOptions,
+        onDismissRequest = onDismissRequest,
+      )
+    }
+
+    Sheets.VideoQuality -> {
+      val videoQualityTracks by viewModel.videoQualityTracks.collectAsState()
+      VideoQualitySheet(
+        tracks = videoQualityTracks,
+        onSelect = { track ->
+          com.quantummpv.app.ui.player.PlaybackSession.setPropertyInt("vid", track.id)
+        },
         onDismissRequest = onDismissRequest,
       )
     }
