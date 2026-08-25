@@ -57,9 +57,11 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import com.quantummpv.app.R
 import com.quantummpv.app.preferences.AdvancedPreferences
 import com.quantummpv.app.preferences.AudioPreferences
 import com.quantummpv.app.preferences.MpvConfigControlledFeatures
@@ -662,6 +664,19 @@ fun RenderPlayerButton(
         color = if (hideBackground) controlColor else MaterialTheme.colorScheme.onSurface,
         modifier = Modifier.size(buttonSize),
       )
+    }
+
+    PlayerButton.VIDEO_QUALITY -> {
+      val showVideoQualitySelector by viewModel.showVideoQualitySelector.collectAsState()
+      if (showVideoQualitySelector) {
+        ControlsButton(
+          icon = button.icon,
+          onClick = { onOpenSheet(Sheets.VideoQuality) },
+          title = stringResource(R.string.player_video_quality_button),
+          color = if (hideBackground) controlColor else MaterialTheme.colorScheme.onSurface,
+          modifier = Modifier.size(buttonSize),
+        )
+      }
     }
 
     PlayerButton.AUDIO_TRACK -> {

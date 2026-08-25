@@ -37,6 +37,7 @@ data class TrackNode(
   @SerialName("hearing-impaired") val hearingImpaired: Boolean? = null,
   @SerialName("hls-bitrate") val hlsBitrate: Long? = null,
   @SerialName("program-id") val programId: Long? = null,
+  @SerialName("program-ids") val programIds: List<Long>? = null,
   val selected: Boolean? = null,
   @SerialName("main-selection") val mainSelection: Long? = null,
   val external: Boolean? = null,
@@ -75,6 +76,12 @@ data class TrackNode(
   val isAlbumArtwork = albumArt == true || image == true
   val isSubtitle = type == "sub"
   val isSelected = selected == true
+
+  val effectiveBitrate: Long?
+    get() = demuxBitrate?.takeIf { it > 0L } ?: hlsBitrate?.takeIf { it > 0L }
+
+  val effectiveProgramIds: List<Long>
+    get() = programIds?.takeIf { it.isNotEmpty() } ?: listOfNotNull(programId)
 
   val effectiveTitle: String?
     get() =

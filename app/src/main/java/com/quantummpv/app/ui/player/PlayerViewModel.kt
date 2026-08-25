@@ -549,6 +549,12 @@ class PlayerViewModel : ViewModel(),
       val forced = PlaybackSession.getPropertyBoolean("track-list/$i/forced")
       val codec = PlaybackSession.getPropertyString("track-list/$i/codec")
       val codecDesc = PlaybackSession.getPropertyString("track-list/$i/codec-desc")
+      val hlsBitrate = PlaybackSession.getPropertyInt("track-list/$i/hls-bitrate")?.toLong()
+      val programId = PlaybackSession.getPropertyInt("track-list/$i/program-id")?.toLong()
+      val demuxW = PlaybackSession.getPropertyInt("track-list/$i/demux-w")?.toLong()
+      val demuxH = PlaybackSession.getPropertyInt("track-list/$i/demux-h")?.toLong()
+      val demuxFps = PlaybackSession.getPropertyDouble("track-list/$i/demux-fps")
+      val demuxBitrate = PlaybackSession.getPropertyInt("track-list/$i/demux-bitrate")?.toLong()
       val externalFilename = PlaybackSession.getPropertyString("track-list/$i/external-filename")
       val image = PlaybackSession.getPropertyBoolean("track-list/$i/image")
       val albumArt = PlaybackSession.getPropertyBoolean("track-list/$i/albumart")
@@ -564,6 +570,12 @@ class PlayerViewModel : ViewModel(),
           forced = forced,
           codec = codec,
           codecDesc = codecDesc,
+          hlsBitrate = hlsBitrate,
+          programId = programId,
+          demuxW = demuxW,
+          demuxH = demuxH,
+          demuxFps = demuxFps,
+          demuxBitrate = demuxBitrate,
           externalFilename = externalFilename,
           image = image,
           albumArt = albumArt,
@@ -603,20 +615,23 @@ class PlayerViewModel : ViewModel(),
       tracks
         .asSequence()
         .filter { track -> track.isVideo && !track.isAlbumArtwork }
+        .sortedByDescending(TrackNode::isSelected)
         .distinctBy { track ->
           listOf(
             track.programId,
+            track.programIds,
             track.demuxW,
             track.demuxH,
             track.demuxFps,
-            track.demuxBitrate,
+            track.effectiveBitrate,
             track.codec,
+            track.effectiveTitle,
           )
         }.sortedWith(
-          compareByDescending<TrackNode> { track -> track.demuxH ?: 0L }
-            .thenByDescending { track -> track.demuxW ?: 0L }
+          compareByDescending<TrackNode>(::videoQualityDimension)
+            .thenByDescending(::videoPixelCount)
             .thenByDescending { track -> track.demuxFps ?: 0.0 }
-            .thenByDescending { track -> track.demuxBitrate ?: 0L },
+            .thenByDescending { track -> track.effectiveBitrate ?: 0L },
         ).toList()
         .toImmutableList()
     }.stateIn(viewModelScope, SharingStarted.Eagerly, persistentListOf())
@@ -632,6 +647,34 @@ class PlayerViewModel : ViewModel(),
           .any(YtdlpManager::requiresYtdlp)
       isYtdlpPage || qualityTracks.size > 1
     }.stateIn(viewModelScope, SharingStarted.Eagerly, false)
+
+  fun selectVideoQuality(track: TrackNode) {
+    val selectedProgramIds = track.effectiveProgramIds.toSet()
+    if (selectedProgramIds.isNotEmpty()) {
+      allTracks.value
+        .asSequence()
+        .filter(TrackNode::isAudio)
+        .filter { audioTrack -> audioTrack.effectiveProgramIds.any(selectedProgramIds::contains) }
+        .sortedByDescending(TrackNode::isSelected)
+        .firstOrNull()
+        ?.let { audioTrack -> PlaybackSession.setPropertyInt("aid", audioTrack.id) }
+    }
+    PlaybackSession.setPropertyInt("vid", track.id)
+  }
+
+  private fun videoQualityDimension(track: TrackNode): Long {
+    val width = track.demuxW?.takeIf { it > 0L }
+    val height = track.demuxH?.takeIf { it > 0L }
+    return when {
+      width != null && height != null -> minOf(width, height)
+      height != null -> height
+      width != null -> width
+      else -> QUALITY_HEIGHT_REGEX.find(track.effectiveTitle.orEmpty())?.groupValues?.getOrNull(1)?.toLongOrNull() ?: 0L
+    }
+  }
+
+  private fun videoPixelCount(track: TrackNode): Long =
+    (track.demuxW ?: 0L).coerceAtLeast(0L) * (track.demuxH ?: 0L).coerceAtLeast(0L)
 
   val isAudioOnly: StateFlow<Boolean> =
     combine(
@@ -2282,6 +2325,7 @@ class PlayerViewModel : ViewModel(),
     const val SEEK_THUMBNAIL_MAX_SIZE = 320
     const val SEEK_THUMBNAIL_CACHE_KB = 32 * 1024
     const val SEEK_THUMBNAIL_CACHE_BUCKETS_PER_SECOND = 1f
+    val QUALITY_HEIGHT_REGEX = Regex("""(?i)(\d{3,4})p""")
     const val SEEK_THUMBNAIL_PREFETCH_RADIUS = 2
     const val NATIVE_LINEAR_HDR_YOUTUBE_BLUR_RADIUS = 100.0
     val MPV_ONLY_PSEUDO_PROTOCOLS =

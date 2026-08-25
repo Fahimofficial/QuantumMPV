@@ -114,6 +114,7 @@ import com.quantummpv.app.preferences.AdvancedPreferences
 import com.quantummpv.app.preferences.AiPreferences
 import com.quantummpv.app.preferences.AppearancePreferences
 import com.quantummpv.app.preferences.AudioPreferences
+import com.quantummpv.app.preferences.PlayerButton
 import com.quantummpv.app.preferences.PlayerPreferences
 import com.quantummpv.app.preferences.PortraitPlaybackControlsPosition
 import com.quantummpv.app.preferences.preference.collectAsState
@@ -420,6 +421,13 @@ fun PlayerControls(
     remember(portraitBottomControlsPref) {
       appearancePreferences.parseButtons(portraitBottomControlsPref, mutableSetOf())
     }
+  val landscapeHasConfiguredQualityButton =
+    remember(topRightButtons, bottomRightButtons, bottomLeftButtons) {
+      PlayerButton.VIDEO_QUALITY in topRightButtons ||
+        PlayerButton.VIDEO_QUALITY in bottomRightButtons ||
+        PlayerButton.VIDEO_QUALITY in bottomLeftButtons
+    }
+  val portraitHasConfiguredQualityButton = PlayerButton.VIDEO_QUALITY in portraitBottomButtons
 
   var isUnlockSliderDragging by remember { mutableStateOf(false) }
 
@@ -1760,7 +1768,7 @@ fun PlayerControls(
             if (isPortrait) {
               BottomPlayerControlsPortrait(
                 buttons = portraitBottomButtons,
-                showVideoQualitySelector = showVideoQualitySelector,
+                showVideoQualitySelector = showVideoQualitySelector && !portraitHasConfiguredQualityButton,
                 chapters = chapters,
                 currentChapter = currentChapter,
                 isSpeedNonOne = isSpeedNonOne,
@@ -1779,7 +1787,7 @@ fun PlayerControls(
             } else {
               BottomRightPlayerControlsLandscape(
                 buttons = bottomRightButtons,
-                showVideoQualitySelector = showVideoQualitySelector,
+                showVideoQualitySelector = showVideoQualitySelector && !landscapeHasConfiguredQualityButton,
                 chapters = chapters,
                 currentChapter = currentChapter,
                 isSpeedNonOne = isSpeedNonOne,

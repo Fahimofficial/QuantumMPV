@@ -353,9 +353,7 @@ fun PlayerSheets(
       val videoQualityTracks by viewModel.videoQualityTracks.collectAsState()
       VideoQualitySheet(
         tracks = videoQualityTracks,
-        onSelect = { track ->
-          com.quantummpv.app.ui.player.PlaybackSession.setPropertyInt("vid", track.id)
-        },
+        onSelect = viewModel::selectVideoQuality,
         onDismissRequest = onDismissRequest,
       )
     }

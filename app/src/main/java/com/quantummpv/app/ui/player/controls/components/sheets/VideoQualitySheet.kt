@@ -105,21 +105,34 @@ fun VideoQualitySheet(
 private fun qualityLabel(track: TrackNode): String {
   val height = track.demuxH?.takeIf { it > 0 }
   val width = track.demuxW?.takeIf { it > 0 }
+  val qualityDimension =
+    when {
+      width != null && height != null -> minOf(width, height)
+      height != null -> height
+      width != null -> width
+      else -> QUALITY_HEIGHT_REGEX.find(track.effectiveTitle.orEmpty())?.groupValues?.getOrNull(1)?.toLongOrNull()
+    }
   val resolution =
     when {
-      height != null -> "${height}p"
-      width != null -> "${width}w"
+      qualityDimension != null -> "${qualityDimension}p"
       !track.effectiveTitle.isNullOrBlank() -> track.effectiveTitle.orEmpty()
-      else -> "ID ${track.id}"
+      !track.codecDesc.isNullOrBlank() -> track.codecDesc.orEmpty()
+      else -> "#${track.id}"
     }
   val fps = track.demuxFps?.takeIf { it > 0.0 }?.let { value -> "${value.toInt()} fps" }
   return listOfNotNull(resolution, fps).joinToString(" • ")
 }
 
 private fun qualityDetails(track: TrackNode): String? {
+  val dimensions =
+    if ((track.demuxW ?: 0L) > 0L && (track.demuxH ?: 0L) > 0L) {
+      "${track.demuxW}×${track.demuxH}"
+    } else {
+      null
+    }
   val codec = track.codecDesc?.takeIf(String::isNotBlank) ?: track.codec?.takeIf(String::isNotBlank)
   val bitrate =
-    track.demuxBitrate
+    track.effectiveBitrate
       ?.takeIf { it > 0L }
       ?.let { bitsPerSecond ->
         if (bitsPerSecond >= 1_000_000L) {
@@ -128,5 +141,7 @@ private fun qualityDetails(track: TrackNode): String? {
           "${bitsPerSecond / 1_000L} kbps"
         }
       }
-  return listOfNotNull(codec, bitrate).joinToString(" • ").takeIf(String::isNotBlank)
+  return listOfNotNull(dimensions, codec, bitrate).joinToString(" • ").takeIf(String::isNotBlank)
 }
+
+private val QUALITY_HEIGHT_REGEX = Regex("""(?i)(\d{3,4})p""")
