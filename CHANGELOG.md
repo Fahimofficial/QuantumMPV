@@ -2,6 +2,46 @@
 
 These notes are written in plain English and focus on what changed for real use.
 
+## 2.3.0 — Playback, Streaming Quality & Media Experience
+
+### 🎬 Playback Reliability & Native Tools
+- **Reliable Media Handoffs**: Reworked ownership across the player, mini-player, and background service so stale activities, callbacks, resolvers, and queues cannot take over a newer request. Audio-to-video, video-to-audio, playlist, URI, torrent, and yt-dlp transitions now avoid freezes, audio-only video, lost metadata, and mismatched queues.
+- **Safer Session Recovery**: Playback position restores correctly after session recreation, HTTP demux cache survives player transitions, videos pause when the app moves to the background, and mini-player replacement no longer races the active session.
+- **FDSAN-Safe mpv Builds**: Fixed the Android libmpv subprocess file-descriptor sanitizer crash in both standard and Fongmi builds, refreshed the bundled mpv libraries, and hardened native stop/replacement sequencing.
+- **Native Video Clipping**: Added an on-player clipping workflow and hardened the editor and export path for reliable repeated use.
+- **Player Lifecycle Fixes**: Prevented duplicate audio autoplay advances, playlist-sheet crashes, released-session service shutdowns, stale background-playback handoffs, and cross-contamination between audio brightness and playlist selection.
+- **Restored Ambient Glow**: Brought back the proven v1.4.1 ambient glow shader and removed conflicting legacy ambient behavior.
+
+### 🌐 Streaming Quality, yt-dlp & Subtitles
+- **Per-Video Quality Selection**: Added a quality control for network streams and per-item yt-dlp format selection, with the chosen format carried through playback instead of applying one global guess.
+- **Clearer Web Playback Status**: Improved yt-dlp web playback, resolver status feedback, and quality-button visibility across the player layouts.
+- **Episode-Aware Subtitle Search**: SubHub searches now retain the current season and episode context when media moves through the playback pipeline.
+- **Dedicated Subtitle Preferences**: Added a focused subtitle section to Settings so subtitle controls are easier to find and manage.
+
+### 🍿 Jellyfin & Seerr
+- **Built-In Seerr Requests**: Integrated Seerr with Jellyfin so movies and series can be discovered and requested inside mpvRx, with refined discovery cards and live request-status updates.
+- **Jellyfin Music in the mpvRx Player**: Jellyfin audio now uses the full music-player experience, with a redesigned Music section, complete album queues, swipeable tabs, home playlists, favorites, and synchronized favorite state.
+- **Faster Jellyfin Actions**: Added direct quick play, YouTube trailers, improved resume actions, and a browser FAB that closes predictably, follows scrolling, and blocks accidental tab gestures while open.
+- **Richer Library Browsing**: Moved libraries ahead of Continue Watching, redesigned list and episode layouts, improved season selection, and fixed tablet mini-player overlap.
+- **Jellyfin Stability**: Fixed authentication persistence, music queue resolution, cover-art loading, local artwork handling, bitmap crashes, and incorrect album playback.
+
+### 🎵 Music, Lyrics & Recents
+- **Refined, Translated and Romanized Lyrics**: Improved the lyrics interface and controls, added lyric translation and romanization, and made Hindi and Indic transliteration, full-sentence parsing, and per-line results faster and more accurate.
+- **Playlist Favorites & Feedback**: Added favorite controls in the music player, protected the default playlist, introduced square playlist artwork, and added an animated visualizer indicator for the currently playing track.
+- **Reliable Local Music Discovery**: Folder artwork and local artwork URIs now decode correctly, and the music library automatically scans after the first permission grant and when the app resumes.
+- **Separate Video and Audio History**: Recently Played now has swipeable Video and Audio tabs with independent filtering, counts, empty states, scrolling, and artwork sizing.
+
+### 🧭 Browsing & Interface
+- **Fuzzy Media Search**: Added typo-tolerant folder and video search for faster navigation through large libraries.
+- **More Predictable Browser Controls**: Improved FAB expansion, outside-tap dismissal, scroll integration, quick-play access, and recent-item padding across browser screens.
+- **Smoother Navigation**: Removed the bottom-navbar delay during page swipes, added swipe navigation to Jellyfin music tabs, and merged Network tabs into the header for a cleaner layout.
+- **Player Control Polish**: Refined gesture handling, added speed-scaled remaining time, improved timer contrast, tightened control spacing, and made quality-control placement more consistent.
+
+### 📦 Updates & Release Delivery
+- **Preview Update Channel**: Added preview-build discovery to the in-app updater and a live release channel to the preview download site.
+- **Activity-Aware Preview Builds**: Preview automation now checks for unpublished app changes before building, while still supporting complete manual builds.
+- **Clearer Download Links**: Updated preview-site download link colors for better visibility.
+
 ## 2.2.2 — Lyrics & Navigation Hotfix
 
 - **Smooth Karaoke Fill**: Word-timed lyrics now fill continuously from left to right with a soft glow. The previous per-letter jump, scale, and layout movement have been removed.
