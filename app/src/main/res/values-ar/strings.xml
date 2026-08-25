@@ -1888,4 +1888,18 @@
   <string name="ui_yt_dlp_version">الإصدار %1$s</string>
   <string name="ui_yt_dlp_commit">الالتزام %1$s</string>
   <string name="ui_version_unavailable">الإصدار غير متاح</string>
+  <string name="ui_update_channel">قناة التحديث</string>
+  <string name="ui_stable_releases">مستقر</string>
+  <string name="ui_preview_builds">معاينة (ليلي)</string>
+  <string name="ui_preview_builds_summary">إصدارات المعاينة هي نسخ اختبار موقّعة تُنشر من أحدث تغييرات mpvRx وقد تكون غير مستقرة.</string>
+  <string name="update_whats_new">ما الجديد</string>
+  <string name="update_no_release_notes">لا توجد ملاحظات إصدار.</string>
+  <string name="update_ready_to_install">جاهز للتثبيت</string>
+  <string name="update_available">يتوفر تحديث</string>
+  <string name="update_version_format">الإصدار %1$s</string>
+  <string name="update_release_date">تاريخ الإصدار</string>
+  <string name="update_size">الحجم</string>
+  <string name="update_unknown_size">حجم غير معروف</string>
+  <string name="update_beta_build_format">تجريبي r%1$d</string>
+  <string name="ui_beta_badge_suffix">\u0020(تجريبي)</string>
 </resources>

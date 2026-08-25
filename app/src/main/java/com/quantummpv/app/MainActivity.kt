@@ -55,6 +55,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation3.runtime.NavBackStack
@@ -515,7 +516,12 @@ class MainActivity : AppCompatActivity() {
     val animSpeed by playerPreferences.animationSpeed.collectAsState()
 
     val context = LocalContext.current
-    val currentVersion = BuildConfig.VERSION_NAME.replace("-dev", "")
+    val currentVersion =
+      if (BuildConfig.IS_PREVIEW_BUILD) {
+        stringResource(R.string.update_beta_build_format, BuildConfig.GIT_COUNT)
+      } else {
+        BuildConfig.VERSION_NAME.substringBefore('-')
+      }
 
     // Conditionally initialize update feature based on build config
     val updateViewModel: UpdateViewModel? =
@@ -655,7 +661,7 @@ class MainActivity : AppCompatActivity() {
               currentVersion = currentVersion,
               onDismiss = { updateViewModel.dismiss() },
               onAction = { updateViewModel.downloadUpdate(release) },
-              onIgnore = { updateViewModel.ignoreVersion(release.tagName.removePrefix("v")) },
+              onIgnore = { updateViewModel.ignoreVersion(release.tagName) },
             )
           }
           is UpdateViewModel.UpdateState.ReadyToInstall -> {
@@ -668,7 +674,7 @@ class MainActivity : AppCompatActivity() {
               currentVersion = currentVersion,
               onDismiss = { updateViewModel.dismiss() },
               onAction = { updateViewModel.installUpdate(release) },
-              onIgnore = { updateViewModel.ignoreVersion(release.tagName.removePrefix("v")) },
+              onIgnore = { updateViewModel.ignoreVersion(release.tagName) },
             )
           }
           else -> {}

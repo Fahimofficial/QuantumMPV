@@ -46,6 +46,9 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.SegmentedButton
+import androidx.compose.material3.SegmentedButtonDefaults
+import androidx.compose.material3.SingleChoiceSegmentedButtonRow
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import com.quantummpv.app.ui.components.IconSwitch
@@ -71,6 +74,7 @@ import androidx.core.net.toUri
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.quantummpv.app.BuildConfig
 import com.quantummpv.app.R
+import com.quantummpv.app.domain.update.AppUpdateChannel
 import com.quantummpv.app.presentation.Screen
 import com.quantummpv.app.presentation.crash.CrashActivity.Companion.collectDeviceInfo
 import com.quantummpv.app.ui.icons.Icon
@@ -94,7 +98,9 @@ object AboutScreen : Screen {
     val packageManager: PackageManager = context.packageManager
     val packageInfo = packageManager.getPackageInfo(context.packageName, 0)
     val versionName =
-      packageInfo.versionName?.substringBefore('-') ?: packageInfo.versionName ?: BuildConfig.VERSION_NAME
+      packageInfo.versionName
+        ?.let { value -> if (BuildConfig.IS_PREVIEW_BUILD) value else value.substringBefore('-') }
+        ?: BuildConfig.VERSION_NAME
     val buildType = BuildConfig.BUILD_TYPE
     val githubRepoUrl = stringResource(R.string.github_repo_url)
     val settingsScrollState = rememberScrollState()
@@ -501,6 +507,7 @@ object AboutScreen : Screen {
           PreferenceSectionHeader(title = stringResource(R.string.pref_section_updates))
           PreferenceCard {
             val isAutoUpdateEnabled by updateViewModel.isAutoUpdateEnabled.collectAsState()
+            val updateChannel by updateViewModel.updateChannel.collectAsState()
             Column {
               Row(
                 modifier =
@@ -537,6 +544,44 @@ object AboutScreen : Screen {
                   checked = isAutoUpdateEnabled,
                   onCheckedChange = { updateViewModel.toggleAutoUpdate(it) },
                 )
+              }
+
+              PreferenceDivider()
+
+              Column(
+                modifier = Modifier.fillMaxWidth().padding(16.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp),
+              ) {
+                Text(
+                  text = stringResource(R.string.ui_update_channel),
+                  style = MaterialTheme.typography.titleMedium,
+                  fontWeight = FontWeight.SemiBold,
+                  color = cs.onSurface,
+                )
+                Text(
+                  text = stringResource(R.string.ui_preview_builds_summary),
+                  style = MaterialTheme.typography.bodyMedium,
+                  color = cs.outline,
+                )
+                SingleChoiceSegmentedButtonRow(modifier = Modifier.fillMaxWidth()) {
+                  AppUpdateChannel.entries.forEachIndexed { index, channel ->
+                    SegmentedButton(
+                      selected = updateChannel == channel,
+                      onClick = { updateViewModel.setUpdateChannel(channel) },
+                      shape = SegmentedButtonDefaults.itemShape(index, AppUpdateChannel.entries.size),
+                      label = {
+                        Text(
+                          stringResource(
+                            when (channel) {
+                              AppUpdateChannel.STABLE -> R.string.ui_stable_releases
+                              AppUpdateChannel.PREVIEW -> R.string.ui_preview_builds
+                            },
+                          ),
+                        )
+                      },
+                    )
+                  }
+                }
               }
 
               PreferenceDivider()

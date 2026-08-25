@@ -31,31 +31,58 @@ class UpdateManager(
   private val client = OkHttpClient()
   private val json = Json { ignoreUnknownKeys = true }
 
-  suspend fun checkForUpdate(forceShow: Boolean = false): Release? {
+  suspend fun checkForUpdate(
+    channel: AppUpdateChannel,
+    forceShow: Boolean = false,
+  ): Release? {
     // Return null immediately if update feature is disabled (F-Droid flavor)
     if (!BuildConfig.ENABLE_UPDATE_FEATURE) {
       return null
     }
 
-    val release = getLatestRelease("https://api.github.com/repos/Riteshp2001/mpvRx/releases/latest")
-    val currentVersion = BuildConfig.VERSION_NAME.replace("-dev", "")
-    val remoteVersion = release.tagName.removePrefix("v")
+    val release =
+      getLatestRelease(
+        when (channel) {
+          AppUpdateChannel.STABLE -> STABLE_RELEASE_URL
+          AppUpdateChannel.PREVIEW -> PREVIEW_RELEASE_URL
+        },
+      )
     val prefs = context.getSharedPreferences("mpvrx_prefs", Context.MODE_PRIVATE)
-    val ignoredVersion = prefs.getString("ignored_version", null)
+    val ignoredVersion =
+      prefs.getString(ignoredVersionKey(channel), null)
+        ?: if (channel == AppUpdateChannel.STABLE) prefs.getString(LEGACY_IGNORED_VERSION_KEY, null) else null
 
     // If this version was ignored, don't show it unless forced (manual check)
-    if (!forceShow && ignoredVersion == remoteVersion) {
+    val isIgnored =
+      ignoredVersion == release.tagName ||
+        (channel == AppUpdateChannel.STABLE && ignoredVersion == release.tagName.removePrefix("v"))
+    if (!forceShow && isIgnored) {
       return null
     }
 
-    return if (isNewerVersion(remoteVersion, currentVersion)) {
+    val isNewer =
+      when (channel) {
+        AppUpdateChannel.STABLE -> {
+          val currentVersion = BuildConfig.VERSION_NAME.substringBefore('-')
+          isNewerVersion(release.tagName.removePrefix("v"), currentVersion)
+        }
+        AppUpdateChannel.PREVIEW -> {
+          val remoteCommitCount = release.commitCount ?: parsePreviewCommitCount(release.tagName)
+          remoteCommitCount != null && remoteCommitCount > BuildConfig.GIT_COUNT
+        }
+      }
+
+    return if (isNewer) {
       release
     } else {
       null
     }
   }
 
-  fun ignoreVersion(version: String) {
+  fun ignoreVersion(
+    version: String,
+    channel: AppUpdateChannel,
+  ) {
     // No-op if update feature is disabled
     if (!BuildConfig.ENABLE_UPDATE_FEATURE) {
       return
@@ -64,13 +91,13 @@ class UpdateManager(
     val prefs = context.getSharedPreferences("mpvrx_prefs", Context.MODE_PRIVATE)
     prefs
       .edit()
-      .putString("ignored_version", version)
+      .putString(ignoredVersionKey(channel), version)
       .apply()
   }
 
   private suspend fun getLatestRelease(url: String): Release =
     withContext(Dispatchers.IO) {
-      val request = Request.Builder().url(url).build()
+      val request = Request.Builder().url(url).header("Cache-Control", "no-cache").build()
       client.newCall(request).execute().use { response ->
         if (!response.isSuccessful) throw IOException("Unexpected code $response")
         val responseBody = response.body.string()
@@ -93,6 +120,12 @@ class UpdateManager(
     }
     return false
   }
+
+  private fun parsePreviewCommitCount(tagName: String): Int? =
+    PREVIEW_TAG_REGEX.find(tagName)?.groupValues?.getOrNull(1)?.toIntOrNull()
+
+  private fun ignoredVersionKey(channel: AppUpdateChannel): String =
+    "ignored_version_${channel.name.lowercase()}"
 
   fun downloadUpdate(release: Release): Flow<Float> {
     // Return completed flow immediately if update feature is disabled
@@ -213,5 +246,12 @@ class UpdateManager(
     context.externalCacheDir?.listFiles()?.forEach {
       if (it.name.endsWith(".apk")) it.delete()
     }
+  }
+
+  private companion object {
+    const val STABLE_RELEASE_URL = "https://api.github.com/repos/Riteshp2001/mpvRx/releases/latest"
+    const val PREVIEW_RELEASE_URL = "https://riteshp2001.github.io/mpvRx/latest.json"
+    const val LEGACY_IGNORED_VERSION_KEY = "ignored_version"
+    val PREVIEW_TAG_REGEX = Regex("""(?:preview-)?r(\d+)""", RegexOption.IGNORE_CASE)
   }
 }

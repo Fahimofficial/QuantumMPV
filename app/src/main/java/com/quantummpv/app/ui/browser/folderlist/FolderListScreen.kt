@@ -90,6 +90,7 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.quantummpv.app.BuildConfig
 import com.quantummpv.app.R
 import com.quantummpv.app.domain.browser.FileSystemItem
 import com.quantummpv.app.domain.media.model.Video
@@ -628,6 +629,7 @@ object FolderListScreen : Screen {
               },
               onTitleDoubleTap = { backstack.add(SecureFolderGateScreen) },
               onTitleLongPress = { backstack.add(SecureFolderGateScreen) },
+              showBetaBadge = BuildConfig.IS_PREVIEW_BUILD,
               onRenameClick = null,
               isSingleSelection = selectionManager.isSingleSelection,
               onInfoClick = null,

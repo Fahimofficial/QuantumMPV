@@ -67,7 +67,10 @@ fun UpdateSheet(
   onIgnore: () -> Unit,
 ) {
   val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
-  val latestVersion = release.tagName.removePrefix("v")
+  val latestVersion =
+    release.previewBuildNumber?.let { buildNumber ->
+      stringResource(R.string.update_beta_build_format, buildNumber)
+    } ?: release.tagName.removePrefix("v")
   val downloadSize = release.assets.find { it.name.endsWith(".apk") }?.size ?: 0L
 
   ModalBottomSheet(
@@ -104,14 +107,14 @@ fun UpdateSheet(
         )
 
         Text(
-          text = "What's New",
+          text = stringResource(R.string.update_whats_new),
           style = MaterialTheme.typography.titleMedium,
           fontWeight = FontWeight.SemiBold,
           color = MaterialTheme.colorScheme.onSurface,
         )
         Spacer(modifier = Modifier.height(8.dp))
         Markdown(
-          content = release.body.ifBlank { "No release notes provided." },
+          content = release.body.ifBlank { stringResource(R.string.update_no_release_notes) },
           modifier = Modifier.fillMaxWidth(),
         )
         Spacer(modifier = Modifier.height(16.dp))
@@ -178,12 +181,15 @@ private fun SheetHeader(
     Spacer(modifier = Modifier.width(12.dp))
     Column {
       Text(
-        text = if (isInstallReady) "Ready to Install" else "Update Available",
+        text =
+          stringResource(
+            if (isInstallReady) R.string.update_ready_to_install else R.string.update_available,
+          ),
         style = MaterialTheme.typography.titleLarge,
         color = MaterialTheme.colorScheme.onSurface,
       )
       Text(
-        text = "Version $latestVersion",
+        text = stringResource(R.string.update_version_format, latestVersion),
         style = MaterialTheme.typography.labelLarge,
         color = MaterialTheme.colorScheme.primary,
       )
@@ -248,8 +254,11 @@ private fun ReleaseMetaRow(
     modifier = Modifier.fillMaxWidth(),
     horizontalArrangement = Arrangement.SpaceBetween,
   ) {
-    MetaItem(label = "Release Date", value = formatDate(publishedAt))
-    MetaItem(label = "Size", value = formatFileSize(sizeBytes))
+    MetaItem(label = stringResource(R.string.update_release_date), value = formatDate(publishedAt))
+    MetaItem(
+      label = stringResource(R.string.update_size),
+      value = formatFileSize(sizeBytes, stringResource(R.string.update_unknown_size)),
+    )
   }
 }
 
@@ -301,8 +310,11 @@ private fun DownloadProgressSection(progress: Float) {
   }
 }
 
-private fun formatFileSize(size: Long): String {
-  if (size <= 0) return "Unknown size"
+private fun formatFileSize(
+  size: Long,
+  unknownLabel: String,
+): String {
+  if (size <= 0) return unknownLabel
   val units = arrayOf("B", "KB", "MB", "GB", "TB")
   val digitGroups = (Math.log10(size.toDouble()) / Math.log10(1024.0)).toInt()
   return String.format("%.1f %s", size / Math.pow(1024.0, digitGroups.toDouble()), units[digitGroups])

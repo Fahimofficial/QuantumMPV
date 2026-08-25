@@ -1886,4 +1886,18 @@
   <string name="ui_yt_dlp_version">バージョン %1$s</string>
   <string name="ui_yt_dlp_commit">コミット %1$s</string>
   <string name="ui_version_unavailable">バージョンを取得できません</string>
+  <string name="ui_update_channel">アップデートチャンネル</string>
+  <string name="ui_stable_releases">安定版</string>
+  <string name="ui_preview_builds">プレビュー (Nightly)</string>
+  <string name="ui_preview_builds_summary">プレビュービルドは最新の mpvRx の変更から公開される署名済みテスト版で、不安定な場合があります。</string>
+  <string name="update_whats_new">新機能</string>
+  <string name="update_no_release_notes">リリースノートはありません。</string>
+  <string name="update_ready_to_install">インストール準備完了</string>
+  <string name="update_available">アップデートがあります</string>
+  <string name="update_version_format">バージョン %1$s</string>
+  <string name="update_release_date">リリース日</string>
+  <string name="update_size">サイズ</string>
+  <string name="update_unknown_size">サイズ不明</string>
+  <string name="update_beta_build_format">ベータ r%1$d</string>
+  <string name="ui_beta_badge_suffix">\u0020(ベータ)</string>
 </resources>

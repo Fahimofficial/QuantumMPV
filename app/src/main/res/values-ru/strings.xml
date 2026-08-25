@@ -1886,4 +1886,18 @@
   <string name="ui_yt_dlp_version">Версия %1$s</string>
   <string name="ui_yt_dlp_commit">Коммит %1$s</string>
   <string name="ui_version_unavailable">Версия недоступна</string>
+  <string name="ui_update_channel">Канал обновлений</string>
+  <string name="ui_stable_releases">Стабильный</string>
+  <string name="ui_preview_builds">Предварительный (Nightly)</string>
+  <string name="ui_preview_builds_summary">Предварительные сборки — это подписанные тестовые версии на основе последних изменений mpvRx, которые могут быть нестабильными.</string>
+  <string name="update_whats_new">Что нового</string>
+  <string name="update_no_release_notes">Примечания к выпуску отсутствуют.</string>
+  <string name="update_ready_to_install">Готово к установке</string>
+  <string name="update_available">Доступно обновление</string>
+  <string name="update_version_format">Версия %1$s</string>
+  <string name="update_release_date">Дата выпуска</string>
+  <string name="update_size">Размер</string>
+  <string name="update_unknown_size">Размер неизвестен</string>
+  <string name="update_beta_build_format">Бета r%1$d</string>
+  <string name="ui_beta_badge_suffix">\u0020(Бета)</string>
 </resources>

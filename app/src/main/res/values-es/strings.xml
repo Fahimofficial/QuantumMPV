@@ -1886,4 +1886,18 @@ Reinicia la aplicación para que se apliquen todos los cambios.</string>
   <string name="ui_yt_dlp_version">Versión %1$s</string>
   <string name="ui_yt_dlp_commit">Commit %1$s</string>
   <string name="ui_version_unavailable">Versión no disponible</string>
+  <string name="ui_update_channel">Canal de actualización</string>
+  <string name="ui_stable_releases">Estable</string>
+  <string name="ui_preview_builds">Vista previa (Nightly)</string>
+  <string name="ui_preview_builds_summary">Las compilaciones de vista previa son versiones de prueba firmadas publicadas a partir de los últimos cambios de mpvRx y pueden ser inestables.</string>
+  <string name="update_whats_new">Novedades</string>
+  <string name="update_no_release_notes">No se proporcionaron notas de la versión.</string>
+  <string name="update_ready_to_install">Listo para instalar</string>
+  <string name="update_available">Actualización disponible</string>
+  <string name="update_version_format">Versión %1$s</string>
+  <string name="update_release_date">Fecha de lanzamiento</string>
+  <string name="update_size">Tamaño</string>
+  <string name="update_unknown_size">Tamaño desconocido</string>
+  <string name="update_beta_build_format">Beta r%1$d</string>
+  <string name="ui_beta_badge_suffix">\u0020(Beta)</string>
 </resources>

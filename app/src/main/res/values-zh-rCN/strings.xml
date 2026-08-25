@@ -1888,4 +1888,18 @@
   <string name="ui_yt_dlp_version">版本 %1$s</string>
   <string name="ui_yt_dlp_commit">提交 %1$s</string>
   <string name="ui_version_unavailable">版本不可用</string>
+  <string name="ui_update_channel">更新渠道</string>
+  <string name="ui_stable_releases">稳定版</string>
+  <string name="ui_preview_builds">预览版（Nightly）</string>
+  <string name="ui_preview_builds_summary">预览版是根据 mpvRx 最新更改发布的签名测试版本，可能不稳定。</string>
+  <string name="update_whats_new">新增内容</string>
+  <string name="update_no_release_notes">未提供发行说明。</string>
+  <string name="update_ready_to_install">可以安装</string>
+  <string name="update_available">有可用更新</string>
+  <string name="update_version_format">版本 %1$s</string>
+  <string name="update_release_date">发布日期</string>
+  <string name="update_size">大小</string>
+  <string name="update_unknown_size">大小未知</string>
+  <string name="update_beta_build_format">测试版 r%1$d</string>
+  <string name="ui_beta_badge_suffix">\u0020（测试版）</string>
 </resources>

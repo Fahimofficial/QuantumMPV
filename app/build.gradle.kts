@@ -107,6 +107,7 @@ android {
 
   buildTypes {
     named("release") {
+      buildConfigField("boolean", "IS_PREVIEW_BUILD", "false")
       isMinifyEnabled = true
       isShrinkResources = true
       proguardFiles(
@@ -121,11 +122,12 @@ android {
     create("preview") {
       initWith(getByName("release"))
       signingConfig = null
-      applicationIdSuffix = ".preview"
-      versionNameSuffix = "-${getCommitCount()}"
+      buildConfigField("boolean", "IS_PREVIEW_BUILD", "true")
+      versionNameSuffix = "-beta.r${getCommitCount()}"
     }
 
     named("debug") {
+      buildConfigField("boolean", "IS_PREVIEW_BUILD", "false")
       applicationIdSuffix = ".debug"
       versionNameSuffix = "-${getCommitCount()}"
       resValue("string", "app_name", "mpvRx-Debug")

@@ -1886,4 +1886,18 @@ Bitte starten Sie die App neu, damit alle Änderungen wirksam werden.</string>
   <string name="ui_yt_dlp_version">Version %1$s</string>
   <string name="ui_yt_dlp_commit">Commit %1$s</string>
   <string name="ui_version_unavailable">Version nicht verfügbar</string>
+  <string name="ui_update_channel">Update-Kanal</string>
+  <string name="ui_stable_releases">Stabil</string>
+  <string name="ui_preview_builds">Vorschau (Nightly)</string>
+  <string name="ui_preview_builds_summary">Vorschau-Builds sind signierte Testversionen aus den neuesten mpvRx-Änderungen und können instabil sein.</string>
+  <string name="update_whats_new">Neuigkeiten</string>
+  <string name="update_no_release_notes">Keine Versionshinweise vorhanden.</string>
+  <string name="update_ready_to_install">Bereit zur Installation</string>
+  <string name="update_available">Update verfügbar</string>
+  <string name="update_version_format">Version %1$s</string>
+  <string name="update_release_date">Veröffentlichungsdatum</string>
+  <string name="update_size">Größe</string>
+  <string name="update_unknown_size">Unbekannte Größe</string>
+  <string name="update_beta_build_format">Beta r%1$d</string>
+  <string name="ui_beta_badge_suffix">\u0020(Beta)</string>
 </resources>

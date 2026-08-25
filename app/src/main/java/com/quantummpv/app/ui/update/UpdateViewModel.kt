@@ -16,8 +16,11 @@ import androidx.core.content.FileProvider
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.quantummpv.app.BuildConfig
+import com.quantummpv.app.domain.update.AppUpdateChannel
 import com.quantummpv.app.domain.update.Release
 import com.quantummpv.app.domain.update.UpdateManager
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -37,6 +40,7 @@ class UpdateViewModel(
 
   private val _isDownloading = MutableStateFlow(false)
   val isDownloading: StateFlow<Boolean> = _isDownloading.asStateFlow()
+  private var updateCheckJob: Job? = null
 
   private val prefs = application.getSharedPreferences("mpvrx_prefs", Context.MODE_PRIVATE)
   private val _isAutoUpdateEnabled =
@@ -44,6 +48,23 @@ class UpdateViewModel(
       if (BuildConfig.ENABLE_UPDATE_FEATURE) prefs.getBoolean("auto_update", false) else false,
     )
   val isAutoUpdateEnabled: StateFlow<Boolean> = _isAutoUpdateEnabled.asStateFlow()
+
+  private val _updateChannel =
+    MutableStateFlow(
+      prefs.getString(UPDATE_CHANNEL_KEY, null)?.let(AppUpdateChannel::fromStoredValue)
+        ?: if (BuildConfig.IS_PREVIEW_BUILD) AppUpdateChannel.PREVIEW else AppUpdateChannel.STABLE,
+    )
+  val updateChannel: StateFlow<AppUpdateChannel> = _updateChannel.asStateFlow()
+
+  fun setUpdateChannel(channel: AppUpdateChannel) {
+    if (!BuildConfig.ENABLE_UPDATE_FEATURE || channel == _updateChannel.value) return
+
+    prefs.edit().putString(UPDATE_CHANNEL_KEY, channel.name).apply()
+    _updateChannel.value = channel
+    updateManager.clearCache()
+    _updateState.value = UpdateState.Idle
+    checkForUpdate(manual = true)
+  }
 
   fun toggleAutoUpdate(enabled: Boolean) {
     // No-op if update feature is disabled
@@ -83,6 +104,7 @@ class UpdateViewModel(
      * dialog (if any) still appears within a few seconds of cold start.
      */
     private const val UPDATE_CHECK_STARTUP_DELAY_MS = 1500L
+    private const val UPDATE_CHANNEL_KEY = "app_update_channel"
   }
 
   sealed class UpdateState {
@@ -113,10 +135,11 @@ class UpdateViewModel(
       return
     }
 
-    viewModelScope.launch {
+    updateCheckJob?.cancel()
+    updateCheckJob = viewModelScope.launch {
       _updateState.value = UpdateState.Loading
       try {
-        val release = updateManager.checkForUpdate(forceShow = manual)
+        val release = updateManager.checkForUpdate(channel = _updateChannel.value, forceShow = manual)
         if (release != null) {
           val existingFile = updateManager.getApkFile(release)
           if (existingFile != null) {
@@ -131,6 +154,8 @@ class UpdateViewModel(
             _updateState.value = UpdateState.Idle
           }
         }
+      } catch (cancellation: CancellationException) {
+        throw cancellation
       } catch (e: Exception) {
         e.printStackTrace()
         if (manual) {
@@ -194,7 +219,7 @@ class UpdateViewModel(
   }
 
   fun ignoreVersion(version: String) {
-    updateManager.ignoreVersion(version)
+    updateManager.ignoreVersion(version, _updateChannel.value)
     _updateState.value = UpdateState.Idle
   }
 }

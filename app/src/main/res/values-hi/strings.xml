@@ -1790,4 +1790,18 @@
   <string name="ui_yt_dlp_version">संस्करण %1$s</string>
   <string name="ui_yt_dlp_commit">कमिट %1$s</string>
   <string name="ui_version_unavailable">संस्करण उपलब्ध नहीं है</string>
+  <string name="ui_update_channel">अपडेट चैनल</string>
+  <string name="ui_stable_releases">स्थिर</string>
+  <string name="ui_preview_builds">पूर्वावलोकन (Nightly)</string>
+  <string name="ui_preview_builds_summary">पूर्वावलोकन बिल्ड नवीनतम mpvRx बदलावों से प्रकाशित हस्ताक्षरित परीक्षण संस्करण हैं और अस्थिर हो सकते हैं।</string>
+  <string name="update_whats_new">नया क्या है</string>
+  <string name="update_no_release_notes">कोई रिलीज़ नोट उपलब्ध नहीं है।</string>
+  <string name="update_ready_to_install">इंस्टॉल करने के लिए तैयार</string>
+  <string name="update_available">अपडेट उपलब्ध है</string>
+  <string name="update_version_format">संस्करण %1$s</string>
+  <string name="update_release_date">रिलीज़ दिनांक</string>
+  <string name="update_size">आकार</string>
+  <string name="update_unknown_size">अज्ञात आकार</string>
+  <string name="update_beta_build_format">बीटा r%1$d</string>
+  <string name="ui_beta_badge_suffix">\u0020(बीटा)</string>
 </resources>

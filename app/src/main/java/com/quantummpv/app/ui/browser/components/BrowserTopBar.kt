@@ -43,8 +43,12 @@ import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.boundsInWindow
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.buildAnnotatedString
+import androidx.compose.ui.text.style.BaselineShift
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
 import com.quantummpv.app.R
 import com.quantummpv.app.preferences.AppearancePreferences
@@ -94,6 +98,7 @@ fun BrowserTopBar(
   onRestoreClick: (() -> Unit)? = null,
   colors: TopAppBarColors? = null,
   forceHeadlineSmall: Boolean = false,
+  showBetaBadge: Boolean = false,
 ) {
   if (isInSelectionMode) {
     SelectionTopBar(
@@ -133,6 +138,7 @@ fun BrowserTopBar(
       onTitleDoubleTap = onTitleDoubleTap,
       colors = colors,
       forceHeadlineSmall = forceHeadlineSmall,
+      showBetaBadge = showBetaBadge,
     )
   }
 }
@@ -155,6 +161,7 @@ private fun NormalTopBar(
   onTitleDoubleTap: (() -> Unit)? = null,
   colors: TopAppBarColors? = null,
   forceHeadlineSmall: Boolean = false,
+  showBetaBadge: Boolean = false,
 ) {
   val preferences = koinInject<AppearancePreferences>()
   val darkMode by preferences.darkMode.collectAsState()
@@ -200,6 +207,12 @@ private fun NormalTopBar(
           },
       ),
     title = {
+      val betaBadgeSuffix =
+        if (showBetaBadge) {
+          stringResource(R.string.ui_beta_badge_suffix)
+        } else {
+          ""
+        }
       val titleModifier =
         Modifier
           .onGloballyPositioned { coordinates ->
@@ -239,7 +252,20 @@ private fun NormalTopBar(
           }
 
       Text(
-        title,
+        buildAnnotatedString {
+          append(title)
+          if (showBetaBadge) {
+            withStyle(
+              SpanStyle(
+                fontSize = MaterialTheme.typography.labelSmall.fontSize,
+                fontWeight = FontWeight.SemiBold,
+                baselineShift = BaselineShift.Superscript,
+              ),
+            ) {
+              append(betaBadgeSuffix)
+            }
+          }
+        },
         style =
           if (forceHeadlineSmall || onBackClick != null) {
             MaterialTheme.typography.headlineSmall
