@@ -1866,4 +1866,26 @@
   <string name="seerr_tab_movies">أفلام</string>
   <string name="seerr_tab_tv">مسلسلات</string>
   <string name="seerr_tab_my_requests">طلباتي</string>
+  <string name="ui_release_channel">قناة الإصدار</string>
+  <string name="ui_install_stable">تثبيت الإصدار المستقر</string>
+  <string name="ui_update_stable">تحديث الإصدار المستقر</string>
+  <string name="ui_switch_to_stable">التبديل إلى الإصدار المستقر</string>
+  <string name="ui_update_nightly">تحديث الإصدار الليلي</string>
+  <string name="ui_switch_to_nightly">التبديل إلى الإصدار الليلي</string>
+  <string name="ui_playback_defaults">إعدادات التشغيل الافتراضية</string>
+  <string name="ui_maximum_quality">أقصى جودة</string>
+  <string name="ui_automatic">تلقائي</string>
+  <string name="ui_checking_yt_dlp">جارٍ التحقق من yt-dlp</string>
+  <string name="ui_yt_dlp_not_installed">yt-dlp غير مثبت</string>
+  <string name="ui_yt_dlp_stable_release">الإصدار المستقر</string>
+  <string name="ui_yt_dlp_nightly_build">البنية الليلية</string>
+  <string name="ui_yt_dlp_master_build">بنية Master</string>
+  <string name="ui_yt_dlp_custom_build">بنية مخصصة</string>
+  <string name="ui_yt_dlp_installed_build">البنية المثبتة</string>
+  <string name="ui_reading_installed_version">جارٍ قراءة الإصدار المثبت…</string>
+  <string name="ui_install_stable_to_play_web_links">ثبّت الإصدار المستقر لتشغيل روابط الويب المدعومة.</string>
+  <string name="ui_yt_dlp_build_and_commit">البنية %1$s • الالتزام %2$s</string>
+  <string name="ui_yt_dlp_version">الإصدار %1$s</string>
+  <string name="ui_yt_dlp_commit">الالتزام %1$s</string>
+  <string name="ui_version_unavailable">الإصدار غير متاح</string>
 </resources>

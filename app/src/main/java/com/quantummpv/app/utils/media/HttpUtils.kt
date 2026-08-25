@@ -22,7 +22,7 @@ object HttpUtils {
   private const val TAG = "HttpUtils"
   private const val CONNECTION_TIMEOUT = 3000
   private const val READ_TIMEOUT = 3000
-  private val directMediaExtensions =
+  internal val directMediaExtensions =
     setOf(
       "mp4",
       "m4v",

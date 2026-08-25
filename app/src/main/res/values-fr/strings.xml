@@ -1864,4 +1864,26 @@ Veuillez redémarrer l’application pour appliquer toutes les modifications.</s
   <string name="seerr_tab_movies">Films</string>
   <string name="seerr_tab_tv">Séries</string>
   <string name="seerr_tab_my_requests">Mes demandes</string>
+  <string name="ui_release_channel">Canal de publication</string>
+  <string name="ui_install_stable">Installer la version stable</string>
+  <string name="ui_update_stable">Mettre à jour la version stable</string>
+  <string name="ui_switch_to_stable">Passer à la version stable</string>
+  <string name="ui_update_nightly">Mettre à jour la version Nightly</string>
+  <string name="ui_switch_to_nightly">Passer à la version Nightly</string>
+  <string name="ui_playback_defaults">Paramètres de lecture par défaut</string>
+  <string name="ui_maximum_quality">Qualité maximale</string>
+  <string name="ui_automatic">Automatique</string>
+  <string name="ui_checking_yt_dlp">Vérification de yt-dlp</string>
+  <string name="ui_yt_dlp_not_installed">yt-dlp n’est pas installé</string>
+  <string name="ui_yt_dlp_stable_release">Version stable</string>
+  <string name="ui_yt_dlp_nightly_build">Build Nightly</string>
+  <string name="ui_yt_dlp_master_build">Build Master</string>
+  <string name="ui_yt_dlp_custom_build">Build personnalisé</string>
+  <string name="ui_yt_dlp_installed_build">Build installé</string>
+  <string name="ui_reading_installed_version">Lecture de la version installée…</string>
+  <string name="ui_install_stable_to_play_web_links">Installez la version stable pour lire les liens web pris en charge.</string>
+  <string name="ui_yt_dlp_build_and_commit">Build %1$s • Commit %2$s</string>
+  <string name="ui_yt_dlp_version">Version %1$s</string>
+  <string name="ui_yt_dlp_commit">Commit %1$s</string>
+  <string name="ui_version_unavailable">Version indisponible</string>
 </resources>

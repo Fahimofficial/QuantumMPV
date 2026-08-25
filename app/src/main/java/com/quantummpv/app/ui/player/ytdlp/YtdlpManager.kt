@@ -10,31 +10,105 @@
 package com.quantummpv.app.ui.player.ytdlp
 
 import android.content.Context
+import android.net.Uri
 import android.system.Os
 import android.util.Log
+import com.quantummpv.app.network.AndroidCookieJar
 import com.quantummpv.app.preferences.SubtitlesPreferences
 import com.quantummpv.app.preferences.YtdlPreferences
 import com.quantummpv.app.ui.player.PlaybackSession
+import com.quantummpv.app.utils.media.HttpUtils
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
+import org.json.JSONObject
 import java.io.*
 
 object YtdlpManager {
   private const val TAG = "YtdlpManager"
   private const val YTDL_DIR = "ytdl"
+  private const val PLAYBACK_RUNTIME_VERSION = "1"
+  private const val PLAYBACK_RUNTIME_VERSION_FILE = "playback-runtime-version"
+  private const val INSTALLATION_INFO_PREFIX = "MPVRX_YTDLP_INFO="
+  private val installMutex = Mutex()
+
+  private val _installationInfo = MutableStateFlow<YtdlpInstallationInfo?>(null)
+  val installationInfo: StateFlow<YtdlpInstallationInfo?> = _installationInfo.asStateFlow()
+
+  @Volatile
+  private var runtimeAssetsPrepared = false
+
+  private val installationInfoScript =
+    """
+    import json, sys
+    sys.path.insert(0, sys.argv[1])
+    from yt_dlp import version
+    fields = {
+        "version": getattr(version, "__version__", ""),
+        "channel": getattr(version, "CHANNEL", ""),
+        "commit": getattr(version, "RELEASE_GIT_HEAD", ""),
+        "origin": getattr(version, "ORIGIN", ""),
+        "variant": getattr(version, "VARIANT", ""),
+    }
+    print("$INSTALLATION_INFO_PREFIX" + json.dumps(fields, separators=(",", ":")))
+    """.trimIndent()
 
   // Lua patterns (ytdl_hook `exclude` syntax, `|`-separated) for direct media/manifest
-  // URLs that must skip yt-dlp and go straight to mpv/ffmpeg's native demuxers. `%.`
-  // escapes the dot in a Lua pattern; each entry matches the extension anywhere in the URL
-  // so tokenized query strings (…/index.m3u8?token=…) are still excluded.
-  private const val DIRECT_MEDIA_EXCLUDE =
-    "%.m3u8|%.m3u|%.mpd|%.mp4|%.m4v|%.mkv|%.webm|%.ts|%.m2ts|%.mov|%.avi|" +
-      "%.flv|%.wmv|%.mp3|%.m4a|%.aac|%.flac|%.wav|%.ogg|%.opus"
+  // paths. The prefix prevents an extension in a query parameter from bypassing yt-dlp;
+  // the two suffixes cover plain and tokenized URLs.
+  private val DIRECT_MEDIA_EXCLUDE =
+    HttpUtils.directMediaExtensions
+      .flatMap { extension ->
+        listOf(
+          "^[^?#]+%.${extension}$",
+          "^[^?#]+%.${extension}[?#]",
+        )
+      }.joinToString("|")
 
   fun getYtdlDir(context: Context): File = File(context.filesDir, YTDL_DIR).apply { if (!exists()) mkdirs() }
 
   fun getExecutablePath(context: Context): String =
     File(context.applicationInfo.nativeLibraryDir, "libytdl.so").absolutePath
+
+  suspend fun refreshInstallationInfo(context: Context): YtdlpInstallationInfo =
+    withContext(Dispatchers.IO) {
+      installMutex.withLock {
+        readInstallationInfo(context).also { info -> _installationInfo.value = info }
+      }
+    }
+
+  fun requiresYtdlp(source: String): Boolean {
+    val uri = Uri.parse(source)
+    if (!uri.scheme.equals("http", ignoreCase = true) && !uri.scheme.equals("https", ignoreCase = true)) {
+      return false
+    }
+
+    return !HttpUtils.isDirectMediaUrl(uri)
+  }
+
+  suspend fun prepareForPlayback(
+    context: Context,
+    source: String,
+    onLog: (String) -> Unit = {},
+  ): Boolean {
+    val uri = Uri.parse(source)
+    val isWebSource = uri.scheme.equals("http", true) || uri.scheme.equals("https", true)
+    if (!isWebSource) return true
+
+    return withContext(Dispatchers.IO) {
+      installMutex.withLock {
+        if (!prepareRuntimeAssets(context, onLog)) return@withLock false
+        if (!requiresYtdlp(source) || isPlaybackRuntimeReady(context)) return@withLock true
+
+        onLog("Preparing the current yt-dlp web playback runtime.\n")
+        installYtdlp(context, onLog)
+      }
+    }
+  }
 
   suspend fun copyAssets(context: Context) =
     withContext(Dispatchers.IO) {
@@ -93,6 +167,7 @@ object YtdlpManager {
     val ytdlDir = getYtdlDir(context).absolutePath
     val ytDlpScriptPath = File(ytdlDir, "yt-dlp").absolutePath
     val pythonPath = File(nativeLibDir, "libpython.so").absolutePath
+    val quickJsPath = File(nativeLibDir, "libqjs.so").absolutePath
 
     // Set environment variables for the subprocesses started by libmpv
     try {
@@ -124,8 +199,19 @@ object YtdlpManager {
     if (!ytDlpFile.exists()) {
       Log.w(TAG, "yt-dlp not found in ${ytDlpFile.absolutePath}. Subprocess will fail until installed.")
     }
+    if (!File(quickJsPath).exists()) {
+      Log.w(TAG, "QuickJS runtime not found at $quickJsPath. Full YouTube extraction may be unavailable.")
+    }
 
-    val settings = YtdlpOptionSettings.fromPreferences(ytdlPreferences, subtitlesPreferences)
+    val storedSettings = YtdlpOptionSettings.fromPreferences(ytdlPreferences, subtitlesPreferences)
+    val settings =
+      storedSettings.copy(
+        cookiesFile =
+          storedSettings.cookiesFile.ifBlank {
+            AndroidCookieJar.playbackCookieFile(context).absolutePath
+          },
+        javascriptRuntime = "quickjs:$quickJsPath",
+      )
     val resolvedOptions = YtdlpOptionsBuilder.build(settings)
     val ua = ytdlPreferences.customUserAgent.get().ifBlank { YtdlpOptionsBuilder.DEFAULT_USER_AGENT }
     // Keep mpv's delay-loaded all-format path enabled for every audio preference. Disabling it for
@@ -143,6 +229,7 @@ object YtdlpManager {
         """
         ytdl_path=$ytdlBinaryPath
         all_formats=$allFormats
+        try_ytdl_first=yes
         exclude=$DIRECT_MEDIA_EXCLUDE
         """.trimIndent()
       ytdlConf.writeText(confContent)
@@ -159,6 +246,9 @@ object YtdlpManager {
     PlaybackSession.setOptionString("script-opts-append", "ytdl_hook-path=$ytdlBinaryPath")
     PlaybackSession.setOptionString("script-opts-append", "ytdl_hook-ytdl_path=$ytdlBinaryPath")
     PlaybackSession.setOptionString("script-opts-append", "ytdl_hook-all_formats=$allFormats")
+    // Seal Plus does not maintain a domain allowlist: every submitted page is resolved by
+    // yt-dlp and yt-dlp chooses the extractor. Do the same before mpv tries to demux HTML.
+    PlaybackSession.setOptionString("script-opts-append", "ytdl_hook-try_ytdl_first=yes")
     // Skip yt-dlp for direct media/manifest URLs (.m3u8/.mpd/.mp4/.ts/...). Without this,
     // ytdl_hook intercepts every http(s) URL and routes it through yt-dlp's generic
     // extractor, which chokes on tokenized HLS/CDN links — so mpv never falls back to
@@ -188,17 +278,10 @@ object YtdlpManager {
     onLog: (String) -> Unit,
   ): Boolean =
     withContext(Dispatchers.IO) {
-      copyAssets(context)
-
-      val ytdlDir = getYtdlDir(context)
-      val nativeLibDir = context.applicationInfo.nativeLibraryDir
-      val pythonBinary = getExecutablePath(context)
-      val setupPy = File(ytdlDir, "setup.py").absolutePath
-
-      // We use the bridge to run setup.py
-      val command = mutableListOf(pythonBinary, setupPy, nativeLibDir)
-
-      runPythonProcess("Installing yt-dlp...", command, context, onLog)
+      installMutex.withLock {
+        if (!prepareRuntimeAssets(context, onLog)) return@withLock false
+        installYtdlp(context, onLog)
+      }
     }
 
   suspend fun runUpdate(
@@ -206,13 +289,23 @@ object YtdlpManager {
     onLog: (String) -> Unit,
   ): Boolean =
     withContext(Dispatchers.IO) {
-      val ytdlDir = getYtdlDir(context)
-      val pythonBinary = getExecutablePath(context)
-      val ytDlp = File(ytdlDir, "yt-dlp").absolutePath
+      installMutex.withLock {
+        if (!prepareRuntimeAssets(context, onLog) || !isInstalled(context)) {
+          _installationInfo.value = readInstallationInfo(context)
+          return@withLock false
+        }
 
-      val command = mutableListOf(pythonBinary, ytDlp, "--update")
-
-      runPythonProcess("Updating yt-dlp...", command, context, onLog)
+        val ytdlDir = getYtdlDir(context)
+        val pythonBinary = getExecutablePath(context)
+        val ytDlp = File(ytdlDir, "yt-dlp").absolutePath
+        val command = mutableListOf(pythonBinary, ytDlp, "--update")
+        val updated = runPythonProcess("Updating yt-dlp...", command, context, onLog)
+        if (updated) {
+          markPlaybackRuntimeReady(context)
+        }
+        _installationInfo.value = readInstallationInfo(context)
+        updated
+      }
     }
 
   suspend fun runUpdateToNightly(
@@ -220,14 +313,143 @@ object YtdlpManager {
     onLog: (String) -> Unit,
   ): Boolean =
     withContext(Dispatchers.IO) {
-      val ytdlDir = getYtdlDir(context)
-      val pythonBinary = getExecutablePath(context)
-      val ytDlp = File(ytdlDir, "yt-dlp").absolutePath
+      installMutex.withLock {
+        if (!prepareRuntimeAssets(context, onLog) || !isInstalled(context)) {
+          _installationInfo.value = readInstallationInfo(context)
+          return@withLock false
+        }
 
-      val command = mutableListOf(pythonBinary, ytDlp, "--update-to", "nightly")
-
-      runPythonProcess("Updating to yt-dlp nightly...", command, context, onLog)
+        val ytdlDir = getYtdlDir(context)
+        val pythonBinary = getExecutablePath(context)
+        val ytDlp = File(ytdlDir, "yt-dlp").absolutePath
+        val command = mutableListOf(pythonBinary, ytDlp, "--update-to", "nightly")
+        val updated = runPythonProcess("Updating to yt-dlp nightly...", command, context, onLog)
+        if (updated) {
+          markPlaybackRuntimeReady(context)
+        }
+        _installationInfo.value = readInstallationInfo(context)
+        updated
+      }
     }
+
+  private suspend fun prepareRuntimeAssets(
+    context: Context,
+    onLog: (String) -> Unit,
+  ): Boolean {
+    if (!runtimeAssetsPrepared) {
+      copyAssets(context)
+      runtimeAssetsPrepared =
+        listOf(
+          File(getYtdlDir(context), "setup.py"),
+          File(getYtdlDir(context), "python313.zip"),
+          File(context.filesDir, "cacert.pem"),
+        ).all { file -> file.isFile && file.length() > 0L }
+    }
+    if (!runtimeAssetsPrepared) onLog("Failed to prepare the bundled yt-dlp runtime assets.\n")
+    return runtimeAssetsPrepared
+  }
+
+  private fun isInstalled(context: Context): Boolean {
+    val ytDlp = File(getYtdlDir(context), "yt-dlp")
+    return ytDlp.isFile && ytDlp.length() > 0L
+  }
+
+  private fun readInstallationInfo(context: Context): YtdlpInstallationInfo {
+    if (!isInstalled(context)) return YtdlpInstallationInfo.NotInstalled
+
+    val ytdlFile = File(getYtdlDir(context), "yt-dlp")
+    val metadataOutput = StringBuilder()
+    val metadataRead =
+      executePythonProcess(
+        command =
+          listOf(
+            getExecutablePath(context),
+            "-c",
+            installationInfoScript,
+            ytdlFile.absolutePath,
+          ),
+        context = context,
+      ) { line -> metadataOutput.appendLine(line) }
+    if (metadataRead) {
+      metadataOutput
+        .lineSequence()
+        .lastOrNull { line -> line.startsWith(INSTALLATION_INFO_PREFIX) }
+        ?.removePrefix(INSTALLATION_INFO_PREFIX)
+        ?.let(::parseInstallationInfo)
+        ?.let { return it }
+    }
+
+    val versionOutput = StringBuilder()
+    val versionRead =
+      executePythonProcess(
+        command = listOf(getExecutablePath(context), ytdlFile.absolutePath, "--version"),
+        context = context,
+      ) { line -> versionOutput.appendLine(line) }
+    val version =
+      versionOutput
+        .lineSequence()
+        .map(String::trim)
+        .firstOrNull { line -> line.matches(Regex("""\d+(?:\.\d+)+""")) }
+        .takeIf { versionRead }
+    return YtdlpInstallationInfo(
+      isInstalled = true,
+      version = version,
+      channel = YtdlpReleaseChannel.resolve(channel = null, origin = null, version = version),
+    )
+  }
+
+  private fun parseInstallationInfo(payload: String): YtdlpInstallationInfo? =
+    runCatching {
+      val json = JSONObject(payload)
+      val version = json.optionalString("version")
+      val channel = json.optionalString("channel")
+      val origin = json.optionalString("origin")
+      YtdlpInstallationInfo(
+        isInstalled = true,
+        version = version,
+        channel = YtdlpReleaseChannel.resolve(channel, origin, version),
+        commitHash = json.optionalString("commit"),
+        origin = origin,
+        variant = json.optionalString("variant"),
+      )
+    }.onFailure { error ->
+      Log.w(TAG, "Failed to parse installed yt-dlp metadata", error)
+    }.getOrNull()
+
+  private fun JSONObject.optionalString(key: String): String? =
+    optString(key)
+      .trim()
+      .takeIf { value -> value.isNotEmpty() && !value.equals("null", ignoreCase = true) }
+
+  private fun isPlaybackRuntimeReady(context: Context): Boolean =
+    isInstalled(context) &&
+      File(getYtdlDir(context), PLAYBACK_RUNTIME_VERSION_FILE).readTextOrNull() == PLAYBACK_RUNTIME_VERSION
+
+  private fun markPlaybackRuntimeReady(context: Context) {
+    runCatching {
+      File(getYtdlDir(context), PLAYBACK_RUNTIME_VERSION_FILE).writeText(PLAYBACK_RUNTIME_VERSION)
+    }.onFailure { error ->
+      Log.w(TAG, "Failed to persist yt-dlp playback runtime version", error)
+    }
+  }
+
+  private fun File.readTextOrNull(): String? =
+    runCatching { takeIf(File::isFile)?.readText()?.trim() }.getOrNull()
+
+  private fun installYtdlp(
+    context: Context,
+    onLog: (String) -> Unit,
+  ): Boolean {
+    val ytdlDir = getYtdlDir(context)
+    val nativeLibDir = context.applicationInfo.nativeLibraryDir
+    val pythonBinary = getExecutablePath(context)
+    val setupPy = File(ytdlDir, "setup.py").absolutePath
+    val command = mutableListOf(pythonBinary, setupPy, nativeLibDir)
+    val installed = runPythonProcess("Installing yt-dlp...", command, context, onLog) && isInstalled(context)
+    if (installed) markPlaybackRuntimeReady(context)
+    _installationInfo.value = readInstallationInfo(context)
+    return installed
+  }
 
   private fun runPythonProcess(
     title: String,
@@ -236,6 +458,14 @@ object YtdlpManager {
     onLog: (String) -> Unit,
   ): Boolean {
     onLog("$title\n")
+    return executePythonProcess(command, context) { line -> onLog("$line\n") }
+  }
+
+  private fun executePythonProcess(
+    command: List<String>,
+    context: Context,
+    onOutput: (String) -> Unit,
+  ): Boolean {
     return try {
       val processBuilder =
         ProcessBuilder(command)
@@ -257,14 +487,12 @@ object YtdlpManager {
 
       val process = processBuilder.start()
 
-      val reader = BufferedReader(InputStreamReader(process.inputStream))
-      var line: String?
-      while (reader.readLine().also { line = it } != null) {
-        onLog(line + "\n")
+      BufferedReader(InputStreamReader(process.inputStream)).use { reader ->
+        reader.lineSequence().forEach(onOutput)
       }
       process.waitFor() == 0
     } catch (e: Exception) {
-      onLog("Error: ${e.message}\n")
+      onOutput("Error: ${e.message}")
       false
     }
   }

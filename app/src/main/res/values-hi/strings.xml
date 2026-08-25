@@ -1768,4 +1768,26 @@
   <string name="seerr_tab_movies">फ़िल्में</string>
   <string name="seerr_tab_tv">टीवी शो</string>
   <string name="seerr_tab_my_requests">मेरे अनुरोध</string>
+  <string name="ui_release_channel">रिलीज़ चैनल</string>
+  <string name="ui_install_stable">स्थिर संस्करण इंस्टॉल करें</string>
+  <string name="ui_update_stable">स्थिर संस्करण अपडेट करें</string>
+  <string name="ui_switch_to_stable">स्थिर संस्करण पर जाएँ</string>
+  <string name="ui_update_nightly">Nightly अपडेट करें</string>
+  <string name="ui_switch_to_nightly">Nightly पर जाएँ</string>
+  <string name="ui_playback_defaults">डिफ़ॉल्ट प्लेबैक</string>
+  <string name="ui_maximum_quality">अधिकतम गुणवत्ता</string>
+  <string name="ui_automatic">स्वचालित</string>
+  <string name="ui_checking_yt_dlp">yt-dlp की जाँच हो रही है</string>
+  <string name="ui_yt_dlp_not_installed">yt-dlp इंस्टॉल नहीं है</string>
+  <string name="ui_yt_dlp_stable_release">स्थिर रिलीज़</string>
+  <string name="ui_yt_dlp_nightly_build">Nightly बिल्ड</string>
+  <string name="ui_yt_dlp_master_build">Master बिल्ड</string>
+  <string name="ui_yt_dlp_custom_build">कस्टम बिल्ड</string>
+  <string name="ui_yt_dlp_installed_build">इंस्टॉल किया गया बिल्ड</string>
+  <string name="ui_reading_installed_version">इंस्टॉल किया गया संस्करण पढ़ा जा रहा है…</string>
+  <string name="ui_install_stable_to_play_web_links">समर्थित वेब लिंक चलाने के लिए स्थिर रिलीज़ इंस्टॉल करें।</string>
+  <string name="ui_yt_dlp_build_and_commit">बिल्ड %1$s • कमिट %2$s</string>
+  <string name="ui_yt_dlp_version">संस्करण %1$s</string>
+  <string name="ui_yt_dlp_commit">कमिट %1$s</string>
+  <string name="ui_version_unavailable">संस्करण उपलब्ध नहीं है</string>
 </resources>

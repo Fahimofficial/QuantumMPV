@@ -112,6 +112,7 @@ import com.quantummpv.app.ui.torrent.TorrentSelectionInput
 import com.quantummpv.app.ui.torrent.TorrentSelectionScreen
 import com.quantummpv.app.ui.torrent.TorrentSelectionViewModel
 import com.quantummpv.app.ui.utils.LocalBackStack
+import com.quantummpv.app.utils.media.SharedUrlExtractor
 import com.quantummpv.app.utils.media.MediaUtils
 import kotlinx.coroutines.launch
 import kotlinx.serialization.Serializable
@@ -896,13 +897,13 @@ private fun StreamLinkSection(
           ?.trim()
           .orEmpty()
       if (text.isNotBlank()) {
-        linkUrl = text
+        linkUrl = SharedUrlExtractor.normalizeInput(text)
       }
     }
   }
 
   fun playCurrentLink() {
-    val sanitizedUrl = linkUrl.trim()
+    val sanitizedUrl = SharedUrlExtractor.normalizeInput(linkUrl)
     if (sanitizedUrl.isBlank()) return
 
     keyboardController?.hide()

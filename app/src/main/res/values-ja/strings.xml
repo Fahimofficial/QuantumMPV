@@ -1864,4 +1864,26 @@
   <string name="seerr_tab_movies">映画</string>
   <string name="seerr_tab_tv">ドラマ</string>
   <string name="seerr_tab_my_requests">マイリクエスト</string>
+  <string name="ui_release_channel">リリースチャンネル</string>
+  <string name="ui_install_stable">安定版をインストール</string>
+  <string name="ui_update_stable">安定版を更新</string>
+  <string name="ui_switch_to_stable">安定版に切り替え</string>
+  <string name="ui_update_nightly">Nightly を更新</string>
+  <string name="ui_switch_to_nightly">Nightly に切り替え</string>
+  <string name="ui_playback_defaults">再生の既定値</string>
+  <string name="ui_maximum_quality">最大画質</string>
+  <string name="ui_automatic">自動</string>
+  <string name="ui_checking_yt_dlp">yt-dlp を確認中</string>
+  <string name="ui_yt_dlp_not_installed">yt-dlp はインストールされていません</string>
+  <string name="ui_yt_dlp_stable_release">安定版</string>
+  <string name="ui_yt_dlp_nightly_build">Nightly ビルド</string>
+  <string name="ui_yt_dlp_master_build">Master ビルド</string>
+  <string name="ui_yt_dlp_custom_build">カスタムビルド</string>
+  <string name="ui_yt_dlp_installed_build">インストール済みビルド</string>
+  <string name="ui_reading_installed_version">インストール済みバージョンを読み取り中…</string>
+  <string name="ui_install_stable_to_play_web_links">対応するウェブリンクを再生するには安定版をインストールしてください。</string>
+  <string name="ui_yt_dlp_build_and_commit">ビルド %1$s • コミット %2$s</string>
+  <string name="ui_yt_dlp_version">バージョン %1$s</string>
+  <string name="ui_yt_dlp_commit">コミット %1$s</string>
+  <string name="ui_version_unavailable">バージョンを取得できません</string>
 </resources>

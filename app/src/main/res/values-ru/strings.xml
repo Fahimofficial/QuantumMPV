@@ -1864,4 +1864,26 @@
   <string name="seerr_tab_movies">Фильмы</string>
   <string name="seerr_tab_tv">Сериалы</string>
   <string name="seerr_tab_my_requests">Мои запросы</string>
+  <string name="ui_release_channel">Канал обновлений</string>
+  <string name="ui_install_stable">Установить стабильную версию</string>
+  <string name="ui_update_stable">Обновить стабильную версию</string>
+  <string name="ui_switch_to_stable">Перейти на стабильную версию</string>
+  <string name="ui_update_nightly">Обновить Nightly</string>
+  <string name="ui_switch_to_nightly">Перейти на Nightly</string>
+  <string name="ui_playback_defaults">Настройки воспроизведения</string>
+  <string name="ui_maximum_quality">Максимальное качество</string>
+  <string name="ui_automatic">Автоматически</string>
+  <string name="ui_checking_yt_dlp">Проверка yt-dlp</string>
+  <string name="ui_yt_dlp_not_installed">yt-dlp не установлен</string>
+  <string name="ui_yt_dlp_stable_release">Стабильная версия</string>
+  <string name="ui_yt_dlp_nightly_build">Ночная сборка</string>
+  <string name="ui_yt_dlp_master_build">Сборка Master</string>
+  <string name="ui_yt_dlp_custom_build">Пользовательская сборка</string>
+  <string name="ui_yt_dlp_installed_build">Установленная сборка</string>
+  <string name="ui_reading_installed_version">Чтение установленной версии…</string>
+  <string name="ui_install_stable_to_play_web_links">Установите стабильную версию для воспроизведения поддерживаемых веб-ссылок.</string>
+  <string name="ui_yt_dlp_build_and_commit">Сборка %1$s • Коммит %2$s</string>
+  <string name="ui_yt_dlp_version">Версия %1$s</string>
+  <string name="ui_yt_dlp_commit">Коммит %1$s</string>
+  <string name="ui_version_unavailable">Версия недоступна</string>
 </resources>

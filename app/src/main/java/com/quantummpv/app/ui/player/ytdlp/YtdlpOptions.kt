@@ -21,6 +21,12 @@ enum class YtdlCodecPreference(
   VP9("VP9"),
   VP9_PROFILE2("VP9 Profile 2"),
   AV1("AV1"),
+
+  ;
+
+  companion object {
+    val commonPlaybackChoices = listOf(AUTO, H264, HEVC, VP9, AV1)
+  }
 }
 
 enum class YtdlContainerPreference(
@@ -85,6 +91,7 @@ data class YtdlpOptionSettings(
   val userAgent: String = "",
   val referer: String = "",
   val cookiesFile: String = "",
+  val javascriptRuntime: String = "",
   val proxy: String = "",
   val extractorArgs: String = "",
   val geoBypass: Boolean = false,
@@ -165,11 +172,15 @@ object YtdlpOptionsBuilder {
     }
 
     add("user-agent", settings.userAgent.ifBlank { DEFAULT_USER_AGENT })
+    add("retries", "3")
+    add("extractor-retries", "3")
+    add("socket-timeout", "15")
     if (settings.writeSubs) add("write-subs")
     if (settings.writeAutoSubs) add("write-auto-subs")
     settings.subtitleLanguages.ifBlank { "all" }.let { add("sub-langs", it) }
     settings.referer.ifNotBlank { add("referer", it) }
     settings.cookiesFile.ifNotBlank { add("cookies", it) }
+    settings.javascriptRuntime.ifNotBlank { add("js-runtimes", it) }
     settings.proxy.ifNotBlank { add("proxy", it) }
     settings.extractorArgs.ifNotBlank { add("extractor-args", it) }
     settings.formatSort.ifNotBlank { add("format-sort", it) }

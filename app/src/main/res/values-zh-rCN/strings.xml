@@ -1866,4 +1866,26 @@
   <string name="seerr_tab_movies">电影</string>
   <string name="seerr_tab_tv">剧集</string>
   <string name="seerr_tab_my_requests">我的请求</string>
+  <string name="ui_release_channel">发布渠道</string>
+  <string name="ui_install_stable">安装稳定版</string>
+  <string name="ui_update_stable">更新稳定版</string>
+  <string name="ui_switch_to_stable">切换到稳定版</string>
+  <string name="ui_update_nightly">更新 Nightly</string>
+  <string name="ui_switch_to_nightly">切换到 Nightly</string>
+  <string name="ui_playback_defaults">播放默认设置</string>
+  <string name="ui_maximum_quality">最高画质</string>
+  <string name="ui_automatic">自动</string>
+  <string name="ui_checking_yt_dlp">正在检查 yt-dlp</string>
+  <string name="ui_yt_dlp_not_installed">未安装 yt-dlp</string>
+  <string name="ui_yt_dlp_stable_release">稳定版</string>
+  <string name="ui_yt_dlp_nightly_build">Nightly 构建</string>
+  <string name="ui_yt_dlp_master_build">Master 构建</string>
+  <string name="ui_yt_dlp_custom_build">自定义构建</string>
+  <string name="ui_yt_dlp_installed_build">已安装构建</string>
+  <string name="ui_reading_installed_version">正在读取已安装版本…</string>
+  <string name="ui_install_stable_to_play_web_links">安装稳定版以播放受支持的网页链接。</string>
+  <string name="ui_yt_dlp_build_and_commit">构建 %1$s • 提交 %2$s</string>
+  <string name="ui_yt_dlp_version">版本 %1$s</string>
+  <string name="ui_yt_dlp_commit">提交 %1$s</string>
+  <string name="ui_version_unavailable">版本不可用</string>
 </resources>

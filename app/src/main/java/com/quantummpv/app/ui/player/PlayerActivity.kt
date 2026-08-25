@@ -112,6 +112,7 @@ import com.quantummpv.app.utils.media.resolveSeekMode
 import com.quantummpv.app.utils.media.M3UParseResult
 import com.quantummpv.app.utils.media.M3UParser
 import com.quantummpv.app.utils.media.PlaybackStateEvents
+import com.quantummpv.app.utils.media.SharedUrlExtractor
 import com.quantummpv.app.utils.media.SubtitleOps
 import com.quantummpv.app.utils.media.listTreeFilesSafely
 import com.quantummpv.app.utils.media.openPersistedTreeDocument
@@ -3001,15 +3002,16 @@ class PlayerActivity :
         }
       uri?.resolveUri(this@PlayerActivity, allowFdFallback = false)
     } else {
-      intent.getStringExtra(Intent.EXTRA_TEXT)?.let { text ->
-        val uri = text.trim().toUri()
-        if (uri.isHierarchical && !uri.isRelative) {
-          uri.resolveUri(this, allowFdFallback = false)
-        } else {
-          null
-        }
-      }
+      extractSharedTextUri(intent)?.resolveUri(this, allowFdFallback = false)
     }
+
+  private fun extractSharedTextUri(intent: Intent): Uri? =
+    intent
+      .getStringExtra(Intent.EXTRA_TEXT)
+      ?.let(SharedUrlExtractor::normalizeInput)
+      ?.takeIf(String::isNotBlank)
+      ?.toUri()
+      ?.takeIf { uri -> uri.isHierarchical && !uri.isRelative }
 
   /**
    * Extracts and resolves the file name from the intent.
@@ -3188,10 +3190,6 @@ class PlayerActivity :
    * @return The extracted URI, or null if not found
    */
   private fun extractUriFromIntent(intent: Intent): Uri? {
-    if (intent.type == "text/plain") {
-      return intent.getStringExtra(Intent.EXTRA_TEXT)?.toUri()
-    }
-
     val streamUri =
       if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.TIRAMISU) {
         intent.getParcelableExtra(Intent.EXTRA_STREAM, Uri::class.java)
@@ -3200,7 +3198,7 @@ class PlayerActivity :
         intent.getParcelableExtra(Intent.EXTRA_STREAM)
       }
 
-    return intent.data ?: streamUri ?: intent.getStringExtra("uri")?.toUri()
+    return intent.data ?: streamUri ?: extractSharedTextUri(intent) ?: intent.getStringExtra("uri")?.toUri()
   }
 
   /**
@@ -4945,6 +4943,12 @@ class PlayerActivity :
     attempt: Int,
     requestGeneration: Long,
   ) {
+    if (requestGeneration != mediaRequestGeneration) throw CancellationException("Media request was replaced")
+    val ytdlpReady =
+      YtdlpManager.prepareForPlayback(this, item.playableUri) { line ->
+        line.trim().takeIf { it.isNotEmpty() }?.let { message -> Log.d(TAG, message) }
+      }
+    if (!ytdlpReady) throw IllegalStateException("yt-dlp could not be prepared for web playback")
     if (requestGeneration != mediaRequestGeneration) throw CancellationException("Media request was replaced")
     val generation =
       PlaybackSession.load(
