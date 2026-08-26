@@ -263,6 +263,7 @@ object PlayerControlsPreferencesScreen : Screen {
 
           item {
             val hidePlayerButtonsBackground by appearancePrefs.hidePlayerButtonsBackground.collectAsState()
+            val forceDarkPlayerButtonsBackground by appearancePrefs.forceDarkPlayerButtonsBackground.collectAsState()
             val portraitPlaybackControlsPosition by
               appearancePrefs.portraitPlaybackControlsPosition.collectAsState()
             val playerTimeToDisappear by playerPrefs.playerTimeToDisappear.collectAsState()
@@ -302,6 +303,27 @@ object PlayerControlsPreferencesScreen : Screen {
                 summary = {
                   Text(
                     text = stringResource(id = R.string.pref_appearance_hide_player_buttons_background_summary),
+                  )
+                },
+              )
+
+              PreferenceDivider()
+
+              SwitchPreference(
+                modifier =
+                  Modifier.settingsSearchTarget(
+                    R.string.pref_appearance_force_dark_player_buttons_background_title,
+                  ),
+                value = forceDarkPlayerButtonsBackground,
+                onValueChange = { appearancePrefs.forceDarkPlayerButtonsBackground.set(it) },
+                title = {
+                  Text(
+                    text = stringResource(R.string.pref_appearance_force_dark_player_buttons_background_title),
+                  )
+                },
+                summary = {
+                  Text(
+                    text = stringResource(R.string.pref_appearance_force_dark_player_buttons_background_summary),
                   )
                 },
               )

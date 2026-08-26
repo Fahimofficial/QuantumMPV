@@ -24,6 +24,8 @@
   <string name="pref_appearance_unlimited_name_lines_title">Mostrar nomes completos</string>
   <string name="pref_appearance_unlimited_name_lines_summary">Mostrar nomes completos de pastas e vídeos sem truncamento</string>
   <string name="pref_appearance_hide_player_buttons_background_title">Ocultar fundo dos botões do player</string>
+  <string name="pref_appearance_force_dark_player_buttons_background_title">Sempre usar fundos escuros nos botões do player</string>
+  <string name="pref_appearance_force_dark_player_buttons_background_summary">Manter os fundos dos botões de controle do player escuros nos temas claro, escuro e automático</string>
   <string name="pref_appearance_hide_player_buttons_background_summary">Ocultar o fundo de todos os botões de controle do player</string>
   <string name="pref_appearance_category_file_browser">Navegador de arquivos</string>
   <string name="pref_appearance_category_thumbnails">Miniaturas</string>
@@ -513,6 +515,8 @@ Próximo: NEXT</string>
   <string name="notification_channel_name">Reprodução de mídia</string>
   <string name="notification_channel_description">Controles de reprodução de mídia</string>
   <string name="notification_playing">Reproduzindo</string>
+  <string name="notification_add_to_favorites">Adicionar aos favoritos</string>
+  <string name="notification_saved_to_favorites">Salvo nos favoritos</string>
   <string name="notification_chapter_counter">Capítulo %1$d de %2$d</string>
   <string name="notification_permission_denied">A permissão de notificações é necessária para os controles de reprodução em segundo plano.</string>
   <string name="notification_permission_disabled">As notificações estão desativadas para o mpvRx. Ative-as para mostrar os controles de reprodução.</string>

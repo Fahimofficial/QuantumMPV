@@ -24,6 +24,7 @@ import androidx.compose.material3.ripple
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -38,6 +39,34 @@ import com.quantummpv.app.ui.icons.Icons
 import com.quantummpv.app.ui.player.controls.LocalPlayerButtonsClickEvent
 import com.quantummpv.app.ui.theme.spacing
 import org.koin.compose.koinInject
+
+@Suppress("CompositionLocalAllowlist")
+internal val LocalForceDarkPlayerButtonsBackground = staticCompositionLocalOf { false }
+
+@Composable
+internal fun playerButtonContainerColor(
+  forceDark: Boolean = LocalForceDarkPlayerButtonsBackground.current,
+): Color =
+  if (forceDark) {
+    Color.Black.copy(alpha = 0.72f)
+  } else {
+    MaterialTheme.colorScheme.surfaceContainer.copy(alpha = 0.55f)
+  }
+
+@Composable
+internal fun playerButtonContentColor(
+  forceDark: Boolean = LocalForceDarkPlayerButtonsBackground.current,
+): Color = if (forceDark) Color.White else MaterialTheme.colorScheme.onSurface
+
+@Composable
+internal fun playerButtonBorderColor(
+  forceDark: Boolean = LocalForceDarkPlayerButtonsBackground.current,
+): Color =
+  if (forceDark) {
+    Color.White.copy(alpha = 0.20f)
+  } else {
+    MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f)
+  }
 
 @Suppress("ModifierClickableOrder")
 @OptIn(ExperimentalFoundationApi::class)
@@ -54,6 +83,14 @@ fun ControlsButton(
   val interactionSource = remember { MutableInteractionSource() }
   val appearancePreferences = koinInject<AppearancePreferences>()
   val hideBackground by appearancePreferences.hidePlayerButtonsBackground.collectAsState()
+  val forceDarkBackground by appearancePreferences.forceDarkPlayerButtonsBackground.collectAsState()
+  val useDarkBackground = forceDarkBackground || LocalForceDarkPlayerButtonsBackground.current
+  val resolvedColor =
+    if (useDarkBackground && !hideBackground) {
+      playerButtonContentColor(forceDark = true)
+    } else {
+      color ?: playerButtonContentColor(useDarkBackground)
+    }
 
   val clickEvent = LocalPlayerButtonsClickEvent.current
   Surface(
@@ -71,8 +108,8 @@ fun ControlsButton(
           indication = ripple(),
         ),
     shape = CircleShape,
-    color = if (hideBackground) Color.Transparent else MaterialTheme.colorScheme.surfaceContainer.copy(alpha = 0.55f),
-    contentColor = color ?: MaterialTheme.colorScheme.onSurface,
+    color = if (hideBackground) Color.Transparent else playerButtonContainerColor(useDarkBackground),
+    contentColor = resolvedColor,
     tonalElevation = 0.dp,
     shadowElevation = 0.dp,
     border =
@@ -81,20 +118,14 @@ fun ControlsButton(
       } else {
         BorderStroke(
           1.dp,
-          MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f),
+          playerButtonBorderColor(useDarkBackground),
         )
       },
   ) {
-    val resolvedColor =
-      if (enabled) {
-        color ?: MaterialTheme.colorScheme.onSurface
-      } else {
-        MaterialTheme.colorScheme.onSurface.copy(alpha = 0.38f)
-      }
     Icon(
       imageVector = icon,
       contentDescription = title,
-      tint = resolvedColor,
+      tint = if (enabled) resolvedColor else resolvedColor.copy(alpha = 0.38f),
       modifier =
         Modifier
           .padding(MaterialTheme.spacing.small)

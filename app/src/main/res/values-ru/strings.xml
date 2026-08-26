@@ -24,6 +24,8 @@
   <string name="pref_appearance_unlimited_name_lines_title">Показывать полные названия</string>
   <string name="pref_appearance_unlimited_name_lines_summary">Показывать полные названия папок и видео без сокращения</string>
   <string name="pref_appearance_hide_player_buttons_background_title">Скрыть фон кнопок проигрывателя</string>
+  <string name="pref_appearance_force_dark_player_buttons_background_title">Всегда использовать тёмный фон кнопок плеера</string>
+  <string name="pref_appearance_force_dark_player_buttons_background_summary">Сохранять тёмный фон кнопок управления плеером в светлой, тёмной и автоматической темах</string>
   <string name="pref_appearance_hide_player_buttons_background_summary">Скрыть фон всех кнопок управления проигрывателем</string>
   <string name="pref_appearance_category_file_browser">Файловый браузер</string>
   <string name="pref_appearance_category_thumbnails">Миниатюры</string>
@@ -513,6 +515,8 @@
   <string name="notification_channel_name">Воспроизведение мультимедиа</string>
   <string name="notification_channel_description">Управление воспроизведением мультимедиа</string>
   <string name="notification_playing">Воспроизводится</string>
+  <string name="notification_add_to_favorites">Добавить в избранное</string>
+  <string name="notification_saved_to_favorites">Сохранено в избранное</string>
   <string name="notification_chapter_counter">Глава %1$d из %2$d</string>
   <string name="notification_permission_denied">Для управления фоновым воспроизведением требуется разрешение на уведомления.</string>
   <string name="notification_permission_disabled">Уведомления для mpvRx отключены. Включите их, чтобы показывать элементы управления воспроизведением.</string>

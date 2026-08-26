@@ -24,6 +24,8 @@
   <string name="pref_appearance_unlimited_name_lines_title">पूरे नाम दिखाएं</string>
   <string name="pref_appearance_unlimited_name_lines_summary">फोल्डर और वीडियो के पूरे नाम बिना काटे दिखाएं</string>
   <string name="pref_appearance_hide_player_buttons_background_title">प्लेयर बटन का बैकग्राउंड छुपाएं</string>
+  <string name="pref_appearance_force_dark_player_buttons_background_title">प्लेयर बटन की पृष्ठभूमि हमेशा गहरी रखें</string>
+  <string name="pref_appearance_force_dark_player_buttons_background_summary">हल्की, गहरी और स्वचालित थीम में प्लेयर नियंत्रण बटन की पृष्ठभूमि गहरी रखें</string>
   <string name="pref_appearance_hide_player_buttons_background_summary">सभी प्लेयर कंट्रोल बटनों का बैकग्राउंड छुपाएं</string>
   <string name="pref_appearance_category_file_browser">फाइल ब्राउज़र</string>
   <string name="pref_appearance_category_thumbnails">थंबनेल्स</string>
@@ -511,6 +513,8 @@
   <string name="notification_channel_name">मीडिया प्लेबैक</string>
   <string name="notification_channel_description">मीडिया प्लेबैक कंट्रोल्स</string>
   <string name="notification_playing">चल रहा है</string>
+  <string name="notification_add_to_favorites">पसंदीदा में जोड़ें</string>
+  <string name="notification_saved_to_favorites">पसंदीदा में सहेजा गया</string>
   <string name="notification_chapter_counter">चैप्टर %1$d, कुल %2$d में से</string>
   <string name="notification_permission_denied">बैकग्राउंड प्लेबैक कंट्रोल्स के लिए नोटिफिकेशन परमिशन ज़रूरी है।</string>
   <string name="notification_permission_disabled">mpvRx के लिए नोटिफिकेशन बंद हैं। प्लेबैक कंट्रोल्स दिखाने के लिए इन्हें सक्षम करें।</string>

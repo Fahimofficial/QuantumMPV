@@ -24,6 +24,8 @@
   <string name="pref_appearance_unlimited_name_lines_title">名前をすべて表示</string>
   <string name="pref_appearance_unlimited_name_lines_summary">フォルダー名と動画名を省略せずにすべて表示します</string>
   <string name="pref_appearance_hide_player_buttons_background_title">プレーヤーボタンの背景を非表示</string>
+  <string name="pref_appearance_force_dark_player_buttons_background_title">プレーヤーボタンの背景を常に暗くする</string>
+  <string name="pref_appearance_force_dark_player_buttons_background_summary">ライト、ダーク、自動の各テーマでプレーヤー操作ボタンの背景を暗く保ちます</string>
   <string name="pref_appearance_hide_player_buttons_background_summary">プレーヤーのすべての操作ボタンの背景を非表示にします</string>
   <string name="pref_appearance_category_file_browser">ファイルブラウザー</string>
   <string name="pref_appearance_category_thumbnails">サムネイル</string>
@@ -513,6 +515,8 @@
   <string name="notification_channel_name">メディア再生</string>
   <string name="notification_channel_description">メディア再生コントロール</string>
   <string name="notification_playing">再生中</string>
+  <string name="notification_add_to_favorites">お気に入りに追加</string>
+  <string name="notification_saved_to_favorites">お気に入りに保存しました</string>
   <string name="notification_chapter_counter">チャプター %1$d / %2$d</string>
   <string name="notification_permission_denied">バックグラウンド再生の操作には通知権限が必要です。</string>
   <string name="notification_permission_disabled">mpvRxの通知が無効です。再生操作を表示するには有効にしてください。</string>

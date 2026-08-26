@@ -24,6 +24,8 @@
   <string name="pref_appearance_unlimited_name_lines_title">Afficher les noms complets</string>
   <string name="pref_appearance_unlimited_name_lines_summary">Afficher les noms complets des dossiers et vidéos sans troncature</string>
   <string name="pref_appearance_hide_player_buttons_background_title">Masquer l’arrière-plan des boutons du lecteur</string>
+  <string name="pref_appearance_force_dark_player_buttons_background_title">Toujours utiliser des arrière-plans sombres pour les boutons du lecteur</string>
+  <string name="pref_appearance_force_dark_player_buttons_background_summary">Garder les arrière-plans des boutons du lecteur sombres avec les thèmes clair, sombre et automatique</string>
   <string name="pref_appearance_hide_player_buttons_background_summary">Masquer l’arrière-plan de tous les boutons de contrôle du lecteur</string>
   <string name="pref_appearance_category_file_browser">Explorateur de fichiers</string>
   <string name="pref_appearance_category_thumbnails">Miniatures</string>
@@ -513,6 +515,8 @@ Suivant : NEXT</string>
   <string name="notification_channel_name">Lecture multimédia</string>
   <string name="notification_channel_description">Commandes de lecture multimédia</string>
   <string name="notification_playing">Lecture en cours</string>
+  <string name="notification_add_to_favorites">Ajouter aux favoris</string>
+  <string name="notification_saved_to_favorites">Enregistré dans les favoris</string>
   <string name="notification_chapter_counter">Chapitre %1$d sur %2$d</string>
   <string name="notification_permission_denied">L’autorisation des notifications est requise pour les commandes de lecture en arrière-plan.</string>
   <string name="notification_permission_disabled">Les notifications sont désactivées pour mpvRx. Activez-les pour afficher les commandes de lecture.</string>

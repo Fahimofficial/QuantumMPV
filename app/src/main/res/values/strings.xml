@@ -25,6 +25,8 @@
   <string name="pref_appearance_unlimited_name_lines_summary">Show full folder and video names without truncation</string>
   <string name="pref_appearance_hide_player_buttons_background_title">Hide player buttons background</string>
   <string name="pref_appearance_hide_player_buttons_background_summary">Hide the background of all player control buttons</string>
+  <string name="pref_appearance_force_dark_player_buttons_background_title">Always use dark player button backgrounds</string>
+  <string name="pref_appearance_force_dark_player_buttons_background_summary">Keep player control button backgrounds dark in light, dark, and automatic themes</string>
   <string name="pref_appearance_category_file_browser">File Browser</string>
   <string name="pref_appearance_category_thumbnails">Thumbnails</string>
   <string name="pref_appearance_show_unplayed_old_video_label_title">Show label for new unplayed videos</string>
@@ -580,6 +582,8 @@
   <string name="notification_channel_name">Media Playback</string>
   <string name="notification_channel_description">Media playback controls</string>
   <string name="notification_playing">Playing</string>
+  <string name="notification_add_to_favorites">Add to Favorites</string>
+  <string name="notification_saved_to_favorites">Saved to Favorites</string>
   <string name="notification_chapter_counter">Chapter %1$d of %2$d</string>
   <string name="notification_permission_denied">Notification permission is required for background playback controls.</string>
   <string name="notification_permission_disabled">Notifications are disabled for mpvRx. Enable them to show playback controls.</string>

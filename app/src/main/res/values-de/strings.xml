@@ -24,6 +24,8 @@
   <string name="pref_appearance_unlimited_name_lines_title">Vollständige Namen anzeigen</string>
   <string name="pref_appearance_unlimited_name_lines_summary">Vollständige Ordner- und Videonamen ohne Kürzung anzeigen</string>
   <string name="pref_appearance_hide_player_buttons_background_title">Hintergrund der Player-Schaltflächen ausblenden</string>
+  <string name="pref_appearance_force_dark_player_buttons_background_title">Immer dunkle Hintergründe für Player-Schaltflächen verwenden</string>
+  <string name="pref_appearance_force_dark_player_buttons_background_summary">Hintergründe der Player-Steuerelemente im hellen, dunklen und automatischen Design dunkel halten</string>
   <string name="pref_appearance_hide_player_buttons_background_summary">Den Hintergrund aller Player-Steuerungsschaltflächen ausblenden</string>
   <string name="pref_appearance_category_file_browser">Dateibrowser</string>
   <string name="pref_appearance_category_thumbnails">Vorschaubilder</string>
@@ -513,6 +515,8 @@ Weiter: NEXT</string>
   <string name="notification_channel_name">Medienwiedergabe</string>
   <string name="notification_channel_description">Steuerung der Medienwiedergabe</string>
   <string name="notification_playing">Wiedergabe</string>
+  <string name="notification_add_to_favorites">Zu Favoriten hinzufügen</string>
+  <string name="notification_saved_to_favorites">In Favoriten gespeichert</string>
   <string name="notification_chapter_counter">Kapitel %1$d von %2$d</string>
   <string name="notification_permission_denied">Für die Steuerung der Hintergrundwiedergabe ist die Benachrichtigungsberechtigung erforderlich.</string>
   <string name="notification_permission_disabled">Benachrichtigungen sind für mpvRx deaktiviert. Aktivieren Sie sie, um Wiedergabesteuerungen anzuzeigen.</string>
