@@ -12,6 +12,7 @@ package com.quantummpv.app.utils.media
 import android.content.Context
 import android.net.Uri
 import android.provider.OpenableColumns
+import com.quantummpv.app.ui.player.resolveLocalPath
 import java.io.BufferedReader
 import java.io.File
 import java.io.FilterInputStream
@@ -163,9 +164,9 @@ object M3UParser {
   ): M3UParseResult =
     withContext(Dispatchers.IO) {
       try {
-        // Do not call the player fd resolver here: its fallback detaches an fd for libmpv, while
-        // this parser opens its own stream and would otherwise leak the detached descriptor.
-        val sourceUrl = uri.toString()
+        // Identity-only resolution never detaches an fd, but recovers the parent directory for
+        // relative entries in primary-storage document URIs.
+        val sourceUrl = uri.resolveLocalPath(context) ?: uri.toString()
         val rawFilename =
           context.contentResolver.query(uri, arrayOf(OpenableColumns.DISPLAY_NAME), null, null, null)?.use { cursor ->
             val nameIndex = cursor.getColumnIndex(OpenableColumns.DISPLAY_NAME)
@@ -378,6 +379,7 @@ object M3UParser {
     val parsedEntry = parseUriLeniently(resource)
 
     if (parsedEntry?.isAbsolute == true) return stripUriUserInfo(resource) + optionSuffix
+    if (File(resource).isAbsolute) return resource + optionSuffix
     val source = sourceUrl ?: return stripUriUserInfo(resource) + optionSuffix
     val parsedSource = parseUriLeniently(source)
 
