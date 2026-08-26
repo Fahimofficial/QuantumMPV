@@ -45,7 +45,6 @@ import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.basicMarquee
-import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.gestures.detectHorizontalDragGestures
@@ -78,14 +77,11 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
-import androidx.compose.material3.IconButtonDefaults
-import androidx.compose.material3.LocalContentColor
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.ripple
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -158,11 +154,7 @@ import com.quantummpv.app.ui.player.PlayerViewModel
 import com.quantummpv.app.ui.player.RepeatMode
 import com.quantummpv.app.ui.player.Sheets
 import com.quantummpv.app.ui.player.controls.components.AbLoopIcon
-import com.quantummpv.app.ui.player.controls.components.LocalHidePlayerButtonsBackground
 import com.quantummpv.app.ui.player.controls.components.SeekbarWithTimers
-import com.quantummpv.app.ui.player.controls.components.playerButtonBorderColor
-import com.quantummpv.app.ui.player.controls.components.playerButtonContainerColor
-import com.quantummpv.app.ui.player.controls.components.playerButtonContentColor
 import com.quantummpv.app.ui.player.visualizer.AudioFeatures
 import com.quantummpv.app.ui.player.visualizer.AudioSpectrumAnalyzer
 import com.quantummpv.app.ui.player.visualizer.BlobOverlay
@@ -1455,6 +1447,7 @@ fun AudioPlayerControls(
         ReactiveSurfaceButton(
           onClick = { viewModel.pauseUnpause() },
           shape = CircleShape,
+          color = MaterialTheme.colorScheme.primary,
           modifier = Modifier.size(if (isPortrait) 76.dp else 64.dp),
           shadowElevation = 8.dp,
         ) {
@@ -1462,7 +1455,7 @@ fun AudioPlayerControls(
             Icon(
               imageVector = if (isPlaying) Icons.RoundedFilled.Pause else Icons.RoundedFilled.PlayArrow,
               contentDescription = null,
-              tint = LocalContentColor.current,
+              tint = MaterialTheme.colorScheme.onPrimary,
               modifier = Modifier.size(if (isPortrait) 44.dp else 36.dp),
             )
           }
@@ -1502,7 +1495,12 @@ fun AudioPlayerControls(
         ReactiveIconButton(
           onClick = { onOpenSheet(Sheets.Equalizer) },
           enabled = !audioFiltersConfigOwned,
-          modifier = Modifier.size(48.dp),
+          modifier =
+            Modifier
+              .clip(
+                CircleShape,
+              ).background(MaterialTheme.colorScheme.surfaceContainerHigh.copy(alpha = 0.65f))
+              .size(48.dp),
         ) {
           Box(contentAlignment = Alignment.Center, modifier = Modifier.fillMaxSize()) {
             Icon(
@@ -1521,6 +1519,10 @@ fun AudioPlayerControls(
             Row(
               modifier =
                 Modifier
+                  .clip(CircleShape)
+                  .background(
+                    MaterialTheme.colorScheme.surfaceContainerHigh.copy(alpha = 0.65f),
+                  )
                   .horizontalScroll(rememberScrollState())
                   .padding(horizontal = 8.dp, vertical = 4.dp),
               verticalAlignment = Alignment.CenterVertically,
@@ -1598,6 +1600,10 @@ fun AudioPlayerControls(
             Row(
               modifier =
                 Modifier
+                  .clip(CircleShape)
+                  .background(
+                    MaterialTheme.colorScheme.surfaceContainerHigh.copy(alpha = 0.65f),
+                  )
                   .horizontalScroll(rememberScrollState())
                   .padding(horizontal = 8.dp, vertical = 4.dp),
               verticalAlignment = Alignment.CenterVertically,
@@ -1679,7 +1685,12 @@ fun AudioPlayerControls(
           Spacer(modifier = Modifier.width(12.dp))
           ReactiveIconButton(
             onClick = { onOpenSheet(Sheets.Playlist) },
-            modifier = Modifier.size(48.dp),
+            modifier =
+              Modifier
+                .clip(
+                  CircleShape,
+                ).background(MaterialTheme.colorScheme.surfaceContainerHigh.copy(alpha = 0.65f))
+                .size(48.dp),
           ) {
             Box(contentAlignment = Alignment.Center, modifier = Modifier.fillMaxSize()) {
               Icon(
@@ -2195,19 +2206,6 @@ private fun ReactiveIconButton(
   val interactionSource = remember { MutableInteractionSource() }
   val isPressed by interactionSource.collectIsPressedAsState()
   val haptic = LocalHapticFeedback.current
-  val showBackground = !LocalHidePlayerButtonsBackground.current
-  val containerColor =
-    if (showBackground) playerButtonContainerColor() else Color.Transparent
-  val contentColor =
-    if (showBackground) playerButtonContentColor() else LocalContentColor.current
-  val styledModifier =
-    if (showBackground) {
-      Modifier
-        .background(containerColor, CircleShape)
-        .border(1.dp, playerButtonBorderColor(), CircleShape)
-    } else {
-      Modifier
-    }
 
   val scale by animateFloatAsState(
     targetValue = if (isPressed) 0.82f else 1f,
@@ -2224,7 +2222,6 @@ private fun ReactiveIconButton(
             scaleY = scale
           }
           .clip(CircleShape)
-          .then(styledModifier)
           .combinedClickable(
             interactionSource = interactionSource,
             indication = ripple(bounded = false, radius = 24.dp),
@@ -2241,9 +2238,7 @@ private fun ReactiveIconButton(
           .padding(8.dp),
       contentAlignment = Alignment.Center,
     ) {
-      PlayerButtonContentTheme {
-        CompositionLocalProvider(LocalContentColor provides contentColor, content = content)
-      }
+      content()
     }
   } else {
     IconButton(
@@ -2253,28 +2248,13 @@ private fun ReactiveIconButton(
       },
       enabled = enabled,
       interactionSource = interactionSource,
-      colors =
-        IconButtonDefaults.iconButtonColors(
-          containerColor = containerColor,
-          contentColor = contentColor,
-          disabledContainerColor = containerColor,
-          disabledContentColor = contentColor.copy(alpha = 0.38f),
-        ),
       modifier =
-        modifier
-          .graphicsLayer {
-            scaleX = scale
-            scaleY = scale
-          }
-          .then(
-            if (showBackground) {
-              Modifier.border(1.dp, playerButtonBorderColor(), CircleShape)
-            } else {
-              Modifier
-            },
-          ),
+        modifier.graphicsLayer {
+          scaleX = scale
+          scaleY = scale
+        },
     ) {
-      PlayerButtonContentTheme(content)
+      content()
     }
   }
 }
@@ -2284,6 +2264,7 @@ private fun ReactiveSurfaceButton(
   onClick: () -> Unit,
   modifier: Modifier = Modifier,
   shape: Shape = CircleShape,
+  color: Color = MaterialTheme.colorScheme.primary,
   shadowElevation: Dp = 0.dp,
   enabled: Boolean = true,
   content: @Composable () -> Unit,
@@ -2291,9 +2272,6 @@ private fun ReactiveSurfaceButton(
   val interactionSource = remember { MutableInteractionSource() }
   val isPressed by interactionSource.collectIsPressedAsState()
   val haptic = LocalHapticFeedback.current
-  val showBackground = !LocalHidePlayerButtonsBackground.current
-  val containerColor = if (showBackground) playerButtonContainerColor() else Color.Transparent
-  val contentColor = if (showBackground) playerButtonContentColor() else LocalContentColor.current
 
   val scale by animateFloatAsState(
     targetValue = if (isPressed) 0.88f else 1f,
@@ -2307,9 +2285,7 @@ private fun ReactiveSurfaceButton(
       onClick()
     },
     shape = shape,
-    color = containerColor,
-    contentColor = contentColor,
-    border = if (showBackground) BorderStroke(1.dp, playerButtonBorderColor()) else null,
+    color = color,
     shadowElevation = shadowElevation,
     enabled = enabled,
     interactionSource = interactionSource,
@@ -2319,7 +2295,7 @@ private fun ReactiveSurfaceButton(
         scaleY = scale
       },
   ) {
-    PlayerButtonContentTheme(content)
+    content()
   }
 }
 

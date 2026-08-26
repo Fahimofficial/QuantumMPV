@@ -347,18 +347,13 @@ fun PlayerControls(
     val sortedSpeedPresets = remember(speedPresets) { speedPresets.map { it.toFloat() }.sorted() }
 
     Box(modifier = modifier.fillMaxSize()) {
-      CompositionLocalProvider(
-        LocalForceDarkPlayerButtonsBackground provides forceDarkButtonBackground,
-        LocalHidePlayerButtonsBackground provides hideBackground,
-      ) {
-        AudioPlayerControls(
-          viewModel = viewModel,
-          mediaTitle = mediaTitle,
-          onBackPress = onBackPress,
-          onOpenSheet = onOpenSheet,
-          onOpenPanel = onOpenPanel,
-        )
-      }
+      AudioPlayerControls(
+        viewModel = viewModel,
+        mediaTitle = mediaTitle,
+        onBackPress = onBackPress,
+        onOpenSheet = onOpenSheet,
+        onOpenPanel = onOpenPanel,
+      )
 
       PlayerSheets(
         viewModel = viewModel,
