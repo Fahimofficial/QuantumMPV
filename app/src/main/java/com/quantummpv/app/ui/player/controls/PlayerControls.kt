@@ -138,6 +138,7 @@ import com.quantummpv.app.ui.player.buildControlsExitV
 import com.quantummpv.app.ui.player.controls.components.AnimatedPlayPauseIcon
 import com.quantummpv.app.ui.player.controls.components.BrightnessSlider
 import com.quantummpv.app.ui.player.controls.components.LocalForceDarkPlayerButtonsBackground
+import com.quantummpv.app.ui.player.controls.components.LocalHidePlayerButtonsBackground
 import com.quantummpv.app.ui.player.controls.components.MultipleSpeedPlayerUpdate
 import com.quantummpv.app.ui.player.controls.components.SeekPlayerUpdate
 import com.quantummpv.app.ui.player.controls.components.SeekThumbnailPreviewBubble
@@ -346,13 +347,20 @@ fun PlayerControls(
     val sortedSpeedPresets = remember(speedPresets) { speedPresets.map { it.toFloat() }.sorted() }
 
     Box(modifier = modifier.fillMaxSize()) {
-      AudioPlayerControls(
-        viewModel = viewModel,
-        mediaTitle = mediaTitle,
-        onBackPress = onBackPress,
-        onOpenSheet = onOpenSheet,
-        onOpenPanel = onOpenPanel,
-      )
+      CompositionLocalProvider(
+        LocalForceDarkPlayerButtonsBackground provides forceDarkButtonBackground,
+        LocalHidePlayerButtonsBackground provides hideBackground,
+      ) {
+        PlayerButtonTheme(hideBackground) {
+          AudioPlayerControls(
+            viewModel = viewModel,
+            mediaTitle = mediaTitle,
+            onBackPress = onBackPress,
+            onOpenSheet = onOpenSheet,
+            onOpenPanel = onOpenPanel,
+          )
+        }
+      }
 
       PlayerSheets(
         viewModel = viewModel,
@@ -508,6 +516,7 @@ fun PlayerControls(
       LocalRippleConfiguration provides playerRippleConfiguration,
       LocalPlayerButtonsClickEvent provides { resetControlsTimestamp = System.currentTimeMillis() },
       LocalForceDarkPlayerButtonsBackground provides forceDarkButtonBackground,
+      LocalHidePlayerButtonsBackground provides hideBackground,
       LocalContentColor provides Color.White,
     ) {
       CompositionLocalProvider(

@@ -45,6 +45,7 @@ import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.basicMarquee
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.gestures.detectHorizontalDragGestures
@@ -77,11 +78,14 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.IconButtonDefaults
+import androidx.compose.material3.LocalContentColor
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.ripple
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -154,7 +158,12 @@ import com.quantummpv.app.ui.player.PlayerViewModel
 import com.quantummpv.app.ui.player.RepeatMode
 import com.quantummpv.app.ui.player.Sheets
 import com.quantummpv.app.ui.player.controls.components.AbLoopIcon
+import com.quantummpv.app.ui.player.controls.components.LocalForceDarkPlayerButtonsBackground
+import com.quantummpv.app.ui.player.controls.components.LocalHidePlayerButtonsBackground
 import com.quantummpv.app.ui.player.controls.components.SeekbarWithTimers
+import com.quantummpv.app.ui.player.controls.components.playerButtonBorderColor
+import com.quantummpv.app.ui.player.controls.components.playerButtonContainerColor
+import com.quantummpv.app.ui.player.controls.components.playerButtonContentColor
 import com.quantummpv.app.ui.player.visualizer.AudioFeatures
 import com.quantummpv.app.ui.player.visualizer.AudioSpectrumAnalyzer
 import com.quantummpv.app.ui.player.visualizer.BlobOverlay
@@ -2206,6 +2215,20 @@ private fun ReactiveIconButton(
   val interactionSource = remember { MutableInteractionSource() }
   val isPressed by interactionSource.collectIsPressedAsState()
   val haptic = LocalHapticFeedback.current
+  val useDarkBackground =
+    LocalForceDarkPlayerButtonsBackground.current && !LocalHidePlayerButtonsBackground.current
+  val containerColor =
+    if (useDarkBackground) playerButtonContainerColor(forceDark = true) else Color.Transparent
+  val contentColor =
+    if (useDarkBackground) playerButtonContentColor(forceDark = true) else LocalContentColor.current
+  val styledModifier =
+    if (useDarkBackground) {
+      Modifier
+        .background(containerColor, CircleShape)
+        .border(1.dp, playerButtonBorderColor(forceDark = true), CircleShape)
+    } else {
+      Modifier
+    }
 
   val scale by animateFloatAsState(
     targetValue = if (isPressed) 0.82f else 1f,
@@ -2222,6 +2245,7 @@ private fun ReactiveIconButton(
             scaleY = scale
           }
           .clip(CircleShape)
+          .then(styledModifier)
           .combinedClickable(
             interactionSource = interactionSource,
             indication = ripple(bounded = false, radius = 24.dp),
@@ -2238,7 +2262,7 @@ private fun ReactiveIconButton(
           .padding(8.dp),
       contentAlignment = Alignment.Center,
     ) {
-      content()
+      CompositionLocalProvider(LocalContentColor provides contentColor, content = content)
     }
   } else {
     IconButton(
@@ -2248,11 +2272,26 @@ private fun ReactiveIconButton(
       },
       enabled = enabled,
       interactionSource = interactionSource,
+      colors =
+        IconButtonDefaults.iconButtonColors(
+          containerColor = containerColor,
+          contentColor = contentColor,
+          disabledContainerColor = containerColor,
+          disabledContentColor = contentColor.copy(alpha = 0.38f),
+        ),
       modifier =
-        modifier.graphicsLayer {
-          scaleX = scale
-          scaleY = scale
-        },
+        modifier
+          .graphicsLayer {
+            scaleX = scale
+            scaleY = scale
+          }
+          .then(
+            if (useDarkBackground) {
+              Modifier.border(1.dp, playerButtonBorderColor(forceDark = true), CircleShape)
+            } else {
+              Modifier
+            },
+          ),
     ) {
       content()
     }

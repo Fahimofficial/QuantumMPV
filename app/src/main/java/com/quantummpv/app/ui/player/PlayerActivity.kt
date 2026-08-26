@@ -368,6 +368,7 @@ class PlayerActivity :
     val generation: Long,
     val attempt: Int,
     val requestGeneration: Long,
+    val legacyMediaIdentifier: String? = null,
     val ytdlFormat: String? = null,
     val positionRestoreOverride: PlaybackPositionRestoreOverride? = null,
   )
@@ -3536,6 +3537,7 @@ class PlayerActivity :
             item = item,
             attempt = 0,
             requestGeneration = requestGeneration,
+            legacyMediaIdentifier = legacyMediaIdentifier,
             ytdlFormat = format,
             positionRestoreOverride = restoreOverride,
           )
@@ -4021,8 +4023,11 @@ class PlayerActivity :
   private fun handleFileLoaded(loadGeneration: Long) {
     if (!PlaybackSession.isCurrentGeneration(loadGeneration)) return
     val positionRestoreOverride = PlaybackSession.positionRestoreOverride(loadGeneration)
-    positionRestoreOverride?.positionSeconds?.let { seconds ->
-      PlaybackSession.setPropertyDouble("time-pos", seconds.coerceAtLeast(0.0))
+    val initialPositionApplied = PlaybackSession.wasInitialPositionApplied(loadGeneration)
+    if (!initialPositionApplied) {
+      positionRestoreOverride?.positionSeconds?.let { seconds ->
+        PlaybackSession.setPropertyDouble("time-pos", seconds.coerceAtLeast(0.0))
+      }
     }
     // Extract fileName from intent only if not already set
     // This preserves fileName set in onNewIntent or onCreate
@@ -4087,6 +4092,7 @@ class PlayerActivity :
             legacyIdentifier = loadedLegacyIdentifier,
             loadGeneration = loadGeneration,
             positionRestoreOverride = positionRestoreOverride,
+            initialPositionApplied = initialPositionApplied,
           )
         if (!PlaybackSession.isCurrentGeneration(loadGeneration)) return@launch
 
@@ -4591,40 +4597,46 @@ class PlayerActivity :
    * @param mediaTitle The title of the media being played
    * @return true if saved state was found and applied, false otherwise
    */
+  private suspend fun resolvePlaybackState(
+    identifier: String,
+    legacyIdentifier: String?,
+  ): PlaybackStateEntity? {
+    var state = playbackStateRepository.getVideoDataByTitle(identifier)
+    if (state != null) return state
+
+    val legacyKey = legacyIdentifier?.takeIf { it.isNotBlank() && it != identifier }
+    // Bare filenames from older versions are ambiguous; only migrate collision-resistant keys.
+    val isCollisionResistant =
+      legacyKey != null && (legacyKey.startsWith("media:v2:") || legacyKey.contains('_'))
+    val legacyState =
+      legacyKey
+        ?.takeIf { isCollisionResistant }
+        ?.let { playbackStateRepository.getVideoDataByTitle(it) }
+    if (legacyState != null) {
+      state = legacyState.copy(mediaTitle = identifier)
+      playbackStateRepository.upsert(state)
+      Log.d(TAG, "Migrated playback state to collision-resistant media identifier")
+    }
+    return state
+  }
+
   private suspend fun loadVideoPlaybackState(
     identifier: String,
     legacyIdentifier: String?,
     loadGeneration: Long,
     positionRestoreOverride: PlaybackPositionRestoreOverride?,
+    initialPositionApplied: Boolean,
   ): Boolean {
     if (identifier.isBlank() || !PlaybackSession.isCurrentGeneration(loadGeneration)) {
       return false
     }
 
     return runCatching {
-      var state = playbackStateRepository.getVideoDataByTitle(identifier)
-      if (state == null) {
-        val legacyKey = legacyIdentifier?.takeIf { it.isNotBlank() && it != identifier }
-        // Only migrate legacy records whose key is collision-resistant (e.g. contains a
-        // URI hash like "name_123456" for remote files). Bare filenames used by older
-        // versions for local files are ambiguous — two files in different directories
-        // share the same display name, so migrating would steal one file's state.
-        val isCollisionResistant =
-          legacyKey != null && (legacyKey.startsWith("media:v2:") || legacyKey.contains('_'))
-        val legacyState = legacyKey
-          ?.takeIf { isCollisionResistant }
-          ?.let { playbackStateRepository.getVideoDataByTitle(it) }
-        if (legacyState != null) {
-          val migratedState = legacyState.copy(mediaTitle = identifier)
-          state = migratedState
-          playbackStateRepository.upsert(migratedState)
-          Log.d(TAG, "Migrated playback state to collision-resistant media identifier")
-        }
-      }
+      val state = resolvePlaybackState(identifier, legacyIdentifier)
 
       if (!PlaybackSession.isCurrentGeneration(loadGeneration)) return@runCatching false
 
-      if (positionRestoreOverride == null) restorePlaybackPosition(state)
+      if (positionRestoreOverride == null && !initialPositionApplied) restorePlaybackPosition(state)
       applyPlaybackState(state, restoreAudioTrack = positionRestoreOverride == null)
 
       if (!PlaybackSession.isCurrentGeneration(loadGeneration)) return@runCatching false
@@ -5121,6 +5133,7 @@ class PlayerActivity :
     val sourceIntent = Intent(intent)
     val requestedFileName = fileName
     val requestedMediaIdentifier = mediaIdentifier
+    val requestedLegacyMediaIdentifier = legacyMediaIdentifier
     val requestedPlaylistIndex = playlistIndex
     val requestedQueueItem = PlaybackSession.queue.value.items.getOrNull(requestedPlaylistIndex)
     val requestGeneration = mediaRequestGeneration
@@ -5314,6 +5327,7 @@ class PlayerActivity :
             item = item,
             attempt = 0,
             requestGeneration = requestGeneration,
+            legacyMediaIdentifier = requestedLegacyMediaIdentifier.takeUnless { isTorrentRequest },
           )
         } catch (error: CancellationException) {
           throw error
@@ -5341,9 +5355,25 @@ class PlayerActivity :
     item: PlaybackItem,
     attempt: Int,
     requestGeneration: Long,
+    legacyMediaIdentifier: String? = null,
     ytdlFormat: String? = null,
     positionRestoreOverride: PlaybackPositionRestoreOverride? = null,
   ) {
+    ensureCurrentMediaRequest(requestGeneration)
+    val restoreSavedPosition = playerPreferences.savePositionOnQuit.get()
+    // Give mpv the resume point as a load-local option so the demuxer starts there instead of
+    // decoding at zero and visibly seeking only after FILE_LOADED.
+    val initialPositionSeconds =
+      if (positionRestoreOverride != null) {
+        positionRestoreOverride.positionSeconds?.takeIf { it.isFinite() && it > 0.0 }
+      } else if (restoreSavedPosition && !item.isDefinitelyAudioOnly()) {
+        resolvePlaybackState(item.stableId, legacyMediaIdentifier)
+          ?.lastPosition
+          ?.takeIf { it > 0 }
+          ?.toDouble()
+      } else {
+        null
+      }
     ensureCurrentMediaRequest(requestGeneration)
     val requiresYtdlp = sequenceOf(item.originalUri, item.playableUri).any(YtdlpManager::requiresYtdlp)
     val ytdlpReady =
@@ -5359,8 +5389,9 @@ class PlayerActivity :
     val generation =
       PlaybackSession.load(
         item = item,
-        restoreSavedPosition = playerPreferences.savePositionOnQuit.get(),
+        restoreSavedPosition = restoreSavedPosition,
         positionRestoreOverride = positionRestoreOverride,
+        initialPositionSeconds = initialPositionSeconds,
         flattenEditions = requiresYtdlp && !MpvConfigOverridePolicy.isOwnedByMpvConf("flatten-editions"),
         commit = { nativeLoad ->
           PlaybackActivityOwner.runIfOwner(playbackOwnerToken, -1L) {
@@ -5384,6 +5415,7 @@ class PlayerActivity :
         generation = generation,
         attempt = attempt,
         requestGeneration = requestGeneration,
+        legacyMediaIdentifier = legacyMediaIdentifier,
         ytdlFormat = ytdlFormat,
         positionRestoreOverride = positionRestoreOverride,
       )
@@ -5473,6 +5505,7 @@ class PlayerActivity :
             item = request.item,
             attempt = request.attempt + 1,
             requestGeneration = request.requestGeneration,
+            legacyMediaIdentifier = request.legacyMediaIdentifier,
             ytdlFormat = request.ytdlFormat,
             positionRestoreOverride = request.positionRestoreOverride,
           )

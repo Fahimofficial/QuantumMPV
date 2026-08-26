@@ -43,6 +43,9 @@ import org.koin.compose.koinInject
 @Suppress("CompositionLocalAllowlist")
 internal val LocalForceDarkPlayerButtonsBackground = staticCompositionLocalOf { false }
 
+@Suppress("CompositionLocalAllowlist")
+internal val LocalHidePlayerButtonsBackground = staticCompositionLocalOf { false }
+
 @Composable
 internal fun playerButtonContainerColor(
   forceDark: Boolean = LocalForceDarkPlayerButtonsBackground.current,
