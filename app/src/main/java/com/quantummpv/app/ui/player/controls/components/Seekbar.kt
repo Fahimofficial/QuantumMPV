@@ -70,6 +70,7 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.graphics.PathEffect
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.drawscope.DrawScope
@@ -81,6 +82,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import com.quantummpv.app.preferences.SeekbarStyle
@@ -667,10 +669,11 @@ private fun SeekbarContent(
         endSeconds = clipEnd,
         duration = safeDuration,
         color = MaterialTheme.colorScheme.tertiary,
+        trackHeight = overlayTrackHeight,
         modifier =
           Modifier
             .fillMaxWidth()
-            .height(overlayTrackHeight)
+            .height(touchAreaHeight)
             .align(Alignment.Center),
       )
     }
@@ -738,6 +741,7 @@ private fun ClipRangeSelection(
   endSeconds: Float,
   duration: Float,
   color: Color,
+  trackHeight: Dp,
   modifier: Modifier = Modifier,
 ) {
   val targetStart = (startSeconds / duration).coerceIn(0f, 1f)
@@ -755,39 +759,44 @@ private fun ClipRangeSelection(
   )
 
   Canvas(
-    modifier = modifier.clip(RoundedCornerShape(percent = 50)),
+    modifier = modifier,
   ) {
     val startX = animatedStart.coerceIn(0f, 1f) * size.width
     val endX = animatedEnd.coerceIn(animatedStart.coerceIn(0f, 1f), 1f) * size.width
     val selectionWidth = endX - startX
     if (selectionWidth <= 0f || size.height <= 0f) return@Canvas
 
-    val cornerRadius = CornerRadius(size.height / 2f)
-    val outlineWidth = 1.dp.toPx().coerceAtMost(size.height / 3f)
+    val trackHeightPx = trackHeight.toPx().coerceAtMost(size.height)
+    val trackTop = (size.height - trackHeightPx) / 2f
+    val cornerRadius = CornerRadius(trackHeightPx / 2f)
+    val outlineWidth = 1.dp.toPx().coerceAtMost(trackHeightPx / 3f)
     drawRoundRect(
-      color = color.copy(alpha = 0.20f),
-      topLeft = Offset(startX, 0f),
-      size = Size(selectionWidth, size.height),
+      color = color.copy(alpha = 0.32f),
+      topLeft = Offset(startX, trackTop),
+      size = Size(selectionWidth, trackHeightPx),
       cornerRadius = cornerRadius,
     )
     drawRoundRect(
-      color = color.copy(alpha = 0.72f),
-      topLeft = Offset(startX, 0f),
-      size = Size(selectionWidth, size.height),
+      color = color.copy(alpha = 0.86f),
+      topLeft = Offset(startX, trackTop),
+      size = Size(selectionWidth, trackHeightPx),
       cornerRadius = cornerRadius,
       style = Stroke(width = outlineWidth),
     )
 
-    val markerWidth = 2.dp.toPx().coerceAtMost(size.height / 2f)
-    val markerInset = min(1.5.dp.toPx(), size.height * 0.18f)
-    val markerHeight = (size.height - markerInset * 2f).coerceAtLeast(markerWidth)
-    val markerRadius = CornerRadius(markerWidth / 2f)
+    val guideInset = 2.dp.toPx().coerceAtMost(size.height / 4f)
+    val dashLength = 4.dp.toPx()
+    val dashGap = 3.dp.toPx()
+    val guideStroke = 2.dp.toPx()
+    val guideEffect = PathEffect.dashPathEffect(floatArrayOf(dashLength, dashGap))
     fun drawBoundary(markerX: Float) {
-      drawRoundRect(
-        color = color,
-        topLeft = Offset(markerX - markerWidth / 2f, markerInset),
-        size = Size(markerWidth, markerHeight),
-        cornerRadius = markerRadius,
+      drawLine(
+        color = color.copy(alpha = 0.96f),
+        start = Offset(markerX, guideInset),
+        end = Offset(markerX, size.height - guideInset),
+        strokeWidth = guideStroke,
+        pathEffect = guideEffect,
+        cap = StrokeCap.Round,
       )
     }
     drawBoundary(startX)

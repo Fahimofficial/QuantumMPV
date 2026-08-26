@@ -1497,7 +1497,8 @@ class PlayerViewModel : ViewModel(),
   private val ambientScheduleLock = Any()
   private val ambientRenderLock = Any()
   private val ambientUpdateGeneration = AtomicLong()
-  @Volatile private var isAmbientLifecycleActive = false
+  private val _isAmbientLifecycleActive = MutableStateFlow(false)
+  val isAmbientLifecycleActive: StateFlow<Boolean> = _isAmbientLifecycleActive.asStateFlow()
   private val ambientShaderSeq = AtomicLong()
   @Volatile private var ambientShaderFile: java.io.File? = null
 
@@ -5808,8 +5809,8 @@ class PlayerViewModel : ViewModel(),
   // ==================== Ambient Mode Integration ====================
 
   fun setAmbientLifecycleActive(active: Boolean) {
-    if (isAmbientLifecycleActive == active) return
-    isAmbientLifecycleActive = active
+    if (_isAmbientLifecycleActive.value == active) return
+    _isAmbientLifecycleActive.value = active
     if (active) {
       scheduleAmbientUpdate(0)
     } else {
@@ -5818,7 +5819,7 @@ class PlayerViewModel : ViewModel(),
   }
 
   private fun isAmbientRuntimeActive(): Boolean =
-    isAmbientLifecycleActive &&
+    _isAmbientLifecycleActive.value &&
       _isMpvCoreReady.value &&
       _isAmbientEnabled.value &&
       !MpvConfigOverridePolicy.ownsAny(MpvConfigControlledFeatures.AMBIENT)
@@ -6258,7 +6259,7 @@ class PlayerViewModel : ViewModel(),
 
     runCatching { syncplayManager.clearPlayerBindings() }
     runCatching { audioEqualizerManager.release() }
-    isAmbientLifecycleActive = false
+    _isAmbientLifecycleActive.value = false
     runCatching { disableAmbientShader() }
 
     super.onCleared()

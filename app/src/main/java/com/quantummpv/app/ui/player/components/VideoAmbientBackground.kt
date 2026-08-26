@@ -5,6 +5,9 @@
 package com.quantummpv.app.ui.player.components
 
 import android.graphics.Bitmap
+import android.graphics.Canvas
+import android.graphics.Paint
+import android.graphics.Rect
 import android.os.Build
 import android.os.Handler
 import android.os.Looper
@@ -51,15 +54,17 @@ private const val DISPLAY_WIDTH = 32
 private const val DISPLAY_HEIGHT = 18
 private const val DECIMATION = 3
 
-private const val CAPTURE_INTERVAL_MS = 900L
-private const val IDLE_INTERVAL_MS = 1500L
+private const val CAPTURE_INTERVAL_MS = 350L
+private const val IDLE_INTERVAL_MS = 1000L
 private const val SMOOTH_INTERVAL_MS = 60L
 private const val SMOOTH_IDLE_INTERVAL_MS = 200L
-private const val SMOOTH_TIME_CONSTANT_MS = 600f
+private const val SMOOTH_TIME_CONSTANT_MS = 450f
 private const val CONVERGENCE_EPSILON = 0.0015f
-private const val FRAME_CHANGE_THRESHOLD = 4
+private const val FRAME_CHANGE_THRESHOLD = 2
 private const val CHANGE_SAMPLE_STEP = 7
-private const val MAX_BACKOFF_MULTIPLIER = 8L
+private const val MAX_BACKOFF_MULTIPLIER = 4L
+private const val FAILURES_BEFORE_FALLBACK = 2
+private const val FAILURES_BEFORE_CLEAR = 3
 
 private const val CAPTURE_OK = 0
 private const val CAPTURE_RETRY = 1
@@ -116,10 +121,12 @@ fun rememberVideoAmbientFrame(
   orientation: Int,
   isSurfaceReadyProvider: () -> Boolean,
   isPlayingProvider: () -> Boolean,
+  fallbackFrameProvider: suspend (Int) -> Bitmap?,
 ): VideoAmbientFrame {
   var state by remember { mutableStateOf(VideoAmbientFrame()) }
   val currentIsSurfaceReadyProvider by rememberUpdatedState(isSurfaceReadyProvider)
   val currentIsPlayingProvider by rememberUpdatedState(isPlayingProvider)
+  val currentFallbackFrameProvider by rememberUpdatedState(fallbackFrameProvider)
   val lifecycleOwner = LocalLifecycleOwner.current
 
   LaunchedEffect(
@@ -138,16 +145,27 @@ fun rememberVideoAmbientFrame(
     lifecycleOwner.repeatOnLifecycle(Lifecycle.State.STARTED) {
       state = VideoAmbientFrame()
       val pipeline = VideoAmbientPipeline()
-      coroutineScope {
-        launch {
-          pipeline.runCapture(
-            surfaceView = surfaceView,
-            isSurfaceReady = currentIsSurfaceReadyProvider,
-            isPlaying = currentIsPlayingProvider,
-            onUnsupported = { state = VideoAmbientFrame(supported = false) },
-          )
+      var unsupported = false
+      try {
+        coroutineScope {
+          launch {
+            pipeline.runCapture(
+              surfaceView = surfaceView,
+              isSurfaceReady = currentIsSurfaceReadyProvider,
+              isPlaying = currentIsPlayingProvider,
+              fallbackFrame = { currentFallbackFrameProvider(SAMPLE_WIDTH) },
+              onCaptureLost = { state = VideoAmbientFrame() },
+              onUnsupported = {
+                unsupported = true
+                state = VideoAmbientFrame(supported = false)
+              },
+            )
+          }
+          launch { pipeline.runSmoothing { state = it } }
         }
-        launch { pipeline.runSmoothing { state = it } }
+      } finally {
+        pipeline.close()
+        if (!unsupported) state = VideoAmbientFrame()
       }
     }
   }
@@ -155,11 +173,14 @@ fun rememberVideoAmbientFrame(
   return state
 }
 
-private class VideoAmbientPipeline {
+private class VideoAmbientPipeline : AutoCloseable {
   private val sample = Bitmap.createBitmap(SAMPLE_WIDTH, SAMPLE_HEIGHT, Bitmap.Config.ARGB_8888)
   private val samplePixels = IntArray(SAMPLE_WIDTH * SAMPLE_HEIGHT)
   private val previousPixels = IntArray(SAMPLE_WIDTH * SAMPLE_HEIGHT)
   private val pixelCopyHandler = Handler(Looper.getMainLooper())
+  private val fallbackCanvas = Canvas(sample)
+  private val fallbackPaint = Paint(Paint.ANTI_ALIAS_FLAG or Paint.FILTER_BITMAP_FLAG)
+  private val sampleBounds = Rect(0, 0, SAMPLE_WIDTH, SAMPLE_HEIGHT)
 
   private val cellCount = DISPLAY_WIDTH * DISPLAY_HEIGHT
   private val targetGrid = FloatArray(cellCount * 3)
@@ -169,8 +190,10 @@ private class VideoAmbientPipeline {
   private val outputPixels = IntArray(cellCount)
 
   private val targetBase = FloatArray(3)
+  private val stagingBase = FloatArray(3)
   private val currentBase = FloatArray(3)
   private val targetAccent = FloatArray(3)
+  private val stagingAccent = FloatArray(3)
   private val currentAccent = FloatArray(3)
 
   private val outputBitmaps =
@@ -185,11 +208,14 @@ private class VideoAmbientPipeline {
   private var seeded = false
   private var supported = Build.VERSION.SDK_INT >= Build.VERSION_CODES.N
   private var consecutiveFailures = 0
+  @Volatile private var closed = false
 
   suspend fun runCapture(
     surfaceView: SurfaceView,
     isSurfaceReady: () -> Boolean,
     isPlaying: () -> Boolean,
+    fallbackFrame: suspend () -> Bitmap?,
+    onCaptureLost: () -> Unit,
     onUnsupported: () -> Unit,
   ) {
     if (!supported) {
@@ -197,18 +223,14 @@ private class VideoAmbientPipeline {
       return
     }
 
-    while (currentCoroutineContext().isActive && supported) {
+    while (currentCoroutineContext().isActive && supported && !closed) {
       var cadence = IDLE_INTERVAL_MS
       if (isSurfaceReady() && surfaceView.width > 0 && surfaceView.height > 0) {
         when (captureSurface(surfaceView, sample, pixelCopyHandler)) {
           CAPTURE_OK -> {
             consecutiveFailures = 0
             cadence = if (isPlaying()) CAPTURE_INTERVAL_MS else IDLE_INTERVAL_MS
-            val accepted = withContext(Dispatchers.Default) { computeTarget() }
-            if (accepted) {
-              stagingGrid.copyInto(targetGrid)
-              hasTarget = true
-            }
+            processSample()
           }
 
           CAPTURE_UNSUPPORTED -> {
@@ -218,14 +240,29 @@ private class VideoAmbientPipeline {
 
           else -> {
             consecutiveFailures++
-            val multiplier =
-              (1L shl consecutiveFailures.coerceAtMost(3))
-                .coerceAtMost(MAX_BACKOFF_MULTIPLIER)
-            cadence = CAPTURE_INTERVAL_MS * multiplier
+            val fallbackApplied =
+              if (consecutiveFailures >= FAILURES_BEFORE_FALLBACK) {
+                applyFallbackFrame(fallbackFrame)
+              } else {
+                false
+              }
+            if (fallbackApplied) {
+              consecutiveFailures = FAILURES_BEFORE_FALLBACK - 1
+              cadence = if (isPlaying()) CAPTURE_INTERVAL_MS * 2 else IDLE_INTERVAL_MS
+            } else {
+              if (consecutiveFailures == FAILURES_BEFORE_CLEAR) {
+                resetScene()
+                onCaptureLost()
+              }
+              val multiplier =
+                (1L shl consecutiveFailures.coerceAtMost(3))
+                  .coerceAtMost(MAX_BACKOFF_MULTIPLIER)
+              cadence = CAPTURE_INTERVAL_MS * multiplier
+            }
           }
         }
       }
-      if (supported) delay(cadence)
+      if (supported && !closed) delay(cadence)
     }
   }
 
@@ -241,14 +278,37 @@ private class VideoAmbientPipeline {
     ambientBoxBlur(stagingGrid, scratchGrid, DISPLAY_WIDTH, DISPLAY_HEIGHT, BLUR_RADIUS, BLUR_PASSES)
 
     val (base, accent) = extractAmbientColors(sample)
-    base?.let { colorToLinear(it, targetBase) }
-    accent?.let { colorToLinear(it, targetAccent) }
+    stagingBase.fill(0f)
+    stagingAccent.fill(0f)
+    base?.let { colorToLinear(it, stagingBase) }
+    accent?.let { colorToLinear(it, stagingAccent) }
     return true
+  }
+
+  private suspend fun processSample() {
+    val accepted = withContext(Dispatchers.Default) { computeTarget() }
+    if (!accepted || closed) return
+    stagingGrid.copyInto(targetGrid)
+    stagingBase.copyInto(targetBase)
+    stagingAccent.copyInto(targetAccent)
+    hasTarget = true
+  }
+
+  private suspend fun applyFallbackFrame(provider: suspend () -> Bitmap?): Boolean {
+    val frame = provider() ?: return false
+    return try {
+      if (frame.isRecycled || closed) return false
+      fallbackCanvas.drawBitmap(frame, null, sampleBounds, fallbackPaint)
+      processSample()
+      true
+    } finally {
+      if (frame !== sample && !frame.isRecycled) frame.recycle()
+    }
   }
 
   suspend fun runSmoothing(emit: (VideoAmbientFrame) -> Unit) {
     var previousTick = SystemClock.elapsedRealtime()
-    while (currentCoroutineContext().isActive && supported) {
+    while (currentCoroutineContext().isActive && supported && !closed) {
       if (!hasTarget) {
         delay(SMOOTH_IDLE_INTERVAL_MS)
         previousTick = SystemClock.elapsedRealtime()
@@ -296,6 +356,18 @@ private class VideoAmbientPipeline {
       base = colorFromLinear(currentBase),
       accent = colorFromLinear(currentAccent),
     )
+  }
+
+  private fun resetScene() {
+    hasPreviousSample = false
+    hasTarget = false
+    seeded = false
+  }
+
+  override fun close() {
+    closed = true
+    supported = false
+    resetScene()
   }
 }
 

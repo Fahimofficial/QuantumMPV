@@ -34,6 +34,7 @@ import com.quantummpv.app.ui.player.ytdlp.YtdlpOptionSettings
 import com.quantummpv.app.ui.player.ytdlp.YtdlpOptionsBuilder
 import com.quantummpv.app.ui.player.ytdlp.YtdlpReleaseChannel
 import com.quantummpv.app.ui.theme.spacing
+import com.quantummpv.app.ui.utils.currentMpvConfigOverrideOptions
 import kotlinx.coroutines.launch
 import org.koin.compose.koinInject
 
@@ -48,6 +49,9 @@ fun YtdlpPanel(
   var isRunning by remember { mutableStateOf(false) }
 
   val ytdlPreferences = koinInject<YtdlPreferences>()
+  val configOwnedOptions = currentMpvConfigOverrideOptions()
+  val formatOptionsEnabled = "ytdl-format" !in configOwnedOptions
+  val rawOptionsEnabled = "ytdl-raw-options" !in configOwnedOptions
   val ytdlQuality by ytdlPreferences.ytdlQuality.collectAsState()
   val preferH264 by ytdlPreferences.preferH264.collectAsState()
   val codecPreference by ytdlPreferences.codecPreference.collectAsState()
@@ -211,6 +215,7 @@ fun YtdlpPanel(
               quickQualities.forEach { (level, label) ->
                 FilterChip(
                   selected = ytdlQuality == level,
+                  enabled = formatOptionsEnabled,
                   onClick = {
                     ytdlPreferences.ytdlQuality.set(level)
                     updateFormatString(ytdlPreferences)
@@ -280,6 +285,7 @@ fun YtdlpPanel(
             YtdlCodecPreference.commonPlaybackChoices.forEach { codec ->
               FilterChip(
                 selected = selectedCodec == codec,
+                enabled = formatOptionsEnabled,
                 onClick = {
                   ytdlPreferences.codecPreference.set(codec)
                   ytdlPreferences.preferH264.set(codec == YtdlCodecPreference.H264)
@@ -345,6 +351,7 @@ fun YtdlpPanel(
             }
             IconSwitch(
               checked = writeSubs,
+              enabled = rawOptionsEnabled,
               onCheckedChange = { ytdlPreferences.writeSubs.set(it) },
             )
           }
@@ -374,6 +381,7 @@ fun YtdlpPanel(
             }
             IconSwitch(
               checked = writeAutoSubs,
+              enabled = rawOptionsEnabled,
               onCheckedChange = { ytdlPreferences.writeAutoSubs.set(it) },
             )
           }

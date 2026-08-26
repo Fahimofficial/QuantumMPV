@@ -155,7 +155,7 @@ object YtdlpOptionsBuilder {
       key: String,
       value: String? = "",
     ) {
-      val cleanedKey = key.trim().trimStart('-')
+      val cleanedKey = key.trim().trimStart('-').lowercase()
       if (cleanedKey.isNotEmpty()) {
         rawOptions[cleanedKey] = value?.trim()
       }

@@ -997,11 +997,21 @@ class PlayerActivity :
     binding.ambientBackground.setContent {
       val enabled by viewModel.isAmbientEnabled.collectAsState()
       val style by viewModel.ambientStyle.collectAsState()
+      val lifecycleActive by viewModel.isAmbientLifecycleActive.collectAsState()
       val isAudioOnly by viewModel.isAudioOnly.collectAsState()
       val playbackState by PlaybackSession.state.collectAsState()
       val hdrScreenMode by viewModel.hdrScreenMode.collectAsState()
       val orientation = LocalConfiguration.current.orientation
-      val active = enabled && style == AmbientStyle.YouTube && !isAudioOnly && !isAmbientPipMode
+      val playbackReady =
+        playbackState.phase == PlaybackPhase.READY || playbackState.phase == PlaybackPhase.BACKGROUND
+      val active =
+        enabled &&
+          lifecycleActive &&
+          style == AmbientStyle.YouTube &&
+          !isAudioOnly &&
+          !isAmbientPipMode &&
+          playbackReady &&
+          playbackState.surfaceAttached
       val ambientFrame =
         rememberVideoAmbientFrame(
           surfaceView = binding.player,
@@ -1017,6 +1027,11 @@ class PlayerActivity :
           },
           isPlayingProvider = {
             !PlaybackSession.state.value.paused
+          },
+          fallbackFrameProvider = { dimension ->
+            withContext(Dispatchers.IO) {
+              runCatching { PlaybackSession.grabThumbnail(dimension) }.getOrNull()
+            }
           },
         )
       val presentationActive = active && ambientFrame.supported && ambientFrame.frame != null
@@ -1714,6 +1729,8 @@ class PlayerActivity :
   }
 
   override fun onStop() {
+    if (viewModelHostAttached) viewModel.setAmbientLifecycleActive(false)
+    if (isVideoAmbientPresentationActive) setVideoAmbientPresentationActive(false)
     if (!ownsPlaybackSession()) {
       cleanupReceivers()
       if (::pipHelper.isInitialized) runCatching { pipHelper.onStop() }
@@ -1721,7 +1738,6 @@ class PlayerActivity :
       return
     }
     MediaPlaybackService.activityForeground = false
-    viewModel.setAmbientLifecycleActive(false)
     runCatching {
       pipHelper.onStop()
       if (!mpvInitialized) return@runCatching

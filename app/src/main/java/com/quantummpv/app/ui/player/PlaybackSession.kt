@@ -704,7 +704,9 @@ object PlaybackSession : MPVLib.EventObserver {
       clearTimelinePropertiesLocked()
       val userAgent = PlaybackHttpHeaders.userAgent(resolvedItem.headers)
       val headerFields = PlaybackHttpHeaders.toMpvHeaderFields(resolvedItem.headers)
-      MPVLib.setPropertyString("user-agent", userAgent.orEmpty())
+      if (!MpvConfigOverridePolicy.isOwnedByMpvConf("user-agent")) {
+        MPVLib.setPropertyString("user-agent", userAgent.orEmpty())
+      }
       MPVLib.setPropertyString("http-header-fields", headerFields)
       MPVLib.setPropertyString("force-media-title", "")
 
@@ -716,7 +718,9 @@ object PlaybackSession : MPVLib.EventObserver {
         buildList {
           add("pause=yes")
           add(if (selectVideoForNewFile) "vid=auto" else "vid=no")
-          if (flattenEditions) add("flatten-editions=yes")
+          if (flattenEditions && !MpvConfigOverridePolicy.isOwnedByMpvConf("flatten-editions")) {
+            add("flatten-editions=yes")
+          }
         }.joinToString(",")
       MPVLib.command("loadfile", playableUri, "replace", "-1", loadOptions)
       propBoolean.emit("pause", holdForPositionRestore || desiredPaused)

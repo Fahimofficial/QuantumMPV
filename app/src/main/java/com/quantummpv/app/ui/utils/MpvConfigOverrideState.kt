@@ -14,6 +14,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import com.quantummpv.app.preferences.AdvancedPreferences
 import com.quantummpv.app.preferences.MpvConfigOverride
+import com.quantummpv.app.preferences.MpvConfigOverridePolicy
 import com.quantummpv.app.preferences.preference.collectAsState
 import org.koin.compose.koinInject
 
@@ -36,5 +37,7 @@ fun isAnyMpvOptionOwnedByConfig(optionNames: Set<String>): Boolean {
 fun currentMpvConfigOverrideOptions(): Set<String> {
   val preferences = koinInject<AdvancedPreferences>()
   val storedValues by preferences.mpvConfOverrides.collectAsState()
-  return remember(storedValues) { MpvConfigOverride.resolveOptionNames(storedValues) }
+  return remember(storedValues) {
+    MpvConfigOverridePolicy.effectiveOptionNames(MpvConfigOverride.resolveOptionNames(storedValues))
+  }
 }

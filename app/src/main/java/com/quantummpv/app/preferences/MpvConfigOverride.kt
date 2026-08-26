@@ -205,7 +205,10 @@ enum class MpvConfigOverride(
         "ytdl-path",
         "ytdl-format",
         "ytdl-raw-options",
+        "flatten-editions",
+        "script-opts",
         "script-opts-append",
+        "user-agent",
       ),
   ),
   OSD(
@@ -233,6 +236,8 @@ enum class MpvConfigOverride(
 }
 
 object MpvConfigControlledFeatures {
+  val YTDLP_SCRIPT_OPTIONS = setOf("script-opts", "script-opts-append")
+
   val HDR_OUTPUT =
     setOf(
       "gpu-api",
@@ -267,8 +272,6 @@ object MpvConfigControlledFeatures {
       "glsl-shaders",
       "video-scale-x",
       "video-scale-y",
-      "border-background",
-      "background-blur-radius",
     )
 
   val AUDIO_TRACK_SELECTION = setOf("alang")
@@ -290,8 +293,15 @@ object MpvConfigOverridePolicy {
   private var overriddenOptionNames: Set<String> = emptySet()
 
   fun configure(storedValues: Set<String>) {
-    overriddenOptionNames = MpvConfigOverride.resolveOptionNames(storedValues)
+    overriddenOptionNames = effectiveOptionNames(MpvConfigOverride.resolveOptionNames(storedValues))
   }
+
+  fun effectiveOptionNames(optionNames: Set<String>): Set<String> =
+    if (optionNames.any(MpvConfigControlledFeatures.YTDLP_SCRIPT_OPTIONS::contains)) {
+      optionNames + MpvConfigControlledFeatures.YTDLP_SCRIPT_OPTIONS
+    } else {
+      optionNames
+    }
 
   fun isOwnedByMpvConf(optionName: String): Boolean = optionName in overriddenOptionNames
 

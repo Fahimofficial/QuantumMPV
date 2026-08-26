@@ -393,6 +393,7 @@ object SubtitlesPreferencesScreen : Screen {
               ListPreference(
                 modifier = Modifier.settingsSearchTarget(R.string.pref_subtitles_font_title),
                 value = fontValue,
+                enabled = setOf("sub-font", "secondary-sub-font").none(configOwnedOptions::contains),
                 onValueChange = preferences.font::set,
                 values = fontValues,
                 valueToText = {
