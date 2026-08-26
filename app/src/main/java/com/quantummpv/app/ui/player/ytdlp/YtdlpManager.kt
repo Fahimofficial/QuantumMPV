@@ -384,7 +384,7 @@ object YtdlpManager {
     return runtimeAssetsPrepared
   }
 
-  private fun isInstalled(context: Context): Boolean {
+  fun isInstalled(context: Context): Boolean {
     val ytDlp = File(getYtdlDir(context), "yt-dlp")
     return ytDlp.isFile && ytDlp.length() > 0L
   }

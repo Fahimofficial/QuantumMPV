@@ -4,6 +4,8 @@
   <string name="generic_share">Share</string>
   <string name="generic_confirm">Confirm</string>
   <string name="generic_cancel">Cancel</string>
+  <string name="generic_install">Install</string>
+  <string name="generic_configure">Configure</string>
   <string name="generic_ok">OK</string>
   <string name="generic_unit_ms">ms</string>
   <string name="generic_disabled">Disabled</string>
@@ -1569,6 +1571,9 @@
   <string name="ui_yt_dlp_installed_build">Installed Build</string>
   <string name="ui_reading_installed_version">Reading installed version…</string>
   <string name="ui_install_stable_to_play_web_links">Install the stable release to play supported web links.</string>
+  <string name="ytdlp_install_prompt_subtitle">This link needs yt-dlp to play. Install it now, or configure it later from settings.</string>
+  <string name="ytdlp_installing">Installing yt-dlp…</string>
+  <string name="ytdlp_install_failed">Couldn\'t install yt-dlp. Check your connection and try again.</string>
   <string name="ui_yt_dlp_build_and_commit">Build %1$s • Commit %2$s</string>
   <string name="ui_yt_dlp_version">Version %1$s</string>
   <string name="ui_yt_dlp_commit">Commit %1$s</string>
