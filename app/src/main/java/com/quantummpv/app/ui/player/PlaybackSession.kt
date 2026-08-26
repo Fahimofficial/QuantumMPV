@@ -686,14 +686,17 @@ object PlaybackSession : MPVLib.EventObserver {
 
       val generation = _state.value.generation + 1L
       pendingPositionRestoreGeneration =
-        generation.takeIf { restoreSavedPosition || positionRestoreOverride != null } ?: 0L
+        generation.takeIf {
+          positionRestoreOverride != null || (restoreSavedPosition && !resolvedItem.isDefinitelyAudioOnly())
+        } ?: 0L
       pendingPositionRestoreOverride = positionRestoreOverride?.let { generation to it }
+      val holdForPositionRestore = pendingPositionRestoreGeneration == generation
       deferredVideoSelectionGeneration = generation.takeIf { videoSelection == PlaybackVideoSelection.DEFERRED }
       updateState {
         it.copy(
           phase = PlaybackPhase.LOADING,
           generation = generation,
-          paused = desiredPaused,
+          paused = holdForPositionRestore || desiredPaused,
           currentItem = resolvedItem,
           error = null,
         )
@@ -716,7 +719,7 @@ object PlaybackSession : MPVLib.EventObserver {
           if (flattenEditions) add("flatten-editions=yes")
         }.joinToString(",")
       MPVLib.command("loadfile", playableUri, "replace", "-1", loadOptions)
-      propBoolean.emit("pause", desiredPaused)
+      propBoolean.emit("pause", holdForPositionRestore || desiredPaused)
       generation
     }
 
@@ -753,8 +756,23 @@ object PlaybackSession : MPVLib.EventObserver {
 
   fun completePositionRestore(generation: Long) {
     nativeLock.withLock {
-      if (pendingPositionRestoreGeneration == generation) pendingPositionRestoreGeneration = 0L
+      if (pendingPositionRestoreGeneration != generation) return@withLock
+      pendingPositionRestoreGeneration = 0L
       if (pendingPositionRestoreOverride?.first == generation) pendingPositionRestoreOverride = null
+      val current = _state.value
+      if (current.generation != generation || loadedGeneration != generation || current.phase != PlaybackPhase.LOADING) {
+        return@withLock
+      }
+
+      MPVLib.setPropertyBoolean("pause", desiredPaused)
+      updateState {
+        it.copy(
+          phase = if (it.phase == PlaybackPhase.BACKGROUND) PlaybackPhase.BACKGROUND else PlaybackPhase.READY,
+          paused = desiredPaused,
+          error = null,
+        )
+      }
+      propBoolean.emit("pause", desiredPaused)
     }
   }
 
@@ -865,8 +883,8 @@ object PlaybackSession : MPVLib.EventObserver {
     withCore(Unit) {
       if (property == "pause") {
         desiredPaused = value
-        // During a replacement load the native core deliberately stays paused until FILE_LOADED.
-        // Record user/service intent now, then apply it once decoder/track setup is complete.
+        // Loading may include an asynchronous saved-position restore. Record user/service intent
+        // now, then apply it once the load owner publishes READY.
         if (_state.value.phase != PlaybackPhase.LOADING) {
           MPVLib.setPropertyBoolean(property, value)
         }
@@ -1078,9 +1096,12 @@ object PlaybackSession : MPVLib.EventObserver {
               return@withLock true
             }
             loadedGeneration = current.generation
+            val restoringPosition = pendingPositionRestoreGeneration == current.generation
+            val appliedPaused = restoringPosition || desiredPaused
             // Track/decoder replacement is now complete. Apply the latest user/service intent
-            // once instead of allowing pause writes to race the load operation.
-            MPVLib.setPropertyBoolean("pause", desiredPaused)
+            // once instead of allowing pause writes to race the load operation. Saved-position
+            // loads stay paused until PlayerActivity finishes the database lookup and seek.
+            MPVLib.setPropertyBoolean("pause", appliedPaused)
             // Surface ownership is the source of truth at this boundary. Activity observers can
             // detach during recreation, and deferred-generation bookkeeping only covers loads that
             // started without video. Repair a disabled selection before exposing READY so an
@@ -1096,13 +1117,20 @@ object PlaybackSession : MPVLib.EventObserver {
             }
             updateState {
               it.copy(
-                phase = if (it.phase == PlaybackPhase.BACKGROUND) PlaybackPhase.BACKGROUND else PlaybackPhase.READY,
+                phase =
+                  if (restoringPosition) {
+                    PlaybackPhase.LOADING
+                  } else if (it.phase == PlaybackPhase.BACKGROUND) {
+                    PlaybackPhase.BACKGROUND
+                  } else {
+                    PlaybackPhase.READY
+                  },
                 activeGeneration = it.generation,
-                paused = desiredPaused,
+                paused = appliedPaused,
                 error = null,
               )
             }
-            propBoolean.emit("pause", desiredPaused)
+            propBoolean.emit("pause", appliedPaused)
             restoreSuspendedVideoTrackLocked()
             true
           }

@@ -4002,27 +4002,31 @@ class PlayerActivity :
     setIntentExtras(intent.extras)
 
     lifecycleScope.launch(Dispatchers.IO) {
-      // Load playback state (will skip track restoration if preferred language configured)
-      val hasState =
-        loadVideoPlaybackState(
-          identifier = loadedMediaIdentifier,
-          legacyIdentifier = loadedLegacyIdentifier,
-          loadGeneration = loadGeneration,
-          positionRestoreOverride = positionRestoreOverride,
-        )
-      if (!PlaybackSession.isCurrentGeneration(loadGeneration)) return@launch
+      try {
+        // Load playback state (will skip track restoration if preferred language configured)
+        val hasState =
+          loadVideoPlaybackState(
+            identifier = loadedMediaIdentifier,
+            legacyIdentifier = loadedLegacyIdentifier,
+            loadGeneration = loadGeneration,
+            positionRestoreOverride = positionRestoreOverride,
+          )
+        if (!PlaybackSession.isCurrentGeneration(loadGeneration)) return@launch
 
-      // Apply track selection logic (defaults only apply when no saved state)
-      trackSelector.onFileLoaded(hasState)
+        // Apply track selection logic (defaults only apply when no saved state)
+        trackSelector.onFileLoaded(hasState)
 
-      // Apply default zoom only if there's no saved state
-      if (!hasState) {
-        withContext(Dispatchers.Main) {
-          if (!PlaybackSession.isCurrentGeneration(loadGeneration)) return@withContext
-          val zoomPreference = playerPreferences.defaultVideoZoom.get()
-          PlaybackSession.setPropertyDouble("video-zoom", zoomPreference.toDouble())
-          viewModel.setVideoZoom(zoomPreference)
+        // Apply default zoom only if there's no saved state
+        if (!hasState) {
+          withContext(Dispatchers.Main) {
+            if (!PlaybackSession.isCurrentGeneration(loadGeneration)) return@withContext
+            val zoomPreference = playerPreferences.defaultVideoZoom.get()
+            PlaybackSession.setPropertyDouble("video-zoom", zoomPreference.toDouble())
+            viewModel.setVideoZoom(zoomPreference)
+          }
         }
+      } finally {
+        PlaybackSession.completePositionRestore(loadGeneration)
       }
     }
 
@@ -4084,8 +4088,6 @@ class PlayerActivity :
       PlaybackSession.setPropertyString("force-media-title", preferredTitle)
       viewModel.setMediaTitle(preferredTitle)
     }
-
-    viewModel.unpause()
 
     lifecycleScope.launch {
       withContext(playbackRenderDispatcher) {
@@ -4519,7 +4521,6 @@ class PlayerActivity :
     positionRestoreOverride: PlaybackPositionRestoreOverride?,
   ): Boolean {
     if (identifier.isBlank() || !PlaybackSession.isCurrentGeneration(loadGeneration)) {
-      PlaybackSession.completePositionRestore(loadGeneration)
       return false
     }
 
@@ -4559,9 +4560,7 @@ class PlayerActivity :
       state != null || positionRestoreOverride != null
     }.onFailure { e ->
       Log.e(TAG, "Error loading playback state", e)
-    }.getOrDefault(false).also {
-      PlaybackSession.completePositionRestore(loadGeneration)
-    }
+    }.getOrDefault(false)
   }
 
   /**
@@ -5283,7 +5282,7 @@ class PlayerActivity :
     val generation =
       PlaybackSession.load(
         item = item,
-        restoreSavedPosition = true,
+        restoreSavedPosition = playerPreferences.savePositionOnQuit.get(),
         positionRestoreOverride = positionRestoreOverride,
         flattenEditions = requiresYtdlp && !MpvConfigOverridePolicy.isOwnedByMpvConf("flatten-editions"),
         commit = { nativeLoad ->

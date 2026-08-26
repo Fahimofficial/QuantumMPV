@@ -9,6 +9,7 @@
 
 package com.quantummpv.app.ui.player.controls
 
+import com.quantummpv.app.ui.player.PlaybackPhase
 import com.quantummpv.app.ui.player.PlaybackSession
 import com.quantummpv.app.domain.torrent.TorrentStreamingState
 
@@ -204,6 +205,7 @@ fun PlayerControls(
   val areControlsLocked by viewModel.areControlsLocked.collectAsState()
   val seekBarShown by viewModel.seekBarShown.collectAsState()
   val paused by PlaybackSession.propBoolean["pause"].collectAsState()
+  val playbackSessionState by PlaybackSession.state.collectAsStateWithLifecycle()
   val duration by PlaybackSession.propInt["duration"].collectAsState()
   val playbackQueue by PlaybackSession.queue.collectAsStateWithLifecycle()
   val preciseDuration by viewModel.preciseDuration.collectAsState()
@@ -230,7 +232,7 @@ fun PlayerControls(
       enabled = showLoadingCircle,
       // A torrent that has not produced a playable range yet never reaches mpv, so the engine's own
       // connecting phase has to drive the spinner directly.
-      forceVisible = isTorrentConnecting,
+      forceVisible = isTorrentConnecting || playbackSessionState.phase == PlaybackPhase.LOADING,
     )
   val isMpvBuffering = bufferingState.isCacheStall
   val safeAreaWindow by playerPreferences.safeAreaWindow.collectAsState()
@@ -249,7 +251,10 @@ fun PlayerControls(
   var isSeeking by remember { mutableStateOf(false) }
   val mpvSeeking by PlaybackSession.propBoolean["seeking"].collectAsState()
   val isPlayerSeeking = isSeeking || (mpvSeeking ?: false)
-  val showBufferingIndicator = bufferingState.visible && controlsShown && !isPlayerSeeking
+  val showBufferingIndicator =
+    bufferingState.visible &&
+      (controlsShown || playbackSessionState.phase == PlaybackPhase.LOADING) &&
+      !isPlayerSeeking
   var stableDemuxerCacheTime by remember { mutableFloatStateOf(0f) }
   val currentDemuxerCacheTime =
     demuxerCacheTime
