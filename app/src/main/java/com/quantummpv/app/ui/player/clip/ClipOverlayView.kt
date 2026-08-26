@@ -17,6 +17,7 @@ import android.graphics.Path
 import android.graphics.RectF
 import android.graphics.Typeface
 import android.util.AttributeSet
+import android.util.TypedValue
 import android.view.Gravity
 import android.view.HapticFeedbackConstants
 import android.view.MotionEvent
@@ -25,18 +26,6 @@ import android.view.ViewGroup
 import android.widget.FrameLayout
 import android.widget.Toast
 import androidx.activity.compose.BackHandler
-import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.animation.EnterTransition
-import androidx.compose.animation.ExitTransition
-import androidx.compose.animation.fadeIn
-import androidx.compose.animation.fadeOut
-import androidx.compose.animation.scaleIn
-import androidx.compose.animation.scaleOut
-import androidx.compose.animation.slideInVertically
-import androidx.compose.animation.slideOutVertically
-import androidx.compose.animation.core.MutableTransitionState
-import androidx.compose.animation.core.Spring
-import androidx.compose.animation.core.spring
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
@@ -44,7 +33,6 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
@@ -91,12 +79,11 @@ import androidx.lifecycle.findViewTreeViewModelStoreOwner
 import com.quantummpv.app.R
 import com.quantummpv.app.ui.icons.Icon as AppIcon
 import com.quantummpv.app.ui.icons.Icons
+import com.quantummpv.app.ui.player.Panels
 import com.quantummpv.app.ui.player.PlaybackSession
 import com.quantummpv.app.ui.player.PlayerActivity
 import com.quantummpv.app.ui.player.PlayerViewModel
 import com.quantummpv.app.ui.player.controls.components.panels.DraggablePanel
-import com.quantummpv.app.ui.theme.AppMotion
-import com.quantummpv.app.ui.theme.AppShapeScale
 import com.quantummpv.app.ui.theme.MpvrxTheme
 import com.quantummpv.app.ui.theme.spacing
 import java.util.Locale
@@ -119,17 +106,14 @@ private data class ClipPanelState(
   val exporting: Boolean = false,
   val cancelling: Boolean = false,
   val progress: Int = 0,
-  val panelActive: Boolean = false,
   val cropActive: Boolean = false,
 )
 
 /**
- * Player-local editor surface for Clip.
+ * Player-local crop surface and state owner for Clip.
  *
- * The scissors action itself is a normal customizable Compose player button. This sibling overlay
- * exists only for UI that must sit directly over the video: the Clip editor card and crop selector.
- * Outside those visible children it does not consume input, so the normal seekbar and gestures keep
- * working while a Clip draft is open.
+ * The editor is rendered by the shared player panel system. This overlay contains only UI that must
+ * sit directly over the video, and outside crop mode it does not consume input.
  */
 class ClipOverlayView @JvmOverloads constructor(
   context: Context,
@@ -142,7 +126,6 @@ class ClipOverlayView @JvmOverloads constructor(
     var crop: ClipCrop? = null,
   )
 
-  private val panelView = ComposeView(context)
   private var panelState by mutableStateOf(ClipPanelState())
 
   private var draft: ClipDraft? = null
@@ -166,7 +149,6 @@ class ClipOverlayView @JvmOverloads constructor(
     isFocusable = false
     clipChildren = false
     clipToPadding = false
-    setupPanel()
 
     ViewCompat.setOnApplyWindowInsetsListener(this) { _, insets ->
       bottomInset = insets.getInsets(WindowInsetsCompat.Type.systemBars()).bottom
@@ -184,10 +166,10 @@ class ClipOverlayView @JvmOverloads constructor(
   override fun onDetachedFromWindow() {
     removeCallbacks(pollState)
     if (cropView != null) exitCropMode(keepSelection = false)
+    dismissClipPanel()
     draft = null
     ClipEditorUiState.clear()
     panelState = ClipPanelState()
-    panelView.visibility = GONE
     super.onDetachedFromWindow()
   }
 
@@ -204,8 +186,25 @@ class ClipOverlayView @JvmOverloads constructor(
   override fun onTouchEvent(event: MotionEvent): Boolean =
     if (cropView != null) true else super.onTouchEvent(event)
 
-  fun openClip() {
-    beginClip()
+  fun openClip(): Boolean = beginClip()
+
+  @Composable
+  internal fun EditorPanel(onDismissRequest: () -> Unit) {
+    if (panelState.cropActive) return
+
+    ClipEditorPanel(
+      state = panelState,
+      onRangeChange = ::updateClipRange,
+      onStartTimeChange = ::updateClipStart,
+      onEndTimeChange = ::updateClipEnd,
+      onMarkStart = ::markClipStart,
+      onMarkEnd = ::markClipEnd,
+      onCrop = ::enterCropMode,
+      onCancel = {
+        if (cancelOrClose()) onDismissRequest()
+      },
+      onSave = ::saveOrCancelExport,
+    )
   }
 
   private fun playerViewModel(): PlayerViewModel? {
@@ -213,62 +212,20 @@ class ClipOverlayView @JvmOverloads constructor(
     return ViewModelProvider(owner)[PlayerViewModel::class.java]
   }
 
-  private fun setupPanel() {
-    panelView.apply {
-      visibility = GONE
-      isClickable = false
-      isFocusable = false
-      setViewCompositionStrategy(ViewCompositionStrategy.DisposeOnViewTreeLifecycleDestroyed)
-      setContent {
-        MpvrxTheme {
-          ClipEditorPanel(
-            state = panelState,
-            onRangeChange = ::updateClipRange,
-            onStartTimeChange = ::updateClipStart,
-            onEndTimeChange = ::updateClipEnd,
-            onMarkStart = ::markClipStart,
-            onMarkEnd = ::markClipEnd,
-            onCrop = ::enterCropMode,
-            onCropCancel = { exitCropMode(keepSelection = false) },
-            onCancel = ::cancelOrClose,
-            onSave = ::saveOrCancelExport,
-            onPanelHidden = ::onPanelHidden,
-          )
-        }
-      }
-    }
-    addView(
-      panelView,
-      LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT),
-    )
-  }
-
-  private fun onPanelHidden() {
-    if (panelState.panelActive) return
-    panelView.visibility = GONE
-    if (draft == null) panelState = ClipPanelState()
-  }
-
-  private fun beginClip() {
+  private fun beginClip(): Boolean {
     if (PlaybackSession.state.value.currentItem == null) {
       toast(R.string.clip_video_unavailable)
-      return
+      return false
     }
 
     if (ClipExportManager.state.value is ClipExportState.Exporting) {
-      panelState = panelState.copy(panelActive = true)
-      panelView.visibility = VISIBLE
       updateExportState()
-      return
+      return true
     }
 
-    ensureDraft() ?: return
+    ensureDraft() ?: return false
     refreshDraftUi()
-    panelState = panelState.copy(panelActive = true)
-    panelView.visibility = VISIBLE
-
-    // Keep the seekbar visible while the draggable editor is open, without covering the video in controls.
-    playerViewModel()?.autoHideControls()
+    return true
   }
 
   private fun ensureDraft(): ClipDraft? {
@@ -385,12 +342,14 @@ class ClipOverlayView @JvmOverloads constructor(
     updateExportState()
   }
 
-  private fun cancelOrClose() {
+  private fun cancelOrClose(): Boolean {
     if (ClipExportManager.state.value is ClipExportState.Exporting) {
       ClipExportManager.cancel()
       updateExportState()
+      return false
     } else {
       closeDraft()
+      return true
     }
   }
 
@@ -398,8 +357,7 @@ class ClipOverlayView @JvmOverloads constructor(
     if (cropView != null) exitCropMode(keepSelection = false)
     draft = null
     ClipEditorUiState.clear()
-    panelState = panelState.copy(panelActive = false, cropActive = false)
-    playerViewModel()?.showControls()
+    panelState = ClipPanelState()
   }
 
   private fun enterCropMode() {
@@ -420,7 +378,7 @@ class ClipOverlayView @JvmOverloads constructor(
     pausedBeforeCrop = PlaybackSession.getPropertyBoolean("pause") ?: true
     if (!pausedBeforeCrop) PlaybackSession.setPropertyBoolean("pause", true)
 
-    panelState = panelState.copy(panelActive = false, cropActive = true)
+    panelState = panelState.copy(cropActive = true)
     val selector =
       CropSelectionView(
         context = context,
@@ -478,15 +436,8 @@ class ClipOverlayView @JvmOverloads constructor(
     }
     cropControls = null
     if (!pausedBeforeCrop) PlaybackSession.setPropertyBoolean("pause", false)
-    val reopenPanel = draft != null
-    panelState = panelState.copy(panelActive = reopenPanel, cropActive = false)
-    if (reopenPanel) panelView.visibility = VISIBLE
+    panelState = panelState.copy(cropActive = false)
     refreshDraftUi()
-    if (reopenPanel) {
-      playerViewModel()?.autoHideControls()
-    } else {
-      playerViewModel()?.showControls()
-    }
   }
 
   private fun updateExportState() {
@@ -501,13 +452,11 @@ class ClipOverlayView @JvmOverloads constructor(
         lastTerminalState = null
       }
       is ClipExportState.Exporting -> {
-        panelView.visibility = VISIBLE
         panelState =
           panelState.copy(
             exporting = true,
             cancelling = state.cancelling,
             progress = (state.progress * 100f).roundToInt().coerceIn(0, 100),
-            panelActive = true,
           )
       }
       is ClipExportState.Success -> {
@@ -516,8 +465,8 @@ class ClipOverlayView @JvmOverloads constructor(
           lastTerminalState = state
           draft = null
           ClipEditorUiState.clear()
-          panelState = panelState.copy(panelActive = false, exporting = false, cancelling = false, progress = 100)
-          playerViewModel()?.showControls()
+          panelState = ClipPanelState(progress = 100)
+          dismissClipPanel()
           ClipExportManager.consumeTerminalState()
         }
       }
@@ -541,8 +490,15 @@ class ClipOverlayView @JvmOverloads constructor(
     draft = null
     if (cropView != null) exitCropMode(keepSelection = false)
     ClipEditorUiState.clear()
-    panelState = panelState.copy(panelActive = false, cropActive = false)
-    playerViewModel()?.showControls()
+    panelState = ClipPanelState()
+    dismissClipPanel()
+  }
+
+  private fun dismissClipPanel() {
+    val viewModel = playerViewModel() ?: return
+    if (viewModel.panelShown.value != Panels.Clip) return
+    viewModel.panelShown.value = Panels.None
+    viewModel.showControls()
   }
 
   private fun refreshDraftUi() {
@@ -644,14 +600,15 @@ class ClipOverlayView @JvmOverloads constructor(
     private const val CROP_PILL_WIDTH_DP = 97
     private const val CROP_PILL_HEIGHT_DP = 48
 
-    /** Attaches the Clip editor above the player at runtime; no player_layout.xml host is needed. */
+    /** Attaches the Clip editor to the player-owned overlay layer. */
     internal fun ensureAttached(activity: PlayerActivity): ClipOverlayView {
-      val contentRoot = activity.findViewById<ViewGroup>(android.R.id.content)
-      contentRoot.findViewWithTag<ClipOverlayView>(OVERLAY_TAG)?.let { return it }
+      val overlayHost = activity.findViewById<FrameLayout>(R.id.clip_overlay_host)
+      overlayHost.bringToFront()
+      overlayHost.findViewWithTag<ClipOverlayView>(OVERLAY_TAG)?.let { return it }
 
       return ClipOverlayView(activity).also { overlay ->
         overlay.tag = OVERLAY_TAG
-        contentRoot.addView(
+        overlayHost.addView(
           overlay,
           ViewGroup.LayoutParams(
             ViewGroup.LayoutParams.MATCH_PARENT,
@@ -672,132 +629,60 @@ private fun ClipEditorPanel(
   onMarkStart: () -> Unit,
   onMarkEnd: () -> Unit,
   onCrop: () -> Unit,
-  onCropCancel: () -> Unit,
   onCancel: () -> Unit,
   onSave: () -> Unit,
-  onPanelHidden: () -> Unit,
 ) {
   var startTimeValid by remember { mutableStateOf(true) }
   var endTimeValid by remember { mutableStateOf(true) }
-  val visibilityState = remember { MutableTransitionState(false) }
-  val reduceMotion = AppMotion.shouldReduceMotion()
+  BackHandler(onBack = onCancel)
 
-  LaunchedEffect(state.panelActive) {
-    visibilityState.targetState = state.panelActive
-  }
-  LaunchedEffect(visibilityState.isIdle, visibilityState.currentState, state.panelActive) {
-    if (visibilityState.isIdle && !visibilityState.currentState && !state.panelActive) {
-      onPanelHidden()
-    }
-  }
-
-  BackHandler(enabled = state.panelActive, onBack = onCancel)
-  BackHandler(enabled = state.cropActive, onBack = onCropCancel)
-
-  AnimatedVisibility(
-    visibleState = visibilityState,
-    enter = fadeIn(animationSpec = AppMotion.Effect.Alpha),
-    exit = fadeOut(animationSpec = AppMotion.Effect.Alpha),
-  ) {
-    Box(
-      modifier =
-        Modifier
-          .fillMaxSize()
-          .background(MaterialTheme.colorScheme.scrim.copy(alpha = 0.32f)),
-    ) {
-      AnimatedVisibility(
-        visible = state.panelActive,
-        enter =
-          if (reduceMotion) {
-            EnterTransition.None
-          } else {
-            scaleIn(
-              animationSpec = AppMotion.Spatial.Expressive,
-              initialScale = 0.94f,
-            ) +
-              slideInVertically(
-                animationSpec =
-                  spring(
-                    dampingRatio = Spring.DampingRatioNoBouncy,
-                    stiffness = Spring.StiffnessMedium,
-                  ),
-                initialOffsetY = { height -> height / 12 },
-              )
-          },
-        exit =
-          if (reduceMotion) {
-            ExitTransition.None
-          } else {
-            scaleOut(
-              animationSpec = AppMotion.Spatial.Standard,
-              targetScale = 0.96f,
-            ) +
-              slideOutVertically(
-                animationSpec =
-                  spring(
-                    dampingRatio = Spring.DampingRatioNoBouncy,
-                    stiffness = Spring.StiffnessMedium,
-                  ),
-                targetOffsetY = { height -> height / 16 },
-              )
-          },
+  DraggablePanel(
+    header = {
+      Row(
+        verticalAlignment = Alignment.CenterVertically,
+        modifier =
+          Modifier
+            .fillMaxWidth()
+            .padding(horizontal = MaterialTheme.spacing.medium)
+            .padding(top = MaterialTheme.spacing.small),
       ) {
-        DraggablePanel(
-          modifier = Modifier.padding(horizontal = 16.dp, vertical = 24.dp),
-          shape = AppShapeScale.extraLarge,
-          containerColor = MaterialTheme.colorScheme.surfaceContainerHigh.copy(alpha = 0.98f),
-          tonalElevation = 6.dp,
-          shadowElevation = 12.dp,
-          border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.55f)),
-          header = {
-            Row(
-              verticalAlignment = Alignment.CenterVertically,
-              modifier =
-                Modifier
-                  .fillMaxWidth()
-                  .padding(horizontal = MaterialTheme.spacing.medium)
-                  .padding(top = MaterialTheme.spacing.small),
-            ) {
-              AppIcon(
-                imageVector = Icons.RoundedFilled.ContentCut,
-                contentDescription = null,
-                tint = MaterialTheme.colorScheme.primary,
-                modifier = Modifier.size(22.dp),
-              )
-              Text(
-                text = stringResource(R.string.clip_action),
-                style = MaterialTheme.typography.titleLarge,
-                modifier = Modifier.padding(start = 10.dp),
-              )
-              Spacer(Modifier.weight(1f))
-              IconButton(onClick = onCancel) {
-                AppIcon(
-                  imageVector = Icons.RoundedFilled.Close,
-                  contentDescription = stringResource(R.string.clip_cancel),
-                  modifier = Modifier.size(24.dp),
-                )
-              }
-            }
-          },
-        ) {
-          ClipEditorPanelContent(
-            state = state,
-            startTimeValid = startTimeValid,
-            endTimeValid = endTimeValid,
-            onStartTimeValidityChange = { startTimeValid = it },
-            onEndTimeValidityChange = { endTimeValid = it },
-            onRangeChange = onRangeChange,
-            onStartTimeChange = onStartTimeChange,
-            onEndTimeChange = onEndTimeChange,
-            onMarkStart = onMarkStart,
-            onMarkEnd = onMarkEnd,
-            onCrop = onCrop,
-            onCancel = onCancel,
-            onSave = onSave,
+        AppIcon(
+          imageVector = Icons.RoundedFilled.ContentCut,
+          contentDescription = null,
+          tint = MaterialTheme.colorScheme.primary,
+          modifier = Modifier.size(22.dp),
+        )
+        Text(
+          text = stringResource(R.string.clip_action),
+          style = MaterialTheme.typography.titleLarge,
+          modifier = Modifier.padding(start = 10.dp),
+        )
+        Spacer(Modifier.weight(1f))
+        IconButton(onClick = onCancel) {
+          AppIcon(
+            imageVector = Icons.RoundedFilled.Close,
+            contentDescription = stringResource(R.string.clip_cancel),
+            modifier = Modifier.size(24.dp),
           )
         }
       }
-    }
+    },
+  ) {
+    ClipEditorPanelContent(
+      state = state,
+      startTimeValid = startTimeValid,
+      endTimeValid = endTimeValid,
+      onStartTimeValidityChange = { startTimeValid = it },
+      onEndTimeValidityChange = { endTimeValid = it },
+      onRangeChange = onRangeChange,
+      onStartTimeChange = onStartTimeChange,
+      onEndTimeChange = onEndTimeChange,
+      onMarkStart = onMarkStart,
+      onMarkEnd = onMarkEnd,
+      onCrop = onCrop,
+      onCancel = onCancel,
+      onSave = onSave,
+    )
   }
 }
 
@@ -1111,6 +996,8 @@ private fun ClipCropControls(
   onCancel: () -> Unit,
   onDone: () -> Unit,
 ) {
+  BackHandler(onBack = onCancel)
+
   Surface(
     shape = CircleShape,
     color = MaterialTheme.colorScheme.surfaceContainerHigh.copy(alpha = 0.96f),
@@ -1583,5 +1470,6 @@ private class CropSelectionView(
 
   private fun dpF(value: Float): Float = value * density
 
-  private fun spF(value: Float): Float = value * resources.displayMetrics.scaledDensity
+  private fun spF(value: Float): Float =
+    TypedValue.applyDimension(TypedValue.COMPLEX_UNIT_SP, value, resources.displayMetrics)
 }

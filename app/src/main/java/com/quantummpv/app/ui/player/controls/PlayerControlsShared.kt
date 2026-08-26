@@ -47,7 +47,6 @@ import androidx.compose.material3.ripple
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -716,7 +715,9 @@ fun RenderPlayerButton(
       val clipOverlay = remember(activity) { ClipOverlayView.ensureAttached(activity) }
       ControlsButton(
         icon = button.icon,
-        onClick = clipOverlay::openClip,
+        onClick = {
+          if (clipOverlay.openClip()) onOpenPanel(Panels.Clip)
+        },
         title = androidx.compose.ui.res.stringResource(com.quantummpv.app.R.string.clip_action),
         color = if (hideBackground) controlColor else MaterialTheme.colorScheme.onSurface,
         modifier = Modifier.size(buttonSize),
