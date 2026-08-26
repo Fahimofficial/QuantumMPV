@@ -178,9 +178,6 @@ class PlayerPreferences(
   /** Animation played when a video first opens. Default = no overlay. */
   val videoOpenAnimation = preferenceStore.getEnum("video_open_animation", VideoOpenAnimation.Default)
 
-  /** Tab-switching animation style in the main browser. */
-  val navAnimStyle = preferenceStore.getEnum("nav_anim_style", NavigationAnimStyle.Default)
-
   /** Screen-level (app-wide) navigation transition style. */
   val appNavStyle = preferenceStore.getEnum("app_nav_style", NavigationAnimStyle.Default)
 
