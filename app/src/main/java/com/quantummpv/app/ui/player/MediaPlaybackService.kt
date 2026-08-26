@@ -869,7 +869,7 @@ class MediaPlaybackService :
     handingBackToActivity = false
     schedulePlaybackStateSave(force = true)
     torrentStreamingEngine.stopStream()
-    PlaybackSession.stop(clearQueue = false)
+    PlaybackSession.stop(clearQueue = true)
     paused = true
     mediaSession.setPlaybackState(
       PlaybackStateCompat
