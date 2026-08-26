@@ -897,18 +897,6 @@ object AppearancePreferencesScreen : Screen {
 
               PreferenceDivider()
 
-              val navAnimStyle by playerPreferences.navAnimStyle.collectAsState()
-              ListPreference(
-                value = navAnimStyle,
-                onValueChange = playerPreferences.navAnimStyle::set,
-                values = NavigationAnimStyle.entries,
-                valueToText = { AnnotatedString(it.displayName) },
-                title = { Text(stringResource(R.string.pref_anim_tab_nav_style_title)) },
-                summary = { Text(navAnimStyle.displayName, color = MaterialTheme.colorScheme.outline) },
-              )
-
-              PreferenceDivider()
-
               val appNavStyle by playerPreferences.appNavStyle.collectAsState()
               ListPreference(
                 value = appNavStyle,
