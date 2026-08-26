@@ -248,6 +248,19 @@ object M3UParser {
   /** Removes `user:password@` from a source before it is logged, persisted, or used as an entry base. */
   fun sanitizeSourceUrl(sourceUrl: String): String = stripUriUserInfo(sourceUrl)
 
+  /** Converts file URIs and encoded absolute paths into one decoded filesystem representation. */
+  fun normalizeLocalMediaReference(reference: String): String {
+    val resource = reference.substringBefore('|')
+    val parsed = parseUriLeniently(resource) ?: return reference
+    val localPath =
+      when {
+        parsed.scheme == null && resource.startsWith('/') -> parsed.path
+        parsed.scheme.equals("file", ignoreCase = true) -> parsed.path
+        else -> null
+      }
+    return localPath?.takeIf(String::isNotBlank) ?: reference
+  }
+
   private fun parseReader(
     reader: BufferedReader,
     sourceUrl: String?,
@@ -378,8 +391,10 @@ object M3UParser {
     if (resource.isEmpty()) return ""
     val parsedEntry = parseUriLeniently(resource)
 
-    if (parsedEntry?.isAbsolute == true) return stripUriUserInfo(resource) + optionSuffix
-    if (File(resource).isAbsolute) return resource + optionSuffix
+    if (parsedEntry?.isAbsolute == true) {
+      return normalizeLocalMediaReference(stripUriUserInfo(resource) + optionSuffix)
+    }
+    if (File(resource).isAbsolute) return normalizeLocalMediaReference(resource + optionSuffix)
     val source = sourceUrl ?: return stripUriUserInfo(resource) + optionSuffix
     val parsedSource = parseUriLeniently(source)
 
@@ -396,11 +411,13 @@ object M3UParser {
     if (parsedSource != null && (parsedSource.isAbsolute || parsedSource.rawAuthority != null)) {
       val safeBase = stripUserInfo(parsedSource).withoutQueryOrFragment().resolve(".")
       val resolved = runCatching { safeBase.resolve(parsedEntry ?: URI(resource)).normalize() }.getOrNull()
-      if (resolved != null) return stripUserInfo(resolved).toString() + optionSuffix
+      if (resolved != null) {
+        return normalizeLocalMediaReference(stripUserInfo(resolved).toString() + optionSuffix)
+      }
     }
 
     val parent = File(source).parentFile ?: return stripUriUserInfo(resource) + optionSuffix
-    return File(parent, resource).normalize().path + optionSuffix
+    return normalizeLocalMediaReference(File(parent, resource).normalize().path + optionSuffix)
   }
 
   private fun stripUriUserInfo(value: String): String {

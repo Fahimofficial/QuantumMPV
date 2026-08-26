@@ -23,6 +23,7 @@ import com.quantummpv.app.repository.MediaFileRepository
 import com.quantummpv.app.ui.browser.base.BaseBrowserViewModel
 import com.quantummpv.app.ui.player.extractLocalPath
 import com.quantummpv.app.ui.player.resolveUri
+import com.quantummpv.app.utils.media.M3UParser
 import com.quantummpv.app.utils.storage.FileTypeUtils
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -326,24 +327,17 @@ class PlaylistDetailViewModel(
     withContext(Dispatchers.IO) {
       items.mapNotNull { item ->
         try {
-          val isNetwork =
-            item.filePath.startsWith("http://", ignoreCase = true) ||
-              item.filePath.startsWith("https://", ignoreCase = true) ||
-              item.filePath.startsWith("rtmp://", ignoreCase = true) ||
-              item.filePath.startsWith("rtsp://", ignoreCase = true) ||
-              item.filePath.startsWith("ftp://", ignoreCase = true) ||
-              item.filePath.startsWith("sftp://", ignoreCase = true) ||
-              item.filePath.startsWith("smb://", ignoreCase = true)
+          val mediaReference = M3UParser.normalizeLocalMediaReference(item.filePath)
+          val mediaUri = android.net.Uri.parse(mediaReference)
+          val isNetwork = mediaUri.scheme?.lowercase() !in setOf(null, "file", "content")
 
           var resolvedVideo: Video? = null
           val localPath =
             if (!isNetwork) {
-              if (item.filePath.startsWith("content://") || item.filePath.startsWith("file://")) {
-                android.net.Uri
-                  .parse(item.filePath)
-                  .extractLocalPath()
+              if (mediaUri.scheme.equals("content", true) || mediaUri.scheme.equals("file", true)) {
+                mediaUri.extractLocalPath()
               } else {
-                item.filePath
+                mediaReference.substringBefore('|')
               }
             } else {
               null
@@ -360,12 +354,12 @@ class PlaylistDetailViewModel(
             }
           }
 
-          val fallbackPath = localPath ?: item.filePath
+          val fallbackPath = localPath ?: mediaReference
           val fallbackUri =
             if (localPath != null) {
               android.net.Uri.fromFile(File(localPath))
             } else {
-              android.net.Uri.parse(item.filePath)
+              android.net.Uri.parse(mediaReference)
             }
 
           val video =

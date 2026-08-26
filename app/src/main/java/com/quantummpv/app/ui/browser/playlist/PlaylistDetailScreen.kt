@@ -238,12 +238,11 @@ data class PlaylistDetailScreen(
       item: PlaylistVideoItem,
       startIndex: Int,
     ) {
-      val playUri = item.video.uri.takeIf { it != Uri.EMPTY && it.toString().isNotBlank() }
-        ?: if (item.video.path.startsWith("content://") || item.video.path.startsWith("http")) {
-          Uri.parse(item.video.path)
-        } else {
-          Uri.fromFile(java.io.File(item.video.path))
-        }
+      val fallbackUri = Uri.parse(item.video.path)
+      val playUri =
+        item.video.uri.takeIf { it != Uri.EMPTY && it.toString().isNotBlank() }
+          ?: fallbackUri.takeIf { !it.scheme.isNullOrBlank() }
+          ?: Uri.fromFile(java.io.File(item.video.path))
 
       val intent =
         Intent(context, PlayerActivity::class.java).apply {

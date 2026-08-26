@@ -7352,12 +7352,8 @@ class PlayerActivity :
     val loadedPlaylist = playlistRepository.getPlaylistById(pid)
     val loadedItems = playlistRepository.getPlaylistItems(pid)
     val items = loadedItems.map {
-      val path = it.filePath
-      when {
-        path.startsWith("content://") || path.startsWith("http://") || path.startsWith("https://") -> Uri.parse(path)
-        path.startsWith("file://") -> Uri.parse(path)
-        else -> Uri.fromFile(File(path))
-      }
+      val path = M3UParser.normalizeLocalMediaReference(it.filePath)
+      Uri.parse(path).takeIf { uri -> !uri.scheme.isNullOrBlank() } ?: Uri.fromFile(File(path))
     }
     val requestedPath = sourceIntent.getStringExtra("local_media_path")
     val requestedUri = sourceIntent.dataString

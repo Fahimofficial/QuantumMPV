@@ -85,7 +85,7 @@ fun NetworkVideoCard(
   val displayThumb = showVideoThumbnails && showNetworkThumbs
   val maxLines = if (unlimitedNameLines) Int.MAX_VALUE else 2
 
-  val thumbSizeDp = 64.dp
+  val thumbSizeDp = 128.dp
   val density = LocalDensity.current
   val thumbSizePx = with(density) { thumbSizeDp.roundToPx() }
 
@@ -262,11 +262,12 @@ fun NetworkVideoCard(
             ).padding(16.dp),
         verticalAlignment = Alignment.CenterVertically,
       ) {
-        // Square thumbnail
+        // Match the normal video list thumbnail footprint.
         Box(
           modifier =
             Modifier
-              .size(thumbSizeDp)
+              .width(thumbSizeDp)
+              .aspectRatio(16f / 9f)
               .clip(AppShapeScale.medium)
               .background(MaterialTheme.colorScheme.surfaceContainerHigh)
               .combinedClickable(

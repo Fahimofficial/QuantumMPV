@@ -17,6 +17,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -45,6 +46,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.quantummpv.app.domain.media.model.Video
+import com.quantummpv.app.domain.network.NetworkPlaybackUri
 import com.quantummpv.app.domain.thumbnail.ThumbnailRepository
 import com.quantummpv.app.preferences.AppearancePreferences
 import com.quantummpv.app.preferences.preference.collectAsState
@@ -81,10 +83,12 @@ fun M3UVideoCard(
   val appearancePreferences = koinInject<AppearancePreferences>()
   val showNetworkThumbnails by appearancePreferences.showNetworkThumbnails.collectAsState()
   var thumbnail by remember(url) { mutableStateOf<android.graphics.Bitmap?>(null) }
+  val networkReference = remember(url) { NetworkPlaybackUri.parse(url) }
 
   val isNetwork =
-    remember(url) {
-      url.startsWith("http://", ignoreCase = true) ||
+    remember(url, networkReference) {
+      networkReference != null ||
+        url.startsWith("http://", ignoreCase = true) ||
         url.startsWith("https://", ignoreCase = true) ||
         url.startsWith("rtmp://", ignoreCase = true) ||
         url.startsWith("rtsp://", ignoreCase = true) ||
@@ -125,7 +129,9 @@ fun M3UVideoCard(
 
     val thumbnailKey =
       remember(actualVideo.id, thumbWidthPx, thumbHeightPx, isNetwork) {
-        if (isNetwork) {
+        if (networkReference != null) {
+          "network-m3u|${networkReference.connectionId}|${networkReference.path.value}|$thumbWidthPx|$thumbHeightPx"
+        } else if (isNetwork) {
           thumbnailRepository.thumbnailKeyForNetworkPath(url, thumbWidthPx, thumbHeightPx)
         } else {
           thumbnailRepository.thumbnailKey(actualVideo, thumbWidthPx, thumbHeightPx)
@@ -135,7 +141,14 @@ fun M3UVideoCard(
     LaunchedEffect(thumbnailKey) {
       thumbnailRepository.thumbnailReadyKeys.filter { it == thumbnailKey }.collect {
         thumbnail =
-          if (isNetwork) {
+          if (networkReference != null) {
+            thumbnailRepository.getThumbnailForNetworkSource(
+              connectionId = networkReference.connectionId,
+              path = networkReference.path.value,
+              widthPx = thumbWidthPx,
+              heightPx = thumbHeightPx,
+            )
+          } else if (isNetwork) {
             thumbnailRepository.getThumbnailForNetworkPath(url, thumbWidthPx, thumbHeightPx)
           } else {
             thumbnailRepository.getThumbnailFromMemory(
@@ -151,7 +164,14 @@ fun M3UVideoCard(
       if (thumbnail == null) {
         thumbnail =
           withContext(Dispatchers.IO) {
-            if (isNetwork) {
+            if (networkReference != null) {
+              thumbnailRepository.getThumbnailForNetworkSource(
+                connectionId = networkReference.connectionId,
+                path = networkReference.path.value,
+                widthPx = thumbWidthPx,
+                heightPx = thumbHeightPx,
+              )
+            } else if (isNetwork) {
               thumbnailRepository.getThumbnailForNetworkPath(url, thumbWidthPx, thumbHeightPx)
             } else {
               thumbnailRepository.getThumbnail(actualVideo, thumbWidthPx, thumbHeightPx)
@@ -164,7 +184,7 @@ fun M3UVideoCard(
   val unlimitedNameLines by appearancePreferences.unlimitedNameLines.collectAsState()
   val maxLines = if (unlimitedNameLines) Int.MAX_VALUE else 2
 
-  val thumbSizeDp = 72.dp
+  val thumbnailWidth = 128.dp
 
   Card(
     modifier =
@@ -192,7 +212,8 @@ fun M3UVideoCard(
       Box(
         modifier =
           Modifier
-            .size(thumbSizeDp)
+            .width(thumbnailWidth)
+            .aspectRatio(16f / 9f)
             .clip(RoundedCornerShape(12.dp))
             .background(MaterialTheme.colorScheme.surfaceContainerHigh)
             .combinedClickable(

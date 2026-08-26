@@ -527,7 +527,7 @@ private fun M3UPlaylistItem.toEntity(
 ): PlaylistItemEntity =
   PlaylistItemEntity(
     playlistId = playlistId,
-    filePath = url,
+    filePath = M3UParser.normalizeLocalMediaReference(url),
     fileName = title ?: tvgName ?: url.substringAfterLast('/').take(80).ifBlank { "Item ${position + 1}" },
     position = position,
     addedAt = now,
