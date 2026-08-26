@@ -272,35 +272,7 @@ private fun NetworkBrowserContent(
 ) {
   val sortedFiles =
     remember(files, networkSortType, networkSortOrder) {
-      val (dirList, fileList) = files.partition { it.isDirectory }
-
-      val sortedDirs =
-        when (networkSortType) {
-          NetworkSortType.Title ->
-            if (networkSortOrder.isAscending) dirList.sortedBy { it.name.lowercase() }
-            else dirList.sortedByDescending { it.name.lowercase() }
-          NetworkSortType.Date ->
-            if (networkSortOrder.isAscending) dirList.sortedBy { it.lastModified }
-            else dirList.sortedByDescending { it.lastModified }
-          NetworkSortType.Size ->
-            if (networkSortOrder.isAscending) dirList.sortedBy { it.size }
-            else dirList.sortedByDescending { it.size }
-        }
-
-      val sortedMedia =
-        when (networkSortType) {
-          NetworkSortType.Title ->
-            if (networkSortOrder.isAscending) fileList.sortedBy { it.name.lowercase() }
-            else fileList.sortedByDescending { it.name.lowercase() }
-          NetworkSortType.Date ->
-            if (networkSortOrder.isAscending) fileList.sortedBy { it.lastModified }
-            else fileList.sortedByDescending { it.lastModified }
-          NetworkSortType.Size ->
-            if (networkSortOrder.isAscending) fileList.sortedBy { it.size }
-            else fileList.sortedByDescending { it.size }
-        }
-
-      sortedDirs + sortedMedia
+      files.sortedForNetworkBrowser(networkSortType, networkSortOrder)
     }
 
   val filteredFiles =
@@ -371,7 +343,7 @@ private fun NetworkBrowserContent(
       val folders = remember(filteredFiles) { filteredFiles.filter { it.isDirectory } }
       val videos =
         remember(filteredFiles) {
-          filteredFiles.filter { !it.isDirectory && (it.mimeType?.startsWith("video/") == true || it.isM3uFile()) }
+          filteredFiles.filter { it.isPlayableNetworkVideo() || it.isNetworkPlaylistFile() }
         }
       val isGrid = networkLayoutMode == MediaLayoutMode.GRID
 
@@ -564,20 +536,4 @@ private fun NetworkBrowserContent(
       }
     }
   }
-}
-
-private fun NetworkFile.isM3uFile(): Boolean {
-  val lowerName = name.lowercase()
-  val lowerPath = path.substringBefore('?').lowercase()
-  return lowerName.endsWith(".m3u") ||
-    lowerName.endsWith(".m3u8") ||
-    lowerPath.endsWith(".m3u") ||
-    lowerPath.endsWith(".m3u8") ||
-    mimeType in
-    setOf(
-      "application/x-mpegurl",
-      "application/vnd.apple.mpegurl",
-      "audio/x-mpegurl",
-      "audio/mpegurl",
-    )
 }

@@ -24,6 +24,10 @@ import com.quantummpv.app.domain.network.NetworkFile
 import com.quantummpv.app.domain.network.NetworkPath
 import com.quantummpv.app.domain.network.NetworkPlaybackUri
 import com.quantummpv.app.domain.network.NetworkProtocol
+import com.quantummpv.app.preferences.BrowserPreferences
+import com.quantummpv.app.preferences.NetworkSortType
+import com.quantummpv.app.preferences.PlayerPreferences
+import com.quantummpv.app.preferences.SortOrder
 import com.quantummpv.app.repository.NetworkRepository
 import com.quantummpv.app.ui.player.NetworkPlaybackSource
 import com.quantummpv.app.ui.player.PlaybackItem
@@ -47,6 +51,14 @@ import org.koin.core.component.KoinComponent
 import org.koin.core.component.inject
 import java.net.URI
 
+private val NETWORK_M3U_MIME_TYPES =
+  setOf(
+    "application/x-mpegurl",
+    "application/vnd.apple.mpegurl",
+    "audio/x-mpegurl",
+    "audio/mpegurl",
+  )
+
 /**
  * ViewModel for browsing files on a network share
  * Follows MVVM pattern with proper separation of concerns
@@ -59,6 +71,8 @@ class NetworkBrowserViewModel(
   KoinComponent {
   private val repository: NetworkRepository by inject()
   private val playlistRepository: PlaylistRepository by inject()
+  private val browserPreferences: BrowserPreferences by inject()
+  private val playerPreferences: PlayerPreferences by inject()
 
   private val _files = MutableStateFlow<List<NetworkFile>>(emptyList())
   val files: StateFlow<List<NetworkFile>> = _files.asStateFlow()
@@ -237,14 +251,22 @@ class NetworkBrowserViewModel(
   }
 
   private fun currentDirectoryPlayableFiles(clickedFile: NetworkFile): List<NetworkFile> {
+    if (!playerPreferences.playlistMode.get() || !clickedFile.isPlayableNetworkVideo()) {
+      return listOf(clickedFile)
+    }
+
     val files =
       _files.value
-        .filter { it.isPlayableVideoFile() }
+        .filter(NetworkFile::isPlayableNetworkVideo)
+        .sortedForNetworkBrowser(
+          sortType = browserPreferences.networkSortType.get(),
+          sortOrder = browserPreferences.networkSortOrder.get(),
+        )
 
     return if (files.any { it.path == clickedFile.path }) {
       files
     } else {
-      listOf(clickedFile)
+      (files + clickedFile).distinctBy(NetworkFile::path)
     }
   }
 
@@ -302,41 +324,10 @@ class NetworkBrowserViewModel(
       else -> 80
     }
 
-  private fun NetworkFile.isPlayableVideoFile(): Boolean {
-    if (isDirectory || isM3uFile(this)) {
-      return false
-    }
-
-    val mime = mimeType?.lowercase()
-    if (mime?.startsWith("video/") == true) {
-      return true
-    }
-
-    val cleanName = name.substringBefore('?').substringBefore('#')
-    val extension = cleanName.substringAfterLast('.', missingDelimiterValue = "").lowercase()
-    return extension in FileTypeUtils.VIDEO_EXTENSIONS
-  }
-
-  private fun isM3uFile(file: NetworkFile): Boolean {
-    val lowerName = file.name.lowercase()
-    val lowerPath = file.path.substringBefore('?').lowercase()
-    return lowerName.endsWith(".m3u") ||
-      lowerName.endsWith(".m3u8") ||
-      lowerPath.endsWith(".m3u") ||
-      lowerPath.endsWith(".m3u8") ||
-      file.mimeType in M3U_MIME_TYPES
-  }
+  private fun isM3uFile(file: NetworkFile): Boolean = file.isNetworkPlaylistFile()
 
   companion object {
     private const val TAG = "NetworkBrowserVM"
-
-    private val M3U_MIME_TYPES =
-      setOf(
-        "application/x-mpegurl",
-        "application/vnd.apple.mpegurl",
-        "audio/x-mpegurl",
-        "audio/mpegurl",
-      )
 
     fun factory(
       application: Application,
@@ -349,4 +340,42 @@ class NetworkBrowserViewModel(
         }
       }
   }
+}
+
+internal fun NetworkFile.isPlayableNetworkVideo(): Boolean {
+  if (isDirectory || isNetworkPlaylistFile()) return false
+  if (mimeType?.startsWith("video/", ignoreCase = true) == true) return true
+
+  val cleanName = name.substringBefore('?').substringBefore('#')
+  val extension = cleanName.substringAfterLast('.', missingDelimiterValue = "").lowercase()
+  return extension in FileTypeUtils.VIDEO_EXTENSIONS
+}
+
+internal fun NetworkFile.isNetworkPlaylistFile(): Boolean {
+  val lowerName = name.lowercase()
+  val lowerPath = path.substringBefore('?').substringBefore('#').lowercase()
+  return lowerName.endsWith(".m3u") ||
+    lowerName.endsWith(".m3u8") ||
+    lowerPath.endsWith(".m3u") ||
+    lowerPath.endsWith(".m3u8") ||
+    mimeType in NETWORK_M3U_MIME_TYPES
+}
+
+internal fun List<NetworkFile>.sortedForNetworkBrowser(
+  sortType: NetworkSortType,
+  sortOrder: SortOrder,
+): List<NetworkFile> {
+  val (directories, media) = partition(NetworkFile::isDirectory)
+
+  fun List<NetworkFile>.sortedGroup(): List<NetworkFile> =
+    when (sortType) {
+      NetworkSortType.Title ->
+        if (sortOrder.isAscending) sortedBy { it.name.lowercase() } else sortedByDescending { it.name.lowercase() }
+      NetworkSortType.Date ->
+        if (sortOrder.isAscending) sortedBy(NetworkFile::lastModified) else sortedByDescending(NetworkFile::lastModified)
+      NetworkSortType.Size ->
+        if (sortOrder.isAscending) sortedBy(NetworkFile::size) else sortedByDescending(NetworkFile::size)
+    }
+
+  return directories.sortedGroup() + media.sortedGroup()
 }

@@ -37,6 +37,7 @@ import androidx.lifecycle.viewModelScope
 import com.quantummpv.app.R
 import com.quantummpv.app.domain.anime4k.Anime4KManager
 import com.quantummpv.app.domain.hdr.HdrToysManager
+import com.quantummpv.app.domain.network.NetworkPlaybackUri
 import com.quantummpv.app.domain.torrent.TorrentStreamingState
 import com.quantummpv.app.domain.torrent.formatTorrentSpeed
 import com.quantummpv.app.domain.syncplay.SyncplayFile
@@ -5159,6 +5160,8 @@ class PlayerViewModel : ViewModel(),
         resolution = resolutionStr,
         isAudio = isAudio,
         tvgLogo = item.artworkUri.orEmpty(),
+        networkConnectionId = item.networkSource?.connectionId,
+        networkPath = item.networkSource?.relativePath.orEmpty(),
       )
     }
   }
@@ -5171,12 +5174,18 @@ class PlayerViewModel : ViewModel(),
         uri
       }
 
-    // Skip metadata extraction for network streams and M3U playlists
-    if (resolvedUri.scheme?.startsWith("http") == true ||
-      resolvedUri.scheme == "rtmp" ||
-      resolvedUri.scheme == "ftp" ||
-      resolvedUri.scheme == "rtsp" ||
-      resolvedUri.scheme == "mms"
+    // Remote queue items use their authenticated thumbnail path instead of local metadata APIs.
+    val scheme = resolvedUri.scheme?.lowercase()
+    if (scheme == "http" ||
+      scheme == "https" ||
+      scheme == "rtmp" ||
+      scheme == "rtsp" ||
+      scheme == "ftp" ||
+      scheme == "sftp" ||
+      scheme == "smb" ||
+      scheme == "davs" ||
+      scheme == "mms" ||
+      scheme == NetworkPlaybackUri.SCHEME
     ) {
       return "" to ""
     }

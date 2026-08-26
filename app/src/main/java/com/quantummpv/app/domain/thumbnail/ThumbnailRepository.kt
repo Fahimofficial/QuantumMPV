@@ -17,11 +17,14 @@ import android.graphics.Matrix
 import android.media.MediaMetadataRetriever
 import android.net.Uri
 import android.os.Build
+import android.os.SystemClock
 import android.util.LruCache
+import com.quantummpv.app.data.network.client.NetworkMimeTypes
 import com.quantummpv.app.data.network.proxy.NetworkStreamingProxy
 import com.quantummpv.app.domain.media.model.Video
 import com.quantummpv.app.domain.network.NetworkConnection
 import com.quantummpv.app.preferences.ThumbnailMode
+import com.quantummpv.app.repository.NetworkRepository
 import `is`.xyz.mpv.FastThumbnails
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
@@ -55,6 +58,8 @@ import kotlin.concurrent.write
 import kotlin.math.max
 import kotlin.math.roundToInt
 
+private const val NETWORK_THUMBNAIL_FAILURE_RETRY_MS = 30_000L
+
 class ThumbnailRepository(
   private val context: Context,
 ) {
@@ -67,6 +72,9 @@ class ThumbnailRepository(
     KoinJavaComponent.get<com.quantummpv.app.preferences.BrowserPreferences>(
       com.quantummpv.app.preferences.BrowserPreferences::class.java,
     )
+  }
+  private val networkRepository by lazy {
+    KoinJavaComponent.get<NetworkRepository>(NetworkRepository::class.java)
   }
 
   private val memoryCache: LruCache<String, Bitmap>
@@ -90,8 +98,8 @@ class ThumbnailRepository(
   private val folderStates = ConcurrentHashMap<String, FolderState>()
   private val folderJobs = ConcurrentHashMap<String, Job>()
 
-  // Track network URLs where all extraction strategies have failed – avoids endless retries while scrolling
-  private val networkThumbnailFailed = ConcurrentHashMap<String, Boolean>()
+  // Throttle transient failures while still allowing remote files to recover during this process.
+  private val networkThumbnailFailedAt = ConcurrentHashMap<String, Long>()
 
   private val _thumbnailReadyKeys =
     MutableSharedFlow<String>(
@@ -221,7 +229,7 @@ class ThumbnailRepository(
     ongoingOperations.values.forEach { it.cancel() }
     ongoingOperations.clear()
     diskVideoBaseKeyCache.clear()
-    networkThumbnailFailed.clear()
+    networkThumbnailFailedAt.clear()
 
     synchronized(memoryCache) {
       memoryCache.evictAll()
@@ -856,24 +864,36 @@ class ThumbnailRepository(
     widthPx: Int,
     heightPx: Int,
     connection: NetworkConnection? = null,
+    fileSize: Long = -1L,
+    mimeType: String? = null,
+    lastModified: Long = 0L,
   ): Bitmap? =
     withContext(Dispatchers.IO) {
       if (!appearancePreferences.showNetworkThumbnails.get()) return@withContext null
 
+      val identity = networkThumbnailIdentity(path, connection, fileSize, lastModified)
+
       // For non-HTTP paths (SMB, FTP, WebDAV), use the proxy to create a local HTTP stream
       if (!isHttpUrl(path)) {
-        return@withContext getNonHttpNetworkThumbnail(path, connection, widthPx, heightPx)
+        return@withContext getNonHttpNetworkThumbnail(
+          path = path,
+          connection = connection,
+          widthPx = widthPx,
+          heightPx = heightPx,
+          identity = identity,
+          fileSize = fileSize,
+          mimeType = mimeType,
+        )
       }
 
       // Check if this network URL has previously failed all extraction strategies
-      val videoKey = path.hashCode().toString()
-      if (networkThumbnailFailed.containsKey(videoKey)) {
+      if (hasRecentNetworkThumbnailFailure(identity)) {
         android.util.Log.d("ThumbnailRepository", "Skipping network thumbnail (previously failed): $path")
         return@withContext null
       }
 
-      val memKey = "$path|network|$widthPx|$heightPx|${thumbnailModeKey()}|${thumbnailQualityKey()}"
-      val diskKey = "video-thumb-v2|$path|network|${thumbnailModeKey()}|${thumbnailQualityKey()}"
+      val memKey = networkThumbnailMemoryKey(identity, widthPx, heightPx)
+      val diskKey = networkThumbnailDiskKey(identity)
 
       // Memory cache hit
       synchronized(memoryCache) { memoryCache.get(memKey) }?.let { return@withContext it }
@@ -905,9 +925,11 @@ class ThumbnailRepository(
 
       if (bitmap == null) {
         android.util.Log.w("ThumbnailRepository", "All strategies failed for network stream $path")
-        networkThumbnailFailed[videoKey] = true
+        networkThumbnailFailedAt[identity] = SystemClock.elapsedRealtime()
         return@withContext null
       }
+
+      networkThumbnailFailedAt.remove(identity)
 
       // Write to disk cache
       writeBitmapToDisk(diskKey, bitmap, network = true)
@@ -917,20 +939,37 @@ class ThumbnailRepository(
       bitmap
     }
 
+  suspend fun getThumbnailForNetworkSource(
+    connectionId: Long,
+    path: String,
+    widthPx: Int,
+    heightPx: Int,
+  ): Bitmap? {
+    val connection = networkRepository.getConnectionById(connectionId) ?: return null
+    return getThumbnailForNetworkPath(
+      path = path,
+      widthPx = widthPx,
+      heightPx = heightPx,
+      connection = connection,
+    )
+  }
+
   private suspend fun getNonHttpNetworkThumbnail(
     path: String,
     connection: NetworkConnection?,
     widthPx: Int,
     heightPx: Int,
+    identity: String,
+    fileSize: Long,
+    mimeType: String?,
   ): Bitmap? {
-    val videoKey = path.hashCode().toString()
-    if (networkThumbnailFailed.containsKey(videoKey)) {
+    if (hasRecentNetworkThumbnailFailure(identity)) {
       android.util.Log.d("ThumbnailRepository", "Skipping network thumbnail (previously failed): $path")
       return null
     }
 
-    val memKey = "$path|network|$widthPx|$heightPx|${thumbnailModeKey()}|${thumbnailQualityKey()}"
-    val diskKey = "video-thumb-v2|$path|network|${thumbnailModeKey()}|${thumbnailQualityKey()}"
+    val memKey = networkThumbnailMemoryKey(identity, widthPx, heightPx)
+    val diskKey = networkThumbnailDiskKey(identity)
 
     // Memory cache hit
     synchronized(memoryCache) { memoryCache.get(memKey) }?.let { return it }
@@ -951,7 +990,15 @@ class ThumbnailRepository(
       networkGenerationSemaphore.withPermit {
         (
           if (connection != null) {
-            extractNetworkVideoFrameViaProxy(path, connection, strategy, widthPx, heightPx)
+            extractNetworkVideoFrameViaProxy(
+              path = path,
+              connection = connection,
+              strategy = strategy,
+              targetWidth = widthPx,
+              targetHeight = heightPx,
+              fileSize = fileSize,
+              mimeType = mimeType,
+            )
           } else {
             generateFastNetworkThumbnail(path, widthPx, heightPx)
           }
@@ -960,9 +1007,11 @@ class ThumbnailRepository(
 
     if (bitmap == null) {
       android.util.Log.w("ThumbnailRepository", "All strategies failed for network path $path")
-      networkThumbnailFailed[videoKey] = true
+      networkThumbnailFailedAt[identity] = SystemClock.elapsedRealtime()
       return null
     }
+
+    networkThumbnailFailedAt.remove(identity)
 
     // Write to disk cache
     writeBitmapToDisk(diskKey, bitmap, network = true)
@@ -978,6 +1027,8 @@ class ThumbnailRepository(
     strategy: ThumbnailStrategy,
     targetWidth: Int,
     targetHeight: Int,
+    fileSize: Long,
+    mimeType: String?,
   ): Bitmap? {
     val proxy = NetworkStreamingProxy.getInstance()
     val streamId = "thumb_${path.hashCode()}_${System.nanoTime()}"
@@ -988,6 +1039,8 @@ class ThumbnailRepository(
           streamId = streamId,
           connection = connection,
           filePath = path,
+          fileSize = fileSize.coerceAtLeast(-1L),
+          mimeType = mimeType ?: NetworkMimeTypes.forFileName(path) ?: "application/octet-stream",
         )
 
       extractNetworkVideoFrame(
@@ -1010,7 +1063,44 @@ class ThumbnailRepository(
     path: String,
     widthPx: Int,
     heightPx: Int,
-  ): String = "$path|network|$widthPx|$heightPx|${thumbnailModeKey()}|${thumbnailQualityKey()}"
+    connection: NetworkConnection? = null,
+    fileSize: Long = -1L,
+    lastModified: Long = 0L,
+  ): String =
+    networkThumbnailMemoryKey(
+      networkThumbnailIdentity(path, connection, fileSize, lastModified),
+      widthPx,
+      heightPx,
+    )
+
+  private fun networkThumbnailIdentity(
+    path: String,
+    connection: NetworkConnection?,
+    fileSize: Long,
+    lastModified: Long,
+  ): String {
+    val endpoint =
+      connection?.let {
+        "${it.id}|${it.protocol.name}|${it.host.lowercase()}|${it.port}|${it.path}|${it.useHttps}"
+      } ?: "direct"
+    return "$endpoint|$path|$fileSize|$lastModified"
+  }
+
+  private fun networkThumbnailMemoryKey(
+    identity: String,
+    widthPx: Int,
+    heightPx: Int,
+  ): String = "$identity|network|$widthPx|$heightPx|${thumbnailModeKey()}|${thumbnailQualityKey()}"
+
+  private fun networkThumbnailDiskKey(identity: String): String =
+    "video-thumb-v3|$identity|network|${thumbnailModeKey()}|${thumbnailQualityKey()}"
+
+  private fun hasRecentNetworkThumbnailFailure(identity: String): Boolean {
+    val failedAt = networkThumbnailFailedAt[identity] ?: return false
+    if (SystemClock.elapsedRealtime() - failedAt < NETWORK_THUMBNAIL_FAILURE_RETRY_MS) return true
+    networkThumbnailFailedAt.remove(identity, failedAt)
+    return false
+  }
 
   /**
    * Get a thumbnail for a folder using the first video in the folder.

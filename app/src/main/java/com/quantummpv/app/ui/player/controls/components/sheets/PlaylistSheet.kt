@@ -95,6 +95,8 @@ data class PlaylistItem(
   val resolution: String = "", // Resolution (e.g., "1920x1080")
   val isAudio: Boolean = false,
   val tvgLogo: String = "", // M3U channel logo URL for fallback
+  val networkConnectionId: Long? = null,
+  val networkPath: String = "",
 )
 
 @Composable
@@ -137,16 +139,20 @@ private fun PlaylistThumbnail(
       if (item.isAudio) 512 to 512 else PLAYLIST_THUMBNAIL_WIDTH to PLAYLIST_THUMBNAIL_HEIGHT
     }
   val thumbnailKey =
-    remember(video, thumbWidth, thumbHeight) {
-      thumbnailRepository.thumbnailKey(video, thumbWidth, thumbHeight)
+    remember(video, item.networkConnectionId, item.networkPath, thumbWidth, thumbHeight) {
+      if (item.networkConnectionId != null && item.networkPath.isNotBlank()) {
+        "network-playlist|${item.networkConnectionId}|${item.networkPath}|$thumbWidth|$thumbHeight"
+      } else {
+        thumbnailRepository.thumbnailKey(video, thumbWidth, thumbHeight)
+      }
     }
   var bitmap by remember(thumbnailKey) {
     mutableStateOf(
-      thumbnailRepository.getThumbnailFromMemory(
-        video,
-        thumbWidth,
-        thumbHeight,
-      ),
+      if (item.networkConnectionId == null || item.networkPath.isBlank()) {
+        thumbnailRepository.getThumbnailFromMemory(video, thumbWidth, thumbHeight)
+      } else {
+        null
+      },
     )
   }
 
@@ -154,11 +160,17 @@ private fun PlaylistThumbnail(
     if (bitmap == null) {
       bitmap =
         withContext(Dispatchers.IO) {
-          thumbnailRepository.getThumbnail(
-            video,
-            thumbWidth,
-            thumbHeight,
-          )
+          val connectionId = item.networkConnectionId
+          if (connectionId != null && item.networkPath.isNotBlank()) {
+            thumbnailRepository.getThumbnailForNetworkSource(
+              connectionId = connectionId,
+              path = item.networkPath,
+              widthPx = thumbWidth,
+              heightPx = thumbHeight,
+            )
+          } else {
+            thumbnailRepository.getThumbnail(video, thumbWidth, thumbHeight)
+          }
         }
     }
   }

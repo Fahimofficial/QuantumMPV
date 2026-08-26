@@ -53,6 +53,7 @@ import com.quantummpv.app.ui.icons.Icon
 import com.quantummpv.app.ui.icons.Icons
 import com.quantummpv.app.ui.theme.AppShapeScale
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.withContext
 import org.koin.compose.koinInject
 
@@ -89,9 +90,16 @@ fun NetworkVideoCard(
   val thumbSizePx = with(density) { thumbSizeDp.roundToPx() }
 
   val thumbnailKey =
-    remember(file.path, thumbSizePx, displayThumb) {
+    remember(file.path, file.size, file.lastModified, connection, thumbSizePx, displayThumb) {
       if (displayThumb) {
-        thumbnailRepository.thumbnailKeyForNetworkPath(file.path, thumbSizePx, thumbSizePx)
+        thumbnailRepository.thumbnailKeyForNetworkPath(
+          path = file.path,
+          widthPx = thumbSizePx,
+          heightPx = thumbSizePx,
+          connection = connection,
+          fileSize = file.size,
+          lastModified = file.lastModified,
+        )
       } else {
         null
       }
@@ -106,7 +114,15 @@ fun NetworkVideoCard(
         if (key == thumbnailKey) {
           thumbnail =
             withContext(Dispatchers.IO) {
-              thumbnailRepository.getThumbnailForNetworkPath(file.path, thumbSizePx, thumbSizePx, connection)
+              thumbnailRepository.getThumbnailForNetworkPath(
+                path = file.path,
+                widthPx = thumbSizePx,
+                heightPx = thumbSizePx,
+                connection = connection,
+                fileSize = file.size,
+                mimeType = file.mimeType,
+                lastModified = file.lastModified,
+              )
             }
         }
       }
@@ -116,10 +132,22 @@ fun NetworkVideoCard(
   LaunchedEffect(thumbnailKey, displayThumb) {
     if (thumbnailKey == null || !displayThumb) return@LaunchedEffect
     if (thumbnail != null) return@LaunchedEffect
-    thumbnail =
-      withContext(Dispatchers.IO) {
-        thumbnailRepository.getThumbnailForNetworkPath(file.path, thumbSizePx, thumbSizePx, connection)
-      }
+    repeat(2) { attempt ->
+      thumbnail =
+        withContext(Dispatchers.IO) {
+          thumbnailRepository.getThumbnailForNetworkPath(
+            path = file.path,
+            widthPx = thumbSizePx,
+            heightPx = thumbSizePx,
+            connection = connection,
+            fileSize = file.size,
+            mimeType = file.mimeType,
+            lastModified = file.lastModified,
+          )
+        }
+      if (thumbnail != null) return@LaunchedEffect
+      if (attempt == 0) delay(30_000L)
+    }
   }
 
   val displayName = if (showExtensionField) file.name else file.name.substringBeforeLast('.', file.name)

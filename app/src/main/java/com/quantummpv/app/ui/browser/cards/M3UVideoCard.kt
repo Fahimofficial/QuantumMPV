@@ -135,11 +135,15 @@ fun M3UVideoCard(
     LaunchedEffect(thumbnailKey) {
       thumbnailRepository.thumbnailReadyKeys.filter { it == thumbnailKey }.collect {
         thumbnail =
-          thumbnailRepository.getThumbnailFromMemory(
-            actualVideo,
-            thumbWidthPx,
-            thumbHeightPx,
-          )
+          if (isNetwork) {
+            thumbnailRepository.getThumbnailForNetworkPath(url, thumbWidthPx, thumbHeightPx)
+          } else {
+            thumbnailRepository.getThumbnailFromMemory(
+              actualVideo,
+              thumbWidthPx,
+              thumbHeightPx,
+            )
+          }
       }
     }
 
