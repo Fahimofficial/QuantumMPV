@@ -84,12 +84,23 @@ class PlaylistRepository(
     return items.any { isPathMatching(it.filePath, filePath) }
   }
 
+  suspend fun addToFavorites(
+    filePath: String,
+    fileName: String,
+    isAudio: Boolean = true,
+  ): Boolean {
+    if (filePath.isBlank()) return false
+    val cleanPath = normalizeFavoritePath(filePath)
+    val favorites = getOrCreateFavoritesPlaylist(isAudio)
+    val exists = playlistDao.getPlaylistItems(favorites.id).any { isPathMatching(it.filePath, cleanPath) }
+    if (exists) return false
+    addItemToPlaylist(favorites.id, cleanPath, fileName)
+    return true
+  }
+
   suspend fun toggleFavorite(filePath: String, fileName: String, isAudio: Boolean = true): Boolean {
     if (filePath.isBlank()) return false
-    val cleanPath = when {
-      filePath.startsWith("file://") -> Uri.parse(filePath).path ?: filePath
-      else -> filePath
-    }
+    val cleanPath = normalizeFavoritePath(filePath)
     val favPlaylist = getOrCreateFavoritesPlaylist(isAudio)
     val items = playlistDao.getPlaylistItems(favPlaylist.id)
     val existing = items.find { isPathMatching(it.filePath, cleanPath) }
@@ -101,6 +112,9 @@ class PlaylistRepository(
       true
     }
   }
+
+  private fun normalizeFavoritePath(filePath: String): String =
+    if (filePath.startsWith("file://")) Uri.parse(filePath).path ?: filePath else filePath
 
   private fun isPathMatching(pathA: String, pathB: String): Boolean {
     if (pathA == pathB) return true

@@ -44,6 +44,7 @@ import androidx.media.MediaBrowserServiceCompat
 import androidx.media.session.MediaButtonReceiver
 import com.quantummpv.app.R
 import com.quantummpv.app.database.entities.PlaybackStateEntity
+import com.quantummpv.app.database.repository.PlaylistRepository
 import com.quantummpv.app.domain.playbackstate.repository.PlaybackStateRepository
 import com.quantummpv.app.domain.thumbnail.EmbeddedArtworkResolver
 import com.quantummpv.app.domain.torrent.TorrentStreamingEngine
@@ -100,6 +101,7 @@ class MediaPlaybackService :
     const val ACTION_NOTIFICATION_PREVIOUS = "com.quantummpv.app.action.NOTIFICATION_PREVIOUS"
     const val ACTION_NOTIFICATION_PLAY_PAUSE = "com.quantummpv.app.action.NOTIFICATION_PLAY_PAUSE"
     const val ACTION_NOTIFICATION_NEXT = "com.quantummpv.app.action.NOTIFICATION_NEXT"
+    const val ACTION_NOTIFICATION_FAVORITE = "com.quantummpv.app.action.NOTIFICATION_FAVORITE"
     const val ACTION_NOTIFICATION_STOP = "com.quantummpv.app.action.NOTIFICATION_STOP"
 
     @Volatile
@@ -180,6 +182,15 @@ class MediaPlaybackService :
       }
     }
 
+    internal fun stopForTerminalDismissal() {
+      val service = activeInstance
+      if (service != null && !service.mpvAccessReleased) {
+        service.stopPlaybackAndService(force = true)
+      } else {
+        PlaybackSession.stop(clearQueue = true)
+      }
+    }
+
     fun createNotificationChannel(context: Context) {
       val channel =
         NotificationChannel(
@@ -205,6 +216,7 @@ class MediaPlaybackService :
   private val audioPreferences: AudioPreferences by inject()
   private val browserPreferences: BrowserPreferences by inject()
   private val gesturePreferences: GesturePreferences by inject()
+  private val playlistRepository: PlaylistRepository by inject()
   private val playbackStateRepository: PlaybackStateRepository by inject()
   private val torrentStreamingEngine: TorrentStreamingEngine by inject()
 
@@ -240,7 +252,10 @@ class MediaPlaybackService :
   private var lastThumbnailSource: WeakReference<Bitmap>? = null
   private val serviceScope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
   private var playbackStateSaveJob: Job? = null
+  private var favoriteStateJob: Job? = null
+  private var favoriteActionJob: Job? = null
   @Volatile private var mpvAccessReleased = false
+  @Volatile private var isCurrentFavorite = false
   private var usesAudioBackgroundPlayback = false
   private val audioManager by lazy { getSystemService(AUDIO_SERVICE) as AudioManager }
 
@@ -428,6 +443,10 @@ class MediaPlaybackService :
         }
         ACTION_NOTIFICATION_NEXT -> {
           playNextFromSession()
+          if (foregroundReady) return START_NOT_STICKY
+        }
+        ACTION_NOTIFICATION_FAVORITE -> {
+          addCurrentItemToFavorites()
           if (foregroundReady) return START_NOT_STICKY
         }
         ACTION_NOTIFICATION_STOP -> {
@@ -648,7 +667,7 @@ class MediaPlaybackService :
   }
 
   private fun playNextFromSession(): Boolean {
-    if (!canHandleDetachedTransport()) return false
+    if (!canHandleTransportAction()) return false
     schedulePlaybackStateSave(force = true)
     val item = PlaybackSession.playNext()
     if (item == null) {
@@ -660,7 +679,7 @@ class MediaPlaybackService :
   }
 
   private fun playPreviousFromSession() {
-    if (!canHandleDetachedTransport()) return
+    if (!canHandleTransportAction()) return
     schedulePlaybackStateSave(force = true)
     PlaybackSession.playPrevious()?.let(::applySessionItem) ?: refreshTransportControls()
   }
@@ -725,6 +744,7 @@ class MediaPlaybackService :
     mediaDurationSeconds = 0.0
     paused = false
     playbackSpeed = 1.0f
+    isCurrentFavorite = false
     if (itemChanged || artworkChanged) {
       chapters = emptyList()
       currentChapterIndex = -1
@@ -735,6 +755,49 @@ class MediaPlaybackService :
     updateMediaSessionPlaybackState()
     updateNotification()
     loadSessionArtwork(item)
+    refreshFavoriteState(item)
+  }
+
+  private fun refreshFavoriteState(item: PlaybackItem) {
+    favoriteStateJob?.cancel()
+    val expectedIdentifier = item.stableId
+    val favoritePath = item.originalUri.ifBlank { item.playableUri }
+    val isAudio = resolveNotificationIsAudio(item, notificationIsAudio)
+    favoriteStateJob =
+      serviceScope.launch {
+        val favorite =
+          withContext(Dispatchers.IO) {
+            playlistRepository.isFavorite(favoritePath, isAudio)
+          }
+        if (mediaIdentifier == expectedIdentifier) {
+          isCurrentFavorite = favorite
+          updateNotification()
+        }
+      }
+  }
+
+  private fun addCurrentItemToFavorites() {
+    if (favoriteActionJob?.isActive == true) return
+    val item = PlaybackSession.queue.value.currentItem ?: return
+    val expectedIdentifier = item.stableId
+    val favoritePath = item.originalUri.ifBlank { item.playableUri }
+    val favoriteName = item.title?.takeIf { it.isNotBlank() } ?: mediaTitle
+    val isAudio = resolveNotificationIsAudio(item, notificationIsAudio)
+    favoriteActionJob =
+      serviceScope.launch {
+        runCatching {
+          withContext(Dispatchers.IO) {
+            playlistRepository.addToFavorites(favoritePath, favoriteName, isAudio)
+          }
+        }.onFailure { error ->
+          Log.e(TAG, "Failed to add current item to Favorites", error)
+          return@launch
+        }
+        if (mediaIdentifier == expectedIdentifier) {
+          isCurrentFavorite = true
+          updateNotification()
+        }
+      }
   }
 
   private fun loadSessionArtwork(item: PlaybackItem) {
@@ -856,7 +919,7 @@ class MediaPlaybackService :
   }
 
   private fun togglePlaybackFromNotification() {
-    if (!canHandleDetachedTransport()) return
+    if (!canHandleTransportAction()) return
     val shouldPlay = PlaybackSession.getPropertyBoolean("pause") != false
     if (shouldPlay && !PlaybackSession.state.value.surfaceAttached && !takeAudioOwnership()) return
     paused = !shouldPlay
@@ -864,8 +927,8 @@ class MediaPlaybackService :
     refreshTransportControls()
   }
 
-  private fun stopPlaybackAndService() {
-    if (!canHandleDetachedTransport()) return
+  private fun stopPlaybackAndService(force: Boolean = false) {
+    if (!force && !canHandleTransportAction()) return
     handingBackToActivity = false
     schedulePlaybackStateSave(force = true)
     torrentStreamingEngine.stopStream()
@@ -931,44 +994,44 @@ class MediaPlaybackService :
         setCallback(
           object : MediaSessionCompat.Callback() {
             override fun onPlay() {
-              if (!canHandleDetachedTransport()) return
+              if (!canHandleTransportAction()) return
               Log.d(TAG, "onPlay called")
               handleMediaPlayAction(shouldPlay = true)
             }
 
             override fun onPause() {
-              if (!canHandleDetachedTransport()) return
+              if (!canHandleTransportAction()) return
               Log.d(TAG, "onPause called")
               handleMediaPlayAction(shouldPlay = false)
             }
 
             override fun onStop() {
-              if (!canHandleDetachedTransport()) return
+              if (!canHandleTransportAction()) return
               Log.d(TAG, "onStop called")
               stopPlaybackAndService()
             }
 
             override fun onSkipToNext() {
-              if (!canHandleDetachedTransport()) return
+              if (!canHandleTransportAction()) return
               Log.d(TAG, "onSkipToNext called")
               handleMediaNextAction()
             }
 
             override fun onSkipToPrevious() {
-              if (!canHandleDetachedTransport()) return
+              if (!canHandleTransportAction()) return
               Log.d(TAG, "onSkipToPrevious called")
               handleMediaPreviousAction()
             }
 
             override fun onSkipToQueueItem(id: Long) {
-              if (!canHandleDetachedTransport()) return
+              if (!canHandleTransportAction()) return
               val index = publishedQueueIndexes[id] ?: return
               schedulePlaybackStateSave(force = true)
               PlaybackSession.playQueueItem(index)?.let(::applySessionItem)
             }
 
             override fun onSeekTo(pos: Long) {
-              if (!canHandleDetachedTransport()) return
+              if (!canHandleTransportAction()) return
               Log.d(TAG, "onSeekTo called: $pos")
               val duration = sanitizedDurationMs()
               val resolvedPosition = pos.coerceIn(0L, duration.takeIf { it > 0L } ?: Long.MAX_VALUE)
@@ -1007,6 +1070,9 @@ class MediaPlaybackService :
 
   private fun canHandleDetachedTransport(): Boolean =
     !mpvAccessReleased && !activityForeground && !handingBackToActivity
+
+  private fun canHandleTransportAction(): Boolean =
+    !mpvAccessReleased && (activityForeground || !handingBackToActivity)
 
   private fun currentNotificationStyle(): NotificationStyle =
     advancedPreferences.notificationStyle
@@ -1180,11 +1246,20 @@ class MediaPlaybackService :
       buildTransportIntent(ACTION_NOTIFICATION_NEXT, 1003),
     )
 
+  private fun favoriteAction() =
+    NotificationCompat.Action(
+      Icons.Platform.Favorite,
+      getString(
+        if (isCurrentFavorite) R.string.notification_saved_to_favorites else R.string.notification_add_to_favorites,
+      ),
+      buildTransportIntent(ACTION_NOTIFICATION_FAVORITE, 1004),
+    )
+
   private fun stopAction() =
     NotificationCompat.Action(
       android.R.drawable.ic_menu_close_clear_cancel,
       "Stop",
-      buildTransportIntent(ACTION_NOTIFICATION_STOP, 1004),
+      buildTransportIntent(ACTION_NOTIFICATION_STOP, 1006),
     )
 
   private fun chapterContentText(): String {
@@ -1314,6 +1389,7 @@ class MediaPlaybackService :
         .addAction(prevAction())
         .addAction(playPauseAction())
         .addAction(nextAction())
+        .addAction(favoriteAction())
         .addAction(stopAction())
 
     // Set ProgressStyle — this sets the visual style to segmented progress
@@ -1358,6 +1434,7 @@ class MediaPlaybackService :
       .addAction(prevAction())
       .addAction(playPauseAction())
       .addAction(nextAction())
+      .addAction(favoriteAction())
       .addAction(stopAction())
       .setStyle(
         androidx.media.app.NotificationCompat
