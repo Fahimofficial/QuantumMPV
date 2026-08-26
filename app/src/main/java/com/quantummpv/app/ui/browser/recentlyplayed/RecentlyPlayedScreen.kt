@@ -20,6 +20,7 @@ import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.background
 import androidx.compose.foundation.gestures.detectTapGestures
 import com.quantummpv.app.ui.browser.fab.FabScrollHelper
+import com.quantummpv.app.ui.components.themedSegmentedButtonColors
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
@@ -439,11 +440,7 @@ object RecentlyPlayedScreen : Screen {
                   }
                 },
                 shape = SegmentedButtonDefaults.itemShape(index, MediaLibraryType.entries.size),
-                colors =
-                  SegmentedButtonDefaults.colors(
-                    activeContentColor = MaterialTheme.colorScheme.primary,
-                    activeBorderColor = MaterialTheme.colorScheme.primary,
-                  ),
+                colors = themedSegmentedButtonColors(),
               ) {
                 Text(
                   text =
