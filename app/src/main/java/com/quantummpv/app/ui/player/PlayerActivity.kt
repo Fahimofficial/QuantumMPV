@@ -1480,7 +1480,6 @@ class PlayerActivity :
     lifecycleScope.launch {
       repeatOnLifecycle(Lifecycle.State.STARTED) {
         PlaybackSession.queue
-          .distinctUntilChanged()
           .collect { queueState ->
             val index = queueState.currentIndex
             val item = queueState.currentItem
