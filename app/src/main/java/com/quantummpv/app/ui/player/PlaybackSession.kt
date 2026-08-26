@@ -772,6 +772,7 @@ object PlaybackSession : MPVLib.EventObserver {
           error = null,
         )
       }
+      publishTimelinePropertiesLocked()
       propBoolean.emit("pause", desiredPaused)
     }
   }
@@ -1225,6 +1226,21 @@ object PlaybackSession : MPVLib.EventObserver {
       propLong.emit(property, null)
       propDouble.emit(property, null)
       propFloat.emit(property, null)
+    }
+  }
+
+  private fun publishTimelinePropertiesLocked() {
+    TIMELINE_PROPERTIES.forEach { property ->
+      val value = MPVLib.getPropertyDouble(property)
+      propInt.emit(property, value?.toInt())
+      propLong.emit(property, value?.toLong())
+      propDouble.emit(property, value)
+      propFloat.emit(property, value?.toFloat())
+      observerSnapshot().forEach { observer ->
+        runCatching {
+          if (value == null) observer.eventProperty(property) else observer.eventProperty(property, value)
+        }
+      }
     }
   }
 
