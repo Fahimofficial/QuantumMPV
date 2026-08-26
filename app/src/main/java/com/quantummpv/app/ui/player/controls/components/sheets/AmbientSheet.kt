@@ -52,6 +52,7 @@ import androidx.compose.ui.unit.dp
 import com.quantummpv.app.R
 import com.quantummpv.app.presentation.components.PlayerSheet
 import com.quantummpv.app.presentation.components.SliderItem
+import com.quantummpv.app.ui.components.themedSegmentedButtonColors
 import com.quantummpv.app.ui.icons.Icons
 import com.quantummpv.app.ui.player.AmbientShaderPresets
 import com.quantummpv.app.ui.player.AmbientStyle
@@ -141,11 +142,7 @@ fun AmbientSheet(
             selected = ambientStyle == style,
             onClick = { viewModel.setAmbientStyle(style) },
             shape = SegmentedButtonDefaults.itemShape(index, AmbientStyle.entries.size),
-            colors =
-              SegmentedButtonDefaults.colors(
-                activeContentColor = MaterialTheme.colorScheme.primary,
-                activeBorderColor = MaterialTheme.colorScheme.primary,
-              ),
+            colors = themedSegmentedButtonColors(),
           ) {
             Text(text = stringResource(style.titleRes))
           }

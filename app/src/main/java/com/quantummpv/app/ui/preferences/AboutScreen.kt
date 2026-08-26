@@ -52,6 +52,7 @@ import androidx.compose.material3.SingleChoiceSegmentedButtonRow
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import com.quantummpv.app.ui.components.IconSwitch
+import com.quantummpv.app.ui.components.themedSegmentedButtonColors
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -569,6 +570,7 @@ object AboutScreen : Screen {
                       selected = updateChannel == channel,
                       onClick = { updateViewModel.setUpdateChannel(channel) },
                       shape = SegmentedButtonDefaults.itemShape(index, AppUpdateChannel.entries.size),
+                      colors = themedSegmentedButtonColors(),
                       label = {
                         Text(
                           stringResource(
