@@ -415,6 +415,8 @@ class PlayerActivity :
   private var isAmbientPipMode by mutableStateOf(false)
   private var isVideoAmbientPresentationActive = false
   private var handledPipDismissal = false
+  private var pendingPipExitResolution = false
+  private var pipExitResolutionJob: Job? = null
   private var pendingBackgroundTransition = false
   private var pendingBackNavigationBackgroundTransition = false
   private var noisyReceiverRegistered = false
@@ -1399,12 +1401,16 @@ class PlayerActivity :
     val pipDismissalCommitted =
       wasInPipMode &&
         !isChangingConfigurations &&
-        (handledPipDismissal || isFinishing)
+        (handledPipDismissal || isFinishing || !isInPictureInPictureMode)
     if (ownsPlaybackSession && playbackWasInitialized && pipDismissalCommitted) {
       isBackgroundPlaybackSessionActive = false
       pendingBackgroundTransition = false
       silenceAudioOnClose()
+      MediaPlaybackService.stopForTerminalDismissal()
     }
+    pipExitResolutionJob?.cancel()
+    pipExitResolutionJob = null
+    pendingPipExitResolution = false
     val keepBackgroundPlaybackAlive =
       ownsPlaybackSession && !pipDismissalCommitted && PlayerLifecyclePolicy.shouldKeepBackgroundPlaybackAliveOnDestroy(
         backgroundPlaybackEnabled = playbackWasInitialized && isBackgroundPlaybackEnabled(),
@@ -1806,15 +1812,59 @@ class PlayerActivity :
 
   private fun handlePipDismissed() {
     Log.d(TAG, "PiP dismissed; closing playback instead of continuing in background")
+    pipExitResolutionJob?.cancel()
+    pipExitResolutionJob = null
+    pendingPipExitResolution = false
     handledPipDismissal = true
     isUserFinishing = true
     isBackgroundPlaybackSessionActive = false
     pendingBackgroundTransition = false
+    startedBackgroundForPip = false
     silenceAudioOnClose()
-    PlaybackSession.stop(clearQueue = false)
+    MediaPlaybackService.stopForTerminalDismissal()
     endBackgroundPlayback(handoffToActivity = false)
     if (!isFinishing && !isDestroyed) {
       finish()
+    }
+  }
+
+  private fun schedulePipExitResolution() {
+    pendingPipExitResolution = true
+    pipExitResolutionJob?.cancel()
+    if (isFinishing) {
+      handlePipDismissed()
+      return
+    }
+    pipExitResolutionJob =
+      lifecycleScope.launch {
+        delay(PIP_EXIT_RESOLUTION_DELAY_MS)
+        if (pendingPipExitResolution && lifecycle.currentState.isAtLeast(Lifecycle.State.RESUMED)) {
+          completePipExpansion()
+          return@launch
+        }
+        if (
+          pendingPipExitResolution &&
+          wasInPipMode &&
+          !isInPictureInPictureMode &&
+          !isChangingConfigurations &&
+          !isDeviceScreenOffOrLocked() &&
+          !lifecycle.currentState.isAtLeast(Lifecycle.State.RESUMED)
+        ) {
+          handlePipDismissed()
+        }
+      }
+  }
+
+  private fun completePipExpansion() {
+    if (!pendingPipExitResolution) return
+    pipExitResolutionJob?.cancel()
+    pipExitResolutionJob = null
+    pendingPipExitResolution = false
+    handledPipDismissal = false
+    wasInPipMode = false
+    if (startedBackgroundForPip) {
+      startedBackgroundForPip = false
+      endBackgroundPlayback()
     }
   }
 
@@ -1854,7 +1904,7 @@ class PlayerActivity :
       applyPlaybackBrightnessPolicy()
 
       if (!isInPictureInPictureMode) {
-        wasInPipMode = false
+        if (!pendingPipExitResolution) wasInPipMode = false
       }
     }.onFailure { e ->
       Log.e(TAG, "Error during onStart", e)
@@ -2945,6 +2995,7 @@ class PlayerActivity :
   override fun onResume() {
     super.onResume()
     if (!mpvInitialized || !ownsPlaybackSession()) return
+    if (!isInPictureInPictureMode) completePipExpansion()
     if (!isDeviceScreenOffOrLocked()) enableVideoAfterBackground()
     updateVolume()
     resumePlaybackAfterScreenUnlockIfNeeded()
@@ -5517,15 +5568,16 @@ class PlayerActivity :
     if (isInPictureInPictureMode) setVideoAmbientPresentationActive(false)
     pipHelper.onPictureInPictureModeChanged(isInPictureInPictureMode)
     if (isInPictureInPictureMode) {
+      pipExitResolutionJob?.cancel()
+      pipExitResolutionJob = null
+      pendingPipExitResolution = false
       wasInPipMode = true
       handledPipDismissal = false
       ensurePipPlaybackNotification()
-    } else if (startedBackgroundForPip) {
-      // Expanded back to full screen. A service created only to support PiP must relinquish the
-      // shared session here; normal background playback will start it again if the user later
-      // leaves the Activity with that separate preference enabled.
-      startedBackgroundForPip = false
-      endBackgroundPlayback()
+    } else if (wasInPipMode) {
+      // Android reports the same PiP exit callback for expansion and close. Resolve it after
+      // lifecycle delivery confirms whether the Activity resumed or the PiP task was dismissed.
+      schedulePipExitResolution()
     }
 
     binding.controls.animate().cancel()
@@ -7605,6 +7657,7 @@ class PlayerActivity :
     private const val PLAYBACK_LOAD_RETRY_DELAY_MS = 200L
     private const val PLAYBACK_LOAD_ERROR_SETTLE_MS = 300L
     private const val MAX_PLAYBACK_LOAD_RETRIES = 1
+    private const val PIP_EXIT_RESOLUTION_DELAY_MS = 300L
 
     /**
      * General tag for logging from PlayerActivity.
