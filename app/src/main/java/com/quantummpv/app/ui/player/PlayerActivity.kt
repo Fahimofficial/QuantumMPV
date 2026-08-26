@@ -56,6 +56,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.ViewCompositionStrategy
 import androidx.constraintlayout.widget.ConstraintLayout
 import androidx.core.app.NotificationManagerCompat
@@ -997,17 +998,28 @@ class PlayerActivity :
       val enabled by viewModel.isAmbientEnabled.collectAsState()
       val style by viewModel.ambientStyle.collectAsState()
       val isAudioOnly by viewModel.isAudioOnly.collectAsState()
+      val playbackState by PlaybackSession.state.collectAsState()
+      val hdrScreenMode by viewModel.hdrScreenMode.collectAsState()
+      val orientation = LocalConfiguration.current.orientation
       val active = enabled && style == AmbientStyle.YouTube && !isAudioOnly && !isAmbientPipMode
       val ambientFrame =
         rememberVideoAmbientFrame(
           surfaceView = binding.player,
           active = active,
+          playbackGeneration = playbackState.generation,
+          hdrScreenMode = hdrScreenMode,
+          orientation = orientation,
+          isSurfaceReadyProvider = {
+            val state = PlaybackSession.state.value
+            state.surfaceAttached &&
+              (state.phase == PlaybackPhase.READY || state.phase == PlaybackPhase.BACKGROUND) &&
+              binding.player.isSurfaceReady
+          },
           isPlayingProvider = {
-            val playbackState = PlaybackSession.state.value
-            playbackState.surfaceAttached && !playbackState.paused
+            !PlaybackSession.state.value.paused
           },
         )
-      val presentationActive = active && ambientFrame.supported
+      val presentationActive = active && ambientFrame.supported && ambientFrame.frame != null
 
       LaunchedEffect(presentationActive) {
         setVideoAmbientPresentationActive(presentationActive)
@@ -3552,8 +3564,7 @@ class PlayerActivity :
    */
   override fun onConfigurationChanged(newConfig: Configuration) {
     super.onConfigurationChanged(newConfig)
-    val isPortrait = newConfig.orientation == Configuration.ORIENTATION_PORTRAIT
-    viewModel.onOrientationChanged(isPortrait)
+    viewModel.onOrientationChanged()
     binding.root.post(::updateVideoAmbientPlayerBounds)
     if (isReady) {
       handleConfigurationChange()

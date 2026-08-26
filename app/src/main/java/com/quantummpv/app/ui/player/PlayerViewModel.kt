@@ -5886,11 +5886,12 @@ class PlayerViewModel : ViewModel(),
     }
   }
 
-  /** Called when the device orientation changes. Refreshes ambient in both portrait and landscape. */
-  fun onOrientationChanged(isPortrait: Boolean) {
-    if (!_isAmbientEnabled.value || MpvConfigOverridePolicy.ownsAny(MpvConfigControlledFeatures.AMBIENT)) return
+  /** Called when the device orientation changes. Refreshes Glow for the new output dimensions. */
+  fun onOrientationChanged() {
+    if (!isAmbientGlowRuntimeActive()) return
 
-    // Force shader refresh to adapt to new screen dimensions.
+    // The compiled spec is the cache key; scale sentinels alone do not force a rebuild.
+    lastCompiledSpec = null
     lastAmbientScaleX = -1.0
     lastAmbientScaleY = -1.0
     scheduleAmbientUpdate(200)
@@ -5909,7 +5910,7 @@ class PlayerViewModel : ViewModel(),
    * Called after shader-stack changes so ambient stays as the last OUTPUT pass.
    */
   fun restartAmbientIfActive() {
-    if (!isAmbientRuntimeActive()) return
+    if (!isAmbientGlowRuntimeActive()) return
     disableAmbientShader()
     // Small delay to let Anime4K shaders settle.
     scheduleAmbientUpdate(200)

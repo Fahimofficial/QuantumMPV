@@ -31,6 +31,7 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.repeatOnLifecycle
 import androidx.palette.graphics.Palette
+import com.quantummpv.app.ui.player.HdrScreenMode
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.currentCoroutineContext
@@ -110,24 +111,38 @@ data class VideoAmbientFrame(
 fun rememberVideoAmbientFrame(
   surfaceView: SurfaceView,
   active: Boolean,
+  playbackGeneration: Long,
+  hdrScreenMode: HdrScreenMode,
+  orientation: Int,
+  isSurfaceReadyProvider: () -> Boolean,
   isPlayingProvider: () -> Boolean,
 ): VideoAmbientFrame {
   var state by remember { mutableStateOf(VideoAmbientFrame()) }
+  val currentIsSurfaceReadyProvider by rememberUpdatedState(isSurfaceReadyProvider)
   val currentIsPlayingProvider by rememberUpdatedState(isPlayingProvider)
   val lifecycleOwner = LocalLifecycleOwner.current
 
-  LaunchedEffect(active, surfaceView, lifecycleOwner) {
+  LaunchedEffect(
+    active,
+    surfaceView,
+    lifecycleOwner,
+    playbackGeneration,
+    hdrScreenMode,
+    orientation,
+  ) {
+    state = VideoAmbientFrame()
     if (!active) {
-      state = VideoAmbientFrame()
       return@LaunchedEffect
     }
 
     lifecycleOwner.repeatOnLifecycle(Lifecycle.State.STARTED) {
+      state = VideoAmbientFrame()
       val pipeline = VideoAmbientPipeline()
       coroutineScope {
         launch {
           pipeline.runCapture(
             surfaceView = surfaceView,
+            isSurfaceReady = currentIsSurfaceReadyProvider,
             isPlaying = currentIsPlayingProvider,
             onUnsupported = { state = VideoAmbientFrame(supported = false) },
           )
@@ -173,6 +188,7 @@ private class VideoAmbientPipeline {
 
   suspend fun runCapture(
     surfaceView: SurfaceView,
+    isSurfaceReady: () -> Boolean,
     isPlaying: () -> Boolean,
     onUnsupported: () -> Unit,
   ) {
@@ -183,11 +199,11 @@ private class VideoAmbientPipeline {
 
     while (currentCoroutineContext().isActive && supported) {
       var cadence = IDLE_INTERVAL_MS
-      if (isPlaying() && surfaceView.width > 0 && surfaceView.height > 0) {
+      if (isSurfaceReady() && surfaceView.width > 0 && surfaceView.height > 0) {
         when (captureSurface(surfaceView, sample, pixelCopyHandler)) {
           CAPTURE_OK -> {
             consecutiveFailures = 0
-            cadence = CAPTURE_INTERVAL_MS
+            cadence = if (isPlaying()) CAPTURE_INTERVAL_MS else IDLE_INTERVAL_MS
             val accepted = withContext(Dispatchers.Default) { computeTarget() }
             if (accepted) {
               stagingGrid.copyInto(targetGrid)
@@ -438,7 +454,11 @@ private suspend fun captureSurface(
 ): Int =
   suspendCancellableCoroutine { continuation ->
     val surface = surfaceView.holder.surface
-    if (Build.VERSION.SDK_INT < Build.VERSION_CODES.N || !surface.isValid) {
+    if (Build.VERSION.SDK_INT < Build.VERSION_CODES.N) {
+      continuation.resume(CAPTURE_UNSUPPORTED)
+      return@suspendCancellableCoroutine
+    }
+    if (!surface.isValid) {
       continuation.resume(CAPTURE_RETRY)
       return@suspendCancellableCoroutine
     }
@@ -452,7 +472,6 @@ private suspend fun captureSurface(
             continuation.resume(
               when (result) {
                 PixelCopy.SUCCESS -> CAPTURE_OK
-                PixelCopy.ERROR_SOURCE_INVALID -> CAPTURE_UNSUPPORTED
                 else -> CAPTURE_RETRY
               },
             )
