@@ -11,33 +11,24 @@ package com.quantummpv.app.ui.browser
 
 import android.annotation.SuppressLint
 import android.content.res.Configuration
-import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.animateContentSize
-import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.spring
-import androidx.compose.animation.core.tween
 import androidx.compose.animation.expandHorizontally
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.shrinkHorizontally
-import androidx.compose.animation.slideInHorizontally
 import androidx.compose.animation.slideInVertically
-import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.animation.slideOutVertically
-import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.BorderStroke
-import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
-import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
-import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -49,6 +40,9 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.wrapContentSize
 import androidx.compose.foundation.layout.wrapContentWidth
+import androidx.compose.foundation.pager.HorizontalPager
+import androidx.compose.foundation.pager.PagerState
+import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
@@ -61,33 +55,32 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.compositionLocalOf
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableFloatStateOf
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.alpha
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.input.nestedscroll.nestedScroll
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalHapticFeedback
-import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
-import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
 import com.quantummpv.app.R
 import com.quantummpv.app.preferences.AppearancePreferences
 import com.quantummpv.app.preferences.preference.collectAsState
 import com.quantummpv.app.presentation.Screen
 import com.quantummpv.app.ui.browser.folderlist.FolderListScreen
-import com.quantummpv.app.ui.browser.medialibrary.MediaLibraryContent
 import com.quantummpv.app.ui.browser.music.MusicLibraryContent
 import com.quantummpv.app.ui.browser.networkstreaming.NetworkStreamingScreen
 import com.quantummpv.app.ui.browser.playlist.PlaylistScreen
@@ -95,8 +88,11 @@ import com.quantummpv.app.ui.browser.recentlyplayed.RecentlyPlayedScreen
 import com.quantummpv.app.ui.icons.Icon
 import com.quantummpv.app.ui.icons.Icons
 import com.quantummpv.app.ui.theme.AppMotion
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.launch
 import kotlinx.serialization.Serializable
 import org.koin.compose.koinInject
+import kotlin.math.roundToInt
 
 @Serializable
 object MainScreen : Screen {
@@ -191,25 +187,61 @@ object MainScreen : Screen {
       NavigationBarState.isNavBarVisible = !hideNavigationBar && visibleTabs.isNotEmpty() && !isPermissionDenied
     }
 
-    var selectedTab by
+    val coroutineScope = rememberCoroutineScope()
+
+    val initialPageIndex =
       remember(visibleTabs) {
-        mutableStateOf(
-          persistentSelectedTab.takeIf { it in visibleTabs }
-            ?: visibleTabs.firstOrNull()
-            ?: MainTab.HOME,
-        )
+        val idx = visibleTabs.indexOf(persistentSelectedTab)
+        if (idx >= 0) idx else 0
       }
 
-    LaunchedEffect(selectedTab) {
-      persistentSelectedTab = selectedTab
-      if (selectedTab != MainTab.HOME) {
-        NavigationBarState.isDualPaneFolderSelected = false
+    val pagerState =
+      rememberPagerState(
+        initialPage = initialPageIndex,
+        pageCount = { visibleTabs.size },
+      )
+
+    // PagerState is the live navigation source of truth. Sync when settled.
+    LaunchedEffect(pagerState, visibleTabs) {
+      if (visibleTabs.isEmpty()) {
+        persistentSelectedTab = MainTab.HOME
+        return@LaunchedEffect
       }
+      val restorePage = visibleTabs.indexOf(persistentSelectedTab).takeIf { it >= 0 } ?: 0
+      if (pagerState.currentPage != restorePage && !pagerState.isScrollInProgress) {
+        pagerState.scrollToPage(restorePage)
+      }
+      snapshotFlow { pagerState.settledPage }
+        .collect { page ->
+          visibleTabs.getOrNull(page)?.let { settledTab ->
+            persistentSelectedTab = settledTab
+            if (settledTab != MainTab.HOME) {
+              NavigationBarState.isDualPaneFolderSelected = false
+            }
+          }
+        }
     }
 
+    val targetPage = pagerState.targetPage.coerceIn(0, (visibleTabs.size - 1).coerceAtLeast(0))
+    val selectedTab = visibleTabs.getOrNull(targetPage) ?: visibleTabs.firstOrNull() ?: MainTab.HOME
+
+    var tabNavigationJob by remember { mutableStateOf<Job?>(null) }
+
     val onTabSelected: (MainScreen.MainTab) -> Unit = { tab ->
-      if (tab in visibleTabs && tab != selectedTab) {
-        selectedTab = tab
+      val targetIndex = visibleTabs.indexOf(tab)
+      if (targetIndex >= 0 && targetIndex != pagerState.targetPage) {
+        tabNavigationJob?.cancel()
+        tabNavigationJob =
+          coroutineScope.launch {
+            pagerState.animateScrollToPage(
+              page = targetIndex,
+              animationSpec =
+                spring(
+                  dampingRatio = Spring.DampingRatioNoBouncy,
+                  stiffness = Spring.StiffnessMedium,
+                ),
+            )
+          }
       }
     }
 
@@ -218,6 +250,7 @@ object MainScreen : Screen {
         visibleTabs = visibleTabs,
         selectedTab = selectedTab,
         onTabSelected = onTabSelected,
+        pagerState = pagerState,
         modifier = modifier,
       )
     }
@@ -301,39 +334,20 @@ object MainScreen : Screen {
             FolderListScreen.Content()
           }
         } else {
-          val density = LocalDensity.current
-          AnimatedContent(
-            targetState = selectedTab,
-            transitionSpec = {
-              val slideDistance = with(density) { 48.dp.roundToPx() }
-              val duration = 250
-              if (targetState.ordinal > initialState.ordinal) {
-                (slideInHorizontally(
-                  animationSpec = tween(durationMillis = duration, easing = FastOutSlowInEasing),
-                  initialOffsetX = { slideDistance },
-                ) + fadeIn(animationSpec = tween(durationMillis = duration))) togetherWith
-                  (slideOutHorizontally(
-                    animationSpec = tween(durationMillis = duration, easing = FastOutSlowInEasing),
-                    targetOffsetX = { -slideDistance },
-                  ) + fadeOut(animationSpec = tween(durationMillis = duration)))
-              } else {
-                (slideInHorizontally(
-                  animationSpec = tween(durationMillis = duration, easing = FastOutSlowInEasing),
-                  initialOffsetX = { -slideDistance },
-                ) + fadeIn(animationSpec = tween(durationMillis = duration))) togetherWith
-                  (slideOutHorizontally(
-                    animationSpec = tween(durationMillis = duration, easing = FastOutSlowInEasing),
-                    targetOffsetX = { slideDistance },
-                  ) + fadeOut(animationSpec = tween(durationMillis = duration)))
-              }
-            },
-            modifier = Modifier.fillMaxSize().nestedScroll(NavigationBarState.navScrollConnection),
-            label = "tab_animation",
-          ) { tab ->
-            CompositionLocalProvider(
-              LocalNavigationBarHeight provides contentBottomPadding,
-              LocalMainNavigationBar provides mainNavBar,
-            ) {
+          CompositionLocalProvider(
+            LocalNavigationBarHeight provides contentBottomPadding,
+            LocalMainNavigationBar provides mainNavBar,
+          ) {
+            HorizontalPager(
+              state = pagerState,
+              beyondViewportPageCount = 1,
+              modifier =
+                Modifier
+                  .fillMaxSize()
+                  .nestedScroll(NavigationBarState.navScrollConnection),
+              key = { page -> visibleTabs.getOrNull(page) ?: page },
+            ) { page ->
+              val tab = visibleTabs.getOrNull(page) ?: return@HorizontalPager
               when (tab) {
                 MainTab.HOME -> FolderListScreen.Content()
                 MainTab.MUSIC -> MusicLibraryContent()
@@ -436,6 +450,7 @@ object MainScreen : Screen {
                 visibleTabs = visibleTabs,
                 selectedTab = selectedTab,
                 onTabSelected = onTabSelected,
+                pagerState = pagerState,
                 modifier =
                   Modifier.onGloballyPositioned { coords ->
                     val w = with(density) { coords.size.width.toDp() }
@@ -458,11 +473,87 @@ private fun ExpressivePillNavigationBar(
   selectedTab: MainScreen.MainTab,
   onTabSelected: (MainScreen.MainTab) -> Unit,
   modifier: Modifier = Modifier,
+  pagerState: PagerState? = null,
 ) {
   val haptics = LocalHapticFeedback.current
+  val coroutineScope = rememberCoroutineScope()
+  val density = LocalDensity.current
+  val configuration = androidx.compose.ui.platform.LocalConfiguration.current
+  val screenWidthPx = with(density) { configuration.screenWidthDp.dp.toPx() }
+  var pillWidthPx by remember { mutableFloatStateOf(1f) }
+  var lastHapticIndex by remember { mutableIntStateOf(-1) }
+
+  val dragModifier =
+    if (pagerState != null && visibleTabs.size > 1) {
+      Modifier.pointerInput(pagerState, visibleTabs.size, pillWidthPx, screenWidthPx) {
+        detectHorizontalDragGestures(
+          onDragStart = {
+            lastHapticIndex = pagerState.currentPage
+          },
+          onHorizontalDrag = { change, dragAmount ->
+            change.consume()
+            val tabWidthPx = (pillWidthPx / visibleTabs.size).coerceAtLeast(1f)
+            val scrollRatio = screenWidthPx / tabWidthPx
+            val delta = -dragAmount * scrollRatio
+            pagerState.dispatchRawDelta(delta)
+
+            val currentApproxPage =
+              (pagerState.currentPage + pagerState.currentPageOffsetFraction)
+                .roundToInt()
+                .coerceIn(0, visibleTabs.size - 1)
+            if (currentApproxPage != lastHapticIndex) {
+              haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+              lastHapticIndex = currentApproxPage
+            }
+          },
+          onDragEnd = {
+            val targetPage =
+              (pagerState.currentPage + pagerState.currentPageOffsetFraction)
+                .roundToInt()
+                .coerceIn(0, visibleTabs.size - 1)
+            coroutineScope.launch {
+              pagerState.animateScrollToPage(
+                page = targetPage,
+                animationSpec =
+                  spring(
+                    dampingRatio = Spring.DampingRatioNoBouncy,
+                    stiffness = Spring.StiffnessMedium,
+                  ),
+              )
+            }
+          },
+          onDragCancel = {
+            val targetPage =
+              (pagerState.currentPage + pagerState.currentPageOffsetFraction)
+                .roundToInt()
+                .coerceIn(0, visibleTabs.size - 1)
+            coroutineScope.launch {
+              pagerState.animateScrollToPage(
+                page = targetPage,
+                animationSpec =
+                  spring(
+                    dampingRatio = Spring.DampingRatioNoBouncy,
+                    stiffness = Spring.StiffnessMedium,
+                  ),
+              )
+            }
+          },
+        )
+      }
+    } else {
+      Modifier
+    }
 
   Surface(
-    modifier = modifier,
+    modifier =
+      modifier
+        .onGloballyPositioned { coords ->
+          val w = coords.size.width.toFloat()
+          if (w > 0f && w != pillWidthPx) {
+            pillWidthPx = w
+          }
+        }
+        .then(dragModifier),
     shape = CircleShape,
     color = MaterialTheme.colorScheme.surfaceContainerHigh,
     tonalElevation = 6.dp,
