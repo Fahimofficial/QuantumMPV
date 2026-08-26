@@ -12,9 +12,9 @@ package com.quantummpv.app.ui.browser
 import android.annotation.SuppressLint
 import android.content.res.Configuration
 import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.animation.ContentTransform
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.animateContentSize
+import androidx.compose.animation.core.AnimationSpec
 import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.animation.core.animateFloatAsState
@@ -23,14 +23,9 @@ import androidx.compose.animation.core.snap
 import androidx.compose.animation.expandHorizontally
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
-import androidx.compose.animation.scaleIn
-import androidx.compose.animation.scaleOut
 import androidx.compose.animation.shrinkHorizontally
-import androidx.compose.animation.slideInHorizontally
 import androidx.compose.animation.slideInVertically
-import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.animation.slideOutVertically
-import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -40,6 +35,8 @@ import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.pager.HorizontalPager
+import androidx.compose.foundation.pager.PagerDefaults
+import androidx.compose.foundation.pager.PagerState
 import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
@@ -106,6 +103,7 @@ import com.quantummpv.app.ui.icons.Icon
 import com.quantummpv.app.ui.icons.Icons
 import com.quantummpv.app.ui.player.NavigationAnimStyle
 import com.quantummpv.app.ui.theme.AppMotion
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
 import kotlinx.serialization.Serializable
 import org.koin.compose.koinInject
@@ -161,7 +159,6 @@ object MainScreen : Screen {
   @SuppressLint("ComposableNaming")
   @Composable
   override fun Content() {
-    val density = LocalDensity.current
     val appearancePreferences = koinInject<AppearancePreferences>()
     val playerPreferences = koinInject<PlayerPreferences>()
     val navAnimStyle by playerPreferences.navAnimStyle.collectAsState()
@@ -213,7 +210,17 @@ object MainScreen : Screen {
       initialPage = visibleTabs.indexOf(persistentSelectedTab).coerceAtLeast(0),
       pageCount = { visibleTabs.size },
     )
+    val pagerAnimationSpec =
+      remember(navAnimStyle, animSpeed) {
+        tabPagerAnimationSpec(navAnimStyle, animSpeed)
+      }
+    val pagerFlingBehavior =
+      PagerDefaults.flingBehavior(
+        state = pagerState,
+        snapAnimationSpec = pagerAnimationSpec,
+      )
     val selectedTab = visibleTabs.getOrNull(pagerState.targetPage) ?: visibleTabs.firstOrNull() ?: MainTab.HOME
+    var tabNavigationJob by remember { mutableStateOf<Job?>(null) }
 
     // PagerState is the only live navigation state. Restore first, then persist completed moves.
     LaunchedEffect(pagerState, visibleTabs) {
@@ -237,10 +244,18 @@ object MainScreen : Screen {
     }
 
     val onTabSelected: (MainScreen.MainTab) -> Unit = { tab ->
-      scope.launch {
+      tabNavigationJob?.cancel()
+      tabNavigationJob = scope.launch {
         val page = visibleTabs.indexOf(tab)
         if (page >= 0 && page != pagerState.targetPage) {
-          pagerState.animateScrollToPage(page)
+          if (navAnimStyle == NavigationAnimStyle.None) {
+            pagerState.scrollToPage(page)
+          } else {
+            pagerState.animateScrollToPage(
+              page = page,
+              animationSpec = pagerAnimationSpec,
+            )
+          }
         }
       }
     }
@@ -338,20 +353,28 @@ object MainScreen : Screen {
             modifier = Modifier.fillMaxSize().nestedScroll(NavigationBarState.navScrollConnection),
             userScrollEnabled = !isPermissionDenied,
             beyondViewportPageCount = 1,
+            flingBehavior = pagerFlingBehavior,
             key = { page -> visibleTabs[page] },
           ) { page ->
-            CompositionLocalProvider(
-              LocalNavigationBarHeight provides contentBottomPadding,
-              LocalMainNavigationBar provides mainNavBar,
+            Box(
+              modifier =
+                Modifier
+                  .fillMaxSize()
+                  .tabPagerTransform(pagerState, page, navAnimStyle),
             ) {
-              val tab = visibleTabs.getOrNull(page) ?: return@CompositionLocalProvider
-              when (tab) {
-                MainTab.HOME -> FolderListScreen.Content()
-                MainTab.MUSIC -> MusicLibraryContent()
-                MainTab.RECENTS -> RecentlyPlayedScreen.Content()
-                MainTab.PLAYLISTS -> PlaylistScreen.Content()
-                MainTab.NETWORK -> NetworkStreamingScreen.Content()
-                MainTab.JELLYFIN -> com.quantummpv.app.ui.browser.jellyfin.JellyfinContent(viewModel = jellyfinViewModel)
+              CompositionLocalProvider(
+                LocalNavigationBarHeight provides contentBottomPadding,
+                LocalMainNavigationBar provides mainNavBar,
+              ) {
+                val tab = visibleTabs.getOrNull(page) ?: return@CompositionLocalProvider
+                when (tab) {
+                  MainTab.HOME -> FolderListScreen.Content()
+                  MainTab.MUSIC -> MusicLibraryContent()
+                  MainTab.RECENTS -> RecentlyPlayedScreen.Content()
+                  MainTab.PLAYLISTS -> PlaylistScreen.Content()
+                  MainTab.NETWORK -> NetworkStreamingScreen.Content()
+                  MainTab.JELLYFIN -> com.quantummpv.app.ui.browser.jellyfin.JellyfinContent(viewModel = jellyfinViewModel)
+                }
               }
             }
           }
@@ -462,6 +485,86 @@ object MainScreen : Screen {
     }
   }
 }
+
+private fun tabPagerAnimationSpec(
+  style: NavigationAnimStyle,
+  speed: Float,
+): AnimationSpec<Float> {
+  val speedFactor = speed.coerceIn(0.25f, 2.5f)
+  fun scaledStiffness(base: Float): Float = (base / (speedFactor * speedFactor)).coerceIn(50f, 10_000f)
+
+  return when (style) {
+    NavigationAnimStyle.None -> snap()
+    NavigationAnimStyle.Minimal ->
+      spring(
+        dampingRatio = Spring.DampingRatioNoBouncy,
+        stiffness = scaledStiffness(Spring.StiffnessMedium),
+      )
+    NavigationAnimStyle.FlipFade ->
+      spring(
+        dampingRatio = AppMotion.Spatial.Expressive.dampingRatio,
+        stiffness = scaledStiffness(AppMotion.Spatial.Expressive.stiffness),
+      )
+    NavigationAnimStyle.Depth ->
+      spring(
+        dampingRatio = AppMotion.Spatial.Standard.dampingRatio,
+        stiffness = scaledStiffness(AppMotion.Spatial.Standard.stiffness),
+      )
+    NavigationAnimStyle.Elastic ->
+      spring(
+        dampingRatio = Spring.DampingRatioMediumBouncy,
+        stiffness = scaledStiffness(380f),
+      )
+    NavigationAnimStyle.Default ->
+      spring(
+        dampingRatio = AppMotion.Spatial.Expressive.dampingRatio,
+        stiffness = scaledStiffness(AppMotion.Spatial.Expressive.stiffness),
+      )
+  }
+}
+
+private fun Modifier.tabPagerTransform(
+  pagerState: PagerState,
+  page: Int,
+  style: NavigationAnimStyle,
+): Modifier =
+  graphicsLayer {
+    val signedOffset = (pagerState.currentPage - page) + pagerState.currentPageOffsetFraction
+    val distance = abs(signedOffset).coerceIn(0f, 1f)
+    alpha = 1f
+    scaleX = 1f
+    scaleY = 1f
+    translationX = 0f
+
+    when (style) {
+      NavigationAnimStyle.None -> Unit
+      NavigationAnimStyle.Minimal -> {
+        alpha = lerp(1f, 0.90f, distance)
+      }
+      NavigationAnimStyle.FlipFade -> {
+        alpha = lerp(1f, 0.65f, distance)
+        scaleX = lerp(1f, 0.94f, distance)
+        scaleY = scaleX
+      }
+      NavigationAnimStyle.Depth -> {
+        alpha = lerp(1f, 0.72f, distance)
+        scaleX = lerp(1f, 0.92f, distance)
+        scaleY = scaleX
+        translationX = signedOffset * size.width * 0.08f
+      }
+      NavigationAnimStyle.Elastic -> {
+        alpha = lerp(1f, 0.88f, distance)
+        scaleX = lerp(1f, 0.985f, distance)
+        scaleY = scaleX
+      }
+      NavigationAnimStyle.Default -> {
+        alpha = lerp(1f, 0.82f, distance)
+        scaleX = lerp(1f, 0.97f, distance)
+        scaleY = scaleX
+        translationX = signedOffset * size.width * 0.035f
+      }
+    }
+  }
 
 @Composable
 private fun ExpressivePillNavigationBar(
@@ -651,162 +754,3 @@ val LocalMainNavigationBar =
   compositionLocalOf<@Composable (Modifier) -> Unit> {
     { }
   }
-
-/** Builds the [ContentTransform] for tab navigation based on the selected style. */
-fun buildNavTransition(
-  forward: Boolean,
-  style: NavigationAnimStyle,
-  speed: Float,
-  density: androidx.compose.ui.unit.Density,
-): ContentTransform {
-  val dir = if (forward) 1 else -1
-  val dur = (250 * speed).toInt().coerceAtLeast(60)
-  val half = (dur / 2).coerceAtLeast(30)
-
-  return when (style) {
-    NavigationAnimStyle.None ->
-      (
-        fadeIn(spring(stiffness = AppMotion.Spatial.Snappy.stiffness)) togetherWith
-          fadeOut(spring(stiffness = AppMotion.Spatial.Snappy.stiffness))
-      )
-
-    NavigationAnimStyle.Minimal ->
-      (
-        fadeIn(
-          spring(
-            dampingRatio = AppMotion.Spatial.Standard.dampingRatio,
-            stiffness = AppMotion.Spatial.Standard.stiffness,
-          ),
-        ) togetherWith
-          fadeOut(spring(stiffness = AppMotion.Spatial.Standard.stiffness))
-      )
-
-    NavigationAnimStyle.FlipFade ->
-      (
-        scaleIn(
-          spring(
-            dampingRatio = AppMotion.Spatial.Expressive.dampingRatio,
-            stiffness = AppMotion.Spatial.Expressive.stiffness,
-          ),
-          initialScale = 0.94f,
-        ) +
-          fadeIn(
-            spring(
-              dampingRatio = AppMotion.Spatial.Expressive.dampingRatio,
-              stiffness = AppMotion.Spatial.Expressive.stiffness,
-            ),
-          )
-      ) togetherWith
-        (
-          scaleOut(spring(stiffness = AppMotion.Spatial.Standard.stiffness), targetScale = 1.06f) +
-            fadeOut(spring(stiffness = AppMotion.Spatial.Standard.stiffness))
-        )
-
-    NavigationAnimStyle.Depth ->
-      (
-        slideInHorizontally(
-          spring(
-            dampingRatio = AppMotion.Spatial.Standard.dampingRatio,
-            stiffness = AppMotion.Spatial.Standard.stiffness,
-          ),
-        ) {
-          it * dir
-        } +
-          fadeIn(
-            spring(
-              dampingRatio = AppMotion.Spatial.Standard.dampingRatio,
-              stiffness = AppMotion.Spatial.Standard.stiffness,
-            ),
-          )
-      ) togetherWith
-        (
-          slideOutHorizontally(
-            spring(stiffness = AppMotion.Spatial.Standard.stiffness),
-          ) { (-it * 0.25f * dir).toInt() } +
-            scaleOut(spring(stiffness = AppMotion.Spatial.Standard.stiffness), targetScale = 0.92f) +
-            fadeOut(spring(stiffness = AppMotion.Spatial.Standard.stiffness))
-        )
-
-    NavigationAnimStyle.Elastic ->
-      (
-        slideInHorizontally(
-          spring(dampingRatio = Spring.DampingRatioMediumBouncy, stiffness = 380f),
-        ) { it * dir } + fadeIn(spring(stiffness = AppMotion.Spatial.Snappy.stiffness))
-      ) togetherWith
-        (
-          slideOutHorizontally(spring(stiffness = AppMotion.Spatial.Standard.stiffness)) { (-it / 3 * dir) } +
-            fadeOut(spring(stiffness = AppMotion.Spatial.Standard.stiffness))
-        )
-
-    NavigationAnimStyle.Default -> {
-      val slidePx = with(density) { 48.dp.roundToPx() }
-      if (forward) {
-        (
-          slideInHorizontally(
-            spring(
-              dampingRatio = AppMotion.Spatial.Expressive.dampingRatio,
-              stiffness = AppMotion.Spatial.Expressive.stiffness,
-            ),
-          ) {
-            slidePx
-          } +
-            fadeIn(
-              spring(
-                dampingRatio = AppMotion.Spatial.Expressive.dampingRatio,
-                stiffness = AppMotion.Spatial.Expressive.stiffness,
-              ),
-            )
-        ) togetherWith
-          (
-            slideOutHorizontally(
-              spring(
-                dampingRatio = AppMotion.Spatial.Standard.dampingRatio,
-                stiffness = AppMotion.Spatial.Standard.stiffness,
-              ),
-            ) {
-              -slidePx
-            } +
-              fadeOut(
-                spring(
-                  dampingRatio = AppMotion.Spatial.Standard.dampingRatio,
-                  stiffness = AppMotion.Spatial.Standard.stiffness,
-                ),
-              )
-          )
-      } else {
-        (
-          slideInHorizontally(
-            spring(
-              dampingRatio = AppMotion.Spatial.Expressive.dampingRatio,
-              stiffness = AppMotion.Spatial.Expressive.stiffness,
-            ),
-          ) {
-            -slidePx
-          } +
-            fadeIn(
-              spring(
-                dampingRatio = AppMotion.Spatial.Expressive.dampingRatio,
-                stiffness = AppMotion.Spatial.Expressive.stiffness,
-              ),
-            )
-        ) togetherWith
-          (
-            slideOutHorizontally(
-              spring(
-                dampingRatio = AppMotion.Spatial.Standard.dampingRatio,
-                stiffness = AppMotion.Spatial.Standard.stiffness,
-              ),
-            ) {
-              slidePx
-            } +
-              fadeOut(
-                spring(
-                  dampingRatio = AppMotion.Spatial.Standard.dampingRatio,
-                  stiffness = AppMotion.Spatial.Standard.stiffness,
-                ),
-              )
-          )
-      }
-    }
-  }
-}
