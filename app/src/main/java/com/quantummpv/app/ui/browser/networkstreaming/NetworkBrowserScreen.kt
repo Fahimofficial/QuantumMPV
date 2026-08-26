@@ -10,6 +10,7 @@
 package com.quantummpv.app.ui.browser.networkstreaming
 
 import androidx.activity.compose.BackHandler
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
@@ -409,6 +410,8 @@ private fun NetworkBrowserContent(
                   top = 8.dp,
                   bottom = navigationBarHeight,
                 ),
+              horizontalArrangement = Arrangement.spacedBy(4.dp),
+              verticalArrangement = Arrangement.spacedBy(4.dp),
             ) {
               if (folders.isNotEmpty()) {
                 item(span = { GridItemSpan(gridColumns) }) {

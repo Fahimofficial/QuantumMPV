@@ -53,6 +53,7 @@ import com.quantummpv.app.preferences.preference.collectAsState
 import com.quantummpv.app.presentation.components.RemoteImage
 import com.quantummpv.app.ui.icons.Icon
 import com.quantummpv.app.ui.icons.Icons
+import com.quantummpv.app.ui.theme.AppShapeScale
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.filter
 import kotlinx.coroutines.withContext
@@ -194,21 +195,28 @@ fun M3UVideoCard(
           onClick = onClick,
           onLongClick = onLongClick,
         ),
+    shape = AppShapeScale.large,
     colors = CardDefaults.cardColors(containerColor = Color.Transparent),
   ) {
-    Row(
-      modifier =
-        Modifier
-          .fillMaxWidth()
-          .background(
-            if (isSelected) {
-              MaterialTheme.colorScheme.tertiary.copy(alpha = 0.3f)
-            } else {
-              Color.Transparent
-            },
-          ).padding(16.dp),
-      verticalAlignment = Alignment.CenterVertically,
-    ) {
+    Box(modifier = Modifier.fillMaxWidth()) {
+      if (isSelected) {
+        Box(
+          modifier =
+            Modifier
+              .matchParentSize()
+              .padding(2.dp)
+              .clip(AppShapeScale.large)
+              .background(MaterialTheme.colorScheme.tertiary.copy(alpha = 0.3f)),
+        )
+      }
+
+      Row(
+        modifier =
+          Modifier
+            .fillMaxWidth()
+            .padding(16.dp),
+        verticalAlignment = Alignment.CenterVertically,
+      ) {
       Box(
         modifier =
           Modifier
@@ -313,19 +321,20 @@ fun M3UVideoCard(
         }
       }
 
-      if (onFavoriteClick != null) {
-        Spacer(modifier = Modifier.width(8.dp))
-        IconButton(onClick = onFavoriteClick) {
-          Icon(
-            imageVector = Icons.RoundedFilled.Bookmarks,
-            contentDescription = if (isFavorite) "Unsave stream" else "Save stream",
-            tint =
-              if (isFavorite) {
-                MaterialTheme.colorScheme.primary
-              } else {
-                MaterialTheme.colorScheme.onSurfaceVariant
-              },
-          )
+        if (onFavoriteClick != null) {
+          Spacer(modifier = Modifier.width(8.dp))
+          IconButton(onClick = onFavoriteClick) {
+            Icon(
+              imageVector = Icons.RoundedFilled.Bookmarks,
+              contentDescription = if (isFavorite) "Unsave stream" else "Save stream",
+              tint =
+                if (isFavorite) {
+                  MaterialTheme.colorScheme.primary
+                } else {
+                  MaterialTheme.colorScheme.onSurfaceVariant
+                },
+            )
+          }
         }
       }
     }

@@ -160,18 +160,29 @@ fun NetworkVideoCard(
           onClick = onClick,
           onLongClick = onLongClick,
         ),
+    shape = AppShapeScale.large,
     colors = CardDefaults.cardColors(containerColor = Color.Transparent),
   ) {
-    if (isGridMode) {
-      Column(
-        modifier =
-          Modifier
-            .fillMaxWidth()
-            .background(
-              if (isSelected) MaterialTheme.colorScheme.tertiary.copy(alpha = 0.3f) else Color.Transparent,
-            ).padding(8.dp),
-        horizontalAlignment = if (centerGridTitles) Alignment.CenterHorizontally else Alignment.Start,
-      ) {
+    Box(modifier = Modifier.fillMaxWidth()) {
+      if (isSelected) {
+        Box(
+          modifier =
+            Modifier
+              .matchParentSize()
+              .padding(2.dp)
+              .clip(AppShapeScale.large)
+              .background(MaterialTheme.colorScheme.tertiary.copy(alpha = 0.3f)),
+        )
+      }
+
+      if (isGridMode) {
+        Column(
+          modifier =
+            Modifier
+              .fillMaxWidth()
+              .padding(12.dp),
+          horizontalAlignment = if (centerGridTitles) Alignment.CenterHorizontally else Alignment.Start,
+        ) {
         Box(
           modifier =
             Modifier
@@ -247,21 +258,15 @@ fun NetworkVideoCard(
             )
           }
         }
-      }
-    } else {
-      Row(
-        modifier =
-          Modifier
-            .fillMaxWidth()
-            .background(
-              if (isSelected) {
-                MaterialTheme.colorScheme.tertiary.copy(alpha = 0.3f)
-              } else {
-                Color.Transparent
-              },
-            ).padding(16.dp),
-        verticalAlignment = Alignment.CenterVertically,
-      ) {
+        }
+      } else {
+        Row(
+          modifier =
+            Modifier
+              .fillMaxWidth()
+              .padding(16.dp),
+          verticalAlignment = Alignment.CenterVertically,
+        ) {
         // Match the normal video list thumbnail footprint.
         Box(
           modifier =
@@ -343,6 +348,7 @@ fun NetworkVideoCard(
                 color = MaterialTheme.colorScheme.onSurface,
               )
             }
+          }
           }
         }
       }
