@@ -120,12 +120,13 @@ internal object PlayerLifecyclePolicy {
   fun shouldTreatStopAsPipDismissal(
     wasInPictureInPictureMode: Boolean,
     isInPictureInPictureMode: Boolean,
+    isActivityFinishing: Boolean,
     isChangingConfigurations: Boolean,
     isScreenOffOrLocked: Boolean,
     alreadyHandled: Boolean,
   ): Boolean =
     wasInPictureInPictureMode &&
-      !isInPictureInPictureMode &&
+      (!isInPictureInPictureMode || isActivityFinishing) &&
       !isChangingConfigurations &&
       !isScreenOffOrLocked &&
       !alreadyHandled

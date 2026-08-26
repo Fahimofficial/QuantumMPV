@@ -1369,8 +1369,17 @@ class PlayerActivity :
     Log.d(TAG, "PlayerActivity onDestroy")
     val ownsPlaybackSession = ownsPlaybackSession()
     val playbackWasInitialized = mpvInitialized
+    val pipDismissalCommitted =
+      wasInPipMode &&
+        !isChangingConfigurations &&
+        (handledPipDismissal || isFinishing)
+    if (ownsPlaybackSession && playbackWasInitialized && pipDismissalCommitted) {
+      isBackgroundPlaybackSessionActive = false
+      pendingBackgroundTransition = false
+      silenceAudioOnClose()
+    }
     val keepBackgroundPlaybackAlive =
-      ownsPlaybackSession && PlayerLifecyclePolicy.shouldKeepBackgroundPlaybackAliveOnDestroy(
+      ownsPlaybackSession && !pipDismissalCommitted && PlayerLifecyclePolicy.shouldKeepBackgroundPlaybackAliveOnDestroy(
         backgroundPlaybackEnabled = playbackWasInitialized && isBackgroundPlaybackEnabled(),
         backgroundPlaybackSessionActive = isBackgroundPlaybackSessionActive,
       )
@@ -1699,6 +1708,7 @@ class PlayerActivity :
         PlayerLifecyclePolicy.shouldTreatStopAsPipDismissal(
           wasInPictureInPictureMode = wasInPipMode,
           isInPictureInPictureMode = isInPictureInPictureMode,
+          isActivityFinishing = isFinishing,
           isChangingConfigurations = isChangingConfigurations,
           isScreenOffOrLocked = isDeviceScreenOffOrLocked(),
           alreadyHandled = handledPipDismissal,
@@ -1749,8 +1759,9 @@ class PlayerActivity :
     isUserFinishing = true
     isBackgroundPlaybackSessionActive = false
     pendingBackgroundTransition = false
-    viewModel.pause()
-    endBackgroundPlayback()
+    silenceAudioOnClose()
+    PlaybackSession.stop(clearQueue = false)
+    endBackgroundPlayback(handoffToActivity = false)
     if (!isFinishing && !isDestroyed) {
       finish()
     }
@@ -6179,7 +6190,7 @@ class PlayerActivity :
    *
    * Called when the activity is destroyed to remove the notification.
    */
-  private fun endBackgroundPlayback() {
+  private fun endBackgroundPlayback(handoffToActivity: Boolean = true) {
     Log.d(TAG, "Ending background playback service")
     backgroundHandoffJob?.cancel()
     backgroundHandoffJob = null
@@ -6187,9 +6198,10 @@ class PlayerActivity :
     pendingBackgroundTransition = false
     pendingBackNavigationBackgroundTransition = false
 
-    // Tell the service this destruction is a handoff back to the Activity so it neither
-    // pauses on focus loss nor stops the shared PlaybackSession media during teardown.
-    MediaPlaybackService.prepareForActivityHandoff()
+    if (handoffToActivity) {
+      // The foreground Activity already owns playback, so service teardown must not stop it.
+      MediaPlaybackService.prepareForActivityHandoff()
+    }
 
     if (serviceBound) {
       try {
@@ -6210,8 +6222,10 @@ class PlayerActivity :
     }
 
     mediaPlaybackService = null
-    MediaPlaybackService.relinquishMediaSessionToActivity()
-    if (!isFinishing && !isDestroyed) setActivityMediaSessionActive(true)
+    if (handoffToActivity) {
+      MediaPlaybackService.relinquishMediaSessionToActivity()
+      if (!isFinishing && !isDestroyed) setActivityMediaSessionActive(true)
+    }
   }
 
   /** Toggles video background playback without changing the audio-player setting. */
