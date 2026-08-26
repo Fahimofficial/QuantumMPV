@@ -1977,6 +1977,7 @@ class PlayerViewModel : ViewModel(),
     }
     syncplayManager.updateFileInfo(currentSyncplayFileInfo())
     applyEqualizerMpvFilters()
+    loadLyricsForCurrentTrack(forceRefresh = true)
   }
 
   fun updateTorrentState(state: TorrentStreamingState) {
