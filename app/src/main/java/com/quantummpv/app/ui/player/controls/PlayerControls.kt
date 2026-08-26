@@ -1555,7 +1555,7 @@ fun PlayerControls(
               position = displayedSeekbarPosition,
               committedPosition = precisePosition,
               duration = if (preciseDuration > 0) preciseDuration else duration?.toFloat() ?: 0f,
-              remaining = remaining?.toFloat() ?: 0f,
+              remaining = remaining ?: 0f,
               onValueChange = {
                 isSeeking = true
                 resetControlsTimestamp = System.currentTimeMillis()

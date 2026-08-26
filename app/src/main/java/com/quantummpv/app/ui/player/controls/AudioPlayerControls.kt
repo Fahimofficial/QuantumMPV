@@ -1396,7 +1396,7 @@ fun AudioPlayerControls(
         position = currentPosSec,
         committedPosition = currentPosSec,
         duration = currentDurSec.coerceAtLeast(1f),
-        remaining = remaining?.toFloat() ?: 0f,
+        remaining = remaining ?: 0f,
         onValueChange = { value -> viewModel.previewSeekTo(value) },
         onValueChangeFinished = { targetPosition -> viewModel.seekTo(targetPosition.toInt(), fast = false) },
         timersInverted = Pair(false, invertDuration),
