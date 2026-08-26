@@ -131,6 +131,8 @@ import com.quantummpv.app.ui.browser.NavigationBarState
 import com.quantummpv.app.ui.browser.cards.PlaylistCard
 import com.quantummpv.app.ui.browser.components.BrowserBottomBar
 import com.quantummpv.app.ui.browser.components.BrowserTopBar
+import com.quantummpv.app.ui.browser.components.QueueInsertion
+import com.quantummpv.app.ui.browser.components.addVideosToPlaybackQueue
 import com.quantummpv.app.ui.browser.dialogs.AddToPlaylistDialog
 import com.quantummpv.app.ui.browser.fab.FabScrollHelper
 import com.quantummpv.app.ui.browser.dialogs.DeleteConfirmationDialog
@@ -266,6 +268,30 @@ fun MusicLibraryContent(
     MusicTab.PLAYLISTS -> playlistSelectionManager
     // Folders tab reuses FolderListScreen, which owns its own selection state.
     MusicTab.FOLDERS -> songSelectionManager
+  }
+
+  @Suppress("UNCHECKED_CAST")
+  fun selectedMusicVideos(): List<Video> {
+    val items = activeSelectionManager.getSelectedItems()
+    return when (selectedTab) {
+      MusicTab.SONGS -> (items as List<MusicSong>).map { song -> song.toVideo() }
+      MusicTab.ALBUMS -> {
+        val selectedAlbums = items as List<MusicAlbum>
+        songs
+          .filter { song ->
+            selectedAlbums.any { album -> song.albumId == album.id || song.album.equals(album.title, true) }
+          }.map { song -> song.toVideo() }
+      }
+      MusicTab.ARTISTS -> {
+        val selectedArtists = items as List<MusicArtist>
+        songs
+          .filter { song -> selectedArtists.any { artist -> song.artist.equals(artist.name, true) } }
+          .map { song -> song.toVideo() }
+      }
+      MusicTab.PLAYLISTS,
+      MusicTab.FOLDERS,
+      -> emptyList()
+    }
   }
 
   val visibleTabs by musicViewModel.visibleTabs.collectAsState()
@@ -1175,25 +1201,32 @@ fun MusicLibraryContent(
           onMoveClick = { },
           onRenameClick = { },
           onDeleteClick = { showDeleteSelectedDialog = true },
-          onAddToPlaylistClick = @Suppress("UNCHECKED_CAST") {
-            val items = activeSelectionManager.getSelectedItems()
-            val videosToAdd = when (selectedTab) {
-              MusicTab.SONGS -> (items as List<MusicSong>).map { it.toVideo() }
-              MusicTab.ALBUMS -> {
-                val selAlbums = items as List<MusicAlbum>
-                songs.filter { s -> selAlbums.any { a -> s.albumId == a.id || s.album.equals(a.title, ignoreCase = true) } }.map { it.toVideo() }
-              }
-              MusicTab.ARTISTS -> {
-                val selArtists = items as List<MusicArtist>
-                songs.filter { s -> selArtists.any { ar -> s.artist.equals(ar.name, ignoreCase = true) } }.map { it.toVideo() }
-              }
-              MusicTab.PLAYLISTS -> emptyList()
-              MusicTab.FOLDERS -> emptyList()
-            }
+          onAddToPlaylistClick = {
+            val videosToAdd = selectedMusicVideos()
             if (videosToAdd.isNotEmpty()) {
               selectedVideosForAddToPlaylist = videosToAdd
             }
           },
+          onPlayNextClick =
+            if (selectedTab != MusicTab.PLAYLISTS && selectedTab != MusicTab.FOLDERS) {
+              {
+                if (addVideosToPlaybackQueue(context, selectedMusicVideos(), QueueInsertion.PlayNext)) {
+                  activeSelectionManager.clear()
+                }
+              }
+            } else {
+              null
+            },
+          onAddToQueueClick =
+            if (selectedTab != MusicTab.PLAYLISTS && selectedTab != MusicTab.FOLDERS) {
+              {
+                if (addVideosToPlaybackQueue(context, selectedMusicVideos(), QueueInsertion.AddToEnd)) {
+                  activeSelectionManager.clear()
+                }
+              }
+            } else {
+              null
+            },
           showCopy = false,
           showMove = false,
           showRename = false,

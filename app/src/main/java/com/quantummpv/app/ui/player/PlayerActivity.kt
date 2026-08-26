@@ -1480,19 +1480,20 @@ class PlayerActivity :
     lifecycleScope.launch {
       repeatOnLifecycle(Lifecycle.State.STARTED) {
         PlaybackSession.queue
-          .map { queueState -> queueState.currentIndex to queueState.currentItem }
           .distinctUntilChanged()
-          .collect { (index, item) ->
+          .collect { queueState ->
+            val index = queueState.currentIndex
+            val item = queueState.currentItem
+            val queueChanged =
+              playlist.size != queueState.items.size ||
+                playlist.indices.any { position -> playlist[position].toString() != queueState.items[position].originalUri }
+            if (queueChanged) {
+              syncPlaylistFromSession(queueState)
+              viewModel.refreshPlaylistItems()
+            }
             if (item == null || index < 0 || index == playlistIndex) return@collect
 
-            val queueItems = PlaybackSession.queue.value.items
-            playlist = queueItems.map { queued -> Uri.parse(queued.originalUri) }
             playlistIndex = index
-            playlistWindowOffset = 0
-            playlistTotalCount = playlist.size
-            networkPlaylistPaths = queueItems.map { queued -> queued.networkSource?.relativePath.orEmpty() }
-            networkPlaylistTitles = queueItems.map { queued -> queued.title.orEmpty() }
-            networkPlaylistHeaders = queueItems.map(PlaybackItem::headers)
             networkPlaylistConnectionId = item.networkSource?.connectionId ?: -1L
             fileName = item.title?.takeIf { it.isNotBlank() } ?: getFileNameFromUri(Uri.parse(item.originalUri))
             legacyMediaIdentifier = PlaybackIdentity.forUri(item.originalUri)
@@ -1501,8 +1502,31 @@ class PlayerActivity :
             isReady = false
             viewModel.onVideoLoadStarted()
             viewModel.calculateVideoHash(Uri.parse(item.originalUri))
-            viewModel.refreshPlaylistItems()
           }
+      }
+    }
+  }
+
+  private fun syncPlaylistFromSession(queueState: PlaybackQueueState = PlaybackSession.queue.value) {
+    val queueItems = queueState.items
+    playlist = queueItems.map { item -> Uri.parse(item.originalUri) }
+    playlistWindowOffset = 0
+    playlistTotalCount = playlist.size
+    networkPlaylistPaths = queueItems.map { item -> item.networkSource?.relativePath.orEmpty() }
+    networkPlaylistTitles = queueItems.map { item -> item.title.orEmpty() }
+    networkPlaylistArtworkUrls = queueItems.map { item -> item.artworkUri.orEmpty() }
+    networkPlaylistHeaders = queueItems.map(PlaybackItem::headers)
+    networkPlaylistConnectionId = queueState.currentItem?.networkSource?.connectionId ?: -1L
+    isM3uPlaylist = queueState.isM3u
+
+    if (playlistItems.isNotEmpty()) {
+      val databaseItemsStillAligned =
+        playlistItems.size == queueItems.size &&
+          playlistItems.indices.all { index -> playlistItems[index].id == queueItems[index].playlistItemId }
+      if (!databaseItemsStillAligned) {
+        playlistItems = emptyList()
+        playlistEntity = null
+        playlistId = null
       }
     }
   }
@@ -6463,6 +6487,7 @@ class PlayerActivity :
   override fun playNextQueueItem() {
     if (!PlaybackSession.hasNext() || !beginMediaRequest()) return
     PlaybackSession.selectNext() ?: return
+    syncPlaylistFromSession()
     loadPlaylistItemInternal(
       index = PlaybackSession.queue.value.currentIndex,
       requestAlreadyStarted = true,
@@ -6475,6 +6500,7 @@ class PlayerActivity :
   override fun playPreviousQueueItem() {
     if (!PlaybackSession.hasPrevious() || !beginMediaRequest()) return
     PlaybackSession.selectPrevious() ?: return
+    syncPlaylistFromSession()
     loadPlaylistItemInternal(
       index = PlaybackSession.queue.value.currentIndex,
       requestAlreadyStarted = true,

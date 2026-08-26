@@ -95,6 +95,8 @@ import com.quantummpv.app.ui.browser.cards.VideoCardUiConfig
 import com.quantummpv.app.ui.browser.components.BrowserBottomBar
 import com.quantummpv.app.ui.browser.components.BrowserTopBar
 import com.quantummpv.app.ui.browser.components.ExpressiveScrollBar
+import com.quantummpv.app.ui.browser.components.QueueInsertion
+import com.quantummpv.app.ui.browser.components.addVideosToPlaybackQueue
 import com.quantummpv.app.ui.browser.components.fastScrollGlyph
 import com.quantummpv.app.ui.browser.dialogs.AddToPlaylistDialog
 import com.quantummpv.app.ui.browser.dialogs.DeleteConfirmationDialog
@@ -570,6 +572,16 @@ data class VideoListScreen(
             onRenameClick = { renameDialogOpen.value = true },
             onDeleteClick = { deleteDialogOpen.value = true },
             onAddToPlaylistClick = { addToPlaylistDialogOpen.value = true },
+            onPlayNextClick = {
+              if (addVideosToPlaybackQueue(context, selectionManager.getSelectedItems(), QueueInsertion.PlayNext)) {
+                selectionManager.clear()
+              }
+            },
+            onAddToQueueClick = {
+              if (addVideosToPlaybackQueue(context, selectionManager.getSelectedItems(), QueueInsertion.AddToEnd)) {
+                selectionManager.clear()
+              }
+            },
             showDownscale = selectionManager.getSelectedItems().let { items -> items.isNotEmpty() && items.none { it.isAudio } },
             showRename = selectionManager.selectedCount > 0,
             modifier =

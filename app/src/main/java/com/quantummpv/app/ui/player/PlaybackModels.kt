@@ -218,6 +218,16 @@ internal object PlaybackQueueReducer {
     return rebuildShuffle(previous.copy(items = reordered, currentIndex = newCurrentIndex))
   }
 
+  fun insertNext(
+    previous: PlaybackQueueState,
+    additions: List<PlaybackItem>,
+  ): PlaybackQueueState? = insert(previous, additions, playNext = true)
+
+  fun append(
+    previous: PlaybackQueueState,
+    additions: List<PlaybackItem>,
+  ): PlaybackQueueState? = insert(previous, additions, playNext = false)
+
   fun setRepeatMode(
     previous: PlaybackQueueState,
     repeatMode: RepeatMode,
@@ -310,6 +320,46 @@ internal object PlaybackQueueReducer {
         else -> null
       }
     }
+  }
+
+  private fun insert(
+    previous: PlaybackQueueState,
+    additions: List<PlaybackItem>,
+    playNext: Boolean,
+  ): PlaybackQueueState? {
+    if (additions.isEmpty() || previous.currentIndex !in previous.items.indices) return null
+
+    if (!previous.shuffleEnabled) {
+      val insertionIndex = if (playNext) previous.currentIndex + 1 else previous.items.size
+      val items = previous.items.toMutableList().apply { addAll(insertionIndex, additions) }
+      return previous.copy(
+        items = items,
+        isExplicitQueue = true,
+        isM3u = false,
+      )
+    }
+
+    val prepared =
+      if (previous.shuffleOrder.size == previous.items.size) {
+        previous
+      } else {
+        rebuildShuffle(previous)
+      }
+    val firstAddedIndex = prepared.items.size
+    val addedIndexes = additions.indices.map { firstAddedIndex + it }
+    val insertionPosition =
+      if (playNext) {
+        (prepared.shufflePosition + 1).coerceIn(0, prepared.shuffleOrder.size)
+      } else {
+        prepared.shuffleOrder.size
+      }
+    val shuffleOrder = prepared.shuffleOrder.toMutableList().apply { addAll(insertionPosition, addedIndexes) }
+    return prepared.copy(
+      items = prepared.items + additions,
+      isExplicitQueue = true,
+      isM3u = false,
+      shuffleOrder = shuffleOrder,
+    )
   }
 
   private fun rebuildShuffle(state: PlaybackQueueState): PlaybackQueueState {

@@ -526,6 +526,22 @@ object PlaybackSession : MPVLib.EventObserver {
       true
     }
 
+  fun insertQueueItemsNext(items: List<PlaybackItem>): Boolean =
+    nativeLock.withLock {
+      val next = PlaybackQueueReducer.insertNext(_queue.value, items) ?: return@withLock false
+      _queue.value = next
+      updateState { it.copy(currentItem = next.currentItem) }
+      true
+    }
+
+  fun appendQueueItems(items: List<PlaybackItem>): Boolean =
+    nativeLock.withLock {
+      val next = PlaybackQueueReducer.append(_queue.value, items) ?: return@withLock false
+      _queue.value = next
+      updateState { it.copy(currentItem = next.currentItem) }
+      true
+    }
+
   fun selectQueueItem(index: Int): PlaybackItem? =
     nativeLock.withLock {
       val next = PlaybackQueueReducer.select(_queue.value, index) ?: return@withLock null

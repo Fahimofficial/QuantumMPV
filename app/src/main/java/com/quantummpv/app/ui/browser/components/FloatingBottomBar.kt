@@ -61,6 +61,8 @@ fun BrowserBottomBar(
   onRenameClick: () -> Unit,
   onDeleteClick: () -> Unit,
   onAddToPlaylistClick: () -> Unit,
+  onPlayNextClick: (() -> Unit)? = null,
+  onAddToQueueClick: (() -> Unit)? = null,
   modifier: Modifier = Modifier,
   showCopy: Boolean = true,
   showMove: Boolean = true,
@@ -79,6 +81,8 @@ fun BrowserBottomBar(
   var lastShowRename by remember { mutableStateOf(showRename) }
   var lastShowDelete by remember { mutableStateOf(showDelete) }
   var lastShowAddToPlaylist by remember { mutableStateOf(showAddToPlaylist) }
+  var lastShowPlayNext by remember { mutableStateOf(onPlayNextClick != null) }
+  var lastShowAddToQueue by remember { mutableStateOf(onAddToQueueClick != null) }
 
   if (isSelectionMode) {
     lastShowCopy = showCopy
@@ -87,6 +91,8 @@ fun BrowserBottomBar(
     lastShowRename = showRename
     lastShowDelete = showDelete
     lastShowAddToPlaylist = showAddToPlaylist
+    lastShowPlayNext = onPlayNextClick != null
+    lastShowAddToQueue = onAddToQueueClick != null
   }
 
   val effectiveShowCopy = if (isSelectionMode) showCopy else lastShowCopy
@@ -95,6 +101,8 @@ fun BrowserBottomBar(
   val effectiveShowRename = if (isSelectionMode) showRename else lastShowRename
   val effectiveShowDelete = if (isSelectionMode) showDelete else lastShowDelete
   val effectiveShowAddToPlaylist = if (isSelectionMode) showAddToPlaylist else lastShowAddToPlaylist
+  val effectiveShowPlayNext = if (isSelectionMode) onPlayNextClick != null else lastShowPlayNext
+  val effectiveShowAddToQueue = if (isSelectionMode) onAddToQueueClick != null else lastShowAddToQueue
 
   AnimatedVisibility(
     visible = isSelectionMode,
@@ -126,6 +134,8 @@ fun BrowserBottomBar(
           effectiveShowMove,
           effectiveShowDownscale,
           effectiveShowRename,
+          effectiveShowPlayNext,
+          effectiveShowAddToQueue,
           effectiveShowAddToPlaylist,
           effectiveShowDelete,
         ).count { it }
@@ -184,6 +194,7 @@ fun BrowserBottomBar(
                 BarLayoutParams(48.dp, 24.dp, 10.dp, 8.dp, 4.dp, 12.dp, 6.dp), // Medium (Compact vertical)
                 BarLayoutParams(42.dp, 22.dp, 8.dp, 6.dp, 2.dp, 8.dp, 4.dp), // Small (Compact vertical)
                 BarLayoutParams(36.dp, 18.dp, 6.dp, 4.dp, 2.dp, 6.dp, 4.dp), // Tiny (Compact vertical)
+                BarLayoutParams(32.dp, 18.dp, 2.dp, 4.dp, 2.dp, 4.dp, 2.dp), // Narrow
               )
             options.firstOrNull { opt ->
               val totalWidth =
@@ -199,6 +210,7 @@ fun BrowserBottomBar(
                 BarLayoutParams(48.dp, 24.dp, 10.dp, 8.dp, 6.dp, 12.dp, 10.dp), // Medium
                 BarLayoutParams(42.dp, 22.dp, 8.dp, 6.dp, 4.dp, 8.dp, 8.dp), // Small
                 BarLayoutParams(36.dp, 18.dp, 6.dp, 4.dp, 4.dp, 6.dp, 6.dp), // Tiny
+                BarLayoutParams(32.dp, 18.dp, 2.dp, 4.dp, 4.dp, 4.dp, 4.dp), // Narrow
               )
             options.firstOrNull { opt ->
               val totalWidth =
@@ -261,6 +273,22 @@ fun BrowserBottomBar(
             onRenameClick,
             Icons.RoundedFilled.DriveFileRenameOutline,
             "Rename",
+            layoutParams.buttonSize,
+            layoutParams.iconSize,
+          )
+          BrowserBottomBarButton(
+            effectiveShowPlayNext,
+            onPlayNextClick ?: {},
+            Icons.RoundedFilled.SkipNext,
+            "Play Next",
+            layoutParams.buttonSize,
+            layoutParams.iconSize,
+          )
+          BrowserBottomBarButton(
+            effectiveShowAddToQueue,
+            onAddToQueueClick ?: {},
+            Icons.RoundedFilled.QueueMusic,
+            "Add to Queue",
             layoutParams.buttonSize,
             layoutParams.iconSize,
           )
