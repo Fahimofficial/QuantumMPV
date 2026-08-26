@@ -103,6 +103,11 @@ class RecentlyPlayedViewModel(
         }
       }
 
+      // Legacy/duplicate rows for the same file can still exist in the DB (e.g. from before a
+      // race-condition fix); collapse them so the LazyColumn never sees two items with the same
+      // key. allRecentEntities is ordered by timestamp DESC, so the first occurrence is the newest.
+      val distinctStandaloneVideos = standaloneVideos.distinctBy { it.first }
+
       // Create playlist items (excluding network/M3U playlists)
       for (playlistInfo in recentPlaylists) {
         val playlist = playlistRepository.getPlaylistById(playlistInfo.playlistId)
@@ -126,7 +131,7 @@ class RecentlyPlayedViewModel(
       }
 
       // Create standalone video items
-      for ((filePath, timestamp) in standaloneVideos) {
+      for ((filePath, timestamp) in distinctStandaloneVideos) {
         val entity = allRecentEntities.find { it.filePath == filePath }
 
         // Check if this is a network URL
