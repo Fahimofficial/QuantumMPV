@@ -11,63 +11,42 @@ package com.quantummpv.app.ui.player.controls
 
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
-import androidx.compose.ui.graphics.Color
+import androidx.compose.runtime.CompositionLocalProvider
 import com.quantummpv.app.ui.player.controls.components.LocalForceDarkPlayerButtonsBackground
+import com.quantummpv.app.ui.player.controls.components.LocalHidePlayerButtonsBackground
+import com.quantummpv.app.ui.theme.LocalDarkAppColorScheme
 
 /**
- * Applies a fixed dark palette to the complete player-button subtree.
+ * Carries the background visibility choice through every player-button implementation.
  *
- * A number of player controls are compound buttons rather than [ControlsButton] instances. Those
- * controls still read Material surface/content colors directly, so only styling ControlsButton
- * leaves titles, expanded frame controls, A-B loop controls, cast/chapter surfaces and other
- * compound controls inconsistent in light themes. Keeping the override scoped to button groups
- * makes the preference comprehensive without turning the rest of the player UI into a dark theme.
- *
- * The palette is intentionally theme-independent: Light/System/Dark app themes cannot recolor the
- * player-button surfaces or make their icons dark. Enabled content stays light and disabled states
- * are derived from that same light content via alpha.
+ * Color overrides are deliberately not applied to this complete subtree: top-player groups also
+ * contain status text and the audio player contains artwork, lyrics and sheets. Re-theming that
+ * whole hierarchy just to style its buttons caused unrelated UI to switch palette.
  */
 @Composable
 internal fun PlayerButtonTheme(
   hideBackground: Boolean,
   content: @Composable () -> Unit,
 ) {
-  if (hideBackground || !LocalForceDarkPlayerButtonsBackground.current) {
+  CompositionLocalProvider(
+    LocalHidePlayerButtonsBackground provides hideBackground,
+    content = content,
+  )
+}
+
+/** Applies the selected dark app palette only to the contents of one player button. */
+@Composable
+internal fun PlayerButtonContentTheme(content: @Composable () -> Unit) {
+  val useDarkPalette =
+    LocalForceDarkPlayerButtonsBackground.current && !LocalHidePlayerButtonsBackground.current
+  val darkColors = LocalDarkAppColorScheme.current
+  if (!useDarkPalette || darkColors == null) {
     content()
     return
   }
 
-  val colors = MaterialTheme.colorScheme
-  val darkSurface = Color.Black
-  val lightContent = Color.White
-
   MaterialTheme(
-    colorScheme =
-      colors.copy(
-        surface = darkSurface,
-        surfaceVariant = darkSurface,
-        surfaceContainerLowest = darkSurface,
-        surfaceContainerLow = darkSurface,
-        surfaceContainer = darkSurface,
-        surfaceContainerHigh = darkSurface,
-        surfaceContainerHighest = darkSurface,
-        onSurface = lightContent,
-        onSurfaceVariant = lightContent.copy(alpha = 0.82f),
-        outline = lightContent.copy(alpha = 0.30f),
-        outlineVariant = lightContent.copy(alpha = 0.20f),
-        primary = lightContent,
-        onPrimary = darkSurface,
-        primaryContainer = darkSurface,
-        onPrimaryContainer = lightContent,
-        secondary = lightContent,
-        onSecondary = darkSurface,
-        secondaryContainer = darkSurface,
-        onSecondaryContainer = lightContent,
-        tertiary = lightContent,
-        onTertiary = darkSurface,
-        tertiaryContainer = darkSurface,
-        onTertiaryContainer = lightContent,
-      ),
+    colorScheme = darkColors,
     typography = MaterialTheme.typography,
     shapes = MaterialTheme.shapes,
     content = content,

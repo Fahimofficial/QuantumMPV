@@ -47,6 +47,9 @@ import com.quantummpv.app.ui.player.PlayerViewModel
 import com.quantummpv.app.ui.player.Sheets
 import com.quantummpv.app.ui.player.VideoAspect
 import com.quantummpv.app.ui.player.controls.components.ControlsButton
+import com.quantummpv.app.ui.player.controls.components.playerButtonBorderColor
+import com.quantummpv.app.ui.player.controls.components.playerButtonContainerColor
+import com.quantummpv.app.ui.player.controls.components.playerButtonContentColor
 import com.quantummpv.app.ui.theme.controlColor
 import com.quantummpv.app.ui.theme.spacing
 import dev.vivvvek.seeker.Segment
@@ -78,7 +81,7 @@ fun TopLeftPlayerControlsLandscape(
         ControlsButton(
           icon = Icons.RoundedFilled.ArrowBack,
           onClick = onBackPress,
-          color = if (hideBackground) controlColor else MaterialTheme.colorScheme.onSurface,
+          color = if (hideBackground) controlColor else playerButtonContentColor(),
           modifier = Modifier.size(45.dp),
         )
 
@@ -106,21 +109,16 @@ fun TopLeftPlayerControlsLandscape(
                 if (hideBackground) {
                   Color.Transparent
                 } else {
-                  MaterialTheme.colorScheme.surfaceContainer.copy(
-                    alpha = 0.55f,
-                  )
+                  playerButtonContainerColor()
                 },
-              contentColor = if (hideBackground) controlColor else MaterialTheme.colorScheme.onSurface,
+              contentColor = if (hideBackground) controlColor else playerButtonContentColor(),
               tonalElevation = 0.dp,
               shadowElevation = 0.dp,
               border =
                 if (hideBackground) {
                   null
                 } else {
-                  BorderStroke(
-                    1.dp,
-                    MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f),
-                  )
+                  BorderStroke(1.dp, playerButtonBorderColor())
                 },
             ) {
               Row(

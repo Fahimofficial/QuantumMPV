@@ -18,11 +18,11 @@ import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.material3.ColorScheme
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.ripple
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.Alignment
@@ -31,14 +31,12 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
-import com.quantummpv.app.preferences.AppearancePreferences
-import com.quantummpv.app.preferences.preference.collectAsState
 import com.quantummpv.app.ui.icons.AppIcon
 import com.quantummpv.app.ui.icons.Icon
 import com.quantummpv.app.ui.icons.Icons
 import com.quantummpv.app.ui.player.controls.LocalPlayerButtonsClickEvent
+import com.quantummpv.app.ui.theme.LocalDarkAppColorScheme
 import com.quantummpv.app.ui.theme.spacing
-import org.koin.compose.koinInject
 
 @Suppress("CompositionLocalAllowlist")
 internal val LocalForceDarkPlayerButtonsBackground = staticCompositionLocalOf { false }
@@ -47,29 +45,22 @@ internal val LocalForceDarkPlayerButtonsBackground = staticCompositionLocalOf { 
 internal val LocalHidePlayerButtonsBackground = staticCompositionLocalOf { false }
 
 @Composable
-internal fun playerButtonContainerColor(
-  forceDark: Boolean = LocalForceDarkPlayerButtonsBackground.current,
-): Color =
-  if (forceDark) {
-    Color.Black.copy(alpha = 0.72f)
-  } else {
-    MaterialTheme.colorScheme.surfaceContainer.copy(alpha = 0.55f)
-  }
+private fun playerButtonColorScheme(
+  forceDark: Boolean =
+    LocalForceDarkPlayerButtonsBackground.current && !LocalHidePlayerButtonsBackground.current,
+): ColorScheme =
+  if (forceDark) LocalDarkAppColorScheme.current ?: MaterialTheme.colorScheme else MaterialTheme.colorScheme
 
 @Composable
-internal fun playerButtonContentColor(
-  forceDark: Boolean = LocalForceDarkPlayerButtonsBackground.current,
-): Color = if (forceDark) Color.White else MaterialTheme.colorScheme.onSurface
+internal fun playerButtonContainerColor(): Color =
+  playerButtonColorScheme().surfaceContainer.copy(alpha = 0.55f)
 
 @Composable
-internal fun playerButtonBorderColor(
-  forceDark: Boolean = LocalForceDarkPlayerButtonsBackground.current,
-): Color =
-  if (forceDark) {
-    Color.White.copy(alpha = 0.20f)
-  } else {
-    MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f)
-  }
+internal fun playerButtonContentColor(): Color = playerButtonColorScheme().onSurface
+
+@Composable
+internal fun playerButtonBorderColor(): Color =
+  playerButtonColorScheme().outlineVariant.copy(alpha = 0.4f)
 
 @Suppress("ModifierClickableOrder")
 @OptIn(ExperimentalFoundationApi::class)
@@ -84,16 +75,8 @@ fun ControlsButton(
   enabled: Boolean = true,
 ) {
   val interactionSource = remember { MutableInteractionSource() }
-  val appearancePreferences = koinInject<AppearancePreferences>()
-  val hideBackground by appearancePreferences.hidePlayerButtonsBackground.collectAsState()
-  val forceDarkBackground by appearancePreferences.forceDarkPlayerButtonsBackground.collectAsState()
-  val useDarkBackground = forceDarkBackground || LocalForceDarkPlayerButtonsBackground.current
-  val resolvedColor =
-    if (useDarkBackground && !hideBackground) {
-      playerButtonContentColor(forceDark = true)
-    } else {
-      color ?: playerButtonContentColor(useDarkBackground)
-    }
+  val hideBackground = LocalHidePlayerButtonsBackground.current
+  val resolvedColor = color ?: playerButtonContentColor()
 
   val clickEvent = LocalPlayerButtonsClickEvent.current
   Surface(
@@ -111,7 +94,7 @@ fun ControlsButton(
           indication = ripple(),
         ),
     shape = CircleShape,
-    color = if (hideBackground) Color.Transparent else playerButtonContainerColor(useDarkBackground),
+    color = if (hideBackground) Color.Transparent else playerButtonContainerColor(),
     contentColor = resolvedColor,
     tonalElevation = 0.dp,
     shadowElevation = 0.dp,
@@ -121,7 +104,7 @@ fun ControlsButton(
       } else {
         BorderStroke(
           1.dp,
-          playerButtonBorderColor(useDarkBackground),
+          playerButtonBorderColor(),
         )
       },
   ) {

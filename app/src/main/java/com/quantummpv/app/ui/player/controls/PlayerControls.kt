@@ -351,15 +351,13 @@ fun PlayerControls(
         LocalForceDarkPlayerButtonsBackground provides forceDarkButtonBackground,
         LocalHidePlayerButtonsBackground provides hideBackground,
       ) {
-        PlayerButtonTheme(hideBackground) {
-          AudioPlayerControls(
-            viewModel = viewModel,
-            mediaTitle = mediaTitle,
-            onBackPress = onBackPress,
-            onOpenSheet = onOpenSheet,
-            onOpenPanel = onOpenPanel,
-          )
-        }
+        AudioPlayerControls(
+          viewModel = viewModel,
+          mediaTitle = mediaTitle,
+          onBackPress = onBackPress,
+          onOpenSheet = onOpenSheet,
+          onOpenPanel = onOpenPanel,
+        )
       }
 
       PlayerSheets(
@@ -1359,7 +1357,7 @@ fun PlayerControls(
                         if (hideBackground) {
                           controlColor.copy(alpha = 0.38f)
                         } else {
-                          MaterialTheme.colorScheme.onSurface.copy(alpha = 0.38f)
+                          playerButtonContentColor().copy(alpha = 0.38f)
                         }
                       },
                     modifier =
@@ -1460,7 +1458,7 @@ fun PlayerControls(
                         if (hideBackground) {
                           controlColor.copy(alpha = 0.38f)
                         } else {
-                          MaterialTheme.colorScheme.onSurface.copy(alpha = 0.38f)
+                          playerButtonContentColor().copy(alpha = 0.38f)
                         }
                       },
                     modifier =

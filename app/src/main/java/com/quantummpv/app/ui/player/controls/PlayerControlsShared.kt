@@ -110,11 +110,12 @@ fun RenderPlayerButton(
   activity: PlayerActivity,
   buttonSize: Dp = 40.dp,
 ) {
-  val clickEvent = LocalPlayerButtonsClickEvent.current
-  val advancedPreferences = koinInject<AdvancedPreferences>()
-  val playerPreferences = koinInject<PlayerPreferences>()
-  val statisticsPage by advancedPreferences.enabledStatisticsPage.collectAsState()
-  when (button) {
+  PlayerButtonContentTheme {
+    val clickEvent = LocalPlayerButtonsClickEvent.current
+    val advancedPreferences = koinInject<AdvancedPreferences>()
+    val playerPreferences = koinInject<PlayerPreferences>()
+    val statisticsPage by advancedPreferences.enabledStatisticsPage.collectAsState()
+    when (button) {
     PlayerButton.BACK_ARROW -> {
       ControlsButton(
         icon = Icons.RoundedFilled.ArrowBack,
@@ -1200,7 +1201,8 @@ fun RenderPlayerButton(
       }
     }
 
-    PlayerButton.NONE -> { // Do nothing
+      PlayerButton.NONE -> { // Do nothing
+      }
     }
   }
 }
