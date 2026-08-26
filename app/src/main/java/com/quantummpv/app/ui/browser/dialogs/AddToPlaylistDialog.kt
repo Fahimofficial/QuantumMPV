@@ -75,7 +75,7 @@ fun AddToPlaylistDialog(
 
   androidx.compose.runtime.LaunchedEffect(isOpen, isAudio, isJellyfin) {
     if (isOpen) {
-      viewModel.loadPlaylists(isAudio = isAudio, isJellyfin = isJellyfin)
+      viewModel.loadPlaylists(isAudio = null, isJellyfin = isJellyfin)
     }
   }
 

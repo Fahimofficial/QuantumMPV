@@ -64,7 +64,7 @@ class PlaylistViewModel(
     viewModelScope.launch(Dispatchers.IO) {
       try {
         // Get initial cached data synchronously
-        val cachedPlaylists = repository.getAllPlaylists(isAudio = false)
+        val cachedPlaylists = repository.getAllPlaylists()
         if (cachedPlaylists.isNotEmpty()) {
           // Show cached data immediately (without video counts for speed)
           val quickLoad =
@@ -86,7 +86,7 @@ class PlaylistViewModel(
 
     // Then observe for updates with actual counts
     viewModelScope.launch(Dispatchers.IO) {
-      repository.observeAllPlaylists(isAudio = false).collectLatest { playlistsFromDb ->
+      repository.observeAllPlaylists().collectLatest { playlistsFromDb ->
         val sortedPlaylists =
           playlistsFromDb.sortedWith(
             compareByDescending<PlaylistEntity> { repository.isProtectedPlaylist(it) }
@@ -136,7 +136,7 @@ class PlaylistViewModel(
     viewModelScope.launch(Dispatchers.IO) {
       try {
         _isLoading.value = true
-        val playlistsFromDb = repository.getAllPlaylists(isAudio = false)
+        val playlistsFromDb = repository.getAllPlaylists()
         val sortedPlaylists = playlistsFromDb.sortedBy { it.name.lowercase() }
 
         val playlistsWithCounts =
