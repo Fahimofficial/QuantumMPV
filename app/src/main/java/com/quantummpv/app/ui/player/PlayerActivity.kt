@@ -7404,14 +7404,15 @@ class PlayerActivity :
             ?.let { userAgent -> mapOf("User-Agent" to userAgent) }
             .orEmpty()
         val headers = buildPlaybackHeaders(uri, networkPlaylistHeaders.getOrNull(index).orEmpty(), storedHeaders)
-        val existingArtwork =
-          existingQueueItems.firstOrNull { it.originalUri == uri.toString() || it.playableUri == uri.toString() }?.artworkUri
+        val existingItem =
+          existingQueueItems.firstOrNull { it.originalUri == uri.toString() || it.playableUri == uri.toString() }
 
         PlaybackItem.fromUri(
           uri = uri.toString(),
           stableId =
             if (networkSource == null) uri.resolveLocalPath(this)?.let(PlaybackIdentity::forLocalPath) else null,
           title = title,
+          artist = existingItem?.artist,
           mimeType = launchMimeType,
           headers = headers,
           networkSource = networkSource,
@@ -7419,8 +7420,9 @@ class PlayerActivity :
           artworkUri =
             databaseItem?.tvgLogo?.takeIf { it.isNotBlank() }
               ?: networkPlaylistArtworkUrls.getOrNull(index)?.takeIf { it.isNotBlank() }
-              ?: existingArtwork
+              ?: existingItem?.artworkUri
               ?: (if (index == playlistIndex) launchPosterUrl else null),
+          durationSeconds = existingItem?.durationSeconds,
         )
       }
 

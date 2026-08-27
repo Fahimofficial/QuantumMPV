@@ -566,11 +566,7 @@ Siguiente: NEXT</string>
   <string name="playlist_add_remote_title">Añadir lista de reproducción</string>
   <string name="playlist_remote_url_hint">Admite M3U/M3U8 y listas web como YouTube</string>
   <string name="playlist_import_success">Lista guardada en Listas de reproducción</string>
-  <string name="playlist_import_success_detail">%1$s se guardó con %2$d vídeos en Listas de reproducción</string>
   <string name="playlist_import_error">No se pudo añadir la lista: %1$s</string>
-  <string name="playlist_import_playback_fallback">No se pudo añadir la lista: %1$s. Se abrirá el enlace.</string>
-  <string name="playlist_importing">Importando…</string>
-  <string name="playlist_import_and_play">Importar y reproducir</string>
   <string name="pref_player_safe_area_window_title">Ventana de área segura</string>
   <string name="pref_player_safe_area_window_summary">Desplazar los controles y estadísticas del reproductor alrededor de los recortes de la cámara.</string>
   <string name="pref_subtitles_search_mode_title">Modo de búsqueda</string>

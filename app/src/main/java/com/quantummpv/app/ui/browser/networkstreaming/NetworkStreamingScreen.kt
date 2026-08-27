@@ -45,6 +45,7 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExtendedFloatingActionButton
 import androidx.compose.material3.HorizontalDivider
@@ -97,6 +98,7 @@ import com.quantummpv.app.domain.torrent.TorrentStreamingEngine
 import com.quantummpv.app.domain.torrent.formatTorrentBytes
 import com.quantummpv.app.domain.torrent.isTorrentSource
 import com.quantummpv.app.domain.torrent.normalizeTorrentSource
+import com.quantummpv.app.preferences.YtdlPreferences
 import com.quantummpv.app.presentation.Screen
 import com.quantummpv.app.presentation.components.RemoteImage
 import com.quantummpv.app.repository.wyzie.WyzieSearchRepository
@@ -143,6 +145,7 @@ object NetworkStreamingScreen : Screen {
       viewModel(factory = NetworkStreamingViewModel.factory(context.applicationContext as android.app.Application))
     val torrentStreamingEngine = koinInject<TorrentStreamingEngine>()
     val streamEntryRepository = koinInject<NetworkStreamEntryRepository>()
+    val ytdlPreferences = koinInject<YtdlPreferences>()
     val wyzieSearchRepository = koinInject<WyzieSearchRepository>()
     val torrentPickerViewModel: TorrentSelectionViewModel =
       viewModel(
@@ -174,10 +177,29 @@ object NetworkStreamingScreen : Screen {
     var ytdlpInstallLastLog by remember { mutableStateOf("") }
     var ytdlpInstallError by remember { mutableStateOf<String?>(null) }
     var ytdlpInstallJob by remember { mutableStateOf<Job?>(null) }
+    var linkPlaybackJob by remember { mutableStateOf<Job?>(null) }
 
     fun proceedToPlay(url: String) {
-      viewModel.recordSubmittedLink(url)
-      MediaUtils.playFile(url, context, "network_stream")
+      if (linkPlaybackJob?.isActive == true) return
+      linkPlaybackJob =
+        coroutineScope.launch {
+          try {
+            val extractedPlaylist =
+              if (YtdlpManager.isPotentialPlaylistUrl(url)) {
+                YtdlpManager.extractPlaylist(context, url, ytdlPreferences).getOrNull()
+              } else {
+                null
+              }
+            viewModel.recordSubmittedLink(url)
+            if (extractedPlaylist != null) {
+              YtdlpManager.playPlaylist(context, extractedPlaylist, "network_stream")
+            } else {
+              MediaUtils.playFile(url, context, "network_stream")
+            }
+          } finally {
+            linkPlaybackJob = null
+          }
+        }
     }
 
     fun playLinkGatingYtdlp(url: String) {
@@ -415,6 +437,10 @@ object NetworkStreamingScreen : Screen {
                 connections = filteredConnections,
                 connectionStatuses = connectionStatuses,
                 recentLinks = filteredRecentLinks,
+                isPreparingLink =
+                  showYtdlpInstallPrompt ||
+                    showYtdlpInstallProgress ||
+                    linkPlaybackJob?.isActive == true,
                 onPlayLink = { url ->
                   val playableSource = normalizeTorrentSource(url) ?: url.trim()
                   if (isTorrentSource(playableSource)) {
@@ -677,6 +703,7 @@ private fun LocalNetworkContent(
   connections: List<NetworkConnection>,
   connectionStatuses: Map<Long, ConnectionStatus>,
   recentLinks: List<NetworkStreamEntryEntity>,
+  isPreparingLink: Boolean,
   onPlayLink: (String) -> Unit,
   onPlayRecent: (NetworkStreamEntryEntity) -> Unit,
   onSaveToMedia: (NetworkStreamEntryEntity) -> Unit,
@@ -698,6 +725,7 @@ private fun LocalNetworkContent(
     item {
       StreamLinkSection(
         recentLinks = recentLinks,
+        isPreparing = isPreparingLink,
         onPlayLink = onPlayLink,
         onPlayRecent = onPlayRecent,
         onSaveToTorrent = onSaveToMedia,
@@ -951,6 +979,7 @@ private fun EmptyStateCard(
 @Composable
 private fun StreamLinkSection(
   recentLinks: List<NetworkStreamEntryEntity>,
+  isPreparing: Boolean,
   onPlayLink: (String) -> Unit,
   onPlayRecent: (NetworkStreamEntryEntity) -> Unit,
   onSaveToTorrent: (NetworkStreamEntryEntity) -> Unit,
@@ -1014,6 +1043,7 @@ private fun StreamLinkSection(
         OutlinedTextField(
           value = linkUrl,
           onValueChange = { linkUrl = it },
+          enabled = !isPreparing,
           modifier = Modifier.weight(1f),
           placeholder = {
             Text(
@@ -1033,7 +1063,7 @@ private fun StreamLinkSection(
             Row(
               verticalAlignment = Alignment.CenterVertically,
             ) {
-              IconButton(onClick = { pasteFromClipboard() }) {
+              IconButton(onClick = { pasteFromClipboard() }, enabled = !isPreparing) {
                 Icon(
                   imageVector = Icons.RoundedFilled.ContentPaste,
                   contentDescription = stringResource(R.string.ui_paste_stream_url),
@@ -1041,7 +1071,7 @@ private fun StreamLinkSection(
                 )
               }
               if (linkUrl.isNotBlank()) {
-                IconButton(onClick = { linkUrl = "" }) {
+                IconButton(onClick = { linkUrl = "" }, enabled = !isPreparing) {
                   Icon(
                     imageVector = Icons.RoundedFilled.Close,
                     contentDescription = stringResource(R.string.ui_clear_stream_url),
@@ -1069,7 +1099,7 @@ private fun StreamLinkSection(
         Spacer(modifier = Modifier.size(6.dp))
         Button(
           onClick = { playCurrentLink() },
-          enabled = linkUrl.isNotBlank(),
+          enabled = linkUrl.isNotBlank() && !isPreparing,
           contentPadding = PaddingValues(12.dp),
           shape = RoundedCornerShape(14.dp),
           colors =
@@ -1081,11 +1111,18 @@ private fun StreamLinkSection(
               contentDescription = playStreamContentDescription
             },
         ) {
-          Icon(
-            imageVector = Icons.RoundedFilled.PlayArrow,
-            contentDescription = null,
-            modifier = Modifier.size(20.dp),
-          )
+          if (isPreparing) {
+            CircularProgressIndicator(
+              modifier = Modifier.size(20.dp),
+              strokeWidth = 2.dp,
+            )
+          } else {
+            Icon(
+              imageVector = Icons.RoundedFilled.PlayArrow,
+              contentDescription = null,
+              modifier = Modifier.size(20.dp),
+            )
+          }
         }
       }
     }

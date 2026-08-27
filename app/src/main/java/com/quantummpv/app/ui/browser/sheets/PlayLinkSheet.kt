@@ -22,6 +22,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.BottomSheetDefaults
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -41,10 +42,10 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.core.net.toUri
-import com.quantummpv.app.database.repository.PlaylistRepository
 import com.quantummpv.app.database.repository.NetworkStreamEntryRepository
 import com.quantummpv.app.domain.torrent.isTorrentSource
 import com.quantummpv.app.domain.torrent.normalizeTorrentSource
+import com.quantummpv.app.preferences.YtdlPreferences
 import com.quantummpv.app.ui.icons.Icon
 import com.quantummpv.app.ui.icons.Icons
 import com.quantummpv.app.ui.player.ytdlp.YtdlpManager
@@ -71,7 +72,7 @@ fun PlayLinkSheet(
   var isSubmitting by remember { mutableStateOf(false) }
   val coroutineScope = rememberCoroutineScope()
   val context = LocalContext.current
-  val playlistRepository = koinInject<PlaylistRepository>()
+  val ytdlPreferences = koinInject<YtdlPreferences>()
   val streamEntryRepository = koinInject<NetworkStreamEntryRepository>()
 
   val handleDismiss = { onDismiss() }
@@ -89,55 +90,35 @@ fun PlayLinkSheet(
       isSubmitting = true
       coroutineScope.launch {
         try {
-          if (isPlaylistInput) {
-            val importResult = playlistRepository.createM3UPlaylist(playableSource)
-            val playlistId = importResult.getOrNull()?.toInt()
-            if (playlistId != null) {
-              val playlistName = playlistRepository.getPlaylistById(playlistId)?.name.orEmpty()
-              val itemCount = playlistRepository.getPlaylistItemCount(playlistId)
-              android.widget.Toast
-                .makeText(
-                  context,
-                  context.getString(
-                    com.quantummpv.app.R.string.playlist_import_success_detail,
-                    playlistName,
-                    itemCount,
-                  ),
-                  android.widget.Toast.LENGTH_SHORT,
-                ).show()
+          val extractedPlaylist =
+            if (isPlaylistInput) {
+              YtdlpManager.extractPlaylist(context, playableSource, ytdlPreferences).getOrNull()
             } else {
-              val error = importResult.exceptionOrNull()
-              android.widget.Toast
-                .makeText(
-                  context,
-                  context.getString(
-                    com.quantummpv.app.R.string.playlist_import_playback_fallback,
-                    error?.message ?: context.getString(com.quantummpv.app.R.string.generic_unknown_error),
-                  ),
-                  android.widget.Toast.LENGTH_LONG,
-                ).show()
+              null
             }
-          }
-
-          val name = MediaInfoParser.parseStreamTitle(playableSource)
-          if (!isTorrentSource(playableSource)) {
+          val firstEntry = extractedPlaylist?.entries?.firstOrNull()
+          val selectedSource = firstEntry?.url ?: playableSource
+          val selectedName = firstEntry?.title ?: MediaInfoParser.parseStreamTitle(playableSource)
+          if (!isTorrentSource(selectedSource)) {
             try {
               RecentlyPlayedOps.addRecentlyPlayed(
-                filePath = playableSource,
-                fileName = name,
+                filePath = selectedSource,
+                fileName = selectedName,
                 launchSource = "play_link",
               )
               streamEntryRepository.saveNormalEntry(
-                canonicalSourceUri = playableSource,
-                fileName = name,
+                canonicalSourceUri = selectedSource,
+                fileName = selectedName,
+                posterUrl = firstEntry?.thumbnailUrl,
+                backdropUrl = firstEntry?.thumbnailUrl,
               )
 
-              val uri = runCatching { android.net.Uri.parse(playableSource) }.getOrNull()
-              if (com.quantummpv.app.utils.media.HttpUtils.isYouTubeUrl(uri)) {
+              val uri = runCatching { android.net.Uri.parse(selectedSource) }.getOrNull()
+              if (firstEntry == null && com.quantummpv.app.utils.media.HttpUtils.isYouTubeUrl(uri)) {
                 val ytMeta = com.quantummpv.app.utils.media.HttpUtils.fetchYouTubeMetadata(playableSource)
                 if (ytMeta != null && ytMeta.title.isNotBlank()) {
                   RecentlyPlayedOps.updateVideoMetadata(
-                    filePath = playableSource,
+                    filePath = selectedSource,
                     videoTitle = ytMeta.title,
                     duration = 0L,
                     fileSize = 0L,
@@ -145,7 +126,7 @@ fun PlayLinkSheet(
                     height = 0,
                   )
                   streamEntryRepository.saveNormalEntry(
-                    canonicalSourceUri = playableSource,
+                    canonicalSourceUri = selectedSource,
                     fileName = ytMeta.title,
                     posterUrl = ytMeta.thumbnailUrl,
                     backdropUrl = ytMeta.thumbnailUrl,
@@ -158,7 +139,11 @@ fun PlayLinkSheet(
               // Playback must still open even if optional history persistence fails.
             }
           }
-          onPlayLink(playableSource)
+          if (extractedPlaylist != null) {
+            YtdlpManager.playPlaylist(context, extractedPlaylist, "play_link")
+          } else {
+            onPlayLink(playableSource)
+          }
           onDismiss()
         } finally {
           isSubmitting = false
@@ -256,17 +241,17 @@ fun PlayLinkSheet(
               containerColor = MaterialTheme.colorScheme.primary,
             ),
         ) {
-          Text(
-            text =
-              when {
-                isSubmitting && isPlaylistInput ->
-                  androidx.compose.ui.res.stringResource(com.quantummpv.app.R.string.playlist_importing)
-                isPlaylistInput ->
-                  androidx.compose.ui.res.stringResource(com.quantummpv.app.R.string.playlist_import_and_play)
-                else -> androidx.compose.ui.res.stringResource(com.quantummpv.app.R.string.ui_play)
-              },
-            fontWeight = FontWeight.SemiBold,
-          )
+          if (isSubmitting) {
+            CircularProgressIndicator(
+              modifier = Modifier.height(18.dp).width(18.dp),
+              strokeWidth = 2.dp,
+            )
+          } else {
+            Text(
+              text = androidx.compose.ui.res.stringResource(com.quantummpv.app.R.string.ui_play),
+              fontWeight = FontWeight.SemiBold,
+            )
+          }
         }
       }
 

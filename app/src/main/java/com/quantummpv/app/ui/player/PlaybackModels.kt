@@ -53,6 +53,7 @@ data class PlaybackItem(
   val networkSource: NetworkPlaybackSource? = null,
   val playlistItemId: Int? = null,
   val artworkUri: String? = null,
+  val durationSeconds: Int? = null,
   /** File index inside a multi-file torrent; lets a series episode restart its stream. */
   val torrentFileIndex: Int? = null,
 ) {
@@ -71,6 +72,7 @@ data class PlaybackItem(
       networkSource: NetworkPlaybackSource? = null,
       playlistItemId: Int? = null,
       artworkUri: String? = null,
+      durationSeconds: Int? = null,
     ): PlaybackItem =
       PlaybackItem(
         stableId =
@@ -86,6 +88,7 @@ data class PlaybackItem(
         networkSource = networkSource,
         playlistItemId = playlistItemId,
         artworkUri = artworkUri,
+        durationSeconds = durationSeconds,
       )
   }
 }

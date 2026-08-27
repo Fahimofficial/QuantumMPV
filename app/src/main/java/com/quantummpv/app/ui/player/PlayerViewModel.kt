@@ -5147,10 +5147,7 @@ class PlayerViewModel : ViewModel(),
 
   // ==================== Playlist Management ====================
 
-  fun hasPlaylistSupport(): Boolean {
-    val playlistModeEnabled = playerPreferences.playlistMode.get()
-    return playlistModeEnabled && PlaybackSession.queue.value.isExplicitQueue
-  }
+  fun hasPlaylistSupport(): Boolean = PlaybackSession.queue.value.isExplicitQueue
 
   fun getPlaylistInfo(): String? {
     val queue = PlaybackSession.queue.value
@@ -5198,11 +5195,19 @@ class PlayerViewModel : ViewModel(),
 
       // Try to get from cache first (synchronized access)
       val cacheKey = resolvedUri.toString()
-      val (durationStr, resolutionStr) = synchronized(metadataCache) { metadataCache[cacheKey] } ?: ("" to "")
+      val extractedDuration =
+        item.durationSeconds
+          ?.takeIf { seconds -> seconds > 0 }
+          ?.let { seconds -> formatDuration(seconds * 1000L) }
+          .orEmpty()
+      val (durationStr, resolutionStr) =
+        synchronized(metadataCache) { metadataCache[cacheKey] }
+          ?: (extractedDuration to "")
 
       com.quantummpv.app.ui.player.controls.components.sheets.PlaylistItem(
         uri = resolvedUri,
         title = title,
+        artist = item.artist.orEmpty(),
         index = index,
         isPlaying = isCurrentlyPlaying,
         path = path,
@@ -5530,7 +5535,7 @@ class PlayerViewModel : ViewModel(),
             val startIndex = maxOf(0, currentIndex - PLAYLIST_METADATA_PREFETCH_RADIUS)
             val endIndex = minOf(items.lastIndex, currentIndex + PLAYLIST_METADATA_PREFETCH_RADIUS)
             items.subList(startIndex, endIndex + 1)
-          }
+          }.filter { item -> queue.items.getOrNull(item.index)?.durationSeconds == null }
 
         // Limit concurrent metadata extraction to avoid overwhelming resources
         val batchSize = 5

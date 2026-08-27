@@ -568,11 +568,7 @@
   <string name="playlist_add_remote_title">添加播放列表</string>
   <string name="playlist_remote_url_hint">支持 M3U/M3U8 和 YouTube 等网络播放列表</string>
   <string name="playlist_import_success">播放列表已保存到“播放列表”</string>
-  <string name="playlist_import_success_detail">%1$s 已保存到“播放列表”，共 %2$d 个视频</string>
   <string name="playlist_import_error">无法添加播放列表：%1$s</string>
-  <string name="playlist_import_playback_fallback">无法添加播放列表：%1$s。将改为打开链接。</string>
-  <string name="playlist_importing">正在导入…</string>
-  <string name="playlist_import_and_play">导入并播放</string>
   <string name="pref_player_safe_area_window_title">安全区域窗口</string>
   <string name="pref_player_safe_area_window_summary">将播放器控制和统计信息避开摄像头挖孔向内缩进。</string>
   <string name="pref_subtitles_search_mode_title">搜索模式</string>

@@ -635,11 +635,7 @@
   <string name="playlist_add_remote_title">Add Playlist</string>
   <string name="playlist_remote_url_hint">Supports M3U/M3U8 and web playlists such as YouTube</string>
   <string name="playlist_import_success">Playlist saved in Playlists</string>
-  <string name="playlist_import_success_detail">%1$s saved with %2$d videos in Playlists</string>
   <string name="playlist_import_error">Failed to add playlist: %1$s</string>
-  <string name="playlist_import_playback_fallback">Couldn’t add playlist: %1$s. Opening the link instead.</string>
-  <string name="playlist_importing">Importing…</string>
-  <string name="playlist_import_and_play">Import &amp; Play</string>
   <string name="pref_player_safe_area_window_title">Safe Area Window</string>
   <string name="pref_player_safe_area_window_summary">Inset player controls and statistics around camera cutouts.</string>
   <string name="pref_subtitles_search_mode_title">Search mode</string>

@@ -18,6 +18,7 @@ import com.quantummpv.app.preferences.SubtitlesPreferences
 import com.quantummpv.app.preferences.YtdlPreferences
 import com.quantummpv.app.ui.player.PlaybackSession
 import com.quantummpv.app.utils.media.HttpUtils
+import com.quantummpv.app.utils.media.MediaUtils
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
@@ -37,6 +38,7 @@ data class YtdlpPlaylistEntry(
   val id: String?,
   val url: String,
   val title: String,
+  val artist: String?,
   val thumbnailUrl: String?,
   val durationSeconds: Int,
 )
@@ -146,6 +148,28 @@ object YtdlpManager {
         .toString()
     }
     return uri.buildUpon().fragment(null).build().toString()
+  }
+
+  fun playPlaylist(
+    context: Context,
+    playlist: YtdlpPlaylistMetadata,
+    launchSource: String,
+  ) {
+    val firstEntry = playlist.entries.firstOrNull() ?: return
+    MediaUtils.playFile(
+      source = firstEntry.url,
+      context = context,
+      launchSource = launchSource,
+      title = firstEntry.title,
+      mediaDescription = playlist.title,
+      posterUrl = firstEntry.thumbnailUrl,
+      playlist = playlist.entries.map { entry -> Uri.parse(entry.url) },
+      playlistIndex = 0,
+      playlistTitles = playlist.entries.map { entry -> entry.title },
+      playlistArtists = playlist.entries.map { entry -> entry.artist.orEmpty() },
+      playlistArtworkUrls = playlist.entries.map { entry -> entry.thumbnailUrl.orEmpty() },
+      playlistDurationsSeconds = playlist.entries.map { entry -> entry.durationSeconds },
+    )
   }
 
   suspend fun extractPlaylist(
@@ -278,22 +302,30 @@ object YtdlpManager {
           .mapNotNull { key -> item.optionalString(key) }
           .firstOrNull()
           ?: "Video ${entries.size + 1}"
+      val artist =
+        sequenceOf("artist", "creator", "uploader", "channel")
+          .mapNotNull { key -> item.optionalString(key) }
+          .firstOrNull()
       val thumbnail =
-        item.optionalString("thumbnail")
-          ?: item.optJSONArray("thumbnails")
-            ?.let { thumbnails ->
-              (thumbnails.length() - 1 downTo 0)
-                .asSequence()
-                .mapNotNull { thumbnailIndex -> thumbnails.optJSONObject(thumbnailIndex)?.optionalString("url") }
-                .firstOrNull()
-            }
-          ?: id?.takeIf { isYouTubeEntry }?.let { "https://i.ytimg.com/vi/$it/hqdefault.jpg" }
+        if (isYouTubeEntry && id != null) {
+          "https://i.ytimg.com/vi/$id/hqdefault.jpg"
+        } else {
+          item.optionalString("thumbnail")
+            ?: item.optJSONArray("thumbnails")
+              ?.let { thumbnails ->
+                (thumbnails.length() - 1 downTo 0)
+                  .asSequence()
+                  .mapNotNull { thumbnailIndex -> thumbnails.optJSONObject(thumbnailIndex)?.optionalString("url") }
+                  .firstOrNull()
+              }
+        }
       val duration = item.optDouble("duration", -1.0).takeIf { it.isFinite() && it >= 0.0 }?.toInt() ?: -1
       entries +=
         YtdlpPlaylistEntry(
           id = id,
           url = url,
           title = title,
+          artist = artist,
           thumbnailUrl = thumbnail,
           durationSeconds = duration,
         )

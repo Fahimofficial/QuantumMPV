@@ -86,6 +86,7 @@ import sh.calvin.reorderable.rememberReorderableLazyListState
 data class PlaylistItem(
   val uri: Uri,
   val title: String,
+  val artist: String = "",
   val index: Int,
   val isPlaying: Boolean,
   val progressPercent: Float = 0f, // 0-100, progress of video watched
@@ -107,6 +108,12 @@ private fun PlaylistThumbnail(
   modifier: Modifier = Modifier,
   contentScale: ContentScale = ContentScale.Crop,
 ) {
+  val hasArtwork = item.tvgLogo.isNotBlank()
+  val isYouTubeArtwork =
+    remember(item.tvgLogo) {
+      val host = runCatching { Uri.parse(item.tvgLogo).host.orEmpty().lowercase() }.getOrDefault("")
+      host == "i.ytimg.com" || host.endsWith(".ytimg.com")
+    }
   val video =
     remember(item.uri, item.path, item.title) {
       Video(
@@ -148,7 +155,7 @@ private fun PlaylistThumbnail(
     }
   var bitmap by remember(thumbnailKey) {
     mutableStateOf(
-      if (item.networkConnectionId == null || item.networkPath.isBlank()) {
+      if (!hasArtwork && (item.networkConnectionId == null || item.networkPath.isBlank())) {
         thumbnailRepository.getThumbnailFromMemory(video, thumbWidth, thumbHeight)
       } else {
         null
@@ -157,7 +164,7 @@ private fun PlaylistThumbnail(
   }
 
   LaunchedEffect(thumbnailKey) {
-    if (bitmap == null) {
+    if (!hasArtwork && bitmap == null) {
       bitmap =
         withContext(Dispatchers.IO) {
           val connectionId = item.networkConnectionId
@@ -176,19 +183,19 @@ private fun PlaylistThumbnail(
   }
 
   val currentImageBitmap = remember(bitmap) { bitmap?.asImageBitmap() }
-  if (currentImageBitmap != null) {
+  if (hasArtwork) {
+    RemoteImage(
+      url = item.tvgLogo,
+      contentDescription = contentDescription,
+      contentScale = if (isYouTubeArtwork) ContentScale.Crop else contentScale,
+      modifier = if (isYouTubeArtwork) modifier else modifier.padding(4.dp),
+    )
+  } else if (currentImageBitmap != null) {
     androidx.compose.foundation.Image(
       bitmap = currentImageBitmap,
       contentDescription = contentDescription,
       modifier = modifier,
       contentScale = contentScale,
-    )
-  } else if (item.tvgLogo.isNotBlank()) {
-    RemoteImage(
-      url = item.tvgLogo,
-      contentDescription = contentDescription,
-      contentScale = ContentScale.Fit,
-      modifier = modifier.padding(4.dp),
     )
   }
 }
@@ -621,6 +628,16 @@ fun PlaylistTrackListItem(
           overflow = TextOverflow.Ellipsis,
         )
 
+        if (item.artist.isNotBlank()) {
+          Text(
+            text = item.artist,
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+          )
+        }
+
         // Duration and resolution chips - always show with loading state if empty
         Row(
           horizontalArrangement = Arrangement.spacedBy(6.dp),
@@ -886,6 +903,16 @@ fun PlaylistTrackGridItem(
           maxLines = 2,
           overflow = TextOverflow.Ellipsis,
         )
+
+        if (item.artist.isNotBlank()) {
+          Text(
+            text = item.artist,
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+          )
+        }
 
         // Resolution and status
         Row(

@@ -566,11 +566,7 @@ Weiter: NEXT</string>
   <string name="playlist_add_remote_title">Wiedergabeliste hinzufügen</string>
   <string name="playlist_remote_url_hint">Unterstützt M3U/M3U8 und Web-Wiedergabelisten wie YouTube</string>
   <string name="playlist_import_success">Wiedergabeliste wurde unter „Wiedergabelisten“ gespeichert</string>
-  <string name="playlist_import_success_detail">%1$s wurde mit %2$d Videos unter „Wiedergabelisten“ gespeichert</string>
   <string name="playlist_import_error">Wiedergabeliste konnte nicht hinzugefügt werden: %1$s</string>
-  <string name="playlist_import_playback_fallback">Wiedergabeliste konnte nicht hinzugefügt werden: %1$s. Stattdessen wird der Link geöffnet.</string>
-  <string name="playlist_importing">Wird importiert…</string>
-  <string name="playlist_import_and_play">Importieren und abspielen</string>
   <string name="pref_player_safe_area_window_title">Sicherheitsbereich</string>
   <string name="pref_player_safe_area_window_summary">Player-Steuerelemente und Statistiken um Kameraaussparungen herum einrücken.</string>
   <string name="pref_subtitles_search_mode_title">Suchmodus</string>

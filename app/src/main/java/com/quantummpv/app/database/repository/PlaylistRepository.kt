@@ -616,6 +616,7 @@ private fun YtdlpPlaylistMetadata.toM3UParseResult(): M3UParseResult.Success =
           duration = entry.durationSeconds,
           tvgId = entry.id,
           tvgLogo = entry.thumbnailUrl,
+          groupTitle = entry.artist,
         )
       },
   )

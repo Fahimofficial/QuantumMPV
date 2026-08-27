@@ -560,11 +560,7 @@
   <string name="playlist_add_remote_title">प्लेलिस्ट जोड़ें</string>
   <string name="playlist_remote_url_hint">M3U/M3U8 और YouTube जैसी वेब प्लेलिस्ट का समर्थन करता है</string>
   <string name="playlist_import_success">प्लेलिस्ट, प्लेलिस्ट अनुभाग में सहेजी गई</string>
-  <string name="playlist_import_success_detail">%1$s को %2$d वीडियो के साथ प्लेलिस्ट में सहेजा गया</string>
   <string name="playlist_import_error">प्लेलिस्ट जोड़ने में विफल: %1$s</string>
-  <string name="playlist_import_playback_fallback">प्लेलिस्ट नहीं जोड़ी जा सकी: %1$s। इसके बजाय लिंक खोला जा रहा है।</string>
-  <string name="playlist_importing">इंपोर्ट हो रहा है…</string>
-  <string name="playlist_import_and_play">इंपोर्ट करें और चलाएँ</string>
   <string name="pref_player_safe_area_window_title">सेफ एरिया विंडो</string>
   <string name="pref_player_safe_area_window_summary">कैमरा कटआउट के आसपास प्लेयर कंट्रोल्स और स्टैटिस्टिक्स को इनसेट करें।</string>
   <string name="pref_subtitles_search_mode_title">सर्च मोड</string>

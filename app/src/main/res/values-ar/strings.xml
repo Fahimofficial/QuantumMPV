@@ -566,11 +566,7 @@
   <string name="playlist_add_remote_title">إضافة قائمة تشغيل</string>
   <string name="playlist_remote_url_hint">يدعم M3U/M3U8 وقوائم تشغيل الويب مثل YouTube</string>
   <string name="playlist_import_success">تم حفظ قائمة التشغيل في قسم قوائم التشغيل</string>
-  <string name="playlist_import_success_detail">تم حفظ %1$s مع %2$d فيديو في قسم قوائم التشغيل</string>
   <string name="playlist_import_error">تعذرت إضافة قائمة التشغيل: %1$s</string>
-  <string name="playlist_import_playback_fallback">تعذرت إضافة قائمة التشغيل: %1$s. سيتم فتح الرابط بدلاً من ذلك.</string>
-  <string name="playlist_importing">جارٍ الاستيراد…</string>
-  <string name="playlist_import_and_play">استيراد وتشغيل</string>
   <string name="pref_player_safe_area_window_title">نافذة المنطقة الآمنة</string>
   <string name="pref_player_safe_area_window_summary">إزاحة عناصر تحكم المشغّل والإحصاءات حول فتحات الكاميرا.</string>
   <string name="pref_subtitles_search_mode_title">وضع البحث</string>

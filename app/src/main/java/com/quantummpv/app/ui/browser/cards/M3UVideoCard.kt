@@ -83,8 +83,13 @@ fun M3UVideoCard(
   val thumbnailRepository = koinInject<ThumbnailRepository>()
   val appearancePreferences = koinInject<AppearancePreferences>()
   val showNetworkThumbnails by appearancePreferences.showNetworkThumbnails.collectAsState()
-  var thumbnail by remember(url) { mutableStateOf<android.graphics.Bitmap?>(null) }
+  var thumbnail by remember(url, logoUrl) { mutableStateOf<android.graphics.Bitmap?>(null) }
   val networkReference = remember(url) { NetworkPlaybackUri.parse(url) }
+  val isYouTubeArtwork =
+    remember(logoUrl) {
+      val host = runCatching { android.net.Uri.parse(logoUrl).host.orEmpty().lowercase() }.getOrDefault("")
+      host == "i.ytimg.com" || host.endsWith(".ytimg.com")
+    }
 
   val isNetwork =
     remember(url, networkReference) {
@@ -98,7 +103,7 @@ fun M3UVideoCard(
         url.startsWith("smb://", ignoreCase = true)
     }
 
-  if (!isNetwork || showNetworkThumbnails) {
+  if (!isYouTubeArtwork && (!isNetwork || showNetworkThumbnails)) {
     val density = LocalDensity.current
     val targetThumbnailSize = 128.dp
     val thumbWidthPx = with(density) { targetThumbnailSize.toPx().roundToInt() }
@@ -242,11 +247,15 @@ fun M3UVideoCard(
           RemoteImage(
             url = logoUrl,
             contentDescription = null,
-            contentScale = ContentScale.Fit,
+            contentScale = if (isYouTubeArtwork) ContentScale.Crop else ContentScale.Fit,
             modifier =
-              Modifier
-                .matchParentSize()
-                .padding(8.dp),
+              if (isYouTubeArtwork) {
+                Modifier.matchParentSize()
+              } else {
+                Modifier
+                  .matchParentSize()
+                  .padding(8.dp)
+              },
           )
         } else {
           Icon(

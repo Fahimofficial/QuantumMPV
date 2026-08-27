@@ -566,11 +566,7 @@ Próximo: NEXT</string>
   <string name="playlist_add_remote_title">Adicionar playlist</string>
   <string name="playlist_remote_url_hint">Compatível com M3U/M3U8 e playlists da web, como YouTube</string>
   <string name="playlist_import_success">Playlist salva em Playlists</string>
-  <string name="playlist_import_success_detail">%1$s foi salva com %2$d vídeos em Playlists</string>
   <string name="playlist_import_error">Falha ao adicionar playlist: %1$s</string>
-  <string name="playlist_import_playback_fallback">Não foi possível adicionar a playlist: %1$s. Abrindo o link.</string>
-  <string name="playlist_importing">Importando…</string>
-  <string name="playlist_import_and_play">Importar e reproduzir</string>
   <string name="pref_player_safe_area_window_title">Janela de área segura</string>
   <string name="pref_player_safe_area_window_summary">Recuar controles e estatísticas do player ao redor dos recortes da câmera.</string>
   <string name="pref_subtitles_search_mode_title">Modo de pesquisa</string>

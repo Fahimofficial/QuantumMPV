@@ -136,6 +136,7 @@ object MediaUtils {
     playlistArtists: List<String> = emptyList(),
     playlistArtworkUrls: List<String> = emptyList(),
     isAudio: Boolean = false,
+    playlistDurationsSeconds: List<Int> = emptyList(),
   ) {
     val uri =
       when (source) {
@@ -198,6 +199,7 @@ object MediaUtils {
             playlistArtists = playlistArtists,
             playlistArtworkUrls = playlistArtworkUrls,
             isAudio = isAudio,
+            playlistDurationsSeconds = playlistDurationsSeconds,
           )
           context.startActivity(intent)
           return
@@ -284,6 +286,7 @@ object MediaUtils {
       playlistArtists = playlistArtists,
       playlistArtworkUrls = playlistArtworkUrls,
       isAudio = isAudio,
+      playlistDurationsSeconds = playlistDurationsSeconds,
     )
     context.startActivity(intent)
   }
@@ -345,6 +348,7 @@ object MediaUtils {
     playlistArtists: List<String> = emptyList(),
     playlistArtworkUrls: List<String> = emptyList(),
     isAudio: Boolean = false,
+    playlistDurationsSeconds: List<Int> = emptyList(),
   ) {
     if (isAudio) {
       intent.putExtra("is_audio", true)
@@ -363,6 +367,7 @@ object MediaUtils {
             artworkUri =
               playlistArtworkUrls.getOrNull(index)?.takeIf(String::isNotBlank)
                 ?: posterUrl?.takeIf { index == selectedIndex },
+            durationSeconds = playlistDurationsSeconds.getOrNull(index)?.takeIf { it > 0 },
           )
         }
       val launchToken =

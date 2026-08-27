@@ -566,11 +566,7 @@
   <string name="playlist_add_remote_title">Добавить плейлист</string>
   <string name="playlist_remote_url_hint">Поддерживаются M3U/M3U8 и веб-плейлисты, например YouTube</string>
   <string name="playlist_import_success">Плейлист сохранён в разделе «Плейлисты»</string>
-  <string name="playlist_import_success_detail">%1$s сохранён в разделе «Плейлисты», видео: %2$d</string>
   <string name="playlist_import_error">Не удалось добавить плейлист: %1$s</string>
-  <string name="playlist_import_playback_fallback">Не удалось добавить плейлист: %1$s. Вместо этого будет открыта ссылка.</string>
-  <string name="playlist_importing">Импорт…</string>
-  <string name="playlist_import_and_play">Импортировать и воспроизвести</string>
   <string name="pref_player_safe_area_window_title">Окно безопасной области</string>
   <string name="pref_player_safe_area_window_summary">Сместить элементы управления и статистику проигрывателя вокруг вырезов камеры.</string>
   <string name="pref_subtitles_search_mode_title">Режим поиска</string>
