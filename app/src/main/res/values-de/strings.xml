@@ -562,6 +562,8 @@ Weiter: NEXT</string>
   <string name="playlist_refresh_success">Wiedergabeliste erfolgreich aktualisiert</string>
   <string name="playlist_refresh_error">Wiedergabeliste konnte nicht aktualisiert werden: %s</string>
   <string name="playlist_m3u_badge">M3U</string>
+  <string name="playlist_favorite_songs">Lieblingssongs</string>
+  <string name="playlist_favorite_videos">Lieblingsvideos</string>
   <string name="playlist_online_badge">Online</string>
   <string name="playlist_add_remote_title">Wiedergabeliste hinzufügen</string>
   <string name="playlist_remote_url_hint">Unterstützt M3U/M3U8 und Web-Wiedergabelisten wie YouTube</string>

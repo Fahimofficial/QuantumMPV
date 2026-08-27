@@ -58,6 +58,7 @@ import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
@@ -65,6 +66,7 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import com.quantummpv.app.R
 import com.quantummpv.app.database.entities.PlaylistEntity
 import com.quantummpv.app.database.entities.PlaylistItemEntity
+import com.quantummpv.app.database.repository.PlaylistRepository
 import com.quantummpv.app.domain.media.model.Video
 import com.quantummpv.app.preferences.AppearancePreferences
 import com.quantummpv.app.preferences.GesturePreferences
@@ -136,6 +138,13 @@ data class PlaylistDetailScreen(
     val videos = videoItems.map { it.video }
     val isLoading by viewModel.isLoading.collectAsState()
     val isRefreshing = remember { mutableStateOf(false) }
+    val playlistTitle =
+      when {
+        playlist?.name?.equals(PlaylistRepository.FAVORITES_PLAYLIST_NAME, ignoreCase = true) != true ->
+          playlist?.name ?: stringResource(R.string.ui_playlist)
+        playlist?.isAudio == true -> stringResource(R.string.playlist_favorite_songs)
+        else -> stringResource(R.string.playlist_favorite_videos)
+      }
 
     // Search state
     var searchQuery by rememberSaveable { mutableStateOf("") }
@@ -319,7 +328,7 @@ data class PlaylistDetailScreen(
           }
         } else {
           BrowserTopBar(
-            title = playlist?.name ?: stringResource(R.string.ui_playlist),
+            title = playlistTitle,
             isInSelectionMode = selectionManager.isInSelectionMode,
             selectedCount = selectionManager.selectedCount,
             totalCount = videos.size,
@@ -677,6 +686,9 @@ private fun PlaylistVideoListContent(
   val showExtensionField by browserPreferences.showExtensionField.collectAsState()
   val showDurationField by browserPreferences.showDurationField.collectAsState()
   val centerGridTitles by browserPreferences.centerGridTitles.collectAsState()
+  val musicCoverArtSize by browserPreferences.musicCoverArtSize.collectAsState()
+  val density = LocalDensity.current
+  val audioThumbnailSizePx = with(density) { musicCoverArtSize.dp.roundToPx() }
   val videoCardUiConfig =
     remember(
       unlimitedNameLines,
@@ -846,6 +858,8 @@ private fun PlaylistVideoListContent(
                         { onVideoItemClick(item) }
                       },
                     showSubtitleIndicator = showSubtitleIndicator,
+                    thumbnailWidthPx = if (isAudio) audioThumbnailSizePx else null,
+                    thumbnailHeightPx = if (isAudio) audioThumbnailSizePx else null,
                     modifier = Modifier.weight(1f),
                     uiConfig = videoCardUiConfig,
                   )

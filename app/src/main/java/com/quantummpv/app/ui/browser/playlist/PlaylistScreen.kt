@@ -143,6 +143,8 @@ object PlaylistScreen : Screen {
     var showDeleteDialog by rememberSaveable { mutableStateOf(false) }
     // Playlist action sheet state
     var showPlaylistActionSheet by remember { mutableStateOf(false) }
+    val hasProtectedSelection =
+      selectionManager.getSelectedItems().any { item -> viewModel.isProtectedPlaylist(item.playlist) }
 
     // FAB visibility for scroll-based hiding
     val isFabVisible = remember { mutableStateOf(true) }
@@ -248,12 +250,12 @@ object PlaylistScreen : Screen {
               backStack.add(com.quantummpv.app.ui.preferences.PreferencesScreen)
             },
             onRenameClick =
-              if (selectionManager.isSingleSelection) {
+              if (selectionManager.isSingleSelection && !hasProtectedSelection) {
                 { showRenameDialog = true }
               } else {
                 null
               },
-            onDeleteClick = { showDeleteDialog = true },
+            onDeleteClick = if (hasProtectedSelection) null else ({ showDeleteDialog = true }),
             onSelectAll = { selectionManager.selectAll() },
             onInvertSelection = { selectionManager.invertSelection() },
             onDeselectAll = { selectionManager.clear() },

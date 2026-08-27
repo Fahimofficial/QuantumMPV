@@ -562,6 +562,8 @@ Suivant : NEXT</string>
   <string name="playlist_refresh_success">Liste de lecture actualisée</string>
   <string name="playlist_refresh_error">Échec de l’actualisation de la liste : %s</string>
   <string name="playlist_m3u_badge">M3U</string>
+  <string name="playlist_favorite_songs">Morceaux favoris</string>
+  <string name="playlist_favorite_videos">Vidéos favorites</string>
   <string name="playlist_online_badge">En ligne</string>
   <string name="playlist_add_remote_title">Ajouter une liste de lecture</string>
   <string name="playlist_remote_url_hint">Compatible avec M3U/M3U8 et les listes de lecture web comme YouTube</string>

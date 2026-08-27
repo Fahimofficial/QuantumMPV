@@ -564,6 +564,8 @@
   <string name="playlist_refresh_success">播放列表刷新成功</string>
   <string name="playlist_refresh_error">刷新播放列表失败：%s</string>
   <string name="playlist_m3u_badge">M3U</string>
+  <string name="playlist_favorite_songs">喜爱的歌曲</string>
+  <string name="playlist_favorite_videos">喜爱的视频</string>
   <string name="playlist_online_badge">在线</string>
   <string name="playlist_add_remote_title">添加播放列表</string>
   <string name="playlist_remote_url_hint">支持 M3U/M3U8 和 YouTube 等网络播放列表</string>

@@ -562,6 +562,8 @@
   <string name="playlist_refresh_success">تم تحديث قائمة التشغيل بنجاح</string>
   <string name="playlist_refresh_error">فشل تحديث قائمة التشغيل: %s</string>
   <string name="playlist_m3u_badge">M3U</string>
+  <string name="playlist_favorite_songs">الأغاني المفضلة</string>
+  <string name="playlist_favorite_videos">مقاطع الفيديو المفضلة</string>
   <string name="playlist_online_badge">عبر الإنترنت</string>
   <string name="playlist_add_remote_title">إضافة قائمة تشغيل</string>
   <string name="playlist_remote_url_hint">يدعم M3U/M3U8 وقوائم تشغيل الويب مثل YouTube</string>

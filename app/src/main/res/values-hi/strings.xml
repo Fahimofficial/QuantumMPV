@@ -556,6 +556,8 @@
   <string name="playlist_refresh_success">प्लेलिस्ट सफलतापूर्वक रिफ्रेश हुई</string>
   <string name="playlist_refresh_error">प्लेलिस्ट रिफ्रेश करना नाकाम: %s</string>
   <string name="playlist_m3u_badge">M3U</string>
+  <string name="playlist_favorite_songs">पसंदीदा गाने</string>
+  <string name="playlist_favorite_videos">पसंदीदा वीडियो</string>
   <string name="playlist_online_badge">ऑनलाइन</string>
   <string name="playlist_add_remote_title">प्लेलिस्ट जोड़ें</string>
   <string name="playlist_remote_url_hint">M3U/M3U8 और YouTube जैसी वेब प्लेलिस्ट का समर्थन करता है</string>

@@ -562,6 +562,8 @@
   <string name="playlist_refresh_success">プレイリストを更新しました</string>
   <string name="playlist_refresh_error">プレイリストを更新できませんでした：%s</string>
   <string name="playlist_m3u_badge">M3U</string>
+  <string name="playlist_favorite_songs">お気に入りの曲</string>
+  <string name="playlist_favorite_videos">お気に入りの動画</string>
   <string name="playlist_online_badge">オンライン</string>
   <string name="playlist_add_remote_title">プレイリストを追加</string>
   <string name="playlist_remote_url_hint">M3U/M3U8 と YouTube などのウェブプレイリストに対応</string>

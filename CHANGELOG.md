@@ -15,7 +15,8 @@ These notes are written in plain English and focus on what changed for real use.
 - **YouTube Playlist Support**: YouTube and other supported web playlist links can be imported from the Playlists tab with ordered videos, titles, channel metadata, and thumbnails alongside existing M3U/M3U8 support.
 - **Metadata-Rich Player Queues**: Pasting a YouTube playlist into a link field now starts its first video and preloads every entry into the in-player playlist drawer with title, channel, artwork, duration, and stable URL metadata.
 - **More Flexible Queues**: Added Play Next and Add to Queue actions, mixed audio/video playlist support, reliable local M3U path resolution, and safer queue ownership during media handoffs.
-- **Cleaner Playlist Browsing**: Internal Favorites storage is hidden from the Playlists tab, remote cards have consistent selection styling, and network playlist thumbnails and folder queues are restored.
+- **Shared Favorites Playlists**: Video favorites now appear as Favorite Videos in the main Playlists tab, while the same Favorite Songs collection is available from both Music and Playlists with consistent configured cover-art sizing.
+- **Cleaner Playlist Browsing**: Favorite collections are clearly separated by media type, remote cards have consistent selection styling, and network playlist thumbnails and folder queues are restored.
 - **Clear yt-dlp Setup**: First-time web playback now prompts before installing yt-dlp and shows installation progress instead of appearing to buffer indefinitely.
 
 ### 🔎 Search, Lyrics & Discovery

@@ -1975,13 +1975,9 @@ private fun PlaylistArtCollage(
         Icon(
           imageVector = if (isFavorites) Icons.RoundedFilled.Favorite else Icons.RoundedFilled.QueueMusic,
           contentDescription = "Playlist",
-          modifier = if (isFavorites) {
-            Modifier.size(24.dp)
-          } else {
-            Modifier
-              .fillMaxSize()
-              .padding(12.dp)
-          },
+          modifier = Modifier
+            .fillMaxSize()
+            .padding(12.dp),
           tint = if (isFavorites) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
         )
       }

@@ -50,11 +50,18 @@ fun PlaylistCard(
   isGridMode: Boolean = false,
   thumbnail: android.graphics.Bitmap? = null,
 ) {
+  val isFavorites = playlist.name.equals(PlaylistRepository.FAVORITES_PLAYLIST_NAME, ignoreCase = true)
+  val displayName =
+    when {
+      !isFavorites -> playlist.name
+      playlist.isAudio -> stringResource(R.string.playlist_favorite_songs)
+      else -> stringResource(R.string.playlist_favorite_videos)
+    }
   // Convert playlist to VideoFolder format for FolderCard
   val folderModel =
     VideoFolder(
       bucketId = playlist.id.toString(),
-      name = playlist.name,
+      name = displayName,
       path = "", // Not used for playlists
       videoCount = itemCount,
       totalSize = 0, // Not tracked for playlists
@@ -108,7 +115,7 @@ fun PlaylistCard(
     onLongClick = onLongClick,
     onThumbClick = onThumbClick,
     showDateModified = true,
-    customIcon = if (playlist.name.equals(PlaylistRepository.FAVORITES_PLAYLIST_NAME, ignoreCase = true)) {
+    customIcon = if (isFavorites) {
       Icons.RoundedFilled.Favorite
     } else {
       Icons.RoundedFilled.PlaylistPlay

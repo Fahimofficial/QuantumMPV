@@ -562,6 +562,8 @@
   <string name="playlist_refresh_success">Плейлист успешно обновлён</string>
   <string name="playlist_refresh_error">Не удалось обновить плейлист: %s</string>
   <string name="playlist_m3u_badge">M3U</string>
+  <string name="playlist_favorite_songs">Любимые песни</string>
+  <string name="playlist_favorite_videos">Любимые видео</string>
   <string name="playlist_online_badge">Онлайн</string>
   <string name="playlist_add_remote_title">Добавить плейлист</string>
   <string name="playlist_remote_url_hint">Поддерживаются M3U/M3U8 и веб-плейлисты, например YouTube</string>

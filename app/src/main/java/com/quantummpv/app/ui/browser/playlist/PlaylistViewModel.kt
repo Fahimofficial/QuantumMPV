@@ -123,9 +123,7 @@ class PlaylistViewModel(
   }
 
   private fun visiblePlaylists(playlists: List<PlaylistEntity>): List<PlaylistEntity> =
-    playlists
-      .filterNot { playlist -> repository.isProtectedPlaylist(playlist) }
-      .sortedBy { playlist -> playlist.name.lowercase() }
+    repository.prioritizeFavorites(playlists)
 
   fun refresh() {
     viewModelScope.launch(Dispatchers.IO) {
@@ -159,6 +157,8 @@ class PlaylistViewModel(
     repository.createM3UPlaylistFromFile(getApplication(), uri)
 
   suspend fun refreshM3UPlaylist(playlistId: Int): Result<Unit> = repository.refreshM3UPlaylist(playlistId)
+
+  fun isProtectedPlaylist(playlist: PlaylistEntity): Boolean = repository.isProtectedPlaylist(playlist)
 
   suspend fun deletePlaylist(playlist: PlaylistEntity) {
     repository.deletePlaylist(playlist)

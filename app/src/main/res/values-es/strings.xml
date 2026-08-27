@@ -562,6 +562,8 @@ Siguiente: NEXT</string>
   <string name="playlist_refresh_success">Lista actualizada correctamente</string>
   <string name="playlist_refresh_error">No se pudo actualizar la lista: %s</string>
   <string name="playlist_m3u_badge">M3U</string>
+  <string name="playlist_favorite_songs">Canciones favoritas</string>
+  <string name="playlist_favorite_videos">Vídeos favoritos</string>
   <string name="playlist_online_badge">En línea</string>
   <string name="playlist_add_remote_title">Añadir lista de reproducción</string>
   <string name="playlist_remote_url_hint">Admite M3U/M3U8 y listas web como YouTube</string>
