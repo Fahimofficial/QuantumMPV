@@ -285,6 +285,7 @@
   <string name="pref_audio_pitch_correction_summary">يمنع ارتفاع نغمة الصوت عند السرعات العالية وانخفاضها عند السرعات البطيئة</string>
   <string name="pref_audio_volume_normalization_title">توحيد مستوى الصوت</string>
   <string name="pref_audio_volume_normalization_summary">ضبط مستوى الصوت تلقائيًا للحفاظ على مستوى علو ثابت</string>
+  <string name="pref_music_tabs_title">علامات تبويب مكتبة الموسيقى</string>
   <string name="pref_music_visualizer_title">مؤثر مرئي للموسيقى</string>
   <string name="pref_music_visualizer_summary">عرض مؤثر مرئي متفاعل مع الصوت أثناء تشغيل الموسيقى</string>
   <string name="pref_audio_visualizer_style_title">نمط المؤثر المرئي</string>
@@ -561,6 +562,15 @@
   <string name="playlist_refresh_success">تم تحديث قائمة التشغيل بنجاح</string>
   <string name="playlist_refresh_error">فشل تحديث قائمة التشغيل: %s</string>
   <string name="playlist_m3u_badge">M3U</string>
+  <string name="playlist_online_badge">عبر الإنترنت</string>
+  <string name="playlist_add_remote_title">إضافة قائمة تشغيل</string>
+  <string name="playlist_remote_url_hint">يدعم M3U/M3U8 وقوائم تشغيل الويب مثل YouTube</string>
+  <string name="playlist_import_success">تم حفظ قائمة التشغيل في قسم قوائم التشغيل</string>
+  <string name="playlist_import_success_detail">تم حفظ %1$s مع %2$d فيديو في قسم قوائم التشغيل</string>
+  <string name="playlist_import_error">تعذرت إضافة قائمة التشغيل: %1$s</string>
+  <string name="playlist_import_playback_fallback">تعذرت إضافة قائمة التشغيل: %1$s. سيتم فتح الرابط بدلاً من ذلك.</string>
+  <string name="playlist_importing">جارٍ الاستيراد…</string>
+  <string name="playlist_import_and_play">استيراد وتشغيل</string>
   <string name="pref_player_safe_area_window_title">نافذة المنطقة الآمنة</string>
   <string name="pref_player_safe_area_window_summary">إزاحة عناصر تحكم المشغّل والإحصاءات حول فتحات الكاميرا.</string>
   <string name="pref_subtitles_search_mode_title">وضع البحث</string>
@@ -1228,6 +1238,7 @@
   <string name="ui_playlist_options">خيارات قائمة التشغيل</string>
   <string name="ui_create_a_new_blank_playlist">إنشاء قائمة تشغيل فارغة جديدة</string>
   <string name="ui_add_m3u_playlist_from_url">إضافة قائمة تشغيل M3U من رابط</string>
+  <string name="ui_add_playlist_from_url">إضافة قائمة تشغيل من رابط</string>
   <string name="ui_import_a_playlist_from_a_web_url">استيراد قائمة تشغيل من رابط ويب</string>
   <string name="ui_custom_user_agent_optional">User-Agent مخصّص (اختياري)</string>
   <string name="ui_or">أو</string>

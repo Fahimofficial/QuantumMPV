@@ -285,6 +285,7 @@
   <string name="pref_audio_pitch_correction_summary">高速再生時に音が高く、低速再生時に低くなるのを防ぎます</string>
   <string name="pref_audio_volume_normalization_title">音量の正規化</string>
   <string name="pref_audio_volume_normalization_summary">一定の音量を保つように音量を自動調整します</string>
+  <string name="pref_music_tabs_title">音楽ライブラリのタブ</string>
   <string name="pref_music_visualizer_title">ミュージックビジュアライザー</string>
   <string name="pref_music_visualizer_summary">音楽の再生中に音声に反応するビジュアライザーを表示します</string>
   <string name="pref_audio_visualizer_style_title">ビジュアライザーのスタイル</string>
@@ -561,6 +562,15 @@
   <string name="playlist_refresh_success">プレイリストを更新しました</string>
   <string name="playlist_refresh_error">プレイリストを更新できませんでした：%s</string>
   <string name="playlist_m3u_badge">M3U</string>
+  <string name="playlist_online_badge">オンライン</string>
+  <string name="playlist_add_remote_title">プレイリストを追加</string>
+  <string name="playlist_remote_url_hint">M3U/M3U8 と YouTube などのウェブプレイリストに対応</string>
+  <string name="playlist_import_success">プレイリストに保存しました</string>
+  <string name="playlist_import_success_detail">%1$s を %2$d 本の動画とともにプレイリストに保存しました</string>
+  <string name="playlist_import_error">プレイリストを追加できませんでした: %1$s</string>
+  <string name="playlist_import_playback_fallback">プレイリストを追加できませんでした: %1$s。代わりにリンクを開きます。</string>
+  <string name="playlist_importing">インポート中…</string>
+  <string name="playlist_import_and_play">インポートして再生</string>
   <string name="pref_player_safe_area_window_title">セーフエリアウィンドウ</string>
   <string name="pref_player_safe_area_window_summary">カメラの切り欠きを避けてプレーヤー操作と統計を内側に配置します。</string>
   <string name="pref_subtitles_search_mode_title">検索モード</string>
@@ -1228,6 +1238,7 @@
   <string name="ui_playlist_options">プレイリストのオプション</string>
   <string name="ui_create_a_new_blank_playlist">新しい空のプレイリストを作成</string>
   <string name="ui_add_m3u_playlist_from_url">URLからM3Uプレイリストを追加</string>
+  <string name="ui_add_playlist_from_url">URLからプレイリストを追加</string>
   <string name="ui_import_a_playlist_from_a_web_url">Web URLからプレイリストをインポート</string>
   <string name="ui_custom_user_agent_optional">カスタムUser-Agent（任意）</string>
   <string name="ui_or">または</string>

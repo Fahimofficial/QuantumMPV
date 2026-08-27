@@ -285,6 +285,7 @@ Suivant : NEXT</string>
   <string name="pref_audio_pitch_correction_summary">Empêche le son de devenir aigu à vitesse élevée et grave à vitesse réduite</string>
   <string name="pref_audio_volume_normalization_title">Normalisation du volume</string>
   <string name="pref_audio_volume_normalization_summary">Ajuster automatiquement le volume pour conserver un niveau sonore constant</string>
+  <string name="pref_music_tabs_title">Onglets de la bibliothèque musicale</string>
   <string name="pref_music_visualizer_title">Visualiseur musical</string>
   <string name="pref_music_visualizer_summary">Afficher un visualiseur réactif au son pendant la lecture de musique</string>
   <string name="pref_audio_visualizer_style_title">Style du visualiseur</string>
@@ -561,6 +562,15 @@ Suivant : NEXT</string>
   <string name="playlist_refresh_success">Liste de lecture actualisée</string>
   <string name="playlist_refresh_error">Échec de l’actualisation de la liste : %s</string>
   <string name="playlist_m3u_badge">M3U</string>
+  <string name="playlist_online_badge">En ligne</string>
+  <string name="playlist_add_remote_title">Ajouter une liste de lecture</string>
+  <string name="playlist_remote_url_hint">Compatible avec M3U/M3U8 et les listes de lecture web comme YouTube</string>
+  <string name="playlist_import_success">Liste enregistrée dans Listes de lecture</string>
+  <string name="playlist_import_success_detail">%1$s enregistrée avec %2$d vidéos dans Listes de lecture</string>
+  <string name="playlist_import_error">Impossible d’ajouter la liste de lecture : %1$s</string>
+  <string name="playlist_import_playback_fallback">Impossible d’ajouter la liste de lecture : %1$s. Ouverture du lien à la place.</string>
+  <string name="playlist_importing">Importation…</string>
+  <string name="playlist_import_and_play">Importer et lire</string>
   <string name="pref_player_safe_area_window_title">Fenêtre de zone sûre</string>
   <string name="pref_player_safe_area_window_summary">Décaler les commandes et statistiques du lecteur autour des découpes de caméra.</string>
   <string name="pref_subtitles_search_mode_title">Mode de recherche</string>
@@ -1228,6 +1238,7 @@ Veuillez redémarrer l’application pour appliquer toutes les modifications.</s
   <string name="ui_playlist_options">Options de la liste de lecture</string>
   <string name="ui_create_a_new_blank_playlist">Créer une nouvelle liste de lecture vide</string>
   <string name="ui_add_m3u_playlist_from_url">Ajouter une liste M3U depuis une URL</string>
+  <string name="ui_add_playlist_from_url">Ajouter une liste de lecture depuis une URL</string>
   <string name="ui_import_a_playlist_from_a_web_url">Importer une liste de lecture depuis une URL Web</string>
   <string name="ui_custom_user_agent_optional">User-Agent personnalisé (facultatif)</string>
   <string name="ui_or">OU</string>

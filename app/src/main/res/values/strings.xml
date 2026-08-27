@@ -298,6 +298,7 @@
   <string name="pref_audio_drc_summary">Compress audio dynamic range to boost quiet dialogue and tame loud sounds</string>
   <string name="pref_audio_effects">Audio processing</string>
   <string name="toast_file_not_found">File no longer exists</string>
+  <string name="pref_music_tabs_title">Music Library Tabs</string>
   <string name="pref_music_visualizer_title">Music visualizer</string>
   <string name="pref_music_visualizer_summary">Show an audio-reactive visualizer while playing music</string>
   <string name="pref_audio_visualizer_style_title">Visualizer style</string>
@@ -628,6 +629,15 @@
   <string name="playlist_refresh_success">Playlist refreshed successfully</string>
   <string name="playlist_refresh_error">Failed to refresh playlist: %s</string>
   <string name="playlist_m3u_badge">M3U</string>
+  <string name="playlist_online_badge">Online</string>
+  <string name="playlist_add_remote_title">Add Playlist</string>
+  <string name="playlist_remote_url_hint">Supports M3U/M3U8 and web playlists such as YouTube</string>
+  <string name="playlist_import_success">Playlist saved in Playlists</string>
+  <string name="playlist_import_success_detail">%1$s saved with %2$d videos in Playlists</string>
+  <string name="playlist_import_error">Failed to add playlist: %1$s</string>
+  <string name="playlist_import_playback_fallback">Couldn’t add playlist: %1$s. Opening the link instead.</string>
+  <string name="playlist_importing">Importing…</string>
+  <string name="playlist_import_and_play">Import &amp; Play</string>
   <string name="pref_player_safe_area_window_title">Safe Area Window</string>
   <string name="pref_player_safe_area_window_summary">Inset player controls and statistics around camera cutouts.</string>
   <string name="pref_subtitles_search_mode_title">Search mode</string>
@@ -1355,6 +1365,7 @@
   <string name="ui_playlist_options">Playlist Options</string>
   <string name="ui_create_a_new_blank_playlist">Create a new blank playlist</string>
   <string name="ui_add_m3u_playlist_from_url">Add M3U Playlist from URL</string>
+  <string name="ui_add_playlist_from_url">Add Playlist from URL</string>
   <string name="ui_import_a_playlist_from_a_web_url">Import a playlist from a web URL</string>
   <string name="ui_custom_user_agent_optional">Custom User-Agent (optional)</string>
   <string name="ui_or">OR</string>

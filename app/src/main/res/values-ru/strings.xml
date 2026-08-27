@@ -285,6 +285,7 @@
   <string name="pref_audio_pitch_correction_summary">Не позволяет звуку становиться выше при ускорении и ниже при замедлении</string>
   <string name="pref_audio_volume_normalization_title">Нормализация громкости</string>
   <string name="pref_audio_volume_normalization_summary">Автоматически регулировать громкость для поддержания равномерного уровня</string>
+  <string name="pref_music_tabs_title">Вкладки музыкальной библиотеки</string>
   <string name="pref_music_visualizer_title">Музыкальный визуализатор</string>
   <string name="pref_music_visualizer_summary">Показывать реагирующую на звук визуализацию при воспроизведении музыки</string>
   <string name="pref_audio_visualizer_style_title">Стиль визуализатора</string>
@@ -561,6 +562,15 @@
   <string name="playlist_refresh_success">Плейлист успешно обновлён</string>
   <string name="playlist_refresh_error">Не удалось обновить плейлист: %s</string>
   <string name="playlist_m3u_badge">M3U</string>
+  <string name="playlist_online_badge">Онлайн</string>
+  <string name="playlist_add_remote_title">Добавить плейлист</string>
+  <string name="playlist_remote_url_hint">Поддерживаются M3U/M3U8 и веб-плейлисты, например YouTube</string>
+  <string name="playlist_import_success">Плейлист сохранён в разделе «Плейлисты»</string>
+  <string name="playlist_import_success_detail">%1$s сохранён в разделе «Плейлисты», видео: %2$d</string>
+  <string name="playlist_import_error">Не удалось добавить плейлист: %1$s</string>
+  <string name="playlist_import_playback_fallback">Не удалось добавить плейлист: %1$s. Вместо этого будет открыта ссылка.</string>
+  <string name="playlist_importing">Импорт…</string>
+  <string name="playlist_import_and_play">Импортировать и воспроизвести</string>
   <string name="pref_player_safe_area_window_title">Окно безопасной области</string>
   <string name="pref_player_safe_area_window_summary">Сместить элементы управления и статистику проигрывателя вокруг вырезов камеры.</string>
   <string name="pref_subtitles_search_mode_title">Режим поиска</string>
@@ -1228,6 +1238,7 @@
   <string name="ui_playlist_options">Параметры плейлиста</string>
   <string name="ui_create_a_new_blank_playlist">Создать новый пустой плейлист</string>
   <string name="ui_add_m3u_playlist_from_url">Добавить плейлист M3U по URL</string>
+  <string name="ui_add_playlist_from_url">Добавить плейлист по URL</string>
   <string name="ui_import_a_playlist_from_a_web_url">Импортировать плейлист по веб-ссылке</string>
   <string name="ui_custom_user_agent_optional">Пользовательский User-Agent (необязательно)</string>
   <string name="ui_or">ИЛИ</string>

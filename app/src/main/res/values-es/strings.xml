@@ -285,6 +285,7 @@ Siguiente: NEXT</string>
   <string name="pref_audio_pitch_correction_summary">Evita que el audio suene más agudo a velocidades altas y más grave a velocidades bajas</string>
   <string name="pref_audio_volume_normalization_title">Normalización de volumen</string>
   <string name="pref_audio_volume_normalization_summary">Ajustar automáticamente el volumen para mantener niveles de sonoridad uniformes</string>
+  <string name="pref_music_tabs_title">Pestañas de la biblioteca de música</string>
   <string name="pref_music_visualizer_title">Visualizador de música</string>
   <string name="pref_music_visualizer_summary">Mostrar un visualizador que reacciona al audio al reproducir música</string>
   <string name="pref_audio_visualizer_style_title">Estilo del visualizador</string>
@@ -561,6 +562,15 @@ Siguiente: NEXT</string>
   <string name="playlist_refresh_success">Lista actualizada correctamente</string>
   <string name="playlist_refresh_error">No se pudo actualizar la lista: %s</string>
   <string name="playlist_m3u_badge">M3U</string>
+  <string name="playlist_online_badge">En línea</string>
+  <string name="playlist_add_remote_title">Añadir lista de reproducción</string>
+  <string name="playlist_remote_url_hint">Admite M3U/M3U8 y listas web como YouTube</string>
+  <string name="playlist_import_success">Lista guardada en Listas de reproducción</string>
+  <string name="playlist_import_success_detail">%1$s se guardó con %2$d vídeos en Listas de reproducción</string>
+  <string name="playlist_import_error">No se pudo añadir la lista: %1$s</string>
+  <string name="playlist_import_playback_fallback">No se pudo añadir la lista: %1$s. Se abrirá el enlace.</string>
+  <string name="playlist_importing">Importando…</string>
+  <string name="playlist_import_and_play">Importar y reproducir</string>
   <string name="pref_player_safe_area_window_title">Ventana de área segura</string>
   <string name="pref_player_safe_area_window_summary">Desplazar los controles y estadísticas del reproductor alrededor de los recortes de la cámara.</string>
   <string name="pref_subtitles_search_mode_title">Modo de búsqueda</string>
@@ -1228,6 +1238,7 @@ Reinicia la aplicación para que se apliquen todos los cambios.</string>
   <string name="ui_playlist_options">Opciones de lista de reproducción</string>
   <string name="ui_create_a_new_blank_playlist">Crear una nueva lista de reproducción vacía</string>
   <string name="ui_add_m3u_playlist_from_url">Añadir lista M3U desde URL</string>
+  <string name="ui_add_playlist_from_url">Añadir lista desde URL</string>
   <string name="ui_import_a_playlist_from_a_web_url">Importar una lista desde una URL web</string>
   <string name="ui_custom_user_agent_optional">User-Agent personalizado (opcional)</string>
   <string name="ui_or">O</string>

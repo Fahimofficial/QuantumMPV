@@ -42,6 +42,7 @@ import androidx.compose.material3.TextField
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState as collectFlowAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -188,7 +189,7 @@ object SubtitlesPreferencesScreen : Screen {
         val wyzieAiSubtitles by preferences.wyzieAiSubtitles.collectAsState()
         val onlineSubtitleSearchMode by preferences.onlineSubtitleSearchMode.collectAsState()
         val subtitleHubSources by preferences.subtitleHubSources.collectAsState()
-        val requestedSearchTarget by SettingsSearchNavigation.target.collectAsState()
+        val requestedSearchTarget by SettingsSearchNavigation.target.collectFlowAsState()
         var customFonts by remember { mutableStateOf<List<String>>(emptyList()) }
 
         LaunchedEffect(fontsFolder, fontRefreshKey) {

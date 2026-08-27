@@ -285,6 +285,7 @@ Weiter: NEXT</string>
   <string name="pref_audio_pitch_correction_summary">Verhindert hohe Tonlagen bei schneller und tiefe Tonlagen bei langsamer Wiedergabe</string>
   <string name="pref_audio_volume_normalization_title">Lautstärkenormalisierung</string>
   <string name="pref_audio_volume_normalization_summary">Lautstärke automatisch anpassen, um eine gleichmäßige Lautheit beizubehalten</string>
+  <string name="pref_music_tabs_title">Musikbibliothek-Tabs</string>
   <string name="pref_music_visualizer_title">Musikvisualisierung</string>
   <string name="pref_music_visualizer_summary">Während der Musikwiedergabe eine audioreaktive Visualisierung anzeigen</string>
   <string name="pref_audio_visualizer_style_title">Visualisierungsstil</string>
@@ -561,6 +562,15 @@ Weiter: NEXT</string>
   <string name="playlist_refresh_success">Wiedergabeliste erfolgreich aktualisiert</string>
   <string name="playlist_refresh_error">Wiedergabeliste konnte nicht aktualisiert werden: %s</string>
   <string name="playlist_m3u_badge">M3U</string>
+  <string name="playlist_online_badge">Online</string>
+  <string name="playlist_add_remote_title">Wiedergabeliste hinzufügen</string>
+  <string name="playlist_remote_url_hint">Unterstützt M3U/M3U8 und Web-Wiedergabelisten wie YouTube</string>
+  <string name="playlist_import_success">Wiedergabeliste wurde unter „Wiedergabelisten“ gespeichert</string>
+  <string name="playlist_import_success_detail">%1$s wurde mit %2$d Videos unter „Wiedergabelisten“ gespeichert</string>
+  <string name="playlist_import_error">Wiedergabeliste konnte nicht hinzugefügt werden: %1$s</string>
+  <string name="playlist_import_playback_fallback">Wiedergabeliste konnte nicht hinzugefügt werden: %1$s. Stattdessen wird der Link geöffnet.</string>
+  <string name="playlist_importing">Wird importiert…</string>
+  <string name="playlist_import_and_play">Importieren und abspielen</string>
   <string name="pref_player_safe_area_window_title">Sicherheitsbereich</string>
   <string name="pref_player_safe_area_window_summary">Player-Steuerelemente und Statistiken um Kameraaussparungen herum einrücken.</string>
   <string name="pref_subtitles_search_mode_title">Suchmodus</string>
@@ -1228,6 +1238,7 @@ Bitte starten Sie die App neu, damit alle Änderungen wirksam werden.</string>
   <string name="ui_playlist_options">Wiedergabelistenoptionen</string>
   <string name="ui_create_a_new_blank_playlist">Neue leere Wiedergabeliste erstellen</string>
   <string name="ui_add_m3u_playlist_from_url">M3U-Wiedergabeliste von URL hinzufügen</string>
+  <string name="ui_add_playlist_from_url">Wiedergabeliste von URL hinzufügen</string>
   <string name="ui_import_a_playlist_from_a_web_url">Wiedergabeliste von einer Web-URL importieren</string>
   <string name="ui_custom_user_agent_optional">Benutzerdefinierter User-Agent (optional)</string>
   <string name="ui_or">ODER</string>

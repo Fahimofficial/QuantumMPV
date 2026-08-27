@@ -285,6 +285,7 @@
   <string name="pref_audio_pitch_correction_summary">防止快速播放时音调变高、慢速播放时音调变低</string>
   <string name="pref_audio_volume_normalization_title">音量标准化</string>
   <string name="pref_audio_volume_normalization_summary">自动调整音量以保持一致的响度</string>
+  <string name="pref_music_tabs_title">音乐库标签页</string>
   <string name="pref_music_visualizer_title">音乐可视化</string>
   <string name="pref_music_visualizer_summary">播放音乐时显示随音频变化的可视化效果</string>
   <string name="pref_audio_visualizer_style_title">可视化样式</string>
@@ -563,6 +564,15 @@
   <string name="playlist_refresh_success">播放列表刷新成功</string>
   <string name="playlist_refresh_error">刷新播放列表失败：%s</string>
   <string name="playlist_m3u_badge">M3U</string>
+  <string name="playlist_online_badge">在线</string>
+  <string name="playlist_add_remote_title">添加播放列表</string>
+  <string name="playlist_remote_url_hint">支持 M3U/M3U8 和 YouTube 等网络播放列表</string>
+  <string name="playlist_import_success">播放列表已保存到“播放列表”</string>
+  <string name="playlist_import_success_detail">%1$s 已保存到“播放列表”，共 %2$d 个视频</string>
+  <string name="playlist_import_error">无法添加播放列表：%1$s</string>
+  <string name="playlist_import_playback_fallback">无法添加播放列表：%1$s。将改为打开链接。</string>
+  <string name="playlist_importing">正在导入…</string>
+  <string name="playlist_import_and_play">导入并播放</string>
   <string name="pref_player_safe_area_window_title">安全区域窗口</string>
   <string name="pref_player_safe_area_window_summary">将播放器控制和统计信息避开摄像头挖孔向内缩进。</string>
   <string name="pref_subtitles_search_mode_title">搜索模式</string>
@@ -1230,6 +1240,7 @@
   <string name="ui_playlist_options">播放列表选项</string>
   <string name="ui_create_a_new_blank_playlist">新建空白播放列表</string>
   <string name="ui_add_m3u_playlist_from_url">从 URL 添加 M3U 播放列表</string>
+  <string name="ui_add_playlist_from_url">通过 URL 添加播放列表</string>
   <string name="ui_import_a_playlist_from_a_web_url">从网页 URL 导入播放列表</string>
   <string name="ui_custom_user_agent_optional">自定义 User-Agent（可选）</string>
   <string name="ui_or">或</string>

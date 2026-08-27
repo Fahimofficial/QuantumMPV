@@ -254,7 +254,7 @@ object AudioPreferencesScreen : Screen {
                     .padding(horizontal = 16.dp, vertical = 12.dp),
               ) {
                 Text(
-                  text = "Music Library Tabs",
+                  text = stringResource(R.string.pref_music_tabs_title),
                   style = MaterialTheme.typography.bodyLarge,
                 )
                 Text(
@@ -603,7 +603,7 @@ object AudioPreferencesScreen : Screen {
 
       AlertDialog(
         onDismissRequest = { showMusicTabsDialog = false },
-        title = { Text("Music Library Tabs") },
+        title = { Text(stringResource(R.string.pref_music_tabs_title)) },
         text = {
           Column {
             Text(

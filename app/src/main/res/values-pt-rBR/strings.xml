@@ -285,6 +285,7 @@ Próximo: NEXT</string>
   <string name="pref_audio_pitch_correction_summary">Evita que o áudio fique agudo em velocidades maiores e grave em velocidades menores</string>
   <string name="pref_audio_volume_normalization_title">Normalização de volume</string>
   <string name="pref_audio_volume_normalization_summary">Ajustar automaticamente o volume para manter níveis de sonoridade consistentes</string>
+  <string name="pref_music_tabs_title">Abas da biblioteca de músicas</string>
   <string name="pref_music_visualizer_title">Visualizador de música</string>
   <string name="pref_music_visualizer_summary">Mostrar um visualizador que reage ao áudio durante a reprodução de música</string>
   <string name="pref_audio_visualizer_style_title">Estilo do visualizador</string>
@@ -561,6 +562,15 @@ Próximo: NEXT</string>
   <string name="playlist_refresh_success">Playlist atualizada com sucesso</string>
   <string name="playlist_refresh_error">Falha ao atualizar playlist: %s</string>
   <string name="playlist_m3u_badge">M3U</string>
+  <string name="playlist_online_badge">Online</string>
+  <string name="playlist_add_remote_title">Adicionar playlist</string>
+  <string name="playlist_remote_url_hint">Compatível com M3U/M3U8 e playlists da web, como YouTube</string>
+  <string name="playlist_import_success">Playlist salva em Playlists</string>
+  <string name="playlist_import_success_detail">%1$s foi salva com %2$d vídeos em Playlists</string>
+  <string name="playlist_import_error">Falha ao adicionar playlist: %1$s</string>
+  <string name="playlist_import_playback_fallback">Não foi possível adicionar a playlist: %1$s. Abrindo o link.</string>
+  <string name="playlist_importing">Importando…</string>
+  <string name="playlist_import_and_play">Importar e reproduzir</string>
   <string name="pref_player_safe_area_window_title">Janela de área segura</string>
   <string name="pref_player_safe_area_window_summary">Recuar controles e estatísticas do player ao redor dos recortes da câmera.</string>
   <string name="pref_subtitles_search_mode_title">Modo de pesquisa</string>
@@ -1228,6 +1238,7 @@ Reinicie o aplicativo para que todas as alterações entrem em vigor.</string>
   <string name="ui_playlist_options">Opções da playlist</string>
   <string name="ui_create_a_new_blank_playlist">Criar uma nova playlist vazia</string>
   <string name="ui_add_m3u_playlist_from_url">Adicionar playlist M3U por URL</string>
+  <string name="ui_add_playlist_from_url">Adicionar playlist por URL</string>
   <string name="ui_import_a_playlist_from_a_web_url">Importar uma playlist de uma URL da Web</string>
   <string name="ui_custom_user_agent_optional">User-Agent personalizado (opcional)</string>
   <string name="ui_or">OU</string>
