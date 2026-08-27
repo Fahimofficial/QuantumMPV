@@ -237,7 +237,7 @@ fun LyricsTranslateDialog(
                 )
                 if (lang.isRomanization) {
                   Text(
-                    text = "Pronunciation / Romaji / Hinglish / Pinyin",
+                    text = lang.subtitle ?: "Pronunciation / Romanized",
                     style = MaterialTheme.typography.labelSmall,
                     color = MaterialTheme.colorScheme.tertiary,
                   )

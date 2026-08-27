@@ -34,12 +34,24 @@ data class SupportedLanguage(
   val code: String,
   val displayName: String,
   val isRomanization: Boolean = false,
+  val subtitle: String? = null,
 )
 
 object LyricsLanguageOptions {
   val ALL_LANGUAGES = listOf(
     SupportedLanguage("en", "English"),
-    SupportedLanguage("romaji", "Romaji / Romanized (Hinglish, Pinyin)", isRomanization = true),
+    SupportedLanguage(
+      "romaji",
+      "Romaji / Romanized (Pinyin, Academic)",
+      isRomanization = true,
+      subtitle = "Pronunciation / Romaji / Pinyin",
+    ),
+    SupportedLanguage(
+      "hinglish_casual",
+      "Hinglish (Colloquial)",
+      isRomanization = true,
+      subtitle = "Casual spelling for Hindi, Punjabi, Bengali & more",
+    ),
     SupportedLanguage("hi", "Hindi (हिन्दी)"),
     SupportedLanguage("es", "Spanish (Español)"),
     SupportedLanguage("fr", "French (Français)"),
@@ -136,7 +148,8 @@ class LyricsTranslationService(
         val romanizedText = res.romanization?.takeIf { it.isNotBlank() }
         line.copy(
           translation = when {
-            targetLanguage == "romaji" || targetLanguage == "hinglish" -> romanizedText ?: translatedText
+            targetLanguage == "romaji" || targetLanguage == "hinglish" || targetLanguage == "hinglish_casual" ->
+              romanizedText ?: translatedText
             else -> translatedText
           },
           romanization = romanizedText,
@@ -155,7 +168,7 @@ class LyricsTranslationService(
     return lines.mapIndexed { index, original ->
       val res = translations.getOrNull(index)
       if (res != null) {
-        val text = if (targetLanguage == "romaji" || targetLanguage == "hinglish") {
+        val text = if (targetLanguage == "romaji" || targetLanguage == "hinglish" || targetLanguage == "hinglish_casual") {
           res.romanization ?: res.translation
         } else {
           res.translation
@@ -177,9 +190,14 @@ class LyricsTranslationService(
   ): List<TranslationResult> = coroutineScope {
     if (texts.isEmpty()) return@coroutineScope emptyList()
 
-    // Special handling for Romaji / Hinglish / Romanized
+    // Special handling for Romaji / Hinglish / Romanized (formal, diacritic-preserving)
     if (targetLang.equals("romaji", ignoreCase = true) || targetLang.equals("hinglish", ignoreCase = true)) {
       return@coroutineScope handleRomajiTransliteration(texts)
+    }
+
+    // Special handling for casual Hinglish (Hindi, Punjabi/Gurmukhi, Bengali, Tamil, etc. -> everyday Latin spelling)
+    if (targetLang.equals("hinglish_casual", ignoreCase = true)) {
+      return@coroutineScope handleHinglishCasualTransliteration(texts)
     }
 
     val isSourceLatin = isPredominantlyLatin(texts)
@@ -231,6 +249,80 @@ class LyricsTranslationService(
     }
 
     deferredChunks.awaitAll().flatten()
+  }
+
+  /**
+   * Handles casual "Hinglish" style transliteration — the way lyrics are typically typed on
+   * WhatsApp/YouTube comments (e.g. "seene", "baandhi") rather than academic IAST-style
+   * romanization with diacritics (e.g. "sīnē", "bāṁdhī"). Works for any Indic source script
+   * (Devanagari, Gurmukhi/Punjabi, Bengali, Tamil, Telugu, Marathi, Urdu, etc.) because it
+   * post-processes the same authentic Google romanization output used for "Romaji", rather
+   * than needing a separate per-script mapping table.
+   */
+  private suspend fun handleHinglishCasualTransliteration(texts: List<String>): List<TranslationResult> = coroutineScope {
+    val isAlreadyLatin = isPredominantlyLatin(texts)
+    if (isAlreadyLatin) {
+      // Already in Latin script: just clean up any stray diacritics for consistency.
+      return@coroutineScope texts.map { line ->
+        val casual = casualizeHinglish(line.trim())
+        TranslationResult(translation = casual, romanization = casual)
+      }
+    }
+
+    val chunks = texts.chunked(CHUNK_SIZE)
+    val deferredChunks = chunks.map { chunk ->
+      async(Dispatchers.IO) { romanizeChunk(chunk) }
+    }
+    val romanized = deferredChunks.awaitAll().flatten()
+
+    romanized.map { res ->
+      val source = res.romanization ?: res.translation
+      val casual = casualizeHinglish(source)
+      TranslationResult(
+        translation = casual,
+        romanization = casual,
+        detectedSourceLang = res.detectedSourceLang,
+      )
+    }
+  }
+
+  /**
+   * Converts formal/academic diacritic romanization (IAST-style, as returned by Google's
+   * romanization endpoint) into everyday casual Hinglish spelling.
+   *
+   * Strategy:
+   * 1. Special-case sibilants (ś/ṣ -> "sh") since Unicode decomposition alone would strip
+   *    them down to plain "s", losing the "sh" sound.
+   * 2. Unicode-normalize (NFD) and strip all remaining combining diacritical marks
+   *    (macrons, dots-above/below, tildes, etc.) — this generically converts ā->a, ī->i,
+   *    ū->u, ē->e, ō->o, ṁ/ṃ->m, ṅ/ñ/ṇ->n, ṭ->t, ḍ->d, ṛ->r, ḥ->h, ḷ->l regardless of which
+   *    Indic source script (Devanagari, Gurmukhi, Bengali, Tamil, etc.) produced them.
+   * 3. Re-normalize to NFC and tidy up leftover spacing.
+   *
+   * This works uniformly across all Indic languages without needing a dedicated per-script
+   * transliteration table.
+   */
+  private fun casualizeHinglish(text: String): String {
+    if (text.isBlank()) return text
+
+    // Explicit handling for sounds that don't casualize correctly via generic
+    // diacritic-stripping alone (must run before NFD stripping below):
+    //  - ś/ṣ would otherwise collapse to plain "s" and lose the "sh" sound
+    //  - ṁ/ṃ (anusvara) would otherwise collapse to "m", but colloquial Hindi/Punjabi
+    //    typing almost always renders it as "n" (e.g. "maiṁ" -> "main", not "maim")
+    var result = text
+      .replace("ś", "sh").replace("Ś", "Sh")
+      .replace("ṣ", "sh").replace("Ṣ", "Sh")
+      .replace("ṁ", "n").replace("Ṁ", "N")
+      .replace("ṃ", "n").replace("Ṃ", "N")
+
+    // Strip combining diacritical marks (macrons, dots, tildes) via NFD decomposition
+    val decomposed = java.text.Normalizer.normalize(result, java.text.Normalizer.Form.NFD)
+    val stripped = decomposed.replace(Regex("\\p{Mn}+"), "")
+    result = java.text.Normalizer.normalize(stripped, java.text.Normalizer.Form.NFC)
+
+    // Collapse accidental double spaces left behind and trim
+    return result.replace(Regex("\\s{2,}"), " ").trim()
   }
 
   private fun isPredominantlyLatin(texts: List<String>): Boolean {
