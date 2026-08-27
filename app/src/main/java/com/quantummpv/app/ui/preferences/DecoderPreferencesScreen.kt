@@ -141,6 +141,7 @@ object DecoderPreferencesScreen : Screen {
               val profile by preferences.profile.collectAsState()
               val currentProfile = MPVProfile.fromValue(profile)
               ListPreference(
+                modifier = Modifier.settingsSearchTarget(R.string.pref_decoder_profile_title),
                 value = currentProfile,
                 onValueChange = { preferences.profile.set(it.value) },
                 values = MPVProfile.entries,

@@ -359,6 +359,7 @@ object AdvancedPreferencesScreen : Screen {
           item {
             PreferenceCard {
               ListPreference(
+                modifier = Modifier.settingsSearchTarget(R.string.pref_app_language_title),
                 value = currentAppLanguage,
                 onValueChange = { language ->
                   if (language != currentAppLanguage) pendingAppLanguage = language
@@ -588,6 +589,7 @@ object AdvancedPreferencesScreen : Screen {
               val enableHlsProxy by preferences.enableHlsProxy.collectAsState()
 
               SwitchPreference(
+                modifier = Modifier.settingsSearchTarget(R.string.pref_enable_p2p_streaming_title),
                 value = enableP2pStreaming,
                 onValueChange = preferences.enableP2pStreaming::set,
                 title = { Text(stringResource(R.string.pref_enable_p2p_streaming_title)) },
@@ -602,6 +604,7 @@ object AdvancedPreferencesScreen : Screen {
               PreferenceDivider()
 
               SwitchPreference(
+                modifier = Modifier.settingsSearchTarget(R.string.pref_enable_hls_proxy_title),
                 value = enableHlsProxy,
                 onValueChange = preferences.enableHlsProxy::set,
                 title = { Text(stringResource(R.string.pref_enable_hls_proxy_title)) },

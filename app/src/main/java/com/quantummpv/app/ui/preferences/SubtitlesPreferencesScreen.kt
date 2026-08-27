@@ -188,6 +188,7 @@ object SubtitlesPreferencesScreen : Screen {
         val wyzieAiSubtitles by preferences.wyzieAiSubtitles.collectAsState()
         val onlineSubtitleSearchMode by preferences.onlineSubtitleSearchMode.collectAsState()
         val subtitleHubSources by preferences.subtitleHubSources.collectAsState()
+        val requestedSearchTarget by SettingsSearchNavigation.target.collectAsState()
         var customFonts by remember { mutableStateOf<List<String>>(emptyList()) }
 
         LaunchedEffect(fontsFolder, fontRefreshKey) {
@@ -422,6 +423,7 @@ object SubtitlesPreferencesScreen : Screen {
               PreferenceDivider()
 
               Preference(
+                modifier = Modifier.settingsSearchTarget(R.string.reload_fonts),
                 title = { Text(stringResource(R.string.reload_fonts)) },
                 summary = {
                   Text(
@@ -481,6 +483,7 @@ object SubtitlesPreferencesScreen : Screen {
               var showClearDialog by remember { mutableStateOf(false) }
 
               ListPreference(
+                modifier = Modifier.settingsSearchTarget(R.string.pref_subtitles_search_mode_title),
                 value = onlineSubtitleSearchMode,
                 onValueChange = preferences.onlineSubtitleSearchMode::set,
                 values = OnlineSubtitleSearchMode.values().toList(),
@@ -497,6 +500,7 @@ object SubtitlesPreferencesScreen : Screen {
               PreferenceDivider()
 
               MultiChoicePreference(
+                modifier = Modifier.settingsSearchTarget(R.string.pref_subtitles_subhub_sources_title),
                 title = { Text(stringResource(R.string.pref_subtitles_subhub_sources_title)) },
                 summary = {
                   val summaryText =
@@ -516,6 +520,7 @@ object SubtitlesPreferencesScreen : Screen {
               PreferenceDivider()
 
               TextFieldPreference(
+                modifier = Modifier.settingsSearchTarget(R.string.pref_wyzie_api_key_title),
                 value = wyzieApiKey,
                 onValueChange = preferences.wyzieApiKey::set,
                 textToValue = { it.trim() },
@@ -883,6 +888,19 @@ object SubtitlesPreferencesScreen : Screen {
 
               // Advanced Filters (Toggleable)
               var showAdvanced by remember { mutableStateOf(false) }
+              LaunchedEffect(requestedSearchTarget) {
+                val advancedTargetKeys =
+                  setOf(
+                    "res:${R.string.pref_hearing_impaired_title}",
+                    "res:${R.string.pref_preferred_formats_title}",
+                    "res:${R.string.pref_preferred_encodings_title}",
+                  )
+                if (requestedSearchTarget?.screen == SubtitlesPreferencesScreen &&
+                  requestedSearchTarget?.key in advancedTargetKeys
+                ) {
+                  showAdvanced = true
+                }
+              }
               Column(modifier = Modifier.fillMaxWidth()) {
                 Row(
                   modifier =
@@ -925,6 +943,7 @@ object SubtitlesPreferencesScreen : Screen {
                         "ai" to stringResource(R.string.pref_ai_subtitles_ai_only),
                       )
                     MultiChoicePreference(
+                      modifier = Modifier.settingsSearchTarget(R.string.pref_ai_subtitles_title),
                       title = { Text(stringResource(R.string.pref_ai_subtitles_title)) },
                       summary = {
                         val current = aiOptions[wyzieAiSubtitles] ?: stringResource(R.string.pref_ai_subtitles_all)

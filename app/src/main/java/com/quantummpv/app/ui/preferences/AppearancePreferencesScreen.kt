@@ -448,6 +448,7 @@ object AppearancePreferencesScreen : Screen {
               PreferenceDivider()
 
               ListPreference(
+                modifier = Modifier.settingsSearchTarget(R.string.pref_tree_flatten_depth_title),
                 value = treeFlattenDepth,
                 onValueChange = browserPreferences.treeFlattenDepth::set,
                 values = TreeFlattenDepth.entries,
@@ -467,6 +468,7 @@ object AppearancePreferencesScreen : Screen {
               PreferenceDivider()
 
               SwitchPreference(
+                modifier = Modifier.settingsSearchTarget(R.string.ui_dual_pane_view),
                 value = dualPaneForTablet,
                 onValueChange = { browserPreferences.dualPaneForTablet.set(it) },
                 title = {
@@ -494,6 +496,7 @@ object AppearancePreferencesScreen : Screen {
               val effectiveThreshold = watchedThreshold.coerceAtLeast(0)
               val thresholdDisplayValue = if (effectiveThreshold == 0) 0f else effectiveThreshold.toFloat()
               SliderPreference(
+                modifier = Modifier.settingsSearchTarget(R.string.pref_appearance_watched_threshold_title),
                 value = thresholdDisplayValue,
                 onValueChange = { browserPreferences.watchedThreshold.set(it.roundToInt()) },
                 sliderValue = thresholdDisplayValue,
@@ -525,6 +528,7 @@ object AppearancePreferencesScreen : Screen {
 
               val deleteFolderAllContents by browserPreferences.deleteFolderAllContents.collectAsState()
               SwitchPreference(
+                modifier = Modifier.settingsSearchTarget(R.string.ui_delete_folder_all_contents),
                 value = deleteFolderAllContents,
                 onValueChange = { browserPreferences.deleteFolderAllContents.set(it) },
                 title = {
@@ -742,6 +746,7 @@ object AppearancePreferencesScreen : Screen {
               val showJellyfinTab by preferences.showJellyfinTab.collectAsState()
 
               SwitchPreference(
+                modifier = Modifier.settingsSearchTarget(R.string.pref_nav_home_title),
                 value = showHomeTab,
                 onValueChange = preferences.showHomeTab::set,
                 title = { Text(text = stringResource(id = R.string.pref_nav_home_title)) },
@@ -756,6 +761,7 @@ object AppearancePreferencesScreen : Screen {
               PreferenceDivider()
 
               SwitchPreference(
+                modifier = Modifier.settingsSearchTarget(R.string.pref_nav_music_title),
                 value = showMusicTab,
                 onValueChange = preferences.showMusicTab::set,
                 title = { Text(text = stringResource(id = R.string.pref_nav_music_title)) },
@@ -770,6 +776,7 @@ object AppearancePreferencesScreen : Screen {
               PreferenceDivider()
 
               SwitchPreference(
+                modifier = Modifier.settingsSearchTarget(R.string.pref_nav_recents_title),
                 value = showRecentsTab,
                 onValueChange = preferences.showRecentsTab::set,
                 title = { Text(text = stringResource(id = R.string.pref_nav_recents_title)) },
@@ -784,6 +791,7 @@ object AppearancePreferencesScreen : Screen {
               PreferenceDivider()
 
               SwitchPreference(
+                modifier = Modifier.settingsSearchTarget(R.string.pref_nav_playlists_title),
                 value = showPlaylistsTab,
                 onValueChange = preferences.showPlaylistsTab::set,
                 title = { Text(text = stringResource(id = R.string.pref_nav_playlists_title)) },
@@ -798,6 +806,7 @@ object AppearancePreferencesScreen : Screen {
               PreferenceDivider()
 
               SwitchPreference(
+                modifier = Modifier.settingsSearchTarget(R.string.pref_nav_network_title),
                 value = showNetworkTab,
                 onValueChange = preferences.showNetworkTab::set,
                 title = { Text(text = stringResource(id = R.string.pref_nav_network_title)) },
@@ -812,6 +821,7 @@ object AppearancePreferencesScreen : Screen {
               PreferenceDivider()
 
               SwitchPreference(
+                modifier = Modifier.settingsSearchTarget(R.string.pref_nav_jellyfin_title),
                 value = showJellyfinTab,
                 onValueChange = preferences.showJellyfinTab::set,
                 title = { Text(text = stringResource(id = R.string.pref_nav_jellyfin_title)) },
@@ -827,6 +837,7 @@ object AppearancePreferencesScreen : Screen {
 
               val showQuickPlayFab by preferences.showQuickPlayFab.collectAsState()
               SwitchPreference(
+                modifier = Modifier.settingsSearchTarget(R.string.pref_quick_play_fab_title),
                 value = showQuickPlayFab,
                 onValueChange = preferences.showQuickPlayFab::set,
                 title = { Text(text = stringResource(id = R.string.pref_quick_play_fab_title)) },
@@ -842,6 +853,7 @@ object AppearancePreferencesScreen : Screen {
 
               val quickPlayFabDirect by preferences.quickPlayFabDirect.collectAsState()
               SwitchPreference(
+                modifier = Modifier.settingsSearchTarget(R.string.pref_quick_play_fab_direct_title),
                 value = quickPlayFabDirect,
                 onValueChange = preferences.quickPlayFabDirect::set,
                 enabled = showQuickPlayFab,
@@ -865,6 +877,7 @@ object AppearancePreferencesScreen : Screen {
             PreferenceCard {
               val controlsAnimStyle by playerPreferences.controlsAnimStyle.collectAsState()
               ListPreference(
+                modifier = Modifier.settingsSearchTarget(R.string.pref_anim_controls_style_title),
                 value = controlsAnimStyle,
                 onValueChange = playerPreferences.controlsAnimStyle::set,
                 values = ControlsAnimationStyle.entries,
@@ -882,6 +895,7 @@ object AppearancePreferencesScreen : Screen {
 
               val videoOpenAnim by playerPreferences.videoOpenAnimation.collectAsState()
               ListPreference(
+                modifier = Modifier.settingsSearchTarget(R.string.pref_anim_video_open_title),
                 value = videoOpenAnim,
                 onValueChange = playerPreferences.videoOpenAnimation::set,
                 values = VideoOpenAnimation.entries,
@@ -899,6 +913,7 @@ object AppearancePreferencesScreen : Screen {
 
               val appNavStyle by playerPreferences.appNavStyle.collectAsState()
               ListPreference(
+                modifier = Modifier.settingsSearchTarget(R.string.pref_anim_screen_nav_style_title),
                 value = appNavStyle,
                 onValueChange = playerPreferences.appNavStyle::set,
                 values = NavigationAnimStyle.entries,
@@ -911,6 +926,7 @@ object AppearancePreferencesScreen : Screen {
 
               val animSpeed by playerPreferences.animationSpeed.collectAsState()
               SliderPreference(
+                modifier = Modifier.settingsSearchTarget(R.string.pref_anim_speed_title),
                 value = animSpeed,
                 onValueChange = { playerPreferences.animationSpeed.set(it) },
                 title = { Text(stringResource(R.string.pref_anim_speed_title)) },

@@ -38,6 +38,7 @@ import kotlin.time.Duration.Companion.seconds
 data class SettingsSearchTarget(
   val screen: Screen,
   val key: String,
+  val anchorItemIndex: Int? = null,
 )
 
 private data class SettingsSearchListAnchor(
@@ -208,7 +209,12 @@ object SettingsSearchNavigation {
   val target = _target.asStateFlow()
 
   fun open(preference: SearchablePreference) {
-    _target.value = SettingsSearchTarget(preference.screen, preference.searchTargetKey)
+    _target.value =
+      SettingsSearchTarget(
+        screen = preference.screen,
+        key = preference.searchTargetKey,
+        anchorItemIndex = preference.anchorItemIndex,
+      )
   }
 
   fun clear(target: SettingsSearchTarget) {
@@ -217,7 +223,7 @@ object SettingsSearchNavigation {
 }
 
 val SearchablePreference.searchTargetKey: String
-  get() = titleRes?.let { "res:$it" } ?: "text:${title.orEmpty()}"
+  get() = (targetRes ?: titleRes)?.let { "res:$it" } ?: "text:${title.orEmpty()}"
 
 /** Scrolls to one concrete preference row and briefly highlights only that row. */
 fun Modifier.settingsSearchTarget(
@@ -294,7 +300,7 @@ fun rememberSettingsSearchList(
   LaunchedEffect(requestedTarget, screen) {
     val target = requestedTarget?.takeIf { it.screen == screen } ?: return@LaunchedEffect
     val targetIndex =
-      settingsSearchListAnchors[screen]
+      target.anchorItemIndex ?: settingsSearchListAnchors[screen]
         ?.firstOrNull {
           target.key == "res:${it.titleRes}" || (it.title != null && target.key == "text:${it.title}")
         }?.itemIndex
@@ -318,7 +324,7 @@ fun rememberSettingsSearchHighlight(
   LaunchedEffect(requestedTarget, screen) {
     val target = requestedTarget?.takeIf { it.screen == screen } ?: return@LaunchedEffect
     val targetIndex =
-      settingsSearchListAnchors[screen]
+      target.anchorItemIndex ?: settingsSearchListAnchors[screen]
         ?.firstOrNull {
           target.key == "res:${it.titleRes}" || (it.title != null && target.key == "text:${it.title}")
         }?.itemIndex

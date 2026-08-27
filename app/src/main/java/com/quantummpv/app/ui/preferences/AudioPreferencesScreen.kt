@@ -145,6 +145,7 @@ object AudioPreferencesScreen : Screen {
             PreferenceCard {
               val includeAudioBrowser by browserPreferences.includeAudioBrowser.collectAsState()
               SwitchPreference(
+                modifier = Modifier.settingsSearchTarget(R.string.ui_include_audio_files),
                 value = includeAudioBrowser,
                 onValueChange = { enabled ->
                   browserPreferences.includeAudioBrowser.set(enabled)
@@ -189,6 +190,7 @@ object AudioPreferencesScreen : Screen {
               Column(
                 modifier =
                   Modifier
+                    .settingsSearchTarget(R.string.ui_minimum_audio_duration)
                     .fillMaxWidth()
                     .padding(horizontal = 16.dp, vertical = 12.dp),
               ) {
@@ -246,6 +248,7 @@ object AudioPreferencesScreen : Screen {
               Column(
                 modifier =
                   Modifier
+                    .settingsSearchTarget(R.string.pref_music_tabs_title)
                     .fillMaxWidth()
                     .clickable { showMusicTabsDialog = true }
                     .padding(horizontal = 16.dp, vertical = 12.dp),
@@ -337,6 +340,7 @@ object AudioPreferencesScreen : Screen {
               PreferenceDivider()
               val audioAmbientMode by preferences.audioAmbientMode.collectAsState()
               SwitchPreference(
+                modifier = Modifier.settingsSearchTarget(R.string.pref_audio_ambient_mode_title),
                 value = audioAmbientMode,
                 onValueChange = { preferences.audioAmbientMode.set(it) },
                 title = { Text(stringResource(R.string.pref_audio_ambient_mode_title)) },
@@ -430,6 +434,7 @@ object AudioPreferencesScreen : Screen {
               PreferenceDivider()
               val drcEnabled by preferences.drcEnabled.collectAsState()
               SwitchPreference(
+                modifier = Modifier.settingsSearchTarget(R.string.pref_audio_drc_title),
                 value = drcEnabled,
                 enabled = "af" !in configOwnedOptions,
                 onValueChange = { preferences.drcEnabled.set(it) },
@@ -537,6 +542,7 @@ object AudioPreferencesScreen : Screen {
 
               val lyricsAutoTranslate by preferences.lyricsAutoTranslate.collectAsState()
               SwitchPreference(
+                modifier = Modifier.settingsSearchTarget(R.string.pref_lyrics_auto_translate),
                 value = lyricsAutoTranslate,
                 onValueChange = { preferences.lyricsAutoTranslate.set(it) },
                 title = { Text(stringResource(R.string.pref_lyrics_auto_translate)) },
@@ -551,6 +557,7 @@ object AudioPreferencesScreen : Screen {
               PreferenceDivider()
               val lyricsTargetLanguage by preferences.lyricsTargetLanguage.collectAsState()
               ListPreference(
+                modifier = Modifier.settingsSearchTarget(R.string.pref_lyrics_target_language),
                 value = lyricsTargetLanguage,
                 onValueChange = { preferences.lyricsTargetLanguage.set(it) },
                 values = LyricsLanguageOptions.ALL_LANGUAGES.map { it.code },
@@ -567,6 +574,7 @@ object AudioPreferencesScreen : Screen {
               PreferenceDivider()
               val lyricsDisplayMode by preferences.lyricsTranslationDisplayMode.collectAsState()
               ListPreference(
+                modifier = Modifier.settingsSearchTarget(R.string.pref_lyrics_display_mode),
                 value = lyricsDisplayMode,
                 onValueChange = { preferences.lyricsTranslationDisplayMode.set(it) },
                 values = LyricsTranslationDisplayMode.entries,

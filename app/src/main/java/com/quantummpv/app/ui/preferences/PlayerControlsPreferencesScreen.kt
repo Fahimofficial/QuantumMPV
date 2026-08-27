@@ -212,7 +212,10 @@ object PlayerControlsPreferencesScreen : Screen {
 
           // Seekbar Section
           item {
-            PreferenceSectionHeader(title = stringResource(R.string.pref_section_seekbar_style))
+            PreferenceSectionHeader(
+              title = stringResource(R.string.pref_section_seekbar_style),
+              modifier = Modifier.settingsSearchTarget(R.string.pref_section_seekbar_style),
+            )
           }
 
           item {
@@ -276,6 +279,7 @@ object PlayerControlsPreferencesScreen : Screen {
 
             PreferenceCard {
               ListPreference(
+                modifier = Modifier.settingsSearchTarget(R.string.ui_portrait_playback_buttons),
                 value = portraitPlaybackControlsPosition,
                 onValueChange = { appearancePrefs.portraitPlaybackControlsPosition.set(it) },
                 values = PortraitPlaybackControlsPosition.entries,
@@ -365,6 +369,7 @@ object PlayerControlsPreferencesScreen : Screen {
               PreferenceDivider()
 
               ListPreference(
+                modifier = Modifier.settingsSearchTarget(R.string.ui_time_network_clock),
                 value = clockFormat,
                 onValueChange = { playerPrefs.clockFormat.set(it) },
                 values = PlayerClockFormat.entries,

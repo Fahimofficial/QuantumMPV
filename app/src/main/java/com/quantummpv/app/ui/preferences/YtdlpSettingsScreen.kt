@@ -177,6 +177,7 @@ object YtdlpSettingsScreen : Screen {
           PreferenceCard {
             Column(modifier = Modifier.padding(vertical = 4.dp)) {
               SwitchPreference(
+                modifier = Modifier.settingsSearchTarget(R.string.ui_download_media_subtitles),
                 value = writeSubs,
                 enabled = playbackOptionsEnabled,
                 onValueChange = { ytdlPreferences.writeSubs.set(it) },
@@ -187,6 +188,7 @@ object YtdlpSettingsScreen : Screen {
               )
               PreferenceDivider()
               SwitchPreference(
+                modifier = Modifier.settingsSearchTarget(R.string.ui_include_auto_generated_subtitles),
                 value = writeAutoSubs,
                 enabled = playbackOptionsEnabled,
                 onValueChange = { ytdlPreferences.writeAutoSubs.set(it) },
@@ -198,7 +200,10 @@ object YtdlpSettingsScreen : Screen {
             }
           }
 
-          PreferenceSectionHeader(title = stringResource(R.string.ytdlp_playlist_behavior))
+          PreferenceSectionHeader(
+            title = stringResource(R.string.ytdlp_playlist_behavior),
+            modifier = Modifier.settingsSearchTarget(R.string.ytdlp_playlist_behavior),
+          )
 
           PreferenceCard {
             FlowRow(

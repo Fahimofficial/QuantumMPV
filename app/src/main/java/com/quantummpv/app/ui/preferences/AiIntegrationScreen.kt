@@ -957,7 +957,12 @@ val apiKeyInfo =
                 }
               }
 
-              item { PreferenceSectionHeader(title = stringResource(R.string.pref_translation_section)) }
+              item {
+                PreferenceSectionHeader(
+                  title = stringResource(R.string.pref_translation_section),
+                  modifier = Modifier.settingsSearchTarget(R.string.pref_translation_section),
+                )
+              }
 
               item {
                 PreferenceCard {
