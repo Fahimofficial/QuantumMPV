@@ -877,6 +877,16 @@
   <string name="diagnostics_playback_decoder_header">प्लेबैक और डिकोडर</string>
   <string name="diagnostics_power_thermals_header">पावर और थर्मल्स</string>
   <string name="diagnostics_session_header">सेशन</string>
+  <string name="diagnostics_torrent_header">टॉरेंट</string>
+  <string name="diagnostics_torrent_peer_status">पीयर स्थिति</string>
+  <string name="diagnostics_torrent_peers_value">%1$d पीयर | %2$d सीड</string>
+  <string name="diagnostics_torrent_loaded">डाउनलोड किया गया</string>
+  <string name="diagnostics_torrent_loaded_value">%1$s / %2$s (%3$d%%)</string>
+  <string name="diagnostics_torrent_transfer">ट्रांसफ़र</string>
+  <string name="diagnostics_torrent_transfer_value">डाउनलोड %1$s | अपलोड %2$s</string>
+  <string name="diagnostics_app_cpu">ऐप CPU</string>
+  <string name="diagnostics_frame_pressure">फ़्रेम दबाव</string>
+  <string name="diagnostics_frame_pressure_value">%1$.0f%% | +%2$d ड्रॉप | +%3$d विलंबित | %4$.2f fps</string>
   <string name="toast_failed_to_read_file">फाइल पढ़ना नाकाम: %1$s</string>
   <string name="pref_decoder_vulkan_experimental_title">Vulkan (प्रायोगिक)</string>
   <string name="hdr_mode_off">बंद</string>

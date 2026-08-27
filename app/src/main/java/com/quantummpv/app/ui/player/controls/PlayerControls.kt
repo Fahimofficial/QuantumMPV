@@ -12,6 +12,8 @@ package com.quantummpv.app.ui.player.controls
 import com.quantummpv.app.ui.player.PlaybackPhase
 import com.quantummpv.app.ui.player.PlaybackSession
 import com.quantummpv.app.domain.torrent.TorrentStreamingState
+import com.quantummpv.app.domain.torrent.formatTorrentBytes
+import com.quantummpv.app.domain.torrent.formatTorrentSpeed
 
 import android.content.res.Configuration.ORIENTATION_PORTRAIT
 import androidx.activity.compose.LocalActivity
@@ -1933,7 +1935,8 @@ private data class CustomStatsSnapshot(
   val video: String,
   val audio: String,
   val cpuPercent: Float,
-  val gpuEstimatePercent: Float,
+  val framePressurePercent: Float,
+  val framePressureText: String,
   val batteryPercentText: String,
   val batteryRateText: String,
   val batteryWattsText: String,
@@ -1952,6 +1955,7 @@ private fun CustomStatsPageSixOverlay(
   modifier: Modifier = Modifier,
 ) {
   val context = LocalContext.current.applicationContext
+  val torrentState by viewModel.torrentState.collectAsState()
   val isHdrOutputEnabled by viewModel.isHdrScreenOutputEnabled.collectAsState()
   val hdrScreenMode by viewModel.hdrScreenMode.collectAsState()
   val hdrOutputText =
@@ -1959,6 +1963,7 @@ private fun CustomStatsPageSixOverlay(
       R.string.hdr_mode_output_diagnostic,
       stringResource(hdrScreenMode.shortTitleRes),
     )
+  val framePressureFormat = stringResource(R.string.diagnostics_frame_pressure_value)
   val stats by produceState(
     initialValue =
       CustomStatsSnapshot(
@@ -1967,7 +1972,8 @@ private fun CustomStatsPageSixOverlay(
         video = "--",
         audio = "--",
         cpuPercent = 0f,
-        gpuEstimatePercent = 0f,
+        framePressurePercent = 0f,
+        framePressureText = "--",
         batteryPercentText = "--%",
         batteryRateText = "Unknown",
         batteryWattsText = "-- W",
@@ -1981,6 +1987,7 @@ private fun CustomStatsPageSixOverlay(
       ),
     isHdrOutputEnabled,
     hdrOutputText,
+    framePressureFormat,
   ) {
     var lastCpuMs = runCatching { android.os.Process.getElapsedCpuTime() }.getOrDefault(0L)
     var lastTimeMs = android.os.SystemClock.elapsedRealtime()
@@ -1990,6 +1997,10 @@ private fun CustomStatsPageSixOverlay(
     var totalActivePlayTimeMs = 0L
     var lastDropped = 0
     var lastDelayed = 0
+    val processorCount = Runtime.getRuntime().availableProcessors().coerceAtLeast(1)
+    var smoothedCpuPercent = 0f
+    var smoothedFramePressurePercent = 0f
+    var performanceSampleCount = 0
 
     while (true) {
       val fileName = runCatching { PlaybackSession.getPropertyString("media-title") ?: "--" }.getOrDefault("--")
@@ -2008,18 +2019,51 @@ private fun CustomStatsPageSixOverlay(
       val currentTimeMs = android.os.SystemClock.elapsedRealtime()
       val cpuDelta = (currentCpuMs - lastCpuMs).coerceAtLeast(0L)
       val timeDelta = (currentTimeMs - lastTimeMs).coerceAtLeast(1L)
-      val cpu = ((cpuDelta.toFloat() / timeDelta.toFloat()) * 100f).coerceIn(0f, 100f)
-
-      val estFps = runCatching { PlaybackSession.getPropertyDouble("estimated-vf-fps") ?: 0.0 }.getOrDefault(0.0).toFloat()
-      val droppedDelta = (dropped - lastDropped).coerceAtLeast(0)
-      val delayedDelta = (delayed - lastDelayed).coerceAtLeast(0)
-      val framePressure =
-        if (estFps > 0f) {
-          ((droppedDelta + delayedDelta).toFloat() / estFps).coerceIn(0f, 1f)
+      val rawCpuPercent =
+        if (performanceSampleCount > 0) {
+          ((cpuDelta.toFloat() / timeDelta.toFloat()) * 100f / processorCount)
+            .coerceIn(0f, 100f)
         } else {
           0f
         }
-      val gpuEstimate = (framePressure * 95f + if (estFps > 0f) 5f else 0f).coerceIn(0f, 100f)
+
+      val estFps =
+        runCatching {
+          PlaybackSession.getPropertyDouble("estimated-vf-fps")
+            ?.takeIf { it > 0.0 }
+            ?: PlaybackSession.getPropertyDouble("container-fps")
+            ?: 0.0
+        }.getOrDefault(0.0).toFloat()
+      val droppedDelta = if (performanceSampleCount > 0) (dropped - lastDropped).coerceAtLeast(0) else 0
+      val delayedDelta = if (performanceSampleCount > 0) (delayed - lastDelayed).coerceAtLeast(0) else 0
+      val expectedFrames = estFps * (timeDelta / 1000f)
+      val rawFramePressurePercent =
+        if (expectedFrames > 0f) {
+          ((droppedDelta + delayedDelta).toFloat() / expectedFrames * 100f).coerceIn(0f, 100f)
+        } else {
+          0f
+        }
+      when (performanceSampleCount) {
+        0 -> Unit
+        1 -> {
+          smoothedCpuPercent = rawCpuPercent
+          smoothedFramePressurePercent = rawFramePressurePercent
+        }
+        else -> {
+          smoothedCpuPercent = smoothedCpuPercent * 0.65f + rawCpuPercent * 0.35f
+          smoothedFramePressurePercent =
+            smoothedFramePressurePercent * 0.65f + rawFramePressurePercent * 0.35f
+        }
+      }
+      performanceSampleCount++
+      val framePressureText =
+        String.format(
+          framePressureFormat,
+          smoothedFramePressurePercent,
+          droppedDelta,
+          delayedDelta,
+          estFps,
+        )
 
       val battery = readBatterySnapshot(context)
       val isPaused = runCatching { PlaybackSession.getPropertyBoolean("pause") }.getOrDefault(false) == true
@@ -2085,8 +2129,9 @@ private fun CustomStatsPageSixOverlay(
           renderContext = renderContext,
           video = videoCodec,
           audio = audioCodec,
-          cpuPercent = cpu,
-          gpuEstimatePercent = gpuEstimate,
+          cpuPercent = smoothedCpuPercent,
+          framePressurePercent = smoothedFramePressurePercent,
+          framePressureText = framePressureText,
           batteryPercentText = battery.percentageText,
           batteryRateText = battery.rateText,
           batteryWattsText = battery.wattsText,
@@ -2168,6 +2213,104 @@ private fun CustomStatsPageSixOverlay(
     )
     OutlinedLabeled("Audio", "${stats.audio} | HDR: ${stats.hdrActive}", labelStyle, valueStyle)
 
+    when (val currentTorrentState = torrentState) {
+      is TorrentStreamingState.Connecting -> {
+        Spacer(modifier = Modifier.height(2.dp))
+        OutlinedText(stringResource(R.string.diagnostics_torrent_header), style = headerStyle)
+        Row(
+          modifier = Modifier.fillMaxWidth(),
+          horizontalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+          Box(modifier = Modifier.weight(1f)) {
+            OutlinedLabeled(
+              stringResource(R.string.diagnostics_torrent_peer_status),
+              stringResource(
+                R.string.diagnostics_torrent_peers_value,
+                currentTorrentState.peers,
+                currentTorrentState.seeds,
+              ),
+              labelStyle,
+              valueStyle,
+            )
+          }
+          Box(modifier = Modifier.weight(1f)) {
+            OutlinedLabeled(
+              stringResource(R.string.diagnostics_torrent_transfer),
+              stringResource(
+                R.string.diagnostics_torrent_transfer_value,
+                formatTorrentSpeed(currentTorrentState.downloadSpeed),
+                formatTorrentSpeed(currentTorrentState.uploadSpeed),
+              ),
+              labelStyle,
+              valueStyle,
+            )
+          }
+        }
+      }
+      is TorrentStreamingState.Streaming -> {
+        val fileSize = currentTorrentState.fileSize.coerceAtLeast(0L)
+        val downloadedBytes = currentTorrentState.downloadedBytes.coerceAtLeast(0L).coerceAtMost(fileSize)
+        val bufferProgress =
+          currentTorrentState.bufferProgress
+            .takeIf { it.isFinite() }
+            ?.coerceIn(0f, 1f)
+            ?: 0f
+        Spacer(modifier = Modifier.height(2.dp))
+        OutlinedText(stringResource(R.string.diagnostics_torrent_header), style = headerStyle)
+        Row(
+          modifier = Modifier.fillMaxWidth(),
+          horizontalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+          Box(modifier = Modifier.weight(1f)) {
+            OutlinedLabeled(
+              stringResource(R.string.diagnostics_torrent_peer_status),
+              stringResource(
+                R.string.diagnostics_torrent_peers_value,
+                currentTorrentState.peers,
+                currentTorrentState.seeds,
+              ),
+              labelStyle,
+              valueStyle,
+            )
+          }
+          Box(modifier = Modifier.weight(1f)) {
+            OutlinedLabeled(
+              stringResource(R.string.diagnostics_torrent_loaded),
+              stringResource(
+                R.string.diagnostics_torrent_loaded_value,
+                formatTorrentBytes(downloadedBytes),
+                formatTorrentBytes(fileSize),
+                (bufferProgress * 100f).roundToInt(),
+              ),
+              labelStyle,
+              valueStyle,
+            )
+          }
+        }
+        OutlinedLabeled(
+          stringResource(R.string.diagnostics_torrent_transfer),
+          stringResource(
+            R.string.diagnostics_torrent_transfer_value,
+            formatTorrentSpeed(currentTorrentState.downloadSpeed),
+            formatTorrentSpeed(currentTorrentState.uploadSpeed),
+          ),
+          labelStyle,
+          valueStyle,
+        )
+        LinearProgressIndicator(
+          progress = { bufferProgress },
+          modifier =
+            Modifier
+              .fillMaxWidth()
+              .height(3.dp)
+              .padding(vertical = 0.5.dp),
+        )
+      }
+      is TorrentStreamingState.Error,
+      TorrentStreamingState.Idle,
+      -> Unit
+    }
+
     Spacer(modifier = Modifier.height(2.dp))
     OutlinedText(stringResource(R.string.diagnostics_power_thermals_header), style = headerStyle)
     OutlinedLabeled(
@@ -2196,16 +2339,21 @@ private fun CustomStatsPageSixOverlay(
           .height(3.dp)
           .padding(vertical = 0.5.dp),
     )
-    OutlinedLabeled("App CPU", "${stats.cpuPercent.toInt()}%", labelStyle, valueStyle)
+    OutlinedLabeled(stringResource(R.string.diagnostics_app_cpu), "${stats.cpuPercent.toInt()}%", labelStyle, valueStyle)
     LinearProgressIndicator(
-      progress = { stats.gpuEstimatePercent / 100f },
+      progress = { stats.framePressurePercent / 100f },
       modifier =
         Modifier
           .fillMaxWidth()
           .height(3.dp)
           .padding(vertical = 0.5.dp),
     )
-    OutlinedLabeled("Frame Pressure", "${stats.gpuEstimatePercent.toInt()}%", labelStyle, valueStyle)
+    OutlinedLabeled(
+      stringResource(R.string.diagnostics_frame_pressure),
+      stats.framePressureText,
+      labelStyle,
+      valueStyle,
+    )
   }
 }
 

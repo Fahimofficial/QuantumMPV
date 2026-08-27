@@ -950,6 +950,16 @@ Reinicie o aplicativo para que todas as alterações entrem em vigor.</string>
   <string name="diagnostics_playback_decoder_header">REPRODUÇÃO E DECODIFICADOR</string>
   <string name="diagnostics_power_thermals_header">ENERGIA E TEMPERATURAS</string>
   <string name="diagnostics_session_header">SESSÃO</string>
+  <string name="diagnostics_torrent_header">TORRENT</string>
+  <string name="diagnostics_torrent_peer_status">Estado dos pares</string>
+  <string name="diagnostics_torrent_peers_value">%1$d pares | %2$d seeds</string>
+  <string name="diagnostics_torrent_loaded">Baixado</string>
+  <string name="diagnostics_torrent_loaded_value">%1$s / %2$s (%3$d%%)</string>
+  <string name="diagnostics_torrent_transfer">Transferência</string>
+  <string name="diagnostics_torrent_transfer_value">Download %1$s | Upload %2$s</string>
+  <string name="diagnostics_app_cpu">CPU do app</string>
+  <string name="diagnostics_frame_pressure">Pressão de quadros</string>
+  <string name="diagnostics_frame_pressure_value">%1$.0f%% | +%2$d descartados | +%3$d atrasados | %4$.2f fps</string>
   <string name="toast_failed_to_read_file">Falha ao ler o arquivo: %1$s</string>
   <string name="pref_decoder_vulkan_experimental_title">Vulkan (Experimental)</string>
   <string name="hdr_mode_off">Desativado</string>
