@@ -2,6 +2,37 @@
 
 These notes are written in plain English and focus on what changed for real use.
 
+## 2.4.0 — Playlists, Playback Reliability & Expressive Navigation
+
+### 🎬 Playback, PiP & Performance
+- **Faster Video Startup**: Removed blocking external asset synchronization from the launch path. Validated internal mpv assets are reused immediately while external assets refresh after playback begins.
+- **Reliable Seek Thumbnails**: Hardened ThumbFast-style preview initialization, request ordering, caching, and decode behavior so scrubbing shows the newest requested frame without stale replacements.
+- **Clean PiP Dismissal**: Consolidated PiP close handling into one idempotent teardown path, preventing lingering playback, duplicated audio, and brief audio glitches after the PiP window is dismissed.
+- **Safer Playback Transitions**: Improved yt-dlp, ambient-mode, clip-editor, renderer, queue, and audio-player lifecycle handling across repeated media changes.
+- **Actionable Player Diagnostics**: Expanded statistics Page 6 with real process memory, Java/native heap, mpv cache, buffered duration, packet/file cache, torrent, and playback-health data.
+
+### 📚 Playlists, Queues & Web Media
+- **YouTube Playlist Support**: YouTube and other supported web playlist links can be imported from the Playlists tab with ordered videos, titles, channel metadata, and thumbnails alongside existing M3U/M3U8 support.
+- **Metadata-Rich Player Queues**: Pasting a YouTube playlist into a link field now starts its first video and preloads every entry into the in-player playlist drawer with title, channel, artwork, duration, and stable URL metadata.
+- **More Flexible Queues**: Added Play Next and Add to Queue actions, mixed audio/video playlist support, reliable local M3U path resolution, and safer queue ownership during media handoffs.
+- **Cleaner Playlist Browsing**: Internal Favorites storage is hidden from the Playlists tab, remote cards have consistent selection styling, and network playlist thumbnails and folder queues are restored.
+- **Clear yt-dlp Setup**: First-time web playback now prompts before installing yt-dlp and shows installation progress instead of appearing to buffer indefinitely.
+
+### 🔎 Search, Lyrics & Discovery
+- **Production Settings Search**: Expanded settings coverage with ranked fuzzy matching, typo tolerance, subsequence matching, direct conditional-setting routing, precise scrolling, and highlighted matches.
+- **Better Lyrics Coverage**: Added embedded ID3v2 lyrics extraction for MP3 files and improved online lyrics lookup for YouTube media.
+- **Focused Browser Actions**: Queue selection actions now appear only in modes where they are valid, avoiding video-mode actions that depend on audio inclusion.
+
+### 🧭 Navigation & Interface
+- **Responsive Tab Navigation**: Added a smooth one-to-one sliding navigation pill and cancellable page transitions so rapid or random tab taps always settle on the latest selected destination.
+- **Stable Swipe Navigation**: Restored predictable tab swipes and removed competing page-state writers that could leave the browser between screens.
+- **Refined Player Controls**: Added always-dark player control backgrounds, unified light/dark button palettes, refreshed segmented controls, and improved audio-player controls.
+
+### 🔔 Notifications & Remote Controls
+- **Stateful Media Actions**: Media notifications now use Material Symbol transport icons, visibly distinguish saved Favorites, cycle Repeat states correctly, and expose expanded playback controls.
+- **Reliable Notification Ownership**: Prevented duplicate media cards, restored the correct audio route, and kept notification state synchronized with the active playback session.
+- **Clear PiP Seeking**: PiP controls now use dedicated Replay 10 and Forward 10 Material Symbols for precise ten-second seeking.
+
 ## 2.3.0 — Playback, Streaming Quality & Media Experience
 
 ### 🎬 Playback Reliability & Native Tools
