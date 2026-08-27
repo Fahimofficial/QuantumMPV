@@ -327,9 +327,10 @@ fun PlayerControls(
   }
 
   val isAudioOnly by viewModel.isAudioOnly.collectAsState()
-  if (isAudioOnly) {
+  val activity = LocalActivity.current as? PlayerActivity
+  val useAudioPlayer = isAudioOnly || activity?.isCurrentMediaKnownAudio() == true
+  if (useAudioPlayer) {
     val rawMediaTitle by PlaybackSession.propString["media-title"].collectAsState()
-    val activity = LocalActivity.current as? PlayerActivity
     val queuedTitle =
       playbackQueue.currentItem?.title?.takeIf { playbackQueue.isExplicitQueue && it.isNotBlank() }
     val mediaTitle =

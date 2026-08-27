@@ -12,6 +12,7 @@ package com.quantummpv.app.ui.player
 import android.Manifest
 import android.animation.ValueAnimator
 import android.app.KeyguardManager
+import android.app.PendingIntent
 import android.content.BroadcastReceiver
 import android.content.ComponentName
 import android.content.Context
@@ -4911,11 +4912,13 @@ class PlayerActivity :
   /**
    * Handles new intents to load a different file without recreating the activity.
    *
-   * @param intent The new intent
+   * @param sourceIntent The new intent
    */
-  override fun onNewIntent(intent: Intent) {
-    super.onNewIntent(intent)
+  override fun onNewIntent(sourceIntent: Intent) {
+    super.onNewIntent(sourceIntent)
     if (!ownsPlaybackSession()) return
+
+    var intent = sourceIntent
 
     // Transport intents control the existing session and must not replace its media/source intent.
     when (intent.action) {
@@ -4930,19 +4933,38 @@ class PlayerActivity :
       MediaPlaybackService.ACTION_OPEN_PLAYER -> {
         isBackgroundPlaybackSessionActive = false
         pendingBackgroundTransition = false
-        attachToCurrentPlaybackSessionIfRequested(intent)
-        PlaybackSession.markForeground()
-        isReady = PlaybackSession.state.value.phase == PlaybackPhase.READY
-        if (isReady) viewModel.onVideoLoadCompleted()
-        if (isBackgroundPlaybackEnabled()) {
-          if (!serviceBound || mediaPlaybackService == null) {
-            startBackgroundPlaybackInternal(bindToActivity = true)
+        if (attachToCurrentPlaybackSessionIfRequested(intent)) {
+          PlaybackSession.markForeground()
+          isReady = PlaybackSession.state.value.phase == PlaybackPhase.READY
+          if (isReady) viewModel.onVideoLoadCompleted()
+          applyPlaybackBrightnessPolicy(isAudio = isKnownAudioLaunch(this.intent))
+          if (isKnownAudioLaunch(this.intent)) setOrientation()
+          if (isBackgroundPlaybackEnabled()) {
+            if (!serviceBound || mediaPlaybackService == null) {
+              startBackgroundPlaybackInternal(bindToActivity = true)
+            }
+            syncBackgroundPlaybackService(updateThumbnail = true)
+          } else {
+            endBackgroundPlayback()
           }
-          syncBackgroundPlaybackService(updateThumbnail = true)
-        } else {
-          endBackgroundPlayback()
+          return
         }
-        return
+
+        // A process may retain the singleTask Activity after its process-wide queue was cleared.
+        // In that case the live-session attach cannot succeed. Convert the notification payload
+        // into a normal media launch instead of returning to the stale video that this Activity
+        // displayed previously.
+        val fallbackUri = intent.getStringExtra("uri")?.takeIf { it.isNotBlank() }
+        if (fallbackUri == null) {
+          Log.w(TAG, "Notification re-entry had neither an attachable session nor a fallback URI")
+          return
+        }
+        intent =
+          Intent(intent).apply {
+            action = Intent.ACTION_VIEW
+            data = Uri.parse(fallbackUri)
+            if (type.isNullOrBlank() && getBooleanExtra("is_audio", false)) type = "audio/*"
+          }
       }
     }
 
@@ -6043,11 +6065,16 @@ class PlayerActivity :
               }
             },
           )
-          isActive = !MediaPlaybackService.isForegroundActive()
+          isActive = shouldPublishActivityMediaSession() && !MediaPlaybackService.isNotificationOwnerReady()
         }
       playbackStateBuilder = PlaybackState.Builder()
       mediaSessionInitialized = true
       updateMediaSessionPlaybackState(isPlaying = PlaybackSession.getPropertyBoolean("pause") == false)
+      lifecycleScope.launch {
+        advancedPreferences.notificationStyle.changes().drop(1).collect {
+          setActivityMediaSessionActive(!MediaPlaybackService.isNotificationOwnerReady())
+        }
+      }
     }.onFailure { e ->
       Log.e(TAG, "Failed to initialize MediaSession", e)
       mediaSessionInitialized = false
@@ -6116,8 +6143,43 @@ class PlayerActivity :
           .putLong(MediaMetadata.METADATA_KEY_DURATION, durationMs)
           .build()
       mediaSession.setMetadata(metadata)
+      mediaSession.setSessionActivity(buildActivityMediaSessionContentIntent())
     }.onFailure { e -> Log.e(TAG, "Error updating metadata", e) }
   }
+
+  private fun buildActivityMediaSessionContentIntent(): PendingIntent {
+    val currentItem = PlaybackSession.queue.value.currentItem
+    val isAudio = isCurrentPlaybackAudio()
+    val targetUri = currentItem?.originalUri?.takeIf { it.isNotBlank() } ?: currentDurableMediaUri()
+    val targetTitle = currentItem?.title?.takeIf { it.isNotBlank() } ?: fileName
+    val targetIdentifier = currentItem?.stableId?.takeIf { it.isNotBlank() } ?: mediaIdentifier
+    val contentIntent =
+      Intent(this, PlayerActivity::class.java).apply {
+        action = MediaPlaybackService.ACTION_OPEN_PLAYER
+        type = currentItem?.mimeType ?: "audio/*".takeIf { isAudio }
+        targetUri?.let { putExtra("uri", it) }
+        putExtra("title", targetTitle)
+        putExtra("media_identifier", targetIdentifier)
+        putExtra("launch_source", "media_session")
+        putExtra("internal_launch", true)
+        putExtra("is_audio", isAudio)
+        putExtra("media_library_audio", isAudio)
+        flags = Intent.FLAG_ACTIVITY_SINGLE_TOP or Intent.FLAG_ACTIVITY_CLEAR_TOP
+      }
+    return PendingIntent.getActivity(
+      this,
+      if (isAudio) AUDIO_SESSION_INTENT_REQUEST_CODE else VIDEO_SESSION_INTENT_REQUEST_CODE,
+      contentIntent,
+      PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT,
+    )
+  }
+
+  private fun shouldPublishActivityMediaSession(): Boolean =
+    advancedPreferences.notificationStyle
+      .get()
+      .takeIf { it.isSupportedOn(Build.VERSION.SDK_INT) }
+      ?.let { it == NotificationStyle.Media }
+      ?: true
 
   /**
    * Releases MediaSession resources.
@@ -6133,10 +6195,13 @@ class PlayerActivity :
   }
 
   private fun setActivityMediaSessionActive(active: Boolean) {
-    if (!mediaSessionInitialized || mediaSession.isActive == active) return
+    val resolvedActive = active && shouldPublishActivityMediaSession()
+    if (!mediaSessionInitialized || mediaSession.isActive == resolvedActive) return
     runCatching {
-      mediaSession.isActive = active
-      if (active) updateMediaSessionPlaybackState(isPlaying = PlaybackSession.getPropertyBoolean("pause") == false)
+      mediaSession.isActive = resolvedActive
+      if (resolvedActive) {
+        updateMediaSessionPlaybackState(isPlaying = PlaybackSession.getPropertyBoolean("pause") == false)
+      }
     }.onFailure { error -> Log.e(TAG, "Error changing Activity MediaSession ownership", error) }
   }
 
@@ -7691,6 +7756,8 @@ class PlayerActivity :
     private const val PLAYBACK_LOAD_ERROR_SETTLE_MS = 300L
     private const val MAX_PLAYBACK_LOAD_RETRIES = 1
     private const val PIP_EXIT_RESOLUTION_DELAY_MS = 300L
+    private const val VIDEO_SESSION_INTENT_REQUEST_CODE = 1200
+    private const val AUDIO_SESSION_INTENT_REQUEST_CODE = 1201
 
     /**
      * General tag for logging from PlayerActivity.

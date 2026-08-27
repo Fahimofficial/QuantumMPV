@@ -96,6 +96,8 @@ class MediaPlaybackService :
     private const val PROGRESS_NOTIFICATION_UPDATE_INTERVAL_MS = 2000L
     private const val MEDIA_NOTIFICATION_UPDATE_INTERVAL_MS = 5000L
     private const val MAX_MEDIA_SESSION_QUEUE_ITEMS = 200
+    private const val VIDEO_CONTENT_INTENT_REQUEST_CODE = 1100
+    private const val AUDIO_CONTENT_INTENT_REQUEST_CODE = 1101
     private val DEFAULT_ACCENT_COLOR = Color.rgb(214, 220, 228)
     const val ACTION_OPEN_PLAYER = "com.quantummpv.app.action.OPEN_PLAYER_FROM_NOTIFICATION"
     const val ACTION_NOTIFICATION_PREVIOUS = "com.quantummpv.app.action.NOTIFICATION_PREVIOUS"
@@ -128,6 +130,9 @@ class MediaPlaybackService :
       activeInstance?.let { service ->
         service.foregroundReady && !activityForeground && !service.handingBackToActivity
       } == true
+
+    /** True once the service owns the foreground notification, independent of Activity focus. */
+    internal fun isNotificationOwnerReady(): Boolean = activeInstance?.foregroundReady == true
 
     /**
      * True while a PlayerActivity is the active foreground owner of the shared playback session
@@ -382,6 +387,7 @@ class MediaPlaybackService :
           stopSelf()
         } else {
           updateMediaSessionPlaybackState()
+          syncMediaSessionVisibility()
           updateNotification()
         }
       }
@@ -529,7 +535,7 @@ class MediaPlaybackService :
       return START_NOT_STICKY
     }
     foregroundReady = true
-    mediaSession.isActive = true
+    syncMediaSessionVisibility()
     Log.d(TAG, "Foreground service started successfully")
 
     return START_NOT_STICKY
@@ -1084,6 +1090,17 @@ class MediaPlaybackService :
 
   private fun useProgressNotification(): Boolean = currentNotificationStyle() == NotificationStyle.Progress
 
+  /**
+   * A ProgressStyle notification and an active MediaSession are two independent System UI
+   * surfaces on Android 16. Publishing both makes one selected notification preference appear as
+   * two playback cards. Media Controls owns the MediaSession surface; Progress with Chapters owns
+   * only the foreground notification and keeps its transport actions on explicit PendingIntents.
+   */
+  private fun syncMediaSessionVisibility() {
+    if (!::mediaSession.isInitialized) return
+    mediaSession.isActive = foregroundReady && currentNotificationStyle() == NotificationStyle.Media
+  }
+
   private fun updateMediaSessionMetadata() {
     try {
       val title = mediaTitle.ifBlank { getString(R.string.player_unknown_video) }
@@ -1185,15 +1202,20 @@ class MediaPlaybackService :
   private fun buildNotification(): Notification =
     if (useProgressNotification()) buildModernNotification() else buildLegacyNotification()
 
-  private fun buildContentIntent(): PendingIntent =
-    PendingIntent.getActivity(
-      this,
-      0,
+  private fun buildContentIntent(): PendingIntent {
+    val currentItem = PlaybackSession.queue.value.currentItem
+    val isAudio =
+      notificationIsAudio || currentItem?.declaredMediaKind() == DeclaredPlaybackMediaKind.AUDIO
+    val targetUri = currentItem?.originalUri?.takeIf { it.isNotBlank() } ?: mediaUri
+    val targetTitle = currentItem?.title?.takeIf { it.isNotBlank() } ?: mediaTitle
+    val targetIdentifier = currentItem?.stableId?.takeIf { it.isNotBlank() } ?: mediaIdentifier
+    val contentIntent =
       Intent(this, PlayerActivity::class.java).apply {
         action = ACTION_OPEN_PLAYER
-        mediaUri?.let { putExtra("uri", it) }
-        putExtra("title", mediaTitle)
-        putExtra("media_identifier", mediaIdentifier)
+        type = currentItem?.mimeType ?: "audio/*".takeIf { isAudio }
+        targetUri?.let { putExtra("uri", it) }
+        putExtra("title", targetTitle)
+        putExtra("media_identifier", targetIdentifier)
         putExtra(
           "position",
           (currentPositionSeconds
@@ -1205,12 +1227,18 @@ class MediaPlaybackService :
         )
         putExtra("launch_source", "notification")
         putExtra("internal_launch", true)
-        putExtra("is_audio", notificationIsAudio)
-        putExtra("media_library_audio", notificationIsAudio)
+        putExtra("is_audio", isAudio)
+        putExtra("media_library_audio", isAudio)
         flags = Intent.FLAG_ACTIVITY_SINGLE_TOP or Intent.FLAG_ACTIVITY_CLEAR_TOP
-      },
+      }
+
+    return PendingIntent.getActivity(
+      this,
+      if (isAudio) AUDIO_CONTENT_INTENT_REQUEST_CODE else VIDEO_CONTENT_INTENT_REQUEST_CODE,
+      contentIntent,
       PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT,
     )
+  }
 
   private fun buildTransportIntent(
     action: String,
@@ -1324,8 +1352,8 @@ class MediaPlaybackService :
 
   /**
    * Android 16+ (API 36): Progress-centric notification with chapter segment indicators.
-   * The MediaSession remains active so Bluetooth, lock-screen, Auto, and Wear controls keep
-   * working even when the user chooses this alternative notification presentation.
+   * This style uses explicit notification actions instead of also advertising a MediaSession,
+   * which would make System UI render a second playback card.
    */
   private fun buildModernNotification(): Notification {
     val (maximum, position) = notificationProgress()
