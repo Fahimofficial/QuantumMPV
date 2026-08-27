@@ -1198,7 +1198,7 @@ class MediaPlaybackService :
         val (repeatIcon, repeatLabel) = repeatActionState()
         stateBuilder.addCustomAction(
           PlaybackStateCompat.CustomAction
-            .Builder(ACTION_NOTIFICATION_FAVORITE, favoriteLabel, Icons.Platform.Favorite)
+            .Builder(ACTION_NOTIFICATION_FAVORITE, favoriteLabel, favoriteActionIcon())
             .build(),
         )
         stateBuilder.addCustomAction(
@@ -1323,10 +1323,13 @@ class MediaPlaybackService :
 
   private fun favoriteAction() =
     NotificationCompat.Action(
-      Icons.Platform.Favorite,
+      favoriteActionIcon(),
       favoriteActionLabel(),
       buildTransportIntent(ACTION_NOTIFICATION_FAVORITE, 1004),
     )
+
+  private fun favoriteActionIcon(): Int =
+    if (isCurrentFavorite) Icons.Platform.Favorite else Icons.Platform.FavoriteBorder
 
   private fun favoriteActionLabel(): String =
     getString(
@@ -1351,7 +1354,7 @@ class MediaPlaybackService :
 
   private fun stopAction() =
     NotificationCompat.Action(
-      android.R.drawable.ic_menu_close_clear_cancel,
+      Icons.Platform.Stop,
       "Stop",
       buildTransportIntent(ACTION_NOTIFICATION_STOP, 1006),
     )

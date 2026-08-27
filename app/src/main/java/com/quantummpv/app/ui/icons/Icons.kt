@@ -495,13 +495,17 @@ object Icons {
 
     @DrawableRes val Next = MaterialSymbolsR.drawable.materialsymbols_ic_skip_next_rounded_filled
 
+    @DrawableRes val FavoriteBorder = com.quantummpv.app.R.drawable.materialsymbols_ic_favorite_rounded
+
     @DrawableRes val Favorite = MaterialSymbolsR.drawable.materialsymbols_ic_favorite_rounded_filled
 
-    @DrawableRes val Repeat = MaterialSymbolsR.drawable.materialsymbols_ic_repeat_rounded_filled
+    @DrawableRes val Repeat = com.quantummpv.app.R.drawable.materialsymbols_ic_repeat_rounded
 
     @DrawableRes val RepeatOn = MaterialSymbolsR.drawable.materialsymbols_ic_repeat_on_rounded_filled
 
     @DrawableRes val RepeatOne = MaterialSymbolsR.drawable.materialsymbols_ic_repeat_one_rounded_filled
+
+    @DrawableRes val Stop = MaterialSymbolsR.drawable.materialsymbols_ic_stop_rounded_filled
   }
 }
 
