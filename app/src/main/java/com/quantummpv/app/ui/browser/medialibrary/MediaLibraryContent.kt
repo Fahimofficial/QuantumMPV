@@ -751,16 +751,26 @@ fun MediaLibraryContent(forceAudio: Boolean = false) {
           onRenameClick = { renameDialogOpen.value = true },
           onDeleteClick = { deleteDialogOpen.value = true },
           onAddToPlaylistClick = { addToPlaylistDialogOpen.value = true },
-          onPlayNextClick = {
-            if (addVideosToPlaybackQueue(context, selectionManager.getSelectedItems(), QueueInsertion.PlayNext)) {
-              selectionManager.clear()
-            }
-          },
-          onAddToQueueClick = {
-            if (addVideosToPlaybackQueue(context, selectionManager.getSelectedItems(), QueueInsertion.AddToEnd)) {
-              selectionManager.clear()
-            }
-          },
+          onPlayNextClick =
+            if (includeAudioBrowser && mediaType == MediaLibraryType.Audio) {
+              {
+                if (addVideosToPlaybackQueue(context, selectionManager.getSelectedItems(), QueueInsertion.PlayNext)) {
+                  selectionManager.clear()
+                }
+              }
+            } else {
+              null
+            },
+          onAddToQueueClick =
+            if (includeAudioBrowser && mediaType == MediaLibraryType.Audio) {
+              {
+                if (addVideosToPlaybackQueue(context, selectionManager.getSelectedItems(), QueueInsertion.AddToEnd)) {
+                  selectionManager.clear()
+                }
+              }
+            } else {
+              null
+            },
           showCopy = true,
           showMove = true,
           showDownscale = selectionManager.getSelectedItems().let { items -> items.isNotEmpty() && items.none { it.isAudio } },

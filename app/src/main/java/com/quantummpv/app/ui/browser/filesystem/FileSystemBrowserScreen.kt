@@ -207,6 +207,7 @@ fun FileSystemBrowserScreen(path: String? = null) {
   val playlistMode by playerPreferences.playlistMode.collectAsState()
   val itemsWereDeletedOrMoved by viewModel.itemsWereDeletedOrMoved.collectAsState()
   val showSubtitleIndicator by browserPreferences.showSubtitleIndicator.collectAsState()
+  val includeAudioBrowser by browserPreferences.includeAudioBrowser.collectAsState()
 
   // Use standalone local states instead of CompositionLocal to avoid scroll issues with predictive back gesture
   val mediaLayoutMode by browserPreferences.mediaLayoutMode.collectAsState()
@@ -940,7 +941,7 @@ fun FileSystemBrowserScreen(path: String? = null) {
         onDeleteClick = { deleteDialogOpen = true },
         onAddToPlaylistClick = { addToPlaylistDialogOpen.value = true },
         onPlayNextClick =
-          if (onlyVideosSelected) {
+          if (includeAudioBrowser && onlyVideosSelected) {
             {
               if (addVideosToPlaybackQueue(context, selectedVideos, QueueInsertion.PlayNext)) {
                 selectionManager.clear()
@@ -950,7 +951,7 @@ fun FileSystemBrowserScreen(path: String? = null) {
             null
           },
         onAddToQueueClick =
-          if (onlyVideosSelected) {
+          if (includeAudioBrowser && onlyVideosSelected) {
             {
               if (addVideosToPlaybackQueue(context, selectedVideos, QueueInsertion.AddToEnd)) {
                 selectionManager.clear()
