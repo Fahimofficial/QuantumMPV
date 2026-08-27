@@ -104,8 +104,6 @@ import com.quantummpv.app.ui.browser.cards.VideoCardUiConfig
 import com.quantummpv.app.ui.browser.components.BrowserBottomBar
 import com.quantummpv.app.ui.browser.components.BrowserTopBar
 import com.quantummpv.app.ui.browser.components.ExpressiveScrollBar
-import com.quantummpv.app.ui.browser.components.QueueInsertion
-import com.quantummpv.app.ui.browser.components.addVideosToPlaybackQueue
 import com.quantummpv.app.ui.browser.components.fastScrollGlyph
 import com.quantummpv.app.ui.browser.dialogs.AddToPlaylistDialog
 import com.quantummpv.app.ui.browser.dialogs.DeleteConfirmationDialog
@@ -207,7 +205,6 @@ fun FileSystemBrowserScreen(path: String? = null) {
   val playlistMode by playerPreferences.playlistMode.collectAsState()
   val itemsWereDeletedOrMoved by viewModel.itemsWereDeletedOrMoved.collectAsState()
   val showSubtitleIndicator by browserPreferences.showSubtitleIndicator.collectAsState()
-  val includeAudioBrowser by browserPreferences.includeAudioBrowser.collectAsState()
 
   // Use standalone local states instead of CompositionLocal to avoid scroll issues with predictive back gesture
   val mediaLayoutMode by browserPreferences.mediaLayoutMode.collectAsState()
@@ -940,26 +937,6 @@ fun FileSystemBrowserScreen(path: String? = null) {
         onRenameClick = { renameDialogOpen.value = true },
         onDeleteClick = { deleteDialogOpen = true },
         onAddToPlaylistClick = { addToPlaylistDialogOpen.value = true },
-        onPlayNextClick =
-          if (includeAudioBrowser && onlyVideosSelected) {
-            {
-              if (addVideosToPlaybackQueue(context, selectedVideos, QueueInsertion.PlayNext)) {
-                selectionManager.clear()
-              }
-            }
-          } else {
-            null
-          },
-        onAddToQueueClick =
-          if (includeAudioBrowser && onlyVideosSelected) {
-            {
-              if (addVideosToPlaybackQueue(context, selectedVideos, QueueInsertion.AddToEnd)) {
-                selectionManager.clear()
-              }
-            }
-          } else {
-            null
-          },
         showDownscale =
           selectedVideos.isNotEmpty() && selectedVideos.none { it.isAudio } && selectedFolders.isEmpty(),
         showRename = selectionManager.isSingleSelection,
