@@ -16,6 +16,7 @@ import com.quantummpv.app.domain.torrent.formatTorrentBytes
 import com.quantummpv.app.domain.torrent.formatTorrentSpeed
 
 import android.content.res.Configuration.ORIENTATION_PORTRAIT
+import android.os.Debug
 import androidx.activity.compose.LocalActivity
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.FiniteAnimationSpec
@@ -160,8 +161,10 @@ import com.quantummpv.app.ui.theme.spacing
 import dev.vivvvek.seeker.Segment
 import kotlinx.collections.immutable.persistentListOf
 import kotlinx.collections.immutable.toImmutableList
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.update
+import kotlinx.coroutines.withContext
 import org.koin.compose.koinInject
 import kotlin.math.abs
 import kotlin.math.roundToInt
@@ -1929,14 +1932,35 @@ private fun chapterNameForPosition(
     ?: "Chapter ${chapterIndex.coerceAtLeast(0) + 1}"
 }
 
+private const val MEMORY_STATS_SAMPLE_INTERVAL_MS = 5_000L
+
+private data class ProcessMemorySnapshot(
+  val totalPssBytes: Long,
+  val javaHeapUsedBytes: Long,
+  val javaHeapMaxBytes: Long,
+  val nativeHeapBytes: Long,
+)
+
+private fun readProcessMemorySnapshot(): ProcessMemorySnapshot {
+  val runtime = Runtime.getRuntime()
+  val memoryInfo = Debug.MemoryInfo()
+  Debug.getMemoryInfo(memoryInfo)
+  return ProcessMemorySnapshot(
+    totalPssBytes = memoryInfo.totalPss.toLong() * 1024L,
+    javaHeapUsedBytes = runtime.totalMemory() - runtime.freeMemory(),
+    javaHeapMaxBytes = runtime.maxMemory(),
+    nativeHeapBytes = Debug.getNativeHeapAllocatedSize(),
+  )
+}
+
 private data class CustomStatsSnapshot(
   val fileName: String,
   val renderContext: String,
   val video: String,
   val audio: String,
   val cpuPercent: Float,
-  val framePressurePercent: Float,
-  val framePressureText: String,
+  val processMemoryText: String,
+  val playbackCacheText: String,
   val batteryPercentText: String,
   val batteryRateText: String,
   val batteryWattsText: String,
@@ -1963,7 +1987,8 @@ private fun CustomStatsPageSixOverlay(
       R.string.hdr_mode_output_diagnostic,
       stringResource(hdrScreenMode.shortTitleRes),
     )
-  val framePressureFormat = stringResource(R.string.diagnostics_frame_pressure_value)
+  val processMemoryFormat = stringResource(R.string.diagnostics_process_memory_value)
+  val playbackCacheFormat = stringResource(R.string.diagnostics_playback_cache_value)
   val stats by produceState(
     initialValue =
       CustomStatsSnapshot(
@@ -1972,8 +1997,8 @@ private fun CustomStatsPageSixOverlay(
         video = "--",
         audio = "--",
         cpuPercent = 0f,
-        framePressurePercent = 0f,
-        framePressureText = "--",
+        processMemoryText = "--",
+        playbackCacheText = "--",
         batteryPercentText = "--%",
         batteryRateText = "Unknown",
         batteryWattsText = "-- W",
@@ -1987,20 +2012,20 @@ private fun CustomStatsPageSixOverlay(
       ),
     isHdrOutputEnabled,
     hdrOutputText,
-    framePressureFormat,
+    processMemoryFormat,
+    playbackCacheFormat,
   ) {
     var lastCpuMs = runCatching { android.os.Process.getElapsedCpuTime() }.getOrDefault(0L)
     var lastTimeMs = android.os.SystemClock.elapsedRealtime()
+    var lastMemorySampleMs = lastTimeMs
+    var memorySnapshot = withContext(Dispatchers.Default) { readProcessMemorySnapshot() }
 
     var startBatteryTemp: Float? = null
     var peakBatteryTemp = 0.0f
     var totalActivePlayTimeMs = 0L
-    var lastDropped = 0
-    var lastDelayed = 0
     val processorCount = Runtime.getRuntime().availableProcessors().coerceAtLeast(1)
     var smoothedCpuPercent = 0f
-    var smoothedFramePressurePercent = 0f
-    var performanceSampleCount = 0
+    var cpuSampleCount = 0
 
     while (true) {
       val fileName = runCatching { PlaybackSession.getPropertyString("media-title") ?: "--" }.getOrDefault("--")
@@ -2010,8 +2035,6 @@ private fun CustomStatsPageSixOverlay(
             ?: PlaybackSession.getPropertyString("vo")
             ?: "--"
         }.getOrDefault("--")
-      val dropped = runCatching { PlaybackSession.getPropertyInt("drop-frame-count") ?: 0 }.getOrDefault(0)
-      val delayed = runCatching { PlaybackSession.getPropertyInt("vo-delayed-frame-count") ?: 0 }.getOrDefault(0)
       val videoCodec = runCatching { PlaybackSession.getPropertyString("video-codec") ?: "--" }.getOrDefault("--")
       val audioCodec = runCatching { PlaybackSession.getPropertyString("audio-codec-name") ?: "--" }.getOrDefault("--")
 
@@ -2019,50 +2042,59 @@ private fun CustomStatsPageSixOverlay(
       val currentTimeMs = android.os.SystemClock.elapsedRealtime()
       val cpuDelta = (currentCpuMs - lastCpuMs).coerceAtLeast(0L)
       val timeDelta = (currentTimeMs - lastTimeMs).coerceAtLeast(1L)
+      if (currentTimeMs - lastMemorySampleMs >= MEMORY_STATS_SAMPLE_INTERVAL_MS) {
+        memorySnapshot =
+          runCatching {
+            withContext(Dispatchers.Default) { readProcessMemorySnapshot() }
+          }.getOrDefault(memorySnapshot)
+        lastMemorySampleMs = currentTimeMs
+      }
       val rawCpuPercent =
-        if (performanceSampleCount > 0) {
+        if (cpuSampleCount > 0) {
           ((cpuDelta.toFloat() / timeDelta.toFloat()) * 100f / processorCount)
             .coerceIn(0f, 100f)
         } else {
           0f
         }
 
-      val estFps =
-        runCatching {
-          PlaybackSession.getPropertyDouble("estimated-vf-fps")
-            ?.takeIf { it > 0.0 }
-            ?: PlaybackSession.getPropertyDouble("container-fps")
-            ?: 0.0
-        }.getOrDefault(0.0).toFloat()
-      val droppedDelta = if (performanceSampleCount > 0) (dropped - lastDropped).coerceAtLeast(0) else 0
-      val delayedDelta = if (performanceSampleCount > 0) (delayed - lastDelayed).coerceAtLeast(0) else 0
-      val expectedFrames = estFps * (timeDelta / 1000f)
-      val rawFramePressurePercent =
-        if (expectedFrames > 0f) {
-          ((droppedDelta + delayedDelta).toFloat() / expectedFrames * 100f).coerceIn(0f, 100f)
-        } else {
-          0f
-        }
-      when (performanceSampleCount) {
+      when (cpuSampleCount) {
         0 -> Unit
-        1 -> {
-          smoothedCpuPercent = rawCpuPercent
-          smoothedFramePressurePercent = rawFramePressurePercent
-        }
-        else -> {
-          smoothedCpuPercent = smoothedCpuPercent * 0.65f + rawCpuPercent * 0.35f
-          smoothedFramePressurePercent =
-            smoothedFramePressurePercent * 0.65f + rawFramePressurePercent * 0.35f
-        }
+        1 -> smoothedCpuPercent = rawCpuPercent
+        else -> smoothedCpuPercent = smoothedCpuPercent * 0.65f + rawCpuPercent * 0.35f
       }
-      performanceSampleCount++
-      val framePressureText =
+      cpuSampleCount++
+
+      val processMemoryText =
         String.format(
-          framePressureFormat,
-          smoothedFramePressurePercent,
-          droppedDelta,
-          delayedDelta,
-          estFps,
+          processMemoryFormat,
+          formatTorrentBytes(memorySnapshot.totalPssBytes),
+          formatTorrentBytes(memorySnapshot.javaHeapUsedBytes),
+          formatTorrentBytes(memorySnapshot.javaHeapMaxBytes),
+          formatTorrentBytes(memorySnapshot.nativeHeapBytes),
+        )
+      val cacheDurationSeconds =
+        runCatching { PlaybackSession.getPropertyDouble("demuxer-cache-duration") }
+          .getOrNull()
+          ?.takeIf { it.isFinite() && it >= 0.0 }
+          ?: 0.0
+      val packetCacheBytes =
+        runCatching { PlaybackSession.getPropertyDouble("demuxer-cache-state/fw-bytes") }
+          .getOrNull()
+          ?.takeIf { it.isFinite() && it >= 0.0 }
+          ?.toLong()
+          ?: 0L
+      val fileCacheBytes =
+        runCatching { PlaybackSession.getPropertyDouble("demuxer-cache-state/file-cache-bytes") }
+          .getOrNull()
+          ?.takeIf { it.isFinite() && it >= 0.0 }
+          ?.toLong()
+          ?: 0L
+      val playbackCacheText =
+        String.format(
+          playbackCacheFormat,
+          cacheDurationSeconds,
+          formatTorrentBytes(packetCacheBytes),
+          formatTorrentBytes(fileCacheBytes),
         )
 
       val battery = readBatterySnapshot(context)
@@ -2130,8 +2162,8 @@ private fun CustomStatsPageSixOverlay(
           video = videoCodec,
           audio = audioCodec,
           cpuPercent = smoothedCpuPercent,
-          framePressurePercent = smoothedFramePressurePercent,
-          framePressureText = framePressureText,
+          processMemoryText = processMemoryText,
+          playbackCacheText = playbackCacheText,
           batteryPercentText = battery.percentageText,
           batteryRateText = battery.rateText,
           batteryWattsText = battery.wattsText,
@@ -2166,8 +2198,6 @@ private fun CustomStatsPageSixOverlay(
 
       lastCpuMs = currentCpuMs
       lastTimeMs = currentTimeMs
-      lastDropped = dropped
-      lastDelayed = delayed
 
       delay(if (isPaused) 2000L else 1000L)
     }
@@ -2340,17 +2370,18 @@ private fun CustomStatsPageSixOverlay(
           .padding(vertical = 0.5.dp),
     )
     OutlinedLabeled(stringResource(R.string.diagnostics_app_cpu), "${stats.cpuPercent.toInt()}%", labelStyle, valueStyle)
-    LinearProgressIndicator(
-      progress = { stats.framePressurePercent / 100f },
-      modifier =
-        Modifier
-          .fillMaxWidth()
-          .height(3.dp)
-          .padding(vertical = 0.5.dp),
+
+    Spacer(modifier = Modifier.height(2.dp))
+    OutlinedText(stringResource(R.string.diagnostics_memory_cache_header), style = headerStyle)
+    OutlinedLabeled(
+      stringResource(R.string.diagnostics_process_memory),
+      stats.processMemoryText,
+      labelStyle,
+      valueStyle,
     )
     OutlinedLabeled(
-      stringResource(R.string.diagnostics_frame_pressure),
-      stats.framePressureText,
+      stringResource(R.string.diagnostics_playback_cache),
+      stats.playbackCacheText,
       labelStyle,
       valueStyle,
     )

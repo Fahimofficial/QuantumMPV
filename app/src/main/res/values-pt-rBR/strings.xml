@@ -958,8 +958,11 @@ Reinicie o aplicativo para que todas as alterações entrem em vigor.</string>
   <string name="diagnostics_torrent_transfer">Transferência</string>
   <string name="diagnostics_torrent_transfer_value">Download %1$s | Upload %2$s</string>
   <string name="diagnostics_app_cpu">CPU do app</string>
-  <string name="diagnostics_frame_pressure">Pressão de quadros</string>
-  <string name="diagnostics_frame_pressure_value">%1$.0f%% | +%2$d descartados | +%3$d atrasados | %4$.2f fps</string>
+  <string name="diagnostics_memory_cache_header">MEMÓRIA E CACHE</string>
+  <string name="diagnostics_process_memory">Processo</string>
+  <string name="diagnostics_process_memory_value">PSS %1$s | Java %2$s/%3$s | Nativa %4$s</string>
+  <string name="diagnostics_playback_cache">Reprodução</string>
+  <string name="diagnostics_playback_cache_value">Em buffer %1$.1f s | Pacotes %2$s | Arquivo %3$s</string>
   <string name="toast_failed_to_read_file">Falha ao ler o arquivo: %1$s</string>
   <string name="pref_decoder_vulkan_experimental_title">Vulkan (Experimental)</string>
   <string name="hdr_mode_off">Desativado</string>

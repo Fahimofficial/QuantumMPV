@@ -960,8 +960,11 @@
   <string name="diagnostics_torrent_transfer">传输</string>
   <string name="diagnostics_torrent_transfer_value">下载 %1$s | 上传 %2$s</string>
   <string name="diagnostics_app_cpu">应用 CPU</string>
-  <string name="diagnostics_frame_pressure">帧压力</string>
-  <string name="diagnostics_frame_pressure_value">%1$.0f%% | +%2$d 丢帧 | +%3$d 延迟 | %4$.2f fps</string>
+  <string name="diagnostics_memory_cache_header">内存和缓存</string>
+  <string name="diagnostics_process_memory">进程</string>
+  <string name="diagnostics_process_memory_value">PSS %1$s | Java %2$s/%3$s | 原生 %4$s</string>
+  <string name="diagnostics_playback_cache">播放</string>
+  <string name="diagnostics_playback_cache_value">已缓冲 %1$.1f 秒 | 数据包 %2$s | 文件 %3$s</string>
   <string name="toast_failed_to_read_file">读取文件失败：%1$s</string>
   <string name="pref_decoder_vulkan_experimental_title">Vulkan（实验性）</string>
   <string name="hdr_mode_off">关闭</string>
