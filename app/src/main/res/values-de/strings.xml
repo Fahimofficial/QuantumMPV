@@ -517,6 +517,9 @@ Weiter: NEXT</string>
   <string name="notification_playing">Wiedergabe</string>
   <string name="notification_add_to_favorites">Zu Favoriten hinzufügen</string>
   <string name="notification_saved_to_favorites">In Favoriten gespeichert</string>
+  <string name="notification_repeat_off">Wiederholung aus</string>
+  <string name="notification_repeat_one">Einen Titel wiederholen</string>
+  <string name="notification_repeat_all">Alle wiederholen</string>
   <string name="notification_chapter_counter">Kapitel %1$d von %2$d</string>
   <string name="notification_permission_denied">Für die Steuerung der Hintergrundwiedergabe ist die Benachrichtigungsberechtigung erforderlich.</string>
   <string name="notification_permission_disabled">Benachrichtigungen sind für mpvRx deaktiviert. Aktivieren Sie sie, um Wiedergabesteuerungen anzuzeigen.</string>

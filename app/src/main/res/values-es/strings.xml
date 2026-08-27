@@ -517,6 +517,9 @@ Siguiente: NEXT</string>
   <string name="notification_playing">Reproduciendo</string>
   <string name="notification_add_to_favorites">Añadir a Favoritos</string>
   <string name="notification_saved_to_favorites">Guardado en Favoritos</string>
+  <string name="notification_repeat_off">Repetición desactivada</string>
+  <string name="notification_repeat_one">Repetir uno</string>
+  <string name="notification_repeat_all">Repetir todo</string>
   <string name="notification_chapter_counter">Capítulo %1$d de %2$d</string>
   <string name="notification_permission_denied">Se necesita permiso de notificaciones para los controles de reproducción en segundo plano.</string>
   <string name="notification_permission_disabled">Las notificaciones están desactivadas para mpvRx. Actívalas para mostrar los controles de reproducción.</string>

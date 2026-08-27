@@ -492,6 +492,12 @@ object Icons {
     @DrawableRes val Next = MaterialSymbolsR.drawable.materialsymbols_ic_skip_next_rounded_filled
 
     @DrawableRes val Favorite = MaterialSymbolsR.drawable.materialsymbols_ic_favorite_rounded_filled
+
+    @DrawableRes val Repeat = MaterialSymbolsR.drawable.materialsymbols_ic_repeat_rounded_filled
+
+    @DrawableRes val RepeatOn = MaterialSymbolsR.drawable.materialsymbols_ic_repeat_on_rounded_filled
+
+    @DrawableRes val RepeatOne = MaterialSymbolsR.drawable.materialsymbols_ic_repeat_one_rounded_filled
   }
 }
 

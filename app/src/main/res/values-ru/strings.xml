@@ -517,6 +517,9 @@
   <string name="notification_playing">Воспроизводится</string>
   <string name="notification_add_to_favorites">Добавить в избранное</string>
   <string name="notification_saved_to_favorites">Сохранено в избранное</string>
+  <string name="notification_repeat_off">Повтор выключен</string>
+  <string name="notification_repeat_one">Повтор одного</string>
+  <string name="notification_repeat_all">Повтор всех</string>
   <string name="notification_chapter_counter">Глава %1$d из %2$d</string>
   <string name="notification_permission_denied">Для управления фоновым воспроизведением требуется разрешение на уведомления.</string>
   <string name="notification_permission_disabled">Уведомления для mpvRx отключены. Включите их, чтобы показывать элементы управления воспроизведением.</string>

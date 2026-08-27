@@ -517,6 +517,9 @@ Suivant : NEXT</string>
   <string name="notification_playing">Lecture en cours</string>
   <string name="notification_add_to_favorites">Ajouter aux favoris</string>
   <string name="notification_saved_to_favorites">Enregistré dans les favoris</string>
+  <string name="notification_repeat_off">Répétition désactivée</string>
+  <string name="notification_repeat_one">Répéter un titre</string>
+  <string name="notification_repeat_all">Tout répéter</string>
   <string name="notification_chapter_counter">Chapitre %1$d sur %2$d</string>
   <string name="notification_permission_denied">L’autorisation des notifications est requise pour les commandes de lecture en arrière-plan.</string>
   <string name="notification_permission_disabled">Les notifications sont désactivées pour mpvRx. Activez-les pour afficher les commandes de lecture.</string>

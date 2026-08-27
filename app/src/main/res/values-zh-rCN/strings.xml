@@ -519,6 +519,9 @@
   <string name="notification_playing">正在播放</string>
   <string name="notification_add_to_favorites">添加到收藏</string>
   <string name="notification_saved_to_favorites">已保存到收藏</string>
+  <string name="notification_repeat_off">重复播放关闭</string>
+  <string name="notification_repeat_one">单曲循环</string>
+  <string name="notification_repeat_all">全部循环</string>
   <string name="notification_chapter_counter">第 %1$d 章，共 %2$d 章</string>
   <string name="notification_permission_denied">后台播放控制需要通知权限。</string>
   <string name="notification_permission_disabled">mpvRx 的通知已禁用。请启用通知以显示播放控制。</string>

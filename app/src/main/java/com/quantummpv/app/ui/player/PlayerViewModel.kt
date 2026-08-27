@@ -1876,6 +1876,12 @@ class PlayerViewModel : ViewModel(),
         launch { PlaybackSession.propInt["time-pos"].collect { _pos.value = it } }
         launch { PlaybackSession.propInt["duration"].collect { _duration.value = it } }
         launch { PlaybackSession.propInt["volume-max"].collect { _volumeBoostCap.value = it } }
+        launch {
+          PlaybackSession.queue
+            .map { it.repeatMode }
+            .distinctUntilChanged()
+            .collect { _repeatMode.value = it }
+        }
       }
   }
 
