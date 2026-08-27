@@ -18,15 +18,34 @@ import com.quantummpv.app.preferences.SubtitlesPreferences
 import com.quantummpv.app.preferences.YtdlPreferences
 import com.quantummpv.app.ui.player.PlaybackSession
 import com.quantummpv.app.utils.media.HttpUtils
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.async
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.runInterruptible
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.withTimeoutOrNull
 import org.json.JSONObject
 import java.io.*
+
+data class YtdlpPlaylistEntry(
+  val id: String?,
+  val url: String,
+  val title: String,
+  val thumbnailUrl: String?,
+  val durationSeconds: Int,
+)
+
+data class YtdlpPlaylistMetadata(
+  val sourceUrl: String,
+  val title: String,
+  val entries: List<YtdlpPlaylistEntry>,
+)
 
 object YtdlpManager {
   private const val TAG = "YtdlpManager"
@@ -35,6 +54,9 @@ object YtdlpManager {
   private const val PLAYBACK_RUNTIME_VERSION = "1"
   private const val PLAYBACK_RUNTIME_VERSION_FILE = "playback-runtime-version"
   private const val INSTALLATION_INFO_PREFIX = "MPVRX_YTDLP_INFO="
+  private const val MAX_IMPORTED_PLAYLIST_ENTRIES = 5_000
+  private const val MAX_PLAYLIST_OUTPUT_CHARS = 32L * 1024 * 1024
+  private const val PLAYLIST_EXTRACTION_TIMEOUT_MS = 180_000L
   private val installMutex = Mutex()
 
   private val _installationInfo = MutableStateFlow<YtdlpInstallationInfo?>(null)
@@ -89,6 +111,201 @@ object YtdlpManager {
     }
 
     return !HttpUtils.isDirectMediaUrl(uri)
+  }
+
+  fun isPotentialPlaylistUrl(source: String): Boolean {
+    val uri = runCatching { Uri.parse(source) }.getOrNull() ?: return false
+    if (!uri.scheme.equals("http", true) && !uri.scheme.equals("https", true)) return false
+    if (uri.queryParameterNames.any { name ->
+        name.lowercase() in setOf("list", "playlist", "playlist_id", "collection", "set") &&
+          !uri.getQueryParameter(name).isNullOrBlank()
+      }
+    ) {
+      return true
+    }
+    return uri.pathSegments.any { segment ->
+      segment.lowercase() in setOf("playlist", "playlists", "sets", "album", "albums", "collection", "showcase")
+    }
+  }
+
+  fun canonicalPlaylistSource(source: String): String {
+    val uri = runCatching { Uri.parse(source) }.getOrNull() ?: return source
+    val playlistId =
+      uri.queryParameterNames
+        .firstOrNull { name -> name.equals("list", ignoreCase = true) }
+        ?.let(uri::getQueryParameter)
+        ?.takeIf(String::isNotBlank)
+    if (HttpUtils.isYouTubeUrl(uri) && playlistId != null) {
+      return Uri
+        .Builder()
+        .scheme("https")
+        .authority("www.youtube.com")
+        .path("playlist")
+        .appendQueryParameter("list", playlistId)
+        .build()
+        .toString()
+    }
+    return uri.buildUpon().fragment(null).build().toString()
+  }
+
+  suspend fun extractPlaylist(
+    context: Context,
+    source: String,
+    preferences: YtdlPreferences,
+    userAgentOverride: String? = null,
+    onLog: (String) -> Unit = {},
+  ): Result<YtdlpPlaylistMetadata> =
+    withContext(Dispatchers.IO) {
+      if (!isPotentialPlaylistUrl(source)) {
+        return@withContext Result.failure(IllegalArgumentException("The URL does not identify a playlist"))
+      }
+
+      try {
+        installMutex.withLock {
+          if (!prepareRuntimeAssets(context, onLog)) {
+            return@withLock Result.failure(IllegalStateException("yt-dlp runtime assets are unavailable"))
+          }
+          if (!isPlaybackRuntimeReady(context) && !installYtdlp(context, onLog)) {
+            return@withLock Result.failure(IllegalStateException("yt-dlp is not installed"))
+          }
+
+          val canonicalSource = canonicalPlaylistSource(source)
+          val output = StringBuilder()
+          val command =
+            buildList {
+              add(getExecutablePath(context))
+              add(File(getYtdlDir(context), "yt-dlp").absolutePath)
+              add("--ignore-config")
+              add("--flat-playlist")
+              add("--dump-single-json")
+              add("--yes-playlist")
+              add("--skip-download")
+              add("--ignore-errors")
+              add("--no-warnings")
+              add("--no-progress")
+              add("--playlist-end")
+              add(MAX_IMPORTED_PLAYLIST_ENTRIES.toString())
+
+              (userAgentOverride?.takeIf(String::isNotBlank)
+                ?: preferences.customUserAgent.get().takeIf(String::isNotBlank))?.let { userAgent ->
+                add("--user-agent")
+                add(userAgent)
+              }
+              preferences.referer.get().takeIf(String::isNotBlank)?.let { referer ->
+                add("--referer")
+                add(referer)
+              }
+              preferences.proxy.get().takeIf(String::isNotBlank)?.let { proxy ->
+                add("--proxy")
+                add(proxy)
+              }
+              preferences.extractorArgs.get().takeIf(String::isNotBlank)?.let { extractorArgs ->
+                add("--extractor-args")
+                add(extractorArgs)
+              }
+              if (preferences.geoBypass.get()) add("--geo-bypass")
+
+              val cookiesFile =
+                preferences.cookiesFile.get().takeIf(String::isNotBlank)
+                  ?.let(::File)
+                  ?.takeIf(File::isFile)
+                  ?: AndroidCookieJar.playbackCookieFile(context).takeIf(File::isFile)
+              cookiesFile?.let { file ->
+                add("--cookies")
+                add(file.absolutePath)
+              }
+
+              File(context.applicationInfo.nativeLibraryDir, "libqjs.so")
+                .takeIf(File::isFile)
+                ?.let { quickJs ->
+                  add("--js-runtimes")
+                  add("quickjs:${quickJs.absolutePath}")
+                }
+              add("--")
+              add(canonicalSource)
+            }
+
+          val completed = executePlaylistExtractionProcess(command, context) { chunk -> output.append(chunk) }
+          if (!completed) {
+            return@withLock Result.failure(IllegalStateException("yt-dlp could not read this playlist"))
+          }
+          val metadata =
+            parsePlaylistMetadata(canonicalSource, output.toString())
+              ?: return@withLock Result.failure(IllegalStateException("No playable entries were found"))
+          Result.success(metadata)
+        }
+      } catch (cancellation: CancellationException) {
+        throw cancellation
+      } catch (error: Exception) {
+        Result.failure(error)
+      }
+    }
+
+  private fun parsePlaylistMetadata(
+    source: String,
+    output: String,
+  ): YtdlpPlaylistMetadata? {
+    val payload =
+      output
+        .lineSequence()
+        .map(String::trim)
+        .lastOrNull { line -> line.startsWith('{') && line.endsWith('}') }
+        ?: return null
+    val root = JSONObject(payload)
+    val entriesJson = root.optJSONArray("entries") ?: return null
+    val sourceIsYouTube = HttpUtils.isYouTubeUrl(Uri.parse(source))
+    val entries = ArrayList<YtdlpPlaylistEntry>(entriesJson.length().coerceAtMost(MAX_IMPORTED_PLAYLIST_ENTRIES))
+    val seenUrls = HashSet<String>()
+    for (index in 0 until minOf(entriesJson.length(), MAX_IMPORTED_PLAYLIST_ENTRIES)) {
+      val item = entriesJson.optJSONObject(index) ?: continue
+      val id = item.optionalString("id")
+      val extractor = item.optionalString("ie_key") ?: item.optionalString("extractor_key")
+      val isYouTubeEntry = sourceIsYouTube || extractor?.contains("youtube", ignoreCase = true) == true
+      val url =
+        if (isYouTubeEntry && id != null) {
+          "https://www.youtube.com/watch?v=$id"
+        } else {
+          sequenceOf("webpage_url", "original_url", "url")
+            .mapNotNull { key -> item.optionalString(key) }
+            .firstOrNull { candidate ->
+              candidate.startsWith("http://", true) || candidate.startsWith("https://", true)
+            }
+        } ?: continue
+      if (!seenUrls.add(url)) continue
+
+      val title =
+        sequenceOf("title", "fulltitle", "id")
+          .mapNotNull { key -> item.optionalString(key) }
+          .firstOrNull()
+          ?: "Video ${entries.size + 1}"
+      val thumbnail =
+        item.optionalString("thumbnail")
+          ?: item.optJSONArray("thumbnails")
+            ?.let { thumbnails ->
+              (thumbnails.length() - 1 downTo 0)
+                .asSequence()
+                .mapNotNull { thumbnailIndex -> thumbnails.optJSONObject(thumbnailIndex)?.optionalString("url") }
+                .firstOrNull()
+            }
+          ?: id?.takeIf { isYouTubeEntry }?.let { "https://i.ytimg.com/vi/$it/hqdefault.jpg" }
+      val duration = item.optDouble("duration", -1.0).takeIf { it.isFinite() && it >= 0.0 }?.toInt() ?: -1
+      entries +=
+        YtdlpPlaylistEntry(
+          id = id,
+          url = url,
+          title = title,
+          thumbnailUrl = thumbnail,
+          durationSeconds = duration,
+        )
+    }
+    if (entries.isEmpty()) return null
+
+    val title =
+      sequenceOf("title", "playlist_title", "fulltitle", "id")
+        .mapNotNull { key -> root.optionalString(key) }
+        .firstOrNull()
+        ?: "Online Playlist"
+    return YtdlpPlaylistMetadata(sourceUrl = source, title = title, entries = entries)
   }
 
   suspend fun prepareForPlayback(
@@ -502,25 +719,7 @@ object YtdlpManager {
     onOutput: (String) -> Unit,
   ): Boolean {
     return try {
-      val processBuilder =
-        ProcessBuilder(command)
-          .directory(getYtdlDir(context))
-          .redirectErrorStream(true)
-
-      val env = processBuilder.environment()
-      val ytdlDir = getYtdlDir(context).absolutePath
-      val nativeLibDir = context.applicationInfo.nativeLibraryDir
-
-      // Clear YTDL_SCRIPT so the bridge doesn't try to wrap yt-dlp during setup/update
-      env.remove("YTDL_SCRIPT")
-
-      env["YTDL_PYTHON"] = File(nativeLibDir, "libpython.so").absolutePath
-      env["PYTHONHOME"] = ytdlDir
-      env["PYTHONPATH"] = "$ytdlDir/python313.zip"
-      env["SSL_CERT_FILE"] = File(context.filesDir, "cacert.pem").absolutePath
-      env["LD_LIBRARY_PATH"] = nativeLibDir
-
-      val process = processBuilder.start()
+      val process = startPythonProcess(command, context)
 
       BufferedReader(InputStreamReader(process.inputStream)).use { reader ->
         reader.lineSequence().forEach(onOutput)
@@ -530,5 +729,64 @@ object YtdlpManager {
       onOutput("Error: ${e.message}")
       false
     }
+  }
+
+  private suspend fun executePlaylistExtractionProcess(
+    command: List<String>,
+    context: Context,
+    onOutput: (String) -> Unit,
+  ): Boolean =
+    coroutineScope {
+      val process = startPythonProcess(command, context)
+      val outputJob =
+        async(Dispatchers.IO) {
+          var outputChars = 0L
+          InputStreamReader(process.inputStream).use { reader ->
+            val buffer = CharArray(DEFAULT_BUFFER_SIZE)
+            while (true) {
+              val count = reader.read(buffer)
+              if (count < 0) break
+              outputChars += count
+              check(outputChars <= MAX_PLAYLIST_OUTPUT_CHARS) { "Playlist metadata is too large" }
+              onOutput(String(buffer, 0, count))
+            }
+          }
+        }
+      val exitJob = async(Dispatchers.IO) { runInterruptible { process.waitFor() } }
+
+      try {
+        withTimeoutOrNull(PLAYLIST_EXTRACTION_TIMEOUT_MS) {
+          val exitCode = exitJob.await()
+          outputJob.await()
+          exitCode == 0
+        } ?: throw IllegalStateException("Playlist import timed out")
+      } finally {
+        if (process.isAlive) process.destroyForcibly()
+        runCatching { process.inputStream.close() }
+        outputJob.cancel()
+        exitJob.cancel()
+      }
+    }
+
+  private fun startPythonProcess(
+    command: List<String>,
+    context: Context,
+  ): Process {
+    val processBuilder =
+      ProcessBuilder(command)
+        .directory(getYtdlDir(context))
+        .redirectErrorStream(true)
+    val env = processBuilder.environment()
+    val ytdlDir = getYtdlDir(context).absolutePath
+    val nativeLibDir = context.applicationInfo.nativeLibraryDir
+
+    // Clear YTDL_SCRIPT so the bridge doesn't try to wrap yt-dlp during setup/update.
+    env.remove("YTDL_SCRIPT")
+    env["YTDL_PYTHON"] = File(nativeLibDir, "libpython.so").absolutePath
+    env["PYTHONHOME"] = ytdlDir
+    env["PYTHONPATH"] = "$ytdlDir/python313.zip"
+    env["SSL_CERT_FILE"] = File(context.filesDir, "cacert.pem").absolutePath
+    env["LD_LIBRARY_PATH"] = nativeLibDir
+    return processBuilder.start()
   }
 }

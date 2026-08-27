@@ -770,6 +770,8 @@ val DatabaseModule =
       PlaylistRepository(
         playlistDao = get<MpvRxDatabase>().playlistDao(),
         httpClient = get(),
+        applicationContext = androidContext(),
+        ytdlPreferences = get(),
       )
     }
 

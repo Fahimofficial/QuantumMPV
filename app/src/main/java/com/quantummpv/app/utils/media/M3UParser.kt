@@ -281,6 +281,10 @@ object M3UParser {
 
       val line = normalizeLine(rawLine)
       if (line.isEmpty()) continue
+      val firstCharacter = line.first()
+      if (items.isEmpty() && (firstCharacter == '<' || firstCharacter == '{' || firstCharacter == '[')) {
+        return error("URL did not return an M3U playlist")
+      }
       foundContent = true
 
       when {

@@ -50,6 +50,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
 import com.quantummpv.app.ui.icons.Icon
 import com.quantummpv.app.ui.icons.Icons
+import com.quantummpv.app.utils.media.SharedUrlExtractor
 import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -168,7 +169,7 @@ fun PlaylistActionSheet(
             Text(
               text =
                 androidx.compose.ui.res
-                  .stringResource(com.quantummpv.app.R.string.ui_add_m3u_playlist_from_url),
+                  .stringResource(com.quantummpv.app.R.string.ui_add_playlist_from_url),
               style = MaterialTheme.typography.bodyLarge,
               fontWeight = FontWeight.Medium,
             )
@@ -314,14 +315,7 @@ fun PlaylistActionSheet(
         }
       }
 
-    Dialog(
-      onDismissRequest =
-        if (isLoading) {
-          {}
-        } else {
-          { showM3UDialog = false }
-        },
-    ) {
+    Dialog(onDismissRequest = { showM3UDialog = false }) {
       Card(
         modifier =
           Modifier
@@ -336,7 +330,7 @@ fun PlaylistActionSheet(
           Text(
             text =
               androidx.compose.ui.res
-                .stringResource(com.quantummpv.app.R.string.playlist_add_m3u_title),
+                .stringResource(com.quantummpv.app.R.string.playlist_add_remote_title),
             style = MaterialTheme.typography.headlineSmall,
           )
 
@@ -354,6 +348,14 @@ fun PlaylistActionSheet(
               maxLines = 3,
               modifier = Modifier.fillMaxWidth(),
               enabled = !isLoading,
+            )
+
+            Text(
+              text =
+                androidx.compose.ui.res
+                  .stringResource(com.quantummpv.app.R.string.playlist_remote_url_hint),
+              style = MaterialTheme.typography.bodySmall,
+              color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
 
             OutlinedTextField(
@@ -425,7 +427,6 @@ fun PlaylistActionSheet(
           ) {
             TextButton(
               onClick = { showM3UDialog = false },
-              enabled = !isLoading,
               shape = MaterialTheme.shapes.extraLarge,
             ) {
               Text(
@@ -436,12 +437,13 @@ fun PlaylistActionSheet(
             Spacer(modifier = Modifier.width(8.dp))
             Button(
               onClick = {
-                if (playlistUrl.isNotBlank()) {
+                val normalizedPlaylistUrl = SharedUrlExtractor.normalizeInput(playlistUrl)
+                if (normalizedPlaylistUrl.isNotBlank()) {
                   isLoading = true
                   coroutineScope.launch {
                     val result =
                       onCreateM3UPlaylist(
-                        playlistUrl.trim(),
+                        normalizedPlaylistUrl,
                         playlistUserAgent.trim().takeIf { it.isNotEmpty() },
                       )
                     result
@@ -449,7 +451,7 @@ fun PlaylistActionSheet(
                         android.widget.Toast
                           .makeText(
                             context,
-                            context.getString(com.quantummpv.app.R.string.playlist_add_success),
+                            context.getString(com.quantummpv.app.R.string.playlist_import_success),
                             android.widget.Toast.LENGTH_SHORT,
                           ).show()
                         showM3UDialog = false
@@ -458,7 +460,10 @@ fun PlaylistActionSheet(
                         android.widget.Toast
                           .makeText(
                             context,
-                            "Failed to add M3U playlist: ${error.message}",
+                            context.getString(
+                              com.quantummpv.app.R.string.playlist_import_error,
+                              error.message ?: context.getString(com.quantummpv.app.R.string.generic_unknown_error),
+                            ),
                             android.widget.Toast.LENGTH_LONG,
                           ).show()
                       }
