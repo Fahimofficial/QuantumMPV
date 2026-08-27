@@ -104,6 +104,7 @@ import com.quantummpv.app.ui.icons.Icon
 import com.quantummpv.app.ui.icons.Icons
 import com.quantummpv.app.ui.theme.AppMotion
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.cancelAndJoin
 import kotlinx.coroutines.launch
 import kotlinx.serialization.Serializable
 import org.koin.compose.koinInject
@@ -204,18 +205,9 @@ object MainScreen : Screen {
 
     val coroutineScope = rememberCoroutineScope()
 
-    var selectedTab by
-      remember(visibleTabs) {
-        mutableStateOf(
-          persistentSelectedTab.takeIf { it in visibleTabs }
-            ?: visibleTabs.firstOrNull()
-            ?: MainTab.HOME,
-        )
-      }
-
     val initialPageIndex =
-      remember(selectedTab, visibleTabs) {
-        visibleTabs.indexOf(selectedTab).coerceAtLeast(0)
+      remember(visibleTabs) {
+        visibleTabs.indexOf(persistentSelectedTab).coerceAtLeast(0)
       }
 
     val pagerState =
@@ -223,23 +215,61 @@ object MainScreen : Screen {
         initialPage = initialPageIndex,
         pageCount = { visibleTabs.size },
       )
+    var tabNavigationJob by remember { mutableStateOf<Job?>(null) }
 
-    // Sync state when page settles, matching subpage logic in MusicLibraryContent
-    LaunchedEffect(pagerState.settledPage, visibleTabs) {
-      visibleTabs.getOrNull(pagerState.settledPage)?.let { tab ->
-        selectedTab = tab
-        persistentSelectedTab = tab
-        if (tab != MainTab.HOME) {
-          NavigationBarState.isDualPaneFolderSelected = false
-        }
+    LaunchedEffect(pagerState, visibleTabs) {
+      tabNavigationJob?.cancelAndJoin()
+      tabNavigationJob = null
+      if (visibleTabs.isEmpty()) {
+        persistentSelectedTab = MainTab.HOME
+        return@LaunchedEffect
       }
+
+      val restorePage = visibleTabs.indexOf(persistentSelectedTab).takeIf { it >= 0 } ?: 0
+      val isRestorePageSettled =
+        pagerState.settledPage == restorePage &&
+          pagerState.currentPage == restorePage &&
+          pagerState.currentPageOffsetFraction == 0f
+      if (!isRestorePageSettled && !pagerState.isScrollInProgress) {
+        pagerState.scrollToPage(restorePage)
+      }
+
+      snapshotFlow { pagerState.settledPage }
+        .collect { page ->
+          visibleTabs.getOrNull(page)?.let { settledTab ->
+            persistentSelectedTab = settledTab
+            if (settledTab != MainTab.HOME) {
+              NavigationBarState.isDualPaneFolderSelected = false
+            }
+          }
+        }
     }
 
-    // Scroll to page when tab is selected
-    LaunchedEffect(selectedTab, visibleTabs) {
-      val targetIndex = visibleTabs.indexOf(selectedTab)
-      if (targetIndex >= 0 && pagerState.currentPage != targetIndex) {
-        pagerState.animateScrollToPage(targetIndex)
+    val targetPage = pagerState.targetPage.coerceIn(0, (visibleTabs.size - 1).coerceAtLeast(0))
+    val selectedTab = visibleTabs.getOrNull(targetPage) ?: visibleTabs.firstOrNull() ?: MainTab.HOME
+
+    val onTabSelected: (MainScreen.MainTab) -> Unit = { tab ->
+      val targetIndex = visibleTabs.indexOf(tab)
+      val isAlreadySettled =
+        targetIndex >= 0 &&
+          pagerState.settledPage == targetIndex &&
+          !pagerState.isScrollInProgress &&
+          pagerState.currentPageOffsetFraction == 0f
+      if (targetIndex >= 0) {
+        tabNavigationJob?.cancel()
+        if (!isAlreadySettled) {
+          tabNavigationJob =
+            coroutineScope.launch {
+              pagerState.animateScrollToPage(
+                page = targetIndex,
+                animationSpec =
+                  spring(
+                    dampingRatio = Spring.DampingRatioNoBouncy,
+                    stiffness = Spring.StiffnessMedium,
+                  ),
+              )
+            }
+        }
       }
     }
 
@@ -253,12 +283,6 @@ object MainScreen : Screen {
             stiffness = Spring.StiffnessMedium,
           ),
       )
-
-    val onTabSelected: (MainScreen.MainTab) -> Unit = { tab ->
-      if (tab in visibleTabs && tab != selectedTab) {
-        selectedTab = tab
-      }
-    }
 
     val mainNavBar = @Composable { modifier: Modifier ->
       ExpressivePillNavigationBar(
