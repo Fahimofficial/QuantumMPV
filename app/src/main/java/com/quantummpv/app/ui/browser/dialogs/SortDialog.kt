@@ -400,11 +400,7 @@ private fun SortOrderSelector(
         selected = index == selectedIndex,
         onClick = { onSortOrderChange(index == 0) },
         shape = SegmentedButtonDefaults.itemShape(index = index, count = options.size),
-        colors =
-          SegmentedButtonDefaults.colors(
-            activeContentColor = MaterialTheme.colorScheme.primary,
-            activeBorderColor = MaterialTheme.colorScheme.primary,
-          ),
+        colors = themedSegmentedButtonColors(),
         icon = {
           Icon(
             imageVector =
