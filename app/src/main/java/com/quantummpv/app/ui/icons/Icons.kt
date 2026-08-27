@@ -483,6 +483,10 @@ object Icons {
 
     @DrawableRes val FastForward = MaterialSymbolsR.drawable.materialsymbols_ic_fast_forward_rounded_filled
 
+    @DrawableRes val Replay10 = MaterialSymbolsR.drawable.materialsymbols_ic_replay_10_rounded_filled
+
+    @DrawableRes val Forward10 = MaterialSymbolsR.drawable.materialsymbols_ic_forward_10_rounded_filled
+
     @DrawableRes val Previous = MaterialSymbolsR.drawable.materialsymbols_ic_skip_previous_rounded_filled
 
     @DrawableRes val Play = MaterialSymbolsR.drawable.materialsymbols_ic_play_arrow_rounded_filled

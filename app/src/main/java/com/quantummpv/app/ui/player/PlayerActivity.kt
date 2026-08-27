@@ -1400,16 +1400,10 @@ class PlayerActivity :
     Log.d(TAG, "PlayerActivity onDestroy")
     val ownsPlaybackSession = ownsPlaybackSession()
     val playbackWasInitialized = mpvInitialized
-    val pipDismissalCommitted =
-      wasInPipMode &&
-        !isChangingConfigurations &&
-        (handledPipDismissal || isFinishing || !isInPictureInPictureMode)
-    if (ownsPlaybackSession && playbackWasInitialized && pipDismissalCommitted) {
-      isBackgroundPlaybackSessionActive = false
-      pendingBackgroundTransition = false
-      silenceAudioOnClose()
-      MediaPlaybackService.stopForTerminalDismissal()
+    if (ownsPlaybackSession && playbackWasInitialized && wasInPipMode && !isChangingConfigurations) {
+      commitPipDismissal()
     }
+    val pipDismissalCommitted = handledPipDismissal
     pipExitResolutionJob?.cancel()
     pipExitResolutionJob = null
     pendingPipExitResolution = false
@@ -1464,7 +1458,7 @@ class PlayerActivity :
 
     // The core remains alive throughout Android/ViewModel/window cleanup. Only after super returns
     // do we detach the renderer and enqueue native destruction on the dedicated worker.
-    runCatching { cleanupMPV(keepBackgroundPlaybackAlive, ownsPlaybackSession) }
+    runCatching { cleanupMPV(keepBackgroundPlaybackAlive, ownsPlaybackSession, pipDismissalCommitted) }
       .onFailure { e -> Log.e(TAG, "Error during MPV teardown", e) }
     if (viewModelHostAttached) {
       viewModel.detachHost(this)
@@ -1475,6 +1469,7 @@ class PlayerActivity :
   private fun cleanupMPV(
     keepBackgroundPlaybackAlive: Boolean,
     ownsPlaybackSession: Boolean,
+    pipDismissalCommitted: Boolean,
   ) {
     if (!mpvInitialized) return
 
@@ -1504,8 +1499,10 @@ class PlayerActivity :
     if (!keepBackgroundPlaybackAlive) {
       viewModel.onMpvCoreStopping()
       MediaPlaybackService.prepareForMpvShutdown()
-      endBackgroundPlayback()
-      PlaybackSession.stop(clearQueue = true)
+      if (!pipDismissalCommitted) {
+        endBackgroundPlayback()
+        PlaybackSession.stop(clearQueue = true)
+      }
     } else {
       PlaybackSession.markBackground()
     }
@@ -1672,17 +1669,21 @@ class PlayerActivity :
       return
     }
     runCatching {
+      if (wasInPipMode && !isChangingConfigurations) commitPipDismissal()
+
       // Don't restore UI during normal finish to prevent flickering
       // System will handle UI restoration automatically
       isReady = false
 
-      // Freeze and mute audio before Activity teardown. A completed background/Mini Player
-      // handoff is preserved because silenceAudioOnClose() checks actual session ownership.
-      silenceAudioOnClose()
+      if (!handledPipDismissal) {
+        // Freeze and mute audio before Activity teardown. A completed background/Mini Player
+        // handoff is preserved because silenceAudioOnClose() checks actual session ownership.
+        silenceAudioOnClose()
 
-      // Clean up service when finishing
-      if (!isBackgroundPlaybackSessionActive) {
-        endBackgroundPlayback()
+        // Clean up service when finishing
+        if (!isBackgroundPlaybackSessionActive) {
+          endBackgroundPlayback()
+        }
       }
 
       if (!isBackgroundPlaybackSessionActive) {
@@ -1713,18 +1714,22 @@ class PlayerActivity :
       return
     }
     runCatching {
+      if (wasInPipMode && !isChangingConfigurations) commitPipDismissal()
+
       // Don't restore UI during normal finish to prevent flickering
       // System will handle UI restoration automatically
       isReady = false
       isUserFinishing = true
 
-      // Freeze and mute audio before Activity teardown. A completed background/Mini Player
-      // handoff is preserved because silenceAudioOnClose() checks actual session ownership.
-      silenceAudioOnClose()
+      if (!handledPipDismissal) {
+        // Freeze and mute audio before Activity teardown. A completed background/Mini Player
+        // handoff is preserved because silenceAudioOnClose() checks actual session ownership.
+        silenceAudioOnClose()
 
-      // Clean up service when finishing
-      if (!isBackgroundPlaybackSessionActive) {
-        endBackgroundPlayback()
+        // Clean up service when finishing
+        if (!isBackgroundPlaybackSessionActive) {
+          endBackgroundPlayback()
+        }
       }
 
       reportJellyfinStop()
@@ -1813,7 +1818,16 @@ class PlayerActivity :
   }
 
   private fun handlePipDismissed() {
-    Log.d(TAG, "PiP dismissed; closing playback instead of continuing in background")
+    if (!commitPipDismissal()) return
+    if (!isFinishing && !isDestroyed) {
+      finish()
+    }
+  }
+
+  private fun commitPipDismissal(): Boolean {
+    if (handledPipDismissal || !mpvInitialized || !ownsPlaybackSession()) return false
+
+    Log.d(TAG, "PiP dismissed; stopping terminal playback exactly once")
     pipExitResolutionJob?.cancel()
     pipExitResolutionJob = null
     pendingPipExitResolution = false
@@ -1824,16 +1838,27 @@ class PlayerActivity :
     startedBackgroundForPip = false
     silenceAudioOnClose()
     MediaPlaybackService.stopForTerminalDismissal()
-    endBackgroundPlayback(handoffToActivity = false)
-    if (!isFinishing && !isDestroyed) {
-      finish()
-    }
+    return true
   }
 
   private fun schedulePipExitResolution() {
     pendingPipExitResolution = true
     pipExitResolutionJob?.cancel()
     if (isFinishing) {
+      handlePipDismissed()
+      return
+    }
+    if (lifecycle.currentState.isAtLeast(Lifecycle.State.RESUMED)) {
+      completePipExpansion()
+      return
+    }
+    if (
+      !isChangingConfigurations &&
+      !isDeviceScreenOffOrLocked() &&
+      !lifecycle.currentState.isAtLeast(Lifecycle.State.STARTED)
+    ) {
+      // Some OEMs deliver the PiP=false callback after onStop. At that point expansion is no
+      // longer possible, so do not leave audio alive for the watchdog delay.
       handlePipDismissed()
       return
     }

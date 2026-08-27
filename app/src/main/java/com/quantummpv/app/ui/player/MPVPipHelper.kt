@@ -159,13 +159,13 @@ class MPVPipHelper(
     val isPlaying = PlaybackSession.getPropertyBoolean("pause") == false
 
     return listOf(
-      createRemoteAction("rewind", Icons.Platform.FastRewind, PIP_REWIND),
+      createRemoteAction("rewind 10 seconds", Icons.Platform.Replay10, PIP_REWIND),
       if (isPlaying) {
         createRemoteAction("pause", Icons.Platform.Pause, PIP_PAUSE)
       } else {
         createRemoteAction("play", Icons.Platform.Play, PIP_PLAY)
       },
-      createRemoteAction("forward", Icons.Platform.FastForward, PIP_FORWARD),
+      createRemoteAction("forward 10 seconds", Icons.Platform.Forward10, PIP_FORWARD),
     )
   }
 
