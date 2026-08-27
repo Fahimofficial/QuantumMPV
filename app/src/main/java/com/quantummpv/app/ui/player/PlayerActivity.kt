@@ -148,6 +148,7 @@ import kotlinx.coroutines.withContext
 import org.koin.android.ext.android.inject
 import okhttp3.OkHttpClient
 import java.io.File
+import java.util.concurrent.atomic.AtomicBoolean
 import kotlin.math.abs
 import kotlin.math.pow
 import kotlin.math.roundToInt
@@ -437,6 +438,7 @@ class PlayerActivity :
   private var backgroundServiceSyncJob: Job? = null
   private var backgroundHandoffJob: Job? = null
   private var deferredFontSyncJob: Job? = null
+  private var deferredMpvAssetSyncJob: Job? = null
   private var systemBarsAutoHideJob: Job? = null
   private var videoParamRefreshJob: Job? = null
   private var intentSubtitleJob: Job? = null
@@ -1481,6 +1483,7 @@ class PlayerActivity :
     backgroundServiceSyncJob?.cancel()
     backgroundHandoffJob?.cancel()
     deferredFontSyncJob?.cancel()
+    deferredMpvAssetSyncJob?.cancel()
     mediaLoadJob?.cancel()
     cancelPlaybackLoadRecovery()
     eofAdvanceJob?.cancel()
@@ -2353,10 +2356,11 @@ class PlayerActivity :
   private fun setupMPV(): String? {
     // Prepare config and user MPV assets before initializing MPV.
     runCatching {
+      val preparationStartedAt = android.os.SystemClock.elapsedRealtime()
       syncBundledAssetsIfNeeded()
-      syncFromUserMpvDirectory()
+      prepareUserMpvAssetsForStartup()
       sanitizeInternalFontsDirectory()
-      Log.d(TAG, "MPV config and assets prepared successfully")
+      Log.d(TAG, "MPV startup assets ready in ${android.os.SystemClock.elapsedRealtime() - preparationStartedAt} ms")
     }.onFailure { e ->
       Log.e(TAG, "Error copying MPV config and assets", e)
     }
@@ -2381,6 +2385,89 @@ class PlayerActivity :
 
     scheduleDeferredSubtitleFontsSync()
     return null
+  }
+
+  private fun prepareUserMpvAssetsForStartup() {
+    val syncPreferences = getSharedPreferences(MPV_ASSET_SYNC_PREFERENCES, MODE_PRIVATE)
+    val currentSelection = currentUserMpvAssetSelection()
+    val storedSelection = syncPreferences.getString(USER_MPV_ASSET_SELECTION, null)
+    val cacheReady = hasLaunchReadyUserMpvAssetCache()
+    val canAdoptExistingCache =
+      storedSelection == null &&
+        cacheReady &&
+        cachedConfigsMatchPreferences() &&
+        cachedScriptsMatchSelection()
+
+    if (cacheReady && (storedSelection == currentSelection || canAdoptExistingCache)) {
+      if (canAdoptExistingCache) rememberUserMpvAssetSelection(syncPreferences)
+      Log.d(TAG, "Using cached MPV user assets for startup")
+      return
+    }
+
+    syncFromUserMpvDirectory()
+    rememberUserMpvAssetSelection(syncPreferences)
+    deferredUserMpvAssetRefreshStarted.set(true)
+  }
+
+  private fun currentUserMpvAssetSelection(): String {
+    val selectedScripts = advancedPreferences.selectedLuaScripts.get().sorted().joinToString("\u0000")
+    val mpvConfig = advancedPreferences.mpvConf.get()
+    val inputConfig = advancedPreferences.inputConf.get()
+    return buildString {
+      append("v1|uri=")
+      append(advancedPreferences.mpvConfStorageUri.get())
+      append("|lua=")
+      append(advancedPreferences.enableLuaScripts.get())
+      append("|scripts=")
+      append(selectedScripts)
+      append("|mpv=")
+      append(mpvConfig.length)
+      append(':')
+      append(mpvConfig.hashCode())
+      append("|input=")
+      append(inputConfig.length)
+      append(':')
+      append(inputConfig.hashCode())
+    }
+  }
+
+  private fun hasLaunchReadyUserMpvAssetCache(): Boolean =
+    File(filesDir, "mpv.conf").isFile &&
+      File(filesDir, "input.conf").isFile &&
+      File(filesDir, "scripts").isDirectory &&
+      File(filesDir, "script-modules").isDirectory &&
+      File(filesDir, "shaders").isDirectory &&
+      File(filesDir, "fonts").isDirectory
+
+  private fun cachedConfigsMatchPreferences(): Boolean =
+    cachedConfigMatchesPreference("mpv.conf", advancedPreferences.mpvConf.get()) &&
+      cachedConfigMatchesPreference("input.conf", advancedPreferences.inputConf.get())
+
+  private fun cachedConfigMatchesPreference(
+    fileName: String,
+    preferenceContent: String,
+  ): Boolean =
+    preferenceContent.isBlank() ||
+      runCatching { File(filesDir, fileName).readText() == preferenceContent }.getOrDefault(false)
+
+  private fun cachedScriptsMatchSelection(): Boolean {
+    val cachedScripts =
+      File(filesDir, "scripts")
+        .listFiles()
+        ?.asSequence()
+        ?.filter { file -> file.isFile && file.extension.lowercase() in setOf("lua", "js") }
+        ?.map(File::getName)
+        ?.toSet()
+        .orEmpty()
+    return if (advancedPreferences.enableLuaScripts.get()) {
+      cachedScripts == advancedPreferences.selectedLuaScripts.get()
+    } else {
+      cachedScripts.isEmpty()
+    }
+  }
+
+  private fun rememberUserMpvAssetSelection(syncPreferences: android.content.SharedPreferences) {
+    syncPreferences.edit().putString(USER_MPV_ASSET_SELECTION, currentUserMpvAssetSelection()).apply()
   }
 
   private fun initializePlayerWithRendererFallback(): String? {
@@ -2467,7 +2554,7 @@ class PlayerActivity :
             }
           File(filesDir, configName).apply {
             if (!exists()) createNewFile()
-            if (prefContent.isNotBlank()) writeText(prefContent)
+            if (prefContent.isNotBlank()) writeTextFileIfChanged(this, prefContent)
           }
           Log.d(TAG, "Config not found in directory, used preferences: $configName")
         }
@@ -2672,6 +2759,32 @@ class PlayerActivity :
         delay(750)
         runCatching { syncSubtitleFontsFromPreferenceFolder() }
           .onFailure { e -> Log.e(TAG, "Deferred subtitle font sync failed", e) }
+      }
+  }
+
+  private fun scheduleDeferredUserMpvAssetRefresh() {
+    if (advancedPreferences.mpvConfStorageUri.get().isBlank()) return
+    if (!deferredUserMpvAssetRefreshStarted.compareAndSet(false, true)) return
+
+    deferredMpvAssetSyncJob =
+      lifecycleScope.launch(Dispatchers.IO) {
+        var completed = false
+        try {
+          delay(DEFERRED_MPV_ASSET_SYNC_DELAY_MS)
+          if (!ownsPlaybackSession() || isFinishing || isDestroyed) return@launch
+          deferredFontSyncJob?.join()
+          syncFromUserMpvDirectory()
+          syncSubtitleFontsFromPreferenceFolder()
+          rememberUserMpvAssetSelection(getSharedPreferences(MPV_ASSET_SYNC_PREFERENCES, MODE_PRIVATE))
+          completed = true
+          Log.d(TAG, "Refreshed cached MPV user assets after startup")
+        } catch (cancellation: CancellationException) {
+          throw cancellation
+        } catch (error: Exception) {
+          Log.e(TAG, "Deferred MPV asset refresh failed", error)
+        } finally {
+          if (!completed) deferredUserMpvAssetRefreshStarted.set(false)
+        }
       }
   }
 
@@ -2954,12 +3067,12 @@ class PlayerActivity :
       File(filesDir, "mpv.conf").apply {
         if (!exists()) createNewFile()
         val content = advancedPreferences.mpvConf.get()
-        if (content.isNotBlank()) writeText(content)
+        if (content.isNotBlank()) writeTextFileIfChanged(this, content)
       }
       File(filesDir, "input.conf").apply {
         if (!exists()) createNewFile()
         val content = advancedPreferences.inputConf.get()
-        if (content.isNotBlank()) writeText(content)
+        if (content.isNotBlank()) writeTextFileIfChanged(this, content)
       }
       // Ensure scripts directory exists even without user dir
       File(filesDir, "scripts").mkdirs()
@@ -3998,6 +4111,7 @@ class PlayerActivity :
         }
         viewModel.onVideoLoadCompleted()
         handleFileLoaded(loadGeneration)
+        scheduleDeferredUserMpvAssetRefresh()
         if (isBackgroundPlaybackEnabled()) {
           startBackgroundPlayback(allowUserPrompt = false)
         }
@@ -7780,7 +7894,11 @@ class PlayerActivity :
     private const val PLAYBACK_LOAD_RETRY_DELAY_MS = 200L
     private const val PLAYBACK_LOAD_ERROR_SETTLE_MS = 300L
     private const val MAX_PLAYBACK_LOAD_RETRIES = 1
+    private const val DEFERRED_MPV_ASSET_SYNC_DELAY_MS = 5_000L
     private const val PIP_EXIT_RESOLUTION_DELAY_MS = 300L
+    private const val MPV_ASSET_SYNC_PREFERENCES = "mpv_asset_sync"
+    private const val USER_MPV_ASSET_SELECTION = "user_mpv_asset_selection_v1"
+    private val deferredUserMpvAssetRefreshStarted = AtomicBoolean(false)
     private const val VIDEO_SESSION_INTENT_REQUEST_CODE = 1200
     private const val AUDIO_SESSION_INTENT_REQUEST_CODE = 1201
 
