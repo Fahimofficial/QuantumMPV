@@ -34,6 +34,7 @@ import com.quantummpv.app.domain.media.model.Video
 import com.quantummpv.app.utils.history.RecentlyPlayedOps
 import com.quantummpv.app.utils.media.MediaLibraryEvents
 import com.quantummpv.app.utils.media.PlaybackStateOps
+import com.quantummpv.app.utils.storage.FileTypeUtils
 import com.google.accompanist.permissions.ExperimentalPermissionsApi
 import com.google.accompanist.permissions.PermissionState
 import com.google.accompanist.permissions.PermissionStatus
@@ -131,8 +132,8 @@ object PermissionUtils {
    */
   fun getStoragePermission(audioOnly: Boolean = false): String =
     when {
-      Build.VERSION.SDK_INT <= Build.VERSION_CODES.P -> {
-        // Android 9 and below need WRITE permission to create folders/files (e.g., mpvsnaps)
+      Build.VERSION.SDK_INT <= Build.VERSION_CODES.Q -> {
+        // Legacy storage on Android 10 and below needs write access for file management.
         android.Manifest.permission.WRITE_EXTERNAL_STORAGE
       }
 
@@ -258,7 +259,7 @@ object PermissionUtils {
     ): Pair<Int, Int> =
       withContext(Dispatchers.IO) {
         if (!BuildConfig.SCOPED_STORAGE_ONLY || hasManageStoragePermission()) {
-          deleteVideosDirectly(videos)
+          deleteVideosDirectly(context, videos)
         } else {
           deleteVideosScoped(context, videos)
         }
@@ -267,16 +268,21 @@ object PermissionUtils {
     /**
      * Delete videos using direct file operations (requires MANAGE_EXTERNAL_STORAGE on Android 11+)
      */
-    private suspend fun deleteVideosDirectly(videos: List<Video>): Pair<Int, Int> =
+    private suspend fun deleteVideosDirectly(
+      context: Context,
+      videos: List<Video>,
+    ): Pair<Int, Int> =
       withContext(Dispatchers.IO) {
         var deleted = 0
         var failed = 0
+        val deletedPaths = mutableListOf<String>()
 
         for (video in videos) {
           try {
             val file = File(video.path)
             if (file.exists() && file.delete()) {
               deleted++
+              deletedPaths += video.path
               RecentlyPlayedOps.onVideoDeleted(video.path)
               PlaybackStateOps.onVideoDeleted(video.path)
               Log.d(TAG, "✓ Deleted: ${video.displayName}")
@@ -292,6 +298,7 @@ object PermissionUtils {
 
         // Notify that media library has changed
         if (deleted > 0) {
+          scanChangedPaths(context, deletedPaths)
           MediaLibraryEvents.notifyChanged()
         }
 
@@ -308,6 +315,7 @@ object PermissionUtils {
       withContext(Dispatchers.IO) {
         var deleted = 0
         var failed = 0
+        val deletedFilePaths = mutableListOf<String>()
 
         val contentVideos = videos.filter { it.uri.scheme == "content" }
         val fileVideos = videos.filter { it.uri.scheme != "content" }
@@ -350,6 +358,7 @@ object PermissionUtils {
             val file = File(video.path)
             if (!file.exists() || file.delete()) {
               deleted++
+              deletedFilePaths += video.path
               RecentlyPlayedOps.onVideoDeleted(video.path)
               PlaybackStateOps.onVideoDeleted(video.path)
               Log.d(TAG, "✓ Deleted (file fallback): ${video.displayName}")
@@ -364,6 +373,7 @@ object PermissionUtils {
         }
 
         if (deleted > 0) {
+          scanChangedPaths(context, deletedFilePaths)
           MediaLibraryEvents.notifyChanged()
         }
 
@@ -379,6 +389,9 @@ object PermissionUtils {
       newDisplayName: String,
     ): Result<Unit> =
       withContext(Dispatchers.IO) {
+        if (!isValidFileName(newDisplayName)) {
+          return@withContext Result.failure(IllegalArgumentException("Invalid file name"))
+        }
         if (!BuildConfig.SCOPED_STORAGE_ONLY || hasManageStoragePermission()) {
           renameVideoDirectly(context, video, newDisplayName)
         } else {
@@ -419,7 +432,7 @@ object PermissionUtils {
             try {
               android.media.MediaScannerConnection.scanFile(
                 context,
-                arrayOf(newFile.absolutePath),
+                arrayOf(oldFile.absolutePath, newFile.absolutePath),
                 null,
                 null,
               )
@@ -436,6 +449,62 @@ object PermissionUtils {
           Result.failure(e)
         }
       }
+
+    suspend fun renameFolder(
+      context: Context,
+      sourcePath: String,
+      newName: String,
+    ): Boolean =
+      withContext(Dispatchers.IO) {
+        val source = File(sourcePath)
+        val parent = source.parentFile ?: return@withContext false
+        if (!isValidFileName(newName)) return@withContext false
+        val destination = File(parent, newName)
+        if (!source.isDirectory) return@withContext false
+        if (source.absolutePath == destination.absolutePath) return@withContext true
+        if (destination.exists()) return@withContext false
+
+        val mediaPaths =
+          source
+            .walkTopDown()
+            .filter { file ->
+              file.isFile &&
+                (file.extension.lowercase() in FileTypeUtils.VIDEO_EXTENSIONS ||
+                  file.extension.lowercase() in FileTypeUtils.AUDIO_EXTENSIONS)
+            }.map { file ->
+              file.absolutePath to File(destination, file.relativeTo(source).path).absolutePath
+            }.toList()
+
+        if (!source.renameTo(destination)) return@withContext false
+
+        mediaPaths.forEach { (oldPath, newPath) ->
+          RecentlyPlayedOps.onVideoRenamed(oldPath, newPath)
+          PlaybackStateOps.onVideoRenamed(oldPath, newPath)
+        }
+        scanChangedPaths(context, mediaPaths.flatMap { (oldPath, newPath) -> listOf(oldPath, newPath) })
+        MediaLibraryEvents.notifyChanged()
+        true
+      }
+
+    private fun scanChangedPaths(
+      context: Context,
+      paths: Collection<String>,
+    ) {
+      if (paths.isEmpty()) return
+      runCatching {
+        android.media.MediaScannerConnection.scanFile(context, paths.distinct().toTypedArray(), null, null)
+      }.onFailure { error ->
+        Log.w(TAG, "Media scan failed after storage operation", error)
+      }
+    }
+
+    private fun isValidFileName(name: String): Boolean =
+      name.isNotBlank() &&
+        name != "." &&
+        name != ".." &&
+        '/' !in name &&
+        '\\' !in name &&
+        '\u0000' !in name
 
     /**
      * Rename video via MediaStore update (scoped storage path)

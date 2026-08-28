@@ -23,6 +23,7 @@ import com.quantummpv.app.ui.browser.base.BaseBrowserViewModel
 import com.quantummpv.app.ui.player.PlaybackIdentity
 import com.quantummpv.app.utils.media.MediaLibraryEvents
 import com.quantummpv.app.utils.media.MetadataRetrieval
+import com.quantummpv.app.utils.permission.PermissionUtils.StorageOps
 import com.quantummpv.app.utils.storage.FolderViewScanner
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -358,12 +359,8 @@ class FolderListViewModel(
     folder: VideoFolder,
     newName: String,
   ): Boolean {
-    val src = java.io.File(folder.path)
-    val dst = java.io.File(src.parent ?: return false, newName)
-    if (dst.exists()) return false
-    val ok = src.renameTo(dst)
+    val ok = StorageOps.renameFolder(getApplication(), folder.path, newName)
     if (ok) {
-      android.media.MediaScannerConnection.scanFile(getApplication(), arrayOf(dst.absolutePath), null, null)
       _foldersWereDeleted.value = true
     }
     return ok
