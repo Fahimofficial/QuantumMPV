@@ -146,9 +146,7 @@ private fun offSettings(): List<Pair<String, String>> =
     targetPrim = "auto",
     targetTrc = "auto",
     targetPeak = "auto",
-    inverseToneMapping = "auto",
-    toneMapping = "auto",
-    gamutMappingMode = "auto",
+    inverseToneMapping = "no",
     hdrComputePeak = "auto",
     shaderOptions = "",
   )
@@ -163,8 +161,6 @@ private fun hdrToysSettings(profile: HdrToysProfile): List<Pair<String, String>>
     targetTrc = profile.targetTrc,
     targetPeak = "auto",
     inverseToneMapping = "no",
-    toneMapping = "clip",
-    gamutMappingMode = "clip",
     hdrComputePeak = "no",
     shaderOptions = profile.shaderOptionsValue,
   )
@@ -180,8 +176,6 @@ private fun linearHdrSettings(boostSdrToHdr: Boolean): List<Pair<String, String>
     targetTrc = "auto",
     targetPeak = "auto",
     inverseToneMapping = if (boostSdrToHdr) "yes" else "no",
-    toneMapping = "clip",
-    gamutMappingMode = "clip",
     hdrComputePeak = "yes",
     shaderOptions = "",
   )
