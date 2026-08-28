@@ -93,8 +93,6 @@ import com.quantummpv.app.ui.browser.LocalNavigationBarHeight
 import com.quantummpv.app.ui.browser.NavigationBarState
 import com.quantummpv.app.ui.browser.components.BrowserBottomBar
 import com.quantummpv.app.ui.browser.components.BrowserTopBar
-import com.quantummpv.app.ui.browser.components.QueueInsertion
-import com.quantummpv.app.ui.browser.components.addVideosToPlaybackQueue
 import com.quantummpv.app.ui.browser.dialogs.AddToPlaylistDialog
 import com.quantummpv.app.ui.browser.dialogs.DeleteConfirmationDialog
 import com.quantummpv.app.ui.browser.dialogs.FileOperationProgressDialog
@@ -751,26 +749,6 @@ fun MediaLibraryContent(forceAudio: Boolean = false) {
           onRenameClick = { renameDialogOpen.value = true },
           onDeleteClick = { deleteDialogOpen.value = true },
           onAddToPlaylistClick = { addToPlaylistDialogOpen.value = true },
-          onPlayNextClick =
-            if (includeAudioBrowser && mediaType == MediaLibraryType.Audio) {
-              {
-                if (addVideosToPlaybackQueue(context, selectionManager.getSelectedItems(), QueueInsertion.PlayNext)) {
-                  selectionManager.clear()
-                }
-              }
-            } else {
-              null
-            },
-          onAddToQueueClick =
-            if (includeAudioBrowser && mediaType == MediaLibraryType.Audio) {
-              {
-                if (addVideosToPlaybackQueue(context, selectionManager.getSelectedItems(), QueueInsertion.AddToEnd)) {
-                  selectionManager.clear()
-                }
-              }
-            } else {
-              null
-            },
           showCopy = true,
           showMove = true,
           showDownscale = selectionManager.getSelectedItems().let { items -> items.isNotEmpty() && items.none { it.isAudio } },

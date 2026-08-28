@@ -393,8 +393,8 @@ object PlaybackSession : MPVLib.EventObserver {
       // Stop/quit must silence the native audio output before its decoder/output queues are torn
       // down. Restoring a seek guard's mute state before stop previously let a short buffered tail
       // escape after the Activity had already disappeared.
-      clearSeekAudioGuardLocked(restoreMute = false)
       beginPlaybackTransitionAudioGuardLocked(canRestore = false)
+      clearSeekAudioGuardLocked(restoreMute = false)
       runCatching { MPVLib.setPropertyBoolean("pause", true) }
       pendingStopClearQueue = clearQueue
       updateState {
@@ -930,10 +930,18 @@ object PlaybackSession : MPVLib.EventObserver {
         }
         updateState { it.copy(paused = value) }
         propBoolean.emit(property, value)
-      } else if (property == "mute" && playbackTransitionAudioGuardPreviousMute != null) {
-        // A user mute/unmute action during startup/teardown should update the value that will be
-        // restored, but must not open the guard and leak transition audio immediately.
-        playbackTransitionAudioGuardPreviousMute = value
+      } else if (
+        property == "mute" &&
+        (playbackTransitionAudioGuardPreviousMute != null || seekAudioGuardPreviousMute != null)
+      ) {
+        // A user mute/unmute action while either audio guard is active should update the value that
+        // will be restored, but must not open a guard and leak seek/transition audio immediately.
+        if (playbackTransitionAudioGuardPreviousMute != null) {
+          playbackTransitionAudioGuardPreviousMute = value
+        }
+        if (seekAudioGuardPreviousMute != null) {
+          seekAudioGuardPreviousMute = value
+        }
         MPVLib.setPropertyBoolean("mute", true)
       } else {
         MPVLib.setPropertyBoolean(property, value)
@@ -1361,7 +1369,11 @@ object PlaybackSession : MPVLib.EventObserver {
    */
   private fun beginPlaybackTransitionAudioGuardLocked(canRestore: Boolean) {
     if (playbackTransitionAudioGuardPreviousMute == null) {
-      playbackTransitionAudioGuardPreviousMute = MPVLib.getPropertyBoolean("mute") ?: false
+      // Closing or replacing media can overlap the short seek guard. In that window mpv reports
+      // mute=true even when the user was unmuted. Preserve the pre-seek value so a later load does
+      // not restore the temporary guard mute and remain permanently silent.
+      playbackTransitionAudioGuardPreviousMute =
+        seekAudioGuardPreviousMute ?: (MPVLib.getPropertyBoolean("mute") ?: false)
     }
     runCatching { MPVLib.setPropertyBoolean("mute", true) }
     playbackTransitionAudioGuardCanRestore = canRestore
