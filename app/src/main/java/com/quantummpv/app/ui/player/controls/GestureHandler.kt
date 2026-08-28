@@ -757,11 +757,14 @@ fun GestureHandler(
                             }
                           } else if (deltaY > speedLockThreshold && isSpeedLocked) {
                             isSpeedLocked = false
+                            isDynamicSpeedControlActive = false
+                            originalSpeed = 1f
                             PlaybackSession.setPropertyFloat("speed", originalSpeed)
                             haptics.performHapticFeedback(HapticFeedbackType.LongPress)
                             viewModel.playerUpdate.update {
                               PlayerUpdates.ShowText(context.getString(R.string.player_speed_gesture_restored))
                             }
+                            return@forEach
                           }
 
                           if (!hasSwipedEnough && abs(deltaX) >= swipeDetectionThreshold) {
