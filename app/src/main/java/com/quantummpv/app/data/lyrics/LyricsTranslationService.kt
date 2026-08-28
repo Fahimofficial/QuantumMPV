@@ -258,37 +258,57 @@ class LyricsTranslationService(
    * (Devanagari, Gurmukhi/Punjabi, Bengali, Tamil, Telugu, Marathi, Urdu, etc.) because it
    * post-processes the same authentic Google romanization output used for "Romaji", rather
    * than needing a separate per-script mapping table.
+   *
+   * Classification is done PER LINE (not once for the whole batch) so that code-switched
+   * lyrics — a very common pattern in Bollywood/Punjabi songs that mix English lines with
+   * Devanagari/Gurmukhi lines — route each line correctly instead of one script's lines
+   * accidentally being treated as the other's.
    */
   private suspend fun handleHinglishCasualTransliteration(texts: List<String>): List<TranslationResult> = coroutineScope {
-    val isAlreadyLatin = isPredominantlyLatin(texts)
-    if (isAlreadyLatin) {
-      // Already in Latin script: just clean up any stray diacritics for consistency.
-      return@coroutineScope texts.map { line ->
-        val casual = casualizeHinglish(line.trim())
-        TranslationResult(translation = casual, romanization = casual)
+    // Determine per-line script so a mixed English + Devanagari/Gurmukhi song doesn't get
+    // misclassified as a whole. Latin lines are left completely untouched (no diacritic
+    // stripping) so English contractions like "I'm" / "can't" are never mangled.
+    val latinFlags = texts.map { isLatinLine(it) }
+    val nonLatinIndices = latinFlags.withIndex().filter { !it.value }.map { it.index }
+
+    val romanizedByIndex: Map<Int, TranslationResult> =
+      if (nonLatinIndices.isEmpty()) {
+        emptyMap()
+      } else {
+        val nonLatinTexts = nonLatinIndices.map { texts[it] }
+        val chunks = nonLatinTexts.chunked(CHUNK_SIZE)
+        val deferredChunks = chunks.map { chunk ->
+          async(Dispatchers.IO) { romanizeChunk(chunk) }
+        }
+        val romanized = deferredChunks.awaitAll().flatten()
+        nonLatinIndices.zip(romanized).toMap()
       }
-    }
 
-    val chunks = texts.chunked(CHUNK_SIZE)
-    val deferredChunks = chunks.map { chunk ->
-      async(Dispatchers.IO) { romanizeChunk(chunk) }
-    }
-    val romanized = deferredChunks.awaitAll().flatten()
-
-    romanized.map { res ->
-      val source = res.romanization ?: res.translation
-      val casual = casualizeHinglish(source)
-      TranslationResult(
-        translation = casual,
-        romanization = casual,
-        detectedSourceLang = res.detectedSourceLang,
-      )
+    texts.mapIndexed { index, line ->
+      if (latinFlags[index]) {
+        val trimmed = line.trim()
+        TranslationResult(translation = trimmed, romanization = trimmed)
+      } else {
+        val res = romanizedByIndex[index]
+        val source = res?.romanization ?: res?.translation ?: line
+        val casual = casualizeHinglish(source)
+        TranslationResult(
+          translation = casual,
+          romanization = casual,
+          detectedSourceLang = res?.detectedSourceLang,
+        )
+      }
     }
   }
 
   /**
    * Converts formal/academic diacritic romanization (IAST-style, as returned by Google's
    * romanization endpoint) into everyday casual Hinglish spelling.
+   *
+   * IMPORTANT: only call this on already-romanized Latin text (i.e. Google's dt=rm output),
+   * never on native-script text (Devanagari/Gurmukhi/etc.) — Indic vowel signs and virama
+   * share the same Unicode "combining mark" category as Latin diacritics, so running this on
+   * native script would corrupt it (e.g. "वाले" -> "वाल").
    *
    * Strategy:
    * 1. Special-case sibilants (ś/ṣ -> "sh") since Unicode decomposition alone would strip
@@ -297,7 +317,10 @@ class LyricsTranslationService(
    *    (macrons, dots-above/below, tildes, etc.) — this generically converts ā->a, ī->i,
    *    ū->u, ē->e, ō->o, ṁ/ṃ->m, ṅ/ñ/ṇ->n, ṭ->t, ḍ->d, ṛ->r, ḥ->h, ḷ->l regardless of which
    *    Indic source script (Devanagari, Gurmukhi, Bengali, Tamil, etc.) produced them.
-   * 3. Re-normalize to NFC and tidy up leftover spacing.
+   * 3. Strip stray apostrophes that sometimes appear in Google's raw romanization to mark a
+   *    glottal/schwa boundary (e.g. "ga'i", "hathi'ara") — casual Hinglish typing never uses
+   *    these, so they just read as typos otherwise.
+   * 4. Re-normalize to NFC and tidy up leftover spacing.
    *
    * This works uniformly across all Indic languages without needing a dedicated per-script
    * transliteration table.
@@ -321,8 +344,34 @@ class LyricsTranslationService(
     val stripped = decomposed.replace(Regex("\\p{Mn}+"), "")
     result = java.text.Normalizer.normalize(stripped, java.text.Normalizer.Form.NFC)
 
+    // Strip stray apostrophes left over from Google's romanization (e.g. "ga'i" -> "gai")
+    result = result.replace("'", "").replace("’", "")
+
     // Collapse accidental double spaces left behind and trim
     return result.replace(Regex("\\s{2,}"), " ").trim()
+  }
+
+  /** Per-line check: true if this individual line is already predominantly Latin script. */
+  private fun isLatinLine(text: String): Boolean {
+    var latinCount = 0
+    var nonLatinLetterCount = 0
+    for (c in text) {
+      if (Character.isLetter(c)) {
+        val block = Character.UnicodeBlock.of(c)
+        if (block == Character.UnicodeBlock.BASIC_LATIN ||
+          block == Character.UnicodeBlock.LATIN_1_SUPPLEMENT ||
+          block == Character.UnicodeBlock.LATIN_EXTENDED_A ||
+          block == Character.UnicodeBlock.LATIN_EXTENDED_B ||
+          block == Character.UnicodeBlock.LATIN_EXTENDED_ADDITIONAL
+        ) {
+          latinCount++
+        } else {
+          nonLatinLetterCount++
+        }
+      }
+    }
+    if (latinCount == 0 && nonLatinLetterCount == 0) return true // no letters at all (punctuation/blank) — leave untouched
+    return latinCount >= nonLatinLetterCount
   }
 
   private fun isPredominantlyLatin(texts: List<String>): Boolean {
