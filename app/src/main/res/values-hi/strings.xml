@@ -633,6 +633,8 @@
   <string name="pref_sensitivity_high">ज्यादा</string>
   <string name="pref_swipe_sensitivity_summary">मौजूदा: %1$d/100 (%2$s)</string>
   <string name="pref_hold_speed_summary_format">%.2fx</string>
+  <string name="player_speed_gesture_locked">स्पीड लॉक है</string>
+  <string name="player_speed_gesture_restored">मूल स्पीड बहाल की गई</string>
   <string name="pref_custom_seek_dialog_text">सेकंड में कस्टम सीक ड्यूरेशन डालें (1–120)</string>
   <string name="pref_custom_seek_label">सेकंड</string>
   <string name="pref_double_tap_seek_area_width_summary">मौजूदा: %1$d%%</string>

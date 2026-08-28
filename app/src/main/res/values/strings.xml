@@ -730,6 +730,8 @@
   <string name="pref_sensitivity_high">High</string>
   <string name="pref_swipe_sensitivity_summary">Current: %1$d/100 (%2$s)</string>
   <string name="pref_hold_speed_summary_format">%.2fx</string>
+  <string name="player_speed_gesture_locked">Speed locked</string>
+  <string name="player_speed_gesture_restored">Original speed restored</string>
   <string name="pref_custom_seek_dialog_text">Enter custom seek duration in seconds (1–120)</string>
   <string name="pref_custom_seek_label">Seconds</string>
   <string name="pref_double_tap_seek_area_width_summary">Current: %1$d%%</string>

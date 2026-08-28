@@ -209,6 +209,7 @@ fun GestureHandler(
   var dynamicSpeedStartValue by remember { mutableStateOf(2f) }
   var lastAppliedSpeed by remember { mutableStateOf(2f) }
   var hasSwipedEnough by remember { mutableStateOf(false) }
+  var isSpeedLocked by remember { mutableStateOf(false) }
   var longPressTriggeredDuringTouch by remember { mutableStateOf(false) }
   var isVerticalGestureActive by remember { mutableStateOf(false) }
   var gestureOwner by remember { mutableStateOf<GestureOwner?>(null) }
@@ -640,7 +641,15 @@ fun GestureHandler(
                         speedHoldPending = false
                         val isCenterTouch =
                           enableCenterSwipeUpGesture && startPosition.x in (size.width * 0.35f)..(size.width * 0.65f)
-                        if (isCenterTouch && isVerticalDrag) {
+                        if (
+                          isLongPressing &&
+                            isDynamicSpeedControlActive &&
+                            gestureOwner == GestureOwner.SPEED &&
+                            (abs(deltaX) > 10f || abs(deltaY) > 10f)
+                        ) {
+                          longPressJob.cancel()
+                          gestureType = "speed_control"
+                        } else if (isCenterTouch && isVerticalDrag) {
                           longPressJob.cancel()
                           if (
                             deltaY < -20f &&
@@ -736,7 +745,24 @@ fun GestureHandler(
                           val screenWidth = size.width.toFloat()
 
                           val deltaX = currentPosition.x - dynamicSpeedStartX
+                          val deltaY = currentPosition.y - startPosition.y
                           val swipeDetectionThreshold = 10.dp.toPx()
+                          val speedLockThreshold = 60.dp.toPx()
+
+                          if (deltaY < -speedLockThreshold && !isSpeedLocked) {
+                            isSpeedLocked = true
+                            haptics.performHapticFeedback(HapticFeedbackType.LongPress)
+                            viewModel.playerUpdate.update {
+                              PlayerUpdates.ShowText(context.getString(R.string.player_speed_gesture_locked))
+                            }
+                          } else if (deltaY > speedLockThreshold && isSpeedLocked) {
+                            isSpeedLocked = false
+                            PlaybackSession.setPropertyFloat("speed", originalSpeed)
+                            haptics.performHapticFeedback(HapticFeedbackType.LongPress)
+                            viewModel.playerUpdate.update {
+                              PlayerUpdates.ShowText(context.getString(R.string.player_speed_gesture_restored))
+                            }
+                          }
 
                           if (!hasSwipedEnough && abs(deltaX) >= swipeDetectionThreshold) {
                             hasSwipedEnough = true
@@ -922,17 +948,19 @@ fun GestureHandler(
               isLongPressing = false
               isDynamicSpeedControlActive = false
               hasSwipedEnough = false
-              // Ramp speed back down incrementally to avoid audio filter stutter
-              val currentSpeed = PlaybackSession.getPropertyFloat("speed") ?: multipleSpeedGesture
-              val targetSpeed = originalSpeed
-              val steps = 5
-              val stepDelay = 16L
-              coroutineScope.launch {
-                for (i in 1..steps) {
-                  val t = i.toFloat() / steps
-                  val intermediateSpeed = currentSpeed + (targetSpeed - currentSpeed) * t
-                  PlaybackSession.setPropertyFloat("speed", intermediateSpeed)
-                  if (i < steps) delay(stepDelay)
+              if (!isSpeedLocked) {
+                // Ramp speed back down incrementally to avoid audio filter stutter
+                val currentSpeed = PlaybackSession.getPropertyFloat("speed") ?: multipleSpeedGesture
+                val targetSpeed = originalSpeed
+                val steps = 5
+                val stepDelay = 16L
+                coroutineScope.launch {
+                  for (i in 1..steps) {
+                    val t = i.toFloat() / steps
+                    val intermediateSpeed = currentSpeed + (targetSpeed - currentSpeed) * t
+                    PlaybackSession.setPropertyFloat("speed", intermediateSpeed)
+                    if (i < steps) delay(stepDelay)
+                  }
                 }
               }
               viewModel.playerUpdate.update { PlayerUpdates.None }
