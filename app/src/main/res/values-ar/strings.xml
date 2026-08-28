@@ -1934,4 +1934,11 @@
   <string name="player_video_quality">جودة الفيديو</string>
   <string name="player_video_quality_summary">اختر جودة متاحة لهذا البث.</string>
   <string name="player_video_quality_button">جودة الفيديو</string>
+  <string name="network_bookmark_add">وضع إشارة مرجعية للمجلد</string>
+  <string name="network_bookmark_remove">إزالة إشارة المجلد المرجعية</string>
+  <string name="network_bookmarks_title">المجلدات ذات الإشارات المرجعية</string>
+  <string name="network_bookmarks_manage">إدارة المجلدات ذات الإشارات المرجعية</string>
+  <string name="network_bookmarks_empty_title">لا توجد مجلدات ذات إشارات مرجعية</string>
+  <string name="network_bookmarks_empty_description">ضع إشارة مرجعية على مجلد بعيد لفتحه مباشرة من صفحة الشبكة.</string>
+  <string name="network_bookmark_source_format">%1$s • %2$s</string>
 </resources>

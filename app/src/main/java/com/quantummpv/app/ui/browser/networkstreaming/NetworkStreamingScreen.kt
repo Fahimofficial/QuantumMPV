@@ -99,6 +99,8 @@ import com.quantummpv.app.domain.torrent.formatTorrentBytes
 import com.quantummpv.app.domain.torrent.isTorrentSource
 import com.quantummpv.app.domain.torrent.normalizeTorrentSource
 import com.quantummpv.app.preferences.YtdlPreferences
+import com.quantummpv.app.preferences.NetworkBookmarkPreferences
+import com.quantummpv.app.preferences.preference.collectAsState
 import com.quantummpv.app.presentation.Screen
 import com.quantummpv.app.presentation.components.RemoteImage
 import com.quantummpv.app.repository.wyzie.WyzieSearchRepository
@@ -146,6 +148,7 @@ object NetworkStreamingScreen : Screen {
     val torrentStreamingEngine = koinInject<TorrentStreamingEngine>()
     val streamEntryRepository = koinInject<NetworkStreamEntryRepository>()
     val ytdlPreferences = koinInject<YtdlPreferences>()
+    val bookmarkPreferences = koinInject<NetworkBookmarkPreferences>()
     val wyzieSearchRepository = koinInject<WyzieSearchRepository>()
     val torrentPickerViewModel: TorrentSelectionViewModel =
       viewModel(
@@ -159,6 +162,7 @@ object NetworkStreamingScreen : Screen {
       )
     val torrentPickerState by torrentPickerViewModel.uiState.collectAsState()
     val connections by viewModel.connections.collectAsState()
+    val folderBookmarks by bookmarkPreferences.bookmarks.collectAsState()
     val connectionStatuses by viewModel.connectionStatuses.collectAsState()
     val recentLinks by viewModel.recentLinks.collectAsState()
     val allMediaGroups by viewModel.allMediaGroups.collectAsState()
@@ -248,6 +252,24 @@ object NetworkStreamingScreen : Screen {
           searchQuery.isBlank() ||
             entry.fileName.contains(searchQuery, ignoreCase = true) ||
             entry.canonicalSourceUri.contains(searchQuery, ignoreCase = true)
+        }
+      }
+
+    val resolvedFolderBookmarks =
+      remember(folderBookmarks, connections) {
+        resolveNetworkFolderBookmarks(folderBookmarks, connections)
+      }
+
+    val filteredFolderBookmarks =
+      remember(resolvedFolderBookmarks, searchQuery) {
+        if (searchQuery.isBlank()) {
+          resolvedFolderBookmarks
+        } else {
+          resolvedFolderBookmarks.filter { item ->
+            item.bookmark.folderName.contains(searchQuery, ignoreCase = true) ||
+              item.connection.name.contains(searchQuery, ignoreCase = true) ||
+              item.bookmark.path.contains(searchQuery, ignoreCase = true)
+          }
         }
       }
 
@@ -342,7 +364,7 @@ object NetworkStreamingScreen : Screen {
                 title = stringResource(R.string.ui_network),
                 isInSelectionMode = false,
                 selectedCount = 0,
-                totalCount = connections.size + recentLinks.size + allMediaGroups.size,
+                totalCount = connections.size + recentLinks.size + allMediaGroups.size + resolvedFolderBookmarks.size,
                 onBackClick = null,
                 onCancelSelection = { },
                 onSortClick = null,
@@ -435,6 +457,7 @@ object NetworkStreamingScreen : Screen {
             NetworkTab.LOCAL_NETWORK -> {
               LocalNetworkContent(
                 connections = filteredConnections,
+                bookmarks = filteredFolderBookmarks,
                 connectionStatuses = connectionStatuses,
                 recentLinks = filteredRecentLinks,
                 isPreparingLink =
@@ -487,6 +510,16 @@ object NetworkStreamingScreen : Screen {
                 onAutoConnectChange = { conn, autoConnect ->
                   viewModel.updateConnection(conn.copy(autoConnect = autoConnect))
                 },
+                onOpenBookmark = { item ->
+                  backstack.add(
+                    NetworkBrowserScreen(
+                      connectionId = item.connection.id,
+                      connectionName = item.connection.name,
+                      currentPath = item.bookmark.path,
+                    ),
+                  )
+                },
+                onManageBookmarks = { backstack.add(NetworkBookmarksScreen) },
               )
             }
             NetworkTab.MEDIA -> {
@@ -701,6 +734,7 @@ private fun AddMediaDialog(
 @Composable
 private fun LocalNetworkContent(
   connections: List<NetworkConnection>,
+  bookmarks: List<ResolvedNetworkFolderBookmark>,
   connectionStatuses: Map<Long, ConnectionStatus>,
   recentLinks: List<NetworkStreamEntryEntity>,
   isPreparingLink: Boolean,
@@ -714,6 +748,8 @@ private fun LocalNetworkContent(
   onDelete: (NetworkConnection) -> Unit,
   onBrowse: (NetworkConnection, ConnectionStatus?) -> Unit,
   onAutoConnectChange: (NetworkConnection, Boolean) -> Unit,
+  onOpenBookmark: (ResolvedNetworkFolderBookmark) -> Unit,
+  onManageBookmarks: () -> Unit,
 ) {
   val navBarHeight = com.quantummpv.app.ui.browser.LocalNavigationBarHeight.current.takeIf { it > 0.dp } ?: 88.dp
   LazyColumn(
@@ -731,6 +767,16 @@ private fun LocalNetworkContent(
         onSaveToTorrent = onSaveToMedia,
         onDeleteRecent = onDeleteRecent,
       )
+    }
+
+    if (bookmarks.isNotEmpty()) {
+      item {
+        NetworkBookmarkSection(
+          bookmarks = bookmarks,
+          onOpen = onOpenBookmark,
+          onManage = onManageBookmarks,
+        )
+      }
     }
 
     // 2. Saved Network Connections Section

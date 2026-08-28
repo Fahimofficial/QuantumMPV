@@ -1932,4 +1932,11 @@
   <string name="player_video_quality">Качество видео</string>
   <string name="player_video_quality_summary">Выберите доступное качество для этого потока.</string>
   <string name="player_video_quality_button">Качество видео</string>
+  <string name="network_bookmark_add">Добавить папку в закладки</string>
+  <string name="network_bookmark_remove">Удалить папку из закладок</string>
+  <string name="network_bookmarks_title">Папки в закладках</string>
+  <string name="network_bookmarks_manage">Управление папками в закладках</string>
+  <string name="network_bookmarks_empty_title">Нет папок в закладках</string>
+  <string name="network_bookmarks_empty_description">Добавьте удалённую папку в закладки, чтобы открывать её прямо со страницы «Сеть».</string>
+  <string name="network_bookmark_source_format">%1$s • %2$s</string>
 </resources>

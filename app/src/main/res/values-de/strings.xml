@@ -1932,4 +1932,11 @@ Bitte starten Sie die App neu, damit alle Änderungen wirksam werden.</string>
   <string name="player_video_quality">Videoqualität</string>
   <string name="player_video_quality_summary">Wähle eine verfügbare Qualität für diesen Stream.</string>
   <string name="player_video_quality_button">Videoqualität</string>
+  <string name="network_bookmark_add">Ordner als Lesezeichen speichern</string>
+  <string name="network_bookmark_remove">Ordner-Lesezeichen entfernen</string>
+  <string name="network_bookmarks_title">Lesezeichenordner</string>
+  <string name="network_bookmarks_manage">Lesezeichenordner verwalten</string>
+  <string name="network_bookmarks_empty_title">Keine Ordner als Lesezeichen gespeichert</string>
+  <string name="network_bookmarks_empty_description">Speichere einen Remote-Ordner als Lesezeichen, um ihn direkt über die Netzwerkseite zu öffnen.</string>
+  <string name="network_bookmark_source_format">%1$s • %2$s</string>
 </resources>

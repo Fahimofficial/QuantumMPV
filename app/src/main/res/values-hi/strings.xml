@@ -1836,4 +1836,11 @@
   <string name="player_video_quality">वीडियो गुणवत्ता</string>
   <string name="player_video_quality_summary">इस स्ट्रीम के लिए उपलब्ध गुणवत्ता चुनें।</string>
   <string name="player_video_quality_button">वीडियो गुणवत्ता</string>
+  <string name="network_bookmark_add">फ़ोल्डर को बुकमार्क करें</string>
+  <string name="network_bookmark_remove">फ़ोल्डर बुकमार्क हटाएँ</string>
+  <string name="network_bookmarks_title">बुकमार्क किए गए फ़ोल्डर</string>
+  <string name="network_bookmarks_manage">बुकमार्क किए गए फ़ोल्डर प्रबंधित करें</string>
+  <string name="network_bookmarks_empty_title">कोई बुकमार्क किया गया फ़ोल्डर नहीं</string>
+  <string name="network_bookmarks_empty_description">किसी रिमोट फ़ोल्डर को नेटवर्क पेज से सीधे खोलने के लिए बुकमार्क करें।</string>
+  <string name="network_bookmark_source_format">%1$s • %2$s</string>
 </resources>

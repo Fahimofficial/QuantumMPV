@@ -17,6 +17,7 @@ import com.quantummpv.app.preferences.BrowserPreferences
 import com.quantummpv.app.preferences.DecoderPreferences
 import com.quantummpv.app.preferences.FoldersPreferences
 import com.quantummpv.app.preferences.GesturePreferences
+import com.quantummpv.app.preferences.NetworkBookmarkPreferences
 import com.quantummpv.app.preferences.PlayerPreferences
 import com.quantummpv.app.preferences.SecureFolderPreferences
 import com.quantummpv.app.preferences.SeerrPreferences
@@ -43,6 +44,7 @@ val PreferencesModule =
     singleOf(::AdvancedPreferences)
     single { BrowserPreferences(get(), androidContext()) }
     singleOf(::FoldersPreferences)
+    singleOf(::NetworkBookmarkPreferences)
     singleOf(::AiPreferences)
     singleOf(::YtdlPreferences)
     singleOf(::SettingsManager)

@@ -56,8 +56,11 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import com.quantummpv.app.R
 import com.quantummpv.app.domain.network.NetworkConnection
 import com.quantummpv.app.domain.network.NetworkFile
+import com.quantummpv.app.domain.network.NetworkPath
 import com.quantummpv.app.preferences.BrowserPreferences
 import com.quantummpv.app.preferences.MediaLayoutMode
+import com.quantummpv.app.preferences.NetworkBookmarkPreferences
+import com.quantummpv.app.preferences.NetworkFolderBookmark
 import com.quantummpv.app.preferences.NetworkSortType
 import com.quantummpv.app.preferences.SortOrder
 import com.quantummpv.app.preferences.preference.collectAsState
@@ -91,6 +94,7 @@ data class NetworkBrowserScreen(
     val backstack = LocalBackStack.current
     val context = LocalContext.current
     val browserPreferences = koinInject<BrowserPreferences>()
+    val bookmarkPreferences = koinInject<NetworkBookmarkPreferences>()
 
     val networkSortType by browserPreferences.networkSortType.collectAsState()
     val networkSortOrder by browserPreferences.networkSortOrder.collectAsState()
@@ -98,6 +102,13 @@ data class NetworkBrowserScreen(
     val manualGridColumnsEnabled by browserPreferences.manualGridColumnsEnabled.collectAsState()
     val videoGridColumnsPortrait by browserPreferences.videoGridColumnsPortrait.collectAsState()
     val videoGridColumnsLandscape by browserPreferences.videoGridColumnsLandscape.collectAsState()
+    val bookmarks by bookmarkPreferences.bookmarks.collectAsState()
+    val normalizedPath = remember(currentPath) { NetworkPath.from(currentPath) }
+    val canBookmarkCurrentFolder = normalizedPath.segments.isNotEmpty()
+    val isCurrentFolderBookmarked =
+      remember(bookmarks, connectionId, normalizedPath.value) {
+        bookmarkPreferences.contains(connectionId, normalizedPath.value)
+      }
 
     val viewModel: NetworkBrowserViewModel =
       viewModel(
@@ -211,6 +222,39 @@ data class NetworkBrowserScreen(
             onSelectAll = null,
             onInvertSelection = null,
             onDeselectAll = null,
+            additionalActions = {
+              if (canBookmarkCurrentFolder) {
+                IconButton(
+                  onClick = {
+                    bookmarkPreferences.toggle(
+                      NetworkFolderBookmark(
+                        connectionId = connectionId,
+                        path = normalizedPath.value,
+                        folderName = normalizedPath.segments.last(),
+                      ),
+                    )
+                  },
+                ) {
+                  Icon(
+                    imageVector = Icons.RoundedFilled.Star,
+                    contentDescription =
+                      stringResource(
+                        if (isCurrentFolderBookmarked) {
+                          R.string.network_bookmark_remove
+                        } else {
+                          R.string.network_bookmark_add
+                        },
+                      ),
+                    tint =
+                      if (isCurrentFolderBookmarked) {
+                        MaterialTheme.colorScheme.primary
+                      } else {
+                        MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.55f)
+                      },
+                  )
+                }
+              }
+            },
           )
         }
       },

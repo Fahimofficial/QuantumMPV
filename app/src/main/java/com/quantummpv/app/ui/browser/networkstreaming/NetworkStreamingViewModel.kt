@@ -24,6 +24,7 @@ import com.quantummpv.app.domain.torrent.isTorrentSource
 import com.quantummpv.app.domain.torrent.parseMagnet
 import com.quantummpv.app.repository.JellyfinRepository
 import com.quantummpv.app.repository.NetworkRepository
+import com.quantummpv.app.preferences.NetworkBookmarkPreferences
 import com.quantummpv.app.repository.wyzie.WyzieSearchRepository
 import com.quantummpv.app.repository.wyzie.WyzieTmdbResult
 import com.quantummpv.app.repository.wyzie.bestTmdbResult
@@ -79,6 +80,7 @@ class NetworkStreamingViewModel(
   private val streamEntryRepository: NetworkStreamEntryRepository by inject()
   private val wyzieSearchRepository: WyzieSearchRepository by inject()
   private val jellyfinRepository: JellyfinRepository by inject()
+  private val bookmarkPreferences: NetworkBookmarkPreferences by inject()
 
   private val enrichmentAttempts = mutableMapOf<String, Long>()
 
@@ -439,6 +441,7 @@ class NetworkStreamingViewModel(
   fun deleteConnection(connection: NetworkConnection) {
     viewModelScope.launch {
       repository.deleteConnection(connection)
+      bookmarkPreferences.removeForConnection(connection.id)
     }
   }
 

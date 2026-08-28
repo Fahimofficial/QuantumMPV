@@ -1934,4 +1934,11 @@
   <string name="player_video_quality">视频质量</string>
   <string name="player_video_quality_summary">选择此流可用的视频质量。</string>
   <string name="player_video_quality_button">视频质量</string>
+  <string name="network_bookmark_add">收藏文件夹</string>
+  <string name="network_bookmark_remove">取消收藏文件夹</string>
+  <string name="network_bookmarks_title">收藏文件夹</string>
+  <string name="network_bookmarks_manage">管理收藏文件夹</string>
+  <string name="network_bookmarks_empty_title">暂无收藏文件夹</string>
+  <string name="network_bookmarks_empty_description">收藏远程文件夹后，可从“网络”页面直接打开。</string>
+  <string name="network_bookmark_source_format">%1$s • %2$s</string>
 </resources>

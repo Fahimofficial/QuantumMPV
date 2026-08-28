@@ -1327,6 +1327,13 @@
   <string name="ui_jellyfin">Jellyfin</string>
   <string name="ui_no_network_connections">No network connections</string>
   <string name="ui_no_recent_links">No recent stream links or torrents yet. Paste a stream URL above to get started.</string>
+  <string name="network_bookmark_add">Bookmark folder</string>
+  <string name="network_bookmark_remove">Remove folder bookmark</string>
+  <string name="network_bookmarks_title">Bookmark folders</string>
+  <string name="network_bookmarks_manage">Manage bookmark folders</string>
+  <string name="network_bookmarks_empty_title">No bookmarked folders</string>
+  <string name="network_bookmarks_empty_description">Bookmark a remote folder to open it directly from the Network page.</string>
+  <string name="network_bookmark_source_format">%1$s • %2$s</string>
   <string name="ui_add_smb_ftp_or_webdav_connections_to_browse_network_files">Add SMB, FTP, or WebDAV connections to browse network files</string>
   <string name="ui_stream_link">Stream Link</string>
   <string name="ui_enter_stream_url">Enter stream URL…</string>
