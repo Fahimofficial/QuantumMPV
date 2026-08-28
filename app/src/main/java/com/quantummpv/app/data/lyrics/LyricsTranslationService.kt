@@ -34,12 +34,24 @@ data class SupportedLanguage(
   val code: String,
   val displayName: String,
   val isRomanization: Boolean = false,
+  val subtitle: String? = null,
 )
 
 object LyricsLanguageOptions {
   val ALL_LANGUAGES = listOf(
     SupportedLanguage("en", "English"),
-    SupportedLanguage("romaji", "Romaji / Romanized (Hinglish, Pinyin)", isRomanization = true),
+    SupportedLanguage(
+      "romaji",
+      "Romaji / Romanized (Pinyin, Academic)",
+      isRomanization = true,
+      subtitle = "Pronunciation / Romaji / Pinyin",
+    ),
+    SupportedLanguage(
+      "hinglish_casual",
+      "Hinglish (Colloquial)",
+      isRomanization = true,
+      subtitle = "Casual spelling for Hindi, Punjabi, Bengali & more",
+    ),
     SupportedLanguage("hi", "Hindi (हिन्दी)"),
     SupportedLanguage("es", "Spanish (Español)"),
     SupportedLanguage("fr", "French (Français)"),
@@ -136,7 +148,8 @@ class LyricsTranslationService(
         val romanizedText = res.romanization?.takeIf { it.isNotBlank() }
         line.copy(
           translation = when {
-            targetLanguage == "romaji" || targetLanguage == "hinglish" -> romanizedText ?: translatedText
+            targetLanguage == "romaji" || targetLanguage == "hinglish" || targetLanguage == "hinglish_casual" ->
+              romanizedText ?: translatedText
             else -> translatedText
           },
           romanization = romanizedText,
@@ -155,7 +168,7 @@ class LyricsTranslationService(
     return lines.mapIndexed { index, original ->
       val res = translations.getOrNull(index)
       if (res != null) {
-        val text = if (targetLanguage == "romaji" || targetLanguage == "hinglish") {
+        val text = if (targetLanguage == "romaji" || targetLanguage == "hinglish" || targetLanguage == "hinglish_casual") {
           res.romanization ?: res.translation
         } else {
           res.translation
@@ -177,9 +190,14 @@ class LyricsTranslationService(
   ): List<TranslationResult> = coroutineScope {
     if (texts.isEmpty()) return@coroutineScope emptyList()
 
-    // Special handling for Romaji / Hinglish / Romanized
+    // Special handling for Romaji / Hinglish / Romanized (formal, diacritic-preserving)
     if (targetLang.equals("romaji", ignoreCase = true) || targetLang.equals("hinglish", ignoreCase = true)) {
       return@coroutineScope handleRomajiTransliteration(texts)
+    }
+
+    // Special handling for casual Hinglish (Hindi, Punjabi/Gurmukhi, Bengali, Tamil, etc. -> everyday Latin spelling)
+    if (targetLang.equals("hinglish_casual", ignoreCase = true)) {
+      return@coroutineScope handleHinglishCasualTransliteration(texts)
     }
 
     val isSourceLatin = isPredominantlyLatin(texts)
@@ -231,6 +249,294 @@ class LyricsTranslationService(
     }
 
     deferredChunks.awaitAll().flatten()
+  }
+
+  /**
+   * Handles casual "Hinglish" style transliteration — the way lyrics are typically typed on
+   * WhatsApp/YouTube comments (e.g. "seene", "baandhi") rather than academic IAST-style
+   * romanization with diacritics (e.g. "sīnē", "bāṁdhī"). Works for any Indic source script
+   * (Devanagari, Gurmukhi/Punjabi, Bengali, Tamil, Telugu, Marathi, Urdu, etc.) because it
+   * post-processes the same authentic Google romanization output used for "Romaji", rather
+   * than needing a separate per-script mapping table.
+   *
+   * Classification is done PER LINE (not once for the whole batch) so that code-switched
+   * lyrics — a very common pattern in Bollywood/Punjabi songs that mix English lines with
+   * Devanagari/Gurmukhi lines — route each line correctly instead of one script's lines
+   * accidentally being treated as the other's.
+   */
+  private suspend fun handleHinglishCasualTransliteration(texts: List<String>): List<TranslationResult> = coroutineScope {
+    // Determine per-line script so a mixed English + Devanagari/Gurmukhi song doesn't get
+    // misclassified as a whole. Latin lines are left completely untouched (no diacritic
+    // stripping) so English contractions like "I'm" / "can't" are never mangled.
+    val latinFlags = texts.map { isLatinLine(it) }
+    val nonLatinIndices = latinFlags.withIndex().filter { !it.value }.map { it.index }
+
+    // For Devanagari lines specifically, pre-apply schwa deletion BEFORE sending to Google's
+    // romanization endpoint. Google's raw dt=rm output keeps every akshara's inherent 'a'
+    // vowel (e.g. "हम" -> "hama", "करने" -> "karane"), which reads nothing like how Hindi is
+    // actually spoken/typed casually ("ham", "karne"). Inserting an explicit virama at the
+    // positions where the schwa should be silent lets Google's own (already-correct)
+    // consonant-cluster transliteration produce the right result for us.
+    val preprocessed = nonLatinIndices.map { idx ->
+      val line = texts[idx]
+      if (isDevanagariLine(line)) applyHindiSchwaDeletion(line) else line
+    }
+
+    val romanizedByIndex: Map<Int, TranslationResult> =
+      if (nonLatinIndices.isEmpty()) {
+        emptyMap()
+      } else {
+        val chunks = preprocessed.chunked(CHUNK_SIZE)
+        val deferredChunks = chunks.map { chunk ->
+          async(Dispatchers.IO) { romanizeChunk(chunk) }
+        }
+        val romanized = deferredChunks.awaitAll().flatten()
+        nonLatinIndices.zip(romanized).toMap()
+      }
+
+    texts.mapIndexed { index, line ->
+      if (latinFlags[index]) {
+        val trimmed = line.trim()
+        TranslationResult(translation = trimmed, romanization = trimmed)
+      } else {
+        val res = romanizedByIndex[index]
+        val source = res?.romanization ?: res?.translation ?: line
+        val casual = casualizeHinglish(source)
+        TranslationResult(
+          translation = casual,
+          romanization = casual,
+          detectedSourceLang = res?.detectedSourceLang,
+        )
+      }
+    }
+  }
+
+  /** True if the line contains at least one Devanagari script character. */
+  private fun isDevanagariLine(text: String): Boolean {
+    return text.any { it.code in 0x0900..0x097F }
+  }
+
+  private object Devanagari {
+    val CONSONANTS = (0x0915..0x0939).map { it.toChar() }.toSet() + (0x0958..0x095F).map { it.toChar() }.toSet()
+    const val VIRAMA = '\u094D'
+    val MATRAS = setOf(
+      '\u093E', '\u093F', '\u0940', '\u0941', '\u0942', '\u0943', '\u0944',
+      '\u0945', '\u0946', '\u0947', '\u0948', '\u0949', '\u094A', '\u094B', '\u094C',
+      '\u0955', '\u0956', '\u0957', '\u0962', '\u0963',
+    )
+    val NASAL_MARKS = setOf('\u0901', '\u0902', '\u0903') // candrabindu, anusvara, visarga
+  }
+
+  private data class Syllable(
+    val consonantEndIndex: Int, // index right after the consonant cluster (where a virama would be inserted)
+    val clusterLength: Int, // length in chars of the consonant cluster (1 = single consonant, 3+ = conjunct)
+    val isImplicitSchwa: Boolean, // true if this syllable carries the unwritten inherent 'a' vowel
+  )
+
+  /**
+   * Applies a simplified Hindi schwa-deletion heuristic directly on Devanagari text, by
+   * inserting an explicit virama (्) at akshara positions where the inherent 'a' vowel is
+   * silent in natural speech/casual typing but isn't marked in standard spelling.
+   *
+   * Two rules (the two dominant, well-documented patterns of Hindi schwa deletion):
+   *  1. Word-final schwa deletion: the last syllable's inherent vowel is (almost) always
+   *     silent, e.g. "हम" (ham) not "hama", "मर" (mar) not "mara".
+   *  2. Medial schwa deletion: a non-initial, non-final syllable's inherent vowel is deleted
+   *     when the syllable right after it is "light" (a single consonant, not a conjunct
+   *     cluster) — e.g. "करने" -> "kar" + "ne" (deleting र's schwa) instead of "karane".
+   *
+   * This intentionally does NOT touch the first syllable of a word (word-initial schwa is
+   * essentially never deleted in Hindi) and never deletes two adjacent syllables' schwas
+   * (to avoid producing an unpronounceable triple-consonant cluster).
+   *
+   * This is a heuristic, not a complete linguistic model — Hindi schwa deletion has edge
+   * cases and exceptions — but it fixes the overwhelmingly common patterns that make Google's
+   * raw (schwa-retaining) romanization read as academic/broken casual Hinglish.
+   */
+  private fun applyHindiSchwaDeletion(text: String): String {
+    // Process each maximal run of Devanagari characters as one "word" so syllable position
+    // (first/medial/last) is computed relative to that word, leaving spaces, punctuation, and
+    // any non-Devanagari text completely untouched.
+    val result = StringBuilder()
+    var i = 0
+    while (i < text.length) {
+      if (text[i].code in 0x0900..0x097F) {
+        val start = i
+        while (i < text.length && text[i].code in 0x0900..0x097F) i++
+        result.append(applyHindiSchwaDeletionToWord(text.substring(start, i)))
+      } else {
+        result.append(text[i])
+        i++
+      }
+    }
+    return result.toString()
+  }
+
+  private fun applyHindiSchwaDeletionToWord(word: String): String {
+    val syllables = mutableListOf<Syllable>()
+    var i = 0
+    while (i < word.length) {
+      val c = word[i]
+      if (c in Devanagari.CONSONANTS) {
+        val start = i
+        i++
+        // Consume virama+consonant chains (conjuncts, e.g. र्त, क्ष)
+        while (i + 1 < word.length && word[i] == Devanagari.VIRAMA && word[i + 1] in Devanagari.CONSONANTS) {
+          i += 2
+        }
+        val consonantEnd = i
+        val clusterLength = consonantEnd - start
+
+        if (i < word.length && word[i] == Devanagari.VIRAMA) {
+          // Already explicitly dead (spelled with a trailing virama) — not a schwa candidate.
+          i++
+          syllables.add(Syllable(consonantEnd, clusterLength, isImplicitSchwa = false))
+          continue
+        }
+
+        var hasExplicitVowel = false
+        if (i < word.length && word[i] in Devanagari.MATRAS) {
+          hasExplicitVowel = true
+          i++
+        }
+        var hasNasal = false
+        if (i < word.length && word[i] in Devanagari.NASAL_MARKS) {
+          hasNasal = true
+          i++
+        }
+        // A nasalized implicit vowel (e.g. हँसना) is usually still voiced, so don't treat it
+        // as a silent-schwa candidate.
+        val isImplicitSchwa = !hasExplicitVowel && !hasNasal
+        syllables.add(Syllable(consonantEnd, clusterLength, isImplicitSchwa))
+      } else {
+        // Independent vowel, punctuation, digit, etc. — not part of consonant-syllable analysis
+        i++
+      }
+    }
+
+    if (syllables.isEmpty()) return word
+
+    val n = syllables.size
+    val toDelete = BooleanArray(n)
+    for (idx in 0 until n) {
+      val syl = syllables[idx]
+      if (!syl.isImplicitSchwa) continue
+      if (idx == n - 1) {
+        if (n > 1) toDelete[idx] = true // Rule 1: word-final schwa deletion
+      } else if (idx in 1 until n - 1) {
+        val next = syllables[idx + 1]
+        if (next.clusterLength == 1) toDelete[idx] = true // Rule 2: before a "light" syllable
+      }
+      // idx == 0 (word-initial): never deleted
+    }
+    // Safety: never delete two adjacent syllables' schwas (would leave an unpronounceable
+    // consonant pile-up) — keep the later one.
+    for (idx in 0 until n - 1) {
+      if (toDelete[idx] && toDelete[idx + 1]) toDelete[idx] = false
+    }
+
+    // Insert virama at each marked position, right-to-left so earlier indices stay valid.
+    val out = StringBuilder(word)
+    for (idx in n - 1 downTo 0) {
+      if (toDelete[idx]) out.insert(syllables[idx].consonantEndIndex, Devanagari.VIRAMA)
+    }
+    return out.toString()
+  }
+
+  /**
+   * Converts formal/academic diacritic romanization (IAST-style, as returned by Google's
+   * romanization endpoint) into everyday casual Hinglish spelling.
+   *
+   * IMPORTANT: only call this on already-romanized Latin text (i.e. Google's dt=rm output),
+   * never on native-script text (Devanagari/Gurmukhi/etc.) — Indic vowel signs and virama
+   * share the same Unicode "combining mark" category as Latin diacritics, so running this on
+   * native script would corrupt it (e.g. "वाले" -> "वाल").
+   *
+   * Strategy:
+   * 1. Special-case sibilants (ś/ṣ -> "sh") since Unicode decomposition alone would strip
+   *    them down to plain "s", losing the "sh" sound.
+   * 2. Double the long vowels (ā->aa, ī->ee, ū->oo) — this is the standard WhatsApp/YouTube
+   *    Hinglish convention for marking a long vowel (e.g. "vaale" not "vale", "seene" not
+   *    "sine") and disambiguates them from the short vowels they'd otherwise collapse into.
+   * 3. Convert nasalization marks (candrabindu/anusvara, however Google represents them —
+   *    precomposed ṁ/ṃ, or a combining tilde/candrabindu riding on the vowel) into a trailing
+   *    "n", matching how nasalized vowels are conventionally typed in casual Hinglish
+   *    (e.g. "hain", "nahin", "jaenge").
+   * 4. Unicode-normalize (NFD) and strip any remaining combining diacritical marks (dots,
+   *    etc.) — this generically handles ē->e, ō->o, ṅ/ñ/ṇ->n, ṭ->t, ḍ->d, ṛ->r, ḥ->h, ḷ->l
+   *    regardless of which Indic source script produced them.
+   * 5. Strip stray apostrophes that sometimes appear in Google's raw romanization to mark a
+   *    glottal/schwa boundary (e.g. "ga'i", "hathi'ara") — casual Hinglish typing never uses
+   *    these, so they just read as typos otherwise.
+   * 6. Re-normalize to NFC and tidy up leftover spacing.
+   *
+   * This works uniformly across all Indic languages without needing a dedicated per-script
+   * transliteration table.
+   */
+  private fun casualizeHinglish(text: String): String {
+    if (text.isBlank()) return text
+
+    // Explicit handling for sounds that don't casualize correctly via generic
+    // diacritic-stripping alone (must run before NFD stripping below):
+    //  - ś/ṣ would otherwise collapse to plain "s" and lose the "sh" sound
+    //  - long vowels are doubled to preserve the length distinction casually
+    //  - ṁ/ṃ (anusvara/nasalization) reads as "n" in casual typing, not "m"
+    var result = text
+      .replace("ś", "sh").replace("Ś", "Sh")
+      .replace("ṣ", "sh").replace("Ṣ", "Sh")
+      .replace("ā", "aa").replace("Ā", "Aa")
+      .replace("ī", "ee").replace("Ī", "Ee")
+      .replace("ū", "oo").replace("Ū", "Oo")
+      .replace("ṁ", "n").replace("Ṁ", "N")
+      .replace("ṃ", "n").replace("Ṃ", "N")
+
+    // Google sometimes represents nasalization as a combining mark riding on the vowel
+    // instead of a standalone ṁ/ṃ character (e.g. a combining tilde or candrabindu). Convert
+    // those to a trailing "n" too, rather than letting the generic strip below silently drop
+    // the nasalization entirely.
+    val nfd = java.text.Normalizer.normalize(result, java.text.Normalizer.Form.NFD)
+    val nasalConverted = StringBuilder()
+    for (c in nfd) {
+      if (c == '\u0303' || c == '\u0310') { // combining tilde, combining candrabindu
+        nasalConverted.append('n')
+      } else {
+        nasalConverted.append(c)
+      }
+    }
+    result = nasalConverted.toString()
+
+    // Strip any remaining combining diacritical marks (dots-above/below, etc.)
+    val stripped = result.replace(Regex("\\p{Mn}+"), "")
+    result = java.text.Normalizer.normalize(stripped, java.text.Normalizer.Form.NFC)
+
+    // Strip stray apostrophes left over from Google's romanization (e.g. "ga'i" -> "gai")
+    result = result.replace("'", "").replace("’", "")
+
+    // Collapse accidental double spaces left behind and trim
+    return result.replace(Regex("\\s{2,}"), " ").trim()
+  }
+
+  /** Per-line check: true if this individual line is already predominantly Latin script. */
+  private fun isLatinLine(text: String): Boolean {
+    var latinCount = 0
+    var nonLatinLetterCount = 0
+    for (c in text) {
+      if (Character.isLetter(c)) {
+        val block = Character.UnicodeBlock.of(c)
+        if (block == Character.UnicodeBlock.BASIC_LATIN ||
+          block == Character.UnicodeBlock.LATIN_1_SUPPLEMENT ||
+          block == Character.UnicodeBlock.LATIN_EXTENDED_A ||
+          block == Character.UnicodeBlock.LATIN_EXTENDED_B ||
+          block == Character.UnicodeBlock.LATIN_EXTENDED_ADDITIONAL
+        ) {
+          latinCount++
+        } else {
+          nonLatinLetterCount++
+        }
+      }
+    }
+    if (latinCount == 0 && nonLatinLetterCount == 0) return true // no letters at all (punctuation/blank) — leave untouched
+    return latinCount >= nonLatinLetterCount
   }
 
   private fun isPredominantlyLatin(texts: List<String>): Boolean {

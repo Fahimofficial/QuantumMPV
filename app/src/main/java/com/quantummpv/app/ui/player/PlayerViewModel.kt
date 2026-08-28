@@ -831,6 +831,9 @@ class PlayerViewModel : ViewModel(),
 
   val lyricsUiState = MutableStateFlow(LyricsUiState())
 
+  private var lyricsLoadJob: Job? = null
+  private var lyricsTranslateJob: Job? = null
+
   fun setEqualizerEnabled(enabled: Boolean) {
     equalizerState.value = equalizerState.value.copy(isEnabled = enabled)
     applyEqualizerMpvFilters(immediate = true)
@@ -880,7 +883,13 @@ class PlayerViewModel : ViewModel(),
 
     lyricsUiState.value = lyricsUiState.value.copy(isLoading = true, errorMessage = null, syncOffsetMs = 0)
 
-    viewModelScope.launch(Dispatchers.IO) {
+    // Cancel any in-flight lyrics load/translate for the previous track, otherwise a slow
+    // fetch for the old song can resolve after the new song's fetch and overwrite it with
+    // stale (previous track's) lyrics.
+    lyricsLoadJob?.cancel()
+    lyricsTranslateJob?.cancel()
+
+    lyricsLoadJob = viewModelScope.launch(Dispatchers.IO) {
       val result = lyricsRepository.loadLyricsForTrack(
         mediaPath = path,
         title = title,
@@ -888,6 +897,13 @@ class PlayerViewModel : ViewModel(),
         durationSeconds = duration,
         forceRefresh = forceRefresh,
       )
+
+      // The track may have changed again while this fetch was in-flight; only apply the
+      // result if we're still on the same track (extra guard on top of job cancellation).
+      val stillCurrentPath = PlaybackSession.getPropertyString("path")
+        ?: PlaybackSession.getPropertyString("stream-open-filename")
+      if (stillCurrentPath != path) return@launch
+
       val activeIndex = com.quantummpv.app.utils.media.LyricsUtils.getActiveLineIndex(
         syncedLines = result.activeLyrics?.synced,
         positionMs = (precisePosition.value * 1000).toLong(),
@@ -928,7 +944,9 @@ class PlayerViewModel : ViewModel(),
 
     if (sourceType == com.quantummpv.app.domain.lyrics.LyricsSourceType.ONLINE && current.onlineLyrics == null) {
       lyricsUiState.value = current.copy(isLoading = true)
-      viewModelScope.launch(Dispatchers.IO) {
+      lyricsLoadJob?.cancel()
+      lyricsTranslateJob?.cancel()
+      lyricsLoadJob = viewModelScope.launch(Dispatchers.IO) {
         val title = currentMediaTitle.takeIf { it.isNotBlank() }
           ?: PlaybackSession.getPropertyString("metadata/by-key/Title")
           ?: PlaybackSession.getPropertyString("media-title")
@@ -940,6 +958,11 @@ class PlayerViewModel : ViewModel(),
         val duration = PlaybackSession.getPropertyInt("duration") ?: 0
 
         val online = lyricsRepository.fetchOnlineLyrics(title, artist, duration)
+
+        val stillCurrentPath = PlaybackSession.getPropertyString("path")
+          ?: PlaybackSession.getPropertyString("stream-open-filename")
+        if (stillCurrentPath != path) return@launch
+
         val updatedSources = (current.availableSources + com.quantummpv.app.domain.lyrics.LyricsSourceType.ONLINE).distinct()
         val activeLyrics = online ?: current.embeddedLyrics
         val activeIndex = com.quantummpv.app.utils.media.LyricsUtils.getActiveLineIndex(
@@ -1027,12 +1050,20 @@ class PlayerViewModel : ViewModel(),
       originalLyrics = current.originalLyrics ?: current.lyrics,
     )
 
-    viewModelScope.launch(Dispatchers.IO) {
+    lyricsTranslateJob?.cancel()
+    lyricsTranslateJob = viewModelScope.launch(Dispatchers.IO) {
       val translated = lyricsTranslationService.translateLyrics(
         lyrics = baseLyrics,
         targetLanguage = lang,
         cacheKey = path,
       )
+
+      // Bail out if the track changed while translation was in-flight, so a slow
+      // translation for the previous song can't overwrite the new song's lyrics.
+      val stillCurrentPath = PlaybackSession.getPropertyString("path")
+        ?: PlaybackSession.getPropertyString("stream-open-filename")
+      if (stillCurrentPath != path) return@launch
+
       val activeIndex = com.quantummpv.app.utils.media.LyricsUtils.getActiveLineIndex(
         syncedLines = translated.synced,
         positionMs = (precisePosition.value * 1000).toLong(),
