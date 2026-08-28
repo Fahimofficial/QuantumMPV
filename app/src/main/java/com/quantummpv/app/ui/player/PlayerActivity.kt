@@ -419,7 +419,6 @@ class PlayerActivity :
   private var isVideoAmbientPresentationActive = false
   private var handledPipDismissal = false
   private var pendingPipExitResolution = false
-  private var pipExitResolutionJob: Job? = null
   private var pendingBackgroundTransition = false
   private var pendingBackNavigationBackgroundTransition = false
   private var noisyReceiverRegistered = false
@@ -1370,6 +1369,7 @@ class PlayerActivity :
 
   override fun onWindowFocusChanged(hasFocus: Boolean) {
     super.onWindowFocusChanged(hasFocus)
+    if (hasFocus && !isInPictureInPictureMode) completePipExpansion()
     if (!hasFocus) {
       cancelSystemBarsAutoHide()
       return
@@ -1406,8 +1406,6 @@ class PlayerActivity :
       commitPipDismissal()
     }
     val pipDismissalCommitted = handledPipDismissal
-    pipExitResolutionJob?.cancel()
-    pipExitResolutionJob = null
     pendingPipExitResolution = false
     val keepBackgroundPlaybackAlive =
       ownsPlaybackSession && !pipDismissalCommitted && PlayerLifecyclePolicy.shouldKeepBackgroundPlaybackAliveOnDestroy(
@@ -1772,20 +1770,6 @@ class PlayerActivity :
       }
 
       if (
-        PlayerLifecyclePolicy.shouldTreatStopAsPipDismissal(
-          wasInPictureInPictureMode = wasInPipMode,
-          isInPictureInPictureMode = isInPictureInPictureMode,
-          isActivityFinishing = isFinishing,
-          isChangingConfigurations = isChangingConfigurations,
-          isScreenOffOrLocked = isDeviceScreenOffOrLocked(),
-          alreadyHandled = handledPipDismissal,
-        )
-      ) {
-        handlePipDismissed()
-        return@runCatching
-      }
-
-      if (
         PlayerLifecyclePolicy.shouldStartBackgroundPlaybackOnStop(
           backgroundPlaybackEnabled = isBackgroundPlaybackEnabled(),
           backgroundPlaybackSessionActive = isBackgroundPlaybackSessionActive,
@@ -1831,8 +1815,6 @@ class PlayerActivity :
     if (handledPipDismissal || !mpvInitialized || !ownsPlaybackSession()) return false
 
     Log.d(TAG, "PiP dismissed; stopping terminal playback exactly once")
-    pipExitResolutionJob?.cancel()
-    pipExitResolutionJob = null
     pendingPipExitResolution = false
     handledPipDismissal = true
     isUserFinishing = true
@@ -1846,49 +1828,20 @@ class PlayerActivity :
 
   private fun schedulePipExitResolution() {
     pendingPipExitResolution = true
-    pipExitResolutionJob?.cancel()
     if (isFinishing) {
       handlePipDismissed()
       return
     }
-    if (lifecycle.currentState.isAtLeast(Lifecycle.State.RESUMED)) {
+    if (lifecycle.currentState.isAtLeast(Lifecycle.State.RESUMED) && hasWindowFocus()) {
       completePipExpansion()
       return
     }
-    if (
-      !isChangingConfigurations &&
-      !isDeviceScreenOffOrLocked() &&
-      !lifecycle.currentState.isAtLeast(Lifecycle.State.STARTED)
-    ) {
-      // Some OEMs deliver the PiP=false callback after onStop. At that point expansion is no
-      // longer possible, so do not leave audio alive for the watchdog delay.
-      handlePipDismissed()
-      return
-    }
-    pipExitResolutionJob =
-      lifecycleScope.launch {
-        delay(PIP_EXIT_RESOLUTION_DELAY_MS)
-        if (pendingPipExitResolution && lifecycle.currentState.isAtLeast(Lifecycle.State.RESUMED)) {
-          completePipExpansion()
-          return@launch
-        }
-        if (
-          pendingPipExitResolution &&
-          wasInPipMode &&
-          !isInPictureInPictureMode &&
-          !isChangingConfigurations &&
-          !isDeviceScreenOffOrLocked() &&
-          !lifecycle.currentState.isAtLeast(Lifecycle.State.RESUMED)
-        ) {
-          handlePipDismissed()
-        }
-      }
+    // PiP=false can arrive while the Activity is still stopped during fullscreen expansion.
+    // Keep the exit pending until foreground focus confirms expansion or onDestroy confirms close.
   }
 
   private fun completePipExpansion() {
     if (!pendingPipExitResolution) return
-    pipExitResolutionJob?.cancel()
-    pipExitResolutionJob = null
     pendingPipExitResolution = false
     handledPipDismissal = false
     wasInPipMode = false
@@ -1896,6 +1849,25 @@ class PlayerActivity :
       startedBackgroundForPip = false
       endBackgroundPlayback()
     }
+
+    binding.controls.animate().cancel()
+    runCatching {
+      exitPipUIMode()
+      if (ValueAnimator.areAnimatorsEnabled()) {
+        binding.controls.alpha = 0f
+        binding.controls
+          .animate()
+          .alpha(1f)
+          .setDuration(180L)
+          .setInterpolator(PathInterpolator(0.25f, 1f, 0.5f, 1f))
+          .start()
+      } else {
+        binding.controls.alpha = 1f
+      }
+    }.onFailure { error ->
+      Log.e(TAG, "Error restoring the player after PiP expansion", error)
+    }
+    viewModel.restartAmbientIfActive()
   }
 
   fun getCurrentPlayableUriForLookup(): String? = currentPlayableUri ?: intent?.dataString
@@ -3135,7 +3107,7 @@ class PlayerActivity :
   override fun onResume() {
     super.onResume()
     if (!mpvInitialized || !ownsPlaybackSession()) return
-    if (!isInPictureInPictureMode) completePipExpansion()
+    if (!isInPictureInPictureMode && hasWindowFocus()) completePipExpansion()
     if (!isDeviceScreenOffOrLocked()) enableVideoAfterBackground()
     updateVolume()
     resumePlaybackAfterScreenUnlockIfNeeded()
@@ -5762,8 +5734,6 @@ class PlayerActivity :
     if (isInPictureInPictureMode) setVideoAmbientPresentationActive(false)
     pipHelper.onPictureInPictureModeChanged(isInPictureInPictureMode)
     if (isInPictureInPictureMode) {
-      pipExitResolutionJob?.cancel()
-      pipExitResolutionJob = null
       pendingPipExitResolution = false
       wasInPipMode = true
       handledPipDismissal = false
@@ -5774,35 +5744,16 @@ class PlayerActivity :
       schedulePipExitResolution()
     }
 
-    binding.controls.animate().cancel()
     if (isInPictureInPictureMode) {
+      binding.controls.animate().cancel()
       binding.controls.alpha = 0f
-    }
-
-    runCatching {
-      if (isInPictureInPictureMode) {
+      runCatching {
         enterPipUIMode()
-      } else {
-        exitPipUIMode()
-        if (ValueAnimator.areAnimatorsEnabled()) {
-          binding.controls.alpha = 0f
-          binding.controls
-            .animate()
-            .alpha(1f)
-            .setDuration(180L)
-            .setInterpolator(PathInterpolator(0.25f, 1f, 0.5f, 1f))
-            .start()
-        } else {
-          binding.controls.alpha = 1f
-        }
+      }.onFailure { error ->
+        Log.e(TAG, "Error entering PiP UI mode", error)
       }
-    }.onFailure { e ->
-      Log.e(TAG, "Error handling PiP mode change", e)
+      viewModel.restartAmbientIfActive()
     }
-
-    // PiP changes the output dimensions without stopping the Activity. Rebuild after the
-    // transition so custom ambient shaders use the new aspect ratio; native HDR blur is idempotent.
-    viewModel.restartAmbientIfActive()
   }
 
   /**
@@ -7897,7 +7848,6 @@ class PlayerActivity :
     private const val PLAYBACK_LOAD_ERROR_SETTLE_MS = 300L
     private const val MAX_PLAYBACK_LOAD_RETRIES = 1
     private const val DEFERRED_MPV_ASSET_SYNC_DELAY_MS = 5_000L
-    private const val PIP_EXIT_RESOLUTION_DELAY_MS = 300L
     private const val MPV_ASSET_SYNC_PREFERENCES = "mpv_asset_sync"
     private const val USER_MPV_ASSET_SELECTION = "user_mpv_asset_selection_v1"
     private val deferredUserMpvAssetRefreshStarted = AtomicBoolean(false)
