@@ -52,6 +52,7 @@ import com.quantummpv.app.ui.editor.MpvHelpScreen
 import com.quantummpv.app.ui.editor.MpvScriptEditor
 import com.quantummpv.app.ui.icons.Icon
 import com.quantummpv.app.ui.icons.Icons
+import com.quantummpv.app.ui.player.PlaybackSession
 import com.quantummpv.app.ui.utils.LocalBackStack
 import com.quantummpv.app.ui.utils.popSafely
 import kotlinx.coroutines.Dispatchers
@@ -205,6 +206,12 @@ data class LuaScriptEditorScreen(
                 ).show()
             }
             return@launch
+          }
+
+          if (preferences.enableLuaScripts.get() && finalFileName in preferences.selectedLuaScripts.get()) {
+            val internalScriptsDir = File(context.filesDir, "scripts").apply { mkdirs() }
+            File(internalScriptsDir, finalFileName).writeText(scriptContent)
+            PlaybackSession.invalidateCoreConfiguration()
           }
 
           withContext(Dispatchers.Main) {

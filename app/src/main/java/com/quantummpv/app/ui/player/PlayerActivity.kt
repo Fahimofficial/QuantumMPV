@@ -3858,6 +3858,7 @@ class PlayerActivity :
     }
     if (isAdvancingAtEof) return
     if (isBackgroundPlaybackSessionActive || !MediaPlaybackService.activityForeground) return
+    if (fileName.isNotBlank()) saveVideoPlaybackState(fileName, immediate = true)
 
     val repeatMode = viewModel.repeatMode.value
     if (repeatMode == RepeatMode.ONE) {

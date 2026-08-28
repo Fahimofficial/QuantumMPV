@@ -180,6 +180,10 @@ object PlaybackSession : MPVLib.EventObserver {
   val isInitialized: Boolean
     get() = initialized
 
+  fun invalidateCoreConfiguration() {
+    nativeLock.withLock { activeCoreConfigurationKey = null }
+  }
+
   val propInt = PlaybackProperty(MPVLib.MpvFormat.MPV_FORMAT_INT64, ::getPropertyInt)
   val propLong = PlaybackProperty(MPVLib.MpvFormat.MPV_FORMAT_INT64) { property -> getPropertyInt(property)?.toLong() }
   val propBoolean = PlaybackProperty(MPVLib.MpvFormat.MPV_FORMAT_FLAG, ::getPropertyBoolean)
