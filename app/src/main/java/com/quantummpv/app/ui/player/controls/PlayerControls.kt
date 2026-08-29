@@ -146,7 +146,6 @@ import com.quantummpv.app.ui.player.controls.components.LocalForceDarkPlayerButt
 import com.quantummpv.app.ui.player.controls.components.LocalHidePlayerButtonsBackground
 import com.quantummpv.app.ui.player.controls.components.MultipleSpeedPlayerUpdate
 import com.quantummpv.app.ui.player.controls.components.SeekPlayerUpdate
-import com.quantummpv.app.ui.player.controls.components.SeekThumbnailPreviewBubble
 import com.quantummpv.app.ui.player.controls.components.SeekbarWithTimers
 import com.quantummpv.app.ui.player.controls.components.SlideToUnlock
 import com.quantummpv.app.ui.player.controls.components.TextPlayerUpdate
@@ -226,14 +225,12 @@ fun PlayerControls(
   val playbackSpeed by PlaybackSession.propFloat["speed"].collectAsState()
   val seekbarDuration = if (preciseDuration > 0) preciseDuration else duration?.toFloat() ?: 0f
   val seekState by viewModel.seekState.collectAsState()
-  val seekPreview by viewModel.seekThumbnailPreview.collectAsState()
   val brightness by viewModel.currentBrightness.collectAsState()
   val doubleTapSeekAmount = seekState.amount
   val showDoubleTapOvals by playerPreferences.showDoubleTapOvals.collectAsState()
   val showSeekTime by playerPreferences.showSeekTimeWhileSeeking.collectAsState()
   val showBufferedRange by playerPreferences.showBufferedRange.collectAsState()
   val showChapterIndicators by playerPreferences.showChapterIndicators.collectAsState()
-  val useThumbFastSeekPreview by playerPreferences.useThumbFastSeekPreview.collectAsState()
   val torrentState by viewModel.torrentState.collectAsState()
   val videoOpenAnimState by viewModel.videoOpenAnimationState.collectAsState()
   val showLoadingCircle by playerPreferences.showLoadingCircle.collectAsState()
@@ -468,12 +465,6 @@ fun PlayerControls(
   val videoOpenAnim by playerPreferences.videoOpenAnimation.collectAsState()
   val animSpeed by playerPreferences.animationSpeed.collectAsState()
 
-  LaunchedEffect(useThumbFastSeekPreview) {
-    if (!useThumbFastSeekPreview) {
-      viewModel.hideSeekThumbnailPreview()
-    }
-  }
-
   val transparentOverlay by animateFloatAsState(
     if (controlsShown && !areControlsLocked) .8f else 0f,
     animationSpec = playerControlsExitAnimationSpec(),
@@ -557,7 +548,6 @@ fun PlayerControls(
           val bufferingIndicator = createRef()
           val skipSegmentChip = createRef()
           val seekbar = createRef()
-          val thumbnailPreview = createRef()
           val (playerUpdates) = createRefs()
           val (customLeftButtonsRef, customRightButtonsRef) = createRefs()
           val customButtonsPortraitRef = createRef()
@@ -1559,12 +1549,7 @@ fun PlayerControls(
             val remaining  by PlaybackSession.propFloat["playtime-remaining"].collectAsState()
             val seekbarStyle by appearancePreferences.seekbarStyle.collectAsState()
             val useWavySeekbar by playerPreferences.useWavySeekbar.collectAsState()
-            val displayedSeekbarPosition =
-              if (useThumbFastSeekPreview && seekPreview.visible) {
-                seekPreview.positionSeconds
-              } else {
-                precisePosition
-              }
+            val displayedSeekbarPosition = precisePosition
             // Memoize the immutable copies so they are not reallocated on every position
             // tick (this scope recomposes ~20x/sec while scrubbing).
             val seekbarChapters =
@@ -1581,20 +1566,11 @@ fun PlayerControls(
               onValueChange = {
                 isSeeking = true
                 resetControlsTimestamp = System.currentTimeMillis()
-                if (useThumbFastSeekPreview) {
-                  viewModel.updateSeekThumbnailPreview(it, seekbarDuration)
-                } else {
-                  // Legacy mode previews on the actual video surface. The ViewModel conflates
-                  // pointer events so this remains responsive instead of issuing a seek per pixel.
-                  viewModel.previewSeekTo(it)
-                }
+                viewModel.seekPreviewTo(it)
               },
               onValueChangeFinished = { targetPosition ->
                 isSeeking = false
                 resetControlsTimestamp = System.currentTimeMillis()
-                if (useThumbFastSeekPreview) {
-                  viewModel.hideSeekThumbnailPreview()
-                }
                 viewModel.seekTo(targetPosition.toInt(), fast = false)
                 viewModel.showControls()
               },
@@ -1616,32 +1592,6 @@ fun PlayerControls(
               isPortrait = isPortrait,
             )
           }
-
-          val seekPreviewChapterTitle =
-            remember(chapters, seekPreview.positionSeconds) {
-              chapterNameForPosition(chapters, seekPreview.positionSeconds)
-            }
-
-          SeekThumbnailPreviewBubble(
-            position = seekPreview.positionSeconds,
-            duration = seekbarDuration,
-            visible = useThumbFastSeekPreview && seekPreview.visible && !areControlsLocked,
-            bitmap = seekPreview.bitmap,
-            isLoading = seekPreview.isLoading,
-            isPortrait = isPortrait,
-            chapterTitle = seekPreviewChapterTitle,
-            modifier =
-              Modifier
-                .then(navigationHorizontalPaddingModifier)
-                .zIndex(100f)
-                .constrainAs(thumbnailPreview) {
-                  start.linkTo(parent.start, spacing.large)
-                  end.linkTo(parent.end, spacing.large)
-                  bottom.linkTo(seekbar.top, 4.dp)
-                  width = Dimension.fillToConstraints
-                  height = Dimension.wrapContent
-                }.padding(horizontal = if (isPortrait) spacing.large else 62.dp),
-          )
 
           AnimatedVisibility(
             visible = controlsShown && !areControlsLocked,
@@ -1924,20 +1874,6 @@ fun PlayerControls(
       onDismissRequest = { onOpenPanel(Panels.None) },
     )
   }
-}
-
-private fun chapterNameForPosition(
-  chapters: List<Segment>,
-  positionSeconds: Float,
-): String? {
-  if (chapters.isEmpty()) return null
-  val chapterIndex =
-    chapters.indexOfLast { chapter ->
-      chapter.start <= positionSeconds
-    }
-  val chapter = chapters.getOrNull(chapterIndex.takeIf { it >= 0 } ?: 0) ?: return null
-  return chapter.name.takeIf { it.isNotBlank() }
-    ?: "Chapter ${chapterIndex.coerceAtLeast(0) + 1}"
 }
 
 private const val MEMORY_STATS_SAMPLE_INTERVAL_MS = 5_000L

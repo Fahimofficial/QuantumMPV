@@ -479,22 +479,6 @@ object PlayerPreferencesScreen : Screen {
 
               PreferenceDivider()
 
-              val useThumbFastSeekPreview by preferences.useThumbFastSeekPreview.collectAsState()
-              SwitchPreference(
-                modifier = Modifier.settingsSearchTarget(R.string.pref_player_seek_preview_thumbfast_title),
-                value = useThumbFastSeekPreview,
-                onValueChange = preferences.useThumbFastSeekPreview::set,
-                title = { Text(stringResource(R.string.pref_player_seek_preview_thumbfast_title)) },
-                summary = {
-                  Text(
-                    stringResource(R.string.pref_player_seek_preview_thumbfast_summary),
-                    color = MaterialTheme.colorScheme.outline,
-                  )
-                },
-              )
-
-              PreferenceDivider()
-
               val customSkipDuration by preferences.customSkipDuration.collectAsState()
               SliderPreference(
                 modifier = Modifier.settingsSearchTarget(R.string.pref_player_custom_skip_duration_title),

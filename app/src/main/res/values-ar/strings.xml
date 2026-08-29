@@ -175,8 +175,6 @@
   <string name="pref_player_custom_skip_duration_title">مدة تخطٍ مخصصة</string>
   <string name="pref_player_custom_skip_duration_summary">المدة المطلوب تخطيها للأمام بزر التخطي المخصص</string>
   <string name="pref_player_seeking_title">التقديم</string>
-  <string name="pref_player_seek_preview_thumbfast_title">استخدام معاينة التقديم ThumbFast</string>
-  <string name="pref_player_seek_preview_thumbfast_summary">إظهار فقاعة صورة مصغّرة سريعة أثناء السحب. أوقفها للتقديم القديم في الفيديو المباشر.</string>
   <string name="pref_player_close_after_eof">الإغلاق بعد انتهاء التشغيل</string>
   <string name="pref_player_remember_brightness">تذكّر سطوع الشاشة</string>
   <string name="pref_player_gestures">الإيماءات</string>

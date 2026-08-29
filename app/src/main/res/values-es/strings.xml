@@ -175,8 +175,6 @@
   <string name="pref_player_custom_skip_duration_title">Duración de salto personalizada</string>
   <string name="pref_player_custom_skip_duration_summary">Duración del avance con el botón de salto personalizado</string>
   <string name="pref_player_seeking_title">Búsqueda</string>
-  <string name="pref_player_seek_preview_thumbfast_title">Usar vista previa de búsqueda ThumbFast</string>
-  <string name="pref_player_seek_preview_thumbfast_summary">Mostrar una burbuja rápida de miniatura al arrastrar. Desactívala para la búsqueda clásica en vídeo en directo.</string>
   <string name="pref_player_close_after_eof">Cerrar al finalizar la reproducción</string>
   <string name="pref_player_remember_brightness">Recordar el brillo de la pantalla</string>
   <string name="pref_player_gestures">Gestos</string>

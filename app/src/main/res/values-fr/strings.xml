@@ -175,8 +175,6 @@
   <string name="pref_player_custom_skip_duration_title">Durée de saut personnalisée</string>
   <string name="pref_player_custom_skip_duration_summary">Durée du saut vers l’avant avec le bouton de saut personnalisé</string>
   <string name="pref_player_seeking_title">Recherche</string>
-  <string name="pref_player_seek_preview_thumbfast_title">Utiliser l’aperçu de recherche ThumbFast</string>
-  <string name="pref_player_seek_preview_thumbfast_summary">Afficher rapidement une bulle de miniature pendant le déplacement. Désactivez cette option pour l’ancienne recherche dans les vidéos en direct.</string>
   <string name="pref_player_close_after_eof">Fermer à la fin de la lecture</string>
   <string name="pref_player_remember_brightness">Mémoriser la luminosité de l’écran</string>
   <string name="pref_player_gestures">Gestes</string>

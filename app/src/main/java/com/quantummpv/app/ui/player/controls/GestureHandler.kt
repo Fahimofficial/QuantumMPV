@@ -202,7 +202,6 @@ fun GestureHandler(
   val panAndZoomEnabled by playerPreferences.panAndZoomEnabled.collectAsState()
   val horizontalSwipeToSeek by playerPreferences.horizontalSwipeToSeek.collectAsState()
   val horizontalSwipeSensitivity by playerPreferences.horizontalSwipeSensitivity.collectAsState()
-  val useThumbFastSeekPreview by playerPreferences.useThumbFastSeekPreview.collectAsState()
   var isLongPressing by remember { mutableStateOf(false) }
   var isDynamicSpeedControlActive by remember { mutableStateOf(false) }
   var dynamicSpeedStartX by remember { mutableStateOf(0f) }
@@ -1151,7 +1150,6 @@ fun GestureHandler(
           }
         }.pointerInput(
           horizontalSwipeToSeek,
-          useThumbFastSeekPreview,
           areControlsLocked,
           gesturePreferences,
           isVerticalGestureActive,
@@ -1265,11 +1263,7 @@ fun GestureHandler(
                       val maxDuration = duration?.toFloat() ?: 0f
                       val clampedPosition = targetPosition.coerceAtMost(maxDuration)
                       pendingSeekPosition = clampedPosition
-                      if (useThumbFastSeekPreview) {
-                        viewModel.updateSeekThumbnailPreview(clampedPosition, maxDuration)
-                      } else {
-                        viewModel.previewSeekTo(clampedPosition)
-                      }
+                      viewModel.seekPreviewTo(clampedPosition)
 
                       // Format and display time position updates
                       val currentPos = clampedPosition.toInt()
@@ -1299,9 +1293,6 @@ fun GestureHandler(
                 if (hasStartedSeeking) {
                   hasStartedSeeking = false
                   // Clean up seeking state without showing controls
-                  if (useThumbFastSeekPreview) {
-                    viewModel.hideSeekThumbnailPreview()
-                  }
                   viewModel.playerUpdate.update { PlayerUpdates.None }
                   if (gestureType == "horizontal_seek") {
                     viewModel.hideSeekBar()
@@ -1315,12 +1306,7 @@ fun GestureHandler(
 
             // Apply the final seek when gesture ends
             if (hasStartedSeeking) {
-              if (useThumbFastSeekPreview) {
-                pendingSeekPosition?.let { viewModel.seekTo(it.toInt()) }
-                viewModel.hideSeekThumbnailPreview()
-              } else {
-                pendingSeekPosition?.let { viewModel.seekTo(it.toInt(), fast = false) }
-              }
+              pendingSeekPosition?.let { viewModel.seekTo(it.toInt()) }
               if (gestureType == "subtitle_dialog_seek") {
                 coroutineScope.launch {
                   delay(300)

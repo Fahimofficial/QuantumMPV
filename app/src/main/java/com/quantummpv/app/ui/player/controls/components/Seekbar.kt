@@ -9,7 +9,6 @@
 
 package com.quantummpv.app.ui.player.controls.components
 
-import android.graphics.Bitmap
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.LinearEasing
@@ -47,7 +46,6 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.wrapContentHeight
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -72,7 +70,6 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.PathEffect
 import androidx.compose.ui.graphics.StrokeCap
-import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.drawscope.clipRect
@@ -947,126 +944,6 @@ private fun NormalSeekbar(
           topLeft = Offset(minPx, centerY - thumbR),
           size = Size(maxPx - minPx, thumbR * 2),
         )
-      }
-    }
-  }
-}
-
-@Composable
-fun SeekThumbnailPreviewBubble(
-  position: Float,
-  duration: Float,
-  visible: Boolean,
-  bitmap: Bitmap?,
-  isLoading: Boolean,
-  isPortrait: Boolean,
-  chapterTitle: String? = null,
-  modifier: Modifier = Modifier,
-) {
-  AnimatedVisibility(
-    visible = visible && duration > 0f,
-    enter = fadeIn(),
-    exit = fadeOut(),
-    modifier = modifier.fillMaxWidth(),
-  ) {
-    BoxWithConstraints(modifier = Modifier.fillMaxWidth()) {
-      val previewWidth = if (isPortrait) 152.dp else 132.dp
-      val previewHeight = previewWidth * 9f / 16f
-      val progress = (position / duration).coerceIn(0f, 1f)
-      val maxOffset = (maxWidth - previewWidth).coerceAtLeast(0.dp)
-      val xOffset = maxOffset * progress
-      val previewShape = RoundedCornerShape(12.dp)
-
-      Column(
-        modifier =
-          Modifier
-            .offset { IntOffset(xOffset.roundToPx(), 0) }
-            .width(previewWidth),
-        horizontalAlignment = Alignment.CenterHorizontally,
-      ) {
-        chapterTitle?.takeIf { it.isNotBlank() }?.let { title ->
-          Surface(
-            modifier =
-              Modifier
-                .fillMaxWidth()
-                .padding(bottom = 5.dp),
-            shape = RoundedCornerShape(999.dp),
-            color = Color.Black.copy(alpha = 0.82f),
-            contentColor = Color.White,
-            tonalElevation = 0.dp,
-          ) {
-            Text(
-              text = title,
-              modifier = Modifier.padding(horizontal = 9.dp, vertical = 4.dp),
-              style = MaterialTheme.typography.labelSmall,
-              fontWeight = FontWeight.SemiBold,
-              maxLines = 1,
-              overflow = TextOverflow.Ellipsis,
-              textAlign = TextAlign.Center,
-            )
-          }
-        }
-
-        Surface(
-          modifier =
-            Modifier
-              .fillMaxWidth()
-              .aspectRatio(16f / 9f)
-              .clip(previewShape),
-          shape = previewShape,
-          color = Color.Black.copy(alpha = 0.72f),
-          contentColor = Color.White,
-          border = BorderStroke(1.dp, Color.White.copy(alpha = 0.18f)),
-          tonalElevation = 0.dp,
-          shadowElevation = 12.dp,
-        ) {
-            val imageBitmap = remember(bitmap) { bitmap?.takeIf { !it.isRecycled }?.asImageBitmap() }
-            if (imageBitmap != null) {
-              Image(
-                bitmap = imageBitmap,
-                contentDescription = null,
-                contentScale = ContentScale.Crop,
-                modifier = Modifier.fillMaxSize(),
-              )
-            } else {
-              Box(
-                modifier =
-                  Modifier
-                    .fillMaxSize()
-                    .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.62f)),
-              )
-            }
-
-            if (isLoading) {
-              Box(
-                modifier =
-                  Modifier
-                    .fillMaxSize()
-                    .background(Color.Black.copy(alpha = 0.20f)),
-                contentAlignment = Alignment.Center,
-              ) {
-                CircularProgressIndicator(
-                  modifier = Modifier.size(18.dp),
-                  color = Color.White,
-                  strokeWidth = 2.dp,
-                )
-              }
-            }
-          }
-
-        Surface(
-          modifier = Modifier.padding(top = 6.dp),
-          shape = RoundedCornerShape(999.dp),
-          color = Color.Black.copy(alpha = 0.78f),
-          contentColor = Color.White,
-          tonalElevation = 0.dp,
-        ) {
-          Text(
-            text = Utils.prettyTime(position.toInt(), false),
-            modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp),
-            style = MaterialTheme.typography.labelSmall,
-          )
-        }
       }
     }
   }

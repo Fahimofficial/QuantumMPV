@@ -362,15 +362,6 @@ object SearchablePreferences {
       )
       add(
         SearchablePreference(
-          titleRes = R.string.pref_player_seek_preview_thumbfast_title,
-          summaryRes = R.string.pref_player_seek_preview_thumbfast_summary,
-          keywords = listOf("thumbfast", "seek", "preview", "thumbnail", "scrub", "legacy"),
-          category = "Player",
-          screen = PlayerPreferencesScreen,
-        ),
-      )
-      add(
-        SearchablePreference(
           titleRes = R.string.pref_player_custom_skip_duration_title,
           summaryRes = R.string.pref_player_custom_skip_duration_summary,
           keywords = listOf("custom skip", "skip duration", "forward", "seek", "seconds", "jump"),
@@ -1551,7 +1542,7 @@ object SearchablePreferences {
         keywords =
           listOf(
             "orientation speed background playback mini player close end eof notification media info pip screen unlock",
-            "seeking precise thumbfast buffered chapters brightness volume zoom pan system bars safe area controls timeout clock",
+            "seeking precise buffered chapters brightness volume zoom pan system bars safe area controls timeout clock",
             "screenshot snapshot format template quality compression subtitles playlist repeat shuffle intro outro skip overlays animations",
           ),
         category = "Player",

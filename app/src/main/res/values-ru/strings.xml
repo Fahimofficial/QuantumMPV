@@ -175,8 +175,6 @@
   <string name="pref_player_custom_skip_duration_title">Пользовательская длительность пропуска</string>
   <string name="pref_player_custom_skip_duration_summary">Длительность перемотки вперёд пользовательской кнопкой пропуска</string>
   <string name="pref_player_seeking_title">Перемотка</string>
-  <string name="pref_player_seek_preview_thumbfast_title">Использовать предпросмотр перемотки ThumbFast</string>
-  <string name="pref_player_seek_preview_thumbfast_summary">Показывать быструю миниатюру при перетаскивании. Отключите для старого режима перемотки прямого эфира.</string>
   <string name="pref_player_close_after_eof">Закрывать после окончания воспроизведения</string>
   <string name="pref_player_remember_brightness">Запоминать яркость экрана</string>
   <string name="pref_player_gestures">Жесты</string>

@@ -100,7 +100,6 @@ private val settingsSearchListAnchors: Map<Screen, List<SettingsSearchListAnchor
         SettingsSearchListAnchor(titleRes = R.string.show_splash_ovals_on_double_tap_to_seek, itemIndex = 3),
         SettingsSearchListAnchor(titleRes = R.string.show_time_on_double_tap_to_seek, itemIndex = 3),
         SettingsSearchListAnchor(titleRes = R.string.pref_player_use_precise_seeking, itemIndex = 3),
-        SettingsSearchListAnchor(titleRes = R.string.pref_player_seek_preview_thumbfast_title, itemIndex = 3),
         SettingsSearchListAnchor(titleRes = R.string.pref_player_custom_skip_duration_title, itemIndex = 3),
         SettingsSearchListAnchor(titleRes = R.string.pref_online_skip_markers_title, itemIndex = 3),
         SettingsSearchListAnchor(titleRes = R.string.pref_marker_provider_title, itemIndex = 3),
