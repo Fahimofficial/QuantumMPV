@@ -9,8 +9,10 @@
 
 package com.quantummpv.app.ui.player.controls
 
+import com.quantummpv.app.ui.player.DeclaredPlaybackMediaKind
 import com.quantummpv.app.ui.player.PlaybackPhase
 import com.quantummpv.app.ui.player.PlaybackSession
+import com.quantummpv.app.ui.player.declaredMediaKind
 import com.quantummpv.app.domain.torrent.TorrentStreamingState
 import com.quantummpv.app.domain.torrent.formatTorrentBytes
 import com.quantummpv.app.domain.torrent.formatTorrentSpeed
@@ -333,7 +335,13 @@ fun PlayerControls(
 
   val isAudioOnly by viewModel.isAudioOnly.collectAsState()
   val activity = LocalActivity.current as? PlayerActivity
-  val useAudioPlayer = isAudioOnly || activity?.isCurrentMediaKnownAudio() == true
+  val currentPlaybackItem = playbackQueue.currentItem
+  val useAudioPlayer =
+    when (currentPlaybackItem?.declaredMediaKind()) {
+      DeclaredPlaybackMediaKind.VIDEO -> false
+      DeclaredPlaybackMediaKind.AUDIO -> true
+      else -> isAudioOnly || activity?.isCurrentMediaKnownAudio() == true
+    }
   if (useAudioPlayer) {
     val rawMediaTitle by PlaybackSession.propString["media-title"].collectAsState()
     val queuedTitle =

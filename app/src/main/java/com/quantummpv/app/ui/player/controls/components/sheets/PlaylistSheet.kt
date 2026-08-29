@@ -63,12 +63,15 @@ import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.ui.res.stringResource
+import com.quantummpv.app.R
 import com.quantummpv.app.domain.media.model.Video
 import com.quantummpv.app.domain.thumbnail.ThumbnailRepository
 import com.quantummpv.app.preferences.preference.collectAsState
 import com.quantummpv.app.presentation.components.PlayerSheet
 import com.quantummpv.app.presentation.components.RemoteImage
+import com.quantummpv.app.ui.browser.dialogs.AddToPlaylistDialog
 import com.quantummpv.app.ui.player.PlaybackSession
 import com.quantummpv.app.ui.player.controls.components.MiniAudioVisualizer
 import com.quantummpv.app.ui.icons.Icon
@@ -82,6 +85,29 @@ import org.koin.compose.koinInject
 import sh.calvin.reorderable.ReorderableCollectionItemScope
 import sh.calvin.reorderable.ReorderableItem
 import sh.calvin.reorderable.rememberReorderableLazyListState
+
+fun PlaylistItem.toVideo(): Video =
+  Video(
+    id = uri.toString().hashCode().toLong(),
+    title = title,
+    displayName = title,
+    path = path.ifBlank { uri.toString() },
+    uri = uri,
+    duration = 0L,
+    durationFormatted = duration,
+    size = 0L,
+    sizeFormatted = "",
+    dateModified = 0L,
+    dateAdded = 0L,
+    mimeType = if (isAudio) "audio/*" else "video/*",
+    bucketId = "",
+    bucketDisplayName = "",
+    width = 0,
+    height = 0,
+    fps = 0f,
+    resolution = resolution,
+    isAudio = isAudio,
+  )
 
 data class PlaylistItem(
   val uri: Uri,
