@@ -36,9 +36,9 @@ object SubtitleOps : KoinComponent {
     videoFileName: String,
     networkConnectionId: Long = -1L,
     expectedGeneration: Long? = null,
+    selectFirst: Boolean = true,
   ) = withContext(Dispatchers.IO) {
     try {
-      if (MpvConfigOverridePolicy.ownsAny(MpvConfigControlledFeatures.SUBTITLE_DISCOVERY)) return@withContext
       if (!isGenerationCurrent(expectedGeneration)) return@withContext
       // Skip file descriptor URIs (these don't have a parent directory concept)
       if (videoFilePath.startsWith("fd://")) return@withContext
@@ -49,9 +49,17 @@ object SubtitleOps : KoinComponent {
       // Check if this is a network file with connection ID (SMB/FTP/WebDAV via proxy)
       if (networkConnectionId != -1L) {
         // For network files, scan the directory using network client
-        autoloadNetworkFileSubtitles(videoFilePath, videoFileName, networkConnectionId, expectedGeneration)
+        autoloadNetworkFileSubtitles(
+          videoFilePath,
+          videoFileName,
+          networkConnectionId,
+          expectedGeneration,
+          selectFirst,
+        )
         return@withContext
       }
+
+      if (MpvConfigOverridePolicy.ownsAny(MpvConfigControlledFeatures.SUBTITLE_DISCOVERY)) return@withContext
 
       // Check if this is a network stream (http, https, ftp, ftps, smb, webdav, etc.)
       val isNetworkStream = videoFilePath.matches(Regex("^[a-zA-Z][a-zA-Z0-9+.-]*://.*"))
@@ -61,7 +69,7 @@ object SubtitleOps : KoinComponent {
         return@withContext
       } else {
         // For local files, scan the directory
-        autoloadLocalSubtitles(videoFilePath, videoFileName, expectedGeneration)
+        autoloadLocalSubtitles(videoFilePath, videoFileName, expectedGeneration, selectFirst)
       }
     } catch (cancellation: CancellationException) {
       throw cancellation
@@ -79,6 +87,7 @@ object SubtitleOps : KoinComponent {
     videoFileName: String,
     networkConnectionId: Long,
     expectedGeneration: Long?,
+    selectFirst: Boolean,
   ) {
     try {
       Log.d(TAG, "Autoloading subtitles for network file: $videoFilePath")
@@ -97,7 +106,9 @@ object SubtitleOps : KoinComponent {
       Log.d(TAG, "Scanning directory: $directoryPath")
 
       // Get base name without extension
-      val baseName = videoFileName.substringBeforeLast('.')
+      val baseName =
+        normalizedVideoPath.segments.lastOrNull()?.substringBeforeLast('.')
+          ?: videoFileName.substringBeforeLast('.')
 
       // List files in the directory
       val filesResult = networkRepository.listFiles(connection, directoryPath)
@@ -154,8 +165,8 @@ object SubtitleOps : KoinComponent {
               ) ?: return@forEachIndexed
             registeredProxyUrl = proxyUrl
 
-            // Use "select" for the first subtitle, "auto" for others
-            val flag = if (index == 0) "select" else "auto"
+            // Keep tracks available while respecting the user's current subtitle-off state.
+            val flag = if (index == 0 && selectFirst) "select" else "auto"
             val added =
               expectedGeneration?.let { generation ->
                 PlaybackSession.commandForGeneration(generation, "sub-add", proxyUrl, flag, displayName)
@@ -190,6 +201,7 @@ object SubtitleOps : KoinComponent {
     videoFilePath: String,
     videoFileName: String,
     expectedGeneration: Long?,
+    selectFirst: Boolean,
   ) {
     val videoFile = File(videoFilePath)
     val videoDirectory = videoFile.parentFile ?: return
@@ -207,8 +219,8 @@ object SubtitleOps : KoinComponent {
         subtitles.forEachIndexed { index, subtitle ->
           if (!isGenerationCurrent(expectedGeneration)) return@forEachIndexed
           // MPV command format: sub-add <url> [<flags> [<title>]]
-          // Use "select" for the first autoloaded subtitle so it is enabled by default
-          val flag = if (index == 0) "select" else "auto"
+          // Keep tracks available while respecting the user's current subtitle-off state.
+          val flag = if (index == 0 && selectFirst) "select" else "auto"
           val added =
             expectedGeneration?.let { generation ->
               PlaybackSession.commandForGeneration(
