@@ -652,9 +652,10 @@ object SearchablePreferences {
       )
       add(
         SearchablePreference(
-          titleRes = R.string.pref_folders_include_nomedia_title,
-          summaryRes = R.string.pref_folders_include_nomedia_summary,
-          keywords = listOf("no media", "nomedia", "include", "scan", "media store"),
+          titleRes = R.string.pref_folders_include_hidden_title,
+          summaryRes = R.string.pref_folders_include_hidden_summary,
+          keywords =
+            listOf("hidden", "dot folder", "dot file", "marker", "custom", "no media", "nomedia", "include", "scan"),
           category = "Folders",
           screen = FoldersPreferencesScreen,
         ),

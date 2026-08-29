@@ -601,9 +601,20 @@
   <string name="pref_player_use_precise_seeking">Use precise seeking</string>
   <!-- Folders Preferences -->
   <string name="pref_folders_title">Folders</string>
-  <string name="pref_folders_summary">Manage folder blacklist and .nomedia handling</string>
+  <string name="pref_folders_summary">Manage folder blacklist and hidden media handling</string>
   <string name="pref_folders_include_nomedia_title">Include .nomedia folders</string>
   <string name="pref_folders_include_nomedia_summary">When enabled, scans also include videos from folders hidden by .nomedia and their subfolders.</string>
+  <string name="pref_folders_include_hidden_title">Include hidden media folders</string>
+  <string name="pref_folders_include_hidden_summary">Scan videos in dot-prefixed folders and folders containing selected marker files.</string>
+  <string name="pref_folders_hidden_markers_title">Marker files</string>
+  <string name="pref_folders_hidden_markers_summary">Folders containing these files and their subfolders are included. Dot-prefixed folders are always included.</string>
+  <string name="pref_folders_hidden_markers_empty">No marker files configured. Dot-prefixed folders are still included.</string>
+  <string name="pref_folders_add_marker">Add marker file</string>
+  <string name="pref_folders_add_marker_title">Add hidden-folder marker</string>
+  <string name="pref_folders_marker_name">File name</string>
+  <string name="pref_folders_marker_invalid">Enter a file name without path separators.</string>
+  <string name="pref_folders_marker_duplicate">This marker is already included.</string>
+  <string name="pref_folders_remove_marker">Remove %1$s</string>
   <string name="pref_folders_empty_title">No blacklisted folders</string>
   <string name="pref_folders_empty_message">Tap the button below to add folders you want to hide from the folder list</string>
   <string name="pref_folders_add_folder">Add Folder to Blacklist</string>

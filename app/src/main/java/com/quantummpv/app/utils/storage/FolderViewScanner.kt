@@ -177,14 +177,14 @@ object FolderViewScanner {
       val roots = linkedMapOf<String, File>()
       knownRoots.forEach { root -> storagePathKey(root.absolutePath)?.let { roots[it] = root } }
 
-      if (forceDiscovery || knownRoots.none { root -> File(root, ".nomedia").isFile }) {
-        discoverNoMediaRoots(context).forEach { root ->
+      if (forceDiscovery || knownRoots.none { isHiddenMediaRoot(it, options) }) {
+        discoverNoMediaRoots(context, options).forEach { root ->
           storagePathKey(root.absolutePath)?.let { roots[it] = root }
         }
       }
 
       for (root in roots.values) {
-        if (!root.exists() || !root.canRead() || !File(root, ".nomedia").isFile) {
+        if (!root.exists() || !root.canRead() || !isHiddenMediaRoot(root, options)) {
           dao.deleteRoot(scanKey, normalizeStoragePath(root.absolutePath) ?: root.absolutePath)
           continue
         }
@@ -217,7 +217,7 @@ object FolderViewScanner {
         } else {
           // Never reconcile a partial traversal: doing so would interpret folders beyond the budget
           // as deleted and throw away otherwise valid cached entries.
-          Log.w(TAG, "Paused .nomedia indexing after $MAX_INDEXED_DIRECTORIES_PER_ROOT directories: $rootPath")
+          Log.w(TAG, "Paused hidden-folder indexing after $MAX_INDEXED_DIRECTORIES_PER_ROOT directories: $rootPath")
         }
       }
     }
@@ -295,7 +295,10 @@ object FolderViewScanner {
     }
   }
 
-  private fun discoverNoMediaRoots(context: Context): List<File> {
+  private fun discoverNoMediaRoots(
+    context: Context,
+    options: MediaScanOptions,
+  ): List<File> {
     val primary = Environment.getExternalStorageDirectory()
     val searchRoots = linkedSetOf(primary)
     searchRoots += getPrimaryStorageSupplementalScanRoots(primary)
@@ -316,7 +319,7 @@ object FolderViewScanner {
       if (!visited.add(pathKey)) continue
       remaining--
 
-      if (File(directory, ".nomedia").isFile) {
+      if (isHiddenMediaRoot(directory, options)) {
         found += directory
         continue
       }
@@ -330,15 +333,22 @@ object FolderViewScanner {
     }
 
     if (pending.isNotEmpty()) {
-      Log.w(TAG, "Stopped .nomedia discovery after $MAX_DISCOVERY_DIRECTORIES directories")
+      Log.w(TAG, "Stopped hidden-folder discovery after $MAX_DISCOVERY_DIRECTORIES directories")
     }
     return found.distinctBy { storagePathKey(it.absolutePath) }
   }
 
   private fun shouldVisitDuringNoMediaScan(directory: File): Boolean {
     val name = directory.name.lowercase(Locale.ROOT)
-    return !name.startsWith(".") && name !in NO_MEDIA_SCAN_SKIP_FOLDERS && directory.canRead()
+    return name !in NO_MEDIA_SCAN_SKIP_FOLDERS && directory.canRead()
   }
+
+  private fun isHiddenMediaRoot(
+    directory: File,
+    options: MediaScanOptions,
+  ): Boolean =
+    directory.name.startsWith(".") ||
+      options.normalizedHiddenFolderMarkerNames.any { File(directory, it).isFile }
 
   private fun directoryFingerprint(
     directory: File,
