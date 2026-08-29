@@ -3051,13 +3051,7 @@ class PlayerViewModel : ViewModel(),
       lookupIntroSegments(mediaTitle)
       refreshChapterDerivedSegments(chapters.value)
 
-      // 2. Reset Video Zoom
-      if (_videoZoom.value != 0f) {
-        _videoZoom.value = 0f
-        runCatching { PlaybackSession.setPropertyDouble("video-zoom", 0.0) }
-      }
-
-      // 3. Reset Video Pan
+      // Reset Video Pan
       if (_videoPanX.value != 0f || _videoPanY.value != 0f) {
         _videoPanX.value = 0f
         _videoPanY.value = 0f
