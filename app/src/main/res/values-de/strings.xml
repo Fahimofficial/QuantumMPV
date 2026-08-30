@@ -1313,6 +1313,14 @@ Bitte starten Sie die App neu, damit alle Änderungen wirksam werden.</string>
   <string name="ui_install_core">Core installieren</string>
   <string name="ui_update_core">Core aktualisieren</string>
   <string name="ui_aspect_ratio">Seitenverhältnis</string>
+  <string name="ui_auto_crop_black_bars">Schwarze Balken automatisch entfernen</string>
+  <string name="ui_auto_crop_black_bars_summary">Analysiert mehrere Einzelbilder im Hintergrund und entfernt dauerhaft eingebettete schwarze Balken.</string>
+  <string name="ui_auto_crop_black_bars_analyzing">Videobilder werden analysiert…</string>
+  <string name="ui_auto_crop_black_bars_applied">Schwarze Balken wurden für dieses Video entfernt.</string>
+  <string name="ui_auto_crop_black_bars_none">Keine dauerhaften schwarzen Balken erkannt.</string>
+  <string name="ui_auto_crop_black_bars_unsupported">Diese Videoquelle konnte nicht analysiert werden.</string>
+  <string name="ui_auto_crop_black_bars_failed">Analyse der schwarzen Balken fehlgeschlagen.</string>
+  <string name="ui_auto_crop_black_bars_managed">video-crop wird von mpv.conf verwaltet.</string>
   <string name="ui_presets">Voreinstellungen</string>
   <string name="ui_add_custom_ratio_e_g_16_9">Benutzerdefiniertes Verhältnis hinzufügen (z. B. 16:9)</string>
   <string name="ui_width">Breite</string>

@@ -1313,6 +1313,14 @@ Veuillez redémarrer l’application pour appliquer toutes les modifications.</s
   <string name="ui_install_core">Installer le noyau</string>
   <string name="ui_update_core">Mettre à jour le noyau</string>
   <string name="ui_aspect_ratio">Format d’image</string>
+  <string name="ui_auto_crop_black_bars">Rogner automatiquement les bandes noires</string>
+  <string name="ui_auto_crop_black_bars_summary">Analyse plusieurs images en arrière-plan et rogne les bandes noires intégrées persistantes.</string>
+  <string name="ui_auto_crop_black_bars_analyzing">Analyse des images…</string>
+  <string name="ui_auto_crop_black_bars_applied">Bandes noires supprimées pour cette vidéo.</string>
+  <string name="ui_auto_crop_black_bars_none">Aucune bande noire persistante détectée.</string>
+  <string name="ui_auto_crop_black_bars_unsupported">Impossible d’analyser cette source vidéo.</string>
+  <string name="ui_auto_crop_black_bars_failed">Échec de l’analyse des bandes noires.</string>
+  <string name="ui_auto_crop_black_bars_managed">video-crop est géré par mpv.conf.</string>
   <string name="ui_presets">Préréglages</string>
   <string name="ui_add_custom_ratio_e_g_16_9">Ajouter un format personnalisé (p. ex. 16:9)</string>
   <string name="ui_width">Largeur</string>

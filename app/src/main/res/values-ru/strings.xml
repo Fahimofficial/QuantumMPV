@@ -1313,6 +1313,14 @@
   <string name="ui_install_core">Установить ядро</string>
   <string name="ui_update_core">Обновить ядро</string>
   <string name="ui_aspect_ratio">Соотношение сторон</string>
+  <string name="ui_auto_crop_black_bars">Автоматически обрезать чёрные полосы</string>
+  <string name="ui_auto_crop_black_bars_summary">Анализирует несколько кадров в фоновом режиме и обрезает постоянные чёрные полосы, встроенные в видео.</string>
+  <string name="ui_auto_crop_black_bars_analyzing">Анализ кадров видео…</string>
+  <string name="ui_auto_crop_black_bars_applied">Чёрные полосы удалены для этого видео.</string>
+  <string name="ui_auto_crop_black_bars_none">Постоянные чёрные полосы не обнаружены.</string>
+  <string name="ui_auto_crop_black_bars_unsupported">Не удалось проанализировать этот источник видео.</string>
+  <string name="ui_auto_crop_black_bars_failed">Не удалось проанализировать чёрные полосы.</string>
+  <string name="ui_auto_crop_black_bars_managed">Параметр video-crop управляется через mpv.conf.</string>
   <string name="ui_presets">Предустановки</string>
   <string name="ui_add_custom_ratio_e_g_16_9">Добавить своё соотношение (например, 16:9)</string>
   <string name="ui_width">Ширина</string>

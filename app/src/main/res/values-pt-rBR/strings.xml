@@ -1313,6 +1313,14 @@ Reinicie o aplicativo para que todas as alterações entrem em vigor.</string>
   <string name="ui_install_core">Instalar núcleo</string>
   <string name="ui_update_core">Atualizar núcleo</string>
   <string name="ui_aspect_ratio">Proporção da tela</string>
+  <string name="ui_auto_crop_black_bars">Recortar barras pretas automaticamente</string>
+  <string name="ui_auto_crop_black_bars_summary">Analisa vários quadros em segundo plano e recorta barras pretas persistentes incorporadas ao vídeo.</string>
+  <string name="ui_auto_crop_black_bars_analyzing">Analisando quadros do vídeo…</string>
+  <string name="ui_auto_crop_black_bars_applied">As barras pretas foram removidas deste vídeo.</string>
+  <string name="ui_auto_crop_black_bars_none">Nenhuma barra preta persistente detectada.</string>
+  <string name="ui_auto_crop_black_bars_unsupported">Não foi possível analisar esta fonte de vídeo.</string>
+  <string name="ui_auto_crop_black_bars_failed">Falha ao analisar as barras pretas.</string>
+  <string name="ui_auto_crop_black_bars_managed">video-crop é gerenciado pelo mpv.conf.</string>
   <string name="ui_presets">Predefinições</string>
   <string name="ui_add_custom_ratio_e_g_16_9">Adicionar proporção personalizada (ex.: 16:9)</string>
   <string name="ui_width">Largura</string>
