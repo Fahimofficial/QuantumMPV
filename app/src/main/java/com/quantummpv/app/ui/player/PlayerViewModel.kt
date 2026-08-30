@@ -493,7 +493,6 @@ class PlayerViewModel : ViewModel(),
   private val metadataCache = object : android.util.LruCache<String, Pair<String, String>>(100) {}
   private val playbackStateDispatcher = Dispatchers.Default.limitedParallelism(1)
   private val renderPrepDispatcher = Dispatchers.Default.limitedParallelism(1)
-  private val videoCropDimensionsRegex = Regex("""^(\d+)x(\d+)""")
   private var autoCropJob: Job? = null
   private var autoCropReadinessJob: Job? = null
   private var autoCropAnalyzedGeneration = -1L
@@ -4365,7 +4364,10 @@ class PlayerViewModel : ViewModel(),
 
         // Set aspect override first, then reset panscan
         // This prevents the brief flash of Fit mode
-        PlaybackSession.setPropertyDouble("video-aspect-override", screenRatio)
+        PlaybackSession.setPropertyDouble(
+          "video-aspect-override",
+          VideoAspectGeometry.stretchAspectOverride(screenRatio),
+        )
         PlaybackSession.setPropertyDouble("panscan", 0.0)
       }
     }
@@ -4529,6 +4531,7 @@ class PlayerViewModel : ViewModel(),
 
           autoCropResultCache.put(cacheKey, sourceEdges)
           PlaybackSession.setPropertyString("video-crop", cropValue)
+          refreshStretchAspectAfterCropChange()
           Log.i(TAG, "Auto-crop applied generation=$generation crop=$cropValue edges=$sourceEdges")
           autoCropApplied = true
           _autoCropState.value = AutoCropState.APPLIED
@@ -4661,6 +4664,13 @@ class PlayerViewModel : ViewModel(),
   private fun clearAutoCropProperty() {
     PlaybackSession.setPropertyString("video-crop", "")
     autoCropApplied = false
+    refreshStretchAspectAfterCropChange()
+  }
+
+  private fun refreshStretchAspectAfterCropChange() {
+    if (playerPreferences.lastCustomAspectRatio.get() > 0f) return
+    if (playerPreferences.lastVideoAspect.get() != VideoAspect.Stretch) return
+    changeVideoAspect(VideoAspect.Stretch, showUpdate = false)
   }
 
   // ==================== Screen Rotation ====================
@@ -6012,7 +6022,7 @@ class PlayerViewModel : ViewModel(),
       // Landscape mode: ambient glow goes on left/right (pillarbox)
       // Both are handled by the same scaleX/scaleY math below
 
-      var (vidW, vidH) = currentEffectiveVideoDimensions()
+      var (vidW, vidH) = VideoAspectGeometry.currentEffectiveDimensions()
       val par = PlaybackSession.getPropertyDouble("video-params/par") ?: 1.0
       val rot = PlaybackSession.getPropertyInt("video-params/rotate") ?: 0
 
@@ -6122,22 +6132,6 @@ class PlayerViewModel : ViewModel(),
       if (e is kotlinx.coroutines.CancellationException) throw e
       Log.e(TAG, "Failed to update ambient stretch", e)
     }
-  }
-
-  /**
-   * Returns the dimensions mpv is actually displaying.
-   *
-   * `video-crop` is the single source of truth shared by normal playback and Ambient Glow. The
-   * auto-crop analyzer only writes that property; Ambient never keeps a second crop state.
-   */
-  private fun currentEffectiveVideoDimensions(): Pair<Double, Double> {
-    val sourceWidth = (PlaybackSession.getPropertyInt("video-params/w") ?: 1920).toDouble()
-    val sourceHeight = (PlaybackSession.getPropertyInt("video-params/h") ?: 1080).toDouble()
-    val cropMatch =
-      PlaybackSession.getPropertyString("video-crop")
-        ?.let(videoCropDimensionsRegex::find)
-        ?: return sourceWidth to sourceHeight
-    return cropMatch.groupValues[1].toDouble() to cropMatch.groupValues[2].toDouble()
   }
 
   /**
