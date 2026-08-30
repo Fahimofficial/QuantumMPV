@@ -1320,6 +1320,9 @@ object PlaybackSession : MPVLib.EventObserver {
     }
   }
 
+  /** Only a matching END_FILE reason=eof may drive repeat, queue advance, or close-after-end. */
+  internal fun isNaturalEndFile(data: MPVNode): Boolean = parseEndFileReason(data) == EndFileReason.EOF
+
   private fun parseEndFileError(data: MPVNode): String? =
     sequenceOf(data["error"], data["file_error"])
       .mapNotNull { node -> node?.asString() ?: node?.asInt()?.toString() }

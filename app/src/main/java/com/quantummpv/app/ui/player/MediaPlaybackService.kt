@@ -1625,9 +1625,6 @@ class MediaPlaybackService :
           schedulePlaybackStateSave(force = true)
         }
       }
-      "eof-reached" -> {
-        if (value) serviceScope.launch { handleDetachedEndOfFile() }
-      }
     }
   }
 
@@ -1723,6 +1720,10 @@ class MediaPlaybackService :
     }
 
     if (eventId == MPVLib.MpvEvent.MPV_EVENT_END_FILE) {
+      if (PlaybackSession.isNaturalEndFile(data)) {
+        serviceScope.launch { handleDetachedEndOfFile() }
+      }
+
       // The current file has finished (or been quit). Release the static
       // thumbnail Bitmap reference now so it does not linger in the
       // companion object for the entire process lifetime — which can be

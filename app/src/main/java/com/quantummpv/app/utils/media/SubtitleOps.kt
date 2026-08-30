@@ -40,19 +40,38 @@ object SubtitleOps : KoinComponent {
   ) = withContext(Dispatchers.IO) {
     try {
       if (!isGenerationCurrent(expectedGeneration)) return@withContext
+
+      // PlayerActivity is singleTask and its original launch Intent can outlive several queue
+      // selections. For a network queue, PlaybackSession is the authoritative source for the item
+      // that actually reached FILE_LOADED. Prefer that source so next/previous never reuses the
+      // first WebDAV/SMB/FTP item's cached path while discovering external subtitles.
+      val activeNetworkSource =
+        if (networkConnectionId != -1L) {
+          PlaybackSession.queue.value.currentItem?.networkSource
+        } else {
+          null
+        }
+      val effectiveVideoFilePath = activeNetworkSource?.relativePath ?: videoFilePath
+      val effectiveNetworkConnectionId = activeNetworkSource?.connectionId ?: networkConnectionId
+      if (activeNetworkSource != null &&
+        (effectiveVideoFilePath != videoFilePath || effectiveNetworkConnectionId != networkConnectionId)
+      ) {
+        Log.d(TAG, "Using active queue network source for subtitle discovery: $effectiveVideoFilePath")
+      }
+
       // Skip file descriptor URIs (these don't have a parent directory concept)
-      if (videoFilePath.startsWith("fd://")) return@withContext
+      if (effectiveVideoFilePath.startsWith("fd://")) return@withContext
 
       // For content:// URIs, we can't autoload (no access to parent directory)
-      if (videoFilePath.startsWith("content://")) return@withContext
+      if (effectiveVideoFilePath.startsWith("content://")) return@withContext
 
       // Check if this is a network file with connection ID (SMB/FTP/WebDAV via proxy)
-      if (networkConnectionId != -1L) {
+      if (effectiveNetworkConnectionId != -1L) {
         // For network files, scan the directory using network client
         autoloadNetworkFileSubtitles(
-          videoFilePath,
+          effectiveVideoFilePath,
           videoFileName,
-          networkConnectionId,
+          effectiveNetworkConnectionId,
           expectedGeneration,
           selectFirst,
         )
@@ -62,14 +81,14 @@ object SubtitleOps : KoinComponent {
       if (MpvConfigOverridePolicy.ownsAny(MpvConfigControlledFeatures.SUBTITLE_DISCOVERY)) return@withContext
 
       // Check if this is a network stream (http, https, ftp, ftps, smb, webdav, etc.)
-      val isNetworkStream = videoFilePath.matches(Regex("^[a-zA-Z][a-zA-Z0-9+.-]*://.*"))
+      val isNetworkStream = effectiveVideoFilePath.matches(Regex("^[a-zA-Z][a-zA-Z0-9+.-]*://.*"))
 
       if (isNetworkStream) {
-        Log.d(TAG, "Skipping direct network subtitle autoload for: $videoFilePath")
+        Log.d(TAG, "Skipping direct network subtitle autoload for: $effectiveVideoFilePath")
         return@withContext
       } else {
         // For local files, scan the directory
-        autoloadLocalSubtitles(videoFilePath, videoFileName, expectedGeneration, selectFirst)
+        autoloadLocalSubtitles(effectiveVideoFilePath, videoFileName, expectedGeneration, selectFirst)
       }
     } catch (cancellation: CancellationException) {
       throw cancellation

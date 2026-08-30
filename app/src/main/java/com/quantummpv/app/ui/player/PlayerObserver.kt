@@ -96,6 +96,9 @@ class PlayerObserver(
     value: Boolean,
   ) {
     if (shouldIgnoreCallback()) return
+    // Keep false flowing so PlayerActivity can clear a completed/cancelled EOF transition. Only
+    // the unqualified true edge is suppressed; a validated true is emitted from END_FILE below.
+    if (property == "eof-reached" && value) return
     activity.runOnUiThread {
       if (!shouldIgnoreCallback()) activity.onObserverEvent(property, value)
     }
@@ -142,11 +145,15 @@ class PlayerObserver(
     data: MPVNode,
   ) {
     if (shouldIgnoreCallback()) return
+    val naturalEnd = eventId == MPVLib.MpvEvent.MPV_EVENT_END_FILE && PlaybackSession.isNaturalEndFile(data)
     activity.runOnUiThread {
       if (shouldIgnoreCallback()) return@runOnUiThread
       activity.event(eventId)
       if (eventId == MPVLib.MpvEvent.MPV_EVENT_FILE_LOADED) {
         requestStretchVideoOrientationUpdate()
+      }
+      if (naturalEnd) {
+        activity.onObserverEvent("eof-reached", true)
       }
     }
   }

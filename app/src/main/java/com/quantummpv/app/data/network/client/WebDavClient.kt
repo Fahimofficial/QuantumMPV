@@ -33,20 +33,26 @@ class WebDavClient(
   companion object {
     private val rangeHttpClient by lazy {
       SharedHttpClient.derive {
-        // Range reads feed the player; a stalled socket must fail fast rather than hang the stream.
-        callTimeout(60, TimeUnit.SECONDS)
+        // A call timeout covers the entire response body and would terminate healthy long streams.
+        // Keep the shared connect/read timeouts, which still detect connection and socket stalls.
+        callTimeout(0, TimeUnit.SECONDS)
       }
     }
     private val contentRangePattern = Regex("bytes\\s+(\\d+)-(\\d+)/(\\d+|\\*)", RegexOption.IGNORE_CASE)
+    private val encodedPathSeparatorPattern = Regex("%(?:2f|5c)", RegexOption.IGNORE_CASE)
   }
 
   private var sardine: Sardine? = null
 
-  /** Builds a URL from decoded path segments so credentials and reserved characters cannot leak. */
-  private fun buildUrl(
+  /**
+   * Builds WebDAV request URLs from decoded path segments. HttpUrl owns the wire encoding so
+   * reserved filename characters such as '[', ']', '%', '#', '?' and spaces are encoded exactly
+   * once and are never reparsed through java.net.URI.
+   */
+  private fun buildHttpUrl(
     relativePath: String,
     trailingSlash: Boolean = false,
-  ): String {
+  ): HttpUrl {
     val host = connection.host.trim().removePrefix("[").removeSuffix("]")
     val builder =
       HttpUrl
@@ -58,7 +64,70 @@ class WebDavClient(
     NetworkPath.from(connection.path).segments.forEach(builder::addPathSegment)
     NetworkPath.from(relativePath).segments.forEach(builder::addPathSegment)
     if (trailingSlash) builder.addPathSegment("")
-    return builder.build().toString()
+    return builder.build()
+  }
+
+  private fun buildUrl(
+    relativePath: String,
+    trailingSlash: Boolean = false,
+  ): String = buildHttpUrl(relativePath, trailingSlash).toString()
+
+  /**
+   * Uses Sardine's parsed DavResource href as the source of truth for child identity. Sardine has
+   * already URI-decoded the href path once; decoding it again corrupts literal percent sequences.
+   * Relative hrefs are resolved against the requested collection path without creating another URI.
+   */
+  private fun toImmediateChild(
+    resource: DavResource,
+    directory: NetworkPath,
+    directoryUrl: HttpUrl,
+  ): NetworkFile? {
+    val href = resource.href
+    if (href.query != null || href.fragment != null) return null
+    if (href.rawPath?.let(encodedPathSeparatorPattern::containsMatchIn) == true) return null
+
+    val requestedSegments = directoryUrl.pathSegments.filter(String::isNotEmpty)
+    val resolvedSegments =
+      directoryUrl
+        .resolve(href.toASCIIString())
+        ?.pathSegments
+        ?.filter(String::isNotEmpty)
+        ?: return null
+
+    if (resolvedSegments == requestedSegments) return null
+    val exactChildName =
+      resolvedSegments
+        .takeIf { segments ->
+          segments.size == requestedSegments.size + 1 &&
+            segments.take(requestedSegments.size) == requestedSegments
+        }?.last()
+
+    // Reverse proxies sometimes rewrite the collection prefix in response hrefs. Sardine's name
+    // remains the decoded final path component, so use it only when exact URI resolution cannot
+    // identify the child. Exclude a rewritten collection-self response by its trailing directory.
+    val fallbackName = resource.name?.trimEnd('/')?.takeIf(String::isNotBlank)
+    if (
+      exactChildName == null &&
+      resource.isDirectory &&
+      fallbackName == requestedSegments.lastOrNull() &&
+      resolvedSegments.lastOrNull() == requestedSegments.lastOrNull()
+    ) {
+      return null
+    }
+
+    val childName = exactChildName ?: fallbackName ?: return null
+    return runCatching {
+      val filePath = directory.child(childName)
+      val displayName = resource.name?.takeIf(String::isNotBlank) ?: childName
+      NetworkFile(
+        name = displayName,
+        path = filePath.value,
+        isDirectory = resource.isDirectory,
+        size = resource.contentLength ?: -1L,
+        lastModified = resource.modified?.time ?: 0,
+        mimeType = if (!resource.isDirectory) NetworkMimeTypes.forFileName(displayName) else null,
+      )
+    }.getOrNull()
   }
 
   override suspend fun connect(): Result<Unit> =
@@ -97,28 +166,14 @@ class WebDavClient(
       try {
         val client = sardine ?: return@withContext Result.failure(IOException("Not connected"))
         val directory = NetworkPath.from(path)
-        val directoryUrl = buildUrl(directory.value, trailingSlash = true)
-        val requestedWirePath = java.net.URI(directoryUrl).path.trimEnd('/')
-        val resources = client.list(directoryUrl)
+        val directoryUrl = buildHttpUrl(directory.value, trailingSlash = true)
+        val resources = client.list(directoryUrl.toString())
 
         val files =
           resources
-            .filterNot { resource -> resource.path.trimEnd('/') == requestedWirePath }
-            .mapNotNull { resource: DavResource ->
-              val resourceName = resource.name?.trimEnd('/')?.takeIf(String::isNotBlank)
-                ?: return@mapNotNull null
-              runCatching {
-                val filePath = directory.child(resourceName)
-                NetworkFile(
-                  name = resourceName,
-                  path = filePath.value,
-                  isDirectory = resource.isDirectory,
-                  size = resource.contentLength ?: -1L,
-                  lastModified = resource.modified?.time ?: 0,
-                  mimeType = if (!resource.isDirectory) NetworkMimeTypes.forFileName(resourceName) else null,
-                )
-              }.getOrNull()
-            }
+            .mapNotNull { resource -> toImmediateChild(resource, directory, directoryUrl) }
+            // Some DAV servers emit the same href more than once with different propstat blocks.
+            .distinctBy(NetworkFile::path)
 
         Result.success(files)
       } catch (cancellation: CancellationException) {
