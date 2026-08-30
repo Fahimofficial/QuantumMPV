@@ -87,12 +87,18 @@ import sh.calvin.reorderable.ReorderableCollectionItemScope
 import sh.calvin.reorderable.ReorderableItem
 import sh.calvin.reorderable.rememberReorderableLazyListState
 
-fun PlaylistItem.toVideo(): Video =
-  Video(
+fun PlaylistItem.toVideo(): Video {
+  val cleanPath =
+    if (path.startsWith("file://", ignoreCase = true)) {
+      runCatching { Uri.parse(path).path }.getOrNull() ?: path.removePrefix("file://")
+    } else {
+      path.ifBlank { uri.path.orEmpty().ifBlank { uri.toString() } }
+    }
+  return Video(
     id = uri.toString().hashCode().toLong(),
     title = title,
     displayName = title,
-    path = path.ifBlank { uri.toString() },
+    path = cleanPath,
     uri = uri,
     duration = 0L,
     durationFormatted = duration,
@@ -109,6 +115,7 @@ fun PlaylistItem.toVideo(): Video =
     resolution = resolution,
     isAudio = isAudio,
   )
+}
 
 data class PlaylistItem(
   val uri: Uri,
@@ -141,8 +148,17 @@ private fun PlaylistThumbnail(
       val host = runCatching { Uri.parse(item.tvgLogo).host.orEmpty().lowercase() }.getOrDefault("")
       host == "i.ytimg.com" || host.endsWith(".ytimg.com")
     }
+  val cleanPath =
+    remember(item.path, item.uri) {
+      val raw = item.path.ifBlank { item.uri.toString() }
+      if (raw.startsWith("file://", ignoreCase = true)) {
+        runCatching { Uri.parse(raw).path }.getOrNull() ?: raw.removePrefix("file://")
+      } else {
+        raw
+      }
+    }
   val video =
-    remember(item.uri, item.path, item.title) {
+    remember(item.uri, cleanPath, item.title) {
       Video(
         id =
           item.uri
@@ -151,7 +167,7 @@ private fun PlaylistThumbnail(
             .toLong(),
         title = item.title,
         displayName = item.title,
-        path = item.path.ifBlank { item.uri.toString() },
+        path = cleanPath,
         uri = item.uri,
         duration = 0L,
         durationFormatted = item.duration,

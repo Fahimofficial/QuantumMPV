@@ -4759,7 +4759,8 @@ class PlayerViewModel : ViewModel(),
         } else {
           uri
         }
-      val path = resolvedUri.toString()
+      val localPath = uri.extractLocalPath() ?: if (uri.scheme == "file") uri.path else null
+      val path = localPath ?: resolvedUri.path?.takeIf { File(it).exists() } ?: resolvedUri.toString()
       val isAudio =
         path
           .substringBefore('?')
