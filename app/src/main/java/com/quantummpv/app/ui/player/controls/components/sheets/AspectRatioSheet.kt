@@ -24,8 +24,10 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.FilledTonalIconButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.InputChip
+import androidx.compose.material3.ListItem
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -40,6 +42,7 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import com.quantummpv.app.presentation.components.PlayerSheet
+import com.quantummpv.app.ui.player.AutoCropState
 import com.quantummpv.app.ui.icons.Icon
 import com.quantummpv.app.ui.icons.Icons
 import com.quantummpv.app.ui.theme.spacing
@@ -54,6 +57,10 @@ data class AspectRatio(
 fun AspectRatioSheet(
   currentRatio: Double?,
   customRatios: List<AspectRatio>,
+  autoCropEnabled: Boolean,
+  autoCropState: AutoCropState,
+  autoCropControlEnabled: Boolean,
+  onAutoCropChanged: (Boolean) -> Unit,
   onSelectRatio: (Double) -> Unit,
   onAddCustomRatio: (String, Double) -> Unit,
   onDeleteCustomRatio: (AspectRatio) -> Unit,
@@ -89,6 +96,35 @@ fun AspectRatioSheet(
           Modifier
             .padding(horizontal = MaterialTheme.spacing.medium)
             .padding(bottom = MaterialTheme.spacing.small),
+      )
+
+      val autoCropSummary =
+        when {
+          !autoCropControlEnabled -> com.quantummpv.app.R.string.ui_auto_crop_black_bars_managed
+          !autoCropEnabled -> com.quantummpv.app.R.string.ui_auto_crop_black_bars_summary
+          autoCropState == AutoCropState.ANALYZING -> com.quantummpv.app.R.string.ui_auto_crop_black_bars_analyzing
+          autoCropState == AutoCropState.APPLIED -> com.quantummpv.app.R.string.ui_auto_crop_black_bars_applied
+          autoCropState == AutoCropState.NO_BARS -> com.quantummpv.app.R.string.ui_auto_crop_black_bars_none
+          autoCropState == AutoCropState.UNSUPPORTED -> com.quantummpv.app.R.string.ui_auto_crop_black_bars_unsupported
+          autoCropState == AutoCropState.ERROR -> com.quantummpv.app.R.string.ui_auto_crop_black_bars_failed
+          else -> com.quantummpv.app.R.string.ui_auto_crop_black_bars_summary
+        }
+      ListItem(
+        headlineContent = {
+          Text(androidx.compose.ui.res.stringResource(com.quantummpv.app.R.string.ui_auto_crop_black_bars))
+        },
+        supportingContent = { Text(androidx.compose.ui.res.stringResource(autoCropSummary)) },
+        trailingContent = {
+          Switch(
+            checked = autoCropEnabled,
+            onCheckedChange = onAutoCropChanged,
+            enabled = autoCropControlEnabled,
+          )
+        },
+        modifier =
+          Modifier.clickable(enabled = autoCropControlEnabled) {
+            onAutoCropChanged(!autoCropEnabled)
+          },
       )
 
       // Preset ratios

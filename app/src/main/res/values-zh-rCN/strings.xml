@@ -1315,6 +1315,14 @@
   <string name="ui_install_core">安装核心</string>
   <string name="ui_update_core">更新核心</string>
   <string name="ui_aspect_ratio">宽高比</string>
+  <string name="ui_auto_crop_black_bars">自动去除黑边</string>
+  <string name="ui_auto_crop_black_bars_summary">后台抽取多帧，自动裁掉视频文件中持续存在的黑边。</string>
+  <string name="ui_auto_crop_black_bars_analyzing">正在分析视频帧…</string>
+  <string name="ui_auto_crop_black_bars_applied">已去除当前视频的黑边。</string>
+  <string name="ui_auto_crop_black_bars_none">未检测到持续存在的黑边。</string>
+  <string name="ui_auto_crop_black_bars_unsupported">无法分析当前视频来源。</string>
+  <string name="ui_auto_crop_black_bars_failed">黑边分析失败。</string>
+  <string name="ui_auto_crop_black_bars_managed">video-crop 已由 mpv.conf 接管。</string>
   <string name="ui_presets">预设</string>
   <string name="ui_add_custom_ratio_e_g_16_9">添加自定义比例（例如 16:9）</string>
   <string name="ui_width">宽度</string>

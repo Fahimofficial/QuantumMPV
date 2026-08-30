@@ -1462,6 +1462,14 @@
   <string name="ui_install_core">Install Core</string>
   <string name="ui_update_core">Update Core</string>
   <string name="ui_aspect_ratio">Aspect Ratio</string>
+  <string name="ui_auto_crop_black_bars">Auto crop black bars</string>
+  <string name="ui_auto_crop_black_bars_summary">Sample several frames in the background and crop persistent encoded black bars.</string>
+  <string name="ui_auto_crop_black_bars_analyzing">Analyzing frames…</string>
+  <string name="ui_auto_crop_black_bars_applied">Black bars removed for this video.</string>
+  <string name="ui_auto_crop_black_bars_none">No persistent black bars detected.</string>
+  <string name="ui_auto_crop_black_bars_unsupported">This video source could not be analyzed.</string>
+  <string name="ui_auto_crop_black_bars_failed">Black bar analysis failed.</string>
+  <string name="ui_auto_crop_black_bars_managed">video-crop is managed by mpv.conf.</string>
   <string name="ui_presets">Presets</string>
   <string name="ui_add_custom_ratio_e_g_16_9">Add Custom Ratio (e.g. 16:9)</string>
   <string name="ui_width">Width</string>
