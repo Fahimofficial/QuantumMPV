@@ -493,12 +493,13 @@ class PlayerViewModel : ViewModel(),
   private val metadataCache = object : android.util.LruCache<String, Pair<String, String>>(100) {}
   private val playbackStateDispatcher = Dispatchers.Default.limitedParallelism(1)
   private val renderPrepDispatcher = Dispatchers.Default.limitedParallelism(1)
-  private val ambientCropRegex = Regex("""^(\d+)x(\d+)""")
+  private val videoCropDimensionsRegex = Regex("""^(\d+)x(\d+)""")
   private var autoCropJob: Job? = null
   private var autoCropReadinessJob: Job? = null
   private var autoCropAnalyzedGeneration = -1L
   private var autoCropApplied = false
-  private val autoCropResultCache = LruCache<String, AutoCropEdges>(20)
+  // Memory-only analysis cache. This is not playback history and does not enable auto-crop.
+  private val autoCropResultCache = LruCache<String, AutoCropEdges>(AUTO_CROP_CACHE_CAPACITY)
   private val _autoCropState = MutableStateFlow(AutoCropState.IDLE)
   val autoCropState: StateFlow<AutoCropState> = _autoCropState.asStateFlow()
 
@@ -2426,6 +2427,7 @@ class PlayerViewModel : ViewModel(),
     const val AUTO_CROP_MIN_VALID_SAMPLES = 3
     const val AUTO_CROP_THUMBNAIL_SIZE = 640
     const val AUTO_CROP_READY_TIMEOUT_MS = 15_000L
+    const val AUTO_CROP_CACHE_CAPACITY = 20
     const val AUTO_SHOW_SKIP_CHIP_DURATION = 10.0
     const val SEEK_COALESCE_DELAY_MS = 60L
     const val PREVIEW_SEEK_INTERVAL_MS = 25L
@@ -6010,19 +6012,9 @@ class PlayerViewModel : ViewModel(),
       // Landscape mode: ambient glow goes on left/right (pillarbox)
       // Both are handled by the same scaleX/scaleY math below
 
-      var vidW = (PlaybackSession.getPropertyInt("video-params/w") ?: 1920).toDouble()
-      var vidH = (PlaybackSession.getPropertyInt("video-params/h") ?: 1080).toDouble()
+      var (vidW, vidH) = currentEffectiveVideoDimensions()
       val par = PlaybackSession.getPropertyDouble("video-params/par") ?: 1.0
       val rot = PlaybackSession.getPropertyInt("video-params/rotate") ?: 0
-
-      // Intercept autocrop boundaries — if a crop is active, use the cropped dimensions
-      // so the shader's aspect-ratio math matches the actual visible video area
-      val crop = PlaybackSession.getPropertyString("video-crop") ?: ""
-      val cropMatch = ambientCropRegex.find(crop)
-      if (cropMatch != null) {
-        vidW = cropMatch.groupValues[1].toDouble()
-        vidH = cropMatch.groupValues[2].toDouble()
-      }
 
       if (osdW <= 0 || osdH <= 0 || vidW <= 0.0 || vidH <= 0.0) return
 
@@ -6130,6 +6122,22 @@ class PlayerViewModel : ViewModel(),
       if (e is kotlinx.coroutines.CancellationException) throw e
       Log.e(TAG, "Failed to update ambient stretch", e)
     }
+  }
+
+  /**
+   * Returns the dimensions mpv is actually displaying.
+   *
+   * `video-crop` is the single source of truth shared by normal playback and Ambient Glow. The
+   * auto-crop analyzer only writes that property; Ambient never keeps a second crop state.
+   */
+  private fun currentEffectiveVideoDimensions(): Pair<Double, Double> {
+    val sourceWidth = (PlaybackSession.getPropertyInt("video-params/w") ?: 1920).toDouble()
+    val sourceHeight = (PlaybackSession.getPropertyInt("video-params/h") ?: 1080).toDouble()
+    val cropMatch =
+      PlaybackSession.getPropertyString("video-crop")
+        ?.let(videoCropDimensionsRegex::find)
+        ?: return sourceWidth to sourceHeight
+    return cropMatch.groupValues[1].toDouble() to cropMatch.groupValues[2].toDouble()
   }
 
   /**

@@ -59,13 +59,18 @@ object AutoCropAnalyzer {
     )
   }
 
-  /** Combines several samples while tolerating at most one noisy/outlier frame per edge. */
+  /**
+   * Combines several samples conservatively.
+   *
+   * A zero edge in any sample wins for that edge. This intentionally treats an expanded IMAX or
+   * other variable-aspect-ratio frame as real picture instead of an outlier, so a static crop does
+   * not override an expanded frame present in the sample set.
+   */
   fun combine(samples: List<AutoCropEdges>): AutoCropEdges? {
     if (samples.size < 3) return null
 
     fun conservative(values: List<Float>): Float {
-      val sorted = values.sorted()
-      val candidate = if (sorted.size >= 5) sorted[1] else sorted.first()
+      val candidate = values.minOrNull() ?: 0f
       return candidate.takeIf { it >= MIN_EDGE_FRACTION } ?: 0f
     }
 
