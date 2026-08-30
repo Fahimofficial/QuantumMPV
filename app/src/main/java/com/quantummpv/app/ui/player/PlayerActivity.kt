@@ -946,11 +946,17 @@ class PlayerActivity :
       return
     }
 
-    // Auto-PiP takes precedence over background playback/Mini Player. Previously the background
-    // branch consumed Back first whenever both settings were enabled, so PiP never received the
-    // navigation event. If Android rejects the PiP request, continue into the normal background
-    // fallback below rather than leaving the player open with hidden controls.
-    if (shouldEnterPipOnNavigation() && enterPipModeSmoothly()) return
+    // If mini player is enabled, back press within the app hands off playback to the mini player
+    // rather than entering PiP. If mini player is disabled, auto-PiP retains priority on Back.
+    if (!isMiniPlayerEnabled() && shouldEnterPipOnNavigation() && enterPipModeSmoothly()) return
+
+    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+      runCatching {
+        setPictureInPictureParams(
+          android.app.PictureInPictureParams.Builder().setAutoEnterEnabled(false).build(),
+        )
+      }
+    }
 
     // Background playback or Mini Player handoff on Back: return to the browser while handing
     // the live MPV session to the foreground service. This is also the PiP-failure fallback.

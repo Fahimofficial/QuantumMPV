@@ -17,12 +17,14 @@ import android.os.Build
 import android.os.Bundle
 import android.provider.Settings
 import android.util.Log
+import android.app.Activity
 import androidx.activity.ComponentActivity
 import androidx.activity.SystemBarStyle
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatActivity
+import androidx.lifecycle.Lifecycle
 import androidx.compose.animation.ContentTransform
 import androidx.compose.animation.EnterTransition
 import androidx.compose.animation.ExitTransition
@@ -91,6 +93,7 @@ import androidx.compose.ui.viewinterop.AndroidView
 import com.quantummpv.app.ui.player.MPVPipHelper
 import com.quantummpv.app.ui.player.PlaybackPhase
 import com.quantummpv.app.ui.player.PlaybackSession
+import com.quantummpv.app.ui.player.PlayerActivity
 import com.quantummpv.app.ui.player.MediaPlaybackService
 import com.quantummpv.app.ui.player.TrackNode
 import com.quantummpv.app.ui.player.toObject
@@ -228,6 +231,9 @@ class MainActivity : AppCompatActivity() {
   private var appliedEdgeToEdgeDarkMode: Boolean? = null
   private lateinit var pipHelper: MPVPipHelper
   private var isPipMode by mutableStateOf(false)
+  private var wasInPipMode = false
+  private var pendingPipExitResolution = false
+  private var isExpandingFromPip by mutableStateOf(false)
 
   // Register the ActivityResultLauncher at class level
   private val mediaAccessLauncher =
@@ -274,7 +280,13 @@ class MainActivity : AppCompatActivity() {
       }
       val deviceSupportsVulkan = remember { VulkanCapabilities.isDeviceSupported(this@MainActivity) }
 
-      LaunchedEffect(sessionState, enableVideoMiniPlayer, autoPiPOnNavigation, trackListNode) {
+      LaunchedEffect(
+        sessionState,
+        enableVideoMiniPlayer,
+        autoPiPOnNavigation,
+        trackListNode,
+        NavigationBarState.isMiniPlayerVisible,
+      ) {
         pipHelper.updatePictureInPictureParams()
       }
 
@@ -310,45 +322,47 @@ class MainActivity : AppCompatActivity() {
         }
       }
 
-      if (isPipMode) {
+      if (isPipMode || isExpandingFromPip) {
         Box(
           modifier = Modifier
             .fillMaxSize()
             .background(Color.Black),
           contentAlignment = Alignment.Center,
         ) {
-          AndroidView(
-            modifier = Modifier.fillMaxSize(),
-            factory = { viewContext ->
-              SurfaceView(viewContext).apply {
-                setZOrderMediaOverlay(true)
-                holder.addCallback(object : SurfaceHolder.Callback {
-                  override fun surfaceCreated(holder: SurfaceHolder) {
-                    PlaybackSession.bindSurface(
-                      surface = holder.surface,
-                      owner = this@apply,
-                      ownerIsActive = { MediaPlaybackService.isForegroundActive() },
-                    )
-                  }
-
-                  override fun surfaceChanged(
-                    holder: SurfaceHolder,
-                    format: Int,
-                    width: Int,
-                    height: Int,
-                  ) {
-                    if (holder.surface.isValid) {
-                      PlaybackSession.resizeSurface(width, height, owner = this@apply)
+          if (isPipMode) {
+            AndroidView(
+              modifier = Modifier.fillMaxSize(),
+              factory = { viewContext ->
+                SurfaceView(viewContext).apply {
+                  setZOrderMediaOverlay(true)
+                  holder.addCallback(object : SurfaceHolder.Callback {
+                    override fun surfaceCreated(holder: SurfaceHolder) {
+                      PlaybackSession.bindSurface(
+                        surface = holder.surface,
+                        owner = this@apply,
+                        ownerIsActive = { MediaPlaybackService.isForegroundActive() },
+                      )
                     }
-                  }
 
-                  override fun surfaceDestroyed(holder: SurfaceHolder) {
-                    PlaybackSession.unbindSurface(this@apply)
-                  }
-                })
-              }
-            },
-          )
+                    override fun surfaceChanged(
+                      holder: SurfaceHolder,
+                      format: Int,
+                      width: Int,
+                      height: Int,
+                    ) {
+                      if (holder.surface.isValid) {
+                        PlaybackSession.resizeSurface(width, height, owner = this@apply)
+                      }
+                    }
+
+                    override fun surfaceDestroyed(holder: SurfaceHolder) {
+                      PlaybackSession.unbindSurface(this@apply)
+                    }
+                  })
+                }
+              },
+            )
+          }
         }
       } else {
         MpvrxTheme(transitionState = themeTransitionState) {
@@ -394,6 +408,20 @@ class MainActivity : AppCompatActivity() {
   override fun onResume() {
     super.onResume()
     pipHelper.updatePictureInPictureParams()
+    if (!isPipMode && (pendingPipExitResolution || wasInPipMode)) {
+      window.decorView.post {
+        if (!isFinishing && !isDestroyed && !isPipMode && (pendingPipExitResolution || wasInPipMode)) {
+          completePipExpansion()
+        }
+      }
+    }
+  }
+
+  override fun onWindowFocusChanged(hasFocus: Boolean) {
+    super.onWindowFocusChanged(hasFocus)
+    if (hasFocus && !isPipMode && (pendingPipExitResolution || wasInPipMode)) {
+      completePipExpansion()
+    }
   }
 
   override fun onUserLeaveHint() {
@@ -422,11 +450,77 @@ class MainActivity : AppCompatActivity() {
     super.onPictureInPictureModeChanged(isInPictureInPictureMode, newConfig)
     this.isPipMode = isInPictureInPictureMode
     pipHelper.onPictureInPictureModeChanged(isInPictureInPictureMode)
+    if (isInPictureInPictureMode) {
+      wasInPipMode = true
+      pendingPipExitResolution = false
+      isExpandingFromPip = false
+    } else if (wasInPipMode) {
+      isExpandingFromPip = true
+      schedulePipExitResolution()
+    }
+  }
+
+  private fun schedulePipExitResolution() {
+    pendingPipExitResolution = true
+    if (isFinishing || isDestroyed) {
+      pendingPipExitResolution = false
+      wasInPipMode = false
+      isExpandingFromPip = false
+      return
+    }
+    if (lifecycle.currentState.isAtLeast(Lifecycle.State.RESUMED) && hasWindowFocus()) {
+      completePipExpansion()
+    }
+  }
+
+  private fun completePipExpansion() {
+    if (!pendingPipExitResolution && !wasInPipMode) return
+    pendingPipExitResolution = false
+    wasInPipMode = false
+    this.isPipMode = false
+    openPlayerFromPipMaximize()
+  }
+
+  private fun openPlayerFromPipMaximize() {
+    val sessionState = PlaybackSession.state.value
+    val currentItem = sessionState.currentItem ?: PlaybackSession.queue.value.currentItem
+    if (
+      currentItem == null ||
+      sessionState.phase == PlaybackPhase.IDLE ||
+      sessionState.phase == PlaybackPhase.UNINITIALIZED ||
+      sessionState.phase == PlaybackPhase.ERROR
+    ) {
+      isExpandingFromPip = false
+      return
+    }
+
+    val intent = Intent(this, PlayerActivity::class.java).apply {
+      action = MediaPlaybackService.ACTION_OPEN_PLAYER
+      putExtra("is_audio", isCurrentMediaAudioOnly())
+      putExtra("internal_launch", true)
+      putExtra("launch_source", "pip_maximize")
+      flags = Intent.FLAG_ACTIVITY_SINGLE_TOP or Intent.FLAG_ACTIVITY_CLEAR_TOP
+    }
+    try {
+      startActivity(intent)
+      if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
+        overrideActivityTransition(Activity.OVERRIDE_TRANSITION_OPEN, 0, 0)
+      } else {
+        @Suppress("DEPRECATION")
+        overridePendingTransition(0, 0)
+      }
+    } catch (e: Exception) {
+      Log.e("MainActivity", "Failed to launch PlayerActivity from PiP maximize", e)
+      isExpandingFromPip = false
+    }
   }
 
   override fun onStop() {
     super.onStop()
     pipHelper.onStop()
+    pendingPipExitResolution = false
+    wasInPipMode = false
+    isExpandingFromPip = false
   }
 
   private fun isCurrentMediaAudioOnly(): Boolean {
@@ -463,6 +557,9 @@ class MainActivity : AppCompatActivity() {
   }
 
   override fun onDestroy() {
+    pendingPipExitResolution = false
+    wasInPipMode = false
+    isExpandingFromPip = false
     try {
       super.onDestroy()
     } catch (e: Exception) {

@@ -18,6 +18,7 @@ import android.media.MediaMetadataRetriever
 import android.net.Uri
 import android.os.Build
 import android.os.SystemClock
+import android.provider.MediaStore
 import android.util.LruCache
 import com.quantummpv.app.data.network.client.NetworkMimeTypes
 import com.quantummpv.app.data.network.proxy.NetworkStreamingProxy
@@ -25,6 +26,7 @@ import com.quantummpv.app.domain.media.model.Video
 import com.quantummpv.app.domain.network.NetworkConnection
 import com.quantummpv.app.preferences.ThumbnailMode
 import com.quantummpv.app.repository.NetworkRepository
+import com.quantummpv.app.ui.player.resolveLocalPath
 import `is`.xyz.mpv.FastThumbnails
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
@@ -83,6 +85,12 @@ class ThumbnailRepository(
   private val diskCacheLock = ReentrantReadWriteLock()
   private val ongoingOperations = ConcurrentHashMap<String, Deferred<Bitmap?>>()
   private val diskVideoBaseKeyCache = ConcurrentHashMap<String, String>()
+  private data class ResolvedMetadata(
+    val size: Long,
+    val dateModified: Long,
+    val duration: Long,
+  )
+  private val localMetadataCache = ConcurrentHashMap<String, ResolvedMetadata>()
   private val repositoryScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
   private val maxConcurrentFolders = 3
   private val localGenerationParallelism = resolveLocalGenerationParallelism()
@@ -229,6 +237,7 @@ class ThumbnailRepository(
     ongoingOperations.values.forEach { it.cancel() }
     ongoingOperations.clear()
     diskVideoBaseKeyCache.clear()
+    localMetadataCache.clear()
     networkThumbnailFailedAt.clear()
 
     synchronized(memoryCache) {
@@ -356,14 +365,116 @@ class ThumbnailRepository(
   fun diskCacheKey(video: Video): String =
     "video-thumb-v2|${diskVideoBaseKey(video)}|${thumbnailModeKey()}|${thumbnailQualityKey()}"
 
+  private fun canonicalLocalPath(video: Video): String {
+    val raw = video.path.ifBlank { video.uri.toString() }
+    if (isNetworkUrl(raw)) return raw
+
+    val decoded = runCatching { Uri.decode(raw) }.getOrNull() ?: raw
+
+    if (decoded.startsWith("file://", ignoreCase = true)) {
+      val parsed = runCatching { Uri.parse(decoded).path }.getOrNull()
+      if (!parsed.isNullOrBlank()) return parsed
+      return decoded.removePrefix("file://")
+    }
+
+    if (decoded.startsWith("content://", ignoreCase = true) || video.uri.scheme.equals("content", ignoreCase = true)) {
+      val targetUri =
+        if (decoded.startsWith("content://", ignoreCase = true)) {
+          runCatching { Uri.parse(decoded) }.getOrNull() ?: video.uri
+        } else {
+          video.uri
+        }
+      val resolved = runCatching { targetUri.resolveLocalPath(context) }.getOrNull()
+      if (!resolved.isNullOrBlank()) return resolved
+    }
+
+    if (video.uri.scheme.equals("file", ignoreCase = true)) {
+      val p = video.uri.path
+      if (!p.isNullOrBlank()) return p
+    }
+
+    return decoded
+  }
+
+  private fun resolveLocalMetadata(video: Video, source: String): ResolvedMetadata {
+    if (video.size > 0L && video.dateModified > 0L && video.duration > 0L) {
+      return ResolvedMetadata(video.size, video.dateModified, video.duration)
+    }
+
+    localMetadataCache[source]?.let { return it }
+
+    var size = video.size
+    var dateModified = video.dateModified
+    var duration = video.duration
+
+    val file = if (!source.contains("://")) File(source) else null
+    if (file != null && file.exists()) {
+      if (size <= 0L) size = file.length()
+      if (dateModified <= 0L) dateModified = file.lastModified() / 1000L
+    }
+
+    // Query MediaStore which is indexed by Android
+    runCatching {
+      val projection =
+        arrayOf(
+          MediaStore.Video.Media.DURATION,
+          MediaStore.Video.Media.SIZE,
+          MediaStore.Video.Media.DATE_MODIFIED,
+        )
+      val cursor =
+        when {
+          video.uri.scheme == "content" &&
+            video.uri.toString().startsWith(MediaStore.Video.Media.EXTERNAL_CONTENT_URI.toString()) -> {
+            context.contentResolver.query(video.uri, projection, null, null, null)
+          }
+          file != null -> {
+            context.contentResolver.query(
+              MediaStore.Video.Media.EXTERNAL_CONTENT_URI,
+              projection,
+              "${MediaStore.Video.Media.DATA} = ?",
+              arrayOf(source),
+              null,
+            )
+          }
+          else -> null
+        }
+      cursor?.use { c ->
+        if (c.moveToFirst()) {
+          val durCol = c.getColumnIndex(MediaStore.Video.Media.DURATION)
+          val sizeCol = c.getColumnIndex(MediaStore.Video.Media.SIZE)
+          val dateCol = c.getColumnIndex(MediaStore.Video.Media.DATE_MODIFIED)
+          if (durCol >= 0 && duration <= 0L) duration = c.getLong(durCol)
+          if (sizeCol >= 0 && size <= 0L) size = c.getLong(sizeCol)
+          if (dateCol >= 0 && dateModified <= 0L) dateModified = c.getLong(dateCol)
+        }
+      }
+    }
+
+    val resolved = ResolvedMetadata(size, dateModified, duration)
+    localMetadataCache[source] = resolved
+    return resolved
+  }
+
+  private fun extractDurationFallback(video: Video): Long =
+    runCatching {
+      val retriever = MediaMetadataRetriever()
+      try {
+        setLocalDataSource(retriever, video)
+        retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_DURATION)?.toLongOrNull() ?: 0L
+      } finally {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) retriever.close() else retriever.release()
+      }
+    }.getOrDefault(0L)
+
   private fun videoBaseKey(video: Video): String {
     if (isNetworkUrl(video.path)) {
       val base = video.path.ifBlank { video.uri.toString() }
       return "$base|network"
     }
 
-    val source = video.path.ifBlank { video.uri.toString() }
-    return "$source|${video.size}|${video.dateModified}|${video.duration}"
+    val source = canonicalLocalPath(video)
+    val meta = resolveLocalMetadata(video, source)
+    return "$source|${meta.size}|${meta.dateModified}|${meta.duration}"
   }
 
   /** Sidecar artwork probing is disk I/O, so keep it out of keys evaluated during composition. */
@@ -372,9 +483,10 @@ class ThumbnailRepository(
     if (isNetworkUrl(video.path)) return baseKey
     diskVideoBaseKeyCache[baseKey]?.let { return it }
 
+    val canonicalPath = canonicalLocalPath(video)
     val artworkSignature =
       EmbeddedArtworkCandidates
-        .forVideoPath(video.path)
+        .forVideoPath(canonicalPath)
         .asSequence()
         .map(::File)
         .firstOrNull { it.isFile && it.canRead() }
@@ -408,8 +520,9 @@ class ThumbnailRepository(
     runCatching {
       val retriever = MediaMetadataRetriever()
       try {
+        val canonicalPath = canonicalLocalPath(video)
         setLocalDataSource(retriever, video)
-        EmbeddedArtworkResolver.decodeEmbeddedArtwork(video.path, retriever)?.scaleToThumbnailMax(thumbnailMaxSize())
+        EmbeddedArtworkResolver.decodeEmbeddedArtwork(canonicalPath, retriever)?.scaleToThumbnailMax(thumbnailMaxSize())
       } finally {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) retriever.close() else retriever.release()
       }
@@ -420,9 +533,18 @@ class ThumbnailRepository(
     mode: ThumbnailMode,
     dimension: Int,
   ): Bitmap? {
-    if (video.isAudio || video.path.isBlank()) return null
+    val canonicalPath = canonicalLocalPath(video)
+    if (video.isAudio || canonicalPath.isBlank()) return null
+    val targetVideo = if (video.path != canonicalPath) video.copy(path = canonicalPath) else video
 
-    val durationSeconds = video.duration.coerceAtLeast(0L) / 1000.0
+    val resolvedDuration =
+      if (targetVideo.duration > 0L) {
+        targetVideo.duration
+      } else {
+        val metaDur = resolveLocalMetadata(targetVideo, canonicalPath).duration
+        if (metaDur > 0L) metaDur else extractDurationFallback(targetVideo)
+      }
+    val durationSeconds = resolvedDuration.coerceAtLeast(0L) / 1000.0
     val requestedPosition =
       when (mode) {
         ThumbnailMode.FirstFrame, ThumbnailMode.EmbeddedThumbnail -> 0.0
@@ -444,7 +566,7 @@ class ThumbnailRepository(
       val bitmap =
         try {
           FastThumbnails.generateAsync(
-            video.path,
+            targetVideo.path,
             position,
             dimension,
             useHwDec = false,
@@ -516,7 +638,7 @@ class ThumbnailRepository(
             ),
           targetWidth = widthPx.takeIf { it > 0 },
           targetHeight = heightPx.takeIf { it > 0 },
-          videoPath = video.path,
+          videoPath = canonicalLocalPath(video),
         )
       } finally {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) retriever.close() else retriever.release()
@@ -527,7 +649,10 @@ class ThumbnailRepository(
     retriever: MediaMetadataRetriever,
     video: Video,
   ) {
+    val canonicalPath = canonicalLocalPath(video)
     when {
+      canonicalPath.isNotBlank() && !canonicalPath.contains("://") && File(canonicalPath).exists() ->
+        retriever.setDataSource(canonicalPath)
       video.path.isNotBlank() && !video.path.contains("://") -> retriever.setDataSource(video.path)
       else -> retriever.setDataSource(context, video.uri)
     }
