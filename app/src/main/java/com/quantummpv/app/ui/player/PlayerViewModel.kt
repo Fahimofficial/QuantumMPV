@@ -4132,13 +4132,15 @@ class PlayerViewModel : ViewModel(),
               .getPropertyDouble("time-pos")
               ?.takeIf { it.isFinite() && it >= 0.0 }
               ?: (pos ?: 0).toDouble().coerceAtLeast(0.0)
+          val preciseSeeking = playerPreferences.usePreciseSeeking.get()
           val requestedTarget = (currentPosition + toApply).coerceAtLeast(0.0)
           val targetPosition =
             durationSeconds?.let { duration ->
               val guardedEndPosition = (duration - RELATIVE_SEEK_EOF_GUARD_SECONDS).coerceAtLeast(0.0)
-              // First stop just before EOF to keep longer audio aligned. A subsequent forward
-              // action from that guard is explicit intent to finish rather than a dead seek.
+              // Precise seeking retains its explicit EOF behavior. Non-precise seeking stops at
+              // the guard and lets playback finish naturally instead of forcing an EOF pause.
               val allowExplicitEof =
+                preciseSeeking &&
                 toApply > 0 &&
                   currentPosition >= guardedEndPosition - SEEK_TARGET_TOLERANCE_SECONDS
               requestedTarget.coerceAtMost(if (allowExplicitEof) duration else guardedEndPosition)
@@ -4153,14 +4155,22 @@ class PlayerViewModel : ViewModel(),
           // Exact mode also guarantees an EOF-clamped seek reaches the guard instead of repeatedly
           // resolving to the same earlier keyframe.
           val targetWasClamped = targetPosition != null && targetPosition < requestedTarget
-          val useExactSeeking = toApply < 0 || targetWasClamped || playerPreferences.usePreciseSeeking.get()
+          val useRelativeKeyframeSeek = !preciseSeeking && toApply > 0 && !targetWasClamped
+          val useExactSeeking = toApply < 0 || targetWasClamped || preciseSeeking
           val seekMode =
-            if (targetPosition != null) {
+            if (useRelativeKeyframeSeek) {
+              "relative+keyframes"
+            } else if (targetPosition != null) {
               if (useExactSeeking) "absolute+exact" else "absolute+keyframes"
             } else {
               if (useExactSeeking) "relative+exact" else "relative+keyframes"
             }
-          val seekValue = targetPosition?.toString() ?: toApply.toString()
+          val seekValue =
+            if (useRelativeKeyframeSeek) {
+              toApply.toString()
+            } else {
+              targetPosition?.toString() ?: toApply.toString()
+            }
           val synchronizedPosition = targetPosition ?: requestedTarget
 
           PlaybackSession.command("seek", seekValue, seekMode)
