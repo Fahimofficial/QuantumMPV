@@ -198,7 +198,7 @@ class NetworkStreamingProxy private constructor() :
   ): Response {
     val fileSize = getFileSize(streamInfo, path)
     if (fileSize < 0L) return upstreamFailure(headOnly)
-    val range = HttpByteRange.parse(rangeHeader, fileSize) ?: return rangeNotSatisfiable(fileSize, headOnly)
+    val range = HttpByteRange.parse(rangeHeader, fileSize) ?: return rangeNotSatisfiable(fileSize)
     val mimeType = mimeTypeFor(streamInfo, path)
 
     val response =
@@ -396,15 +396,8 @@ class NetworkStreamingProxy private constructor() :
     mimeType: String,
   ): Response = newFixedLengthResponse(status, mimeType, ByteArrayInputStream(ByteArray(0)), 0L)
 
-  private fun rangeNotSatisfiable(
-    fileSize: Long,
-    headOnly: Boolean,
-  ): Response =
-    textResponse(
-      Response.Status.RANGE_NOT_SATISFIABLE,
-      "Requested range not satisfiable",
-      headOnly,
-    ).apply {
+  private fun rangeNotSatisfiable(fileSize: Long): Response =
+    emptyResponse(Response.Status.RANGE_NOT_SATISFIABLE, "application/octet-stream").apply {
       addHeader("Content-Range", "bytes */$fileSize")
       addHeader("Accept-Ranges", "bytes")
     }
