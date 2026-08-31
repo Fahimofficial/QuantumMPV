@@ -333,6 +333,12 @@ object PlaybackSession : MPVLib.EventObserver {
   fun unbindSurface(owner: Any): Boolean =
     withCore(default = false) {
       if (attachedSurfaceOwner !== owner || !_state.value.surfaceAttached) return@withCore false
+      if (_state.value.phase == PlaybackPhase.LOADING) {
+        deferredVideoSelectionGeneration = _state.value.generation
+        runCatching { MPVLib.setPropertyString("vid", "no") }
+      } else {
+        suspendVideoTrackForSurfaceLossLocked()
+      }
       detachRendererSurfaceLocked()
       true
     }
@@ -1522,6 +1528,8 @@ object PlaybackSession : MPVLib.EventObserver {
   private fun suspendVideoTrackForSurfaceLossLocked() {
     val current = _state.value
     if (current.phase !in setOf(PlaybackPhase.READY, PlaybackPhase.BACKGROUND)) return
+    val activeHardwareDecoder = MPVLib.getPropertyString("hwdec-current").orEmpty()
+    if (!activeHardwareDecoder.contains("mediacodec", ignoreCase = true)) return
     val activeVid = MPVLib.getPropertyInt("vid") ?: -1
     if (activeVid > 0) {
       suspendedVideoTrack = SuspendedVideoTrack(activeVid, current.generation)

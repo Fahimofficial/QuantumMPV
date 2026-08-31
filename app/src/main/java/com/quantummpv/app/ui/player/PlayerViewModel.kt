@@ -2451,6 +2451,8 @@ class PlayerViewModel : ViewModel(),
     const val AUTO_CROP_CACHE_CAPACITY = 20
     const val AUTO_SHOW_SKIP_CHIP_DURATION = 10.0
     const val SEEK_COALESCE_DELAY_MS = 60L
+    const val RELATIVE_SEEK_EOF_GUARD_SECONDS = 0.25
+    const val SEEK_TARGET_TOLERANCE_SECONDS = 0.05
     const val PREVIEW_SEEK_INTERVAL_MS = 100L
     val QUALITY_HEIGHT_REGEX = Regex("""(?i)(\d{3,4})p""")
     const val NATIVE_LINEAR_HDR_YOUTUBE_BLUR_RADIUS = 100.0
@@ -4109,27 +4111,53 @@ class PlayerViewModel : ViewModel(),
         pendingSeekOffset = 0
 
         if (toApply != 0) {
-          val duration = PlaybackSession.getPropertyInt("duration") ?: 0
-          val currentPos = PlaybackSession.getPropertyInt("time-pos") ?: 0
+          val durationSeconds =
+            PlaybackSession
+              .getPropertyDouble("duration")
+              ?.takeIf { it.isFinite() && it > 0.0 }
+              ?: currentDurationSeconds().takeIf { it.isFinite() && it > 0.0 }
+          val currentPosition =
+            PlaybackSession
+              .getPropertyDouble("time-pos")
+              ?.takeIf { it.isFinite() && it >= 0.0 }
+              ?: (pos ?: 0).toDouble().coerceAtLeast(0.0)
+          val requestedTarget = (currentPosition + toApply).coerceAtLeast(0.0)
+          val targetPosition =
+            durationSeconds?.let { duration ->
+              val guardedEndPosition = (duration - RELATIVE_SEEK_EOF_GUARD_SECONDS).coerceAtLeast(0.0)
+              // First stop just before EOF to keep longer audio aligned. A subsequent forward
+              // action from that guard is explicit intent to finish rather than a dead seek.
+              val allowExplicitEof =
+                toApply > 0 &&
+                  currentPosition >= guardedEndPosition - SEEK_TARGET_TOLERANCE_SECONDS
+              requestedTarget.coerceAtMost(if (allowExplicitEof) duration else guardedEndPosition)
+            }
 
-          if (duration > 0 && currentPos + toApply >= duration) {
-            // If seeking past the end, force seek to 100% absolute to ensure EOF is triggered
-            PlaybackSession.command("seek", "100", "absolute-percent+exact")
-            syncplayManager.updatePlayerState(
-              duration.toDouble(),
-              PlaybackSession.getPropertyBoolean("pause") ?: false,
-              doSeek = true,
-            )
-          } else {
-            val shouldUsePreciseSeeking = playerPreferences.usePreciseSeeking.get()
-            val seekMode = if (shouldUsePreciseSeeking) "relative+exact" else "relative+keyframes"
-            PlaybackSession.command("seek", toApply.toString(), seekMode)
-            syncplayManager.updatePlayerState(
-              (currentPos + toApply).toDouble(),
-              PlaybackSession.getPropertyBoolean("pause") ?: false,
-              doSeek = true,
-            )
+          if (toApply > 0 && targetPosition != null && targetPosition <= currentPosition) {
+            return@launch
           }
+
+          // A backward keyframe seek can expose pre-target video while audio still starts at the
+          // requested timestamp. Exact seeking decodes through that gap and keeps A/V aligned.
+          // Exact mode also guarantees an EOF-clamped seek reaches the guard instead of repeatedly
+          // resolving to the same earlier keyframe.
+          val targetWasClamped = targetPosition != null && targetPosition < requestedTarget
+          val useExactSeeking = toApply < 0 || targetWasClamped || playerPreferences.usePreciseSeeking.get()
+          val seekMode =
+            if (targetPosition != null) {
+              if (useExactSeeking) "absolute+exact" else "absolute+keyframes"
+            } else {
+              if (useExactSeeking) "relative+exact" else "relative+keyframes"
+            }
+          val seekValue = targetPosition?.toString() ?: toApply.toString()
+          val synchronizedPosition = targetPosition ?: requestedTarget
+
+          PlaybackSession.command("seek", seekValue, seekMode)
+          syncplayManager.updatePlayerState(
+            synchronizedPosition,
+            PlaybackSession.getPropertyBoolean("pause") ?: false,
+            doSeek = true,
+          )
         }
       }
   }
