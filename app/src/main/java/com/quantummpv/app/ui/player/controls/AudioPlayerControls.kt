@@ -144,6 +144,7 @@ import com.quantummpv.app.presentation.components.RemoteImage
 import com.quantummpv.app.preferences.AppearancePreferences
 import com.quantummpv.app.preferences.AudioPreferences
 import com.quantummpv.app.preferences.AudioVisualizerStyle
+import com.quantummpv.app.preferences.GesturePreferences
 import com.quantummpv.app.preferences.PlayerPreferences
 import com.quantummpv.app.preferences.preference.collectAsState
 import com.quantummpv.app.ui.icons.Icon
@@ -415,6 +416,8 @@ fun AudioPlayerControls(
 ) {
   val speedConfigOwned = isMpvOptionOwnedByConfig("speed")
   val audioFiltersConfigOwned = isMpvOptionOwnedByConfig("af")
+  val gesturePreferences = koinInject<GesturePreferences>()
+  val audioSeekDuration by gesturePreferences.doubleTapToSeekDuration.collectAsState()
   val paused by PlaybackSession.propBoolean["pause"].collectAsState()
   val duration by PlaybackSession.propInt["duration"].collectAsState()
   val preciseDuration by viewModel.preciseDuration.collectAsState()
@@ -1436,7 +1439,7 @@ fun AudioPlayerControls(
             modifier = Modifier.size(28.dp),
           )
         }
-        ReactiveIconButton(onClick = { viewModel.seekBy(-30) }) {
+        ReactiveIconButton(onClick = { viewModel.seekBy(-audioSeekDuration) }) {
           Icon(
             imageVector = Icons.RoundedFilled.FastRewind,
             contentDescription = null,
@@ -1460,7 +1463,7 @@ fun AudioPlayerControls(
             )
           }
         }
-        ReactiveIconButton(onClick = { viewModel.seekBy(30) }) {
+        ReactiveIconButton(onClick = { viewModel.seekBy(audioSeekDuration) }) {
           Icon(
             imageVector = Icons.RoundedFilled.FastForward,
             contentDescription = null,
