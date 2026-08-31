@@ -59,6 +59,12 @@ class SubtitlesPreferences(
   val subtitleSearchLanguages = subdlLanguages
   val onlineSubtitleSearchMode = preferenceStore.getOnlineSubtitleSearchMode()
   val subtitleHubSources = preferenceStore.getStringSet("subtitle_hub_sources", MpvRxSubtitleHubSources.DEFAULT)
+  val betaSeriesApiKey = preferenceStore.getString("betaseries_api_key", "")
+  val jimakuApiKey = preferenceStore.getString("jimaku_api_key", "")
+  val subDlApiKey = preferenceStore.getString("subdl_api_key", "")
+  val subSourceApiKey = preferenceStore.getString("subsource_api_key", "")
+  val subsRoApiKey = preferenceStore.getString("subs_ro_api_key", "")
+  val subXApiKey = preferenceStore.getString("subx_api_key", "")
 
   val wyzieSources = preferenceStore.getStringSet("wyzie_sources", setOf("all"))
   val wyzieFormats = preferenceStore.getStringSet("wyzie_formats", setOf("srt", "ass"))

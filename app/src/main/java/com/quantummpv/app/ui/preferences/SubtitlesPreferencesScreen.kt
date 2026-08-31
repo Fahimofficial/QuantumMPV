@@ -12,6 +12,7 @@ package com.quantummpv.app.ui.preferences
 import android.content.Intent
 import android.net.Uri
 import android.widget.Toast
+import androidx.annotation.StringRes
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
@@ -26,6 +27,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.CircularProgressIndicator
@@ -47,6 +49,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -54,6 +57,9 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.input.PasswordVisualTransformation
+import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.quantummpv.app.R
@@ -186,9 +192,74 @@ object SubtitlesPreferencesScreen : Screen {
         val wyzieFormats by preferences.wyzieFormats.collectAsState()
         val wyzieEncodings by preferences.wyzieEncodings.collectAsState()
         val wyzieApiKey by preferences.wyzieApiKey.collectAsState()
+        val betaSeriesApiKey by preferences.betaSeriesApiKey.collectAsState()
+        val jimakuApiKey by preferences.jimakuApiKey.collectAsState()
+        val subDlApiKey by preferences.subDlApiKey.collectAsState()
+        val subSourceApiKey by preferences.subSourceApiKey.collectAsState()
+        val subsRoApiKey by preferences.subsRoApiKey.collectAsState()
+        val subXApiKey by preferences.subXApiKey.collectAsState()
         val wyzieAiSubtitles by preferences.wyzieAiSubtitles.collectAsState()
         val onlineSubtitleSearchMode by preferences.onlineSubtitleSearchMode.collectAsState()
         val subtitleHubSources by preferences.subtitleHubSources.collectAsState()
+        val allKeylessSourcesLabel = stringResource(R.string.pref_subtitles_all_keyless_sources)
+        val apiKeyRequiredLabel = stringResource(R.string.pref_subtitles_source_api_key_required)
+        val subtitleHubSourceValues =
+          remember(allKeylessSourcesLabel) {
+            MpvRxSubtitleHubSources.ALL.toMutableMap().apply {
+              this["all"] = allKeylessSourcesLabel
+            }
+          }
+        val subtitleHubSourceDescriptions =
+          remember(apiKeyRequiredLabel) {
+            MpvRxSubtitleHubSources.AUTHENTICATED_SOURCES.associateWith { apiKeyRequiredLabel }
+          }
+        val subtitleApiKeyPreferences =
+          listOf(
+            SubtitleApiKeyPreferenceSpec(
+              sourceKey = MpvRxSubtitleHubSources.BETASERIES_KEY,
+              providerName = "BetaSeries",
+              titleRes = R.string.pref_betaseries_api_key_title,
+              value = betaSeriesApiKey,
+              onValueChange = preferences.betaSeriesApiKey::set,
+            ),
+            SubtitleApiKeyPreferenceSpec(
+              sourceKey = MpvRxSubtitleHubSources.JIMAKU_KEY,
+              providerName = "Jimaku",
+              titleRes = R.string.pref_jimaku_api_key_title,
+              value = jimakuApiKey,
+              onValueChange = preferences.jimakuApiKey::set,
+            ),
+            SubtitleApiKeyPreferenceSpec(
+              sourceKey = MpvRxSubtitleHubSources.SUBDL_KEY,
+              providerName = "SubDL",
+              titleRes = R.string.pref_subdl_api_key_title,
+              value = subDlApiKey,
+              onValueChange = preferences.subDlApiKey::set,
+            ),
+            SubtitleApiKeyPreferenceSpec(
+              sourceKey = MpvRxSubtitleHubSources.SUBSOURCE_KEY,
+              providerName = "SubSource",
+              titleRes = R.string.pref_subsource_api_key_title,
+              value = subSourceApiKey,
+              onValueChange = preferences.subSourceApiKey::set,
+            ),
+            SubtitleApiKeyPreferenceSpec(
+              sourceKey = MpvRxSubtitleHubSources.SUBS_RO_KEY,
+              providerName = "Subs.ro",
+              titleRes = R.string.pref_subs_ro_api_key_title,
+              value = subsRoApiKey,
+              onValueChange = preferences.subsRoApiKey::set,
+            ),
+            SubtitleApiKeyPreferenceSpec(
+              sourceKey = MpvRxSubtitleHubSources.SUBX_KEY,
+              providerName = "SubX",
+              titleRes = R.string.pref_subx_api_key_title,
+              value = subXApiKey,
+              onValueChange = preferences.subXApiKey::set,
+            ),
+          )
+        val selectedSubtitleApiKeyPreferences =
+          subtitleApiKeyPreferences.filter { it.sourceKey in subtitleHubSources }
         val requestedSearchTarget by SettingsSearchNavigation.target.collectFlowAsState()
         var customFonts by remember { mutableStateOf<List<String>>(emptyList()) }
 
@@ -506,51 +577,46 @@ object SubtitlesPreferencesScreen : Screen {
                 summary = {
                   val summaryText =
                     if (subtitleHubSources.isEmpty() || subtitleHubSources.contains("all")) {
-                      stringResource(R.string.pref_all_sources)
+                      (listOf(allKeylessSourcesLabel) + selectedSubtitleApiKeyPreferences.map { it.providerName })
+                        .joinToString(" + ")
                     } else {
-                      subtitleHubSources.mapNotNull { MpvRxSubtitleHubSources.ALL[it] }.joinToString(", ")
+                      subtitleHubSources.mapNotNull { subtitleHubSourceValues[it] }.joinToString(", ")
                     }
-                  Text(summaryText, color = MaterialTheme.colorScheme.outline)
+                  Text(
+                    text = summaryText,
+                    color = MaterialTheme.colorScheme.outline,
+                  )
                 },
-                values = MpvRxSubtitleHubSources.ALL,
+                values = subtitleHubSourceValues,
+                valueDescriptions = subtitleHubSourceDescriptions,
                 selectedValues = subtitleHubSources,
                 onValuesChange = { preferences.subtitleHubSources.set(it) },
                 hasAllOption = true,
+                additiveWithAll = MpvRxSubtitleHubSources.AUTHENTICATED_SOURCES,
               )
+
+              selectedSubtitleApiKeyPreferences.forEach { apiKeyPreference ->
+                PreferenceDivider()
+                SubtitleApiKeyPreference(
+                  modifier = Modifier.settingsSearchTarget(apiKeyPreference.titleRes),
+                  spec = apiKeyPreference,
+                )
+              }
 
               PreferenceDivider()
 
-              TextFieldPreference(
+              SubtitleApiKeyPreference(
                 modifier = Modifier.settingsSearchTarget(R.string.pref_wyzie_api_key_title),
-                value = wyzieApiKey,
-                onValueChange = preferences.wyzieApiKey::set,
-                textToValue = { it.trim() },
-                title = { Text(stringResource(R.string.pref_wyzie_api_key_title)) },
-                summary = {
-                  if (wyzieApiKey.isBlank()) {
-                    Text(
-                      stringResource(R.string.pref_wyzie_api_key_summary_error),
-                      color = MaterialTheme.colorScheme.error,
-                    )
-                  } else {
-                    Text(
-                      stringResource(R.string.pref_wyzie_api_key_summary_saved),
-                      color = MaterialTheme.colorScheme.outline,
-                    )
-                  }
-                },
-                textField = { value, onValueChange, _ ->
-                  Column {
-                    Text(stringResource(R.string.pref_wyzie_api_key_dialog_text))
-                    TextField(
-                      value = value,
-                      onValueChange = onValueChange,
-                      modifier = Modifier.fillMaxWidth(),
-                      placeholder = { Text(stringResource(R.string.pref_wyzie_api_key_placeholder)) },
-                      singleLine = true,
-                    )
-                  }
-                },
+                spec =
+                  SubtitleApiKeyPreferenceSpec(
+                    sourceKey = "wyzie",
+                    providerName = "Wyzie",
+                    titleRes = R.string.pref_wyzie_api_key_title,
+                    value = wyzieApiKey,
+                    onValueChange = preferences.wyzieApiKey::set,
+                    dialogTextRes = R.string.pref_wyzie_api_key_dialog_text,
+                    placeholderRes = R.string.pref_wyzie_api_key_placeholder,
+                  ),
               )
 
               PreferenceDivider()
@@ -1111,6 +1177,8 @@ fun MultiChoicePreference(
   selectedValues: Set<String>,
   onValuesChange: (Set<String>) -> Unit,
   hasAllOption: Boolean = false,
+  additiveWithAll: Set<String> = emptySet(),
+  valueDescriptions: Map<String, String> = emptyMap(),
   modifier: Modifier = Modifier,
 ) {
   var showDialog by remember { mutableStateOf(false) }
@@ -1134,7 +1202,7 @@ fun MultiChoicePreference(
             val key = entry.first
             val checked =
               if (hasAllOption && (selectedValues.isEmpty() || selectedValues.contains("all"))) {
-                key == "all"
+                key == "all" || (key in additiveWithAll && key in selectedValues)
               } else {
                 selectedValues.contains(key)
               }
@@ -1147,8 +1215,12 @@ fun MultiChoicePreference(
                     val newSet = selectedValues.toMutableSet()
                     if (hasAllOption) {
                       if (key == "all") {
+                        val retainedAdditiveValues = newSet.intersect(additiveWithAll)
                         newSet.clear()
                         newSet.add("all")
+                        newSet.addAll(retainedAdditiveValues)
+                      } else if (key in additiveWithAll) {
+                        if (checked) newSet.remove(key) else newSet.add(key)
                       } else {
                         newSet.remove("all")
                         if (checked) newSet.remove(key) else newSet.add(key)
@@ -1166,7 +1238,16 @@ fun MultiChoicePreference(
                 onCheckedChange = null,
               )
               Spacer(modifier = Modifier.width(8.dp))
-              Text(text = entry.second)
+              Column(modifier = Modifier.weight(1f)) {
+                Text(text = entry.second)
+                valueDescriptions[key]?.let { description ->
+                  Text(
+                    text = description,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                  )
+                }
+              }
             }
           }
         }
@@ -1178,4 +1259,100 @@ fun MultiChoicePreference(
       },
     )
   }
+}
+
+private data class SubtitleApiKeyPreferenceSpec(
+  val sourceKey: String,
+  val providerName: String,
+  @StringRes val titleRes: Int,
+  val value: String,
+  val onValueChange: (String) -> Unit,
+  @StringRes val dialogTextRes: Int? = null,
+  @StringRes val placeholderRes: Int? = null,
+)
+
+@Composable
+private fun SubtitleApiKeyPreference(
+  spec: SubtitleApiKeyPreferenceSpec,
+  modifier: Modifier = Modifier,
+) {
+  val context = LocalContext.current
+  var showApiKey by rememberSaveable(spec.sourceKey) { mutableStateOf(false) }
+
+  TextFieldPreference(
+    modifier = modifier,
+    value = spec.value,
+    onValueChange = spec.onValueChange,
+    textToValue = { it.trim() },
+    title = { Text(stringResource(spec.titleRes)) },
+    summary = {
+      Text(
+        text =
+          stringResource(
+            if (spec.value.isBlank()) {
+              R.string.pref_subtitle_api_key_summary_required
+            } else {
+              R.string.pref_subtitle_api_key_summary_saved
+            },
+            spec.providerName,
+          ),
+        color = if (spec.value.isBlank()) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.outline,
+      )
+    },
+    textField = { value, onValueChange, _ ->
+      Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        Text(
+          text =
+            spec.dialogTextRes?.let { stringResource(it) }
+              ?: stringResource(R.string.pref_subtitle_api_key_dialog_text, spec.providerName),
+        )
+        TextField(
+          value = value,
+          onValueChange = onValueChange,
+          modifier = Modifier.fillMaxWidth(),
+          placeholder = {
+            Text(
+              spec.placeholderRes?.let { stringResource(it) }
+                ?: stringResource(R.string.pref_subtitle_api_key_placeholder),
+            )
+          },
+          singleLine = true,
+          keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
+          visualTransformation = if (showApiKey) VisualTransformation.None else PasswordVisualTransformation(),
+          trailingIcon = {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+              IconButton(
+                onClick = {
+                  val clipboard = context.getSystemService(android.content.ClipboardManager::class.java)
+                  val clip = clipboard?.primaryClip
+                  val pastedValue =
+                    clip
+                      ?.takeIf { it.itemCount > 0 }
+                      ?.getItemAt(0)
+                      ?.coerceToText(context)
+                      ?.toString()
+                      ?.trim()
+                  if (!pastedValue.isNullOrBlank()) {
+                    onValueChange(androidx.compose.ui.text.input.TextFieldValue(pastedValue))
+                  }
+                },
+              ) {
+                Icon(
+                  imageVector = Icons.RoundedFilled.ContentPaste,
+                  contentDescription = stringResource(R.string.pref_paste_api_key, spec.providerName),
+                )
+              }
+              IconButton(onClick = { showApiKey = !showApiKey }) {
+                Icon(
+                  imageVector = if (showApiKey) Icons.RoundedFilled.VisibilityOff else Icons.RoundedFilled.Visibility,
+                  contentDescription =
+                    stringResource(if (showApiKey) R.string.generic_hide_key else R.string.generic_show_key),
+                )
+              }
+            }
+          },
+        )
+      }
+    },
+  )
 }

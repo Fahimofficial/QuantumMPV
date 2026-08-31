@@ -1443,6 +1443,36 @@ object SearchablePreferences {
         anchorItemIndex = 5,
         SearchEntrySpec(R.string.pref_subtitles_search_mode_title, listOf("subtitle", "search", "mode", "source")),
         SearchEntrySpec(R.string.pref_subtitles_subhub_sources_title, listOf("subtitle", "subhub", "sources", "provider")),
+        SearchEntrySpec(
+          R.string.pref_betaseries_api_key_title,
+          listOf("subtitle", "betaseries", "api", "key"),
+          R.string.pref_subtitles_subhub_sources_title,
+        ),
+        SearchEntrySpec(
+          R.string.pref_jimaku_api_key_title,
+          listOf("subtitle", "jimaku", "api", "key", "japanese"),
+          R.string.pref_subtitles_subhub_sources_title,
+        ),
+        SearchEntrySpec(
+          R.string.pref_subdl_api_key_title,
+          listOf("subtitle", "subdl", "api", "key"),
+          R.string.pref_subtitles_subhub_sources_title,
+        ),
+        SearchEntrySpec(
+          R.string.pref_subsource_api_key_title,
+          listOf("subtitle", "subsource", "api", "key"),
+          R.string.pref_subtitles_subhub_sources_title,
+        ),
+        SearchEntrySpec(
+          R.string.pref_subs_ro_api_key_title,
+          listOf("subtitle", "subs.ro", "romanian", "api", "key"),
+          R.string.pref_subtitles_subhub_sources_title,
+        ),
+        SearchEntrySpec(
+          R.string.pref_subx_api_key_title,
+          listOf("subtitle", "subx", "spanish", "api", "key"),
+          R.string.pref_subtitles_subhub_sources_title,
+        ),
         SearchEntrySpec(R.string.pref_wyzie_api_key_title, listOf("subtitle", "wyzie", "api", "key")),
         SearchEntrySpec(
           R.string.pref_ai_subtitles_title,

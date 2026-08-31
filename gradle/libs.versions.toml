@@ -44,6 +44,7 @@ googleCast = "22.3.1"
 androidxBiometric = "1.2.0-alpha05"
 leakcanary = "2.14"
 libtorrent4j = "2.1.0-38"
+libarchiveAndroid = "1.1.6"
 
 [libraries]
 androidx-profileinstaller = { group = "androidx.profileinstaller", name = "profileinstaller", version.ref = "profileinstaller" }
@@ -118,6 +119,7 @@ libtorrent4j-android-arm64 = { module = "org.libtorrent4j:libtorrent4j-android-a
 libtorrent4j-android-arm = { module = "org.libtorrent4j:libtorrent4j-android-arm", version.ref = "libtorrent4j" }
 libtorrent4j-android-x86 = { module = "org.libtorrent4j:libtorrent4j-android-x86", version.ref = "libtorrent4j" }
 libtorrent4j-android-x8664 = { module = "org.libtorrent4j:libtorrent4j-android-x86_64", version.ref = "libtorrent4j" }
+libarchive-android = { module = "me.zhanghai.android.libarchive:library", version.ref = "libarchiveAndroid" }
 
 [bundles]
 koin = ["koin-core", "koin-android", "koin-compose", "koin-viewmodel"]

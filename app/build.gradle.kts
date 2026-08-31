@@ -303,6 +303,7 @@ dependencies {
   implementation(libs.sardine.android) {
     exclude(group = "xpp3", module = "xpp3")
   }
+  implementation(libs.libarchive.android)
   implementation(libs.nanohttpd)
   implementation(libs.lazycolumnscrollbar)
   implementation(libs.reorderable)

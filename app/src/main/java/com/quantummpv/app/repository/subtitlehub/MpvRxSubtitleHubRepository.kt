@@ -16,8 +16,6 @@ import com.quantummpv.app.repository.subtitle.OnlineSubtitle
 import com.quantummpv.app.repository.subtitle.OnlineSubtitleFileStore
 import com.quantummpv.app.repository.subtitle.OnlineSubtitleProvider
 import com.quantummpv.app.repository.subtitle.OnlineSubtitleSearchRequest
-import com.quantummpv.app.repository.subtitle.SUBDL_GROUP_EPISODE_END_KEY
-import com.quantummpv.app.repository.subtitle.SUBDL_GROUP_EPISODE_START_KEY
 import com.quantummpv.app.repository.subtitle.SubtitleProvider
 import com.quantummpv.app.repository.wyzie.WyzieLanguages
 import kotlinx.coroutines.CancellationException
@@ -27,13 +25,6 @@ import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.json.Json
-import kotlinx.serialization.json.JsonArray
-import kotlinx.serialization.json.JsonElement
-import kotlinx.serialization.json.JsonObject
-import kotlinx.serialization.json.JsonPrimitive
-import kotlinx.serialization.json.booleanOrNull
-import kotlinx.serialization.json.contentOrNull
-import kotlinx.serialization.json.intOrNull
 import okhttp3.FormBody
 import okhttp3.OkHttpClient
 import okhttp3.Request
@@ -50,7 +41,7 @@ class MpvRxSubtitleHubRepository(
 ) : OnlineSubtitleProvider {
   override val provider: SubtitleProvider = SubtitleProvider.MPVRX_SUBTITLE_HUB
 
-  @Volatile private var buildId: String? = null
+  private val apiSources = MpvRxSubtitleHubApiSources(client, json, preferences)
 
   override suspend fun search(request: OnlineSubtitleSearchRequest): Result<List<OnlineSubtitle>> =
     searchIncrementally(request) {}
@@ -66,20 +57,26 @@ class MpvRxSubtitleHubRepository(
             request = request,
             selectedSources = MpvRxSubtitleHubSources.resolveSelected(preferences.subtitleHubSources.get()),
           )
+        if (selectedSources.size == 1) {
+          apiSources.requireApiKey(selectedSources.single())
+        }
         val results =
           coroutineScope {
             val completedSources = Channel<List<OnlineSubtitle>>(selectedSources.size)
             selectedSources.forEach { source ->
               launch {
                 runCatching {
-                  when (source) {
-                    "subdl_com" -> searchSubdlCom(request)
-                    "subtitlecat_com" -> searchSubtitleCat(request.withEpisodeSearchQuery())
-                    "moviesubtitles_org" -> searchMovieSubtitlesOrg(request)
-                    "moviesubtitlesrt_com" -> searchMovieSubtitlesRt(request)
-                    "my_subs_co" -> searchMySubs(request)
-                    "tvsubtitles_net" -> searchTvSubtitles(request)
-                    else -> emptyList()
+                  if (source in MpvRxSubtitleHubSources.AUTHENTICATED_SOURCES) {
+                    apiSources.search(source, request, selectedLanguages())
+                  } else {
+                    when (source) {
+                      "subtitlecat_com" -> searchSubtitleCat(request.withEpisodeSearchQuery())
+                      "moviesubtitles_org" -> searchMovieSubtitlesOrg(request)
+                      "moviesubtitlesrt_com" -> searchMovieSubtitlesRt(request)
+                      "my_subs_co" -> searchMySubs(request)
+                      "tvsubtitles_net" -> searchTvSubtitles(request)
+                      else -> emptyList()
+                    }
                   }
                 }.getOrElse { error ->
                   Log.w(TAG, "Skipping $source after provider failure", error)
@@ -129,8 +126,9 @@ class MpvRxSubtitleHubRepository(
             .header("User-Agent", USER_AGENT)
             .apply {
               resolved.referer?.let { header("Referer", it) }
+              apiSources.authenticateDownload(subtitle, this)
             }.build()
-        client.newCall(request).execute().use { response ->
+        apiSources.clientForDownload(subtitle).newCall(request).execute().use { response ->
           if (!response.isSuccessful) return@withContext Result.failure(Exception("Download failed: ${response.code}"))
           Result.success(fileStore.save(response.body.bytes(), subtitle, mediaTitle))
         }
@@ -491,163 +489,6 @@ class MpvRxSubtitleHubRepository(
     }
   }
 
-  private fun searchSubdlCom(request: OnlineSubtitleSearchRequest): List<OnlineSubtitle> {
-    val language = selectedSearchLanguage()
-    val buildId = ensureBuildId()
-    val encodedQuery = URLEncoder.encode(request.query, "UTF-8").replace("+", "%20")
-    val url = "https://subdl.com/_next/data/$buildId/$language/search/$encodedQuery.json"
-    val root = json.parseToJsonElement(fetchText(url, "application/json")).obj() ?: return emptyList()
-    val results =
-      root
-        .obj("pageProps")
-        ?.array("list")
-        ?.mapNotNull { it.obj()?.toSubdlSearchItem() }
-        ?.filter { result -> SubtitleHubSearchMatcher.matchesQueryTitle(request.query, result.name) }
-        ?.sortedByDescending { result -> SubtitleHubSearchMatcher.titleMatchScore(request.query, result.name) }
-        ?.take(SUBDL_SEARCH_RESULT_LIMIT)
-        ?: emptyList()
-
-    return results.flatMap { result ->
-      runCatching { fetchSubdlComSubtitles(result, request, buildId) }
-        .getOrElse { error ->
-          Log.w(TAG, "Skipping SubDL.com result ${result.name}", error)
-          emptyList()
-        }
-    }
-  }
-
-  private fun fetchSubdlComSubtitles(
-    result: SubdlSearchItem,
-    request: OnlineSubtitleSearchRequest,
-    buildId: String,
-  ): List<OnlineSubtitle> {
-    val baseProps = fetchSubdlPageProps(buildId, result.sdId, result.slug, seasonSlug = null)
-    val mediaType = baseProps.obj("movieInfo")?.string("type") ?: result.mediaType
-    val props =
-      if (mediaType == "tv") {
-        val selectedSeasonSlug = findSeasonSlug(baseProps, request.season)
-        if (selectedSeasonSlug != null) {
-          fetchSubdlPageProps(buildId, result.sdId, result.slug, selectedSeasonSlug)
-        } else {
-          baseProps
-        }
-      } else {
-        baseProps
-      }
-
-    val selectedLanguages = selectedLanguages()
-    val grouped = props.obj("groupedSubtitles") ?: return emptyList()
-    val subtitles = mutableListOf<OnlineSubtitle>()
-
-    grouped.forEach { (languageLabel, value) ->
-      val languageCode = languageLabel.toLanguageCode()
-      if (selectedLanguages != null &&
-        selectedLanguages.none { it.codeEquals(languageCode) || it.codeEquals(languageLabel) }
-      ) {
-        return@forEach
-      }
-
-      val rows = value as? JsonArray ?: return@forEach
-      rows.forEach { row ->
-        val subtitle = row.obj() ?: return@forEach
-        val episode = subtitle.int("episode")?.takeIf { it > 0 }
-        val link = subtitle.string("link") ?: return@forEach
-        val fileName = subtitle.string("title")?.takeIf { it.isNotBlank() } ?: result.name
-        val groupEpisodeRange = parseSubdlGroupEpisodeRange(fileName)
-        if (request.episode != null) {
-          when {
-            episode != null && episode != request.episode -> return@forEach
-            episode == null && groupEpisodeRange != null && request.episode !in groupEpisodeRange -> return@forEach
-          }
-        }
-        val downloads = subtitle.int("downloads")
-        val downloadUrl = "https://dl.subdl.com/subtitle/$link"
-
-        subtitles +=
-          OnlineSubtitle(
-            provider = provider,
-            id = "subdl_com:${subtitle.string("id") ?: link}",
-            url = downloadUrl,
-            fileName = fileName,
-            release = subtitle.array("releases")?.firstOrNull()?.stringValue(),
-            media = result.name,
-            displayName = fileName,
-            displayLanguage = WyzieLanguages.ALL[languageCode] ?: languageLabel,
-            language = languageCode,
-            source = "SubDL.com",
-            format =
-              SubtitleHubSearchMatcher.displayFormat(
-                extensionFromName(fileName) ?: extensionFromName(downloadUrl),
-              ),
-            downloadCount = downloads,
-            isHearingImpaired = subtitle.bool("hi") == true,
-            metadata =
-              buildMap {
-                put("quality", subtitle.string("quality").orEmpty())
-                put("author", subtitle.string("author").orEmpty())
-                subtitle.int("season")?.let { put("season", it.toString()) }
-                episode?.let { put("episode", it.toString()) }
-                groupEpisodeRange?.let { range ->
-                  put(SUBDL_GROUP_EPISODE_START_KEY, range.first.toString())
-                  put(SUBDL_GROUP_EPISODE_END_KEY, range.last.toString())
-                }
-              }.filterValues { it.isNotBlank() },
-          )
-      }
-    }
-
-    return subtitles
-  }
-
-  private fun fetchSubdlPageProps(
-    buildId: String,
-    sdId: String,
-    slug: String,
-    seasonSlug: String?,
-  ): JsonObject {
-    val url =
-      if (seasonSlug != null) {
-        "https://subdl.com/_next/data/$buildId/subtitle/$sdId/$slug/$seasonSlug.json"
-      } else {
-        "https://subdl.com/_next/data/$buildId/subtitle/$sdId/$slug.json"
-      }
-    val root =
-      json.parseToJsonElement(fetchText(url, "application/json")).obj()
-        ?: throw IllegalStateException("Invalid SubDL JSON")
-    return root.obj("pageProps") ?: throw IllegalStateException("SubDL pageProps missing")
-  }
-
-  private fun findSeasonSlug(
-    pageProps: JsonObject,
-    wantedSeason: Int?,
-  ): String? {
-    val seasons = pageProps.obj("movieInfo")?.array("seasons") ?: return null
-    if (seasons.isEmpty()) return null
-    if (wantedSeason == null) return seasons.firstOrNull()?.obj()?.string("number")
-
-    return seasons.firstNotNullOfOrNull { entry ->
-      val season = entry.obj() ?: return@firstNotNullOfOrNull null
-      val number = season.string("number")
-      val name = season.string("name").orEmpty()
-      when {
-        number?.contains(wantedSeason.toString(), ignoreCase = true) == true -> number
-        name.contains("season $wantedSeason", ignoreCase = true) -> number
-        name.contains("s$wantedSeason", ignoreCase = true) -> number
-        else -> null
-      }
-    } ?: seasons.getOrNull(wantedSeason - 1)?.obj()?.string("number")
-  }
-
-  private fun ensureBuildId(): String {
-    buildId?.let { return it }
-    val html = fetchText("https://subdl.com/api-doc", "text/html")
-    val found =
-      Regex(""""buildId"\s*:\s*"([^"]+)"""").find(html)?.groupValues?.getOrNull(1)
-        ?: throw IllegalStateException("SubDL build id not found")
-    buildId = found
-    return found
-  }
-
   private fun fetchText(
     url: String,
     accept: String,
@@ -664,7 +505,6 @@ class MpvRxSubtitleHubRepository(
 
     client.newCall(builder.build()).execute().use { response ->
       if (!response.isSuccessful && !allowNonOk) {
-        if (url.contains("/_next/data/")) buildId = null
         throw IllegalStateException("HTTP ${response.code} for $url")
       }
       return response.body.string()
@@ -746,15 +586,6 @@ class MpvRxSubtitleHubRepository(
       .find(html)
       ?.groupValues
       ?.getOrNull(1)
-
-  private fun parseSubdlGroupEpisodeRange(title: String): IntRange? =
-    Regex("""(?<!\d)(\d{1,4})\s*[-–]\s*(\d{1,4})(?!\d|p)""", RegexOption.IGNORE_CASE)
-      .findAll(title)
-      .mapNotNull { match ->
-        val start = match.groupValues[1].toIntOrNull() ?: return@mapNotNull null
-        val end = match.groupValues[2].toIntOrNull() ?: return@mapNotNull null
-        if (start > 0 && end > start && end <= 1200 && end - start <= 500) start..end else null
-      }.firstOrNull()
 
   private fun hubSubtitle(
     sourceKey: String,
@@ -975,44 +806,11 @@ class MpvRxSubtitleHubRepository(
 
   private fun subtitleCatAbsoluteUrl(path: String): String = URL(URL(SUBTITLECAT_BASE_URL), path).toString()
 
-  private fun selectedSearchLanguage(): String {
-    val selected = preferences.subtitleSearchLanguages.get()
-    val first = selected.firstOrNull { it != "all" }?.lowercase() ?: "en"
-    return if (first in SUPPORTED_SUBDL_SEARCH_LANGUAGES) first else "en"
-  }
-
   private fun selectedLanguages(): Set<String>? {
     val selected = preferences.subtitleSearchLanguages.get()
     if (selected.isEmpty() || selected.contains("all")) return null
     return selected.map { it.normalizeCode() }.toSet()
   }
-
-  private fun JsonObject.toSubdlSearchItem(): SubdlSearchItem? {
-    val mediaType = string("type") ?: return null
-    val sdId = string("sd_id") ?: return null
-    val slug = string("slug") ?: return null
-    return SubdlSearchItem(
-      mediaType = mediaType,
-      name = string("name") ?: slug,
-      year = int("year"),
-      sdId = sdId,
-      slug = slug,
-    )
-  }
-
-  private fun JsonElement?.obj(): JsonObject? = this as? JsonObject
-
-  private fun JsonObject.obj(key: String): JsonObject? = get(key).obj()
-
-  private fun JsonObject.array(key: String): JsonArray? = get(key) as? JsonArray
-
-  private fun JsonObject.string(key: String): String? = get(key).stringValue()
-
-  private fun JsonElement?.stringValue(): String? = (this as? JsonPrimitive)?.contentOrNull
-
-  private fun JsonObject.int(key: String): Int? = (get(key) as? JsonPrimitive)?.intOrNull
-
-  private fun JsonObject.bool(key: String): Boolean? = (get(key) as? JsonPrimitive)?.booleanOrNull
 
   private fun String.toLanguageCode(): String {
     val normalized = normalizeCode()
@@ -1034,14 +832,6 @@ class MpvRxSubtitleHubRepository(
       .substringAfterLast(".", "")
       .lowercase()
       .takeIf { it.isNotBlank() && it.length <= 5 }
-
-  private data class SubdlSearchItem(
-    val mediaType: String,
-    val name: String,
-    val year: Int?,
-    val sdId: String,
-    val slug: String,
-  )
 
   private data class ResolvedDownload(
     val url: String,
@@ -1065,78 +855,8 @@ class MpvRxSubtitleHubRepository(
     const val MY_SUBS_BASE_URL = "https://my-subs.co/"
     const val TVSUBTITLES_BASE_URL = "https://www.tvsubtitles.net/"
     const val SUBTITLECAT_SEARCH_RESULT_LIMIT = 5
-    const val SUBDL_SEARCH_RESULT_LIMIT = 4
     const val GENERIC_SEARCH_RESULT_LIMIT = 4
     const val GENERIC_SUBTITLE_RESULT_LIMIT = 12
-
-    val SUPPORTED_SUBDL_SEARCH_LANGUAGES =
-      setOf(
-        "ar",
-        "pt",
-        "da",
-        "nl",
-        "en",
-        "fa",
-        "ps",
-        "fi",
-        "fr",
-        "id",
-        "it",
-        "no",
-        "ro",
-        "es",
-        "sv",
-        "vi",
-        "sq",
-        "az",
-        "azb",
-        "be",
-        "bn",
-        "zh-tw",
-        "bs",
-        "bg",
-        "bg-en",
-        "my",
-        "ca",
-        "zh-cn",
-        "hr",
-        "cs",
-        "nl-en",
-        "en-de",
-        "eo",
-        "et",
-        "ka",
-        "de",
-        "el",
-        "kl",
-        "he",
-        "hi",
-        "hu",
-        "hu-en",
-        "is",
-        "ja",
-        "ko",
-        "ku",
-        "lv",
-        "lt",
-        "mk",
-        "ms",
-        "ml",
-        "mni",
-        "pl",
-        "ru",
-        "sr",
-        "si",
-        "sk",
-        "sl",
-        "tl",
-        "ta",
-        "te",
-        "th",
-        "tr",
-        "uk",
-        "ur",
-      )
 
     val LANGUAGE_ALIASES =
       mapOf(

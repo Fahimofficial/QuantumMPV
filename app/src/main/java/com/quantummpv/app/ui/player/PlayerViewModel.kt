@@ -3766,6 +3766,12 @@ class PlayerViewModel : ViewModel(),
       viewModelScope.launch {
         _isSearchingSub.value = true
         val cleanSubHubTitle = MediaInfoParser.parse(query).title.ifBlank { query.trim() }
+        val lookupHints = host.currentPlayerLookupHints()
+        val lookupTitle = lookupHints.canonicalTitle ?: currentMediaTitle
+        val cleanLookupTitle = MediaInfoParser.parse(lookupTitle).title.ifBlank { lookupTitle.trim() }
+        val matchesCurrentLookup =
+          cleanLookupTitle.equals(cleanSubHubTitle, ignoreCase = true) ||
+            (tmdbId != null && tmdbId == lookupHints.tmdbId)
         val wyzieRequest =
           OnlineSubtitleSearchRequest(
             query = query,
@@ -3778,6 +3784,8 @@ class PlayerViewModel : ViewModel(),
         val subtitleHubRequest =
           OnlineSubtitleSearchRequest(
             query = cleanSubHubTitle,
+            tmdbId = tmdbId ?: lookupHints.tmdbId.takeIf { matchesCurrentLookup },
+            imdbId = lookupHints.imdbId.takeIf { matchesCurrentLookup },
             season = season,
             episode = episode,
             year = year,
