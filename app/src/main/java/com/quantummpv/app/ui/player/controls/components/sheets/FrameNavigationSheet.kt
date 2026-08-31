@@ -12,30 +12,37 @@ package com.quantummpv.app.ui.player.controls.components.sheets
 import com.quantummpv.app.ui.player.PlaybackSession
 
 import android.widget.Toast
-import androidx.compose.animation.Crossfade
-import androidx.compose.animation.animateContentSize
+import androidx.activity.compose.BackHandler
+import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.animateFloatAsState
-import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.scaleIn
+import androidx.compose.animation.scaleOut
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.statusBars
 import androidx.compose.foundation.layout.widthIn
-import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.layout.windowInsetsPadding
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
-import androidx.compose.material3.Card
-import androidx.compose.material3.CardColors
-import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Slider
+import androidx.compose.material3.Surface
 import com.quantummpv.app.ui.components.IconSwitch
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -44,6 +51,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -52,26 +60,32 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.scale
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.quantummpv.app.R
 import com.quantummpv.app.preferences.PlayerPreferences
 import com.quantummpv.app.preferences.preference.collectAsState
-import com.quantummpv.app.presentation.components.PlayerSheet
 import com.quantummpv.app.ui.icons.Icon
 import com.quantummpv.app.ui.icons.Icons
 import com.quantummpv.app.ui.player.screenshot.ScreenshotSaver
 import com.quantummpv.app.ui.player.screenshot.ScreenshotSettings
 import com.quantummpv.app.ui.theme.spacing
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.withTimeoutOrNull
 import org.koin.compose.koinInject
 import java.util.Locale
+import kotlin.math.roundToLong
 
 @Composable
 fun FrameNavigationSheet(
@@ -89,6 +103,8 @@ fun FrameNavigationSheet(
   val coroutineScope = rememberCoroutineScope()
   var isSnapshotLoading by remember { mutableStateOf(false) }
   var isFrameStepping by remember { mutableStateOf(false) }
+  var pendingFrameSteps by remember { mutableIntStateOf(0) }
+  var frameStepJob by remember { mutableStateOf<Job?>(null) }
   val playerPreferences: PlayerPreferences = koinInject()
   val includeSubtitlesPrefState by playerPreferences.includeSubtitlesInSnapshot.collectAsState()
   var includeSubtitlesInSnapshot by remember { mutableStateOf(includeSubtitlesPrefState) }
@@ -103,10 +119,11 @@ fun FrameNavigationSheet(
 
   // Use the same logic as PlayerControls for pause state
   val paused by PlaybackSession.propBoolean["pause"].collectAsState()
-  val isPaused = paused ?: false
+  val isPaused = paused ?: PlaybackSession.state.value.paused
 
   // Remember the initial pause state when the sheet opens
   val wasPausedInitially = remember { isPaused }
+  val currentIsPaused by rememberUpdatedState(isPaused)
 
   // Use the same logic as PlayerControls for position and duration
   val position by PlaybackSession.propInt["time-pos"].collectAsState()
@@ -116,11 +133,20 @@ fun FrameNavigationSheet(
 
   // Format timestamp based on current position
   val timestamp =
-    remember(pos) {
-      val hours = pos / 3600
-      val minutes = (pos % 3600) / 60
-      val seconds = pos % 60
-      String.format(Locale.US, "%02d:%02d:%02d", hours, minutes, seconds)
+    remember(pos, dur, currentFrame, totalFrames) {
+      val precisePositionSeconds =
+        if (dur > 0 && totalFrames > 0) {
+          currentFrame.toDouble() * dur / totalFrames
+        } else {
+          pos.toDouble()
+        }
+      val totalMilliseconds = (precisePositionSeconds * 1_000).roundToLong().coerceAtLeast(0L)
+      val totalSeconds = totalMilliseconds / 1_000
+      val hours = totalSeconds / 3_600
+      val minutes = (totalSeconds % 3_600) / 60
+      val seconds = totalSeconds % 60
+      val milliseconds = totalMilliseconds % 1_000
+      String.format(Locale.US, "%02d:%02d:%02d.%03d", hours, minutes, seconds, milliseconds)
     }
 
   // Pause playback when the sheet opens
@@ -128,319 +154,399 @@ fun FrameNavigationSheet(
     currentOnPause()
   }
 
-  LaunchedEffect(pos, currentFrame, totalFrames) {
+  LaunchedEffect(pos) {
     currentOnUpdateFrameInfo()
   }
 
   // Only resume playback when closing if it wasn't paused initially
   DisposableEffect(Unit) {
     onDispose {
+      frameStepJob?.cancel()
       if (!wasPausedInitially) {
         currentOnUnpause()
       }
     }
   }
 
-  PlayerSheet(onDismissRequest = onDismissRequest) {
-    FrameNavigationCard(
-      onPreviousFrame = {
-        if (!isFrameStepping) {
-          coroutineScope.launch {
-            // Pause if not already paused
-            if (!isPaused) {
-              currentOnPause()
-              delay(50)
+  fun enqueueFrameSteps(stepCount: Int) {
+    if (stepCount == 0) return
+    pendingFrameSteps += stepCount
+    if (frameStepJob?.isActive == true) return
+
+    frameStepJob =
+      coroutineScope.launch {
+        isFrameStepping = true
+        try {
+          if (!currentIsPaused) {
+            currentOnPause()
+            withTimeoutOrNull(FRAME_PAUSE_TIMEOUT_MS) {
+              while (PlaybackSession.getPropertyBoolean("pause") != true) {
+                delay(FRAME_PAUSE_POLL_INTERVAL_MS)
+              }
             }
-            PlaybackSession.command("no-osd", "frame-back-step")
-            delay(100)
+          }
+          while (pendingFrameSteps != 0) {
+            val direction = if (pendingFrameSteps > 0) 1 else -1
+            pendingFrameSteps -= direction
+            PlaybackSession.command(
+              "no-osd",
+              if (direction > 0) "frame-step" else "frame-back-step",
+            )
+            delay(FRAME_STEP_INTERVAL_MS)
             currentOnUpdateFrameInfo()
           }
+        } finally {
+          pendingFrameSteps = 0
+          isFrameStepping = false
         }
-      },
-      onNextFrame = {
-        if (!isFrameStepping) {
-          coroutineScope.launch {
-            // Pause if not already paused
-            if (!isPaused) {
-              currentOnPause()
-              delay(50)
-            }
-            PlaybackSession.command("no-osd", "frame-step")
-            delay(100)
-            currentOnUpdateFrameInfo()
-          }
-        }
-      },
-      onPlayPause = {
-        coroutineScope.launch {
-          onPauseUnpause()
-        }
-      },
-      isPaused = isPaused,
-      onSnapshot = {
-        coroutineScope.launch {
-          isSnapshotLoading = true
-          try {
-            val result =
-              withContext(Dispatchers.IO) {
-                ScreenshotSaver.save(
-                  context = context,
-                  settings = ScreenshotSettings.fromPreferences(playerPreferences),
-                  includeSubtitles = includeSubtitlesInSnapshot,
-                )
-              }
-            result
-              .onSuccess {
-                Toast
-                  .makeText(
-                    context,
-                    context.getString(R.string.player_sheets_frame_navigation_snapshot_saved),
-                    Toast.LENGTH_SHORT,
-                  ).show()
-              }.onFailure { error ->
-                Toast
-                  .makeText(
-                    context,
-                    context.getString(
-                      R.string.toast_failed_to_save_snapshot,
-                      error.message ?: context.getString(R.string.generic_unknown_error),
-                    ),
-                    Toast.LENGTH_LONG,
-                  ).show()
-              }
-          } finally {
-            isSnapshotLoading = false
-          }
-        }
-      },
-      isSnapshotLoading = isSnapshotLoading,
-      isFrameStepping = isFrameStepping,
-      currentFrame = currentFrame,
-      totalFrames = totalFrames,
-      timestamp = timestamp,
-      duration = dur.toFloat(),
-      pos = pos.toFloat(),
-      onSeekTo = onSeekTo,
-      title = {
-        Column {
-          FrameNavigationCardTitle(onClose = onDismissRequest)
-          IncludeSubsToggle(
-            includeSubs = includeSubtitlesInSnapshot,
-            setIncludeSubs = { checked ->
-              includeSubtitlesInSnapshot = checked
-              coroutineScope.launch {
-                playerPreferences.includeSubtitlesInSnapshot.set(checked)
-              }
-            },
-          )
-        }
-      },
-      modifier = modifier,
-    )
+      }
   }
+
+  FrameReviewOverlay(
+    currentFrame = currentFrame,
+    totalFrames = totalFrames,
+    timestamp = timestamp,
+    duration = dur.toFloat(),
+    position = pos.toFloat(),
+    isPaused = isPaused,
+    isSnapshotLoading = isSnapshotLoading,
+    isFrameStepping = isFrameStepping,
+    includeSubtitles = includeSubtitlesInSnapshot,
+    onFrameSteps = ::enqueueFrameSteps,
+    onPlayPause = {
+      frameStepJob?.cancel()
+      pendingFrameSteps = 0
+      isFrameStepping = false
+      onPauseUnpause()
+    },
+    onSnapshot = {
+      coroutineScope.launch {
+        isSnapshotLoading = true
+        try {
+          val result =
+            withContext(Dispatchers.IO) {
+              ScreenshotSaver.save(
+                context = context,
+                settings = ScreenshotSettings.fromPreferences(playerPreferences),
+                includeSubtitles = includeSubtitlesInSnapshot,
+              )
+            }
+          result
+            .onSuccess {
+              Toast
+                .makeText(
+                  context,
+                  context.getString(R.string.player_sheets_frame_navigation_snapshot_saved),
+                  Toast.LENGTH_SHORT,
+                ).show()
+            }.onFailure { error ->
+              Toast
+                .makeText(
+                  context,
+                  context.getString(
+                    R.string.toast_failed_to_save_snapshot,
+                    error.message ?: context.getString(R.string.generic_unknown_error),
+                  ),
+                  Toast.LENGTH_LONG,
+                ).show()
+            }
+        } finally {
+          isSnapshotLoading = false
+        }
+      }
+    },
+    onSeekTo = { seekPosition, finished ->
+      frameStepJob?.cancel()
+      pendingFrameSteps = 0
+      isFrameStepping = false
+      onSeekTo(seekPosition, finished)
+    },
+    onIncludeSubtitlesChanged = { checked ->
+      includeSubtitlesInSnapshot = checked
+      coroutineScope.launch {
+        playerPreferences.includeSubtitlesInSnapshot.set(checked)
+      }
+    },
+    onDismissRequest = onDismissRequest,
+    modifier = modifier,
+  )
 }
 
 @Composable
-private fun FrameNavigationCard(
-  onPreviousFrame: () -> Unit,
-  onNextFrame: () -> Unit,
-  onPlayPause: () -> Unit,
-  isPaused: Boolean,
-  onSnapshot: () -> Unit,
-  isSnapshotLoading: Boolean,
-  isFrameStepping: Boolean,
+private fun FrameReviewOverlay(
   currentFrame: Int,
   totalFrames: Int,
   timestamp: String,
   duration: Float,
-  pos: Float,
+  position: Float,
+  isPaused: Boolean,
+  isSnapshotLoading: Boolean,
+  isFrameStepping: Boolean,
+  includeSubtitles: Boolean,
+  onFrameSteps: (Int) -> Unit,
+  onPlayPause: () -> Unit,
+  onSnapshot: () -> Unit,
   onSeekTo: (Int, Boolean) -> Unit,
-  title: @Composable () -> Unit,
+  onIncludeSubtitlesChanged: (Boolean) -> Unit,
+  onDismissRequest: () -> Unit,
   modifier: Modifier = Modifier,
 ) {
-  val panelCardsColors: @Composable () -> CardColors = {
-    val colors = CardDefaults.cardColors()
-    colors.copy(
-      containerColor = MaterialTheme.colorScheme.background.copy(alpha = 0.6f),
-      disabledContainerColor = MaterialTheme.colorScheme.background.copy(alpha = 0.6f),
-    )
-  }
-
   val configuration = LocalConfiguration.current
   val isLandscape = configuration.screenWidthDp > configuration.screenHeightDp
-
-  // Seekbar state management
+  val density = LocalDensity.current
+  val haptic = LocalHapticFeedback.current
+  val pixelsPerFrame = with(density) { FrameSwipeDistancePerFrame.toPx() }
+  var accumulatedDrag by remember { mutableFloatStateOf(0f) }
+  var requestedFrameDelta by remember { mutableIntStateOf(0) }
+  var isScrubbing by remember { mutableStateOf(false) }
   var userSliderPosition by remember { mutableFloatStateOf(0f) }
   var isSeeking by remember { mutableStateOf(false) }
-  val videoProgress = if (duration > 0) pos / duration else 0f
-
-  val seekbarProgress =
-    if (isSeeking) {
-      userSliderPosition
-    } else {
-      videoProgress
-    }
+  val videoProgress = if (duration > 0f) position / duration else 0f
+  val seekbarProgress = if (isSeeking) userSliderPosition else videoProgress
   val animatedProgress by animateFloatAsState(
-    targetValue = seekbarProgress,
-    label = "seekbar",
+    targetValue = seekbarProgress.coerceIn(0f, 1f),
+    label = "FrameReviewSeekbar",
   )
+  BackHandler(onBack = onDismissRequest)
 
-  Card(
-    modifier =
-      modifier
-        .widthIn(max = 520.dp)
-        .animateContentSize(),
-    colors = panelCardsColors(),
+  Box(
+    modifier = modifier.fillMaxSize(),
   ) {
-    Column(
-      Modifier
-        .verticalScroll(rememberScrollState())
-        .padding(
-          horizontal = MaterialTheme.spacing.medium,
-          vertical = MaterialTheme.spacing.smaller,
-        ),
-      verticalArrangement = Arrangement.spacedBy(MaterialTheme.spacing.smaller),
-    ) {
-      title()
+    Box(
+      modifier =
+        Modifier
+          .fillMaxSize()
+          .padding(bottom = if (isLandscape) 180.dp else 220.dp)
+          .pointerInput(pixelsPerFrame) {
+            detectHorizontalDragGestures(
+              onDragStart = {
+                accumulatedDrag = 0f
+                requestedFrameDelta = 0
+                isScrubbing = true
+              },
+              onDragCancel = {
+                accumulatedDrag = 0f
+                isScrubbing = false
+              },
+              onDragEnd = {
+                accumulatedDrag = 0f
+                isScrubbing = false
+              },
+              onHorizontalDrag = { change, dragAmount ->
+                change.consume()
+                accumulatedDrag += dragAmount
+                val steps = (accumulatedDrag / pixelsPerFrame).toInt()
+                if (steps != 0) {
+                  accumulatedDrag -= steps * pixelsPerFrame
+                  requestedFrameDelta += steps
+                  haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                  onFrameSteps(steps)
+                }
+              },
+            )
+          },
+    )
 
-      // Video seeking slider
+    Row(
+      modifier =
+        Modifier
+          .align(Alignment.TopCenter)
+          .fillMaxWidth()
+          .windowInsetsPadding(WindowInsets.statusBars)
+          .padding(horizontal = 16.dp, vertical = 10.dp),
+      verticalAlignment = Alignment.CenterVertically,
+    ) {
+      Surface(
+        shape = CircleShape,
+        color = MaterialTheme.colorScheme.surfaceContainerHigh.copy(alpha = 0.92f),
+        contentColor = MaterialTheme.colorScheme.onSurface,
+      ) {
+        Text(
+          text = stringResource(R.string.player_sheets_frame_navigation_title),
+          style = MaterialTheme.typography.labelLarge,
+          modifier = Modifier.padding(horizontal = 14.dp, vertical = 9.dp),
+        )
+      }
+      Spacer(Modifier.weight(1f))
+      Surface(
+        modifier =
+          Modifier
+            .size(48.dp)
+            .clickable(onClick = onDismissRequest),
+        shape = CircleShape,
+        color = MaterialTheme.colorScheme.surfaceContainerHigh.copy(alpha = 0.92f),
+        contentColor = MaterialTheme.colorScheme.onSurface,
+      ) {
+        Box(contentAlignment = Alignment.Center) {
+          Icon(
+            Icons.RoundedFilled.Close,
+            stringResource(R.string.generic_cancel),
+            modifier = Modifier.size(24.dp),
+          )
+        }
+      }
+    }
+
+    AnimatedVisibility(
+      visible = isScrubbing || (isFrameStepping && requestedFrameDelta != 0),
+      modifier = Modifier.align(Alignment.Center),
+      enter = fadeIn() + scaleIn(initialScale = 0.9f),
+      exit = fadeOut() + scaleOut(targetScale = 0.9f),
+    ) {
+      Surface(
+        shape = MaterialTheme.shapes.extraLarge,
+        color = MaterialTheme.colorScheme.inverseSurface.copy(alpha = 0.9f),
+        contentColor = MaterialTheme.colorScheme.inverseOnSurface,
+        tonalElevation = 6.dp,
+      ) {
+        Column(
+          modifier = Modifier.padding(horizontal = 24.dp, vertical = 14.dp),
+          horizontalAlignment = Alignment.CenterHorizontally,
+          verticalArrangement = Arrangement.spacedBy(2.dp),
+        ) {
+          Text(
+            text = String.format(Locale.US, "%+d", requestedFrameDelta),
+            style = MaterialTheme.typography.headlineSmall,
+            fontWeight = FontWeight.Bold,
+          )
+          Text(
+            text =
+              if (totalFrames > 0) {
+                "${stringResource(R.string.ui_frame)} $currentFrame / $totalFrames"
+              } else {
+                "${stringResource(R.string.ui_frame)} $currentFrame"
+              },
+            style = MaterialTheme.typography.bodyMedium,
+          )
+          Text(
+            text = timestamp,
+            style = MaterialTheme.typography.labelMedium,
+          )
+        }
+      }
+    }
+
+    Surface(
+      modifier =
+        Modifier
+          .align(Alignment.BottomCenter)
+          .fillMaxWidth()
+          .pointerInput(Unit) {
+            awaitPointerEventScope {
+              while (true) awaitPointerEvent()
+            }
+          }.windowInsetsPadding(WindowInsets.navigationBars),
+      color = MaterialTheme.colorScheme.surfaceContainerHigh.copy(alpha = 0.96f),
+      contentColor = MaterialTheme.colorScheme.onSurface,
+      tonalElevation = 6.dp,
+      shadowElevation = 8.dp,
+    ) {
       Column(
-        horizontalAlignment = Alignment.CenterHorizontally,
-        modifier = Modifier.fillMaxWidth(),
+        modifier =
+          Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 16.dp, vertical = 10.dp),
+        verticalArrangement = Arrangement.spacedBy(6.dp),
       ) {
         Slider(
-          value = animatedProgress.coerceIn(0f, 1f),
+          value = animatedProgress,
           onValueChange = { newValue ->
             if (!isSeeking) isSeeking = true
             userSliderPosition = newValue.coerceIn(0f, 1f)
-            // Optional live-seek for responsiveness
-            val newPosition = (userSliderPosition * duration).toInt()
-            onSeekTo(newPosition, false)
+            onSeekTo((userSliderPosition * duration).toInt(), false)
           },
           onValueChangeFinished = {
-            // Commit final seek and return control to player updates
-            val finalPosition = (userSliderPosition * duration).toInt()
-            onSeekTo(finalPosition, true)
+            onSeekTo((userSliderPosition * duration).toInt(), true)
             isSeeking = false
           },
+          enabled = duration > 0f && !isSnapshotLoading && !isFrameStepping,
           modifier = Modifier.fillMaxWidth(),
         )
-      }
 
-      // Define button colors to make disabled buttons look the same as enabled
-      val buttonColors =
-        ButtonDefaults.buttonColors(
-          containerColor = MaterialTheme.colorScheme.primary,
-          contentColor = MaterialTheme.colorScheme.onPrimary,
-          disabledContainerColor = MaterialTheme.colorScheme.primary,
-          disabledContentColor = MaterialTheme.colorScheme.onPrimary,
-        )
-
-      // Frame info, timestamp and navigation buttons
-      if (isLandscape) {
-        FrameNavigationLandscape(
-          currentFrame = currentFrame,
-          totalFrames = totalFrames,
-          timestamp = timestamp,
-          onPreviousFrame = onPreviousFrame,
-          onPlayPause = onPlayPause,
-          isPaused = isPaused,
-          onNextFrame = onNextFrame,
-          onSnapshot = onSnapshot,
-          isSnapshotLoading = isSnapshotLoading,
-          isFrameStepping = isFrameStepping,
-          buttonColors = buttonColors,
-        )
-      } else {
-        FrameNavigationPortrait(
-          currentFrame = currentFrame,
-          totalFrames = totalFrames,
-          timestamp = timestamp,
-          onPreviousFrame = onPreviousFrame,
-          onPlayPause = onPlayPause,
-          isPaused = isPaused,
-          onNextFrame = onNextFrame,
-          onSnapshot = onSnapshot,
-          isSnapshotLoading = isSnapshotLoading,
-          isFrameStepping = isFrameStepping,
-          buttonColors = buttonColors,
-        )
+        if (isLandscape) {
+          Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(16.dp),
+          ) {
+            FrameInfoDisplay(
+              currentFrame = currentFrame,
+              totalFrames = totalFrames,
+              timestamp = timestamp,
+            )
+            Spacer(Modifier.weight(1f))
+            ControlButtons(
+              onPreviousFrame = {
+                requestedFrameDelta = 0
+                onFrameSteps(-1)
+              },
+              onPlayPause = onPlayPause,
+              isPaused = isPaused,
+              onNextFrame = {
+                requestedFrameDelta = 0
+                onFrameSteps(1)
+              },
+              onSnapshot = onSnapshot,
+              isSnapshotLoading = isSnapshotLoading,
+              isFrameStepping = isFrameStepping,
+              buttonColors = frameReviewButtonColors(),
+            )
+          }
+          IncludeSubsToggle(
+            includeSubs = includeSubtitles,
+            setIncludeSubs = onIncludeSubtitlesChanged,
+            modifier = Modifier.widthIn(max = 220.dp),
+          )
+        } else {
+          FrameInfoDisplay(
+            currentFrame = currentFrame,
+            totalFrames = totalFrames,
+            timestamp = timestamp,
+          )
+          IncludeSubsToggle(
+            includeSubs = includeSubtitles,
+            setIncludeSubs = onIncludeSubtitlesChanged,
+          )
+          Box(
+            modifier = Modifier.fillMaxWidth(),
+            contentAlignment = Alignment.Center,
+          ) {
+            ControlButtons(
+              onPreviousFrame = {
+                requestedFrameDelta = 0
+                onFrameSteps(-1)
+              },
+              onPlayPause = onPlayPause,
+              isPaused = isPaused,
+              onNextFrame = {
+                requestedFrameDelta = 0
+                onFrameSteps(1)
+              },
+              onSnapshot = onSnapshot,
+              isSnapshotLoading = isSnapshotLoading,
+              isFrameStepping = isFrameStepping,
+              buttonColors = frameReviewButtonColors(),
+            )
+          }
+        }
       }
     }
   }
 }
 
 @Composable
-private fun FrameNavigationLandscape(
-  currentFrame: Int,
-  totalFrames: Int,
-  timestamp: String,
-  onPreviousFrame: () -> Unit,
-  onPlayPause: () -> Unit,
-  isPaused: Boolean,
-  onNextFrame: () -> Unit,
-  onSnapshot: () -> Unit,
-  isSnapshotLoading: Boolean,
-  isFrameStepping: Boolean,
-  buttonColors: androidx.compose.material3.ButtonColors,
-) {
-  Row(
-    modifier = Modifier.fillMaxWidth(),
-    horizontalArrangement = Arrangement.SpaceBetween,
-    verticalAlignment = Alignment.CenterVertically,
-  ) {
-    // Left side: Frame and timestamp info
-    FrameInfoDisplay(currentFrame, totalFrames, timestamp)
+private fun frameReviewButtonColors() =
+  ButtonDefaults.buttonColors(
+    containerColor = MaterialTheme.colorScheme.primary,
+    contentColor = MaterialTheme.colorScheme.onPrimary,
+    disabledContainerColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.38f),
+    disabledContentColor = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.6f),
+  )
 
-    // Right side: Control buttons
-    ControlButtons(
-      onPreviousFrame = onPreviousFrame,
-      onPlayPause = onPlayPause,
-      isPaused = isPaused,
-      onNextFrame = onNextFrame,
-      onSnapshot = onSnapshot,
-      isSnapshotLoading = isSnapshotLoading,
-      isFrameStepping = isFrameStepping,
-      buttonColors = buttonColors,
-    )
-  }
-}
-
-@Composable
-private fun FrameNavigationPortrait(
-  currentFrame: Int,
-  totalFrames: Int,
-  timestamp: String,
-  onPreviousFrame: () -> Unit,
-  onPlayPause: () -> Unit,
-  isPaused: Boolean,
-  onNextFrame: () -> Unit,
-  onSnapshot: () -> Unit,
-  isSnapshotLoading: Boolean,
-  isFrameStepping: Boolean,
-  buttonColors: androidx.compose.material3.ButtonColors,
-) {
-  Column(
-    modifier = Modifier.fillMaxWidth(),
-    horizontalAlignment = Alignment.CenterHorizontally,
-    verticalArrangement = Arrangement.spacedBy(MaterialTheme.spacing.extraSmall),
-  ) {
-    // Frame and timestamp info
-    FrameInfoDisplay(currentFrame, totalFrames, timestamp)
-
-    // Control buttons
-    ControlButtons(
-      onPreviousFrame = onPreviousFrame,
-      onPlayPause = onPlayPause,
-      isPaused = isPaused,
-      onNextFrame = onNextFrame,
-      onSnapshot = onSnapshot,
-      isSnapshotLoading = isSnapshotLoading,
-      isFrameStepping = isFrameStepping,
-      buttonColors = buttonColors,
-    )
-  }
-}
+private val FrameSwipeDistancePerFrame = 20.dp
+private const val FRAME_STEP_INTERVAL_MS = 24L
+private const val FRAME_PAUSE_TIMEOUT_MS = 250L
+private const val FRAME_PAUSE_POLL_INTERVAL_MS = 10L
 
 @Composable
 private fun FrameInfoDisplay(
@@ -517,7 +623,7 @@ private fun ControlButtons(
     ) {
       Icon(
         Icons.RoundedFilled.FastRewind,
-        contentDescription = null,
+        contentDescription = stringResource(R.string.ui_previous_frame),
         modifier = Modifier.size(32.dp),
       )
     }
@@ -531,7 +637,7 @@ private fun ControlButtons(
     ) {
       Icon(
         if (isPaused) Icons.RoundedFilled.PlayArrow else Icons.RoundedFilled.Pause,
-        contentDescription = null,
+        contentDescription = stringResource(R.string.pref_gesture_double_tap_play),
         modifier = Modifier.size(32.dp),
       )
     }
@@ -545,7 +651,7 @@ private fun ControlButtons(
     ) {
       Icon(
         Icons.RoundedFilled.FastForward,
-        contentDescription = null,
+        contentDescription = stringResource(R.string.ui_next_frame),
         modifier = Modifier.size(32.dp),
       )
     }
@@ -566,34 +672,10 @@ private fun ControlButtons(
       } else {
         Icon(
           Icons.RoundedFilled.Aperture,
-          contentDescription = null,
+          contentDescription = stringResource(R.string.ui_take_screenshot),
           modifier = Modifier.size(32.dp),
         )
       }
-    }
-  }
-}
-
-@Composable
-private fun FrameNavigationCardTitle(
-  onClose: () -> Unit,
-  modifier: Modifier = Modifier,
-) {
-  Row(
-    modifier = modifier.fillMaxWidth(),
-    horizontalArrangement = Arrangement.SpaceBetween,
-    verticalAlignment = Alignment.CenterVertically,
-  ) {
-    Text(
-      stringResource(R.string.player_sheets_frame_navigation_title),
-      style = MaterialTheme.typography.headlineMedium,
-    )
-    IconButton(onClose) {
-      Icon(
-        Icons.RoundedFilled.Close,
-        null,
-        modifier = Modifier.size(32.dp),
-      )
     }
   }
 }

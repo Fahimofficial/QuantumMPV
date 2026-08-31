@@ -473,6 +473,10 @@ fun PlayerSheets(
     }
 
     Sheets.FrameNavigation -> {
+      LaunchedEffect(Unit) {
+        viewModel.hideControls()
+        viewModel.panelShown.value = Panels.None
+      }
       val currentFrame by viewModel.currentFrame.composeCollectAsState()
       val totalFrames by viewModel.totalFrames.composeCollectAsState()
       FrameNavigationSheet(
