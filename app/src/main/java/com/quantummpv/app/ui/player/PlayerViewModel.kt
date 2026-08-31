@@ -1754,6 +1754,28 @@ class PlayerViewModel : ViewModel(),
       }
     }
 
+    viewModelScope.launch {
+      val activeGeneration =
+        PlaybackSession.state
+          .map { state ->
+            state.generation.takeIf {
+              state.phase == PlaybackPhase.READY || state.phase == PlaybackPhase.BACKGROUND
+            }
+          }.distinctUntilChanged()
+
+      combine(
+        PlaybackSession.propString["video-crop"],
+        activeGeneration,
+        _isMpvCoreReady,
+      ) { crop, generation, coreReady -> Triple(crop, generation, coreReady) }
+        .distinctUntilChanged()
+        .collect { (_, generation, coreReady) ->
+          if (!coreReady || generation == null) return@collect
+          refreshStretchAspectAfterCropChange()
+          restartAmbientIfActive()
+        }
+    }
+
     viewModelScope.launch(playbackStateDispatcher) {
       chapters
         .collect { chapterList ->
@@ -4418,7 +4440,6 @@ class PlayerViewModel : ViewModel(),
     if (!enabled) {
       clearAutoCropProperty()
       _autoCropState.value = AutoCropState.IDLE
-      restartAmbientIfActive()
       return
     }
     if (MpvConfigOverridePolicy.ownsAny(MpvConfigControlledFeatures.AUTO_CROP)) {
@@ -4531,11 +4552,9 @@ class PlayerViewModel : ViewModel(),
 
           autoCropResultCache.put(cacheKey, sourceEdges)
           PlaybackSession.setPropertyString("video-crop", cropValue)
-          refreshStretchAspectAfterCropChange()
           Log.i(TAG, "Auto-crop applied generation=$generation crop=$cropValue edges=$sourceEdges")
           autoCropApplied = true
           _autoCropState.value = AutoCropState.APPLIED
-          restartAmbientIfActive()
         }
       }
   }
@@ -4664,7 +4683,6 @@ class PlayerViewModel : ViewModel(),
   private fun clearAutoCropProperty() {
     PlaybackSession.setPropertyString("video-crop", "")
     autoCropApplied = false
-    refreshStretchAspectAfterCropChange()
   }
 
   private fun refreshStretchAspectAfterCropChange() {
