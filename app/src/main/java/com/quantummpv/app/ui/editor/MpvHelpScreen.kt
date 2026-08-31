@@ -28,7 +28,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -301,11 +301,13 @@ data class MpvHelpScreen(
                   CategoryHeader(category.name)
                 }
               }
-              items(
+              itemsIndexed(
                 items = entries,
-                key = { "${it.kind}:${it.name}" },
-                contentType = { "help_entry_card" },
-              ) { entry ->
+                key = { index, entry ->
+                  "entry:${category?.name.orEmpty()}:$index:${entry.kind}:${entry.name}"
+                },
+                contentType = { _, _ -> "help_entry_card" },
+              ) { _, entry ->
                 HelpEntryCard(
                   entry = entry,
                   onClick = { copyToClipboard(entry) },
