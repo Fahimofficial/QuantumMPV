@@ -2,6 +2,63 @@
 
 These notes are written in plain English and focus on what changed for real use.
 
+## 2.5.0 - Frame Review, Auto Crop & Library Performance
+
+### 🎬 Frame Review, Seeking & Playback
+- **Frame-Level Review**: Added a full-player Frame Review mode with horizontal frame swipes, previous/next-frame controls, precise frame and millisecond readouts, snapshots with optional subtitles, and a transparent responsive layout.
+- **Frame-Addressed Timeline**: The Frame Review slider now selects integer video frames. Dragging uses throttled keyframe previews, while release performs an exact mpv seek with bounded refinement and adjacent-frame correction for precision without sustained decoder load.
+- **Reliable Forward and Backward Seeking**: Backward seeks use exact targets to keep audio and video aligned. Forward seeks stop safely before EOF and a subsequent forward action can finish playback instead of becoming unresponsive near the end.
+- **Safer Surface Recovery**: MediaCodec video is suspended before an Android playback surface is destroyed and restored only for the matching playback generation, reducing black frames and decoder failures after surface recreation.
+- **Unified Seek Preview**: Removed the separate ThumbFast overlay engine, frame-decode cache, preference, and UI. Scrubbing now uses one throttled live-video preview path, reducing duplicate decoder work and stale preview races.
+- **Smoother Startup and Controls**: Reduced startup control flicker, replaced overshooting control springs with predictable timed transitions, and improved seek coalescing so rapid gestures settle on the latest requested position.
+- **Correct Orientation from the First Frame**: Local videos pass their known dimensions into the player so portrait and landscape orientation can be selected before playback appears instead of rotating after startup.
+- **Correct Audio State Across Transitions**: Playback teardown no longer carries a temporary seek mute into the next file, and terminal playback state is persisted immediately when a file reaches EOF.
+- **Persistent Video Geometry**: Video zoom survives file loads, while crop, pan, zoom, stretch, and ambient rendering now share one consistent geometry path.
+- **Immediate Runtime Changes**: Clearing playback history updates repository-backed state immediately, and edited enabled Lua scripts reload with the next player core.
+
+### ✂️ Automatic Crop & Video Output
+- **Automatic Black-Bar Cropping**: Added an Auto Crop aspect mode that samples multiple frames, detects persistent black borders conservatively, and caches results for repeat playback.
+- **Variable-Aspect Safety**: Auto Crop now handles changing aspect ratios, source rotation, and short or dark scenes without retaining stale crop measurements.
+- **Stretch and Ambient Compatibility**: Cropping works correctly in stretch layouts and updates the ambient background from the same final video geometry.
+- **Translated Auto Crop Experience**: Auto Crop status, actions, results, and error messages are available across every supported app language.
+- **Cleaner HDR Configuration**: Removed redundant tone-mapping and gamut-mapping overrides so HDR output follows the selected pipeline without conflicting transformations.
+
+### 🎛️ Player Controls, PiP & Navigation
+- **Right-Edge Action Panel**: Added a bare right-edge pull handle that opens the complete player action set in the app's movable `DraggablePanel`.
+- **Consistent Action Tiles**: Player actions use a responsive three-column tile layout with normalized icon sizes, no nested circular backgrounds, dynamic colors, and full-tile indicators for active settings such as Background Playback, HDR, Ambient, Repeat, Shuffle, transforms, speed, and zoom.
+- **Swipe Speed Lock**: Added a hold-speed swipe gesture with locking, haptic feedback, and reliable restoration to 1x when the lock is released.
+- **Configurable Audio Seeking**: Music-player rewind and forward controls now use the configured double-tap seek duration.
+- **Reliable PiP Handoffs**: Expanding PiP restores the full player without interrupting playback, Back opens the mini player where appropriate, and the PiP close action stops playback cleanly.
+- **Supported-Link Routing**: Expanded Open by default coverage for supported YouTube domains.
+
+### 🌐 Network, Storage & Subtitles
+- **Network Folder Bookmarks**: Save, open, and manage frequently used folders from saved SMB, FTP, and WebDAV connections without duplicating credentials.
+- **Hardened WebDAV Playback**: Long-running streams are no longer cut off by a whole-call timeout, reserved filename characters are encoded exactly once, duplicate server entries are removed, and reverse-proxy hrefs resolve safely.
+- **Network Subtitle Refresh**: External subtitles are discovered and refreshed correctly for WebDAV and other network media. Next/previous queue navigation now follows the current network item instead of reusing the first item's cached path.
+- **Configurable Hidden Folders**: Added controls for including dot-prefixed and `.nomedia` folders that Android MediaStore normally omits.
+- **Incremental Hidden Scanning**: Hidden-folder discovery now reuses indexed scan state and refreshes changed roots instead of repeatedly traversing the full storage tree.
+- **Android 10 File Operations**: Restored rename, move, delete, and storage permission behavior on Android 10 while retaining scoped-storage handling on newer Android versions.
+- **Cleaner Subtitle Colors**: Removed the duplicated subtitle background-color control so one setting owns the rendered value.
+
+### 🎵 Music, Notifications, Lyrics & Playlists
+- **Colloquial Hinglish Romanization**: Added a casual Latin-script lyrics option for Indic languages, including per-line mixed-script detection, Hindi schwa deletion, long-vowel handling, nasalization fixes, and cleaner Punjabi apostrophes.
+- **No Stale Lyrics After Track Changes**: In-flight lyrics loading, source switching, and translation are cancelled and identity-checked so a slow previous track cannot overwrite the current song.
+- **Reliable Notification Favorites**: Music notification favorites use the same stable identity as the app, update immediately, and stay synchronized with playlist changes.
+- **Isolated Notification Controls**: Media notification actions now target the active playback session, include a close action, and avoid duplicate or cross-session commands.
+- **Save Queue as Playlist**: The current player queue can be saved directly as a named playlist.
+- **Faster Playlist Artwork**: Playlist rows reuse cached video thumbnails instead of regenerating artwork while browsing.
+- **Relevant Queue Actions Only**: Play Next and Add to Queue remain available for audio selections without appearing in video selection menus where those actions are not supported.
+
+### 📦 Installation
+- **Obtainium Access**: Added a direct Obtainium badge and corrected setup link in the project README for easier installation and update tracking.
+
+### ⚡ Library, Documentation & Stability
+- **Smooth Large Libraries**: Lists containing hundreds of videos suspend thumbnail decoding, disk reads, and cache-key work during flings, then resume a bounded viewport batch after scrolling settles.
+- **Incremental Playback Progress**: Five-second playback persistence updates only the affected library row instead of rebuilding and re-sorting every video, preserving stable lazy-list items and reducing mid-scroll jank.
+- **Lower Per-Card Overhead**: Thumbnail preferences are observed once per screen, repository work runs off the main thread, and large video pickers use stable content types and scroll-aware loading.
+- **Documentation Crash Fixed**: Fixed issue #571, where scrolling through mpv Input Command documentation crashed on the duplicated `COMMAND:playlist-next` lazy-list key. Playlist commands now appear once and all documentation rows have category-qualified unique keys.
+- **More Reliable Player State**: Fixed playback-state updates that could lag behind user actions and improved queue, notification, and playlist synchronization during repeated media changes.
+
 ## 2.4.0 — Playlists, Playback Reliability & Expressive Navigation
 
 ### 🎬 Playback, PiP & Performance
