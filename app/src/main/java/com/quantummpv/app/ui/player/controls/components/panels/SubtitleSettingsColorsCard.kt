@@ -116,7 +116,6 @@ fun SubtitleSettingsColorsCard(
               when (type) {
                 SubColorType.Text -> Icons.RoundedFilled.FormatColorText
                 SubColorType.Border -> Icons.RoundedFilled.BorderColor
-                SubColorType.Background -> Icons.RoundedFilled.FormatColorFill
                 SubColorType.Shadow -> Icons.RoundedFilled.Shadow
               },
               null,
@@ -187,11 +186,6 @@ enum class SubColorType(
     "sub-border-color",
     preference = SubtitlesPreferences::borderColor,
   ),
-  Background(
-    R.string.player_sheets_subtitles_color_background,
-    "sub-back-color",
-    preference = SubtitlesPreferences::backgroundColor,
-  ),
   Shadow(
     R.string.player_sheets_subtitles_color_shadow,
     "sub-shadow-color",
@@ -207,7 +201,6 @@ fun resetColors(
     when (type) {
       SubColorType.Text -> preferences.textColor.deleteAndGet().toColorHexString()
       SubColorType.Border -> preferences.borderColor.deleteAndGet().toColorHexString()
-      SubColorType.Background -> preferences.backgroundColor.deleteAndGet().toColorHexString()
       SubColorType.Shadow -> preferences.shadowColor.deleteAndGet().toColorHexString()
     }
   PlaybackSession.setPropertyString(type.property, hexColor)
