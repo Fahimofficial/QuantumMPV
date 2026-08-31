@@ -423,7 +423,9 @@ fun PlayerSheets(
     Sheets.AspectRatios -> {
       val playerPreferences = koinInject<com.quantummpv.app.preferences.PlayerPreferences>()
       val customRatiosSet by playerPreferences.customAspectRatios.collectAsState()
+      val autoCropEnabled by playerPreferences.autoCropBlackBars.collectAsState()
       val currentRatio by viewModel.currentAspectRatio.composeCollectAsState()
+      val autoCropState by viewModel.autoCropState.composeCollectAsState()
       val customRatios =
         customRatiosSet.mapNotNull { str ->
           val parts = str.split("|")
@@ -441,6 +443,10 @@ fun PlayerSheets(
       AspectRatioSheet(
         currentRatio = currentRatio,
         customRatios = customRatios,
+        autoCropEnabled = autoCropEnabled,
+        autoCropState = autoCropState,
+        autoCropControlEnabled = MpvConfigControlledFeatures.AUTO_CROP.none(configOwnedOptions::contains),
+        onAutoCropChanged = viewModel::setAutoCropBlackBars,
         onSelectRatio = { ratio ->
           if (ratio < 0) {
             // Default selected - apply Fit mode

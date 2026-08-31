@@ -1249,6 +1249,14 @@
   <string name="ui_install_core">कोर इंस्टॉल करें</string>
   <string name="ui_update_core">कोर अपडेट करें</string>
   <string name="ui_aspect_ratio">आस्पेक्ट रेशियो</string>
+  <string name="ui_auto_crop_black_bars">काली पट्टियाँ अपने आप काटें</string>
+  <string name="ui_auto_crop_black_bars_summary">बैकग्राउंड में कई फ़्रेम का नमूना लेकर वीडियो में स्थायी रूप से जुड़ी काली पट्टियाँ काटता है।</string>
+  <string name="ui_auto_crop_black_bars_analyzing">वीडियो फ़्रेम का विश्लेषण हो रहा है…</string>
+  <string name="ui_auto_crop_black_bars_applied">इस वीडियो से काली पट्टियाँ हटा दी गई हैं।</string>
+  <string name="ui_auto_crop_black_bars_none">कोई स्थायी काली पट्टी नहीं मिली।</string>
+  <string name="ui_auto_crop_black_bars_unsupported">इस वीडियो स्रोत का विश्लेषण नहीं किया जा सका।</string>
+  <string name="ui_auto_crop_black_bars_failed">काली पट्टियों का विश्लेषण विफल रहा।</string>
+  <string name="ui_auto_crop_black_bars_managed">video-crop को mpv.conf द्वारा प्रबंधित किया जाता है।</string>
   <string name="ui_presets">प्रीसेट</string>
   <string name="ui_add_custom_ratio_e_g_16_9">कस्टम रेशियो जोड़ें (जैसे 16:9)</string>
   <string name="ui_width">चौड़ाई</string>

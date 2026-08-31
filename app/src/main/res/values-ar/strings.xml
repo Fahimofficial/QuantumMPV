@@ -1313,6 +1313,14 @@
   <string name="ui_install_core">تثبيت النواة</string>
   <string name="ui_update_core">تحديث النواة</string>
   <string name="ui_aspect_ratio">نسبة العرض إلى الارتفاع</string>
+  <string name="ui_auto_crop_black_bars">قص الحواف السوداء تلقائيًا</string>
+  <string name="ui_auto_crop_black_bars_summary">أخذ عينات من عدة إطارات في الخلفية وقص الحواف السوداء الثابتة المضمّنة في الفيديو.</string>
+  <string name="ui_auto_crop_black_bars_analyzing">جارٍ تحليل إطارات الفيديو…</string>
+  <string name="ui_auto_crop_black_bars_applied">تمت إزالة الحواف السوداء من هذا الفيديو.</string>
+  <string name="ui_auto_crop_black_bars_none">لم يتم اكتشاف حواف سوداء ثابتة.</string>
+  <string name="ui_auto_crop_black_bars_unsupported">تعذّر تحليل مصدر الفيديو هذا.</string>
+  <string name="ui_auto_crop_black_bars_failed">فشل تحليل الحواف السوداء.</string>
+  <string name="ui_auto_crop_black_bars_managed">تتم إدارة video-crop بواسطة mpv.conf.</string>
   <string name="ui_presets">الإعدادات المسبقة</string>
   <string name="ui_add_custom_ratio_e_g_16_9">إضافة نسبة مخصّصة (مثل 16:9)</string>
   <string name="ui_width">العرض</string>

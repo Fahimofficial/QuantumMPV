@@ -1313,6 +1313,14 @@ Reinicia la aplicación para que se apliquen todos los cambios.</string>
   <string name="ui_install_core">Instalar núcleo</string>
   <string name="ui_update_core">Actualizar núcleo</string>
   <string name="ui_aspect_ratio">Relación de aspecto</string>
+  <string name="ui_auto_crop_black_bars">Recortar barras negras automáticamente</string>
+  <string name="ui_auto_crop_black_bars_summary">Analiza varios fotogramas en segundo plano y recorta las barras negras integradas que persisten.</string>
+  <string name="ui_auto_crop_black_bars_analyzing">Analizando fotogramas…</string>
+  <string name="ui_auto_crop_black_bars_applied">Se eliminaron las barras negras de este vídeo.</string>
+  <string name="ui_auto_crop_black_bars_none">No se detectaron barras negras persistentes.</string>
+  <string name="ui_auto_crop_black_bars_unsupported">No se pudo analizar esta fuente de vídeo.</string>
+  <string name="ui_auto_crop_black_bars_failed">Error al analizar las barras negras.</string>
+  <string name="ui_auto_crop_black_bars_managed">video-crop está gestionado por mpv.conf.</string>
   <string name="ui_presets">Preajustes</string>
   <string name="ui_add_custom_ratio_e_g_16_9">Añadir relación personalizada (p. ej., 16:9)</string>
   <string name="ui_width">Ancho</string>
