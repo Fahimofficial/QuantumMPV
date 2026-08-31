@@ -32,6 +32,12 @@ data class MediaScanOptions(
         "includeAudio=$includeAudio|minAudio=$minimumAudioDurationSeconds"
     }
 
+  val rootDiscoveryCacheKey: String
+    get() {
+      val markers = normalizedHiddenFolderMarkerNames.sorted().joinToString("") { "${it.length}:$it" }
+      return "hiddenRootDiscoveryV1|markers=$markers"
+    }
+
   fun includesAudioDuration(durationMs: Long): Boolean =
     minimumAudioDurationSeconds == 0 || durationMs >= minimumAudioDurationSeconds * 1000L
 }

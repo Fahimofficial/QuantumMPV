@@ -34,6 +34,8 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.drop
+import kotlinx.coroutines.flow.merge
 import kotlinx.coroutines.launch
 import org.koin.core.component.KoinComponent
 import org.koin.core.component.inject
@@ -92,6 +94,7 @@ class FolderListViewModel(
 
     companion object {
     private const val TAG = "FolderListViewModel"
+    private const val MEDIA_LIBRARY_REFRESH_DEBOUNCE_MS = 750L
 
     fun factory(
       application: Application,
@@ -116,9 +119,20 @@ class FolderListViewModel(
       }
     }
 
-    // Refresh folders on global media library changes
+    // Refresh on media events and every preference that changes scan/index semantics. Settings UI
+    // may emit both; collectLatest plus the debounce collapses them into one refresh.
     viewModelScope.launch(Dispatchers.IO) {
-      MediaLibraryEvents.changes.collectLatest {
+      val scanPreferenceChanges =
+        combine(
+          foldersPreferences.includeNoMediaFolders.changes(),
+          foldersPreferences.hiddenFolderMarkerNames.changes(),
+          browserPreferences.includeAudioBrowser.changes(),
+          browserPreferences.minimumAudioDurationSeconds.changes(),
+        ) { _, _, _, _ -> Unit }
+          .drop(1)
+
+      merge(MediaLibraryEvents.changes, scanPreferenceChanges).collectLatest {
+        delay(MEDIA_LIBRARY_REFRESH_DEBOUNCE_MS)
         // A media event affects the MediaStore snapshot, not the tree cache or persisted
         // .nomedia fingerprints. Known hidden roots will be checked incrementally below.
         MediaFileRepository.invalidateFolderCache()
@@ -320,30 +334,26 @@ class FolderListViewModel(
     MediaFileRepository.clearCache()
     FolderViewScanner.clearCache()
 
-    // Trigger media scan to ensure MediaStore is up-to-date
-    triggerMediaScan()
-
+    // Force the direct hidden index first; MediaScanner cannot see .nomedia trees.
     loadVideoFolders(forceFileSystemCheck = true)
+
+    // Preserve full Refresh semantics for ordinary files copied by other apps. Completion emits a
+    // debounced MediaLibraryEvents update, while this asynchronous pass never blocks hidden results.
+    triggerMediaScan()
   }
 
-  /**
-   * Trigger a comprehensive media scan to update MediaStore
-   */
   private fun triggerMediaScan() {
     try {
       val externalStorage = android.os.Environment.getExternalStorageDirectory()
-
       android.media.MediaScannerConnection.scanFile(
         getApplication(),
         arrayOf(externalStorage.absolutePath),
-        null, // Let MediaScanner detect all media types
+        null,
       ) { path, uri ->
         Log.d(TAG, "Media scan completed for: $path -> $uri")
       }
-
-      Log.d(TAG, "Triggered comprehensive media scan")
-    } catch (e: Exception) {
-      Log.e(TAG, "Failed to trigger media scan", e)
+    } catch (error: Exception) {
+      Log.e(TAG, "Failed to trigger media scan", error)
     }
   }
 
