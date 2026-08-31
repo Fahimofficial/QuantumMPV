@@ -526,14 +526,13 @@ fun RenderPlayerButton(
             icon = Icons.RoundedFilled.CameraAlt,
             onClick = {
               if (compact) {
-                viewModel.takeSnapshot(context)
+                onOpenSheet(Sheets.FrameNavigation)
               } else {
                 viewModel.toggleFrameNavigationExpanded()
               }
             },
             onLongClick = { onOpenSheet(Sheets.FrameNavigation) },
             color = if (hideBackground) controlColor else MaterialTheme.colorScheme.onSurface,
-            enabled = !compact || !isSnapshotLoading,
             modifier = Modifier.size(buttonSize),
           )
         }

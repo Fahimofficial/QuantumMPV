@@ -224,8 +224,6 @@ fun TopLeftPlayerControlsLandscape(
 @Composable
 fun TopRightPlayerControlsLandscape(
   buttons: List<PlayerButton>,
-  overflowButtons: List<PlayerButton>,
-  onOverflowVisibilityChanged: (Boolean) -> Unit,
   chapters: List<Segment>,
   currentChapter: Int?,
   isSpeedNonOne: Boolean,
@@ -242,37 +240,30 @@ fun TopRightPlayerControlsLandscape(
   activity: PlayerActivity,
 ) {
   PlayerButtonTheme(hideBackground) {
-    val renderButton: @Composable (PlayerButton, Boolean) -> Unit = { button, compact ->
-      RenderPlayerButton(
-        button = button,
-        chapters = chapters,
-        currentChapter = currentChapter,
-        isPortrait = false,
-        isSpeedNonOne = isSpeedNonOne,
-        currentZoom = currentZoom,
-        aspect = aspect,
-        mediaTitle = mediaTitle,
-        hideBackground = if (compact) false else hideBackground,
-        decoder = decoder,
-        playbackSpeed = playbackSpeed,
-        onBackPress = onBackPress,
-        onOpenSheet = onOpenSheet,
-        onOpenPanel = onOpenPanel,
-        viewModel = viewModel,
-        activity = activity,
-        buttonSize = if (compact) 48.dp else 45.dp,
-        compact = compact,
-      )
-    }
-    PlayerControlOverflowGroup(
-      overflowButtons = overflowButtons,
-      pullDirection = OverflowPullDirection.LEFT,
-      handleAtStart = false,
-      onOverflowVisibilityChanged = onOverflowVisibilityChanged,
-      renderButton = renderButton,
+    Row(
+      verticalAlignment = Alignment.CenterVertically,
+      horizontalArrangement = Arrangement.spacedBy(MaterialTheme.spacing.extraSmall),
     ) {
       buttons.forEach { button ->
-        renderButton(button, false)
+        RenderPlayerButton(
+          button = button,
+          chapters = chapters,
+          currentChapter = currentChapter,
+          isPortrait = false,
+          isSpeedNonOne = isSpeedNonOne,
+          currentZoom = currentZoom,
+          aspect = aspect,
+          mediaTitle = mediaTitle,
+          hideBackground = hideBackground,
+          decoder = decoder,
+          playbackSpeed = playbackSpeed,
+          onBackPress = onBackPress,
+          onOpenSheet = onOpenSheet,
+          onOpenPanel = onOpenPanel,
+          viewModel = viewModel,
+          activity = activity,
+          buttonSize = 45.dp,
+        )
       }
     }
   }
@@ -281,8 +272,6 @@ fun TopRightPlayerControlsLandscape(
 @Composable
 fun BottomRightPlayerControlsLandscape(
   buttons: List<PlayerButton>,
-  overflowButtons: List<PlayerButton>,
-  onOverflowVisibilityChanged: (Boolean) -> Unit,
   showVideoQualitySelector: Boolean,
   chapters: List<Segment>,
   currentChapter: Int?,
@@ -300,37 +289,30 @@ fun BottomRightPlayerControlsLandscape(
   activity: PlayerActivity,
 ) {
   PlayerButtonTheme(hideBackground) {
-    val renderButton: @Composable (PlayerButton, Boolean) -> Unit = { button, compact ->
-      RenderPlayerButton(
-        button = button,
-        chapters = chapters,
-        currentChapter = currentChapter,
-        isPortrait = false,
-        isSpeedNonOne = isSpeedNonOne,
-        currentZoom = currentZoom,
-        aspect = aspect,
-        mediaTitle = mediaTitle,
-        hideBackground = if (compact) false else hideBackground,
-        decoder = decoder,
-        playbackSpeed = playbackSpeed,
-        onBackPress = onBackPress,
-        onOpenSheet = onOpenSheet,
-        onOpenPanel = onOpenPanel,
-        viewModel = viewModel,
-        activity = activity,
-        buttonSize = if (compact) 48.dp else 45.dp,
-        compact = compact,
-      )
-    }
-    PlayerControlOverflowGroup(
-      overflowButtons = overflowButtons,
-      pullDirection = OverflowPullDirection.RIGHT,
-      handleAtStart = true,
-      onOverflowVisibilityChanged = onOverflowVisibilityChanged,
-      renderButton = renderButton,
+    Row(
+      verticalAlignment = Alignment.CenterVertically,
+      horizontalArrangement = Arrangement.spacedBy(MaterialTheme.spacing.extraSmall),
     ) {
       buttons.forEach { button ->
-        renderButton(button, false)
+        RenderPlayerButton(
+          button = button,
+          chapters = chapters,
+          currentChapter = currentChapter,
+          isPortrait = false,
+          isSpeedNonOne = isSpeedNonOne,
+          currentZoom = currentZoom,
+          aspect = aspect,
+          mediaTitle = mediaTitle,
+          hideBackground = hideBackground,
+          decoder = decoder,
+          playbackSpeed = playbackSpeed,
+          onBackPress = onBackPress,
+          onOpenSheet = onOpenSheet,
+          onOpenPanel = onOpenPanel,
+          viewModel = viewModel,
+          activity = activity,
+          buttonSize = 45.dp,
+        )
       }
       if (showVideoQualitySelector) {
         ControlsButton(
@@ -347,8 +329,6 @@ fun BottomRightPlayerControlsLandscape(
 @Composable
 fun BottomLeftPlayerControlsLandscape(
   buttons: List<PlayerButton>,
-  overflowButtons: List<PlayerButton>,
-  onOverflowVisibilityChanged: (Boolean) -> Unit,
   chapters: List<Segment>,
   currentChapter: Int?,
   isSpeedNonOne: Boolean,
@@ -365,37 +345,30 @@ fun BottomLeftPlayerControlsLandscape(
   activity: PlayerActivity,
 ) {
   PlayerButtonTheme(hideBackground) {
-    val renderButton: @Composable (PlayerButton, Boolean) -> Unit = { button, compact ->
-      RenderPlayerButton(
-        button = button,
-        chapters = chapters,
-        currentChapter = currentChapter,
-        isPortrait = false,
-        isSpeedNonOne = isSpeedNonOne,
-        currentZoom = currentZoom,
-        aspect = aspect,
-        mediaTitle = mediaTitle,
-        hideBackground = if (compact) false else hideBackground,
-        decoder = decoder,
-        playbackSpeed = playbackSpeed,
-        onBackPress = onBackPress,
-        onOpenSheet = onOpenSheet,
-        onOpenPanel = onOpenPanel,
-        viewModel = viewModel,
-        activity = activity,
-        buttonSize = if (compact) 48.dp else 45.dp,
-        compact = compact,
-      )
-    }
-    PlayerControlOverflowGroup(
-      overflowButtons = overflowButtons,
-      pullDirection = OverflowPullDirection.RIGHT,
-      handleAtStart = false,
-      onOverflowVisibilityChanged = onOverflowVisibilityChanged,
-      renderButton = renderButton,
+    Row(
+      verticalAlignment = Alignment.CenterVertically,
+      horizontalArrangement = Arrangement.spacedBy(MaterialTheme.spacing.extraSmall),
     ) {
       buttons.forEach { button ->
-        renderButton(button, false)
+        RenderPlayerButton(
+          button = button,
+          chapters = chapters,
+          currentChapter = currentChapter,
+          isPortrait = false,
+          isSpeedNonOne = isSpeedNonOne,
+          currentZoom = currentZoom,
+          aspect = aspect,
+          mediaTitle = mediaTitle,
+          hideBackground = hideBackground,
+          decoder = decoder,
+          playbackSpeed = playbackSpeed,
+          onBackPress = onBackPress,
+          onOpenSheet = onOpenSheet,
+          onOpenPanel = onOpenPanel,
+          viewModel = viewModel,
+          activity = activity,
+          buttonSize = 45.dp,
+        )
       }
     }
   }

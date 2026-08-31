@@ -410,6 +410,21 @@ fun PlayerControls(
     return
   }
 
+  val playerActivity = LocalActivity.current as PlayerActivity
+  val configuration = LocalConfiguration.current
+  val isPortrait = remember(configuration.orientation) { configuration.orientation == ORIENTATION_PORTRAIT }
+  val aspect by viewModel.videoAspect.collectAsState()
+  val currentZoom by viewModel.videoZoom.collectAsState()
+  val rawMediaTitle by PlaybackSession.propString["media-title"].collectAsState()
+  val queuedTitle =
+    playbackQueue.currentItem?.title?.takeIf { playbackQueue.isExplicitQueue && it.isNotBlank() }
+  val mediaTitle =
+    remember(queuedTitle, rawMediaTitle, playerActivity) {
+      queuedTitle
+        ?: playerActivity.getTitleForControls().takeIf { it.isNotBlank() }
+        ?: rawMediaTitle
+    }
+
   val topRightControlsPref by appearancePreferences.topRightControls.collectAsState()
   val bottomRightControlsPref by appearancePreferences.bottomRightControls.collectAsState()
   val bottomLeftControlsPref by appearancePreferences.bottomLeftControls.collectAsState()
@@ -440,39 +455,31 @@ fun PlayerControls(
     }
   val portraitHasConfiguredQualityButton = PlayerButton.VIDEO_QUALITY in portraitBottomButtons
   val hasPlaylistSupport = viewModel.hasPlaylistSupport()
-  val landscapeOverflowButtons =
+    val playerDrawerButtons =
     remember(
-      topRightButtons,
-      bottomRightButtons,
-      bottomLeftButtons,
       showVideoQualitySelector,
       chapters,
       isAudioOnly,
       hasPlaylistSupport,
     ) {
-      val visibleButtons =
-        buildSet {
-          addAll(topRightButtons)
-          addAll(bottomRightButtons)
-          addAll(bottomLeftButtons)
-          if (showVideoQualitySelector) add(PlayerButton.VIDEO_QUALITY)
-        }
       allPlayerButtons.filter { button ->
-        button !in visibleButtons &&
-          when (button) {
-            PlayerButton.BOOKMARKS_CHAPTERS,
-            PlayerButton.CURRENT_CHAPTER,
-            -> chapters.isNotEmpty()
-            PlayerButton.PICTURE_IN_PICTURE -> !isAudioOnly
-            PlayerButton.VIDEO_QUALITY -> showVideoQualitySelector
-            PlayerButton.SHUFFLE -> hasPlaylistSupport
-            else -> true
-          }
+        when (button) {
+          PlayerButton.BOOKMARKS_CHAPTERS,
+          PlayerButton.CURRENT_CHAPTER,
+          -> chapters.isNotEmpty()
+          PlayerButton.PICTURE_IN_PICTURE -> !isAudioOnly
+          PlayerButton.VIDEO_QUALITY -> showVideoQualitySelector
+          PlayerButton.SHUFFLE -> hasPlaylistSupport
+          else -> true
+        }
       }
     }
 
   var isUnlockSliderDragging by remember { mutableStateOf(false) }
-  var isPlayerOverflowShown by remember { mutableStateOf(false) }
+  var isPlayerDrawerShown by remember { mutableStateOf(false) }
+  val isBrightnessSliderShown by viewModel.isBrightnessSliderShown.collectAsState()
+  val isVolumeSliderShown by viewModel.isVolumeSliderShown.collectAsState()
+  val areSlidersShown = isBrightnessSliderShown || isVolumeSliderShown
 
   LaunchedEffect(
     controlsShown,
@@ -482,14 +489,14 @@ fun PlayerControls(
     areControlsLocked,
     isUnlockSliderDragging,
     isAudioOnly,
-    isPlayerOverflowShown,
+    isPlayerDrawerShown,
   ) {
     if (!isAudioOnly &&
       controlsShown &&
       paused == false &&
       !isSeeking &&
       !isUnlockSliderDragging &&
-      !isPlayerOverflowShown
+      !isPlayerDrawerShown
     ) {
       // Use 2 second delay when controls are locked, otherwise use user preference
       val delayTime = if (areControlsLocked) 2000L else playerTimeToDisappear.toLong()
@@ -561,8 +568,6 @@ fun PlayerControls(
       CompositionLocalProvider(
         LocalLayoutDirection provides LayoutDirection.Ltr,
       ) {
-        val configuration = LocalConfiguration.current
-        val isPortrait = remember(configuration.orientation) { configuration.orientation == ORIENTATION_PORTRAIT }
         val density = LocalDensity.current
         var controlsLayoutHeightPx by remember { mutableStateOf(0) }
         var landscapeRightButtonsTopPx by remember { mutableStateOf<Int?>(null) }
@@ -593,8 +598,6 @@ fun PlayerControls(
           val (customLeftButtonsRef, customRightButtonsRef) = createRefs()
           val customButtonsPortraitRef = createRef()
 
-          val isBrightnessSliderShown by viewModel.isBrightnessSliderShown.collectAsState()
-          val isVolumeSliderShown by viewModel.isVolumeSliderShown.collectAsState()
           val volume by viewModel.currentVolume.collectAsState()
           val volumePercent by viewModel.currentVolumePercent.collectAsState()
           val mpvVolume by PlaybackSession.propInt["volume"].collectAsState()
@@ -606,19 +609,6 @@ fun PlayerControls(
           val controlsAnimStyle by playerPreferences.controlsAnimStyle.collectAsState()
           val enterMs = (100 * animSpeed).toInt().coerceAtLeast(30)
           val exitMs = (300 * animSpeed).toInt().coerceAtLeast(50)
-
-          val activity = LocalActivity.current as PlayerActivity
-          val aspect by viewModel.videoAspect.collectAsState()
-          val currentZoom by viewModel.videoZoom.collectAsState()
-
-          val rawMediaTitle by PlaybackSession.propString["media-title"].collectAsState()
-          val queuedTitle =
-            playbackQueue.currentItem?.title?.takeIf { playbackQueue.isExplicitQueue && it.isNotBlank() }
-          val mediaTitle = remember(queuedTitle, rawMediaTitle, activity) {
-            queuedTitle
-              ?: activity.getTitleForControls().takeIf { it.isNotBlank() }
-              ?: rawMediaTitle
-          }
 
           // Slider display duration: 1000ms shown + 300ms exit animation = 1300ms total
           val sliderDisplayDuration = 1000L
@@ -641,7 +631,6 @@ fun PlayerControls(
             }
           }
 
-          val areSlidersShown = isBrightnessSliderShown || isVolumeSliderShown
           val navigationBarsPadding =
             if (showSystemNavigationBar) {
               WindowInsets.navigationBars.asPaddingValues()
@@ -1728,8 +1717,6 @@ fun PlayerControls(
           ) {
             TopRightPlayerControlsLandscape(
               buttons = topRightButtons,
-              overflowButtons = landscapeOverflowButtons,
-              onOverflowVisibilityChanged = { isPlayerOverflowShown = it },
               chapters = chapters,
               currentChapter = currentChapter,
               isSpeedNonOne = isSpeedNonOne,
@@ -1743,7 +1730,7 @@ fun PlayerControls(
               onOpenSheet = onOpenSheet,
               onOpenPanel = onOpenPanel,
               viewModel = viewModel,
-              activity = activity,
+              activity = playerActivity,
             )
           }
 
@@ -1794,13 +1781,11 @@ fun PlayerControls(
                 onOpenSheet = onOpenSheet,
                 onOpenPanel = onOpenPanel,
                 viewModel = viewModel,
-                activity = activity,
+                activity = playerActivity,
               )
             } else {
               BottomRightPlayerControlsLandscape(
                 buttons = bottomRightButtons,
-                overflowButtons = landscapeOverflowButtons,
-                onOverflowVisibilityChanged = { isPlayerOverflowShown = it },
                 showVideoQualitySelector = showVideoQualitySelector && !landscapeHasConfiguredQualityButton,
                 chapters = chapters,
                 currentChapter = currentChapter,
@@ -1815,7 +1800,7 @@ fun PlayerControls(
                 onOpenSheet = onOpenSheet,
                 onOpenPanel = onOpenPanel,
                 viewModel = viewModel,
-                activity = activity,
+                activity = playerActivity,
               )
             }
           }
@@ -1845,8 +1830,6 @@ fun PlayerControls(
           ) {
             BottomLeftPlayerControlsLandscape(
               buttons = bottomLeftButtons,
-              overflowButtons = landscapeOverflowButtons,
-              onOverflowVisibilityChanged = { isPlayerOverflowShown = it },
               chapters = chapters,
               currentChapter = currentChapter,
               isSpeedNonOne = isSpeedNonOne,
@@ -1860,7 +1843,7 @@ fun PlayerControls(
               onOpenSheet = onOpenSheet,
               onOpenPanel = onOpenPanel,
               viewModel = viewModel,
-              activity = activity,
+              activity = playerActivity,
             )
           }
         }
@@ -1920,6 +1903,41 @@ fun PlayerControls(
       viewModel = viewModel,
       onDismissRequest = { onOpenPanel(Panels.None) },
     )
+
+    PlayerButtonTheme(hideBackground = false) {
+      PlayerControlDrawer(
+        buttons = playerDrawerButtons,
+        controlsVisible =
+          controlsShown &&
+            !areControlsLocked &&
+            !areSlidersShown &&
+            sheetShown == Sheets.None &&
+            panel == Panels.None,
+        onVisibilityChanged = { isPlayerDrawerShown = it },
+        renderButton = { button ->
+          RenderPlayerButton(
+            button = button,
+            chapters = chapters,
+            currentChapter = currentChapter,
+            isPortrait = isPortrait,
+            isSpeedNonOne = isSpeedNonOne,
+            currentZoom = currentZoom,
+            aspect = aspect,
+            mediaTitle = mediaTitle,
+            hideBackground = false,
+            decoder = decoder,
+            playbackSpeed = playbackSpeed ?: 1f,
+            onBackPress = onBackPress,
+            onOpenSheet = onOpenSheet,
+            onOpenPanel = onOpenPanel,
+            viewModel = viewModel,
+            activity = playerActivity,
+            buttonSize = 48.dp,
+            compact = true,
+          )
+        },
+      )
+    }
   }
 }
 
