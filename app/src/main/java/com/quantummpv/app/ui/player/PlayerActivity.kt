@@ -625,6 +625,7 @@ class PlayerActivity :
     }
     // Read from the actual launch intent now that it's safe to (see isSecureFolderLaunch kdoc).
     isSecureFolderLaunch = intent.getStringExtra("launch_source") == "secure_folder"
+    applyInitialVideoOrientation(intent)
     setContentView(binding.root)
     setupSystemBarsAutoHide()
     setupPipHelper()
@@ -5100,6 +5101,7 @@ class PlayerActivity :
     val previousItemWasReady = isReady
 
     setIntent(intent)
+    applyInitialVideoOrientation(intent)
     applyPlaybackBrightnessPolicy(isAudio = isCurrentMediaKnownAudio())
     if (!beginMediaRequest()) return
     cancelPlaybackLoadRecovery()
@@ -5903,6 +5905,23 @@ class PlayerActivity :
         PlayerOrientation.ReverseLandscape -> ActivityInfo.SCREEN_ORIENTATION_REVERSE_LANDSCAPE
         PlayerOrientation.SensorLandscape -> ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE
       }
+  }
+
+  private fun applyInitialVideoOrientation(sourceIntent: Intent) {
+    if (playerPreferences.orientation.get() != PlayerOrientation.Video || isKnownAudioLaunch(sourceIntent)) return
+
+    val width = sourceIntent.getIntExtra(EXTRA_VIDEO_WIDTH, 0)
+    val height = sourceIntent.getIntExtra(EXTRA_VIDEO_HEIGHT, 0)
+    if (width <= 0 || height <= 0) return
+
+    val initialOrientation =
+      if (width > height) {
+        ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE
+      } else {
+        ActivityInfo.SCREEN_ORIENTATION_SENSOR_PORTRAIT
+      }
+
+    if (requestedOrientation != initialOrientation) requestedOrientation = initialOrientation
   }
 
   private fun isKnownAudioLaunch(sourceIntent: Intent): Boolean =
@@ -7868,6 +7887,8 @@ class PlayerActivity :
 
     const val EXTRA_PREPARED_PLAYBACK_QUEUE = "prepared_playback_queue"
     const val EXTRA_PREPARED_PLAYBACK_TOKEN = "prepared_playback_token"
+    const val EXTRA_VIDEO_WIDTH = "video_width"
+    const val EXTRA_VIDEO_HEIGHT = "video_height"
     private const val STATE_PLAYLIST_INDEX = "player_state_playlist_index"
     private const val STATE_PLAYLIST_STABLE_ID = "player_state_playlist_stable_id"
     private const val STATE_PLAYLIST_ORIGINAL_URI = "player_state_playlist_original_uri"

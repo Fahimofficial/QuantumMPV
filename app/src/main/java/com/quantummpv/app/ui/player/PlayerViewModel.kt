@@ -2386,7 +2386,7 @@ class PlayerViewModel : ViewModel(),
     const val TAG = "PlayerViewModel"
     const val AUTO_SHOW_SKIP_CHIP_DURATION = 10.0
     const val SEEK_COALESCE_DELAY_MS = 60L
-    const val PREVIEW_SEEK_INTERVAL_MS = 25L
+    const val PREVIEW_SEEK_INTERVAL_MS = 100L
     val QUALITY_HEIGHT_REGEX = Regex("""(?i)(\d{3,4})p""")
     const val NATIVE_LINEAR_HDR_YOUTUBE_BLUR_RADIUS = 100.0
     val MPV_ONLY_PSEUDO_PROTOCOLS =

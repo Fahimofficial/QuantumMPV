@@ -100,6 +100,8 @@ object MediaUtils {
         putExtra("is_audio", selected.isAudio)
         putExtra("title", selected.displayName)
         putExtra("local_media_path", selected.path)
+        putExtra(PlayerActivity.EXTRA_VIDEO_WIDTH, selected.width)
+        putExtra(PlayerActivity.EXTRA_VIDEO_HEIGHT, selected.height)
       }
     context.startActivity(intent)
   }
@@ -168,6 +170,8 @@ object MediaUtils {
           intent.putExtra("internal_launch", true) // Enables subtitle autoload
           localPath?.let { intent.putExtra("local_media_path", it) }
           intent.putExtra("is_audio", source.isAudio)
+          intent.putExtra(PlayerActivity.EXTRA_VIDEO_WIDTH, source.width)
+          intent.putExtra(PlayerActivity.EXTRA_VIDEO_HEIGHT, source.height)
           applyPlaybackExtras(
             intent = intent,
             launchSource = launchSource,
