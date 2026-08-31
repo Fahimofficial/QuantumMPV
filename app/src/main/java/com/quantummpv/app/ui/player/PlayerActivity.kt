@@ -6423,7 +6423,7 @@ class PlayerActivity :
         putExtra("media_title", FileTypeUtils.stripExtension(fileName))
         putExtra("media_artist", artist)
         putExtra("media_uri", currentDurableMediaUri())
-        putExtra("media_identifier", mediaIdentifier)
+        putExtra("media_identifier", currentNotificationMediaIdentifier())
         putExtra("audio_background_playback", isCurrentPlaybackAudio())
       }
 
@@ -6962,6 +6962,7 @@ class PlayerActivity :
     val rawTitle = getPreferredCurrentTitle().ifBlank { fileName.ifBlank { getString(R.string.player_unknown_video) } }
     val title = FileTypeUtils.stripExtension(rawTitle)
     val currentQueueItem = PlaybackSession.queue.value.currentItem
+    val notificationIdentifier = currentNotificationMediaIdentifier()
     val artist =
       currentQueueItem?.artist?.takeIf { it.isNotBlank() }
         ?: runCatching { PlaybackSession.getPropertyString("metadata/artist") }.getOrNull().orEmpty()
@@ -6978,7 +6979,7 @@ class PlayerActivity :
       artist = artist,
       thumbnail = cachedThumbnail,
       uri = currentDurableMediaUri(),
-      identifier = mediaIdentifier,
+      identifier = notificationIdentifier,
     )
     // Mirror playlist state into the service so the notification tap-intent can restore it
     service.setPlaylistInfo(isAudio = isCurrentPlaybackAudio())
@@ -7031,7 +7032,7 @@ class PlayerActivity :
           artist = artist,
           thumbnail = generatedThumbnail,
           uri = currentDurableMediaUri(),
-          identifier = mediaIdentifier,
+          identifier = notificationIdentifier,
         )
       }
   }
@@ -7278,6 +7279,9 @@ class PlayerActivity :
 
   private fun currentDurableMediaUri(): String? =
     PlaybackSession.queue.value.currentItem?.originalUri ?: currentPlayableUri
+
+  private fun currentNotificationMediaIdentifier(): String =
+    PlaybackSession.queue.value.currentItem?.stableId?.takeIf { it.isNotBlank() } ?: mediaIdentifier
 
   /** Old keys remain readable once, then are copied to the v2 collision-resistant key. */
   private fun getLegacyMediaIdentifier(
