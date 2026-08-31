@@ -9,66 +9,58 @@
 
 package com.quantummpv.app.ui.player.controls
 
+import androidx.activity.compose.BackHandler
+import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInHorizontally
+import androidx.compose.animation.slideOutHorizontally
+import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectHorizontalDragGestures
-import androidx.compose.foundation.hoverable
 import androidx.compose.foundation.interaction.MutableInteractionSource
-import androidx.compose.foundation.interaction.collectIsHoveredAsState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.verticalScroll
-import androidx.compose.material3.DrawerValue
-import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.ModalDrawerSheet
-import androidx.compose.material3.ModalNavigationDrawer
 import androidx.compose.material3.Text
-import androidx.compose.material3.rememberDrawerState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
-import androidx.compose.runtime.DisposableEffect
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
-import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
-import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.input.pointer.pointerInput
-import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalHapticFeedback
-import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
-import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
 import com.quantummpv.app.R
 import com.quantummpv.app.preferences.PlayerButton
@@ -76,50 +68,61 @@ import com.quantummpv.app.preferences.getPlayerButtonLabel
 import com.quantummpv.app.ui.icons.Icon
 import com.quantummpv.app.ui.icons.Icons
 import com.quantummpv.app.ui.player.controls.components.LocalHidePlayerButtonsBackground
+import com.quantummpv.app.ui.player.controls.components.panels.DraggablePanel
 import com.quantummpv.app.ui.theme.controlColor
-import kotlinx.coroutines.delay
-import kotlinx.coroutines.flow.filter
-import kotlinx.coroutines.flow.first
-import kotlinx.coroutines.launch
+import com.quantummpv.app.ui.theme.spacing
 
 @Composable
 internal fun PlayerControlDrawer(
   buttons: List<PlayerButton>,
   controlsVisible: Boolean,
-  onVisibilityChanged: (Boolean) -> Unit,
+  panelVisible: Boolean,
+  onPanelVisibilityChanged: (Boolean) -> Unit,
   renderButton: @Composable (PlayerButton) -> Unit,
 ) {
-  var drawerLayerVisible by remember { mutableStateOf(false) }
   val clickEvent = LocalPlayerButtonsClickEvent.current
-  val visibilityChangedCurrent by rememberUpdatedState(onVisibilityChanged)
-  val openDrawer = {
-    if (controlsVisible && buttons.isNotEmpty() && !drawerLayerVisible) {
+  val openPanel = {
+    if (controlsVisible && buttons.isNotEmpty() && !panelVisible) {
       clickEvent()
-      drawerLayerVisible = true
+      onPanelVisibilityChanged(true)
     }
   }
-
-  DisposableEffect(drawerLayerVisible) {
-    if (drawerLayerVisible) visibilityChangedCurrent(true)
-    onDispose {
-      if (drawerLayerVisible) visibilityChangedCurrent(false)
-    }
-  }
+  val closePanel = { onPanelVisibilityChanged(false) }
+  BackHandler(enabled = panelVisible, onBack = closePanel)
 
   Box(Modifier.fillMaxSize()) {
-    if (!drawerLayerVisible) {
+    AnimatedVisibility(
+      visible = controlsVisible && buttons.isNotEmpty() && !panelVisible,
+      modifier = Modifier.align(Alignment.CenterEnd),
+      enter =
+        fadeIn(animationSpec = tween(160)) +
+          slideInHorizontally(animationSpec = tween(180)) { it / 2 },
+      exit =
+        fadeOut(animationSpec = tween(140)) +
+          slideOutHorizontally(animationSpec = tween(160)) { it / 2 },
+    ) {
       PlayerControlEdgeHandle(
-        enabled = controlsVisible && buttons.isNotEmpty(),
-        onOpen = openDrawer,
-        modifier = Modifier.align(Alignment.CenterEnd),
+        enabled = controlsVisible,
+        onOpen = openPanel,
       )
     }
 
-    if (drawerLayerVisible) {
-      PlayerControlDrawerLayer(
+    AnimatedVisibility(
+      visible = panelVisible,
+      modifier = Modifier.fillMaxSize(),
+      enter =
+        fadeIn(animationSpec = tween(180)) +
+          slideInHorizontally(
+            animationSpec = spring(dampingRatio = 0.88f, stiffness = 520f),
+          ) { it / 3 },
+      exit =
+        fadeOut(animationSpec = tween(140)) +
+          slideOutHorizontally(animationSpec = tween(180)) { it / 3 },
+    ) {
+      PlayerControlPanel(
         buttons = buttons,
         renderButton = renderButton,
-        onClosed = { drawerLayerVisible = false },
+        onDismissRequest = closePanel,
       )
     }
   }
@@ -134,12 +137,9 @@ private fun PlayerControlEdgeHandle(
   val density = LocalDensity.current
   val haptic = LocalHapticFeedback.current
   val interactionSource = remember { MutableInteractionSource() }
-  val isHovered by interactionSource.collectIsHoveredAsState()
   val thresholdPx = with(density) { EdgePullThreshold.toPx() }
   val maxPullPx = with(density) { EdgePullMaximum.toPx() }
   var pullDistancePx by remember { mutableFloatStateOf(0f) }
-  var handleVisible by remember { mutableStateOf(true) }
-  var isDragging by remember { mutableStateOf(false) }
   val animatedPull by
     animateFloatAsState(
       targetValue = pullDistancePx,
@@ -151,46 +151,24 @@ private fun PlayerControlEdgeHandle(
       label = "PlayerDrawerEdgePull",
     )
   val pullProgress = (animatedPull / thresholdPx).coerceIn(0f, 1f)
-  val handleAlpha by
-    animateFloatAsState(
-      targetValue = if (enabled && (handleVisible || isDragging || isHovered)) 1f else 0f,
-      animationSpec = tween(durationMillis = 220),
-      label = "PlayerDrawerHandleAlpha",
-    )
-
-  LaunchedEffect(enabled, isHovered, isDragging) {
-    if (!enabled) {
-      handleVisible = false
-      return@LaunchedEffect
-    }
-    handleVisible = true
-    if (!isHovered && !isDragging) {
-      delay(HandleAutoHideDelayMs)
-      handleVisible = false
-    }
-  }
 
   Box(
     modifier =
       modifier
         .width(EdgeTouchWidth)
         .fillMaxHeight(EdgeTouchHeightFraction)
-        .hoverable(interactionSource = interactionSource, enabled = enabled)
         .pointerInput(enabled, thresholdPx, maxPullPx) {
           if (!enabled) return@pointerInput
           var thresholdReached = false
           detectHorizontalDragGestures(
             onDragStart = {
-              isDragging = true
               thresholdReached = false
               pullDistancePx = 0f
             },
             onDragCancel = {
-              isDragging = false
               pullDistancePx = 0f
             },
             onDragEnd = {
-              isDragging = false
               pullDistancePx = 0f
             },
             onHorizontalDrag = { change, dragAmount ->
@@ -232,7 +210,6 @@ private fun PlayerControlEdgeHandle(
           .padding(end = 4.dp)
           .size(28.dp)
           .graphicsLayer {
-            alpha = handleAlpha
             translationX = -animatedPull * 0.72f
             scaleX = 1f + pullProgress * 0.16f
             scaleY = 1f + pullProgress * 0.16f
@@ -241,149 +218,135 @@ private fun PlayerControlEdgeHandle(
   }
 }
 
-@OptIn(ExperimentalLayoutApi::class, ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
-private fun PlayerControlDrawerLayer(
+private fun PlayerControlPanel(
   buttons: List<PlayerButton>,
   renderButton: @Composable (PlayerButton) -> Unit,
-  onClosed: () -> Unit,
+  onDismissRequest: () -> Unit,
 ) {
-  val drawerState = rememberDrawerState(initialValue = DrawerValue.Closed)
-  val scope = rememberCoroutineScope()
   val parentClickEvent = LocalPlayerButtonsClickEvent.current
   val parentClickEventCurrent by rememberUpdatedState(parentClickEvent)
-  val onClosedCurrent by rememberUpdatedState(onClosed)
-  val drawerWidth = (LocalConfiguration.current.screenWidthDp.dp * 0.88f).coerceAtMost(420.dp)
 
-  LaunchedEffect(Unit) {
-    drawerState.open()
-    snapshotFlow { drawerState.isClosed && !drawerState.isAnimationRunning }
-      .filter { it }
-      .first()
-    onClosedCurrent()
-  }
-
-  CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Rtl) {
-    ModalNavigationDrawer(
-      drawerState = drawerState,
-      gesturesEnabled = true,
-      scrimColor = Color.Black.copy(alpha = 0.32f),
-      drawerContent = {
-        CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Ltr) {
-          ModalDrawerSheet(
-            drawerState = drawerState,
-            modifier =
-              Modifier
-                .width(drawerWidth)
-                .fillMaxHeight(),
-            drawerShape = RoundedCornerShape(topStart = 20.dp, bottomStart = 20.dp),
-            drawerContainerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
-            drawerContentColor = MaterialTheme.colorScheme.onSurface,
-            windowInsets = WindowInsets.safeDrawing,
-          ) {
-            PlayerControlDrawerContent(
-              buttons = buttons,
-              renderButton = renderButton,
-              onDismissRequest = { scope.launch { drawerState.close() } },
-              parentClickEvent = { parentClickEventCurrent() },
-            )
-          }
-        }
+  DraggablePanel(
+    modifier = Modifier.fillMaxSize(),
+    header = { PlayerControlPanelHeader(onDismissRequest) },
+    shape = RoundedCornerShape(24.dp),
+    containerColor = MaterialTheme.colorScheme.surfaceContainer.copy(alpha = 0.94f),
+    tonalElevation = 2.dp,
+    shadowElevation = 10.dp,
+    border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.6f)),
+  ) {
+    CompositionLocalProvider(
+      LocalHidePlayerButtonsBackground provides true,
+      LocalPlayerButtonsClickEvent provides {
+        onDismissRequest()
+        parentClickEventCurrent()
       },
     ) {
-      Box(Modifier.fillMaxSize())
+      PlayerControlPanelContent(
+        buttons = buttons,
+        renderButton = renderButton,
+      )
+    }
+  }
+}
+
+@Composable
+private fun PlayerControlPanelHeader(onDismissRequest: () -> Unit) {
+  Row(
+    modifier =
+      Modifier
+        .fillMaxWidth()
+        .padding(
+          start = MaterialTheme.spacing.medium,
+          end = MaterialTheme.spacing.extraSmall,
+          bottom = MaterialTheme.spacing.small,
+        ),
+    verticalAlignment = Alignment.CenterVertically,
+  ) {
+    Text(
+      text = stringResource(R.string.player_sheets_more_title),
+      style = MaterialTheme.typography.titleLarge,
+      fontWeight = FontWeight.SemiBold,
+      modifier = Modifier.weight(1f),
+    )
+    IconButton(onClick = onDismissRequest) {
+      Icon(
+        imageVector = Icons.RoundedFilled.Close,
+        contentDescription = stringResource(R.string.generic_cancel),
+      )
     }
   }
 }
 
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
-private fun PlayerControlDrawerContent(
+private fun PlayerControlPanelContent(
   buttons: List<PlayerButton>,
   renderButton: @Composable (PlayerButton) -> Unit,
-  onDismissRequest: () -> Unit,
-  parentClickEvent: () -> Unit,
 ) {
-  Column(
+  BoxWithConstraints(
     modifier =
       Modifier
-        .fillMaxSize()
-        .padding(horizontal = 14.dp),
+        .fillMaxWidth()
+        .padding(start = 14.dp, end = 14.dp, bottom = 20.dp),
   ) {
-    Box(
-      modifier =
-        Modifier
-          .fillMaxWidth()
-          .padding(top = 8.dp, bottom = 4.dp),
+    val tileWidth = (maxWidth - PanelTileSpacing * (PanelColumnCount - 1)) / PanelColumnCount
+    FlowRow(
+      modifier = Modifier.fillMaxWidth(),
+      horizontalArrangement = Arrangement.spacedBy(PanelTileSpacing),
+      verticalArrangement = Arrangement.spacedBy(PanelTileSpacing),
+      maxItemsInEachRow = PanelColumnCount,
     ) {
-      Text(
-        text = stringResource(R.string.player_sheets_more_title),
-        style = MaterialTheme.typography.titleMedium,
-        modifier = Modifier.align(Alignment.CenterStart),
-      )
-      IconButton(
-        onClick = onDismissRequest,
-        modifier = Modifier.align(Alignment.CenterEnd),
-      ) {
-        Icon(
-          imageVector = Icons.RoundedFilled.Close,
-          contentDescription = stringResource(R.string.generic_cancel),
+      buttons.forEach { button ->
+        PlayerControlTile(
+          button = button,
+          renderButton = renderButton,
+          modifier = Modifier.width(tileWidth),
         )
       }
     }
-    HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
-    CompositionLocalProvider(
-      LocalHidePlayerButtonsBackground provides false,
-      LocalPlayerButtonsClickEvent provides {
-        onDismissRequest()
-        parentClickEvent()
-      },
+  }
+}
+
+@Composable
+private fun PlayerControlTile(
+  button: PlayerButton,
+  renderButton: @Composable (PlayerButton) -> Unit,
+  modifier: Modifier = Modifier,
+) {
+  Column(
+    modifier =
+      modifier
+        .height(92.dp)
+        .clip(RoundedCornerShape(18.dp))
+        .background(MaterialTheme.colorScheme.surfaceContainerHighest.copy(alpha = 0.78f))
+        .padding(horizontal = 6.dp, vertical = 8.dp),
+    horizontalAlignment = Alignment.CenterHorizontally,
+    verticalArrangement = Arrangement.Center,
+  ) {
+    Box(
+      modifier = Modifier.size(40.dp),
+      contentAlignment = Alignment.Center,
     ) {
-      Column(
-        modifier =
-          Modifier
-            .fillMaxWidth()
-            .weight(1f)
-            .verticalScroll(rememberScrollState())
-            .padding(vertical = 14.dp),
-      ) {
-        FlowRow(
-          modifier = Modifier.fillMaxWidth(),
-          horizontalArrangement = Arrangement.SpaceEvenly,
-          verticalArrangement = Arrangement.spacedBy(12.dp),
-          maxItemsInEachRow = 3,
-        ) {
-          buttons.forEach { button ->
-            Column(
-              modifier = Modifier.width(88.dp),
-              horizontalAlignment = Alignment.CenterHorizontally,
-              verticalArrangement = Arrangement.spacedBy(5.dp),
-            ) {
-              Box(
-                modifier = Modifier.size(48.dp),
-                contentAlignment = Alignment.Center,
-              ) {
-                renderButton(button)
-              }
-              Text(
-                text = getPlayerButtonLabel(button),
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-                textAlign = TextAlign.Center,
-                style = MaterialTheme.typography.labelSmall,
-                modifier = Modifier.fillMaxWidth(),
-              )
-            }
-          }
-        }
-        Spacer(Modifier.size(8.dp))
-      }
+      renderButton(button)
     }
+    Spacer(Modifier.height(4.dp))
+    Text(
+      text = getPlayerButtonLabel(button),
+      maxLines = 2,
+      overflow = TextOverflow.Ellipsis,
+      textAlign = TextAlign.Center,
+      style = MaterialTheme.typography.labelSmall,
+      modifier = Modifier.fillMaxWidth(),
+    )
   }
 }
 
 private val EdgeTouchWidth = 48.dp
 private val EdgePullThreshold = 64.dp
 private val EdgePullMaximum = 92.dp
+private val PanelTileSpacing = 8.dp
 private const val EdgeTouchHeightFraction = 0.34f
-private const val HandleAutoHideDelayMs = 1_800L
+private const val PanelColumnCount = 3

@@ -477,6 +477,14 @@ fun PlayerControls(
 
   var isUnlockSliderDragging by remember { mutableStateOf(false) }
   var isPlayerDrawerShown by remember { mutableStateOf(false) }
+  val setPlayerDrawerShown: (Boolean) -> Unit = { visible ->
+    isPlayerDrawerShown = visible
+    if (visible) {
+      viewModel.hideControls()
+    } else if (viewModel.sheetShown.value == Sheets.None && viewModel.panelShown.value == Panels.None) {
+      viewModel.showControls()
+    }
+  }
   val isBrightnessSliderShown by viewModel.isBrightnessSliderShown.collectAsState()
   val isVolumeSliderShown by viewModel.isVolumeSliderShown.collectAsState()
   val areSlidersShown = isBrightnessSliderShown || isVolumeSliderShown
@@ -522,6 +530,8 @@ fun PlayerControls(
   GestureHandler(
     viewModel = viewModel,
     interactionSource = interactionSource,
+    externalPanelShown = isPlayerDrawerShown,
+    onDismissExternalPanel = { setPlayerDrawerShown(false) },
   )
 
   DoubleTapToSeekOvals(doubleTapSeekAmount, seekText, showDoubleTapOvals, showSeekTime, showSeekTime, interactionSource)
@@ -1913,7 +1923,8 @@ fun PlayerControls(
             !areSlidersShown &&
             sheetShown == Sheets.None &&
             panel == Panels.None,
-        onVisibilityChanged = { isPlayerDrawerShown = it },
+        panelVisible = isPlayerDrawerShown,
+        onPanelVisibilityChanged = setPlayerDrawerShown,
         renderButton = { button ->
           RenderPlayerButton(
             button = button,
@@ -1932,7 +1943,7 @@ fun PlayerControls(
             onOpenPanel = onOpenPanel,
             viewModel = viewModel,
             activity = playerActivity,
-            buttonSize = 48.dp,
+            buttonSize = 40.dp,
             compact = true,
           )
         },

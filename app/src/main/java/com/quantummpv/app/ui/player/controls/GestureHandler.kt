@@ -117,6 +117,8 @@ fun GestureHandler(
   viewModel: PlayerViewModel,
   interactionSource: MutableInteractionSource,
   modifier: Modifier = Modifier,
+  externalPanelShown: Boolean = false,
+  onDismissExternalPanel: () -> Unit = {},
 ) {
   val playerPreferences = koinInject<PlayerPreferences>()
   val audioPreferences = koinInject<AudioPreferences>()
@@ -165,6 +167,7 @@ fun GestureHandler(
   }
 
   val panelShown by viewModel.panelShown.collectAsState()
+  val anyPanelShown = panelShown != Panels.None || externalPanelShown
   val allowGesturesInPanels by playerPreferences.allowGesturesInPanels.collectAsState()
   val paused by PlaybackSession.propBoolean["pause"].collectAsState()
   val duration by PlaybackSession.propInt["duration"].collectAsState()
@@ -287,8 +290,9 @@ fun GestureHandler(
         if (useSingleTapForCenter && isCenterTap) {
           viewModel.handleCenterSingleTap()
         } else {
-          if (panelShown != Panels.None && !allowGesturesInPanels) {
-            viewModel.panelShown.update { Panels.None }
+          if (anyPanelShown && !allowGesturesInPanels) {
+            if (panelShown != Panels.None) viewModel.panelShown.update { Panels.None }
+            if (externalPanelShown) onDismissExternalPanel()
           }
           if (controlsShown) {
             viewModel.hideControls()
@@ -490,6 +494,7 @@ fun GestureHandler(
           volumeGesture,
           centerVerticalSubtitlePositionGesture,
           enableCenterSwipeUpGesture,
+          externalPanelShown,
         ) {
           if (
             (
@@ -661,6 +666,7 @@ fun GestureHandler(
                             viewModel.sheetShown.update { Sheets.Playlist }
                             viewModel.hideControls()
                             viewModel.panelShown.update { Panels.None }
+                            if (externalPanelShown) onDismissExternalPanel()
                           } else {
                             return@forEach
                           }
@@ -1155,6 +1161,7 @@ fun GestureHandler(
           isVerticalGestureActive,
           swipeSubtitlesToSeekDialog,
           isSwipeSubtitlesInverted,
+          anyPanelShown,
         ) {
           if ((!horizontalSwipeToSeek && !swipeSubtitlesToSeekDialog) ||
             areControlsLocked ||
@@ -1242,7 +1249,7 @@ fun GestureHandler(
                       // Don't conflict with long press
                       !isDynamicSpeedControlActive &&
                       // Don't conflict with speed control
-                      panelShown == Panels.None
+                      !anyPanelShown
                     ) { // Only when no panels are shown
                       if (claimGesture(GestureOwner.HORIZONTAL_SEEK)) {
                         gestureType = "horizontal_seek"
