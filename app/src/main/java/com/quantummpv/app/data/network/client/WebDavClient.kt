@@ -23,6 +23,7 @@ import kotlinx.coroutines.withContext
 import okhttp3.Credentials
 import okhttp3.HttpUrl
 import okhttp3.Request
+import okhttp3.Response
 import java.io.IOException
 import java.io.InputStream
 import java.util.concurrent.TimeUnit
@@ -41,6 +42,13 @@ class WebDavClient(
     private val contentRangePattern = Regex("bytes\\s+(\\d+)-(\\d+)/(\\d+|\\*)", RegexOption.IGNORE_CASE)
     private val encodedPathSeparatorPattern = Regex("%(?:2f|5c)", RegexOption.IGNORE_CASE)
   }
+
+  private data class RangedResponse(
+    val response: Response,
+    val start: Long,
+    val endInclusive: Long,
+    val totalLength: Long?,
+  )
 
   private var sardine: Sardine? = null
 
@@ -233,58 +241,135 @@ class WebDavClient(
     path: NetworkPath,
     offset: Long,
   ): Result<InputStream> {
+    val initial =
+      try {
+        openRangedResponse(path, offset)
+      } catch (error: Exception) {
+        return Result.failure(error)
+      }
+
+    return Result.success(
+      object : InputStream() {
+        private var current = initial
+        private var stream = current.response.body.byteStream()
+        private var position = current.start
+        private var bytesRemaining = current.endInclusive - current.start + 1L
+        private var totalLength = current.totalLength
+        private var closed = false
+
+        override fun read(): Int {
+          val singleByte = ByteArray(1)
+          val count = read(singleByte, 0, 1)
+          return if (count < 0) -1 else singleByte[0].toInt() and 0xff
+        }
+
+        override fun read(
+          b: ByteArray,
+          off: Int,
+          len: Int,
+        ): Int {
+          if (off < 0 || len < 0 || off > b.size - len) throw IndexOutOfBoundsException()
+          if (len == 0) return 0
+          check(!closed) { "WebDAV range stream is closed" }
+
+          while (true) {
+            if (bytesRemaining == 0L) {
+              val completeLength = totalLength ?: return -1
+              if (position >= completeLength) return -1
+
+              current.response.close()
+              val next = openRangedResponse(path, position)
+              if (next.totalLength != null && next.totalLength != completeLength) {
+                next.response.close()
+                throw IOException("WebDAV resource length changed during streaming")
+              }
+              current = next
+              stream = next.response.body.byteStream()
+              bytesRemaining = next.endInclusive - next.start + 1L
+              totalLength = next.totalLength ?: completeLength
+            }
+
+            val toRead = minOf(len.toLong(), bytesRemaining).toInt()
+            val count = stream.read(b, off, toRead)
+            if (count > 0) {
+              position += count
+              bytesRemaining -= count
+              return count
+            }
+            if (count == 0) continue
+            throw IOException("WebDAV range response ended before its declared Content-Range")
+          }
+        }
+
+        override fun available(): Int =
+          if (closed) {
+            0
+          } else {
+            minOf(stream.available().toLong(), bytesRemaining, Int.MAX_VALUE.toLong()).toInt()
+          }
+
+        override fun close() {
+          if (closed) return
+          closed = true
+          current.response.close()
+        }
+      },
+    )
+  }
+
+  private fun openRangedResponse(
+    path: NetworkPath,
+    offset: Long,
+  ): RangedResponse {
     val requestBuilder =
       Request
         .Builder()
         .url(buildUrl(path.value))
         .get()
         .header("Range", "bytes=$offset-")
+        .header("Accept-Encoding", "identity")
 
     if (!connection.isAnonymous) {
       requestBuilder.header("Authorization", Credentials.basic(connection.username, connection.password))
     }
 
     val response = rangeHttpClient.newCall(requestBuilder.build()).execute()
-    val contentRange = response.header("Content-Range")
-    val rangeMatch = contentRangePattern.matchEntire(contentRange.orEmpty())
+    val rangeMatch = contentRangePattern.matchEntire(response.header("Content-Range").orEmpty())
     val returnedStart = rangeMatch?.groupValues?.get(1)?.toLongOrNull()
     val returnedEnd = rangeMatch?.groupValues?.get(2)?.toLongOrNull()
+    val totalLength = rangeMatch?.groupValues?.get(3)?.takeUnless { it == "*" }?.toLongOrNull()
+    val returnedLength =
+      if (returnedStart != null && returnedEnd != null && returnedEnd >= returnedStart) {
+        returnedEnd - returnedStart + 1L
+      } else {
+        null
+      }
+    val bodyLength = response.body.contentLength()
 
     // A successful HTTP 200 means the server ignored Range. Returning it as if it started at
     // [offset] corrupts seeking, so only a validated 206 response is accepted.
-    if (response.code != 206 || returnedStart != offset || returnedEnd == null || returnedEnd < offset) {
+    if (
+      response.code != 206 ||
+      returnedStart != offset ||
+      returnedEnd == null ||
+      returnedEnd < offset ||
+      (bodyLength >= 0L && bodyLength != returnedLength)
+    ) {
       response.close()
-      return Result.failure(
-        IOException(
-          if (response.code == 200) {
-            "WebDAV server ignored the requested byte range"
-          } else {
-            "WebDAV ranged request failed with HTTP ${response.code}"
-          },
-        ),
+      throw IOException(
+        if (response.code == 200) {
+          "WebDAV server ignored the requested byte range"
+        } else {
+          "WebDAV ranged request failed with HTTP ${response.code}"
+        },
       )
     }
 
-    val rawStream = response.body.byteStream()
-    return Result.success(
-      object : InputStream() {
-        override fun read(): Int = rawStream.read()
-
-        override fun read(b: ByteArray): Int = rawStream.read(b)
-
-        override fun read(
-          b: ByteArray,
-          off: Int,
-          len: Int,
-        ): Int = rawStream.read(b, off, len)
-
-        override fun available(): Int = rawStream.available()
-
-        override fun close() {
-          runCatching { rawStream.close() }
-          response.close()
-        }
-      },
+    return RangedResponse(
+      response = response,
+      start = returnedStart,
+      endInclusive = returnedEnd,
+      totalLength = totalLength,
     )
   }
 
