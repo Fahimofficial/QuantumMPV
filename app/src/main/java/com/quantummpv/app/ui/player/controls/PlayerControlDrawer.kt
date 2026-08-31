@@ -11,6 +11,7 @@ package com.quantummpv.app.ui.player.controls
 
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
@@ -19,7 +20,6 @@ import androidx.compose.animation.fadeOut
 import androidx.compose.animation.slideInHorizontally
 import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.foundation.BorderStroke
-import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.interaction.MutableInteractionSource
@@ -41,6 +41,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
@@ -51,7 +52,6 @@ import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.input.pointer.pointerInput
@@ -75,6 +75,7 @@ import com.quantummpv.app.ui.theme.spacing
 @Composable
 internal fun PlayerControlDrawer(
   buttons: List<PlayerButton>,
+  activeButtons: Set<PlayerButton>,
   controlsVisible: Boolean,
   panelVisible: Boolean,
   onPanelVisibilityChanged: (Boolean) -> Unit,
@@ -121,6 +122,7 @@ internal fun PlayerControlDrawer(
     ) {
       PlayerControlPanel(
         buttons = buttons,
+        activeButtons = activeButtons,
         renderButton = renderButton,
         onDismissRequest = closePanel,
       )
@@ -222,6 +224,7 @@ private fun PlayerControlEdgeHandle(
 @Composable
 private fun PlayerControlPanel(
   buttons: List<PlayerButton>,
+  activeButtons: Set<PlayerButton>,
   renderButton: @Composable (PlayerButton) -> Unit,
   onDismissRequest: () -> Unit,
 ) {
@@ -246,6 +249,7 @@ private fun PlayerControlPanel(
     ) {
       PlayerControlPanelContent(
         buttons = buttons,
+        activeButtons = activeButtons,
         renderButton = renderButton,
       )
     }
@@ -284,6 +288,7 @@ private fun PlayerControlPanelHeader(onDismissRequest: () -> Unit) {
 @Composable
 private fun PlayerControlPanelContent(
   buttons: List<PlayerButton>,
+  activeButtons: Set<PlayerButton>,
   renderButton: @Composable (PlayerButton) -> Unit,
 ) {
   BoxWithConstraints(
@@ -302,6 +307,7 @@ private fun PlayerControlPanelContent(
       buttons.forEach { button ->
         PlayerControlTile(
           button = button,
+          active = button in activeButtons,
           renderButton = renderButton,
           modifier = Modifier.width(tileWidth),
         )
@@ -313,34 +319,71 @@ private fun PlayerControlPanelContent(
 @Composable
 private fun PlayerControlTile(
   button: PlayerButton,
+  active: Boolean,
   renderButton: @Composable (PlayerButton) -> Unit,
   modifier: Modifier = Modifier,
 ) {
-  Column(
-    modifier =
-      modifier
-        .height(92.dp)
-        .clip(RoundedCornerShape(18.dp))
-        .background(MaterialTheme.colorScheme.surfaceContainerHighest.copy(alpha = 0.78f))
-        .padding(horizontal = 6.dp, vertical = 8.dp),
-    horizontalAlignment = Alignment.CenterHorizontally,
-    verticalArrangement = Arrangement.Center,
-  ) {
-    Box(
-      modifier = Modifier.size(40.dp),
-      contentAlignment = Alignment.Center,
-    ) {
-      renderButton(button)
-    }
-    Spacer(Modifier.height(4.dp))
-    Text(
-      text = getPlayerButtonLabel(button),
-      maxLines = 2,
-      overflow = TextOverflow.Ellipsis,
-      textAlign = TextAlign.Center,
-      style = MaterialTheme.typography.labelSmall,
-      modifier = Modifier.fillMaxWidth(),
+  val containerColor by
+    animateColorAsState(
+      targetValue =
+        if (active) {
+          MaterialTheme.colorScheme.primaryContainer
+        } else {
+          MaterialTheme.colorScheme.surfaceContainerHighest.copy(alpha = 0.78f)
+        },
+      animationSpec = tween(durationMillis = 180),
+      label = "PlayerControlTileContainer",
     )
+  val contentColor by
+    animateColorAsState(
+      targetValue =
+        if (active) {
+          MaterialTheme.colorScheme.onPrimaryContainer
+        } else {
+          MaterialTheme.colorScheme.onSurfaceVariant
+        },
+      animationSpec = tween(durationMillis = 180),
+      label = "PlayerControlTileContent",
+    )
+
+  Surface(
+    modifier = modifier.height(104.dp),
+    shape = RoundedCornerShape(18.dp),
+    color = containerColor,
+    contentColor = contentColor,
+    tonalElevation = if (active) 2.dp else 0.dp,
+  ) {
+    Column(
+      modifier =
+        Modifier
+          .fillMaxSize()
+          .padding(horizontal = 6.dp, vertical = 8.dp),
+      horizontalAlignment = Alignment.CenterHorizontally,
+      verticalArrangement = Arrangement.Center,
+    ) {
+      Box(
+        modifier =
+          Modifier
+            .size(56.dp)
+            .graphicsLayer {
+              scaleX = PanelIconScale
+              scaleY = PanelIconScale
+            },
+        contentAlignment = Alignment.Center,
+      ) {
+        renderButton(button)
+      }
+      Spacer(Modifier.height(4.dp))
+      Text(
+        text = getPlayerButtonLabel(button),
+        maxLines = 2,
+        overflow = TextOverflow.Ellipsis,
+        textAlign = TextAlign.Center,
+        style = MaterialTheme.typography.labelSmall,
+        fontWeight = if (active) FontWeight.SemiBold else FontWeight.Medium,
+        modifier = Modifier.fillMaxWidth(),
+      )
+    }
   }
 }
 
@@ -348,5 +391,6 @@ private val EdgeTouchWidth = 48.dp
 private val EdgePullThreshold = 64.dp
 private val EdgePullMaximum = 92.dp
 private val PanelTileSpacing = 8.dp
+private const val PanelIconScale = 1.24f
 private const val EdgeTouchHeightFraction = 0.34f
 private const val PanelColumnCount = 3

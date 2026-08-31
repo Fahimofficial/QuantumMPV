@@ -2441,6 +2441,7 @@ class PlayerViewModel : ViewModel(),
   private val seekPreviewLock = Any()
   private var pendingSeekPreviewPosition: Float? = null
   private var seekPreviewJob: Job? = null
+  private var frameSeekJob: Job? = null
 
   private companion object {
     const val TAG = "PlayerViewModel"
@@ -2454,6 +2455,13 @@ class PlayerViewModel : ViewModel(),
     const val RELATIVE_SEEK_EOF_GUARD_SECONDS = 0.25
     const val SEEK_TARGET_TOLERANCE_SECONDS = 0.05
     const val PREVIEW_SEEK_INTERVAL_MS = 100L
+    const val FRAME_SEEK_POLL_INTERVAL_MS = 10L
+    const val FRAME_SEEK_MIN_SETTLE_POLLS = 8
+    const val FRAME_SEEK_MAX_SETTLE_POLLS = 75
+    const val FRAME_SEEK_EXACT_PASSES = 3
+    const val FRAME_SEEK_MAX_CORRECTION_STEPS = 12
+    const val FRAME_SEEK_CORRECTION_INTERVAL_MS = 24L
+    const val FRAME_SEEK_CORRECTION_SETTLE_MS = 40L
     val QUALITY_HEIGHT_REGEX = Regex("""(?i)(\d{3,4})p""")
     const val NATIVE_LINEAR_HDR_YOUTUBE_BLUR_RADIUS = 100.0
     val MPV_ONLY_PSEUDO_PROTOCOLS =
@@ -4024,6 +4032,7 @@ class PlayerViewModel : ViewModel(),
   // ==================== Seeking ====================
 
   fun seekBy(offset: Int) {
+    cancelFrameSeek()
     coalesceSeek(offset)
   }
 
@@ -4033,6 +4042,7 @@ class PlayerViewModel : ViewModel(),
    * applied at a bounded rate. Preview seeks are keyframe-only and never spam Syncplay peers.
    */
   fun seekPreviewTo(position: Float) {
+    cancelFrameSeek()
     synchronized(seekPreviewLock) {
       pendingSeekPreviewPosition = position.coerceAtLeast(0f)
       if (seekPreviewJob?.isActive == true) return
@@ -4067,6 +4077,7 @@ class PlayerViewModel : ViewModel(),
     position: Int,
     fast: Boolean = false,
   ) {
+    cancelFrameSeek()
     cancelSeekPreview()
     viewModelScope.launch(Dispatchers.IO) {
       val maxDuration =
@@ -4959,6 +4970,10 @@ class PlayerViewModel : ViewModel(),
   fun updateFrameInfo() {
     _currentFrame.value = PlaybackSession.getPropertyInt("estimated-frame-number") ?: 0
 
+    val estimatedFrameCount =
+      PlaybackSession
+        .getPropertyInt("estimated-frame-count")
+        ?.takeIf { it > 0 }
     val durationValue = PlaybackSession.getPropertyDouble("duration") ?: 0.0
     val fps =
       PlaybackSession.getPropertyDouble("container-fps")
@@ -4966,11 +4981,118 @@ class PlayerViewModel : ViewModel(),
         ?: 0.0
 
     _totalFrames.value =
-      if (durationValue > 0 && fps > 0) {
-        (durationValue * fps).toInt()
+      estimatedFrameCount
+        ?: if (durationValue > 0 && fps > 0) {
+          (durationValue * fps).toInt()
+        } else {
+          0
+        }
+  }
+
+  fun seekToFrame(
+    targetFrame: Int,
+    totalFrames: Int,
+    finished: Boolean,
+  ) {
+    val durationSeconds =
+      PlaybackSession
+        .getPropertyDouble("duration")
+        ?.takeIf { it.isFinite() && it > 0.0 }
+        ?: currentDurationSeconds().takeIf { it.isFinite() && it > 0.0 }
+        ?: return
+    val frameCount =
+      PlaybackSession
+        .getPropertyInt("estimated-frame-count")
+        ?.takeIf { it > 0 }
+        ?: totalFrames.takeIf { it > 0 }
+        ?: return
+    val lastFrame = (frameCount - 1).coerceAtLeast(0)
+    val clampedFrame = targetFrame.coerceIn(0, lastFrame)
+    val requestedPosition = clampedFrame.toDouble() * durationSeconds / frameCount
+    val loopA = _abLoopState.value.a
+    val loopB = _abLoopState.value.b
+    val targetPosition =
+      if (loopA != null && loopB != null) {
+        requestedPosition.coerceIn(minOf(loopA, loopB), maxOf(loopA, loopB))
       } else {
-        0
+        requestedPosition
       }
+    val effectiveTargetFrame =
+      if (targetPosition == requestedPosition) {
+        clampedFrame
+      } else {
+        kotlin.math
+          .round(targetPosition * frameCount / durationSeconds)
+          .toInt()
+          .coerceIn(0, lastFrame)
+      }
+
+    if (!finished) {
+      seekPreviewTo(targetPosition.toFloat())
+      return
+    }
+
+    cancelSeekPreview()
+    cancelFrameSeek()
+    frameSeekJob =
+      viewModelScope.launch(Dispatchers.IO) {
+        seekCoalesceJob?.cancel()
+        pendingSeekOffset = 0
+        if (PlaybackSession.getPropertyBoolean("pause") != true) {
+          PlaybackSession.setPropertyBoolean("pause", true)
+          withContext(Dispatchers.Main) { host.abandonAudioFocus() }
+        }
+
+        var refinedPosition = targetPosition
+        var remainingFrameDelta: Int? = null
+        var exactPassCount = 0
+        while (exactPassCount < FRAME_SEEK_EXACT_PASSES) {
+          exactPassCount += 1
+          PlaybackSession.command("seek", refinedPosition.toString(), "absolute+exact")
+          awaitFrameSeekSettled()
+          val observedFrame = PlaybackSession.getPropertyInt("estimated-frame-number") ?: break
+          remainingFrameDelta = effectiveTargetFrame - observedFrame
+          if (kotlin.math.abs(remainingFrameDelta) <= FRAME_SEEK_MAX_CORRECTION_STEPS) break
+          refinedPosition =
+            (refinedPosition + remainingFrameDelta.toDouble() * durationSeconds / frameCount)
+              .coerceIn(0.0, durationSeconds)
+        }
+
+        val correctedFrames =
+          remainingFrameDelta
+            ?.takeIf { kotlin.math.abs(it) <= FRAME_SEEK_MAX_CORRECTION_STEPS }
+            ?.let { frameDelta ->
+              repeat(kotlin.math.abs(frameDelta)) {
+                PlaybackSession.command(
+                  "no-osd",
+                  if (frameDelta > 0) "frame-step" else "frame-back-step",
+                )
+                delay(FRAME_SEEK_CORRECTION_INTERVAL_MS)
+              }
+              kotlin.math.abs(frameDelta)
+            }
+            ?: 0
+        if (correctedFrames > 0) delay(FRAME_SEEK_CORRECTION_SETTLE_MS)
+
+        updateFrameInfo()
+        val actualPosition = PlaybackSession.getPropertyDouble("time-pos") ?: refinedPosition
+        syncplayManager.updatePlayerState(actualPosition, true, doSeek = true)
+      }
+  }
+
+  fun cancelFrameSeek() {
+    frameSeekJob?.cancel()
+    frameSeekJob = null
+  }
+
+  private suspend fun awaitFrameSeekSettled() {
+    var observedSeeking = false
+    for (poll in 0 until FRAME_SEEK_MAX_SETTLE_POLLS) {
+      val seeking = PlaybackSession.getPropertyBoolean("seeking") == true
+      observedSeeking = observedSeeking || seeking
+      if (!seeking && (observedSeeking || poll >= FRAME_SEEK_MIN_SETTLE_POLLS)) return
+      delay(FRAME_SEEK_POLL_INTERVAL_MS)
+    }
   }
 
   fun toggleFrameNavigationExpanded() {

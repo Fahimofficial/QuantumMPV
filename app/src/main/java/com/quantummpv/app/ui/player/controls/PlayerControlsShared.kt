@@ -79,7 +79,7 @@ import com.quantummpv.app.ui.player.VideoAspect
 import com.quantummpv.app.ui.player.controls.components.AbLoopIcon
 import com.quantummpv.app.ui.player.controls.components.ControlsButton
 import com.quantummpv.app.ui.player.controls.components.CurrentChapter
-import com.quantummpv.app.ui.theme.controlColor
+import com.quantummpv.app.ui.theme.controlColor as defaultControlColor
 import com.quantummpv.app.ui.theme.spacing
 import com.quantummpv.app.ui.utils.isAnyMpvOptionOwnedByConfig
 import com.quantummpv.app.ui.utils.isMpvOptionOwnedByConfig
@@ -112,6 +112,8 @@ fun RenderPlayerButton(
   compact: Boolean = false,
 ) {
   PlayerButtonContentTheme {
+    val controlColor =
+      if (compact) androidx.compose.material3.LocalContentColor.current else defaultControlColor
     val clickEvent = LocalPlayerButtonsClickEvent.current
     val advancedPreferences = koinInject<AdvancedPreferences>()
     val playerPreferences = koinInject<PlayerPreferences>()

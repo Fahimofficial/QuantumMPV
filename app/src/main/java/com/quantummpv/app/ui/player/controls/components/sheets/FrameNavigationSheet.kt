@@ -15,6 +15,7 @@ import android.widget.Toast
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.scaleIn
@@ -60,6 +61,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.scale
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalConfiguration
@@ -85,6 +87,7 @@ import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeoutOrNull
 import org.koin.compose.koinInject
 import java.util.Locale
+import kotlin.math.roundToInt
 import kotlin.math.roundToLong
 
 @Composable
@@ -95,7 +98,8 @@ fun FrameNavigationSheet(
   onPause: () -> Unit,
   onUnpause: () -> Unit,
   onPauseUnpause: () -> Unit,
-  onSeekTo: (Int, Boolean) -> Unit,
+  onSeekToFrame: (Int, Boolean) -> Unit,
+  onCancelFrameSeek: () -> Unit,
   onDismissRequest: () -> Unit,
   modifier: Modifier = Modifier,
 ) {
@@ -126,27 +130,21 @@ fun FrameNavigationSheet(
   val currentIsPaused by rememberUpdatedState(isPaused)
 
   // Use the same logic as PlayerControls for position and duration
-  val position by PlaybackSession.propInt["time-pos"].collectAsState()
-  val duration by PlaybackSession.propInt["duration"].collectAsState()
-  val pos = position ?: 0
-  val dur = duration ?: 0
+  val position by PlaybackSession.propDouble["time-pos"].collectAsState()
+  val duration by PlaybackSession.propDouble["duration"].collectAsState()
+  val pos = position ?: 0.0
+  val dur = duration ?: 0.0
 
   // Format timestamp based on current position
   val timestamp =
     remember(pos, dur, currentFrame, totalFrames) {
       val precisePositionSeconds =
-        if (dur > 0 && totalFrames > 0) {
+        if (dur > 0.0 && totalFrames > 0) {
           currentFrame.toDouble() * dur / totalFrames
         } else {
-          pos.toDouble()
+          pos
         }
-      val totalMilliseconds = (precisePositionSeconds * 1_000).roundToLong().coerceAtLeast(0L)
-      val totalSeconds = totalMilliseconds / 1_000
-      val hours = totalSeconds / 3_600
-      val minutes = (totalSeconds % 3_600) / 60
-      val seconds = totalSeconds % 60
-      val milliseconds = totalMilliseconds % 1_000
-      String.format(Locale.US, "%02d:%02d:%02d.%03d", hours, minutes, seconds, milliseconds)
+      formatFrameTimestamp(precisePositionSeconds)
     }
 
   // Pause playback when the sheet opens
@@ -155,13 +153,14 @@ fun FrameNavigationSheet(
   }
 
   LaunchedEffect(pos) {
-    currentOnUpdateFrameInfo()
+    if (!isFrameStepping) currentOnUpdateFrameInfo()
   }
 
   // Only resume playback when closing if it wasn't paused initially
   DisposableEffect(Unit) {
     onDispose {
       frameStepJob?.cancel()
+      onCancelFrameSeek()
       if (!wasPausedInitially) {
         currentOnUnpause()
       }
@@ -170,6 +169,7 @@ fun FrameNavigationSheet(
 
   fun enqueueFrameSteps(stepCount: Int) {
     if (stepCount == 0) return
+    onCancelFrameSeek()
     pendingFrameSteps += stepCount
     if (frameStepJob?.isActive == true) return
 
@@ -215,6 +215,7 @@ fun FrameNavigationSheet(
     onFrameSteps = ::enqueueFrameSteps,
     onPlayPause = {
       frameStepJob?.cancel()
+      onCancelFrameSeek()
       pendingFrameSteps = 0
       isFrameStepping = false
       onPauseUnpause()
@@ -255,11 +256,11 @@ fun FrameNavigationSheet(
         }
       }
     },
-    onSeekTo = { seekPosition, finished ->
+    onSeekToFrame = { targetFrame, finished ->
       frameStepJob?.cancel()
       pendingFrameSteps = 0
       isFrameStepping = false
-      onSeekTo(seekPosition, finished)
+      onSeekToFrame(targetFrame, finished)
     },
     onIncludeSubtitlesChanged = { checked ->
       includeSubtitlesInSnapshot = checked
@@ -286,7 +287,7 @@ private fun FrameReviewOverlay(
   onFrameSteps: (Int) -> Unit,
   onPlayPause: () -> Unit,
   onSnapshot: () -> Unit,
-  onSeekTo: (Int, Boolean) -> Unit,
+  onSeekToFrame: (Int, Boolean) -> Unit,
   onIncludeSubtitlesChanged: (Boolean) -> Unit,
   onDismissRequest: () -> Unit,
   modifier: Modifier = Modifier,
@@ -299,14 +300,36 @@ private fun FrameReviewOverlay(
   var accumulatedDrag by remember { mutableFloatStateOf(0f) }
   var requestedFrameDelta by remember { mutableIntStateOf(0) }
   var isScrubbing by remember { mutableStateOf(false) }
-  var userSliderPosition by remember { mutableFloatStateOf(0f) }
+  var userSliderFrame by remember { mutableIntStateOf(0) }
+  var settlingFrame by remember { mutableStateOf<Int?>(null) }
   var isSeeking by remember { mutableStateOf(false) }
-  val videoProgress = if (duration > 0f) position / duration else 0f
-  val seekbarProgress = if (isSeeking) userSliderPosition else videoProgress
-  val animatedProgress by animateFloatAsState(
-    targetValue = seekbarProgress.coerceIn(0f, 1f),
-    label = "FrameReviewSeekbar",
+  val lastFrame = (totalFrames - 1).coerceAtLeast(0)
+  val actualFrame = currentFrame.coerceIn(0, lastFrame)
+  val animatedFrame by animateFloatAsState(
+    targetValue = actualFrame.toFloat(),
+    animationSpec = tween(durationMillis = 140),
+    label = "FrameReviewFrameSeekbar",
   )
+  val displayedFrame = if (isSeeking) userSliderFrame else settlingFrame ?: actualFrame
+  val seekbarFrame = if (isSeeking) userSliderFrame.toFloat() else settlingFrame?.toFloat() ?: animatedFrame
+  val displayedTimestamp =
+    remember(displayedFrame, duration, totalFrames, position, timestamp) {
+      if (duration > 0.0 && totalFrames > 0) {
+        formatFrameTimestamp(displayedFrame.toDouble() * duration / totalFrames)
+      } else {
+        timestamp
+      }
+    }
+
+  LaunchedEffect(currentFrame, settlingFrame) {
+    if (settlingFrame == currentFrame) settlingFrame = null
+  }
+  LaunchedEffect(settlingFrame) {
+    if (settlingFrame != null) {
+      delay(FRAME_SEEK_UI_SETTLE_TIMEOUT_MS)
+      settlingFrame = null
+    }
+  }
   BackHandler(onBack = onDismissRequest)
 
   Box(
@@ -339,6 +362,7 @@ private fun FrameReviewOverlay(
                 if (steps != 0) {
                   accumulatedDrag -= steps * pixelsPerFrame
                   requestedFrameDelta += steps
+                  settlingFrame = null
                   haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
                   onFrameSteps(steps)
                 }
@@ -358,7 +382,7 @@ private fun FrameReviewOverlay(
     ) {
       Surface(
         shape = CircleShape,
-        color = MaterialTheme.colorScheme.surfaceContainerHigh.copy(alpha = 0.92f),
+        color = MaterialTheme.colorScheme.surfaceContainerHigh.copy(alpha = 0.72f),
         contentColor = MaterialTheme.colorScheme.onSurface,
       ) {
         Text(
@@ -374,7 +398,7 @@ private fun FrameReviewOverlay(
             .size(48.dp)
             .clickable(onClick = onDismissRequest),
         shape = CircleShape,
-        color = MaterialTheme.colorScheme.surfaceContainerHigh.copy(alpha = 0.92f),
+        color = MaterialTheme.colorScheme.surfaceContainerHigh.copy(alpha = 0.72f),
         contentColor = MaterialTheme.colorScheme.onSurface,
       ) {
         Box(contentAlignment = Alignment.Center) {
@@ -412,14 +436,14 @@ private fun FrameReviewOverlay(
           Text(
             text =
               if (totalFrames > 0) {
-                "${stringResource(R.string.ui_frame)} $currentFrame / $totalFrames"
+                "${stringResource(R.string.ui_frame)} $displayedFrame / $totalFrames"
               } else {
-                "${stringResource(R.string.ui_frame)} $currentFrame"
+                "${stringResource(R.string.ui_frame)} $displayedFrame"
               },
             style = MaterialTheme.typography.bodyMedium,
           )
           Text(
-            text = timestamp,
+            text = displayedTimestamp,
             style = MaterialTheme.typography.labelMedium,
           )
         }
@@ -436,99 +460,128 @@ private fun FrameReviewOverlay(
               while (true) awaitPointerEvent()
             }
           }.windowInsetsPadding(WindowInsets.navigationBars),
-      color = MaterialTheme.colorScheme.surfaceContainerHigh.copy(alpha = 0.96f),
+      color = Color.Transparent,
       contentColor = MaterialTheme.colorScheme.onSurface,
-      tonalElevation = 6.dp,
-      shadowElevation = 8.dp,
+      tonalElevation = 0.dp,
+      shadowElevation = 0.dp,
     ) {
       Column(
         modifier =
           Modifier
             .fillMaxWidth()
-            .padding(horizontal = 16.dp, vertical = 10.dp),
-        verticalArrangement = Arrangement.spacedBy(6.dp),
+            .padding(horizontal = 16.dp, vertical = 6.dp),
+        verticalArrangement = Arrangement.spacedBy(4.dp),
       ) {
-        Slider(
-          value = animatedProgress,
-          onValueChange = { newValue ->
-            if (!isSeeking) isSeeking = true
-            userSliderPosition = newValue.coerceIn(0f, 1f)
-            onSeekTo((userSliderPosition * duration).toInt(), false)
-          },
-          onValueChangeFinished = {
-            onSeekTo((userSliderPosition * duration).toInt(), true)
-            isSeeking = false
-          },
-          enabled = duration > 0f && !isSnapshotLoading && !isFrameStepping,
+        Surface(
           modifier = Modifier.fillMaxWidth(),
-        )
-
-        if (isLandscape) {
-          Row(
-            modifier = Modifier.fillMaxWidth(),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(16.dp),
-          ) {
-            FrameInfoDisplay(
-              currentFrame = currentFrame,
-              totalFrames = totalFrames,
-              timestamp = timestamp,
-            )
-            Spacer(Modifier.weight(1f))
-            ControlButtons(
-              onPreviousFrame = {
-                requestedFrameDelta = 0
-                onFrameSteps(-1)
-              },
-              onPlayPause = onPlayPause,
-              isPaused = isPaused,
-              onNextFrame = {
-                requestedFrameDelta = 0
-                onFrameSteps(1)
-              },
-              onSnapshot = onSnapshot,
-              isSnapshotLoading = isSnapshotLoading,
-              isFrameStepping = isFrameStepping,
-              buttonColors = frameReviewButtonColors(),
-            )
-          }
-          IncludeSubsToggle(
-            includeSubs = includeSubtitles,
-            setIncludeSubs = onIncludeSubtitlesChanged,
-            modifier = Modifier.widthIn(max = 220.dp),
-          )
-        } else {
-          FrameInfoDisplay(
-            currentFrame = currentFrame,
-            totalFrames = totalFrames,
-            timestamp = timestamp,
-          )
-          IncludeSubsToggle(
-            includeSubs = includeSubtitles,
-            setIncludeSubs = onIncludeSubtitlesChanged,
-          )
-          Box(
-            modifier = Modifier.fillMaxWidth(),
-            contentAlignment = Alignment.Center,
-          ) {
-            ControlButtons(
-              onPreviousFrame = {
-                requestedFrameDelta = 0
-                onFrameSteps(-1)
-              },
-              onPlayPause = onPlayPause,
-              isPaused = isPaused,
-              onNextFrame = {
-                requestedFrameDelta = 0
-                onFrameSteps(1)
-              },
-              onSnapshot = onSnapshot,
-              isSnapshotLoading = isSnapshotLoading,
-              isFrameStepping = isFrameStepping,
-              buttonColors = frameReviewButtonColors(),
-            )
+          shape = MaterialTheme.shapes.extraLarge,
+          color = MaterialTheme.colorScheme.surfaceContainerHigh.copy(alpha = 0.68f),
+          contentColor = MaterialTheme.colorScheme.onSurface,
+        ) {
+          if (isLandscape) {
+            Row(
+              modifier = Modifier.padding(horizontal = 14.dp, vertical = 10.dp),
+              verticalAlignment = Alignment.CenterVertically,
+              horizontalArrangement = Arrangement.spacedBy(12.dp),
+            ) {
+              FrameInfoDisplay(
+                currentFrame = displayedFrame,
+                totalFrames = totalFrames,
+                timestamp = displayedTimestamp,
+              )
+              Spacer(Modifier.weight(1f))
+              ControlButtons(
+                onPreviousFrame = {
+                  settlingFrame = null
+                  requestedFrameDelta = 0
+                  onFrameSteps(-1)
+                },
+                onPlayPause = {
+                  settlingFrame = null
+                  onPlayPause()
+                },
+                isPaused = isPaused,
+                onNextFrame = {
+                  settlingFrame = null
+                  requestedFrameDelta = 0
+                  onFrameSteps(1)
+                },
+                onSnapshot = onSnapshot,
+                isSnapshotLoading = isSnapshotLoading,
+                buttonColors = frameReviewButtonColors(),
+              )
+              IncludeSubsToggle(
+                includeSubs = includeSubtitles,
+                setIncludeSubs = onIncludeSubtitlesChanged,
+                modifier = Modifier.widthIn(min = 180.dp, max = 220.dp),
+              )
+            }
+          } else {
+            Column(
+              modifier = Modifier.padding(horizontal = 14.dp, vertical = 10.dp),
+              verticalArrangement = Arrangement.spacedBy(6.dp),
+            ) {
+              FrameInfoDisplay(
+                currentFrame = displayedFrame,
+                totalFrames = totalFrames,
+                timestamp = displayedTimestamp,
+              )
+              IncludeSubsToggle(
+                includeSubs = includeSubtitles,
+                setIncludeSubs = onIncludeSubtitlesChanged,
+                modifier = Modifier.fillMaxWidth(),
+              )
+              Box(
+                modifier = Modifier.fillMaxWidth(),
+                contentAlignment = Alignment.Center,
+              ) {
+                ControlButtons(
+                  onPreviousFrame = {
+                    settlingFrame = null
+                    requestedFrameDelta = 0
+                    onFrameSteps(-1)
+                  },
+                  onPlayPause = {
+                    settlingFrame = null
+                    onPlayPause()
+                  },
+                  isPaused = isPaused,
+                  onNextFrame = {
+                    settlingFrame = null
+                    requestedFrameDelta = 0
+                    onFrameSteps(1)
+                  },
+                  onSnapshot = onSnapshot,
+                  isSnapshotLoading = isSnapshotLoading,
+                  buttonColors = frameReviewButtonColors(),
+                )
+              }
+            }
           }
         }
+
+        Slider(
+          value = seekbarFrame.coerceIn(0f, lastFrame.coerceAtLeast(1).toFloat()),
+          onValueChange = { newValue ->
+            val targetFrame = newValue.roundToInt().coerceIn(0, lastFrame)
+            val targetChanged = !isSeeking || targetFrame != userSliderFrame
+            if (!isSeeking) {
+              isSeeking = true
+              settlingFrame = null
+            }
+            userSliderFrame = targetFrame
+            if (targetChanged) onSeekToFrame(targetFrame, false)
+          },
+          onValueChangeFinished = {
+            if (!isSeeking) return@Slider
+            settlingFrame = userSliderFrame
+            isSeeking = false
+            onSeekToFrame(userSliderFrame, true)
+          },
+          valueRange = 0f..lastFrame.coerceAtLeast(1).toFloat(),
+          enabled = totalFrames > 1 && duration > 0.0 && !isSnapshotLoading,
+          modifier = Modifier.fillMaxWidth(),
+        )
       }
     }
   }
@@ -547,6 +600,17 @@ private val FrameSwipeDistancePerFrame = 20.dp
 private const val FRAME_STEP_INTERVAL_MS = 24L
 private const val FRAME_PAUSE_TIMEOUT_MS = 250L
 private const val FRAME_PAUSE_POLL_INTERVAL_MS = 10L
+private const val FRAME_SEEK_UI_SETTLE_TIMEOUT_MS = 3_000L
+
+private fun formatFrameTimestamp(positionSeconds: Double): String {
+  val totalMilliseconds = (positionSeconds * 1_000).roundToLong().coerceAtLeast(0L)
+  val totalSeconds = totalMilliseconds / 1_000
+  val hours = totalSeconds / 3_600
+  val minutes = (totalSeconds % 3_600) / 60
+  val seconds = totalSeconds % 60
+  val milliseconds = totalMilliseconds % 1_000
+  return String.format(Locale.US, "%02d:%02d:%02d.%03d", hours, minutes, seconds, milliseconds)
+}
 
 @Composable
 private fun FrameInfoDisplay(
@@ -607,7 +671,6 @@ private fun ControlButtons(
   onNextFrame: () -> Unit,
   onSnapshot: () -> Unit,
   isSnapshotLoading: Boolean,
-  isFrameStepping: Boolean,
   buttonColors: androidx.compose.material3.ButtonColors,
 ) {
   Row(
@@ -617,7 +680,7 @@ private fun ControlButtons(
     Button(
       onClick = onPreviousFrame,
       modifier = Modifier.size(56.dp),
-      enabled = !isSnapshotLoading && !isFrameStepping,
+      enabled = !isSnapshotLoading,
       colors = buttonColors,
       contentPadding = PaddingValues(0.dp),
     ) {
@@ -631,7 +694,7 @@ private fun ControlButtons(
     Button(
       onClick = onPlayPause,
       modifier = Modifier.size(56.dp),
-      enabled = !isSnapshotLoading && !isFrameStepping,
+      enabled = !isSnapshotLoading,
       colors = buttonColors,
       contentPadding = PaddingValues(0.dp),
     ) {
@@ -645,7 +708,7 @@ private fun ControlButtons(
     Button(
       onClick = onNextFrame,
       modifier = Modifier.size(56.dp),
-      enabled = !isSnapshotLoading && !isFrameStepping,
+      enabled = !isSnapshotLoading,
       colors = buttonColors,
       contentPadding = PaddingValues(0.dp),
     ) {
@@ -659,7 +722,7 @@ private fun ControlButtons(
     Button(
       onClick = onSnapshot,
       modifier = Modifier.size(56.dp),
-      enabled = !isSnapshotLoading && !isFrameStepping,
+      enabled = !isSnapshotLoading,
       colors = buttonColors,
       contentPadding = PaddingValues(0.dp),
     ) {
@@ -689,7 +752,6 @@ private fun IncludeSubsToggle(
   Row(
     modifier =
       modifier
-        .fillMaxWidth()
         .padding(bottom = MaterialTheme.spacing.extraSmall),
     verticalAlignment = Alignment.CenterVertically,
     horizontalArrangement = Arrangement.Start,

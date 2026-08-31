@@ -302,6 +302,12 @@ fun PlayerControls(
   val abLoop by viewModel.abLoopState.collectAsState()
   val abLoopA = abLoop.a
   val abLoopB = abLoop.b
+  val repeatMode by viewModel.repeatMode.collectAsState()
+  val shuffleEnabled by viewModel.shuffleEnabled.collectAsState()
+  val transformState by viewModel.transformState.collectAsState()
+  val isHdrOutputEnabled by viewModel.isHdrScreenOutputEnabled.collectAsState()
+  val isAmbientEnabled by viewModel.isAmbientEnabled.collectAsState()
+  val backgroundPlaybackEnabled by audioPreferences.backgroundPlayback.collectAsState()
 
   val onOpenSheet: (Sheets) -> Unit = remember(viewModel) {
     {
@@ -1914,9 +1920,39 @@ fun PlayerControls(
       onDismissRequest = { onOpenPanel(Panels.None) },
     )
 
+    val activePlayerDrawerButtons =
+      remember(
+        isSpeedNonOne,
+        currentZoom,
+        repeatMode,
+        shuffleEnabled,
+        transformState,
+        abLoopA,
+        abLoopB,
+        isHdrOutputEnabled,
+        isAmbientEnabled,
+        backgroundPlaybackEnabled,
+        statisticsPage,
+      ) {
+        buildSet {
+          if (isSpeedNonOne) add(PlayerButton.PLAYBACK_SPEED)
+          if (kotlin.math.abs(currentZoom) >= 0.005f) add(PlayerButton.VIDEO_ZOOM)
+          if (repeatMode != com.quantummpv.app.ui.player.RepeatMode.OFF) add(PlayerButton.REPEAT_MODE)
+          if (shuffleEnabled) add(PlayerButton.SHUFFLE)
+          if (transformState.isMirrored) add(PlayerButton.MIRROR)
+          if (transformState.isVerticalFlipped) add(PlayerButton.VERTICAL_FLIP)
+          if (abLoopA != null || abLoopB != null) add(PlayerButton.AB_LOOP)
+          if (isHdrOutputEnabled) add(PlayerButton.HDR_MODE)
+          if (isAmbientEnabled) add(PlayerButton.AMBIENT_MODE)
+          if (backgroundPlaybackEnabled) add(PlayerButton.BACKGROUND_PLAYBACK)
+          if (statisticsPage == 6) add(PlayerButton.TIME_NETWORK)
+        }
+      }
+
     PlayerButtonTheme(hideBackground = false) {
       PlayerControlDrawer(
         buttons = playerDrawerButtons,
+        activeButtons = activePlayerDrawerButtons,
         controlsVisible =
           controlsShown &&
             !areControlsLocked &&
@@ -1935,7 +1971,7 @@ fun PlayerControls(
             currentZoom = currentZoom,
             aspect = aspect,
             mediaTitle = mediaTitle,
-            hideBackground = false,
+            hideBackground = true,
             decoder = decoder,
             playbackSpeed = playbackSpeed ?: 1f,
             onBackPress = onBackPress,
@@ -1943,7 +1979,7 @@ fun PlayerControls(
             onOpenPanel = onOpenPanel,
             viewModel = viewModel,
             activity = playerActivity,
-            buttonSize = 40.dp,
+            buttonSize = 44.dp,
             compact = true,
           )
         },
