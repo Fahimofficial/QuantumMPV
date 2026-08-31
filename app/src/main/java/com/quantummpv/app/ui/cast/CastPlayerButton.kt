@@ -36,6 +36,7 @@ import androidx.compose.ui.graphics.Color as ComposeColor
 fun CastPlayerButton(
   hideBackground: Boolean,
   buttonSize: Dp,
+  onInvoked: () -> Unit = {},
 ) {
   val castContentDescription =
     androidx.compose.ui.res
@@ -66,6 +67,9 @@ fun CastPlayerButton(
             CastButtonFactory.setUpMediaRouteButton(context.applicationContext, this)
             setRemoteIndicatorDrawable(ColorDrawable(Color.TRANSPARENT))
           }
+        },
+        update = { button ->
+          button.setOnClickListener { onInvoked() }
         },
         modifier = Modifier.fillMaxSize(),
       )

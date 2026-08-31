@@ -89,7 +89,10 @@ fun ControlsButton(
             clickEvent()
             onClick()
           },
-          onLongClick = onLongClick,
+          onLongClick = {
+            clickEvent()
+            onLongClick()
+          },
           interactionSource = interactionSource,
           indication = ripple(),
         ),

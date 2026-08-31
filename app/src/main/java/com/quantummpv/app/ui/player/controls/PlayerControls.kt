@@ -126,6 +126,7 @@ import com.quantummpv.app.preferences.AudioPreferences
 import com.quantummpv.app.preferences.PlayerButton
 import com.quantummpv.app.preferences.PlayerPreferences
 import com.quantummpv.app.preferences.PortraitPlaybackControlsPosition
+import com.quantummpv.app.preferences.allPlayerButtons
 import com.quantummpv.app.preferences.preference.collectAsState
 import com.quantummpv.app.preferences.preference.deleteAndGet
 import com.quantummpv.app.preferences.preference.minusAssign
@@ -438,8 +439,40 @@ fun PlayerControls(
         PlayerButton.VIDEO_QUALITY in bottomLeftButtons
     }
   val portraitHasConfiguredQualityButton = PlayerButton.VIDEO_QUALITY in portraitBottomButtons
+  val hasPlaylistSupport = viewModel.hasPlaylistSupport()
+  val landscapeOverflowButtons =
+    remember(
+      topRightButtons,
+      bottomRightButtons,
+      bottomLeftButtons,
+      showVideoQualitySelector,
+      chapters,
+      isAudioOnly,
+      hasPlaylistSupport,
+    ) {
+      val visibleButtons =
+        buildSet {
+          addAll(topRightButtons)
+          addAll(bottomRightButtons)
+          addAll(bottomLeftButtons)
+          if (showVideoQualitySelector) add(PlayerButton.VIDEO_QUALITY)
+        }
+      allPlayerButtons.filter { button ->
+        button !in visibleButtons &&
+          when (button) {
+            PlayerButton.BOOKMARKS_CHAPTERS,
+            PlayerButton.CURRENT_CHAPTER,
+            -> chapters.isNotEmpty()
+            PlayerButton.PICTURE_IN_PICTURE -> !isAudioOnly
+            PlayerButton.VIDEO_QUALITY -> showVideoQualitySelector
+            PlayerButton.SHUFFLE -> hasPlaylistSupport
+            else -> true
+          }
+      }
+    }
 
   var isUnlockSliderDragging by remember { mutableStateOf(false) }
+  var isPlayerOverflowShown by remember { mutableStateOf(false) }
 
   LaunchedEffect(
     controlsShown,
@@ -449,8 +482,15 @@ fun PlayerControls(
     areControlsLocked,
     isUnlockSliderDragging,
     isAudioOnly,
+    isPlayerOverflowShown,
   ) {
-    if (!isAudioOnly && controlsShown && paused == false && !isSeeking && !isUnlockSliderDragging) {
+    if (!isAudioOnly &&
+      controlsShown &&
+      paused == false &&
+      !isSeeking &&
+      !isUnlockSliderDragging &&
+      !isPlayerOverflowShown
+    ) {
       // Use 2 second delay when controls are locked, otherwise use user preference
       val delayTime = if (areControlsLocked) 2000L else playerTimeToDisappear.toLong()
       delay(delayTime)
@@ -1688,6 +1728,8 @@ fun PlayerControls(
           ) {
             TopRightPlayerControlsLandscape(
               buttons = topRightButtons,
+              overflowButtons = landscapeOverflowButtons,
+              onOverflowVisibilityChanged = { isPlayerOverflowShown = it },
               chapters = chapters,
               currentChapter = currentChapter,
               isSpeedNonOne = isSpeedNonOne,
@@ -1757,6 +1799,8 @@ fun PlayerControls(
             } else {
               BottomRightPlayerControlsLandscape(
                 buttons = bottomRightButtons,
+                overflowButtons = landscapeOverflowButtons,
+                onOverflowVisibilityChanged = { isPlayerOverflowShown = it },
                 showVideoQualitySelector = showVideoQualitySelector && !landscapeHasConfiguredQualityButton,
                 chapters = chapters,
                 currentChapter = currentChapter,
@@ -1801,6 +1845,8 @@ fun PlayerControls(
           ) {
             BottomLeftPlayerControlsLandscape(
               buttons = bottomLeftButtons,
+              overflowButtons = landscapeOverflowButtons,
+              onOverflowVisibilityChanged = { isPlayerOverflowShown = it },
               chapters = chapters,
               currentChapter = currentChapter,
               isSpeedNonOne = isSpeedNonOne,

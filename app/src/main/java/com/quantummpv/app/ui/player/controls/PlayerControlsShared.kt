@@ -109,6 +109,7 @@ fun RenderPlayerButton(
   viewModel: PlayerViewModel,
   activity: PlayerActivity,
   buttonSize: Dp = 40.dp,
+  compact: Boolean = false,
 ) {
   PlayerButtonContentTheme {
     val clickEvent = LocalPlayerButtonsClickEvent.current
@@ -211,7 +212,7 @@ fun RenderPlayerButton(
     PlayerButton.PLAYBACK_SPEED -> {
       val configOwned = isMpvOptionOwnedByConfig("speed")
       val disabledColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.38f)
-      if (isSpeedNonOne) {
+      if (isSpeedNonOne && !compact) {
         Surface(
           shape = CircleShape,
           color =
@@ -286,64 +287,73 @@ fun RenderPlayerButton(
 
     PlayerButton.DECODER -> {
       val configOwned = isAnyMpvOptionOwnedByConfig(MpvConfigControlledFeatures.HARDWARE_DECODER)
-      Surface(
-        shape = CircleShape,
-        color =
-          if (hideBackground) {
-            Color.Transparent
-          } else {
-            MaterialTheme.colorScheme.surfaceContainer.copy(
-              alpha = 0.55f,
-            )
-          },
-        contentColor =
-          if (configOwned) {
-            MaterialTheme.colorScheme.onSurface.copy(alpha = 0.38f)
-          } else if (hideBackground) {
-            controlColor
-          } else {
-            MaterialTheme.colorScheme.onSurface
-          },
-        tonalElevation = 0.dp,
-        shadowElevation = 0.dp,
-        border =
-          if (hideBackground) {
-            null
-          } else {
-            BorderStroke(
-              1.dp,
-              MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f),
-            )
-          },
-        modifier =
-          Modifier
-            .height(buttonSize)
-            .clip(CircleShape)
-            .clickable(
-              enabled = !configOwned,
-              interactionSource = remember { MutableInteractionSource() },
-              indication = ripple(bounded = true),
-              onClick = {
-                clickEvent()
-                onOpenSheet(Sheets.Decoders)
-              },
-            ),
-      ) {
-        Row(
-          verticalAlignment = Alignment.CenterVertically,
+      if (compact) {
+        ControlsButton(
+          icon = Icons.RoundedFilled.DeveloperBoard,
+          onClick = { onOpenSheet(Sheets.Decoders) },
+          enabled = !configOwned,
+          modifier = Modifier.size(buttonSize),
+        )
+      } else {
+        Surface(
+          shape = CircleShape,
+          color =
+            if (hideBackground) {
+              Color.Transparent
+            } else {
+              MaterialTheme.colorScheme.surfaceContainer.copy(
+                alpha = 0.55f,
+              )
+            },
+          contentColor =
+            if (configOwned) {
+              MaterialTheme.colorScheme.onSurface.copy(alpha = 0.38f)
+            } else if (hideBackground) {
+              controlColor
+            } else {
+              MaterialTheme.colorScheme.onSurface
+            },
+          tonalElevation = 0.dp,
+          shadowElevation = 0.dp,
+          border =
+            if (hideBackground) {
+              null
+            } else {
+              BorderStroke(
+                1.dp,
+                MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f),
+              )
+            },
           modifier =
             Modifier
-              .padding(
-                horizontal = MaterialTheme.spacing.medium,
-                vertical = MaterialTheme.spacing.small,
+              .height(buttonSize)
+              .clip(CircleShape)
+              .clickable(
+                enabled = !configOwned,
+                interactionSource = remember { MutableInteractionSource() },
+                indication = ripple(bounded = true),
+                onClick = {
+                  clickEvent()
+                  onOpenSheet(Sheets.Decoders)
+                },
               ),
         ) {
-          Text(
-            text = decoder.title,
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis,
-            style = MaterialTheme.typography.bodyMedium,
-          )
+          Row(
+            verticalAlignment = Alignment.CenterVertically,
+            modifier =
+              Modifier
+                .padding(
+                  horizontal = MaterialTheme.spacing.medium,
+                  vertical = MaterialTheme.spacing.small,
+                ),
+          ) {
+            Text(
+              text = decoder.title,
+              maxLines = 1,
+              overflow = TextOverflow.Ellipsis,
+              style = MaterialTheme.typography.bodyMedium,
+            )
+          }
         }
       }
     }
@@ -381,7 +391,7 @@ fun RenderPlayerButton(
       val context = LocalContext.current
 
       AnimatedContent(
-        targetState = isExpanded,
+        targetState = isExpanded && !compact,
         transitionSpec = {
           (fadeIn(animationSpec = tween(200)) + expandHorizontally(animationSpec = tween(250)))
             .togetherWith(fadeOut(animationSpec = tween(200)) + shrinkHorizontally(animationSpec = tween(250)))
@@ -514,9 +524,16 @@ fun RenderPlayerButton(
           // Collapsed: Show camera icon button
           ControlsButton(
             icon = Icons.RoundedFilled.CameraAlt,
-            onClick = viewModel::toggleFrameNavigationExpanded,
+            onClick = {
+              if (compact) {
+                viewModel.takeSnapshot(context)
+              } else {
+                viewModel.toggleFrameNavigationExpanded()
+              }
+            },
             onLongClick = { onOpenSheet(Sheets.FrameNavigation) },
             color = if (hideBackground) controlColor else MaterialTheme.colorScheme.onSurface,
+            enabled = !compact || !isSnapshotLoading,
             modifier = Modifier.size(buttonSize),
           )
         }
@@ -528,7 +545,7 @@ fun RenderPlayerButton(
       val panXConfigOwned = isMpvOptionOwnedByConfig("video-pan-x")
       val panYConfigOwned = isMpvOptionOwnedByConfig("video-pan-y")
       val geometryControlsAvailable = !zoomConfigOwned || !panXConfigOwned || !panYConfigOwned
-      if (kotlin.math.abs(currentZoom) >= 0.005f) {
+      if (kotlin.math.abs(currentZoom) >= 0.005f && !compact) {
         @OptIn(ExperimentalFoundationApi::class)
         Surface(
           shape = CircleShape,
@@ -631,6 +648,7 @@ fun RenderPlayerButton(
       CastPlayerButton(
         hideBackground = hideBackground,
         buttonSize = buttonSize,
+        onInvoked = clickEvent,
       )
     }
 
@@ -738,6 +756,14 @@ fun RenderPlayerButton(
 
     PlayerButton.CURRENT_CHAPTER -> {
       if (isPortrait) {
+      } else if (compact) {
+        if (chapters.getOrNull(currentChapter ?: 0) != null) {
+          ControlsButton(
+            icon = Icons.RoundedFilled.Bookmarks,
+            onClick = { onOpenSheet(Sheets.Chapters) },
+            modifier = Modifier.size(buttonSize),
+          )
+        }
       } else {
         AnimatedVisibility(
           chapters.getOrNull(currentChapter ?: 0) != null,
@@ -860,7 +886,13 @@ fun RenderPlayerButton(
           Modifier
             .size(buttonSize)
             .clip(CircleShape)
-            .clickable(enabled = !configOwned, onClick = viewModel::toggleVerticalFlip),
+            .clickable(
+              enabled = !configOwned,
+              onClick = {
+                clickEvent()
+                viewModel.toggleVerticalFlip()
+              },
+            ),
       ) {
         Box(contentAlignment = Alignment.Center) {
           AppSymbolIcon(
@@ -886,7 +918,7 @@ fun RenderPlayerButton(
       val loopB = abLoop.b
 
       AnimatedContent(
-        targetState = isExpanded,
+        targetState = isExpanded && !compact,
         transitionSpec = {
           (fadeIn(animationSpec = tween(200)) + expandHorizontally(animationSpec = tween(250)))
             .togetherWith(fadeOut(animationSpec = tween(200)) + shrinkHorizontally(animationSpec = tween(250)))
@@ -1019,7 +1051,20 @@ fun RenderPlayerButton(
               Modifier
                 .size(buttonSize)
                 .clip(CircleShape)
-                .clickable(onClick = viewModel::toggleABLoopExpanded),
+                .clickable(
+                  onClick = {
+                    clickEvent()
+                    if (compact) {
+                      when {
+                        loopA == null -> viewModel.setLoopA()
+                        loopB == null -> viewModel.setLoopB()
+                        else -> viewModel.clearABLoop()
+                      }
+                    } else {
+                      viewModel.toggleABLoopExpanded()
+                    }
+                  },
+                ),
           ) {
             Box(contentAlignment = Alignment.Center) {
               AbLoopIcon(
@@ -1131,72 +1176,83 @@ fun RenderPlayerButton(
     PlayerButton.TIME_NETWORK -> {
       val clockFormat by playerPreferences.clockFormat.collectAsState()
       val stat by rememberTimeAndNetworkStat(clockFormat)
-      Surface(
-        shape = CircleShape,
-        color =
-          if (hideBackground) {
-            Color.Transparent
-          } else {
-            MaterialTheme.colorScheme.surfaceContainer.copy(
-              alpha = 0.55f,
-            )
-          },
-        contentColor = if (hideBackground) controlColor else MaterialTheme.colorScheme.onSurface,
-        border =
-          if (hideBackground) {
-            null
-          } else {
-            BorderStroke(
-              1.dp,
-              MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f),
-            )
-          },
-        modifier =
-          Modifier
-            .height(buttonSize)
-            .clip(CircleShape)
-            .clickable(
-              interactionSource = remember { MutableInteractionSource() },
-              indication = ripple(bounded = true),
-              onClick = {
-                clickEvent()
-                if (PlaybackSession.getPropertyBoolean("user-data/mpv/console/open") == true) {
-                  PlaybackSession.command("script-message-to", "console", "disable")
-                }
-                if (statisticsPage == 6) {
-                  advancedPreferences.enabledStatisticsPage.set(0)
-                } else {
-                  if (statisticsPage in 1..5) {
-                    PlaybackSession.command("script-binding", "stats/display-stats-toggle")
-                  }
-                  advancedPreferences.enabledStatisticsPage.set(6)
-                }
-                onOpenSheet(Sheets.None)
-              },
-            ),
-      ) {
-        Row(
-          verticalAlignment = Alignment.CenterVertically,
-          horizontalArrangement = Arrangement.spacedBy(MaterialTheme.spacing.extraSmall),
+      val toggleTimeAndNetwork = {
+        if (PlaybackSession.getPropertyBoolean("user-data/mpv/console/open") == true) {
+          PlaybackSession.command("script-message-to", "console", "disable")
+        }
+        if (statisticsPage == 6) {
+          advancedPreferences.enabledStatisticsPage.set(0)
+        } else {
+          if (statisticsPage in 1..5) {
+            PlaybackSession.command("script-binding", "stats/display-stats-toggle")
+          }
+          advancedPreferences.enabledStatisticsPage.set(6)
+        }
+        onOpenSheet(Sheets.None)
+      }
+      if (compact) {
+        ControlsButton(
+          icon = Icons.RoundedFilled.AccessTime,
+          onClick = toggleTimeAndNetwork,
+          modifier = Modifier.size(buttonSize),
+        )
+      } else {
+        Surface(
+          shape = CircleShape,
+          color =
+            if (hideBackground) {
+              Color.Transparent
+            } else {
+              MaterialTheme.colorScheme.surfaceContainer.copy(
+                alpha = 0.55f,
+              )
+            },
+          contentColor = if (hideBackground) controlColor else MaterialTheme.colorScheme.onSurface,
+          border =
+            if (hideBackground) {
+              null
+            } else {
+              BorderStroke(
+                1.dp,
+                MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f),
+              )
+            },
           modifier =
             Modifier
-              .widthIn(min = 176.dp)
-              .padding(horizontal = MaterialTheme.spacing.small),
+              .height(buttonSize)
+              .clip(CircleShape)
+              .clickable(
+                interactionSource = remember { MutableInteractionSource() },
+                indication = ripple(bounded = true),
+                onClick = {
+                  clickEvent()
+                  toggleTimeAndNetwork()
+                },
+              ),
         ) {
-          AppSymbolIcon(
-            imageVector = Icons.RoundedFilled.AccessTime,
-            contentDescription =
-              androidx.compose.ui.res
-                .stringResource(com.quantummpv.app.R.string.ui_time_and_network),
-            tint = MaterialTheme.colorScheme.primary,
-            modifier = Modifier.size(18.dp),
-          )
-          Text(
-            text = "${stat.time} • ${stat.network}",
-            style = MaterialTheme.typography.bodySmall,
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis,
-          )
+          Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(MaterialTheme.spacing.extraSmall),
+            modifier =
+              Modifier
+                .widthIn(min = 176.dp)
+                .padding(horizontal = MaterialTheme.spacing.small),
+          ) {
+            AppSymbolIcon(
+              imageVector = Icons.RoundedFilled.AccessTime,
+              contentDescription =
+                androidx.compose.ui.res
+                  .stringResource(com.quantummpv.app.R.string.ui_time_and_network),
+              tint = MaterialTheme.colorScheme.primary,
+              modifier = Modifier.size(18.dp),
+            )
+            Text(
+              text = "${stat.time} • ${stat.network}",
+              style = MaterialTheme.typography.bodySmall,
+              maxLines = 1,
+              overflow = TextOverflow.Ellipsis,
+            )
+          }
         }
       }
     }
