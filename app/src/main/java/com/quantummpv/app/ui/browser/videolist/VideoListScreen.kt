@@ -53,6 +53,7 @@ import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
@@ -173,11 +174,13 @@ data class VideoListScreen(
     val videoSortOrder by browserPreferences.videoSortOrder.collectAsState()
     val mediaLayoutMode by browserPreferences.folderViewVideoLayoutMode.collectAsState()
     val musicCoverArtSize by browserPreferences.musicCoverArtSize.collectAsState()
+    val sortedVideos =
+      remember(videos, videoSortType, videoSortOrder) {
+        SortUtils.sortVideos(videos, videoSortType, videoSortOrder)
+      }
     val sortedVideosWithInfo =
-      remember(videosWithPlaybackInfo, videoSortType, videoSortOrder) {
+      remember(sortedVideos, videosWithPlaybackInfo) {
         val infoById = videosWithPlaybackInfo.associateBy { it.video.id }
-        val sortedVideos = SortUtils.sortVideos(videosWithPlaybackInfo.map { it.video }, videoSortType, videoSortOrder)
-        // Maintain the playback info mapping — O(1) lookup per item
         sortedVideos.map { video ->
           infoById[video.id] ?: VideoWithPlaybackInfo(video)
         }
@@ -207,7 +210,7 @@ data class VideoListScreen(
     // Selection manager
     val selectionManager =
       rememberSelectionManager(
-        items = sortedVideosWithInfo.map { it.video },
+        items = sortedVideos,
         getId = { it.id },
         onDeleteItems = { items, _ -> viewModel.deleteVideos(items) },
         onRenameItem = { video, newName -> viewModel.renameVideo(video, newName) },
@@ -916,6 +919,7 @@ internal fun VideoListContent(
   val showExtensionField by browserPreferences.showExtensionField.collectAsState()
   val showDurationField by browserPreferences.showDurationField.collectAsState()
   val centerGridTitles by browserPreferences.centerGridTitles.collectAsState()
+  val thumbnailQuality by browserPreferences.thumbnailQuality.collectAsState()
   val manualGridColumnsEnabled by browserPreferences.manualGridColumnsEnabled.collectAsState()
   val videoGridColumnsPortrait by browserPreferences.videoGridColumnsPortrait.collectAsState()
   val videoGridColumnsLandscape by browserPreferences.videoGridColumnsLandscape.collectAsState()
@@ -936,6 +940,7 @@ internal fun VideoListContent(
       showExtensionField,
       showDurationField,
       centerGridTitles,
+      thumbnailQuality,
     ) {
       VideoCardUiConfig(
         unlimitedNameLines = unlimitedNameLines,
@@ -951,6 +956,7 @@ internal fun VideoListContent(
         showExtensionField = showExtensionField,
         showDurationField = showDurationField,
         centerGridTitles = centerGridTitles,
+        thumbnailQuality = thumbnailQuality,
       )
     }
 
@@ -1018,7 +1024,7 @@ internal fun VideoListContent(
         // rememberSaveable state made this whole content scope recompose continuously while scrolling
         // and repeated the O(n) last-played lookup for large libraries.
         val initialScrollIndex =
-          remember(autoScrollToLastPlayed, recentlyPlayedFilePath, videosWithInfo) {
+          remember(folderId, autoScrollToLastPlayed, recentlyPlayedFilePath) {
             if (autoScrollToLastPlayed && recentlyPlayedFilePath != null) {
               videosWithInfo
                 .indexOfFirst { it.video.path == recentlyPlayedFilePath }
@@ -1038,6 +1044,17 @@ internal fun VideoListContent(
             initialFirstVisibleItemIndex = initialScrollIndex,
           )
         var isScrollbarDragging by remember { mutableStateOf(false) }
+        val isViewportScrolling by
+          remember(listState, gridState, mediaLayoutMode) {
+            derivedStateOf {
+              if (mediaLayoutMode == MediaLayoutMode.GRID) {
+                gridState.isScrollInProgress
+              } else {
+                listState.isScrollInProgress
+              }
+            }
+          }
+        val allowThumbnailLoading = !isViewportScrolling && !isScrollbarDragging
 
         val latestVideosWithInfo by rememberUpdatedState(videosWithInfo)
         val thumbnailListKey =
@@ -1071,11 +1088,12 @@ internal fun VideoListContent(
           mediaLayoutMode,
           thumbnailListKey,
           videoGridColumns,
+          isViewportScrolling,
           isScrollbarDragging,
         ) {
           val generationId = "$folderId:${mediaLayoutMode.name}"
-          if (!showVideoThumbnails || latestVideosWithInfo.isEmpty() || isScrollbarDragging) {
-            if (isScrollbarDragging) {
+          if (!showVideoThumbnails || latestVideosWithInfo.isEmpty() || !allowThumbnailLoading) {
+            if (!allowThumbnailLoading) {
               thumbnailRepository.cancelFolderThumbnailGeneration(generationId)
             }
             return@LaunchedEffect
@@ -1217,7 +1235,7 @@ internal fun VideoListContent(
                       thumbnailHeightPx = thumbHeightPx,
                       showSubtitleIndicator = showSubtitleIndicator,
                       allowThumbnailGeneration = false,
-                      allowThumbnailLoading = !isScrollbarDragging,
+                      allowThumbnailLoading = allowThumbnailLoading,
                       uiConfig = videoCardUiConfig,
                     )
                   }
@@ -1289,7 +1307,7 @@ internal fun VideoListContent(
                       isGridMode = false,
                       showSubtitleIndicator = showSubtitleIndicator,
                       allowThumbnailGeneration = false,
-                      allowThumbnailLoading = !isScrollbarDragging,
+                      allowThumbnailLoading = allowThumbnailLoading,
                       uiConfig = videoCardUiConfig,
                       thumbnailWidthPx = if (isAudio) with(density) { musicCoverArtSize.dp.roundToPx() } else null,
                       thumbnailHeightPx = if (isAudio) with(density) { musicCoverArtSize.dp.roundToPx() } else null,

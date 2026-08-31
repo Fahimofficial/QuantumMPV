@@ -151,10 +151,13 @@ fun MediaLibraryContent(forceAudio: Boolean = false) {
   val savedMediaType by browserPreferences.mediaLibraryType.collectAsState()
   val playlistMode by playerPreferences.playlistMode.collectAsState()
   val mediaType = if (forceAudio) MediaLibraryType.Audio else if (includeAudioBrowser) savedMediaType else MediaLibraryType.Video
+  val sortedVideos =
+    remember(videos, videoSortType, videoSortOrder) {
+      SortUtils.sortVideos(videos, videoSortType, videoSortOrder)
+    }
   val sortedVideosWithInfo =
-    remember(videosWithPlaybackInfo, videoSortType, videoSortOrder) {
+    remember(sortedVideos, videosWithPlaybackInfo) {
       val infoById = videosWithPlaybackInfo.associateBy { it.video.path }
-      val sortedVideos = SortUtils.sortVideos(videosWithPlaybackInfo.map { it.video }, videoSortType, videoSortOrder)
       sortedVideos.map { video ->
         infoById[video.path] ?: VideoWithPlaybackInfo(video)
       }

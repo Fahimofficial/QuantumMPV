@@ -1328,6 +1328,7 @@ private fun FileSystemBrowserContent(
   val showExtensionField by browserPreferences.showExtensionField.collectAsState()
   val showDurationField by browserPreferences.showDurationField.collectAsState()
   val centerGridTitles by browserPreferences.centerGridTitles.collectAsState()
+  val thumbnailQuality by browserPreferences.thumbnailQuality.collectAsState()
   val videoCardUiConfig =
     remember(
       unlimitedNameLines,
@@ -1343,6 +1344,7 @@ private fun FileSystemBrowserContent(
       showDurationField,
       centerGridTitles,
       showCodecSupportIndicator,
+      thumbnailQuality,
     ) {
       VideoCardUiConfig(
         unlimitedNameLines = unlimitedNameLines,
@@ -1358,6 +1360,7 @@ private fun FileSystemBrowserContent(
         showExtensionField = showExtensionField,
         showDurationField = showDurationField,
         centerGridTitles = centerGridTitles,
+        thumbnailQuality = thumbnailQuality,
       )
     }
 
@@ -1758,6 +1761,7 @@ private fun FileSystemSearchContent(
   val showExtensionField by browserPreferences.showExtensionField.collectAsState()
   val showDurationField by browserPreferences.showDurationField.collectAsState()
   val centerGridTitles by browserPreferences.centerGridTitles.collectAsState()
+  val thumbnailQuality by browserPreferences.thumbnailQuality.collectAsState()
   val videoCardUiConfig =
     remember(
       unlimitedNameLines,
@@ -1773,6 +1777,7 @@ private fun FileSystemSearchContent(
       showDurationField,
       centerGridTitles,
       showCodecSupportIndicator,
+      thumbnailQuality,
     ) {
       VideoCardUiConfig(
         unlimitedNameLines = unlimitedNameLines,
@@ -1788,6 +1793,7 @@ private fun FileSystemSearchContent(
         showExtensionField = showExtensionField,
         showDurationField = showDurationField,
         centerGridTitles = centerGridTitles,
+        thumbnailQuality = thumbnailQuality,
       )
     }
 

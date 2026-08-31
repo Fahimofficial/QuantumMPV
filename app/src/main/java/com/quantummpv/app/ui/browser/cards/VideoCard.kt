@@ -9,6 +9,7 @@
 
 package com.quantummpv.app.ui.browser.cards
 
+import android.graphics.Bitmap
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.combinedClickable
@@ -55,12 +56,14 @@ import com.quantummpv.app.domain.media.model.Video
 import com.quantummpv.app.domain.thumbnail.ThumbnailRepository
 import com.quantummpv.app.preferences.AppearancePreferences
 import com.quantummpv.app.preferences.BrowserPreferences
+import com.quantummpv.app.preferences.ThumbnailQuality
 import com.quantummpv.app.preferences.preference.collectAsState
 import com.quantummpv.app.ui.icons.Icon
 import com.quantummpv.app.ui.icons.Icons
 import com.quantummpv.app.ui.theme.AppShapeScale
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.filter
+import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.withContext
 import org.koin.compose.koinInject
 import kotlin.math.roundToInt
@@ -80,6 +83,7 @@ data class VideoCardUiConfig(
   val showExtensionField: Boolean = true,
   val showDurationField: Boolean = true,
   val centerGridTitles: Boolean = false,
+  val thumbnailQuality: ThumbnailQuality = ThumbnailQuality.High,
 )
 
 /** Hoist this once per screen and pass the result to every card rather than collecting per item. */
@@ -101,6 +105,7 @@ fun rememberVideoCardUiConfig(): VideoCardUiConfig {
   val showExtensionField by browserPreferences.showExtensionField.collectAsState()
   val showDurationFieldConfig by browserPreferences.showDurationField.collectAsState()
   val centerGridTitles by browserPreferences.centerGridTitles.collectAsState()
+  val thumbnailQuality by browserPreferences.thumbnailQuality.collectAsState()
 
   return remember(
     unlimitedNameLines,
@@ -116,6 +121,7 @@ fun rememberVideoCardUiConfig(): VideoCardUiConfig {
     showExtensionField,
     showDurationFieldConfig,
     centerGridTitles,
+    thumbnailQuality,
   ) {
     VideoCardUiConfig(
       unlimitedNameLines = unlimitedNameLines,
@@ -131,6 +137,7 @@ fun rememberVideoCardUiConfig(): VideoCardUiConfig {
       showExtensionField = showExtensionField,
       showDurationField = showDurationFieldConfig,
       centerGridTitles = centerGridTitles,
+      thumbnailQuality = thumbnailQuality,
     )
   }
 }
@@ -159,15 +166,13 @@ fun VideoCard(
   allowThumbnailLoading: Boolean = true,
   uiConfig: VideoCardUiConfig? = null,
 ) {
-  val browserPreferences = koinInject<BrowserPreferences>()
-
   // Screens hoist this once and pass it down; collecting per card would register a dozen
   // preference observers for every visible item in a grid.
   val resolvedUiConfig = uiConfig ?: rememberVideoCardUiConfig()
   val maxLines = if (resolvedUiConfig.unlimitedNameLines) Int.MAX_VALUE else 2
 
   val showThumbnails = resolvedUiConfig.showThumbnails
-  val thumbnailQuality by browserPreferences.thumbnailQuality.collectAsState()
+  val thumbnailQuality = resolvedUiConfig.thumbnailQuality
   val showFramerateInResolution = resolvedUiConfig.showFramerateInResolution
   val showCodecSupportIndicator = resolvedUiConfig.showCodecSupportIndicator
   val showProgressBar = resolvedUiConfig.showProgressBar
@@ -249,29 +254,39 @@ fun VideoCard(
             thumbnailHeightPx?.takeIf { it > 0 }
               ?: (resolvedThumbWidthPx / aspect).roundToInt()
 
-          val thumbnailKey =
+          val thumbnailRequestKey =
             remember(
               video.id,
+              video.path,
               video.dateModified,
               video.size,
+              video.duration,
               resolvedThumbWidthPx,
               resolvedThumbHeightPx,
               thumbnailQuality,
             ) {
-              thumbnailRepository.thumbnailKey(video, resolvedThumbWidthPx, resolvedThumbHeightPx)
+              Any()
             }
 
-          var thumbnail by remember(thumbnailKey) {
-            mutableStateOf(
-              thumbnailRepository.getThumbnailFromMemory(video, resolvedThumbWidthPx, resolvedThumbHeightPx),
-            )
+          var thumbnail by remember(thumbnailRequestKey) {
+            mutableStateOf<Bitmap?>(null)
+          }
+
+          LaunchedEffect(thumbnailRequestKey, allowThumbnailGeneration, allowThumbnailLoading, showThumbnails) {
+            if (!allowThumbnailGeneration && allowThumbnailLoading && thumbnail == null && showThumbnails) {
+              thumbnail =
+                withContext(Dispatchers.IO) {
+                  thumbnailRepository.getThumbnailFromMemory(video, resolvedThumbWidthPx, resolvedThumbHeightPx)
+                }
+            }
           }
 
           // Update thumbnail when the repository emits that this key became ready (folder prefetch or any other source).
-          LaunchedEffect(thumbnailKey, allowThumbnailLoading) {
+          LaunchedEffect(thumbnailRequestKey, allowThumbnailLoading) {
             if (!allowThumbnailLoading) return@LaunchedEffect
             thumbnailRepository.thumbnailReadyKeys
               .filter { key -> thumbnailRepository.isThumbnailKeyForVideo(key, video) }
+              .flowOn(Dispatchers.IO)
               .collect {
                 thumbnail =
                   withContext(Dispatchers.IO) {
@@ -281,15 +296,11 @@ fun VideoCard(
           }
 
           // Optional immediate generation (used on screens that don't run folder-wide sequential generation).
-          LaunchedEffect(thumbnailKey, allowThumbnailGeneration, allowThumbnailLoading, showThumbnails) {
-            if (allowThumbnailLoading && thumbnail == null && showThumbnails) {
+          LaunchedEffect(thumbnailRequestKey, allowThumbnailGeneration, allowThumbnailLoading, showThumbnails) {
+            if (allowThumbnailGeneration && allowThumbnailLoading && thumbnail == null && showThumbnails) {
               thumbnail =
                 withContext(Dispatchers.IO) {
-                  if (allowThumbnailGeneration) {
-                    thumbnailRepository.getThumbnail(video, resolvedThumbWidthPx, resolvedThumbHeightPx)
-                  } else {
-                    thumbnailRepository.getCachedThumbnail(video, resolvedThumbWidthPx, resolvedThumbHeightPx)
-                  }
+                  thumbnailRepository.getThumbnail(video, resolvedThumbWidthPx, resolvedThumbHeightPx)
                 }
             }
           }
@@ -571,21 +582,40 @@ fun VideoCard(
 
           // Load thumbnail with optimized state management
           // Key includes video identity to prevent reloading same thumbnail
-          val thumbnailKey =
-            remember(video.id, video.dateModified, video.size, thumbWidthPx, thumbHeightPx, thumbnailQuality) {
-              thumbnailRepository.thumbnailKey(video, thumbWidthPx, thumbHeightPx)
+          val thumbnailRequestKey =
+            remember(
+              video.id,
+              video.path,
+              video.dateModified,
+              video.size,
+              video.duration,
+              thumbWidthPx,
+              thumbHeightPx,
+              thumbnailQuality,
+            ) {
+              Any()
             }
 
           // Try to get from memory cache immediately (synchronous, no flicker)
-          var thumbnail by remember(thumbnailKey) {
-            mutableStateOf(thumbnailRepository.getThumbnailFromMemory(video, thumbWidthPx, thumbHeightPx))
+          var thumbnail by remember(thumbnailRequestKey) {
+            mutableStateOf<Bitmap?>(null)
+          }
+
+          LaunchedEffect(thumbnailRequestKey, allowThumbnailGeneration, allowThumbnailLoading, showThumbnails) {
+            if (!allowThumbnailGeneration && allowThumbnailLoading && thumbnail == null && showThumbnails) {
+              thumbnail =
+                withContext(Dispatchers.IO) {
+                  thumbnailRepository.getThumbnailFromMemory(video, thumbWidthPx, thumbHeightPx)
+                }
+            }
           }
 
           // Update thumbnail when the repository emits that this key became ready (folder prefetch or any other source).
-          LaunchedEffect(thumbnailKey, allowThumbnailLoading) {
+          LaunchedEffect(thumbnailRequestKey, allowThumbnailLoading) {
             if (!allowThumbnailLoading) return@LaunchedEffect
             thumbnailRepository.thumbnailReadyKeys
               .filter { key -> thumbnailRepository.isThumbnailKeyForVideo(key, video) }
+              .flowOn(Dispatchers.IO)
               .collect {
                 thumbnail =
                   withContext(Dispatchers.IO) {
@@ -595,15 +625,11 @@ fun VideoCard(
           }
 
           // Optional immediate generation (used on screens that don't run folder-wide sequential generation).
-          LaunchedEffect(thumbnailKey, allowThumbnailGeneration, allowThumbnailLoading, showThumbnails) {
-            if (allowThumbnailLoading && thumbnail == null && showThumbnails) {
+          LaunchedEffect(thumbnailRequestKey, allowThumbnailGeneration, allowThumbnailLoading, showThumbnails) {
+            if (allowThumbnailGeneration && allowThumbnailLoading && thumbnail == null && showThumbnails) {
               thumbnail =
                 withContext(Dispatchers.IO) {
-                  if (allowThumbnailGeneration) {
-                    thumbnailRepository.getThumbnail(video, thumbWidthPx, thumbHeightPx)
-                  } else {
-                    thumbnailRepository.getCachedThumbnail(video, thumbWidthPx, thumbHeightPx)
-                  }
+                  thumbnailRepository.getThumbnail(video, thumbWidthPx, thumbHeightPx)
                 }
             }
           }
