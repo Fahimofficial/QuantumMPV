@@ -13,6 +13,7 @@ import com.quantummpv.app.domain.lyrics.Lyrics
 import com.quantummpv.app.domain.lyrics.LyricsSourceType
 import com.quantummpv.app.utils.media.EmbeddedLyricsExtractor
 import com.quantummpv.app.utils.media.LyricsUtils
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
@@ -38,6 +39,7 @@ class LyricsRepository(
     private val SEGMENT_DELIMITER_REGEX = Regex("""\s*[|｜¦/／]\s*""")
     private val HYPHEN_DELIMITER_REGEX = Regex("""\s*[-–—－]\s*""")
     private val UNKNOWN_ARTISTS = setOf("", "unknown", "unknown artist", "<unknown>", "various artists", "various")
+    private const val MAX_ONLINE_LOOKUP_ATTEMPTS = 8
   }
 
   // Cache by media path -> LyricsResult
@@ -155,8 +157,8 @@ class LyricsRepository(
       val cleanT = track.trim()
       val cleanA = artistName.trim()
       if (cleanT.isBlank() || cleanA.isBlank()) return null
-      val key = "get:$cleanT:$cleanA"
-      if (!attempted.add(key)) return null
+      val key = "get:$cleanT:$cleanA".lowercase(Locale.ROOT)
+      if (attempted.size >= MAX_ONLINE_LOOKUP_ATTEMPTS || !attempted.add(key)) return null
       val resp = lrcLibApiService.getLyrics(
         trackName = cleanT,
         artistName = cleanA,
@@ -177,8 +179,8 @@ class LyricsRepository(
       val cleanT = track?.trim()?.takeIf { it.isNotBlank() }
       val cleanA = artistName?.trim()?.takeIf { it.isNotBlank() }
       if (cleanQ == null && cleanT == null && cleanA == null) return null
-      val key = "search:$cleanQ:$cleanT:$cleanA"
-      if (!attempted.add(key)) return null
+      val key = "search:$cleanQ:$cleanT:$cleanA".lowercase(Locale.ROOT)
+      if (attempted.size >= MAX_ONLINE_LOOKUP_ATTEMPTS || !attempted.add(key)) return null
       val res = lrcLibApiService.searchLyrics(
         query = cleanQ,
         trackName = cleanT,
@@ -241,6 +243,8 @@ class LyricsRepository(
         trySearch(track = rawFirstClean)?.let { return@withContext it }
       }
 
+    } catch (cancellation: CancellationException) {
+      throw cancellation
     } catch (e: Exception) {
       Log.w(TAG, "Failed to fetch online lyrics: ${e.message}")
     }

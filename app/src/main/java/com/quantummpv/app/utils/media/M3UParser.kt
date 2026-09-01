@@ -12,6 +12,7 @@ package com.quantummpv.app.utils.media
 import android.content.Context
 import android.net.Uri
 import android.provider.OpenableColumns
+import com.quantummpv.app.network.awaitResponse
 import com.quantummpv.app.ui.player.resolveLocalPath
 import java.io.BufferedReader
 import java.io.File
@@ -28,16 +29,11 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.runInterruptible
-import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.coroutines.withContext
-import okhttp3.Call
-import okhttp3.Callback
 import okhttp3.Credentials
 import okhttp3.HttpUrl.Companion.toHttpUrlOrNull
 import okhttp3.OkHttpClient
 import okhttp3.Request
-import okhttp3.Response
-import kotlin.coroutines.resume
 
 data class M3UPlaylistItem(
   val url: String,
@@ -141,7 +137,7 @@ object M3UParser {
       }.getOrElse { return error("Invalid playlist request") }
 
     return try {
-      httpClient.newCall(request).await().use { response ->
+      httpClient.newCall(request).awaitResponse().use { response ->
         if (!response.isSuccessful) return error("HTTP error: ${response.code}")
         if (response.body.contentLength() > limits.maxBytes) return error(byteLimitMessage(limits))
         parseFromStream(
@@ -520,30 +516,6 @@ object M3UParser {
   private fun error(message: String): M3UParseResult.Error = M3UParseResult.Error(message)
 
   private fun byteLimitMessage(limits: M3ULimits): String = "Playlist exceeds ${limits.maxBytes} bytes"
-
-  private suspend fun Call.await(): Response =
-    suspendCancellableCoroutine { continuation ->
-      continuation.invokeOnCancellation { cancel() }
-      enqueue(
-        object : Callback {
-          override fun onFailure(
-            call: Call,
-            e: IOException,
-          ) {
-            if (continuation.isActive) continuation.resumeWith(Result.failure(e))
-          }
-
-          override fun onResponse(
-            call: Call,
-            response: Response,
-          ) {
-            // The resource-aware resume overload closes the response if cancellation wins either
-            // before dispatch or while the resumed coroutine is waiting to run.
-            continuation.resume(response) { _, rejectedResponse, _ -> rejectedResponse.close() }
-          }
-        },
-      )
-    }
 
   private class PendingEntry {
     var title: String? = null

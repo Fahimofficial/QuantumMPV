@@ -23,6 +23,8 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.sync.Semaphore
+import kotlinx.coroutines.sync.withPermit
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.json.Json
 import okhttp3.FormBody
@@ -42,6 +44,7 @@ class MpvRxSubtitleHubRepository(
   override val provider: SubtitleProvider = SubtitleProvider.MPVRX_SUBTITLE_HUB
 
   private val apiSources = MpvRxSubtitleHubApiSources(client, json, preferences)
+  private val providerSemaphore = Semaphore(MAX_CONCURRENT_PROVIDER_REQUESTS)
 
   override suspend fun search(request: OnlineSubtitleSearchRequest): Result<List<OnlineSubtitle>> =
     searchIncrementally(request) {}
@@ -65,23 +68,29 @@ class MpvRxSubtitleHubRepository(
             val completedSources = Channel<List<OnlineSubtitle>>(selectedSources.size)
             selectedSources.forEach { source ->
               launch {
-                runCatching {
-                  if (source in MpvRxSubtitleHubSources.AUTHENTICATED_SOURCES) {
-                    apiSources.search(source, request, selectedLanguages())
-                  } else {
-                    when (source) {
-                      "subtitlecat_com" -> searchSubtitleCat(request.withEpisodeSearchQuery())
-                      "moviesubtitles_org" -> searchMovieSubtitlesOrg(request)
-                      "moviesubtitlesrt_com" -> searchMovieSubtitlesRt(request)
-                      "my_subs_co" -> searchMySubs(request)
-                      "tvsubtitles_net" -> searchTvSubtitles(request)
-                      else -> emptyList()
+                val providerResults =
+                  try {
+                    providerSemaphore.withPermit {
+                      if (source in MpvRxSubtitleHubSources.AUTHENTICATED_SOURCES) {
+                        apiSources.search(source, request, selectedLanguages())
+                      } else {
+                        when (source) {
+                          "subtitlecat_com" -> searchSubtitleCat(request.withEpisodeSearchQuery())
+                          "moviesubtitles_org" -> searchMovieSubtitlesOrg(request)
+                          "moviesubtitlesrt_com" -> searchMovieSubtitlesRt(request)
+                          "my_subs_co" -> searchMySubs(request)
+                          "tvsubtitles_net" -> searchTvSubtitles(request)
+                          else -> emptyList()
+                        }
+                      }
                     }
+                  } catch (cancellation: CancellationException) {
+                    throw cancellation
+                  } catch (error: Exception) {
+                    Log.w(TAG, "Skipping $source after provider failure", error)
+                    emptyList()
                   }
-                }.getOrElse { error ->
-                  Log.w(TAG, "Skipping $source after provider failure", error)
-                  emptyList()
-                }.let { completedSources.send(it) }
+                completedSources.send(providerResults)
               }
             }
 
@@ -847,6 +856,7 @@ class MpvRxSubtitleHubRepository(
 
   private companion object {
     const val TAG = "mpvRxSubtitleHub"
+    const val MAX_CONCURRENT_PROVIDER_REQUESTS = 4
     const val USER_AGENT =
       "Mozilla/5.0 (Linux; Android 14; mpvRx) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Mobile Safari/537.36"
     const val SUBTITLECAT_BASE_URL = "https://www.subtitlecat.com/"

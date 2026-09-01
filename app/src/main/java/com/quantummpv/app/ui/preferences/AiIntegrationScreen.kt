@@ -181,6 +181,7 @@ object AiIntegrationScreen : Screen {
     val json = koinInject<Json>()
 
     fun loadModels() {
+      if (isLoadingModels) return
       val requestedProvider = provider
       scope.launch {
         isLoadingModels = true
@@ -1209,6 +1210,7 @@ val apiKeyInfo =
 
     Surface(
       onClick = {
+        if (isLoadingStt) return@Surface
         val cached = cachedModels.value
         if (cached != null) {
           sttModels = cached

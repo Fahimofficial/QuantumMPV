@@ -12,6 +12,8 @@ package com.quantummpv.app.utils.media
 import android.net.Uri
 import android.util.Log
 import com.quantummpv.app.network.SharedHttpClient
+import com.quantummpv.app.network.awaitResponse
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -177,7 +179,7 @@ class JellyfinSessionReporter(
     }
   }
 
-  private fun sendPostRequest(
+  private suspend fun sendPostRequest(
     urlString: String,
     jsonBody: String,
   ) {
@@ -191,13 +193,15 @@ class JellyfinSessionReporter(
           .post(jsonBody.toRequestBody(JSON_MEDIA_TYPE))
           .build()
 
-      httpClient.newCall(request).execute().use { response ->
+      httpClient.newCall(request).awaitResponse().use { response ->
         if (response.isSuccessful) {
           Log.d(TAG, "Successfully reported status to Jellyfin: $urlString")
         } else {
           Log.e(TAG, "Failed to report status to Jellyfin: $urlString, response code: ${response.code}")
         }
       }
+    } catch (cancellation: CancellationException) {
+      throw cancellation
     } catch (e: Exception) {
       Log.e(TAG, "Error sending playback report to Jellyfin: ${e.message}", e)
     }

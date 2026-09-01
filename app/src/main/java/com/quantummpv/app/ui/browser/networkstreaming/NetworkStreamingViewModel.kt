@@ -363,6 +363,12 @@ class NetworkStreamingViewModel(
     }
   }
 
+  fun recordExistingLinkPlayed(stableKey: String) {
+    viewModelScope.launch {
+      streamEntryRepository.touchNormalEntry(stableKey)
+    }
+  }
+
   fun deleteStreamEntry(stableKey: String) {
     viewModelScope.launch { streamEntryRepository.delete(stableKey) }
   }

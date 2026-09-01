@@ -9,10 +9,14 @@ import android.util.Log
 import android.util.LruCache
 import com.quantummpv.app.domain.lyrics.Lyrics
 import com.quantummpv.app.domain.lyrics.SyncedLine
+import com.quantummpv.app.network.awaitResponse
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.sync.Semaphore
+import kotlinx.coroutines.sync.withPermit
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.jsonArray
@@ -84,6 +88,7 @@ class LyricsTranslationService(
     private const val TAG = "LyricsTranslationService"
     private const val CHUNK_SIZE = 20
     private const val INPUT_TOOLS_CHUNK_SIZE = 4
+    private const val MAX_CONCURRENT_TRANSLATION_REQUESTS = 4
     private const val USER_AGENT =
       "Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36"
     private val RESULT_CONTAINER_REGEX =
@@ -100,6 +105,7 @@ class LyricsTranslationService(
     .build()
 
   private val json = Json { ignoreUnknownKeys = true; isLenient = true }
+  private val requestSemaphore = Semaphore(MAX_CONCURRENT_TRANSLATION_REQUESTS)
   // Cache key: "${mediaPathOrTrackId}_${targetLang}" -> Translated Lyrics
   private val translationCache = LruCache<String, Lyrics>(64)
 
@@ -127,6 +133,8 @@ class LyricsTranslationService(
         if (key != null) translationCache.put(key, result)
         return@withContext result
       }
+    } catch (cancellation: CancellationException) {
+      throw cancellation
     } catch (e: Exception) {
       Log.e(TAG, "Error translating lyrics to $targetLanguage: ${e.message}", e)
     }
@@ -214,7 +222,7 @@ class LyricsTranslationService(
     val chunks = texts.chunked(CHUNK_SIZE)
     val deferredChunks = chunks.map { chunk ->
       async(Dispatchers.IO) {
-        translateChunk(chunk, targetLang)
+        requestSemaphore.withPermit { translateChunk(chunk, targetLang) }
       }
     }
 
@@ -244,7 +252,7 @@ class LyricsTranslationService(
     val chunks = texts.chunked(CHUNK_SIZE)
     val deferredChunks = chunks.map { chunk ->
       async(Dispatchers.IO) {
-        romanizeChunk(chunk)
+        requestSemaphore.withPermit { romanizeChunk(chunk) }
       }
     }
 
@@ -288,7 +296,9 @@ class LyricsTranslationService(
       } else {
         val chunks = preprocessed.chunked(CHUNK_SIZE)
         val deferredChunks = chunks.map { chunk ->
-          async(Dispatchers.IO) { romanizeChunk(chunk) }
+          async(Dispatchers.IO) {
+            requestSemaphore.withPermit { romanizeChunk(chunk) }
+          }
         }
         val romanized = deferredChunks.awaitAll().flatten()
         nonLatinIndices.zip(romanized).toMap()
@@ -564,7 +574,7 @@ class LyricsTranslationService(
     return (latinCount.toFloat() / total) >= 0.60f
   }
 
-  private fun romanizeChunk(chunk: List<String>): List<TranslationResult> {
+  private suspend fun romanizeChunk(chunk: List<String>): List<TranslationResult> {
     val stringBuilder = StringBuilder()
     val indexMap = mutableMapOf<Int, Int>()
     var marker = 1
@@ -597,6 +607,8 @@ class LyricsTranslationService(
           return parseIndexedTranslations(googleRom, chunk.size, indexMap, chunk)
         }
       }
+    } catch (cancellation: CancellationException) {
+      throw cancellation
     } catch (e: Exception) {
       Log.w(TAG, "Google romanization error: ${e.message}")
     }
@@ -613,7 +625,7 @@ class LyricsTranslationService(
     }
   }
 
-  private fun fetchGoogleRomanization(query: String): String? {
+  private suspend fun fetchGoogleRomanization(query: String): String? {
     val url = HttpUrl.Builder()
       .scheme("https")
       .host("translate.google.com")
@@ -633,7 +645,7 @@ class LyricsTranslationService(
       .get()
       .build()
 
-    client.newCall(request).execute().use { response ->
+    client.newCall(request).awaitResponse().use { response ->
       if (!response.isSuccessful) return null
       val bodyStr = response.body.string()
       val root = json.parseToJsonElement(bodyStr).jsonArray
@@ -676,7 +688,7 @@ class LyricsTranslationService(
     return text
   }
 
-  private fun translateChunk(
+  private suspend fun translateChunk(
     chunk: List<String>,
     targetLang: String,
   ): List<TranslationResult> {
@@ -709,6 +721,8 @@ class LyricsTranslationService(
           return parsed
         }
       }
+    } catch (cancellation: CancellationException) {
+      throw cancellation
     } catch (e: Exception) {
       Log.w(TAG, "Google web translation failed for chunk: ${e.message}")
     }
@@ -722,6 +736,8 @@ class LyricsTranslationService(
           return parsed
         }
       }
+    } catch (cancellation: CancellationException) {
+      throw cancellation
     } catch (e: Exception) {
       Log.w(TAG, "MyMemory translation failed for chunk: ${e.message}")
     }
@@ -735,6 +751,8 @@ class LyricsTranslationService(
           return parsed
         }
       }
+    } catch (cancellation: CancellationException) {
+      throw cancellation
     } catch (e: Exception) {
       Log.w(TAG, "Google API fallback failed for chunk: ${e.message}")
     }
@@ -750,13 +768,13 @@ class LyricsTranslationService(
     val subChunks = texts.chunked(INPUT_TOOLS_CHUNK_SIZE)
     val deferred = subChunks.map { subChunk ->
       async(Dispatchers.IO) {
-        translateSubChunkWithInputTools(subChunk, targetLang)
+        requestSemaphore.withPermit { translateSubChunkWithInputTools(subChunk, targetLang) }
       }
     }
     deferred.awaitAll().flatten()
   }
 
-  private fun translateSubChunkWithInputTools(
+  private suspend fun translateSubChunkWithInputTools(
     subChunk: List<String>,
     targetLang: String,
   ): List<TranslationResult> {
@@ -810,7 +828,7 @@ class LyricsTranslationService(
         .get()
         .build()
 
-      client.newCall(request).execute().use { response ->
+      client.newCall(request).awaitResponse().use { response ->
         if (response.isSuccessful) {
           val bodyStr = response.body.string()
           val root = json.parseToJsonElement(bodyStr).jsonArray
@@ -839,6 +857,8 @@ class LyricsTranslationService(
           }
         }
       }
+    } catch (cancellation: CancellationException) {
+      throw cancellation
     } catch (e: Exception) {
       Log.w(TAG, "InputTools sub-chunk error: ${e.message}")
     }
@@ -846,7 +866,7 @@ class LyricsTranslationService(
     return subChunk.map { TranslationResult(translation = it.trim(), romanization = it.trim()) }
   }
 
-  private fun translateWithGoogleWeb(
+  private suspend fun translateWithGoogleWeb(
     query: String,
     targetLang: String,
   ): String? {
@@ -866,7 +886,7 @@ class LyricsTranslationService(
       .get()
       .build()
 
-    client.newCall(request).execute().use { response ->
+    client.newCall(request).awaitResponse().use { response ->
       if (!response.isSuccessful) {
         Log.w(TAG, "Google web translate HTTP ${response.code}")
         return null
@@ -878,7 +898,7 @@ class LyricsTranslationService(
     }
   }
 
-  private fun translateWithMyMemory(
+  private suspend fun translateWithMyMemory(
     query: String,
     targetLang: String,
   ): String? {
@@ -897,7 +917,7 @@ class LyricsTranslationService(
       .get()
       .build()
 
-    client.newCall(request).execute().use { response ->
+    client.newCall(request).awaitResponse().use { response ->
       if (!response.isSuccessful) {
         Log.w(TAG, "MyMemory translate HTTP ${response.code}")
         return null
@@ -910,7 +930,7 @@ class LyricsTranslationService(
     }
   }
 
-  private fun translateWithGoogleApiFallback(
+  private suspend fun translateWithGoogleApiFallback(
     query: String,
     targetLang: String,
   ): String? {
@@ -928,7 +948,7 @@ class LyricsTranslationService(
       .post(formBody)
       .build()
 
-    client.newCall(request).execute().use { response ->
+    client.newCall(request).awaitResponse().use { response ->
       if (!response.isSuccessful) return null
       val bodyStr = response.body.string()
       val root = json.parseToJsonElement(bodyStr).jsonArray

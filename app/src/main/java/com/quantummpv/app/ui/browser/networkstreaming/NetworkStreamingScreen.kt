@@ -474,7 +474,7 @@ object NetworkStreamingScreen : Screen {
                   }
                 },
                 onPlayRecent = { entry ->
-                  viewModel.recordSubmittedLink(entry.canonicalSourceUri)
+                  viewModel.recordExistingLinkPlayed(entry.stableKey)
                   MediaUtils.playFile(
                     source = entry.canonicalSourceUri,
                     context = context,
@@ -537,7 +537,7 @@ object NetworkStreamingScreen : Screen {
                       torrentFileIndex = entry.fileIndex,
                     )
                   } else {
-                    viewModel.recordSubmittedLink(entry.canonicalSourceUri)
+                    viewModel.recordExistingLinkPlayed(entry.stableKey)
                     MediaUtils.playFile(
                       source = entry.canonicalSourceUri,
                       context = context,

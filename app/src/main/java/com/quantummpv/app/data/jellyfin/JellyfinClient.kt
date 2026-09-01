@@ -17,7 +17,9 @@ import com.quantummpv.app.BuildConfig
 import com.quantummpv.app.domain.jellyfin.JellyfinAuthResult
 import com.quantummpv.app.domain.jellyfin.JellyfinItem
 import com.quantummpv.app.domain.jellyfin.JellyfinUser
+import com.quantummpv.app.network.awaitResponse
 import com.quantummpv.app.utils.media.PlaybackSubtitleTrack
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.json.Json
@@ -201,7 +203,7 @@ class JellyfinClient(
               .build()
 
           val result =
-            httpClient.newCall(request).execute().use { response ->
+            httpClient.newCall(request).awaitResponse().use { response ->
               if (!response.isSuccessful) {
                 throw IOException("Authentication failed: HTTP ${response.code} ${response.message}")
               }
@@ -227,6 +229,8 @@ class JellyfinClient(
               )
             }
           return@withContext Result.success(result)
+        } catch (cancellation: CancellationException) {
+          throw cancellation
         } catch (e: Throwable) {
           lastError = e
         }
@@ -254,7 +258,7 @@ class JellyfinClient(
               .build()
 
           val result =
-            httpClient.newCall(request).execute().use { response ->
+            httpClient.newCall(request).awaitResponse().use { response ->
               if (!response.isSuccessful) {
                 throw IOException("Token validation failed: HTTP ${response.code} ${response.message}")
               }
@@ -278,6 +282,8 @@ class JellyfinClient(
               )
             }
           return@withContext Result.success(result)
+        } catch (cancellation: CancellationException) {
+          throw cancellation
         } catch (e: Throwable) {
           lastError = e
         }
@@ -302,7 +308,7 @@ class JellyfinClient(
             .get()
             .build()
 
-        httpClient.newCall(request).execute().use { response ->
+        httpClient.newCall(request).awaitResponse().use { response ->
           if (!response.isSuccessful) {
             throw IOException("Failed to load libraries: HTTP ${response.code}")
           }
@@ -333,7 +339,7 @@ class JellyfinClient(
             .get()
             .build()
 
-        httpClient.newCall(request).execute().use { response ->
+        httpClient.newCall(request).awaitResponse().use { response ->
           if (!response.isSuccessful) {
             throw IOException("Failed to load genres: HTTP ${response.code}")
           }
@@ -363,7 +369,7 @@ class JellyfinClient(
             .get()
             .build()
 
-        httpClient.newCall(request).execute().use { response ->
+        httpClient.newCall(request).awaitResponse().use { response ->
           if (!response.isSuccessful) {
             throw IOException("Failed to load resume items: HTTP ${response.code}")
           }
@@ -396,7 +402,7 @@ class JellyfinClient(
             .get()
             .build()
 
-        httpClient.newCall(request).execute().use { response ->
+        httpClient.newCall(request).awaitResponse().use { response ->
           if (!response.isSuccessful) {
             throw IOException("Failed to load latest media: HTTP ${response.code}")
           }
@@ -432,7 +438,7 @@ class JellyfinClient(
             .get()
             .build()
 
-        httpClient.newCall(request).execute().use { response ->
+        httpClient.newCall(request).awaitResponse().use { response ->
           if (!response.isSuccessful) {
             throw IOException("Failed to load suggestions: HTTP ${response.code}")
           }
@@ -469,7 +475,7 @@ class JellyfinClient(
             .get()
             .build()
 
-        httpClient.newCall(request).execute().use { response ->
+        httpClient.newCall(request).awaitResponse().use { response ->
           if (!response.isSuccessful) {
             throw IOException("Failed to load similar items: HTTP ${response.code}")
           }
@@ -500,7 +506,7 @@ class JellyfinClient(
             .get()
             .build()
 
-        httpClient.newCall(request).execute().use { response ->
+        httpClient.newCall(request).awaitResponse().use { response ->
           if (!response.isSuccessful) {
             throw IOException("Failed to load item: HTTP ${response.code}")
           }
@@ -569,7 +575,7 @@ class JellyfinClient(
             .get()
             .build()
 
-        httpClient.newCall(request).execute().use { response ->
+        httpClient.newCall(request).awaitResponse().use { response ->
           if (!response.isSuccessful) {
             throw IOException("Failed to load items: HTTP ${response.code}")
           }
@@ -624,7 +630,7 @@ class JellyfinClient(
             .get()
             .build()
 
-        httpClient.newCall(request).execute().use { response ->
+        httpClient.newCall(request).awaitResponse().use { response ->
           if (!response.isSuccessful) {
             throw IOException("Failed to load artists: HTTP ${response.code}")
           }
@@ -661,7 +667,7 @@ class JellyfinClient(
             .get()
             .build()
 
-        httpClient.newCall(request).execute().use { response ->
+        httpClient.newCall(request).awaitResponse().use { response ->
           if (!response.isSuccessful) {
             throw IOException("Failed to load seasons: HTTP ${response.code}")
           }
@@ -693,7 +699,7 @@ class JellyfinClient(
             .get()
             .build()
 
-        httpClient.newCall(request).execute().use { response ->
+        httpClient.newCall(request).awaitResponse().use { response ->
           if (!response.isSuccessful) {
             throw IOException("Failed to load episodes: HTTP ${response.code}")
           }
@@ -747,7 +753,7 @@ class JellyfinClient(
             .get()
             .build()
 
-        httpClient.newCall(request).execute().use { response ->
+        httpClient.newCall(request).awaitResponse().use { response ->
           if (!response.isSuccessful) {
             return@use emptyList<PlaybackSubtitleTrack>()
           }
@@ -814,7 +820,7 @@ class JellyfinClient(
           .post(payload.toRequestBody(JSON_MEDIA_TYPE))
           .build()
 
-      httpClient.newCall(request).execute().close()
+      httpClient.newCall(request).awaitResponse().close()
     }.onFailure { Log.w(TAG, "Failed reporting playback start: ${it.message}") }
   }
 
@@ -846,7 +852,7 @@ class JellyfinClient(
           .post(payload.toRequestBody(JSON_MEDIA_TYPE))
           .build()
 
-      httpClient.newCall(request).execute().close()
+      httpClient.newCall(request).awaitResponse().close()
     }.onFailure { Log.w(TAG, "Failed reporting playback progress: ${it.message}") }
   }
 
@@ -876,7 +882,7 @@ class JellyfinClient(
           .post(payload.toRequestBody(JSON_MEDIA_TYPE))
           .build()
 
-      httpClient.newCall(request).execute().close()
+      httpClient.newCall(request).awaitResponse().close()
     }.onFailure { Log.w(TAG, "Failed reporting playback stop: ${it.message}") }
   }
 
@@ -897,7 +903,7 @@ class JellyfinClient(
             .addJellyfinHeaders(token)
             .post(ByteArray(0).toRequestBody(null))
             .build()
-        httpClient.newCall(request).execute().use { response ->
+        httpClient.newCall(request).awaitResponse().use { response ->
           if (!response.isSuccessful) throw IOException("Failed to mark as played: HTTP ${response.code}")
         }
       }
@@ -920,7 +926,7 @@ class JellyfinClient(
             .addJellyfinHeaders(token)
             .delete()
             .build()
-        httpClient.newCall(request).execute().use { response ->
+        httpClient.newCall(request).awaitResponse().use { response ->
           if (!response.isSuccessful) throw IOException("Failed to mark as unplayed: HTTP ${response.code}")
         }
       }
@@ -953,7 +959,7 @@ class JellyfinClient(
               .delete()
               .build()
           }
-        httpClient.newCall(request).execute().use { response ->
+        httpClient.newCall(request).awaitResponse().use { response ->
           if (!response.isSuccessful) throw IOException("Failed to toggle favorite: HTTP ${response.code}")
         }
       }
@@ -1138,7 +1144,7 @@ class JellyfinClient(
             .post("".toRequestBody(JSON_MEDIA_TYPE))
             .build()
 
-        httpClient.newCall(request).execute().use { response ->
+        httpClient.newCall(request).awaitResponse().use { response ->
           if (!response.isSuccessful) {
             return@withContext Result.failure(IOException("Create playlist failed: ${response.code} ${response.message}"))
           }
@@ -1172,7 +1178,7 @@ class JellyfinClient(
             .post("".toRequestBody(JSON_MEDIA_TYPE))
             .build()
 
-        httpClient.newCall(request).execute().use { response ->
+        httpClient.newCall(request).awaitResponse().use { response ->
           if (!response.isSuccessful) {
             return@withContext Result.failure(IOException("Add to playlist failed: ${response.code} ${response.message}"))
           }
@@ -1200,7 +1206,7 @@ class JellyfinClient(
             .delete()
             .build()
 
-        httpClient.newCall(request).execute().use { response ->
+        httpClient.newCall(request).awaitResponse().use { response ->
           if (!response.isSuccessful && response.code != 204) {
             return@withContext Result.failure(IOException("Delete item failed: ${response.code} ${response.message}"))
           }

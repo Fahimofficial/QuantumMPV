@@ -29,6 +29,13 @@ class NetworkStreamEntryRepository(
 
   fun observeTorrentFileEntries(): Flow<List<NetworkStreamEntryEntity>> = dao.observeTorrentFileEntries()
 
+  suspend fun touchNormalEntry(
+    stableKey: String,
+    updatedAt: Long = System.currentTimeMillis(),
+  ) {
+    dao.touchNormalEntry(stableKey, updatedAt)
+  }
+
   suspend fun saveNormalEntry(
     canonicalSourceUri: String,
     fileName: String,

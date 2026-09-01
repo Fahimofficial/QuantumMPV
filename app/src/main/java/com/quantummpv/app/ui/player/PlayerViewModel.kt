@@ -844,8 +844,16 @@ class PlayerViewModel : ViewModel(),
 
   val lyricsUiState = MutableStateFlow(LyricsUiState())
 
+  private data class LyricsLoadRequest(
+    val path: String,
+    val title: String,
+    val artist: String,
+    val durationSeconds: Int,
+  )
+
   private var lyricsLoadJob: Job? = null
   private var lyricsTranslateJob: Job? = null
+  private var lastLyricsLoadRequest: LyricsLoadRequest? = null
 
   fun setEqualizerEnabled(enabled: Boolean) {
     equalizerState.value = equalizerState.value.copy(isEnabled = enabled)
@@ -893,6 +901,9 @@ class PlayerViewModel : ViewModel(),
       ?: ""
 
     val duration = PlaybackSession.getPropertyInt("duration") ?: 0
+    val request = LyricsLoadRequest(path, title, artist, duration)
+    if (!forceRefresh && request == lastLyricsLoadRequest) return
+    lastLyricsLoadRequest = request
 
     lyricsUiState.value = lyricsUiState.value.copy(isLoading = true, errorMessage = null, syncOffsetMs = 0)
 
@@ -1605,17 +1616,6 @@ class PlayerViewModel : ViewModel(),
 
   init {
     viewModelScope.launch {
-      combine(
-        PlaybackSession.propString["path"],
-        PlaybackSession.propString["stream-open-filename"],
-      ) { p1, p2 -> p1?.takeIf { it.isNotBlank() } ?: p2 }
-        .collect { currentPath ->
-          if (!currentPath.isNullOrBlank()) {
-            loadLyricsForCurrentTrack()
-          }
-        }
-    }
-    viewModelScope.launch {
       decoderPreferences.gpuNext.changes().collect { enabled ->
         _isGpuNextEnabled.value = enabled
         reconcileHdrModeWithRenderer()
@@ -2024,7 +2024,7 @@ class PlayerViewModel : ViewModel(),
     }
     syncplayManager.updateFileInfo(currentSyncplayFileInfo())
     applyEqualizerMpvFilters()
-    loadLyricsForCurrentTrack(forceRefresh = true)
+    loadLyricsForCurrentTrack()
     scheduleAutoCropAnalysis()
   }
 

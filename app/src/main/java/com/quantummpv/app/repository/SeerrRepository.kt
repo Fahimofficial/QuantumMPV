@@ -24,7 +24,9 @@ import com.quantummpv.app.domain.seerr.PublicSettings
 import com.quantummpv.app.domain.seerr.RequestsResponse
 import com.quantummpv.app.domain.seerr.SearchResultItem
 import com.quantummpv.app.domain.seerr.UserQuotaResponse
+import com.quantummpv.app.network.awaitResponse
 import com.quantummpv.app.preferences.SeerrPreferences
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
@@ -32,6 +34,8 @@ import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.sync.Semaphore
+import kotlinx.coroutines.sync.withPermit
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.buildJsonObject
@@ -51,8 +55,11 @@ class SeerrRepository(
   private val preferences: SeerrPreferences,
 ) {
   private val mediaDetailsCache = ConcurrentHashMap<Pair<String, Int>, MediaDetails>()
+  private val mediaDetailsEnrichmentSemaphore = Semaphore(MAX_CONCURRENT_MEDIA_ENRICHMENTS)
+
   companion object {
     private const val TAG = "SeerrRepository"
+    private const val MAX_CONCURRENT_MEDIA_ENRICHMENTS = 4
     private val JSON_MEDIA_TYPE = "application/json; charset=utf-8".toMediaType()
   }
 
@@ -97,7 +104,9 @@ class SeerrRepository(
         .header("User-Agent", "mpvRx Android")
         .get()
         .build()
-      shortClient.newCall(request).execute().use { it.isSuccessful }
+      shortClient.newCall(request).awaitResponse().use { it.isSuccessful }
+    } catch (cancellation: CancellationException) {
+      throw cancellation
     } catch (e: Exception) {
       Log.d(TAG, "verifyServer failed for $url: ${e.message}")
       false
@@ -149,7 +158,7 @@ class SeerrRepository(
     errorMessage: String,
   ): Result<T> = withContext(Dispatchers.IO) {
     try {
-      httpClient.newCall(request).execute().use { response ->
+      httpClient.newCall(request).awaitResponse().use { response ->
         val bodyStr = response.body.string()
         if (response.isSuccessful) {
           val parsed = json.decodeFromString<T>(bodyStr)
@@ -159,6 +168,8 @@ class SeerrRepository(
           Result.failure(Exception("$errorMessage (HTTP ${response.code}): $bodyStr"))
         }
       }
+    } catch (cancellation: CancellationException) {
+      throw cancellation
     } catch (e: Exception) {
       Log.e(TAG, "$errorMessage: ${e.message}", e)
       Result.failure(e)
@@ -191,7 +202,7 @@ class SeerrRepository(
     )
 
     try {
-      httpClient.newCall(req).execute().use { resp ->
+      httpClient.newCall(req).awaitResponse().use { resp ->
         val bodyStr = resp.body.string()
         if (resp.isSuccessful) {
           val user = json.decodeFromString<JellyseerrUser>(bodyStr)
@@ -211,6 +222,8 @@ class SeerrRepository(
           Result.failure(Exception("Login failed (HTTP ${resp.code}): $bodyStr"))
         }
       }
+    } catch (cancellation: CancellationException) {
+      throw cancellation
     } catch (e: Exception) {
       Result.failure(e)
     }
@@ -232,7 +245,7 @@ class SeerrRepository(
     )
 
     try {
-      httpClient.newCall(req).execute().use { resp ->
+      httpClient.newCall(req).awaitResponse().use { resp ->
         val bodyStr = resp.body.string()
         if (resp.isSuccessful) {
           val user = json.decodeFromString<JellyseerrUser>(bodyStr)
@@ -251,6 +264,8 @@ class SeerrRepository(
           Result.failure(Exception("API Key validation failed (HTTP ${resp.code}): $bodyStr"))
         }
       }
+    } catch (cancellation: CancellationException) {
+      throw cancellation
     } catch (e: Exception) {
       preferences.apiKey.set("")
       Result.failure(e)
@@ -260,7 +275,9 @@ class SeerrRepository(
   suspend fun logout(): Result<Unit> = withContext(Dispatchers.IO) {
     try {
       val req = buildRequest(path = "api/v1/auth/logout", method = "POST")
-      httpClient.newCall(req).execute().close()
+      httpClient.newCall(req).awaitResponse().close()
+    } catch (cancellation: CancellationException) {
+      throw cancellation
     } catch (e: Exception) {
       Log.d(TAG, "Logout network call failed: ${e.message}")
     } finally {
@@ -438,48 +455,56 @@ class SeerrRepository(
   }
 
   suspend fun enrichRequest(request: JellyseerrRequest): JellyseerrRequest {
-    val tmdbId = request.media.tmdbId ?: return request
-    if (!request.media.title.isNullOrBlank() || !request.media.name.isNullOrBlank()) {
-      return request
-    }
-    val mediaTypeStr = request.media.mediaType.lowercase()
-    val cacheKey = mediaTypeStr to tmdbId
-    val cached = mediaDetailsCache[cacheKey]
-    if (cached != null) {
-      return request.copy(
-        media = request.media.copy(
-          title = cached.title,
-          name = cached.name,
-          posterPath = cached.posterPath,
-          backdropPath = cached.backdropPath,
-          releaseDate = cached.releaseDate,
-          firstAirDate = cached.firstAirDate,
-        ),
-      )
-    }
-
-    val detailsRes = if (mediaTypeStr == "tv") getTvDetails(tmdbId) else getMovieDetails(tmdbId)
-    val details = detailsRes.getOrNull() ?: return request
-    mediaDetailsCache[cacheKey] = details
-    return request.copy(
-      media = request.media.copy(
-        title = details.title,
-        name = details.name,
-        posterPath = details.posterPath,
-        backdropPath = details.backdropPath,
-        releaseDate = details.releaseDate,
-        firstAirDate = details.firstAirDate,
-      ),
-    )
+    val key = request.mediaDetailsKey() ?: return request
+    val details = mediaDetailsEnrichmentSemaphore.withPermit { fetchMediaDetails(key) } ?: return request
+    return request.withMediaDetails(details)
   }
 
   suspend fun enrichRequests(requests: List<JellyseerrRequest>): List<JellyseerrRequest> = withContext(Dispatchers.IO) {
-    coroutineScope {
-      requests.map { req ->
-        async { enrichRequest(req) }
-      }.awaitAll()
+    val keys = requests.mapNotNull(JellyseerrRequest::mediaDetailsKey).distinct()
+    val detailsByKey =
+      coroutineScope {
+        keys
+          .map { key ->
+            async {
+              mediaDetailsEnrichmentSemaphore.withPermit {
+                key to fetchMediaDetails(key)
+              }
+            }
+          }.awaitAll()
+          .mapNotNull { (key, details) -> details?.let { key to it } }
+          .toMap()
+      }
+
+    requests.map { request ->
+      request.mediaDetailsKey()?.let(detailsByKey::get)?.let(request::withMediaDetails) ?: request
     }
   }
+
+  private fun JellyseerrRequest.mediaDetailsKey(): Pair<String, Int>? {
+    if (!media.title.isNullOrBlank() || !media.name.isNullOrBlank()) return null
+    val tmdbId = media.tmdbId ?: return null
+    return media.mediaType.lowercase() to tmdbId
+  }
+
+  private suspend fun fetchMediaDetails(key: Pair<String, Int>): MediaDetails? {
+    mediaDetailsCache[key]?.let { return it }
+    val (mediaType, tmdbId) = key
+    return (if (mediaType == "tv") getTvDetails(tmdbId) else getMovieDetails(tmdbId)).getOrNull()
+  }
+
+  private fun JellyseerrRequest.withMediaDetails(details: MediaDetails): JellyseerrRequest =
+    copy(
+      media =
+        media.copy(
+          title = details.title,
+          name = details.name,
+          posterPath = details.posterPath,
+          backdropPath = details.backdropPath,
+          releaseDate = details.releaseDate,
+          firstAirDate = details.firstAirDate,
+        ),
+    )
 
   suspend fun getRequests(
     take: Int = 50,
@@ -496,16 +521,17 @@ class SeerrRepository(
 
     val req = buildRequest(path = "api/v1/request", queryParameters = queryParams)
     try {
-      httpClient.newCall(req).execute().use { response ->
-        val bodyStr = response.body.string()
-        if (response.isSuccessful) {
-          val res = json.decodeFromString<RequestsResponse>(bodyStr)
-          val enriched = enrichRequests(res.results)
-          Result.success(enriched)
-        } else {
-          Result.failure(Exception("Failed to load requests (HTTP ${response.code}): $bodyStr"))
+      val responseBody =
+        httpClient.newCall(req).awaitResponse().use { response ->
+          val bodyStr = response.body.string()
+          if (!response.isSuccessful) {
+            return@withContext Result.failure(Exception("Failed to load requests (HTTP ${response.code}): $bodyStr"))
+          }
+          json.decodeFromString<RequestsResponse>(bodyStr)
         }
-      }
+      Result.success(enrichRequests(responseBody.results))
+    } catch (cancellation: CancellationException) {
+      throw cancellation
     } catch (e: Exception) {
       Result.failure(e)
     }
@@ -574,13 +600,15 @@ class SeerrRepository(
       method = "DELETE",
     )
     try {
-      httpClient.newCall(req).execute().use { response ->
+      httpClient.newCall(req).awaitResponse().use { response ->
         if (response.isSuccessful) {
           Result.success(Unit)
         } else {
           Result.failure(Exception("Failed to delete media $mediaId (HTTP ${response.code})"))
         }
       }
+    } catch (cancellation: CancellationException) {
+      throw cancellation
     } catch (e: Exception) {
       Result.failure(e)
     }
@@ -594,13 +622,15 @@ class SeerrRepository(
       method = "DELETE",
     )
     try {
-      httpClient.newCall(req).execute().use { response ->
+      httpClient.newCall(req).awaitResponse().use { response ->
         if (response.isSuccessful) {
           Result.success(Unit)
         } else {
           Result.failure(Exception("Failed to delete request $requestId (HTTP ${response.code})"))
         }
       }
+    } catch (cancellation: CancellationException) {
+      throw cancellation
     } catch (e: Exception) {
       Result.failure(e)
     }

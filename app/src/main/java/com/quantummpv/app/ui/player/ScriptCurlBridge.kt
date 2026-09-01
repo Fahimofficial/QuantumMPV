@@ -11,9 +11,13 @@ package com.quantummpv.app.ui.player
 
 import android.util.Log
 import com.quantummpv.app.network.SharedHttpClient
+import com.quantummpv.app.network.awaitResponse
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.sync.Semaphore
+import kotlinx.coroutines.sync.withPermit
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.decodeFromString
 import kotlinx.serialization.encodeToString
@@ -25,6 +29,7 @@ import okhttp3.Request
 import okhttp3.RequestBody.Companion.toRequestBody
 import java.io.IOException
 import java.util.UUID
+import java.util.concurrent.atomic.AtomicInteger
 import java.util.concurrent.TimeUnit
 
 class ScriptCurlBridge(
@@ -40,6 +45,8 @@ class ScriptCurlBridge(
 
     private const val MAX_HEADER_COUNT = 64
     private const val MAX_BODY_BYTES = 8L * 1024 * 1024
+    private const val MAX_CONCURRENT_REQUESTS = 4
+    private const val MAX_PENDING_REQUESTS = 32
     private const val USER_AGENT = "mpvRx-script-curl/1.0"
 
     private val ALLOWED_METHODS = setOf("GET", "HEAD", "POST", "PUT", "PATCH", "DELETE")
@@ -59,6 +66,8 @@ class ScriptCurlBridge(
       encodeDefaults = true
       explicitNulls = false
     }
+  private val requestSemaphore = Semaphore(MAX_CONCURRENT_REQUESTS)
+  private val pendingRequestCount = AtomicInteger()
 
   @Serializable
   private data class CurlRequest(
@@ -118,15 +127,22 @@ class ScriptCurlBridge(
         MAX_TIMEOUT_SECONDS.toInt(),
       )
 
-    scope.launch(Dispatchers.IO) {
-      val response =
-        executeRequest(
-          finalRequest,
-          timeoutSec,
-        )
-
-      writeResponse(response)
+    if (pendingRequestCount.incrementAndGet() > MAX_PENDING_REQUESTS) {
+      pendingRequestCount.decrementAndGet()
+      writeErrorResponse(requestId, "Too many pending script HTTP requests")
+      return
     }
+    scope
+      .launch(Dispatchers.IO) {
+        val response =
+          requestSemaphore.withPermit {
+            executeRequest(
+              finalRequest,
+              timeoutSec,
+            )
+          }
+        writeResponse(response)
+      }.invokeOnCompletion { pendingRequestCount.decrementAndGet() }
   }
 
   private fun parseRequest(rawJson: String): CurlRequest {
@@ -266,7 +282,7 @@ class ScriptCurlBridge(
     )
   }
 
-  private fun executeRequest(
+  private suspend fun executeRequest(
     request: CurlRequest,
     timeoutSec: Int,
   ): CurlResponse {
@@ -311,7 +327,7 @@ class ScriptCurlBridge(
       }
 
     return try {
-      client.newCall(httpRequest).execute().use { response ->
+      client.newCall(httpRequest).awaitResponse().use { response ->
         // Buffer at most the cap so a hostile endpoint cannot stream an unbounded body into memory.
         val source = response.body.source()
         source.request(MAX_BODY_BYTES + 1)
@@ -324,6 +340,8 @@ class ScriptCurlBridge(
           error = null,
         )
       }
+    } catch (cancellation: CancellationException) {
+      throw cancellation
     } catch (e: IOException) {
       Log.e(TAG, "Request failed", e)
       fail(e.message ?: "Network error")

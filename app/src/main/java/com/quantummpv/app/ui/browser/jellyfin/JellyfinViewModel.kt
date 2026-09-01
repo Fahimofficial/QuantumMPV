@@ -129,6 +129,8 @@ class JellyfinViewModel(
   private var searchJob: Job? = null
   private var detailJob: Job? = null
   private var seasonEpisodesJob: Job? = null
+  private var musicLoadJob: Job? = null
+  private var loadedMusicHomeLibraryId: String? = null
 
   private val _uiState = MutableStateFlow(JellyfinUiState())
   val uiState: StateFlow<JellyfinUiState> = _uiState.asStateFlow()
@@ -203,6 +205,7 @@ class JellyfinViewModel(
   fun loadHomeDashboard(server: JellyfinServer) {
     loadDashboardJob?.cancel()
     loadItemsJob?.cancel()
+    musicLoadJob?.cancel()
     loadDashboardJob =
       viewModelScope.launch {
         _uiState.update { it.copy(isLoading = true, error = null) }
@@ -417,7 +420,7 @@ class JellyfinViewModel(
     val library = _uiState.value.openLibrary
     if (library != null) {
       if (library.isMusic && _uiState.value.musicActiveTab != JellyfinMusicTab.HOME) {
-        _uiState.update { it.copy(musicActiveTab = JellyfinMusicTab.HOME) }
+        setMusicTab(JellyfinMusicTab.HOME)
         return true
       }
       _uiState.update {
@@ -442,8 +445,12 @@ class JellyfinViewModel(
     server: JellyfinServer,
     library: JellyfinLibraryView,
   ) {
-    viewModelScope.launch {
-      _uiState.update { it.copy(isMusicLoading = true) }
+    loadDashboardJob?.cancel()
+    loadItemsJob?.cancel()
+    musicLoadJob?.cancel()
+    loadedMusicHomeLibraryId = null
+    musicLoadJob = viewModelScope.launch {
+      _uiState.update { it.copy(isLoading = false, isMusicLoading = true) }
 
       val jumpBackDeferred = async {
         val playedTracks = jellyfinRepository.getItems(
@@ -489,16 +496,7 @@ class JellyfinViewModel(
           sortBy = JellyfinSortBy.DATE_ADDED,
           sortOrder = JellyfinSortOrder.DESCENDING,
           limit = 15,
-        ).getOrNull()?.items.orEmpty().ifEmpty {
-          jellyfinRepository.getItems(
-            server = server,
-            parentId = library.id,
-            includeItemTypes = "MusicAlbum",
-            sortBy = JellyfinSortBy.DATE_ADDED,
-            sortOrder = JellyfinSortOrder.DESCENDING,
-            limit = 15,
-          ).getOrNull()?.items.orEmpty()
-        }
+        ).getOrNull()?.items.orEmpty()
       }
 
       val artistsToExploreDeferred = async {
@@ -563,6 +561,7 @@ class JellyfinViewModel(
       val favorites = favoritesDeferred.await()
       val playlists = playlistsDeferred.await()
 
+      loadedMusicHomeLibraryId = library.id
       _uiState.update {
         it.copy(
           musicFavorites = favorites,
@@ -577,11 +576,14 @@ class JellyfinViewModel(
   }
 
   fun setMusicTab(tab: JellyfinMusicTab) {
+    if (_uiState.value.musicActiveTab == tab) return
     _uiState.update { it.copy(musicActiveTab = tab) }
     val active = _uiState.value.activeServer ?: return
     val library = _uiState.value.openLibrary ?: return
 
-    if (tab != JellyfinMusicTab.HOME) {
+    if (tab == JellyfinMusicTab.HOME) {
+      if (loadedMusicHomeLibraryId != library.id) loadMusicHomeDashboard(active, library)
+    } else {
       loadMusicTabItems(active, library, tab)
     }
   }
@@ -591,8 +593,9 @@ class JellyfinViewModel(
     library: JellyfinLibraryView,
     tab: JellyfinMusicTab,
   ) {
-    viewModelScope.launch {
-      _uiState.update { it.copy(isLoading = true) }
+    musicLoadJob?.cancel()
+    musicLoadJob = viewModelScope.launch {
+      _uiState.update { it.copy(isLoading = true, isMusicLoading = false) }
       when (tab) {
         JellyfinMusicTab.PLAYLISTS -> {
           val serverPlaylists = jellyfinRepository.getItems(
@@ -732,6 +735,7 @@ class JellyfinViewModel(
 
     if (resetPagination) {
       loadItemsJob?.cancel()
+      musicLoadJob?.cancel()
     }
 
     loadItemsJob =

@@ -100,16 +100,12 @@ class SeerrViewModel(
     viewModelScope.launch {
       seerrRepository.isAuthenticated.collect { isAuth ->
         _uiState.update { it.copy(isConnected = isAuth) }
-        if (isAuth) {
-          loadDashboard()
-        }
       }
     }
 
     if (seerrPreferences.isLoggedIn.get()) {
       viewModelScope.launch {
-        seerrRepository.getCurrentUser()
-        loadDashboard()
+        seerrRepository.getCurrentUser().onSuccess { loadDashboard() }
       }
     }
   }
