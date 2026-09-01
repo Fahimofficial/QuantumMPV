@@ -77,6 +77,7 @@ android {
     create("standard") {
       dimension = "distribution"
       buildConfigField("boolean", "ENABLE_UPDATE_FEATURE", "true")
+      buildConfigField("String", "UPDATE_APK_VARIANT", "\"standard\"")
       buildConfigField("boolean", "SCOPED_STORAGE_ONLY", "false")
       buildConfigField("boolean", "MPV_SUPPORTS_VULKAN", "true")
       buildConfigField("boolean", "MPV_SUPPORTS_MEDIACODEC_VULKAN", "false")
@@ -84,7 +85,8 @@ android {
 
     create("noVulkan") {
       dimension = "distribution"
-      buildConfigField("boolean", "ENABLE_UPDATE_FEATURE", "false")
+      buildConfigField("boolean", "ENABLE_UPDATE_FEATURE", "true")
+      buildConfigField("String", "UPDATE_APK_VARIANT", "\"no-vulkan\"")
       buildConfigField("boolean", "SCOPED_STORAGE_ONLY", "false")
       buildConfigField("boolean", "MPV_SUPPORTS_VULKAN", "false")
       buildConfigField("boolean", "MPV_SUPPORTS_MEDIACODEC_VULKAN", "false")
@@ -92,7 +94,8 @@ android {
 
     create("fongmi") {
       dimension = "distribution"
-      buildConfigField("boolean", "ENABLE_UPDATE_FEATURE", "false")
+      buildConfigField("boolean", "ENABLE_UPDATE_FEATURE", "true")
+      buildConfigField("String", "UPDATE_APK_VARIANT", "\"fongmi\"")
       buildConfigField("boolean", "SCOPED_STORAGE_ONLY", "false")
       buildConfigField("boolean", "MPV_SUPPORTS_VULKAN", "true")
       buildConfigField("boolean", "MPV_SUPPORTS_MEDIACODEC_VULKAN", "true")

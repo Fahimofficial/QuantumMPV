@@ -35,7 +35,7 @@ class UpdateManager(
     channel: AppUpdateChannel,
     forceShow: Boolean = false,
   ): Release? {
-    // Return null immediately if update feature is disabled (F-Droid flavor)
+    // Return null immediately if update checks are disabled for this build.
     if (!BuildConfig.ENABLE_UPDATE_FEATURE) {
       return null
     }
@@ -47,6 +47,9 @@ class UpdateManager(
           AppUpdateChannel.PREVIEW -> PREVIEW_RELEASE_URL
         },
       )
+    if (selectBestApkAsset(release.assets) == null) {
+      return null
+    }
     val prefs = context.getSharedPreferences("mpvrx_prefs", Context.MODE_PRIVATE)
     val ignoredVersion =
       prefs.getString(ignoredVersionKey(channel), null)
@@ -143,11 +146,17 @@ class UpdateManager(
 
   private fun selectBestApkAsset(assets: List<Asset>): Asset? {
     val deviceArch = getDeviceArchitecture()
+    val compatibleAssets =
+      assets.filter { asset ->
+        asset.name.startsWith("mpvRx-", ignoreCase = true) &&
+          asset.name.endsWith(".apk", ignoreCase = true) &&
+          asset.name.matchesApkVariant(BuildConfig.UPDATE_APK_VARIANT)
+      }
 
     // First, try to find architecture-specific APK
     val archSpecificApk =
-      assets.firstOrNull { asset ->
-        asset.name.endsWith(".apk") && asset.name.contains(deviceArch, ignoreCase = true)
+      compatibleAssets.firstOrNull { asset ->
+        asset.name.hasAssetToken(deviceArch)
       }
 
     if (archSpecificApk != null) {
@@ -156,17 +165,36 @@ class UpdateManager(
 
     // Fallback to universal APK
     val universalApk =
-      assets.firstOrNull { asset ->
-        asset.name.endsWith(".apk") && asset.name.contains("universal", ignoreCase = true)
+      compatibleAssets.firstOrNull { asset ->
+        asset.name.hasAssetToken("universal")
       }
 
     if (universalApk != null) {
       return universalApk
     }
 
-    // Last resort: any APK
-    return assets.firstOrNull { it.name.endsWith(".apk") }
+    // FongMi and No-Vulkan universal assets use the flavor marker instead of "universal".
+    return compatibleAssets.firstOrNull { asset ->
+      SUPPORTED_ARCHITECTURES.none { architecture -> asset.name.hasAssetToken(architecture) }
+    }
   }
+
+  private fun String.matchesApkVariant(variant: String): Boolean {
+    val isFongMi = hasAssetToken("fongmi")
+    val isNoVulkan = hasAssetToken("no-vulkan")
+    return when (variant) {
+      "fongmi" -> isFongMi
+      "no-vulkan" -> isNoVulkan
+      "standard" -> !isFongMi && !isNoVulkan
+      else -> false
+    }
+  }
+
+  private fun String.hasAssetToken(token: String): Boolean =
+    Regex(
+      pattern = "(?:^|-)${Regex.escape(token)}(?:-|\\.apk$)",
+      option = RegexOption.IGNORE_CASE,
+    ).containsMatchIn(this)
 
   private fun getDeviceArchitecture(): String {
     // Get the primary ABI (Application Binary Interface)
@@ -253,5 +281,6 @@ class UpdateManager(
     const val PREVIEW_RELEASE_URL = "https://riteshp2001.github.io/mpvRx/latest.json"
     const val LEGACY_IGNORED_VERSION_KEY = "ignored_version"
     val PREVIEW_TAG_REGEX = Regex("""(?:preview-)?r(\d+)""", RegexOption.IGNORE_CASE)
+    val SUPPORTED_ARCHITECTURES = setOf("arm64-v8a", "armeabi-v7a", "x86", "x86_64")
   }
 }

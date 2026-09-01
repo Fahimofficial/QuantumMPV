@@ -26,6 +26,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -34,6 +35,8 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
@@ -85,6 +88,7 @@ import com.quantummpv.app.ui.utils.LocalShowSettingsBackArrow
 import com.quantummpv.app.ui.utils.popSafely
 import com.quantummpv.app.utils.clipboard.SafeClipboard
 import com.quantummpv.app.ui.update.UpdateViewModel
+import java.util.Locale
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.serialization.Serializable
 
@@ -764,25 +768,29 @@ object LibrariesScreen : Screen {
         )
       },
     ) { paddingValues ->
-      Column(
+      LazyColumn(
         modifier =
           Modifier
             .fillMaxSize()
-            .padding(paddingValues)
-            .verticalScroll(rememberScrollState())
-            .padding(16.dp),
+            .padding(paddingValues),
+        contentPadding = PaddingValues(16.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp),
       ) {
-        Text(
-          text =
-            androidx.compose.ui.res.stringResource(
-              com.quantummpv.app.R.string.ui_core_open_source_dependencies_used_by_mpvrx,
-            ),
-          style = MaterialTheme.typography.bodyMedium,
-          color = MaterialTheme.colorScheme.onSurfaceVariant,
-        )
+        item(key = "libraries-introduction") {
+          Text(
+            text =
+              androidx.compose.ui.res.stringResource(
+                com.quantummpv.app.R.string.ui_core_open_source_dependencies_used_by_mpvrx,
+              ),
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+          )
+        }
 
-        OPEN_SOURCE_LIBRARIES.forEach { library ->
+        items(
+          items = OPEN_SOURCE_LIBRARIES,
+          key = OpenSourceLibrary::artifact,
+        ) { library ->
           Card(
             modifier =
               Modifier
@@ -849,6 +857,13 @@ private val OPEN_SOURCE_LIBRARIES =
       url = "https://developer.android.com/jetpack/compose",
     ),
     OpenSourceLibrary(
+      name = "AndroidX Activity",
+      artifact = "androidx.activity:activity-compose",
+      descriptionRes = R.string.oss_androidx_activity_description,
+      license = "Apache-2.0",
+      url = "https://developer.android.com/jetpack/androidx/releases/activity",
+    ),
+    OpenSourceLibrary(
       name = "Material 3",
       artifact = "androidx.compose.material3:material3",
       descriptionRes = R.string.oss_material_3_description,
@@ -901,7 +916,7 @@ private val OPEN_SOURCE_LIBRARIES =
       name = "MediaInfo Android",
       artifact = "com.github.marlboro-advance:mediainfoAndroid",
       descriptionRes = R.string.oss_mediainfo_android_description,
-      license = "Open source",
+      license = "BSD-2-Clause",
       url = "https://github.com/marlboro-advance/mediainfoAndroid",
     ),
     OpenSourceLibrary(
@@ -1093,4 +1108,60 @@ private val OPEN_SOURCE_LIBRARIES =
       license = "Apache-2.0",
       url = "https://github.com/google/desugar_jdk_libs",
     ),
-  )
+    OpenSourceLibrary(
+      name = "AndroidX Biometric",
+      artifact = "androidx.biometric:biometric",
+      descriptionRes = R.string.oss_androidx_biometric_description,
+      license = "Apache-2.0",
+      url = "https://developer.android.com/jetpack/androidx/releases/biometric",
+    ),
+    OpenSourceLibrary(
+      name = "JSch",
+      artifact = "com.github.mwiede:jsch",
+      descriptionRes = R.string.oss_jsch_description,
+      license = "BSD-3-Clause",
+      url = "https://github.com/mwiede/jsch",
+    ),
+    OpenSourceLibrary(
+      name = "libarchive-android",
+      artifact = "me.zhanghai.android.libarchive:library",
+      descriptionRes = R.string.oss_libarchive_android_description,
+      license = "Apache-2.0",
+      url = "https://github.com/zhanghai/libarchive-android",
+    ),
+    OpenSourceLibrary(
+      name = "libtorrent4j",
+      artifact = "org.libtorrent4j:libtorrent4j",
+      descriptionRes = R.string.oss_libtorrent4j_description,
+      license = "MIT",
+      url = "https://github.com/aldenml/libtorrent4j",
+    ),
+    OpenSourceLibrary(
+      name = "Multiplatform Markdown Renderer",
+      artifact = "com.mikepenz:multiplatform-markdown-renderer-m3",
+      descriptionRes = R.string.oss_markdown_renderer_description,
+      license = "Apache-2.0",
+      url = "https://github.com/mikepenz/multiplatform-markdown-renderer",
+    ),
+    OpenSourceLibrary(
+      name = "mpv",
+      artifact = "libmpv",
+      descriptionRes = R.string.oss_mpv_description,
+      license = "GPL-2.0-or-later / LGPL-2.1-or-later",
+      url = "https://github.com/mpv-player/mpv",
+    ),
+    OpenSourceLibrary(
+      name = "mpvlib Android",
+      artifact = "mpvlib.aar / mpvlib-no-vulkun.aar / mpvlib-fongmi.aar",
+      descriptionRes = R.string.oss_mpvlib_android_description,
+      license = "MIT",
+      url = "https://github.com/Riteshp2001/mpvlibAndroid",
+    ),
+    OpenSourceLibrary(
+      name = "QuickJS-NG",
+      artifact = "app/src/main/cpp/third_party/quickjs",
+      descriptionRes = R.string.oss_quickjs_ng_description,
+      license = "MIT",
+      url = "https://github.com/quickjs-ng/quickjs",
+    ),
+  ).sortedBy { library -> library.name.lowercase(Locale.ROOT) }

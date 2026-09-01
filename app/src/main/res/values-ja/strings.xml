@@ -1525,6 +1525,15 @@
   <string name="oss_kotlinx_immutable_collections_description">Kotlin向けイミュータブルコレクションインターフェース。</string>
   <string name="oss_curl_android_description">Android NDK向けlibcurl静的ライブラリ。</string>
   <string name="oss_desugar_jdk_libs_description">古いAndroid向けJava 8以降のAPIデシュガリング。</string>
+  <string name="oss_androidx_biometric_description">保護されたアプリ機能向けの後方互換性を持つ生体認証。</string>
+  <string name="oss_androidx_activity_description">AndroidのActivityとライフサイクル対応APIをComposeに統合します。</string>
+  <string name="oss_jsch_description">リモートファイルアクセス用のSSHおよびSFTPクライアント。</string>
+  <string name="oss_libarchive_android_description">字幕アーカイブの展開に使用するAndroid向けlibarchiveバインディング。</string>
+  <string name="oss_libtorrent4j_description">BitTorrentストリーミング用のJavaバインディングとネイティブライブラリ。</string>
+  <string name="oss_markdown_renderer_description">MarkdownをネイティブのMaterial 3 Composeコンテンツとして描画します。</string>
+  <string name="oss_mpv_description">音声、動画、字幕用のネイティブメディア再生エンジン。</string>
+  <string name="oss_mpvlib_android_description">Standard、No-Vulkan、FongMiビルドで使用するAndroid向けlibmpvラッパー。</string>
+  <string name="oss_quickjs_ng_description">yt-dlpのチャレンジ解決に使用する組み込みJavaScriptエンジン。</string>
   <string name="filter_preset_none">なし</string>
   <string name="filter_preset_vivid">鮮やか</string>
   <string name="filter_preset_warm_tone">暖色調</string>

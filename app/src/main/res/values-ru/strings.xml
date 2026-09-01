@@ -1525,6 +1525,15 @@
   <string name="oss_kotlinx_immutable_collections_description">Интерфейсы неизменяемых коллекций для Kotlin.</string>
   <string name="oss_curl_android_description">Статическая библиотека libcurl для Android NDK.</string>
   <string name="oss_desugar_jdk_libs_description">Десугаринг API Java 8+ для старых версий Android.</string>
+  <string name="oss_androidx_biometric_description">Обратно совместимая биометрическая аутентификация для защищённых функций приложения.</string>
+  <string name="oss_androidx_activity_description">Связывает Activity Android и API с учётом жизненного цикла с Compose.</string>
+  <string name="oss_jsch_description">Клиент SSH и SFTP для доступа к удалённым файлам.</string>
+  <string name="oss_libarchive_android_description">Android-привязки libarchive для распаковки архивов субтитров.</string>
+  <string name="oss_libtorrent4j_description">Java-привязки и нативные библиотеки для потоковой передачи BitTorrent.</string>
+  <string name="oss_markdown_renderer_description">Отображает Markdown как нативное содержимое Compose с Material 3.</string>
+  <string name="oss_mpv_description">Нативный движок воспроизведения аудио, видео и субтитров.</string>
+  <string name="oss_mpvlib_android_description">Android-обёртка libmpv для сборок Standard, No-Vulkan и FongMi.</string>
+  <string name="oss_quickjs_ng_description">Встроенный движок JavaScript для решения задач yt-dlp.</string>
   <string name="filter_preset_none">Нет</string>
   <string name="filter_preset_vivid">Яркий</string>
   <string name="filter_preset_warm_tone">Тёплый тон</string>

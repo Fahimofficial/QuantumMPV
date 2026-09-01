@@ -73,7 +73,6 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.viewmodel.compose.viewModel
-import com.quantummpv.app.BuildConfig
 import com.quantummpv.app.R
 import com.quantummpv.app.database.repository.SecureFolderRepository
 import com.quantummpv.app.domain.media.model.Video
@@ -432,12 +431,7 @@ data class VideoListScreen(
               moveToSecureConfirmOpen.value = true
             }
           },
-          onAddToPlaylistClick =
-            if (!BuildConfig.ENABLE_UPDATE_FEATURE) {
-              { addToPlaylistDialogOpen.value = true }
-            } else {
-              null
-            },
+          onAddToPlaylistClick = { addToPlaylistDialogOpen.value = true },
           )
         }
       },

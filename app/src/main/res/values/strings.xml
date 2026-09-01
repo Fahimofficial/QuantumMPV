@@ -1722,6 +1722,15 @@
   <string name="oss_kotlinx_immutable_collections_description">Immutable collection interfaces for Kotlin.</string>
   <string name="oss_curl_android_description">libcurl static library for Android NDK.</string>
   <string name="oss_desugar_jdk_libs_description">Java 8+ API desugaring for older Android versions.</string>
+  <string name="oss_androidx_biometric_description">Backward-compatible biometric authentication for protected app flows.</string>
+  <string name="oss_androidx_activity_description">Connects Android activities and lifecycle-aware APIs with Compose.</string>
+  <string name="oss_jsch_description">SSH and SFTP client used for remote file access.</string>
+  <string name="oss_libarchive_android_description">Android libarchive bindings used to extract subtitle archives.</string>
+  <string name="oss_libtorrent4j_description">Java bindings and native libraries used for BitTorrent streaming.</string>
+  <string name="oss_markdown_renderer_description">Renders Markdown as native Material 3 Compose content.</string>
+  <string name="oss_mpv_description">Native media playback engine for audio, video, and subtitles.</string>
+  <string name="oss_mpvlib_android_description">Android libmpv wrapper used by the Standard, No-Vulkan, and FongMi builds.</string>
+  <string name="oss_quickjs_ng_description">Embedded JavaScript engine used by yt-dlp challenge solving.</string>
   <string name="filter_preset_none">None</string>
   <string name="filter_preset_vivid">Vivid</string>
   <string name="filter_preset_warm_tone">Warm Tone</string>

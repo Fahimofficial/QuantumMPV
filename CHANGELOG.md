@@ -2,28 +2,6 @@
 
 These notes are written in plain English and focus on what changed for real use.
 
-## Unreleased
-
-### 🌐 Network Streaming & Protocols
-- **SFTP Support**: Added SFTP as a full network protocol alongside SMB, FTP, and WebDAV — browse folders, stream with seeking through the secure loopback proxy, and manage connections from the same add/edit dialogs (default port 22).
-- **Large-File Freeze & EOF Seek Fix**: Network reconnect options now reach the primary playback stream, so a dropped connection or a failed seek-reopen recovers automatically instead of freezing large files or showing endless buffering when seeking back after the end of a file.
-- **Proxy Hang Guard**: A network body that ends early now surfaces as a recoverable disconnect instead of leaving the player waiting forever for missing bytes.
-- **More Robust WebDAV Streaming**: Full-file streams reuse the shared HTTP client (consistent timeouts, no per-request client leak), and servers that ignore byte-range requests fall back to skip-to-offset streaming so seeking keeps working everywhere.
-- **Music on Network Shares**: WebDAV, SMB, FTP, and SFTP browsers now show and play audio files when "Show audio in browser" is enabled, including folder queues and the audio-player interface.
-- **Fewer Duplicate Requests**: Prevented duplicate network request bursts during playback startup.
-
-### 🎛️ Picture-in-Picture & Mini Player
-- **PiP on Home Gesture Only**: New option under Auto Picture-in-Picture that limits PiP to the home gesture or swipe — like MX Player and VLC — so the back button closes the player (or hands off to the Mini Player) instead of entering PiP.
-- **Seamless Mini Player Audio**: Fixed the brief audio stop/start when minimizing into the Mini Player or expanding back to fullscreen — notification artwork lookups no longer open a second stream against the playing network source.
-
-### 🎬 Playback & Stability
-- **Precise End-of-File Seeks**: Avoided non-precise seeks into EOF that could end playback unexpectedly.
-- **Ambient Sheet Theming**: Fixed the Ambient sheet appearance in light mode.
-- **Cleaner Builds**: Resolved Kotlin and Material API warnings and updated dependencies.
-
-### 🌍 Translations
-- The new Picture-in-Picture preference is translated across all supported app languages.
-
 ## 2.5.0 - Frame Review, Auto Crop & Library Performance
 
 ### 🎬 Frame Review, Seeking & Playback
@@ -52,6 +30,18 @@ These notes are written in plain English and focus on what changed for real use.
 - **Configurable Audio Seeking**: Music-player rewind and forward controls now use the configured double-tap seek duration.
 - **Reliable PiP Handoffs**: Expanding PiP restores the full player without interrupting playback, Back opens the mini player where appropriate, and the PiP close action stops playback cleanly.
 - **Supported-Link Routing**: Expanded Open by default coverage for supported YouTube domains.
+### 🌐 Network Streaming & Protocols
+- **SFTP Support**: Added SFTP as a full network protocol alongside SMB, FTP, and WebDAV — browse folders, stream with seeking through the secure loopback proxy, and manage connections from the same add/edit dialogs (default port 22).
+- **Large-File Freeze & EOF Seek Fix**: Network reconnect options now reach the primary playback stream, so a dropped connection or a failed seek-reopen recovers automatically instead of freezing large files or showing endless buffering when seeking back after the end of a file.
+- **Proxy Hang Guard**: A network body that ends early now surfaces as a recoverable disconnect instead of leaving the player waiting forever for missing bytes.
+- **More Robust WebDAV Streaming**: Full-file streams reuse the shared HTTP client (consistent timeouts, no per-request client leak), and servers that ignore byte-range requests fall back to skip-to-offset streaming so seeking keeps working everywhere.
+- **Music on Network Shares**: WebDAV, SMB, FTP, and SFTP browsers now show and play audio files when "Show audio in browser" is enabled, including folder queues and the audio-player interface.
+- **Fewer Duplicate Requests**: Prevented duplicate network request bursts during playback startup.
+
+### 🎬 Playback & Stability
+- **Precise End-of-File Seeks**: Avoided non-precise seeks into EOF that could end playback unexpectedly.
+- **Ambient Sheet Theming**: Fixed the Ambient sheet appearance in light mode.
+- **Cleaner Builds**: Resolved Kotlin and Material API warnings and updated dependencies.
 
 ### 🌐 Network, Storage & Subtitles
 - **Network Folder Bookmarks**: Save, open, and manage frequently used folders from saved SMB, FTP, and WebDAV connections without duplicating credentials.

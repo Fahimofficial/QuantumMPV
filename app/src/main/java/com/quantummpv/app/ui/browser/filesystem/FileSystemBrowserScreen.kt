@@ -86,7 +86,6 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.viewmodel.compose.viewModel
-import com.quantummpv.app.BuildConfig
 import com.quantummpv.app.R
 import com.quantummpv.app.domain.browser.FileSystemItem
 import com.quantummpv.app.preferences.AppearancePreferences
@@ -619,7 +618,7 @@ fun FileSystemBrowserScreen(path: String? = null) {
             onInvertSelection = { selectionManager.invertSelection() },
             onDeselectAll = { selectionManager.clear() },
             onAddToPlaylistClick =
-              if (!BuildConfig.ENABLE_UPDATE_FEATURE && onlyVideosSelected) {
+              if (onlyVideosSelected) {
                 { addToPlaylistDialogOpen.value = true }
               } else {
                 null
@@ -929,7 +928,7 @@ fun FileSystemBrowserScreen(path: String? = null) {
         showDownscale =
           selectedVideos.isNotEmpty() && selectedVideos.none { it.isAudio } && selectedFolders.isEmpty(),
         showRename = selectionManager.isSingleSelection,
-        showAddToPlaylist = !BuildConfig.ENABLE_UPDATE_FEATURE && onlyVideosSelected,
+        showAddToPlaylist = onlyVideosSelected,
         modifier = Modifier.padding(bottom = 0.dp),
       )
     }

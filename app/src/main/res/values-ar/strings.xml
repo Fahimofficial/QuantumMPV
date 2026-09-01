@@ -1525,6 +1525,15 @@
   <string name="oss_kotlinx_immutable_collections_description">واجهات مجموعات غير قابلة للتغيير لـ Kotlin.</string>
   <string name="oss_curl_android_description">مكتبة libcurl ثابتة لـ Android NDK.</string>
   <string name="oss_desugar_jdk_libs_description">تحويل واجهات Java 8+ لدعم إصدارات Android القديمة.</string>
+  <string name="oss_androidx_biometric_description">مصادقة حيوية متوافقة مع الإصدارات السابقة لتدفقات التطبيق المحمية.</string>
+  <string name="oss_androidx_activity_description">يربط أنشطة Android وواجهات دورة الحياة مع Compose.</string>
+  <string name="oss_jsch_description">عميل SSH وSFTP للوصول إلى الملفات البعيدة.</string>
+  <string name="oss_libarchive_android_description">روابط libarchive لنظام Android تُستخدم لاستخراج أرشيفات الترجمة.</string>
+  <string name="oss_libtorrent4j_description">روابط Java ومكتبات أصلية لبث BitTorrent.</string>
+  <string name="oss_markdown_renderer_description">يعرض Markdown كمحتوى Compose أصلي بتصميم Material 3.</string>
+  <string name="oss_mpv_description">محرك تشغيل وسائط أصلي للصوت والفيديو والترجمات.</string>
+  <string name="oss_mpvlib_android_description">غلاف Android لمكتبة libmpv تستخدمه إصدارات Standard وNo-Vulkan وFongMi.</string>
+  <string name="oss_quickjs_ng_description">محرك JavaScript مضمّن يُستخدم لحل تحديات yt-dlp.</string>
   <string name="filter_preset_none">بلا</string>
   <string name="filter_preset_vivid">زاهٍ</string>
   <string name="filter_preset_warm_tone">درجات دافئة</string>

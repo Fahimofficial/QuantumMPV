@@ -1525,6 +1525,15 @@ Reinicia la aplicación para que se apliquen todos los cambios.</string>
   <string name="oss_kotlinx_immutable_collections_description">Interfaces de colecciones inmutables para Kotlin.</string>
   <string name="oss_curl_android_description">Biblioteca estática libcurl para Android NDK.</string>
   <string name="oss_desugar_jdk_libs_description">Desazucarado de API de Java 8+ para versiones antiguas de Android.</string>
+  <string name="oss_androidx_biometric_description">Autenticación biométrica retrocompatible para flujos protegidos de la aplicación.</string>
+  <string name="oss_androidx_activity_description">Conecta actividades de Android y API con ciclo de vida con Compose.</string>
+  <string name="oss_jsch_description">Cliente SSH y SFTP para acceder a archivos remotos.</string>
+  <string name="oss_libarchive_android_description">Enlaces de libarchive para Android usados para extraer archivos de subtítulos.</string>
+  <string name="oss_libtorrent4j_description">Enlaces de Java y bibliotecas nativas para streaming por BitTorrent.</string>
+  <string name="oss_markdown_renderer_description">Renderiza Markdown como contenido nativo de Compose con Material 3.</string>
+  <string name="oss_mpv_description">Motor nativo de reproducción para audio, vídeo y subtítulos.</string>
+  <string name="oss_mpvlib_android_description">Envoltorio de libmpv para Android usado por las compilaciones Standard, No-Vulkan y FongMi.</string>
+  <string name="oss_quickjs_ng_description">Motor JavaScript integrado para resolver desafíos de yt-dlp.</string>
   <string name="filter_preset_none">Ninguno</string>
   <string name="filter_preset_vivid">Vívido</string>
   <string name="filter_preset_warm_tone">Tono cálido</string>

@@ -1527,6 +1527,15 @@
   <string name="oss_kotlinx_immutable_collections_description">用于 Kotlin 的不可变集合接口。</string>
   <string name="oss_curl_android_description">用于 Android NDK 的 libcurl 静态库。</string>
   <string name="oss_desugar_jdk_libs_description">为旧版 Android 进行 Java 8+ API 脱糖处理。</string>
+  <string name="oss_androidx_biometric_description">用于受保护应用流程的向后兼容生物识别身份验证。</string>
+  <string name="oss_androidx_activity_description">将 Android Activity 和生命周期感知 API 与 Compose 集成。</string>
+  <string name="oss_jsch_description">用于远程文件访问的 SSH 和 SFTP 客户端。</string>
+  <string name="oss_libarchive_android_description">用于解压字幕归档的 Android libarchive 绑定。</string>
+  <string name="oss_libtorrent4j_description">用于 BitTorrent 流式传输的 Java 绑定和原生库。</string>
+  <string name="oss_markdown_renderer_description">将 Markdown 渲染为原生 Material 3 Compose 内容。</string>
+  <string name="oss_mpv_description">用于音频、视频和字幕的原生媒体播放引擎。</string>
+  <string name="oss_mpvlib_android_description">Standard、No-Vulkan 和 FongMi 构建使用的 Android libmpv 封装库。</string>
+  <string name="oss_quickjs_ng_description">用于解决 yt-dlp 挑战的嵌入式 JavaScript 引擎。</string>
   <string name="filter_preset_none">无</string>
   <string name="filter_preset_vivid">鲜艳</string>
   <string name="filter_preset_warm_tone">暖色调</string>

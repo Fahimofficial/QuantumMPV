@@ -1525,6 +1525,15 @@ Bitte starten Sie die App neu, damit alle Änderungen wirksam werden.</string>
   <string name="oss_kotlinx_immutable_collections_description">Unveränderliche Sammlungsschnittstellen für Kotlin.</string>
   <string name="oss_curl_android_description">Statische libcurl-Bibliothek für Android NDK.</string>
   <string name="oss_desugar_jdk_libs_description">Desugaring von Java-8+-APIs für ältere Android-Versionen.</string>
+  <string name="oss_androidx_biometric_description">Abwärtskompatible biometrische Authentifizierung für geschützte App-Abläufe.</string>
+  <string name="oss_androidx_activity_description">Verbindet Android-Aktivitäten und lebenszyklusbewusste APIs mit Compose.</string>
+  <string name="oss_jsch_description">SSH- und SFTP-Client für den Remote-Dateizugriff.</string>
+  <string name="oss_libarchive_android_description">Android-Bindings für libarchive zum Entpacken von Untertitelarchiven.</string>
+  <string name="oss_libtorrent4j_description">Java-Bindings und native Bibliotheken für BitTorrent-Streaming.</string>
+  <string name="oss_markdown_renderer_description">Rendert Markdown als nativen Material-3-Compose-Inhalt.</string>
+  <string name="oss_mpv_description">Native Medienwiedergabe-Engine für Audio, Video und Untertitel.</string>
+  <string name="oss_mpvlib_android_description">Android-libmpv-Wrapper für die Standard-, No-Vulkan- und FongMi-Builds.</string>
+  <string name="oss_quickjs_ng_description">Eingebettete JavaScript-Engine zum Lösen von yt-dlp-Herausforderungen.</string>
   <string name="filter_preset_none">Keine</string>
   <string name="filter_preset_vivid">Lebendig</string>
   <string name="filter_preset_warm_tone">Warmer Farbton</string>

@@ -1470,6 +1470,15 @@
   <string name="oss_kotlinx_immutable_collections_description">Kotlin के लिए इम्यूटेबल कलेक्शन इंटरफेस।</string>
   <string name="oss_curl_android_description">Android NDK के लिए libcurl स्टैटिक लाइब्रेरी।</string>
   <string name="oss_desugar_jdk_libs_description">पुराने Android वर्जन के लिए Java 8+ API डीशुगरिंग।</string>
+  <string name="oss_androidx_biometric_description">सुरक्षित ऐप प्रवाहों के लिए पिछड़े संस्करणों के अनुकूल बायोमेट्रिक प्रमाणीकरण।</string>
+  <string name="oss_androidx_activity_description">Android गतिविधियों और लाइफ़साइकल-जागरूक API को Compose से जोड़ता है।</string>
+  <string name="oss_jsch_description">दूरस्थ फ़ाइल पहुँच के लिए SSH और SFTP क्लाइंट।</string>
+  <string name="oss_libarchive_android_description">सबटाइटल आर्काइव निकालने के लिए Android libarchive बाइंडिंग।</string>
+  <string name="oss_libtorrent4j_description">BitTorrent स्ट्रीमिंग के लिए Java बाइंडिंग और नेटिव लाइब्रेरी।</string>
+  <string name="oss_markdown_renderer_description">Markdown को नेटिव Material 3 Compose सामग्री के रूप में रेंडर करता है।</string>
+  <string name="oss_mpv_description">ऑडियो, वीडियो और सबटाइटल के लिए नेटिव मीडिया प्लेबैक इंजन।</string>
+  <string name="oss_mpvlib_android_description">Standard, No-Vulkan और FongMi बिल्ड में उपयोग होने वाला Android libmpv रैपर।</string>
+  <string name="oss_quickjs_ng_description">yt-dlp चुनौतियाँ हल करने के लिए एम्बेडेड JavaScript इंजन।</string>
   <string name="filter_preset_none">कोई नहीं</string>
   <string name="filter_preset_vivid">Vivid</string>
   <string name="filter_preset_warm_tone">Warm Tone</string>

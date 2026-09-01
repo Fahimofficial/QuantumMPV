@@ -64,19 +64,19 @@ jobs:
           elif [[ -z "$latest_fingerprint" ]]; then
             should_build=true
             reason="published manifest has no source fingerprint"
-            selected_flavor=standard
+            selected_flavor=all
             website_visible=false
             publication_mode=automatic
           elif [[ "$source_fingerprint" != "$latest_fingerprint" ]]; then
             should_build=true
             reason="app source changed"
-            selected_flavor=standard
+            selected_flavor=all
             website_visible=false
             publication_mode=automatic
           else
             should_build=false
             reason="no app activity since the latest preview"
-            selected_flavor=standard
+            selected_flavor=all
             website_visible=false
             publication_mode=automatic
           fi
