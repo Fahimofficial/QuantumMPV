@@ -103,7 +103,7 @@ class SettingsManager(
     serializer.startTag(null, TAG_PREFERENCES)
     val allPreferences = preferenceStore.getAll()
     for ((key, value) in allPreferences) {
-      if (value != null) {
+      if (key != BrowserPreferences.ONBOARDING_COMPLETED_KEY && value != null) {
         writePreference(serializer, key, value)
         exportedCount++
         exportedKeys.add("pref:$key")
@@ -227,12 +227,14 @@ class SettingsManager(
               stats.version = version ?: "unknown"
             }
             TAG_PREFERENCE -> {
-              try {
-                readPreference(parser)
-                stats.imported++
-              } catch (e: Exception) {
-                stats.failed++
-                stats.errors.add("Failed to import preference: ${e.message}")
+              if (parser.getAttributeValue(null, ATTR_KEY) != BrowserPreferences.ONBOARDING_COMPLETED_KEY) {
+                try {
+                  readPreference(parser)
+                  stats.imported++
+                } catch (e: Exception) {
+                  stats.failed++
+                  stats.errors.add("Failed to import preference: ${e.message}")
+                }
               }
             }
             TAG_NETWORK_CONNECTION -> {

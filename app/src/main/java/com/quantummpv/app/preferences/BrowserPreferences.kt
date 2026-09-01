@@ -29,6 +29,10 @@ class BrowserPreferences(
   preferenceStore: PreferenceStore,
   context: android.content.Context,
 ) {
+  companion object {
+    internal const val ONBOARDING_COMPLETED_KEY = "onboarding_completed"
+  }
+
   // Folder sorting preferences
   val folderSortType = preferenceStore.getEnum("folder_sort_type", FolderSortType.Title)
   val folderSortOrder = preferenceStore.getEnum("folder_sort_order", SortOrder.Ascending)
@@ -117,7 +121,7 @@ class BrowserPreferences(
   val demoTutorialPending = preferenceStore.getBoolean("demo_tutorial_pending", false)
 
   // True once the user finished (or skipped through) the first-run permission flow.
-  val onboardingCompleted = preferenceStore.getBoolean("onboarding_completed", false)
+  val onboardingCompleted = preferenceStore.getBoolean(ONBOARDING_COMPLETED_KEY, false)
 
   // Watched threshold preference (percentage 1-100)
   val watchedThreshold = preferenceStore.getInt("watched_threshold", 95)

@@ -4,6 +4,9 @@ These notes are written in plain English and focus on what changed for real use.
 
 ## 2.5.0 - Frame Review, Auto Crop & Library Performance
 
+> [!IMPORTANT]
+> **Project hiatus:** Following version 2.5.0, mpvRx development will be paused until further notice.
+
 ### 🎬 Frame Review, Seeking & Playback
 - **Frame-Level Review**: Added a full-player Frame Review mode with horizontal frame swipes, previous/next-frame controls, precise frame and millisecond readouts, snapshots with optional subtitles, and a transparent responsive layout.
 - **Frame-Addressed Timeline**: The Frame Review slider now selects integer video frames. Dragging uses throttled keyframe previews, while release performs an exact mpv seek with bounded refinement and adjacent-frame correction for precision without sustained decoder load.
