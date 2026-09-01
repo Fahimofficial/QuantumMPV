@@ -84,15 +84,20 @@ object YtdlpManager {
 
   // Lua patterns (ytdl_hook `exclude` syntax, `|`-separated) for direct media/manifest
   // paths. The prefix prevents an extension in a query parameter from bypassing yt-dlp;
-  // the two suffixes cover plain and tokenized URLs.
+  // the two suffixes cover plain and tokenized URLs. Loopback hosts are excluded outright:
+  // every SMB/FTP/SFTP/WebDAV/torrent stream is served by the app's own local proxy and
+  // must never be routed through yt-dlp, extension or not.
   private val DIRECT_MEDIA_EXCLUDE =
-    HttpUtils.directMediaExtensions
-      .flatMap { extension ->
-        listOf(
-          "^[^?#]+%.${extension}$",
-          "^[^?#]+%.${extension}[?#]",
-        )
-      }.joinToString("|")
+    (
+      listOf("^127%.0%.0%.1:", "^localhost:") +
+        HttpUtils.directMediaExtensions
+          .flatMap { extension ->
+            listOf(
+              "^[^?#]+%.${extension}$",
+              "^[^?#]+%.${extension}[?#]",
+            )
+          }
+    ).joinToString("|")
 
   fun getYtdlDir(context: Context): File = File(context.filesDir, YTDL_DIR).apply { if (!exists()) mkdirs() }
 

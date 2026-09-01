@@ -17,6 +17,7 @@ import com.quantummpv.app.network.SharedHttpClient
 import com.thegrizzlylabs.sardineandroid.DavResource
 import com.thegrizzlylabs.sardineandroid.Sardine
 import com.thegrizzlylabs.sardineandroid.impl.OkHttpSardine
+import com.thegrizzlylabs.sardineandroid.impl.SardineException
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -147,8 +148,13 @@ class WebDavClient(
           candidate.setCredentials(connection.username, connection.password)
         }
 
-        if (candidate.list(buildUrl("", trailingSlash = true), 0).isEmpty()) {
-          throw IOException("WebDAV base path returned no resources")
+        // Reachability/credential probe only. Reverse proxies commonly reject or empty out a
+        // depth-0 PROPFIND at the share root while every file below it stays fully streamable,
+        // so only credential rejections are conclusive failures here.
+        try {
+          candidate.list(buildUrl("", trailingSlash = true), 0)
+        } catch (probeError: SardineException) {
+          if (probeError.statusCode == 401 || probeError.statusCode == 403) throw probeError
         }
 
         sardine = candidate
@@ -196,12 +202,14 @@ class WebDavClient(
     withContext(Dispatchers.IO) {
       try {
         val client = sardine ?: return@withContext Result.failure(IOException("Not connected"))
-        val resources = client.list(buildUrl(NetworkPath.from(path).value), 0)
-        val resource = resources.firstOrNull()
-        if (resource == null || resource.isDirectory) {
+        val filePath = NetworkPath.from(path)
+        val resource = runCatching { client.list(buildUrl(filePath.value), 0) }.getOrNull()?.firstOrNull()
+        if (resource?.isDirectory == true) {
           Result.failure(IOException("File not found or is a directory"))
         } else {
-          val size = resource.contentLength
+          // Hybrid HTTP/DAV servers can reject PROPFIND on files or omit getcontentlength
+          // while still serving GET/HEAD, so fall back to an HTTP size probe.
+          val size = resource?.contentLength?.takeIf { it >= 0L } ?: probeSizeOverHttp(filePath)
           if (size == null || size < 0L) {
             Result.failure(IOException("WebDAV server did not provide a file size"))
           } else {
@@ -214,6 +222,39 @@ class WebDavClient(
         Result.failure(error)
       }
     }
+
+  private fun probeSizeOverHttp(path: NetworkPath): Long? {
+    val headBuilder =
+      Request
+        .Builder()
+        .url(buildUrl(path.value))
+        .head()
+        .header("Accept-Encoding", "identity")
+    if (!connection.isAnonymous) {
+      headBuilder.header("Authorization", Credentials.basic(connection.username, connection.password))
+    }
+    rangeHttpClient.newCall(headBuilder.build()).execute().use { response ->
+      if (response.isSuccessful) {
+        response.header("Content-Length")?.toLongOrNull()?.takeIf { it >= 0L }?.let { return it }
+      }
+    }
+
+    // Servers that omit a HEAD Content-Length still report the total in a ranged Content-Range.
+    val rangeBuilder =
+      Request
+        .Builder()
+        .url(buildUrl(path.value))
+        .get()
+        .header("Range", "bytes=0-0")
+        .header("Accept-Encoding", "identity")
+    if (!connection.isAnonymous) {
+      rangeBuilder.header("Authorization", Credentials.basic(connection.username, connection.password))
+    }
+    rangeHttpClient.newCall(rangeBuilder.build()).execute().use { response ->
+      val match = contentRangePattern.matchEntire(response.header("Content-Range").orEmpty())
+      return match?.groupValues?.get(3)?.takeUnless { it == "*" }?.toLongOrNull()
+    }
+  }
 
   override suspend fun getFileStream(
     path: String,

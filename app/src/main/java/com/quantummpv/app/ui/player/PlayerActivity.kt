@@ -1127,6 +1127,18 @@ class PlayerActivity :
     binding.player.layoutParams = params
   }
 
+  private var secondarySubMarginXSupported: Boolean? = null
+
+  // This mpvlib build predates the property; probing property-list avoids a native error log per set.
+  private fun supportsSecondarySubMarginX(): Boolean =
+    secondarySubMarginXSupported
+      ?: PlaybackSession
+        .getPropertyString("property-list")
+        ?.split(',')
+        ?.contains("secondary-sub-margin-x")
+        ?.also { secondarySubMarginXSupported = it }
+      ?: false
+
   private fun setupVideoTransformObserver() {
     lifecycleScope.launch {
       repeatOnLifecycle(Lifecycle.State.STARTED) {
@@ -1164,14 +1176,18 @@ class PlayerActivity :
               val extraMarginX = if (scale > 1f) (w * (1f - 1f / scale) / 2f + abs(panX) / scale) else 0f
               val compensatedMarginX = (baseMarginX + extraMarginX).roundToInt().coerceIn(0, (w / 2f).toInt())
               PlaybackSession.setPropertyInt("sub-margin-x", compensatedMarginX)
-              PlaybackSession.setPropertyInt("secondary-sub-margin-x", compensatedMarginX)
+              if (supportsSecondarySubMarginX()) {
+                PlaybackSession.setPropertyInt("secondary-sub-margin-x", compensatedMarginX)
+              }
 
               applySubtitlePositions(compensatedSubPos, w, h)
             } else {
               PlaybackSession.setPropertyFloat("sub-scale", baseSubScale)
               PlaybackSession.setPropertyFloat("secondary-sub-scale", baseSubScale)
               PlaybackSession.setPropertyInt("sub-margin-x", 25)
-              PlaybackSession.setPropertyInt("secondary-sub-margin-x", 25)
+              if (supportsSecondarySubMarginX()) {
+                PlaybackSession.setPropertyInt("secondary-sub-margin-x", 25)
+              }
               applySubtitlePositions(baseSubPos, w, h)
             }
           }
