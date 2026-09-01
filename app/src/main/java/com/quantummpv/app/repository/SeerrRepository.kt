@@ -461,7 +461,7 @@ class SeerrRepository(
   }
 
   suspend fun enrichRequests(requests: List<JellyseerrRequest>): List<JellyseerrRequest> = withContext(Dispatchers.IO) {
-    val keys = requests.mapNotNull(JellyseerrRequest::mediaDetailsKey).distinct()
+    val keys = requests.mapNotNull { request -> request.mediaDetailsKey() }.distinct()
     val detailsByKey =
       coroutineScope {
         keys
@@ -477,7 +477,7 @@ class SeerrRepository(
       }
 
     requests.map { request ->
-      request.mediaDetailsKey()?.let(detailsByKey::get)?.let(request::withMediaDetails) ?: request
+      request.mediaDetailsKey()?.let(detailsByKey::get)?.let { details -> request.withMediaDetails(details) } ?: request
     }
   }
 

@@ -61,6 +61,9 @@ import com.quantummpv.app.presentation.components.RemoteImage
 import com.quantummpv.app.ui.icons.Icon
 import com.quantummpv.app.ui.icons.Icons
 
+private val SeerrWarningContainer = Color(0xFFBF360C)
+private val SeerrOnWarningContainer = Color(0xFFFFF3E0)
+
 @Composable
 fun SeerrMediaCard(
   item: SearchResultItem,
@@ -196,8 +199,8 @@ fun SeerrStatusChip(
       R.string.seerr_status_available,
     )
     MediaStatus.PARTIALLY_AVAILABLE -> Triple(
-      Color(0xFFE65100).copy(alpha = 0.85f),
-      Color(0xFFFFF3E0),
+      SeerrWarningContainer,
+      SeerrOnWarningContainer,
       R.string.seerr_status_partially_available,
     )
     MediaStatus.PROCESSING -> Triple(
@@ -250,8 +253,8 @@ fun SeerrRequestStatusChip(
       R.string.seerr_status_processing,
     )
     RequestStatus.PENDING -> Triple(
-      Color(0xFFE65100).copy(alpha = 0.85f),
-      Color(0xFFFFF3E0),
+      SeerrWarningContainer,
+      SeerrOnWarningContainer,
       R.string.seerr_status_pending,
     )
     RequestStatus.DECLINED -> Triple(

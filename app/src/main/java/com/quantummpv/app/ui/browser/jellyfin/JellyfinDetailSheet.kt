@@ -678,7 +678,7 @@ fun JellyfinDetailSheet(
             Icon(
               imageVector = if (item.isFavorite) Icons.RoundedFilled.Favorite else Icons.RoundedFilled.FavoriteBorder,
               contentDescription = "Favorite",
-              tint = if (item.isFavorite) Color(0xFFE91E63) else MaterialTheme.colorScheme.onSurfaceVariant,
+              tint = MaterialTheme.colorScheme.onSecondaryContainer,
               modifier = Modifier.size(22.dp),
             )
           }
@@ -692,7 +692,7 @@ fun JellyfinDetailSheet(
             Icon(
               imageVector = if (item.isPlayed) Icons.RoundedFilled.Check else Icons.RoundedFilled.Visibility,
               contentDescription = "Watched",
-              tint = if (item.isPlayed) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
+              tint = MaterialTheme.colorScheme.onSecondaryContainer,
               modifier = Modifier.size(22.dp),
             )
           }

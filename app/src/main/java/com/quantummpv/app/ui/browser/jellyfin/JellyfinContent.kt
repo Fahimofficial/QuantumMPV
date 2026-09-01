@@ -426,7 +426,7 @@ fun JellyfinContent(
         PrimaryScrollableTabRow(
           selectedTabIndex = selectedTabIndex,
           containerColor = Color.Transparent,
-          contentColor = MaterialTheme.colorScheme.primary,
+          contentColor = MaterialTheme.colorScheme.onSurface,
           edgePadding = 8.dp,
           divider = {},
         ) {
@@ -449,6 +449,8 @@ fun JellyfinContent(
                   overflow = TextOverflow.Ellipsis,
                 )
               },
+              selectedContentColor = MaterialTheme.colorScheme.onSurface,
+              unselectedContentColor = MaterialTheme.colorScheme.onSurfaceVariant,
             )
           }
         }

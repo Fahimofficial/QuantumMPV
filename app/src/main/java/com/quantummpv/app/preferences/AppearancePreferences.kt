@@ -189,7 +189,7 @@ fun MultiChoiceSegmentedButton(
             .onGloballyPositioned { buttonCenter = it.boundsInWindow().center }
             .semantics { role = Role.RadioButton },
         colors =
-          ToggleButtonDefaults.toggleButtonColors(
+          ToggleButtonDefaults.colors(
             checkedContainerColor = MaterialTheme.colorScheme.primaryContainer,
             checkedContentColor = MaterialTheme.colorScheme.onPrimaryContainer,
             containerColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.08f),

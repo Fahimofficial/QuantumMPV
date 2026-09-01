@@ -91,8 +91,6 @@ import com.quantummpv.app.ui.icons.Icons
 import kotlinx.coroutines.delay
 import kotlin.math.roundToInt
 
-private val StarYellow = Color(0xFFFFC107)
-
 private fun buildStarSubtitle(
   partsBeforeRating: List<String>,
   communityRating: Double?,
@@ -108,7 +106,7 @@ private fun buildStarSubtitle(
     }
     communityRating?.let { rating ->
       if (hasContent) append(" • ")
-      withStyle(SpanStyle(color = StarYellow, fontSize = 13.5.sp)) {
+      withStyle(SpanStyle(fontSize = 13.5.sp)) {
         append("★ ")
       }
       append("%.1f".format(rating))

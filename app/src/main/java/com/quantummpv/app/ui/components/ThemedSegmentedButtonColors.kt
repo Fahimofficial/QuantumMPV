@@ -14,6 +14,7 @@ import androidx.compose.material3.SegmentedButtonColors
 import androidx.compose.material3.SegmentedButtonDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.luminance
 
 /**
  * Theme-aware colors for [androidx.compose.material3.SegmentedButton], used across all
@@ -23,9 +24,8 @@ import androidx.compose.ui.graphics.Color
  * Design intent:
  * - No solid/grey pill for the selected segment. Instead a subtle tint of the current
  *   theme's accent color ([activeContainerAlpha]) is used as the selected background.
- * - Selected text/icon use the full theme accent color.
- * - Unselected segments are fully transparent, with white text/icon for contrast on the
- *   dark background regardless of theme.
+ * - Selected text/icons use the surface content color for contrast against the tint.
+ * - Unselected segments are transparent and use the secondary surface content color.
  * - The outer border uses the theme's outline color at low opacity so it stays subtle
  *   across all dynamic themes (Aurora, Nord, Dracula, Catppuccin, etc.).
  */
@@ -33,12 +33,15 @@ import androidx.compose.ui.graphics.Color
 fun themedSegmentedButtonColors(
   activeContainerAlpha: Float = 0.18f,
   borderAlpha: Float = 0.3f,
-): SegmentedButtonColors =
-  SegmentedButtonDefaults.colors(
-    activeContainerColor = MaterialTheme.colorScheme.primary.copy(alpha = activeContainerAlpha),
-    activeContentColor = MaterialTheme.colorScheme.primary,
-    activeBorderColor = MaterialTheme.colorScheme.outline.copy(alpha = borderAlpha),
+): SegmentedButtonColors {
+  val colorScheme = MaterialTheme.colorScheme
+  val activeContentColor = if (colorScheme.onSurface.luminance() > colorScheme.surface.luminance()) Color.White else Color.Black
+  return SegmentedButtonDefaults.colors(
+    activeContainerColor = colorScheme.primary.copy(alpha = activeContainerAlpha),
+    activeContentColor = activeContentColor,
+    activeBorderColor = colorScheme.outline.copy(alpha = borderAlpha),
     inactiveContainerColor = Color.Transparent,
-    inactiveContentColor = Color.White,
-    inactiveBorderColor = MaterialTheme.colorScheme.outline.copy(alpha = borderAlpha),
+    inactiveContentColor = colorScheme.onSurfaceVariant,
+    inactiveBorderColor = colorScheme.outline.copy(alpha = borderAlpha),
   )
+}
