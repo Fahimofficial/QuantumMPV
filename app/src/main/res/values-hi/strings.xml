@@ -1041,6 +1041,15 @@
   <string name="media_info_tab_audio">ऑडियो</string>
   <string name="media_info_tab_subtitles">सबटाइटल</string>
   <string name="media_info_tab_chapters">चैप्टर</string>
+  <string name="media_info_tab_image">इमेज</string>
+  <string name="media_info_tab_other">अन्य</string>
+  <string name="media_info_tab_raw">रॉ रिपोर्ट</string>
+  <string name="media_info_attachments">अटैचमेंट</string>
+  <string name="media_info_file_path">फ़ाइल पथ</string>
+  <string name="media_info_stat_format">फॉर्मेट</string>
+  <string name="media_info_stat_bit_depth">बिट डेप्थ</string>
+  <string name="media_info_stat_channels">चैनल</string>
+  <string name="media_info_stat_sample_rate">सैंपल रेट</string>
   <string name="player_unknown_video">अनजान वीडियो</string>
   <string name="ui_logcat">Logcat:</string>
   <string name="ui_home">होम</string>

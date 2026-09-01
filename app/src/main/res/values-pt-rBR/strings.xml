@@ -1109,6 +1109,15 @@ Reinicie o aplicativo para que todas as alterações entrem em vigor.</string>
   <string name="media_info_tab_audio">Áudio</string>
   <string name="media_info_tab_subtitles">Legendas</string>
   <string name="media_info_tab_chapters">Capítulos</string>
+  <string name="media_info_tab_image">Imagem</string>
+  <string name="media_info_tab_other">Outros</string>
+  <string name="media_info_tab_raw">Bruto</string>
+  <string name="media_info_attachments">Anexos</string>
+  <string name="media_info_file_path">Caminho do arquivo</string>
+  <string name="media_info_stat_format">Formato</string>
+  <string name="media_info_stat_bit_depth">Profundidade de bits</string>
+  <string name="media_info_stat_channels">Canais</string>
+  <string name="media_info_stat_sample_rate">Taxa de amostragem</string>
   <string name="player_unknown_video">Vídeo desconhecido</string>
   <string name="ui_logcat">Logcat:</string>
   <string name="ui_home">Início</string>

@@ -65,6 +65,7 @@ fun NetworkFolderCard(
     modifier =
       modifier
         .fillMaxWidth()
+        .clip(AppShapeScale.large)
         .combinedClickable(
           onClick = onClick,
           onLongClick = onLongClick,

@@ -196,6 +196,7 @@ fun FolderCard(
     modifier =
       modifier
         .fillMaxWidth()
+        .clip(cardShape)
         .combinedClickable(
           onClick = onClick,
           onLongClick = onLongClick,

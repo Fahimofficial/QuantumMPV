@@ -505,6 +505,7 @@ private fun TorrentFileRow(
     modifier =
       Modifier
         .fillMaxWidth()
+        .clip(RoundedCornerShape(12.dp))
         .clickable(enabled = enabled, onClick = onClick),
     shape = RoundedCornerShape(12.dp),
     color = MaterialTheme.colorScheme.surfaceContainer,

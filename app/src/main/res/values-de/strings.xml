@@ -1109,6 +1109,15 @@ Bitte starten Sie die App neu, damit alle Änderungen wirksam werden.</string>
   <string name="media_info_tab_audio">Audio</string>
   <string name="media_info_tab_subtitles">Untertitel</string>
   <string name="media_info_tab_chapters">Kapitel</string>
+  <string name="media_info_tab_image">Bild</string>
+  <string name="media_info_tab_other">Sonstiges</string>
+  <string name="media_info_tab_raw">Rohdaten</string>
+  <string name="media_info_attachments">Anhänge</string>
+  <string name="media_info_file_path">Dateipfad</string>
+  <string name="media_info_stat_format">Format</string>
+  <string name="media_info_stat_bit_depth">Bittiefe</string>
+  <string name="media_info_stat_channels">Kanäle</string>
+  <string name="media_info_stat_sample_rate">Abtastrate</string>
   <string name="player_unknown_video">Unbekanntes Video</string>
   <string name="ui_logcat">Logcat:</string>
   <string name="ui_home">Startseite</string>

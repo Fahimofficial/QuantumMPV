@@ -1109,6 +1109,15 @@
   <string name="media_info_tab_audio">Аудио</string>
   <string name="media_info_tab_subtitles">Субтитры</string>
   <string name="media_info_tab_chapters">Главы</string>
+  <string name="media_info_tab_image">Изображение</string>
+  <string name="media_info_tab_other">Прочее</string>
+  <string name="media_info_tab_raw">Исходный</string>
+  <string name="media_info_attachments">Вложения</string>
+  <string name="media_info_file_path">Путь к файлу</string>
+  <string name="media_info_stat_format">Формат</string>
+  <string name="media_info_stat_bit_depth">Глубина цвета</string>
+  <string name="media_info_stat_channels">Каналы</string>
+  <string name="media_info_stat_sample_rate">Частота дискретизации</string>
   <string name="player_unknown_video">Неизвестное видео</string>
   <string name="ui_logcat">Logcat:</string>
   <string name="ui_home">Главная</string>

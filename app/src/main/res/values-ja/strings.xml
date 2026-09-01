@@ -1109,6 +1109,15 @@
   <string name="media_info_tab_audio">音声</string>
   <string name="media_info_tab_subtitles">字幕</string>
   <string name="media_info_tab_chapters">チャプター</string>
+  <string name="media_info_tab_image">画像</string>
+  <string name="media_info_tab_other">その他</string>
+  <string name="media_info_tab_raw">ロー</string>
+  <string name="media_info_attachments">添付ファイル</string>
+  <string name="media_info_file_path">ファイルパス</string>
+  <string name="media_info_stat_format">フォーマット</string>
+  <string name="media_info_stat_bit_depth">ビット深度</string>
+  <string name="media_info_stat_channels">チャンネル</string>
+  <string name="media_info_stat_sample_rate">サンプリングレート</string>
   <string name="player_unknown_video">不明な動画</string>
   <string name="ui_logcat">Logcat:</string>
   <string name="ui_home">ホーム</string>

@@ -208,7 +208,8 @@ fun VideoCard(
       modifier
         .then(
           if (isGridMode) Modifier.fillMaxWidth() else Modifier.fillMaxWidth(),
-        ).combinedClickable(
+        ).clip(cardShape)
+        .combinedClickable(
           onClick = onClick,
           onLongClick = onLongClick,
         ),

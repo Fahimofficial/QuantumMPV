@@ -43,6 +43,13 @@ These notes are written in plain English and focus on what changed for real use.
 - **Ambient Sheet Theming**: Fixed the Ambient sheet appearance in light mode.
 - **Cleaner Builds**: Resolved Kotlin and Material API warnings and updated dependencies.
 
+### 📋 Media Info
+- **Image Details**: JPG, PNG, WebP, GIF, TIFF and other images now get a dedicated Image tab with resolution, format, bit depth, color space, compression, and orientation — including embedded cover images found inside audio and video files.
+- **Other & Raw Tabs**: Timecode tracks, programs, and future MediaInfo section kinds appear in a new Other tab together with MKV attachment names, and the complete MediaInfo report is readable in-app from a Raw tab.
+- **Full-Value Reader**: Tapping any field opens a scrollable, selectable popup with its complete value and a copy action, so long values are never lost to truncation.
+- **Kind-Aware Overview**: Images show resolution, format, bit depth, and size; music shows duration, channels, sample rate, and bitrate; irrelevant placeholders such as "No Video" no longer appear.
+- **Complete Container Metadata**: Every General field MediaInfo reports is listed, and the file's system path is shown both under the title and in the container card.
+
 ### 🌐 Network, Storage & Subtitles
 - **Network Folder Bookmarks**: Save, open, and manage frequently used folders from saved SMB, FTP, and WebDAV connections without duplicating credentials.
 - **Hardened WebDAV Playback**: Long-running streams are no longer cut off by a whole-call timeout, reserved filename characters are encoded exactly once, duplicate server entries are removed, and reverse-proxy hrefs resolve safely.

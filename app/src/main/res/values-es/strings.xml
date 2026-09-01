@@ -1109,6 +1109,15 @@ Reinicia la aplicación para que se apliquen todos los cambios.</string>
   <string name="media_info_tab_audio">Audio</string>
   <string name="media_info_tab_subtitles">Subtítulos</string>
   <string name="media_info_tab_chapters">Capítulos</string>
+  <string name="media_info_tab_image">Imagen</string>
+  <string name="media_info_tab_other">Otros</string>
+  <string name="media_info_tab_raw">Sin procesar</string>
+  <string name="media_info_attachments">Adjuntos</string>
+  <string name="media_info_file_path">Ruta del archivo</string>
+  <string name="media_info_stat_format">Formato</string>
+  <string name="media_info_stat_bit_depth">Profundidad de bits</string>
+  <string name="media_info_stat_channels">Canales</string>
+  <string name="media_info_stat_sample_rate">Frecuencia de muestreo</string>
   <string name="player_unknown_video">Video desconocido</string>
   <string name="ui_logcat">Logcat:</string>
   <string name="ui_home">Inicio</string>

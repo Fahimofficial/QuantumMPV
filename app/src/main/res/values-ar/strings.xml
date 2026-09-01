@@ -1109,6 +1109,15 @@
   <string name="media_info_tab_audio">الصوت</string>
   <string name="media_info_tab_subtitles">الترجمة</string>
   <string name="media_info_tab_chapters">الفصول</string>
+  <string name="media_info_tab_image">الصورة</string>
+  <string name="media_info_tab_other">أخرى</string>
+  <string name="media_info_tab_raw">خام</string>
+  <string name="media_info_attachments">المرفقات</string>
+  <string name="media_info_file_path">مسار الملف</string>
+  <string name="media_info_stat_format">الصيغة</string>
+  <string name="media_info_stat_bit_depth">عمق البت</string>
+  <string name="media_info_stat_channels">القنوات</string>
+  <string name="media_info_stat_sample_rate">معدل العينات</string>
   <string name="player_unknown_video">فيديو غير معروف</string>
   <string name="ui_logcat">Logcat:</string>
   <string name="ui_home">الرئيسية</string>

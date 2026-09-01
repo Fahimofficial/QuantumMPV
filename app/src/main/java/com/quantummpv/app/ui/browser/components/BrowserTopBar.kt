@@ -411,7 +411,7 @@ private fun SelectionTopBar(
     title = {
       Row(
         verticalAlignment = Alignment.CenterVertically,
-        modifier = Modifier.clickable { showDropdown = true },
+        modifier = Modifier.clip(RoundedCornerShape(8.dp)).clickable { showDropdown = true },
       ) {
         Text(
           stringResource(R.string.selected_items, selectedCount, totalCount),

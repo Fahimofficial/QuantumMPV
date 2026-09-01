@@ -1422,6 +1422,7 @@ private fun SongGridCard(
   Card(
     modifier = Modifier
       .fillMaxWidth()
+      .clip(AppShapeScale.large)
       .combinedClickable(onClick = onClick, onLongClick = onLongClick),
     shape = AppShapeScale.large,
     colors = CardDefaults.cardColors(
@@ -1609,6 +1610,7 @@ private fun AlbumGridCard(
   Card(
     modifier = Modifier
       .fillMaxWidth()
+      .clip(AppShapeScale.large)
       .combinedClickable(onClick = onClick, onLongClick = onLongClick),
     shape = AppShapeScale.large,
     colors = CardDefaults.cardColors(
@@ -1832,6 +1834,7 @@ private fun ArtistGridCard(
   Card(
     modifier = Modifier
       .fillMaxWidth()
+      .clip(AppShapeScale.large)
       .combinedClickable(onClick = onClick, onLongClick = onLongClick),
     shape = AppShapeScale.large,
     colors = CardDefaults.cardColors(
@@ -2154,6 +2157,7 @@ private fun MusicPlaylistCard(
     Card(
       modifier = Modifier
         .fillMaxWidth()
+        .clip(AppShapeScale.large)
         .combinedClickable(onClick = onClick, onLongClick = onLongClick),
       shape = AppShapeScale.large,
       colors = CardDefaults.cardColors(
@@ -2210,6 +2214,7 @@ private fun MusicPlaylistCard(
     Surface(
       modifier = Modifier
         .fillMaxWidth()
+        .clip(AppShapeScale.large)
         .combinedClickable(onClick = onClick, onLongClick = onLongClick),
       color = if (isSelected) MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.5f) else Color.Transparent
     ) {

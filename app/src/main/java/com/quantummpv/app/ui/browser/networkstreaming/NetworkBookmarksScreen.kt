@@ -28,6 +28,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -116,7 +117,7 @@ private fun BookmarkQuickCard(
   onClick: () -> Unit,
 ) {
   Card(
-    modifier = Modifier.width(208.dp).clickable(onClick = onClick),
+    modifier = Modifier.width(208.dp).clip(RoundedCornerShape(8.dp)).clickable(onClick = onClick),
     shape = RoundedCornerShape(8.dp),
     colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainer),
   ) {

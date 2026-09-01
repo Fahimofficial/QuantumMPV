@@ -64,6 +64,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawWithCache
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
@@ -340,6 +341,7 @@ object AboutScreen : Screen {
                 modifier =
                   Modifier
                     .fillMaxWidth()
+                    .clip(RoundedCornerShape(12.dp))
                     .clickable {
                       SafeClipboard.copyPlainText(context, "mpvrx_device_info", collectDeviceInfo())
                     },
@@ -795,6 +797,7 @@ object LibrariesScreen : Screen {
             modifier =
               Modifier
                 .fillMaxWidth()
+                .clip(RoundedCornerShape(18.dp))
                 .clickable {
                   context.startActivity(
                     Intent(Intent.ACTION_VIEW, library.url.toUri()),

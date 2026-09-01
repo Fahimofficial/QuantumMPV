@@ -1240,6 +1240,15 @@
   <string name="media_info_tab_audio">Audio</string>
   <string name="media_info_tab_subtitles">Subtitles</string>
   <string name="media_info_tab_chapters">Chapters</string>
+  <string name="media_info_tab_image">Image</string>
+  <string name="media_info_tab_other">Other</string>
+  <string name="media_info_tab_raw">Raw</string>
+  <string name="media_info_attachments">Attachments</string>
+  <string name="media_info_file_path">File path</string>
+  <string name="media_info_stat_format">Format</string>
+  <string name="media_info_stat_bit_depth">Bit depth</string>
+  <string name="media_info_stat_channels">Channels</string>
+  <string name="media_info_stat_sample_rate">Sample rate</string>
   <string name="player_unknown_video">Unknown Video</string>
   <string name="ui_logcat">Logcat:</string>
   <string name="ui_home">Home</string>

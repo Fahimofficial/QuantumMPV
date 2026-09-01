@@ -1308,6 +1308,7 @@ fun JellyfinLibraryCard(
     modifier =
       modifier
         .width(cardWidth)
+        .clip(RoundedCornerShape(10.dp))
         .clickable(onClick = onClick),
   ) {
     Card(
