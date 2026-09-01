@@ -7612,7 +7612,12 @@ class PlayerActivity :
         playlistItems = syntheticItems
         isM3uPlaylist = false
         playlist = playlistUris
+        // Drop metadata synced from the temporary one-item launch queue (see auto-playlist path).
+        networkPlaylistPaths = emptyList()
+        networkPlaylistTitles = emptyList()
+        networkPlaylistArtworkUrls = emptyList()
         networkPlaylistHeaders = emptyList()
+        networkPlaylistConnectionId = -1L
         playlistWindowOffset = 0
         playlistTotalCount = playlistUris.size
         playlistIndex =
@@ -7661,7 +7666,12 @@ class PlayerActivity :
       playlistItems = loadedItems
       isM3uPlaylist = loadedPlaylist?.isM3uPlaylist == true
       playlist = items
+      // Drop metadata synced from the temporary one-item launch queue (see auto-playlist path).
+      networkPlaylistPaths = emptyList()
+      networkPlaylistTitles = emptyList()
+      networkPlaylistArtworkUrls = emptyList()
       networkPlaylistHeaders = emptyList()
+      networkPlaylistConnectionId = -1L
       playlistIndex = if (items.isEmpty()) 0 else (requestedIndex ?: playlistIndex).coerceIn(items.indices)
       playlistWindowOffset = 0
       playlistTotalCount = totalCount
@@ -7712,7 +7722,13 @@ class PlayerActivity :
         playlistItems = emptyList()
         isM3uPlaylist = false
         playlist = siblingFiles.map { it.toUri() }
+        // The temporary one-item queue already synced index-aligned metadata for the launched
+        // file; clearing it stops its title/artwork from leaking onto the folder's first entry.
+        networkPlaylistPaths = emptyList()
+        networkPlaylistTitles = emptyList()
+        networkPlaylistArtworkUrls = emptyList()
         networkPlaylistHeaders = emptyList()
+        networkPlaylistConnectionId = -1L
         playlistIndex = newIndex
         val restoredSavedSelection = applyPendingSavedSelection(playlist)
         if (pendingSavedPlaylistSelection != null) pendingSavedPlaylistSelection = null
