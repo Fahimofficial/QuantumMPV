@@ -53,7 +53,6 @@ import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
-import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -69,6 +68,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.compose.ui.platform.LocalUriHandler
@@ -209,11 +209,10 @@ fun PermissionDeniedState(
       }
     }
   var stepIndex by rememberSaveable { mutableIntStateOf(0) }
-  var tutorialOptIn by rememberSaveable { mutableStateOf(true) }
   val currentStep = steps[stepIndex.coerceIn(0, steps.lastIndex)]
   val goNext: () -> Unit = { if (stepIndex < steps.lastIndex) stepIndex++ }
   val finishSetup: () -> Unit = {
-    browserPreferences.demoTutorialPending.set(tutorialOptIn)
+    browserPreferences.onboardingCompleted.set(true)
     if (onNext != null) onNext() else onRequestPermission()
   }
 
@@ -392,36 +391,57 @@ fun PermissionDeniedState(
                       },
                     )
 
-                  OnboardingStep.FINISH ->
-                    Surface(
-                      shape = AppShapeScale.largeIncreased,
-                      color = MaterialTheme.colorScheme.surfaceContainer,
-                      modifier = Modifier.fillMaxWidth(),
-                    ) {
-                      Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp),
+                  OnboardingStep.FINISH -> {
+                    val missingPermissions = buildList {
+                      if (!isFileGranted) add(stringResource(R.string.ui_file_permission_title))
+                      if (!isNotificationGranted && Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                        add(stringResource(R.string.ui_notification_permission_title))
+                      }
+                      if (!isAudioGranted) add(stringResource(R.string.ui_audio_record_permission_title))
+                    }
+                    if (missingPermissions.isNotEmpty()) {
+                      val warningColor = Color(0xFFFFB300)
+                      Surface(
+                        shape = AppShapeScale.largeIncreased,
+                        color = warningColor.copy(alpha = 0.12f),
+                        modifier = Modifier.fillMaxWidth(),
                       ) {
-                        Column(modifier = Modifier.weight(1f)) {
-                          Text(
-                            text = stringResource(R.string.onboarding_show_tutorial_title),
-                            style = MaterialTheme.typography.titleMedium,
-                            fontWeight = FontWeight.SemiBold,
-                            color = MaterialTheme.colorScheme.onSurface,
+                        Row(
+                          verticalAlignment = Alignment.Top,
+                          modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp),
+                        ) {
+                          Icon(
+                            imageVector = Icons.RoundedFilled.Warning,
+                            contentDescription = null,
+                            modifier = Modifier.size(20.dp),
+                            tint = warningColor,
                           )
-                          Text(
-                            text = stringResource(R.string.onboarding_show_tutorial_desc),
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                          )
+                          Spacer(modifier = Modifier.width(12.dp))
+                          Column {
+                            Text(
+                              text = stringResource(R.string.onboarding_missing_permissions_title),
+                              style = MaterialTheme.typography.titleSmall,
+                              fontWeight = FontWeight.SemiBold,
+                              color = warningColor,
+                            )
+                            missingPermissions.forEach { permission ->
+                              Text(
+                                text = "\u2022 $permission",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                              )
+                            }
+                            Spacer(modifier = Modifier.height(4.dp))
+                            Text(
+                              text = stringResource(R.string.onboarding_missing_permissions_desc),
+                              style = MaterialTheme.typography.bodySmall,
+                              color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                          }
                         }
-                        Spacer(modifier = Modifier.width(12.dp))
-                        Switch(
-                          checked = tutorialOptIn,
-                          onCheckedChange = { tutorialOptIn = it },
-                        )
                       }
                     }
+                  }
                 }
               }
             }
@@ -811,5 +831,93 @@ private fun PillBadge(text: String) {
       fontWeight = FontWeight.Bold,
       color = MaterialTheme.colorScheme.onPrimaryContainer,
     )
+  }
+}
+
+/** Compact in-place prompt for screens that need storage access after onboarding was skipped. */
+@Composable
+fun StoragePermissionPrompt(
+  onRequestPermission: () -> Unit,
+  modifier: Modifier = Modifier,
+) {
+  val context = LocalContext.current
+  val isPlayStoreBuild = remember { BuildConfig.SCOPED_STORAGE_ONLY }
+  var isFileGranted by remember { mutableStateOf(checkFilePermission(context)) }
+  val lifecycleOwner = LocalLifecycleOwner.current
+
+  DisposableEffect(lifecycleOwner) {
+    val observer = LifecycleEventObserver { _, event ->
+      if (event == Lifecycle.Event.ON_RESUME) isFileGranted = checkFilePermission(context)
+    }
+    lifecycleOwner.lifecycle.addObserver(observer)
+    onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
+  }
+
+  Box(
+    modifier = modifier.fillMaxSize(),
+    contentAlignment = Alignment.Center,
+  ) {
+    Column(
+      horizontalAlignment = Alignment.CenterHorizontally,
+      modifier = Modifier
+        .widthIn(max = 420.dp)
+        .padding(horizontal = 24.dp),
+    ) {
+      Surface(
+        modifier = Modifier.size(64.dp),
+        shape = AppShapeScale.extraLarge,
+        color = MaterialTheme.colorScheme.primaryContainer,
+      ) {
+        Box(contentAlignment = Alignment.Center, modifier = Modifier.fillMaxSize()) {
+          Icon(
+            imageVector = Icons.RoundedFilled.FolderOff,
+            contentDescription = null,
+            modifier = Modifier.size(30.dp),
+            tint = MaterialTheme.colorScheme.onPrimaryContainer,
+          )
+        }
+      }
+      Spacer(modifier = Modifier.height(14.dp))
+      Text(
+        text = stringResource(R.string.storage_permission_needed_title),
+        style = MaterialTheme.typography.titleLarge,
+        fontWeight = FontWeight.Bold,
+        textAlign = TextAlign.Center,
+        color = MaterialTheme.colorScheme.onSurface,
+      )
+      Spacer(modifier = Modifier.height(6.dp))
+      Text(
+        text = stringResource(R.string.storage_permission_needed_desc),
+        style = MaterialTheme.typography.bodyMedium,
+        textAlign = TextAlign.Center,
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
+      )
+      Spacer(modifier = Modifier.height(18.dp))
+      Button(
+        onClick = {
+          if (isFileGranted) return@Button
+          if (!isPlayStoreBuild && Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+            try {
+              val intent = Intent(Settings.ACTION_MANAGE_APP_ALL_FILES_ACCESS_PERMISSION)
+              intent.data = Uri.parse("package:${context.packageName}")
+              context.startActivity(intent)
+            } catch (_: Exception) {
+              val intent = Intent(Settings.ACTION_MANAGE_ALL_FILES_ACCESS_PERMISSION)
+              context.startActivity(intent)
+            }
+          } else {
+            onRequestPermission()
+          }
+        },
+        shape = AppShapeScale.large,
+        modifier = Modifier.height(48.dp),
+      ) {
+        Text(
+          text = stringResource(R.string.storage_permission_grant),
+          style = MaterialTheme.typography.titleSmall,
+          fontWeight = FontWeight.Bold,
+        )
+      }
+    }
   }
 }

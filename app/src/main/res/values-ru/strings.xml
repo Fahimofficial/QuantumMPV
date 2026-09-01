@@ -1991,6 +1991,11 @@
   <string name="tutorial_search_desc">Быстро найдите любой файл.</string>
   <string name="tutorial_settings_title">Настройки</string>
   <string name="tutorial_settings_desc">Настройте всё здесь.</string>
+  <string name="onboarding_missing_permissions_title">Не предоставлены</string>
+  <string name="onboarding_missing_permissions_desc">Их можно предоставить позже при необходимости.</string>
+  <string name="storage_permission_needed_title">Нужен доступ к хранилищу</string>
+  <string name="storage_permission_needed_desc">Предоставьте доступ к хранилищу, чтобы просматривать и воспроизводить медиа.</string>
+  <string name="storage_permission_grant">Предоставить доступ</string>
   <string name="pref_player_web_stream_links_title">Открывать ссылки стриминговых сайтов</string>
   <string name="pref_player_web_stream_links_summary">Предлагать mpvRx для ссылок YouTube, Vimeo, Twitch, Odysee и Bilibili. Отключите, чтобы их открывали собственные приложения.</string>
 </resources>

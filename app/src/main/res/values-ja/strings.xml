@@ -1991,6 +1991,11 @@
   <string name="tutorial_search_desc">どんなファイルもすばやく検索。</string>
   <string name="tutorial_settings_title">設定</string>
   <string name="tutorial_settings_desc">ここですべてを調整。</string>
+  <string name="onboarding_missing_permissions_title">未許可</string>
+  <string name="onboarding_missing_permissions_desc">必要になったときに許可できます。</string>
+  <string name="storage_permission_needed_title">ストレージアクセスが必要</string>
+  <string name="storage_permission_needed_desc">メディアの閲覧と再生にはストレージアクセスを許可してください。</string>
+  <string name="storage_permission_grant">アクセスを許可</string>
   <string name="pref_player_web_stream_links_title">ストリーミングサイトのリンクを開く</string>
   <string name="pref_player_web_stream_links_summary">YouTube、Vimeo、Twitch、Odysee、Bilibili のリンクで mpvRx を候補に表示。オフにすると各アプリが開きます。</string>
 </resources>

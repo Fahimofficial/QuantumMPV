@@ -482,13 +482,15 @@ object FolderListScreen : Screen {
       )
 
     var isPermissionSetupCompleted by androidx.compose.runtime.saveable.rememberSaveable {
-      androidx.compose.runtime.mutableStateOf(permissionState.status == PermissionStatus.Granted)
+      androidx.compose.runtime.mutableStateOf(
+        permissionState.status == PermissionStatus.Granted || browserPreferences.onboardingCompleted.get(),
+      )
     }
 
-    // Update MainScreen about permission state
+    // After onboarding the app is fully usable; missing storage only shows an in-place prompt.
     LaunchedEffect(permissionState.status, isPermissionSetupCompleted) {
       com.quantummpv.app.ui.browser.MainScreen.updatePermissionState(
-        isDenied = !isPermissionSetupCompleted || permissionState.status is PermissionStatus.Denied,
+        isDenied = !isPermissionSetupCompleted,
       )
     }
 
@@ -926,6 +928,10 @@ object FolderListScreen : Screen {
                   audioOnly = audioOnly,
                 )
               }
+          } else if (isPermissionSetupCompleted) {
+            com.quantummpv.app.ui.browser.states.StoragePermissionPrompt(
+              onRequestPermission = { permissionState.launchPermissionRequest() },
+            )
           } else {
             PermissionDeniedState(
               onRequestPermission = { permissionState.launchPermissionRequest() },

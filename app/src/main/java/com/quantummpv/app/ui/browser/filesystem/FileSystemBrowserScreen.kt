@@ -325,7 +325,10 @@ fun FileSystemBrowserScreen(path: String? = null) {
     )
 
   var isPermissionSetupCompleted by androidx.compose.runtime.saveable.rememberSaveable {
-    androidx.compose.runtime.mutableStateOf(permissionState.status == com.google.accompanist.permissions.PermissionStatus.Granted)
+    androidx.compose.runtime.mutableStateOf(
+      permissionState.status == com.google.accompanist.permissions.PermissionStatus.Granted ||
+        browserPreferences.onboardingCompleted.get(),
+    )
   }
 
   // Combined MainScreen updates for better performance and responsiveness
@@ -348,7 +351,7 @@ fun FileSystemBrowserScreen(path: String? = null) {
           selectionManager = if (onlyVideosSelected) selectionManager else null,
         )
         mainScreenObj.updatePermissionState(
-          isDenied = !isPermissionSetupCompleted || permissionState.status is PermissionStatus.Denied,
+          isDenied = !isPermissionSetupCompleted,
         )
       } catch (e: Exception) {
         Log.e("FileSystemBrowserScreen", "Failed to update MainScreen state", e)
@@ -861,6 +864,10 @@ fun FileSystemBrowserScreen(path: String? = null) {
                 isInSelectionMode = isInSelectionMode,
               )
             }
+        } else if (isPermissionSetupCompleted) {
+          com.quantummpv.app.ui.browser.states.StoragePermissionPrompt(
+            onRequestPermission = { permissionState.launchPermissionRequest() },
+          )
         } else {
           PermissionDeniedState(
             onRequestPermission = { permissionState.launchPermissionRequest() },

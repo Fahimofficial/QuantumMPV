@@ -1991,6 +1991,11 @@ Bitte starten Sie die App neu, damit alle Änderungen wirksam werden.</string>
   <string name="tutorial_search_desc">Jede Datei schnell finden.</string>
   <string name="tutorial_settings_title">Einstellungen</string>
   <string name="tutorial_settings_desc">Hier alles anpassen.</string>
+  <string name="onboarding_missing_permissions_title">Nicht erteilt</string>
+  <string name="onboarding_missing_permissions_desc">Diese können später bei Bedarf erteilt werden.</string>
+  <string name="storage_permission_needed_title">Speicherzugriff erforderlich</string>
+  <string name="storage_permission_needed_desc">Speicherzugriff gewähren, um Medien zu durchsuchen und abzuspielen.</string>
+  <string name="storage_permission_grant">Zugriff gewähren</string>
   <string name="pref_player_web_stream_links_title">Streaming-Website-Links öffnen</string>
   <string name="pref_player_web_stream_links_summary">mpvRx für Links von YouTube, Vimeo, Twitch, Odysee und Bilibili anbieten. Deaktivieren, damit deren eigene Apps sie öffnen.</string>
 </resources>

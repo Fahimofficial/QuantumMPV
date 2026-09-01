@@ -1993,6 +1993,11 @@
   <string name="tutorial_search_desc">اعثر على أي ملف بسرعة.</string>
   <string name="tutorial_settings_title">الإعدادات</string>
   <string name="tutorial_settings_desc">اضبط كل شيء من هنا.</string>
+  <string name="onboarding_missing_permissions_title">غير ممنوحة</string>
+  <string name="onboarding_missing_permissions_desc">يمكنك منحها لاحقًا عند الحاجة.</string>
+  <string name="storage_permission_needed_title">مطلوب إذن التخزين</string>
+  <string name="storage_permission_needed_desc">امنح إذن التخزين لتصفح وتشغيل الوسائط.</string>
+  <string name="storage_permission_grant">منح الإذن</string>
   <string name="pref_player_web_stream_links_title">فتح روابط مواقع البث</string>
   <string name="pref_player_web_stream_links_summary">عرض mpvRx لروابط YouTube وVimeo وTwitch وOdysee وBilibili. أوقف الخيار لتركها لتطبيقاتها الأصلية.</string>
 </resources>

@@ -1895,6 +1895,11 @@
   <string name="tutorial_search_desc">कोई भी फ़ाइल तेज़ी से खोजें।</string>
   <string name="tutorial_settings_title">सेटिंग्स</string>
   <string name="tutorial_settings_desc">यहां सब कुछ समायोजित करें।</string>
+  <string name="onboarding_missing_permissions_title">नहीं दी गईं</string>
+  <string name="onboarding_missing_permissions_desc">ज़रूरत पड़ने पर इन्हें बाद में दे सकते हैं।</string>
+  <string name="storage_permission_needed_title">स्टोरेज एक्सेस चाहिए</string>
+  <string name="storage_permission_needed_desc">मीडिया ब्राउज़ और प्ले करने के लिए स्टोरेज एक्सेस दें।</string>
+  <string name="storage_permission_grant">एक्सेस दें</string>
   <string name="pref_player_web_stream_links_title">स्ट्रीमिंग साइट लिंक खोलें</string>
   <string name="pref_player_web_stream_links_summary">YouTube, Vimeo, Twitch, Odysee और Bilibili लिंक के लिए mpvRx दिखाएं। बंद करने पर उनके अपने ऐप उन्हें खोलेंगे।</string>
 </resources>

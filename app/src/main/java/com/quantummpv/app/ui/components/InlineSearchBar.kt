@@ -9,7 +9,9 @@
 
 package com.quantummpv.app.ui.components
 
+import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.text.input.TextFieldLineLimits
 import androidx.compose.foundation.text.input.rememberTextFieldState
@@ -41,6 +43,7 @@ fun InlineSearchBar(
   shape: Shape = SearchBarDefaults.inputFieldShape,
   tonalElevation: Dp = SearchBarDefaults.TonalElevation,
   shadowElevation: Dp = SearchBarDefaults.ShadowElevation,
+  windowInsets: WindowInsets = SearchBarDefaults.windowInsets,
 ) {
   val textFieldState = rememberTextFieldState(query)
   val currentQuery by rememberUpdatedState(query)
@@ -60,7 +63,9 @@ fun InlineSearchBar(
 
   val colors = SearchBarDefaults.colors()
   Surface(
-    modifier = modifier,
+    // M3 SearchBar applied status-bar insets by default; keep that so top-bar usages
+    // don't render under the status bar / display cutout.
+    modifier = Modifier.windowInsetsPadding(windowInsets).then(modifier),
     shape = shape,
     color = colors.containerColor,
     tonalElevation = tonalElevation,

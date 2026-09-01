@@ -116,6 +116,9 @@ class BrowserPreferences(
   // Set by onboarding when the user opts into the quick tour; cleared once the tour ran.
   val demoTutorialPending = preferenceStore.getBoolean("demo_tutorial_pending", false)
 
+  // True once the user finished (or skipped through) the first-run permission flow.
+  val onboardingCompleted = preferenceStore.getBoolean("onboarding_completed", false)
+
   // Watched threshold preference (percentage 1-100)
   val watchedThreshold = preferenceStore.getInt("watched_threshold", 95)
 
