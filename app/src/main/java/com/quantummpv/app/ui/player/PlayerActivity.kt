@@ -538,9 +538,13 @@ class PlayerActivity :
             )
           }
           Intent.ACTION_USER_PRESENT -> {
+            restoreForegroundVideoAndAmbientIfUnlocked()
             resumePlaybackAfterScreenUnlockIfNeeded()
           }
-          Intent.ACTION_SCREEN_ON -> resumePlaybackAfterScreenUnlockIfNeeded()
+          Intent.ACTION_SCREEN_ON -> {
+            restoreForegroundVideoAndAmbientIfUnlocked()
+            resumePlaybackAfterScreenUnlockIfNeeded()
+          }
         }
       }
     }
@@ -1887,12 +1891,9 @@ class PlayerActivity :
     runCatching {
       setupWindowFlags()
       setupSystemUI()
-      val deviceScreenOffOrLocked = isDeviceScreenOffOrLocked()
 
-      if (!deviceScreenOffOrLocked) {
+      if (restoreForegroundVideoAndAmbientIfUnlocked()) {
         // Foreground playback owns the session again after unlock or app return.
-        enableVideoAfterBackground()
-        viewModel.setAmbientLifecycleActive(true)
         if (MediaPlaybackService.isRunning()) endBackgroundPlayback()
         isBackgroundPlaybackSessionActive = false
         // The detached service released focus during the handoff; take it back over so a
@@ -3115,7 +3116,7 @@ class PlayerActivity :
     super.onResume()
     if (!mpvInitialized || !ownsPlaybackSession()) return
     if (!isInPictureInPictureMode && hasWindowFocus()) completePipExpansion()
-    if (!isDeviceScreenOffOrLocked()) enableVideoAfterBackground()
+    restoreForegroundVideoAndAmbientIfUnlocked()
     updateVolume()
     resumePlaybackAfterScreenUnlockIfNeeded()
     if (!screenUnlockPlaybackController.hasPendingResume()) wasPlayingBeforePause = false
@@ -3174,6 +3175,13 @@ class PlayerActivity :
   private fun isDeviceScreenOffOrLocked(): Boolean {
     val powerManager = getSystemService(Context.POWER_SERVICE) as PowerManager
     return keyguardManager.isDeviceLocked || !powerManager.isInteractive
+  }
+
+  private fun restoreForegroundVideoAndAmbientIfUnlocked(): Boolean {
+    if (!mpvInitialized || !ownsPlaybackSession() || isDeviceScreenOffOrLocked()) return false
+    enableVideoAfterBackground()
+    viewModel.setAmbientLifecycleActive(true)
+    return true
   }
 
   private fun rememberResumeAfterUnlockBeforeForcedPause() {
