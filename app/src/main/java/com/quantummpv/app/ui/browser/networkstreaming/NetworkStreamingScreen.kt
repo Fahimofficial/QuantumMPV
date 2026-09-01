@@ -56,8 +56,6 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.PrimaryScrollableTabRow
 import androidx.compose.material3.Scaffold
-import androidx.compose.material3.SearchBar
-import androidx.compose.material3.SearchBarDefaults
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Tab
 import androidx.compose.material3.Text
@@ -109,6 +107,7 @@ import com.quantummpv.app.ui.browser.cards.NetworkConnectionCard
 import com.quantummpv.app.ui.browser.components.BrowserTopBar
 import com.quantummpv.app.ui.browser.dialogs.AddConnectionSheet
 import com.quantummpv.app.ui.browser.dialogs.EditConnectionSheet
+import com.quantummpv.app.ui.components.InlineSearchBar
 import com.quantummpv.app.ui.icons.AppIcon
 import com.quantummpv.app.ui.icons.Icon
 import com.quantummpv.app.ui.icons.Icons
@@ -314,50 +313,40 @@ object NetworkStreamingScreen : Screen {
               .background(headerContainerColor),
         ) {
           if (isSearching) {
-            SearchBar(
-              inputField = {
-                SearchBarDefaults.InputField(
-                  query = searchQuery,
-                  onQueryChange = { searchQuery = it },
-                  onSearch = { },
-                  expanded = false,
-                  onExpandedChange = { },
-                  placeholder = {
-                    Text(stringResource(R.string.settings_search_title))
-                  },
-                  leadingIcon = {
-                    Icon(
-                      imageVector = Icons.RoundedFilled.Search,
-                      contentDescription = stringResource(R.string.settings_search_title),
-                    )
-                  },
-                  trailingIcon = {
-                    IconButton(
-                      onClick = {
-                        isSearching = false
-                        searchQuery = ""
-                      },
-                    ) {
-                      Icon(
-                        imageVector = Icons.RoundedFilled.Close,
-                        contentDescription = stringResource(R.string.generic_cancel),
-                      )
-                    }
-                  },
-                  modifier = Modifier.focusRequester(focusRequester),
-                )
-              },
-              expanded = false,
-              onExpandedChange = { },
+            InlineSearchBar(
+              query = searchQuery,
+              onQueryChange = { searchQuery = it },
+              onSearch = { },
               modifier =
                 Modifier
                   .fillMaxWidth()
                   .padding(horizontal = 16.dp, vertical = 8.dp),
+              inputFieldModifier = Modifier.focusRequester(focusRequester),
+              placeholder = {
+                Text(stringResource(R.string.settings_search_title))
+              },
+              leadingIcon = {
+                Icon(
+                  imageVector = Icons.RoundedFilled.Search,
+                  contentDescription = stringResource(R.string.settings_search_title),
+                )
+              },
+              trailingIcon = {
+                IconButton(
+                  onClick = {
+                    isSearching = false
+                    searchQuery = ""
+                  },
+                ) {
+                  Icon(
+                    imageVector = Icons.RoundedFilled.Close,
+                    contentDescription = stringResource(R.string.generic_cancel),
+                  )
+                }
+              },
               shape = RoundedCornerShape(28.dp),
               tonalElevation = 6.dp,
-            ) {
-              // Empty search bar content
-            }
+            )
           } else {
             Box {
               BrowserTopBar(

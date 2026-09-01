@@ -28,9 +28,10 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.SheetValue
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
-import androidx.compose.material3.rememberModalBottomSheetState
+import androidx.compose.material3.rememberBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -152,7 +153,7 @@ fun PlayLinkSheet(
     }
   }
 
-  val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = false)
+  val sheetState = rememberBottomSheetState(initialValue = SheetValue.Hidden)
 
   ModalBottomSheet(
     onDismissRequest = handleDismiss,

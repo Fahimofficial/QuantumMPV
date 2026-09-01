@@ -347,11 +347,12 @@ object FolderViewScanner {
     val path = normalizeStoragePath(directory.absolutePath) ?: directory.absolutePath
     val fingerprint = directoryFingerprint(directory, files)
     val subdirectories = files.filter { it.isDirectory && shouldVisitDuringNoMediaScan(it) }
-    val contentChanged = previous == null || previous.fingerprint != fingerprint
+    val unchangedEntity = previous?.takeIf { it.fingerprint == fingerprint }
+    val contentChanged = unchangedEntity == null
 
     val entity =
-      if (!contentChanged && previous != null) {
-        previous.copy(
+      if (unchangedEntity != null) {
+        unchangedEntity.copy(
           rootPath = rootPath,
           isNoMediaRoot = isNoMediaRoot,
           lastScanned = System.currentTimeMillis(),

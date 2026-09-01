@@ -66,8 +66,7 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.PlainTooltip
 import androidx.compose.material3.PrimaryScrollableTabRow
 import androidx.compose.material3.Scaffold
-import androidx.compose.material3.SearchBar
-import androidx.compose.material3.SearchBarDefaults
+import androidx.compose.material3.SheetValue
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Tab
 import androidx.compose.material3.Text
@@ -78,7 +77,7 @@ import androidx.compose.material3.TooltipAnchorPosition
 import androidx.compose.material3.TooltipBox
 import androidx.compose.material3.TooltipDefaults
 import androidx.compose.material3.animateFloatingActionButton
-import androidx.compose.material3.rememberModalBottomSheetState
+import androidx.compose.material3.rememberBottomSheetState
 import androidx.compose.material3.rememberTooltipState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
@@ -143,6 +142,7 @@ import com.quantummpv.app.ui.browser.folderlist.FolderListScreen
 import com.quantummpv.app.ui.browser.playlist.PlaylistDetailScreen
 import com.quantummpv.app.ui.browser.selection.rememberSelectionManager
 import com.quantummpv.app.ui.player.PlaybackSession
+import com.quantummpv.app.ui.components.InlineSearchBar
 import com.quantummpv.app.ui.icons.Icon
 import com.quantummpv.app.ui.icons.Icons
 import com.quantummpv.app.ui.theme.AppShapeScale
@@ -457,40 +457,32 @@ fun MusicLibraryContent(
           )
       ) {
         if (isSearchActive) {
-          SearchBar(
-            inputField = {
-              SearchBarDefaults.InputField(
-                query = searchQuery,
-                onQueryChange = { musicViewModel.setSearchQuery(it) },
-                onSearch = { },
-                expanded = false,
-                onExpandedChange = { },
-                placeholder = { Text(if (selectedTab == MusicTab.FOLDERS) "Search folders & songs..." else "Search songs, albums, artists...") },
-                leadingIcon = {
-                  IconButton(onClick = {
-                    isSearchActive = false
-                    musicViewModel.setSearchQuery("")
-                  }) {
-                    Icon(imageVector = Icons.RoundedFilled.ArrowBack, contentDescription = "Back")
-                  }
-                },
-                trailingIcon = {
-                  if (searchQuery.isNotEmpty()) {
-                    IconButton(onClick = { musicViewModel.setSearchQuery("") }) {
-                      Icon(imageVector = Icons.RoundedFilled.Close, contentDescription = "Clear search")
-                    }
-                  }
-                }
-              )
-            },
-            expanded = false,
-            onExpandedChange = { },
+          InlineSearchBar(
+            query = searchQuery,
+            onQueryChange = musicViewModel::setSearchQuery,
+            onSearch = { },
             modifier = Modifier
               .fillMaxWidth()
               .padding(horizontal = 16.dp, vertical = 8.dp),
+            placeholder = { Text(if (selectedTab == MusicTab.FOLDERS) "Search folders & songs..." else "Search songs, albums, artists...") },
+            leadingIcon = {
+              IconButton(onClick = {
+                isSearchActive = false
+                musicViewModel.setSearchQuery("")
+              }) {
+                Icon(imageVector = Icons.RoundedFilled.ArrowBack, contentDescription = "Back")
+              }
+            },
+            trailingIcon = {
+              if (searchQuery.isNotEmpty()) {
+                IconButton(onClick = { musicViewModel.setSearchQuery("") }) {
+                  Icon(imageVector = Icons.RoundedFilled.Close, contentDescription = "Clear search")
+                }
+              }
+            },
             shape = RoundedCornerShape(28.dp),
-            tonalElevation = 6.dp
-          ) { }
+            tonalElevation = 6.dp,
+          )
         } else {
           Box {
             BrowserTopBar(
@@ -876,7 +868,11 @@ fun MusicLibraryContent(
         selectedSongForOptions?.let { song ->
           ModalBottomSheet(
             onDismissRequest = { selectedSongForOptions = null },
-            sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+            sheetState =
+              rememberBottomSheetState(
+                initialValue = SheetValue.Hidden,
+                enabledValues = setOf(SheetValue.Hidden, SheetValue.Expanded),
+              )
           ) {
             Column(
               modifier = Modifier
@@ -903,7 +899,7 @@ fun MusicLibraryContent(
               HorizontalDivider(modifier = Modifier.padding(vertical = 12.dp))
 
               ListItem(
-                headlineContent = { Text("Play") },
+                content = { Text("Play") },
                 leadingContent = { Icon(Icons.RoundedFilled.PlayArrow, contentDescription = null) },
                 modifier = Modifier.clickable {
                   val target = song
@@ -912,7 +908,7 @@ fun MusicLibraryContent(
                 }
               )
               ListItem(
-                headlineContent = { Text("Add to Playlist") },
+                content = { Text("Add to Playlist") },
                 leadingContent = { Icon(Icons.RoundedFilled.PlaylistAdd, contentDescription = null) },
                 modifier = Modifier.clickable {
                   val target = song
@@ -921,7 +917,7 @@ fun MusicLibraryContent(
                 }
               )
               ListItem(
-                headlineContent = { Text("Share") },
+                content = { Text("Share") },
                 leadingContent = { Icon(Icons.RoundedFilled.Share, contentDescription = null) },
                 modifier = Modifier.clickable {
                   val target = song
@@ -930,7 +926,7 @@ fun MusicLibraryContent(
                 }
               )
               ListItem(
-                headlineContent = { Text("Delete Song", color = MaterialTheme.colorScheme.error) },
+                content = { Text("Delete Song", color = MaterialTheme.colorScheme.error) },
                 leadingContent = { Icon(Icons.RoundedFilled.Delete, contentDescription = null, tint = MaterialTheme.colorScheme.error) },
                 modifier = Modifier.clickable {
                   val target = song
@@ -996,7 +992,11 @@ fun MusicLibraryContent(
           }
           ModalBottomSheet(
             onDismissRequest = { selectedAlbumForOptions = null },
-            sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+            sheetState =
+              rememberBottomSheetState(
+                initialValue = SheetValue.Hidden,
+                enabledValues = setOf(SheetValue.Hidden, SheetValue.Expanded),
+              )
           ) {
             Column(
               modifier = Modifier
@@ -1023,7 +1023,7 @@ fun MusicLibraryContent(
               HorizontalDivider(modifier = Modifier.padding(vertical = 12.dp))
 
               ListItem(
-                headlineContent = { Text("View Album Tracks") },
+                content = { Text("View Album Tracks") },
                 leadingContent = { Icon(Icons.RoundedFilled.Audiotrack, contentDescription = null) },
                 modifier = Modifier.clickable {
                   val target = album
@@ -1032,7 +1032,7 @@ fun MusicLibraryContent(
                 }
               )
               ListItem(
-                headlineContent = { Text("Play Album") },
+                content = { Text("Play Album") },
                 leadingContent = { Icon(Icons.RoundedFilled.PlayArrow, contentDescription = null) },
                 modifier = Modifier.clickable {
                   val list = albumSongs
@@ -1041,7 +1041,7 @@ fun MusicLibraryContent(
                 }
               )
               ListItem(
-                headlineContent = { Text("Shuffle Album") },
+                content = { Text("Shuffle Album") },
                 leadingContent = { Icon(Icons.RoundedFilled.Shuffle, contentDescription = null) },
                 modifier = Modifier.clickable {
                   val list = albumSongs
@@ -1050,7 +1050,7 @@ fun MusicLibraryContent(
                 }
               )
               ListItem(
-                headlineContent = { Text("Add Album to Playlist") },
+                content = { Text("Add Album to Playlist") },
                 leadingContent = { Icon(Icons.RoundedFilled.PlaylistAdd, contentDescription = null) },
                 modifier = Modifier.clickable {
                   val list = albumSongs
@@ -1069,7 +1069,11 @@ fun MusicLibraryContent(
           }
           ModalBottomSheet(
             onDismissRequest = { selectedArtistForOptions = null },
-            sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+            sheetState =
+              rememberBottomSheetState(
+                initialValue = SheetValue.Hidden,
+                enabledValues = setOf(SheetValue.Hidden, SheetValue.Expanded),
+              )
           ) {
             Column(
               modifier = Modifier
@@ -1088,7 +1092,7 @@ fun MusicLibraryContent(
               HorizontalDivider(modifier = Modifier.padding(vertical = 12.dp))
 
               ListItem(
-                headlineContent = { Text("View Artist Songs") },
+                content = { Text("View Artist Songs") },
                 leadingContent = { Icon(Icons.RoundedFilled.Person, contentDescription = null) },
                 modifier = Modifier.clickable {
                   val target = artist
@@ -1097,7 +1101,7 @@ fun MusicLibraryContent(
                 }
               )
               ListItem(
-                headlineContent = { Text("Play Artist Songs") },
+                content = { Text("Play Artist Songs") },
                 leadingContent = { Icon(Icons.RoundedFilled.PlayArrow, contentDescription = null) },
                 modifier = Modifier.clickable {
                   val list = artistSongs
@@ -1106,7 +1110,7 @@ fun MusicLibraryContent(
                 }
               )
               ListItem(
-                headlineContent = { Text("Shuffle Artist Songs") },
+                content = { Text("Shuffle Artist Songs") },
                 leadingContent = { Icon(Icons.RoundedFilled.Shuffle, contentDescription = null) },
                 modifier = Modifier.clickable {
                   val list = artistSongs
@@ -1115,7 +1119,7 @@ fun MusicLibraryContent(
                 }
               )
               ListItem(
-                headlineContent = { Text("Add Artist Songs to Playlist") },
+                content = { Text("Add Artist Songs to Playlist") },
                 leadingContent = { Icon(Icons.RoundedFilled.PlaylistAdd, contentDescription = null) },
                 modifier = Modifier.clickable {
                   val list = artistSongs
@@ -1131,7 +1135,11 @@ fun MusicLibraryContent(
         selectedPlaylistForOptions?.let { playlist ->
           ModalBottomSheet(
             onDismissRequest = { selectedPlaylistForOptions = null },
-            sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+            sheetState =
+              rememberBottomSheetState(
+                initialValue = SheetValue.Hidden,
+                enabledValues = setOf(SheetValue.Hidden, SheetValue.Expanded),
+              )
           ) {
             Column(
               modifier = Modifier
@@ -1147,7 +1155,7 @@ fun MusicLibraryContent(
               HorizontalDivider(modifier = Modifier.padding(vertical = 12.dp))
 
               ListItem(
-                headlineContent = { Text("Open Playlist") },
+                content = { Text("Open Playlist") },
                 leadingContent = { Icon(Icons.RoundedFilled.PlaylistPlay, contentDescription = null) },
                 modifier = Modifier.clickable {
                   val target = playlist
@@ -1157,7 +1165,7 @@ fun MusicLibraryContent(
               )
               if (!playlist.name.equals(PlaylistRepository.FAVORITES_PLAYLIST_NAME, ignoreCase = true)) {
                 ListItem(
-                  headlineContent = { Text("Delete Playlist", color = MaterialTheme.colorScheme.error) },
+                  content = { Text("Delete Playlist", color = MaterialTheme.colorScheme.error) },
                   leadingContent = { Icon(Icons.RoundedFilled.Delete, contentDescription = null, tint = MaterialTheme.colorScheme.error) },
                   modifier = Modifier.clickable {
                     val target = playlist
@@ -2368,7 +2376,11 @@ private fun AlbumDetailSheet(
 ) {
   ModalBottomSheet(
     onDismissRequest = onDismiss,
-    sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+    sheetState =
+      rememberBottomSheetState(
+        initialValue = SheetValue.Hidden,
+        enabledValues = setOf(SheetValue.Hidden, SheetValue.Expanded),
+      )
   ) {
     Column(
       modifier = Modifier
@@ -2461,7 +2473,11 @@ private fun ArtistDetailSheet(
 ) {
   ModalBottomSheet(
     onDismissRequest = onDismiss,
-    sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+    sheetState =
+      rememberBottomSheetState(
+        initialValue = SheetValue.Hidden,
+        enabledValues = setOf(SheetValue.Hidden, SheetValue.Expanded),
+      )
   ) {
     Column(
       modifier = Modifier

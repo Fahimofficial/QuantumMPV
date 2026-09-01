@@ -5030,10 +5030,14 @@ class PlayerActivity :
   /**
    * Handles new intents to load a different file without recreating the activity.
    *
-   * @param sourceIntent The new intent
+   * @param intent The new intent
    */
-  override fun onNewIntent(sourceIntent: Intent) {
-    super.onNewIntent(sourceIntent)
+  override fun onNewIntent(intent: Intent) {
+    super.onNewIntent(intent)
+    handleNewIntent(intent)
+  }
+
+  private fun handleNewIntent(sourceIntent: Intent) {
     if (!ownsPlaybackSession()) return
 
     var intent = sourceIntent

@@ -39,8 +39,6 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.PlainTooltip
-import androidx.compose.material3.SearchBar
-import androidx.compose.material3.SearchBarDefaults
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TooltipAnchorPosition
@@ -109,6 +107,7 @@ import com.quantummpv.app.ui.browser.fab.FabScrollHelper
 import com.quantummpv.app.ui.browser.selection.SelectionManager
 import com.quantummpv.app.ui.browser.selection.rememberSelectionManager
 import com.quantummpv.app.ui.browser.states.EmptyState
+import com.quantummpv.app.ui.components.InlineSearchBar
 import com.quantummpv.app.ui.icons.Icon
 import com.quantummpv.app.ui.icons.Icons
 import com.quantummpv.app.ui.securefolder.SecureConfirmDialog
@@ -355,37 +354,29 @@ data class VideoListScreen(
     Scaffold(
       topBar = {
         if (internalIsSearching) {
-          SearchBar(
-            inputField = {
-              SearchBarDefaults.InputField(
-                query = internalSearchQuery,
-                onQueryChange = { internalSearchQuery = it },
-                onSearch = { },
-                expanded = false,
-                onExpandedChange = { },
-                placeholder = { Text(stringResource(R.string.ui_search_videos)) },
-                leadingIcon = {
-                  Icon(Icons.RoundedFilled.Search, contentDescription = stringResource(R.string.settings_search_title))
-                },
-                trailingIcon = {
-                  IconButton(
-                    onClick = {
-                      internalIsSearching = false
-                      internalSearchQuery = ""
-                    },
-                  ) {
-                    Icon(Icons.RoundedFilled.Close, contentDescription = stringResource(R.string.generic_cancel))
-                  }
-                },
-                modifier = Modifier.focusRequester(focusRequester),
-              )
-            },
-            expanded = false,
-            onExpandedChange = { },
+          InlineSearchBar(
+            query = internalSearchQuery,
+            onQueryChange = { internalSearchQuery = it },
+            onSearch = { },
             modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp),
+            inputFieldModifier = Modifier.focusRequester(focusRequester),
+            placeholder = { Text(stringResource(R.string.ui_search_videos)) },
+            leadingIcon = {
+              Icon(Icons.RoundedFilled.Search, contentDescription = stringResource(R.string.settings_search_title))
+            },
+            trailingIcon = {
+              IconButton(
+                onClick = {
+                  internalIsSearching = false
+                  internalSearchQuery = ""
+                },
+              ) {
+                Icon(Icons.RoundedFilled.Close, contentDescription = stringResource(R.string.generic_cancel))
+              }
+            },
             shape = androidx.compose.foundation.shape.RoundedCornerShape(28.dp),
             tonalElevation = 6.dp,
-          ) { }
+          )
         } else {
           BrowserTopBar(
           title = displayFolderName,

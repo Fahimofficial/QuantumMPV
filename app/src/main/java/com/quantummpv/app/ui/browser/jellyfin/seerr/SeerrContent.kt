@@ -45,8 +45,6 @@ import androidx.compose.material3.FilterChip
 import androidx.compose.material3.FilterChipDefaults
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.SearchBar
-import androidx.compose.material3.SearchBarDefaults
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -74,6 +72,7 @@ import com.quantummpv.app.domain.jellyfin.JellyfinServer
 import com.quantummpv.app.domain.seerr.MediaType
 import com.quantummpv.app.presentation.components.pullrefresh.PullRefreshBox
 import com.quantummpv.app.ui.browser.components.BrowserTopBar
+import com.quantummpv.app.ui.components.InlineSearchBar
 import com.quantummpv.app.ui.icons.Icon
 import com.quantummpv.app.ui.icons.Icons
 
@@ -131,46 +130,38 @@ fun SeerrContent(
             .padding(horizontal = 16.dp, vertical = 6.dp),
           verticalArrangement = Arrangement.spacedBy(8.dp),
         ) {
-          SearchBar(
-            inputField = {
-              SearchBarDefaults.InputField(
-                query = uiState.searchQuery,
-                onQueryChange = viewModel::onSearchQueryChanged,
-                onSearch = viewModel::performSearch,
-                expanded = false,
-                onExpandedChange = { },
-                placeholder = { Text(stringResource(R.string.seerr_search_placeholder)) },
-                leadingIcon = {
-                  Icon(
-                    imageVector = Icons.RoundedFilled.Search,
-                    contentDescription = null,
-                  )
-                },
-                trailingIcon = {
-                  IconButton(
-                    onClick = {
-                      if (uiState.searchQuery.isNotEmpty()) {
-                        viewModel.clearSearch()
-                      } else {
-                        isSearching = false
-                      }
-                    },
-                  ) {
-                    Icon(
-                      imageVector = Icons.RoundedFilled.Close,
-                      contentDescription = stringResource(R.string.generic_cancel),
-                    )
-                  }
-                },
-                modifier = Modifier.focusRequester(searchFocusRequester),
+          InlineSearchBar(
+            query = uiState.searchQuery,
+            onQueryChange = viewModel::onSearchQueryChanged,
+            onSearch = viewModel::performSearch,
+            modifier = Modifier.fillMaxWidth(),
+            inputFieldModifier = Modifier.focusRequester(searchFocusRequester),
+            placeholder = { Text(stringResource(R.string.seerr_search_placeholder)) },
+            leadingIcon = {
+              Icon(
+                imageVector = Icons.RoundedFilled.Search,
+                contentDescription = null,
               )
             },
-            expanded = false,
-            onExpandedChange = { },
-            modifier = Modifier.fillMaxWidth(),
+            trailingIcon = {
+              IconButton(
+                onClick = {
+                  if (uiState.searchQuery.isNotEmpty()) {
+                    viewModel.clearSearch()
+                  } else {
+                    isSearching = false
+                  }
+                },
+              ) {
+                Icon(
+                  imageVector = Icons.RoundedFilled.Close,
+                  contentDescription = stringResource(R.string.generic_cancel),
+                )
+              }
+            },
             shape = RoundedCornerShape(28.dp),
             tonalElevation = 6.dp,
-          ) { }
+          )
         }
         LaunchedEffect(Unit) {
           searchFocusRequester.requestFocus()

@@ -24,6 +24,7 @@ import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.background
 import androidx.compose.foundation.gestures.detectTapGestures
 import com.quantummpv.app.ui.browser.fab.FabScrollHelper
+import com.quantummpv.app.ui.components.InlineSearchBar
 import com.quantummpv.app.ui.components.themedSegmentedButtonColors
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -41,8 +42,6 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.PlainTooltip
 import androidx.compose.material3.Scaffold
-import androidx.compose.material3.SearchBar
-import androidx.compose.material3.SearchBarDefaults
 import androidx.compose.material3.SegmentedButton
 import androidx.compose.material3.SegmentedButtonDefaults
 import androidx.compose.material3.SingleChoiceSegmentedButtonRow
@@ -392,62 +391,54 @@ fun MediaLibraryContent(forceAudio: Boolean = false) {
   Scaffold(
     topBar = {
       if (isSearching) {
-        SearchBar(
-          inputField = {
-            SearchBarDefaults.InputField(
-              query = searchQuery,
-              onQueryChange = { searchQuery = it },
-              onSearch = { },
-              expanded = false,
-              onExpandedChange = { },
-              placeholder = {
-                Text(
-                  if (mediaType ==
-                    MediaLibraryType.Audio
-                  ) {
-                    androidx.compose.ui.res
-                      .stringResource(com.quantummpv.app.R.string.ui_search_audio)
-                  } else {
-                    androidx.compose.ui.res
-                      .stringResource(com.quantummpv.app.R.string.ui_search_videos)
-                  },
-                )
-              },
-              leadingIcon = {
-                Icon(
-                  imageVector = Icons.RoundedFilled.Search,
-                  contentDescription =
-                    androidx.compose.ui.res.stringResource(
-                      com.quantummpv.app.R.string.settings_search_title,
-                    ),
-                )
-              },
-              trailingIcon = {
-                IconButton(
-                  onClick = {
-                    isSearching = false
-                    searchQuery = ""
-                  },
-                ) {
-                  Icon(
-                    imageVector = Icons.RoundedFilled.Close,
-                    contentDescription =
-                      androidx.compose.ui.res.stringResource(
-                        com.quantummpv.app.R.string.generic_cancel,
-                      ),
-                  )
-                }
-              },
-              modifier = Modifier.focusRequester(focusRequester),
-            )
-          },
-          expanded = false,
-          onExpandedChange = { },
+        InlineSearchBar(
+          query = searchQuery,
+          onQueryChange = { searchQuery = it },
+          onSearch = { },
           modifier =
             Modifier
               .fillMaxWidth()
               .padding(horizontal = 16.dp, vertical = 8.dp),
-        ) { }
+          inputFieldModifier = Modifier.focusRequester(focusRequester),
+          placeholder = {
+            Text(
+              if (mediaType ==
+                MediaLibraryType.Audio
+              ) {
+                androidx.compose.ui.res
+                  .stringResource(com.quantummpv.app.R.string.ui_search_audio)
+              } else {
+                androidx.compose.ui.res
+                  .stringResource(com.quantummpv.app.R.string.ui_search_videos)
+              },
+            )
+          },
+          leadingIcon = {
+            Icon(
+              imageVector = Icons.RoundedFilled.Search,
+              contentDescription =
+                androidx.compose.ui.res.stringResource(
+                  com.quantummpv.app.R.string.settings_search_title,
+                ),
+            )
+          },
+          trailingIcon = {
+            IconButton(
+              onClick = {
+                isSearching = false
+                searchQuery = ""
+              },
+            ) {
+              Icon(
+                imageVector = Icons.RoundedFilled.Close,
+                contentDescription =
+                  androidx.compose.ui.res.stringResource(
+                    com.quantummpv.app.R.string.generic_cancel,
+                  ),
+              )
+            }
+          },
+        )
       } else {
         BrowserTopBar(
           title =

@@ -17,9 +17,9 @@ internal suspend fun Call.awaitResponse(): Response =
       object : Callback {
         override fun onFailure(
           call: Call,
-          error: IOException,
+          e: IOException,
         ) {
-          if (continuation.isActive) continuation.resumeWith(Result.failure(error))
+          if (continuation.isActive) continuation.resumeWith(Result.failure(e))
         }
 
         override fun onResponse(

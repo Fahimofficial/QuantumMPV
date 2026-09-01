@@ -51,8 +51,6 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.PlainTooltip
 import androidx.compose.material3.Scaffold
-import androidx.compose.material3.SearchBar
-import androidx.compose.material3.SearchBarDefaults
 import androidx.compose.material3.Text
 import androidx.compose.material3.ToggleFloatingActionButton
 import androidx.compose.material3.ToggleFloatingActionButtonDefaults.animateIcon
@@ -116,6 +114,7 @@ import com.quantummpv.app.ui.browser.selection.rememberSelectionManager
 import com.quantummpv.app.ui.browser.sheets.PlayLinkSheet
 import com.quantummpv.app.ui.browser.states.EmptyState
 import com.quantummpv.app.ui.browser.states.PermissionDeniedState
+import com.quantummpv.app.ui.components.InlineSearchBar
 import com.quantummpv.app.ui.icons.Icon
 import com.quantummpv.app.ui.icons.Icons
 import com.quantummpv.app.ui.theme.AppMotion
@@ -511,62 +510,52 @@ fun FileSystemBrowserScreen(path: String? = null) {
       topBar = {
         if (isSearching) {
           // Search mode - show search bar instead of top bar
-          SearchBar(
-            inputField = {
-              SearchBarDefaults.InputField(
-                query = searchQuery,
-                onQueryChange = { searchQuery = it },
-                onSearch = { },
-                expanded = false,
-                onExpandedChange = { },
-                placeholder = {
-                  Text(
-                    if (isAtRoot) {
-                      "Search in all storage volumes..."
-                    } else {
-                      "Search in ${breadcrumbs.lastOrNull()?.name ?: "folder"}..."
-                    },
-                  )
-                },
-                leadingIcon = {
-                  Icon(
-                    imageVector = Icons.RoundedFilled.Search,
-                    contentDescription =
-                      androidx.compose.ui.res.stringResource(
-                        com.quantummpv.app.R.string.settings_search_title,
-                      ),
-                  )
-                },
-                trailingIcon = {
-                  IconButton(
-                    onClick = {
-                      isSearching = false
-                      searchQuery = ""
-                    },
-                  ) {
-                    Icon(
-                      imageVector = Icons.RoundedFilled.Close,
-                      contentDescription =
-                        androidx.compose.ui.res.stringResource(
-                          com.quantummpv.app.R.string.generic_cancel,
-                        ),
-                    )
-                  }
-                },
-                modifier = Modifier.focusRequester(focusRequester),
-              )
-            },
-            expanded = false,
-            onExpandedChange = { },
+          InlineSearchBar(
+            query = searchQuery,
+            onQueryChange = { searchQuery = it },
+            onSearch = { },
             modifier =
               Modifier
                 .fillMaxWidth()
                 .padding(horizontal = 16.dp),
+            inputFieldModifier = Modifier.focusRequester(focusRequester),
+            placeholder = {
+              Text(
+                if (isAtRoot) {
+                  "Search in all storage volumes..."
+                } else {
+                  "Search in ${breadcrumbs.lastOrNull()?.name ?: "folder"}..."
+                },
+              )
+            },
+            leadingIcon = {
+              Icon(
+                imageVector = Icons.RoundedFilled.Search,
+                contentDescription =
+                  androidx.compose.ui.res.stringResource(
+                    com.quantummpv.app.R.string.settings_search_title,
+                  ),
+              )
+            },
+            trailingIcon = {
+              IconButton(
+                onClick = {
+                  isSearching = false
+                  searchQuery = ""
+                },
+              ) {
+                Icon(
+                  imageVector = Icons.RoundedFilled.Close,
+                  contentDescription =
+                    androidx.compose.ui.res.stringResource(
+                      com.quantummpv.app.R.string.generic_cancel,
+                    ),
+                )
+              }
+            },
             shape = RoundedCornerShape(28.dp),
             tonalElevation = 6.dp,
-          ) {
-            // Empty content for SearchBar
-          }
+          )
         } else {
           BrowserTopBar(
             title =

@@ -31,10 +31,11 @@ import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
+import androidx.compose.material3.SheetValue
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
-import androidx.compose.material3.rememberModalBottomSheetState
+import androidx.compose.material3.rememberBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -66,7 +67,11 @@ fun UpdateSheet(
   onAction: () -> Unit,
   onIgnore: () -> Unit,
 ) {
-  val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+  val sheetState =
+    rememberBottomSheetState(
+      initialValue = SheetValue.Hidden,
+      enabledValues = setOf(SheetValue.Hidden, SheetValue.Expanded),
+    )
   val latestVersion =
     release.previewBuildNumber?.let { buildNumber ->
       stringResource(R.string.update_beta_build_format, buildNumber)

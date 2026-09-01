@@ -60,8 +60,6 @@ import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.PrimaryScrollableTabRow
-import androidx.compose.material3.SearchBar
-import androidx.compose.material3.SearchBarDefaults
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Tab
 import androidx.compose.material3.Text
@@ -113,6 +111,7 @@ import com.quantummpv.app.ui.browser.components.fastScrollGlyph
 import com.quantummpv.app.ui.browser.dialogs.JellyfinSortDialog
 import com.quantummpv.app.ui.browser.fab.FabScrollHelper
 import com.quantummpv.app.ui.browser.selection.rememberSelectionManager
+import com.quantummpv.app.ui.components.InlineSearchBar
 import com.quantummpv.app.ui.icons.Icon
 import com.quantummpv.app.ui.icons.Icons
 import com.quantummpv.app.ui.utils.LocalBackStack
@@ -304,49 +303,39 @@ fun JellyfinContent(
               .padding(horizontal = 16.dp, vertical = 6.dp),
           verticalArrangement = Arrangement.spacedBy(8.dp),
         ) {
-          SearchBar(
-            inputField = {
-              SearchBarDefaults.InputField(
-                query = uiState.searchQuery,
-                onQueryChange = {
-                  viewModel.onSearchQueryChanged(it)
-                },
-                onSearch = { viewModel.performSearch(uiState.searchQuery, debounceMs = 0L) },
-                expanded = false,
-                onExpandedChange = { },
-                placeholder = { Text("Search movies, shows, episodes...") },
-                leadingIcon = {
-                  Icon(
-                    imageVector = Icons.RoundedFilled.Search,
-                    contentDescription = stringResource(R.string.settings_search_title),
-                  )
-                },
-                trailingIcon = {
-                  IconButton(
-                    onClick = {
-                      if (uiState.searchQuery.isNotEmpty()) {
-                        viewModel.onSearchQueryChanged("")
-                        viewModel.refresh()
-                      } else {
-                        isSearching = false
-                      }
-                    },
-                  ) {
-                    Icon(
-                      imageVector = Icons.RoundedFilled.Close,
-                      contentDescription = stringResource(R.string.generic_cancel),
-                    )
-                  }
-                },
-                modifier = Modifier.focusRequester(searchFocusRequester),
+          InlineSearchBar(
+            query = uiState.searchQuery,
+            onQueryChange = viewModel::onSearchQueryChanged,
+            onSearch = { query -> viewModel.performSearch(query, debounceMs = 0L) },
+            modifier = Modifier.fillMaxWidth(),
+            inputFieldModifier = Modifier.focusRequester(searchFocusRequester),
+            placeholder = { Text("Search movies, shows, episodes...") },
+            leadingIcon = {
+              Icon(
+                imageVector = Icons.RoundedFilled.Search,
+                contentDescription = stringResource(R.string.settings_search_title),
               )
             },
-            expanded = false,
-            onExpandedChange = { },
-            modifier = Modifier.fillMaxWidth(),
+            trailingIcon = {
+              IconButton(
+                onClick = {
+                  if (uiState.searchQuery.isNotEmpty()) {
+                    viewModel.onSearchQueryChanged("")
+                    viewModel.refresh()
+                  } else {
+                    isSearching = false
+                  }
+                },
+              ) {
+                Icon(
+                  imageVector = Icons.RoundedFilled.Close,
+                  contentDescription = stringResource(R.string.generic_cancel),
+                )
+              }
+            },
             shape = RoundedCornerShape(28.dp),
             tonalElevation = 6.dp,
-          ) { }
+          )
 
           // Category Filter Chips
           Row(
