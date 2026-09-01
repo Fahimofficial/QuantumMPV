@@ -1979,4 +1979,16 @@ Reinicie o aplicativo para que todas as alterações entrem em vigor.</string>
   <string name="network_bookmarks_empty_title">Nenhuma pasta favorita</string>
   <string name="network_bookmarks_empty_description">Adicione uma pasta remota aos favoritos para abri-la diretamente pela página Rede.</string>
   <string name="network_bookmark_source_format">%1$s • %2$s</string>
+  <string name="onboarding_skip">Pular</string>
+  <string name="onboarding_get_started">Começar</string>
+  <string name="onboarding_all_set_title">Tudo pronto</string>
+  <string name="onboarding_all_set_desc">Altere as permissões a qualquer momento nas configurações do sistema.</string>
+  <string name="onboarding_show_tutorial_title">Mostrar tour rápido</string>
+  <string name="onboarding_show_tutorial_desc">Três dicas rápidas após a configuração</string>
+  <string name="tutorial_tabs_title">Seções</string>
+  <string name="tutorial_tabs_desc">Deslize ou toque para alternar.</string>
+  <string name="tutorial_search_title">Pesquisar</string>
+  <string name="tutorial_search_desc">Encontre qualquer arquivo rapidamente.</string>
+  <string name="tutorial_settings_title">Configurações</string>
+  <string name="tutorial_settings_desc">Ajuste tudo aqui.</string>
 </resources>

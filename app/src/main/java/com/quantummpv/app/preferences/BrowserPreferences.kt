@@ -113,6 +113,9 @@ class BrowserPreferences(
   val minimumAudioDurationSeconds = preferenceStore.getInt("minimum_audio_duration_seconds", 0)
   val mediaLibraryType = preferenceStore.getEnum("media_library_type", MediaLibraryType.Video)
 
+  // Set by onboarding when the user opts into the quick tour; cleared once the tour ran.
+  val demoTutorialPending = preferenceStore.getBoolean("demo_tutorial_pending", false)
+
   // Watched threshold preference (percentage 1-100)
   val watchedThreshold = preferenceStore.getInt("watched_threshold", 95)
 

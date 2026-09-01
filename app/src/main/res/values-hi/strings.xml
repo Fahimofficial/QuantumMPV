@@ -1883,4 +1883,16 @@
   <string name="network_bookmarks_empty_title">कोई बुकमार्क किया गया फ़ोल्डर नहीं</string>
   <string name="network_bookmarks_empty_description">किसी रिमोट फ़ोल्डर को नेटवर्क पेज से सीधे खोलने के लिए बुकमार्क करें।</string>
   <string name="network_bookmark_source_format">%1$s • %2$s</string>
+  <string name="onboarding_skip">छोड़ें</string>
+  <string name="onboarding_get_started">शुरू करें</string>
+  <string name="onboarding_all_set_title">सब तैयार है</string>
+  <string name="onboarding_all_set_desc">सिस्टम सेटिंग्स में कभी भी अनुमतियां बदलें।</string>
+  <string name="onboarding_show_tutorial_title">त्वरित टूर दिखाएं</string>
+  <string name="onboarding_show_tutorial_desc">सेटअप के बाद तीन त्वरित सुझाव</string>
+  <string name="tutorial_tabs_title">अनुभाग</string>
+  <string name="tutorial_tabs_desc">बदलने के लिए स्वाइप या टैप करें।</string>
+  <string name="tutorial_search_title">खोज</string>
+  <string name="tutorial_search_desc">कोई भी फ़ाइल तेज़ी से खोजें।</string>
+  <string name="tutorial_settings_title">सेटिंग्स</string>
+  <string name="tutorial_settings_desc">यहां सब कुछ समायोजित करें।</string>
 </resources>

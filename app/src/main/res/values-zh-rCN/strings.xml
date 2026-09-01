@@ -1981,4 +1981,16 @@
   <string name="network_bookmarks_empty_title">暂无收藏文件夹</string>
   <string name="network_bookmarks_empty_description">收藏远程文件夹后，可从“网络”页面直接打开。</string>
   <string name="network_bookmark_source_format">%1$s • %2$s</string>
+  <string name="onboarding_skip">跳过</string>
+  <string name="onboarding_get_started">开始使用</string>
+  <string name="onboarding_all_set_title">一切就绪</string>
+  <string name="onboarding_all_set_desc">可随时在系统设置中更改权限。</string>
+  <string name="onboarding_show_tutorial_title">显示快速导览</string>
+  <string name="onboarding_show_tutorial_desc">设置完成后显示三个快速提示</string>
+  <string name="tutorial_tabs_title">版块</string>
+  <string name="tutorial_tabs_desc">滑动或点按即可切换。</string>
+  <string name="tutorial_search_title">搜索</string>
+  <string name="tutorial_search_desc">快速找到任何文件。</string>
+  <string name="tutorial_settings_title">设置</string>
+  <string name="tutorial_settings_desc">在此调整所有设置。</string>
 </resources>

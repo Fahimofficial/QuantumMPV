@@ -1979,4 +1979,16 @@ Reinicia la aplicación para que se apliquen todos los cambios.</string>
   <string name="network_bookmarks_empty_title">No hay carpetas marcadas</string>
   <string name="network_bookmarks_empty_description">Marca una carpeta remota para abrirla directamente desde la página Red.</string>
   <string name="network_bookmark_source_format">%1$s • %2$s</string>
+  <string name="onboarding_skip">Omitir</string>
+  <string name="onboarding_get_started">Comenzar</string>
+  <string name="onboarding_all_set_title">Todo listo</string>
+  <string name="onboarding_all_set_desc">Cambia los permisos cuando quieras en los ajustes del sistema.</string>
+  <string name="onboarding_show_tutorial_title">Mostrar recorrido rápido</string>
+  <string name="onboarding_show_tutorial_desc">Tres consejos rápidos tras la configuración</string>
+  <string name="tutorial_tabs_title">Secciones</string>
+  <string name="tutorial_tabs_desc">Desliza o toca para cambiar.</string>
+  <string name="tutorial_search_title">Buscar</string>
+  <string name="tutorial_search_desc">Encuentra cualquier archivo rápido.</string>
+  <string name="tutorial_settings_title">Ajustes</string>
+  <string name="tutorial_settings_desc">Ajusta todo aquí.</string>
 </resources>

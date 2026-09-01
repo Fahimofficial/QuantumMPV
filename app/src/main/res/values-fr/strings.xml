@@ -1979,4 +1979,16 @@ Veuillez redémarrer l’application pour appliquer toutes les modifications.</s
   <string name="network_bookmarks_empty_title">Aucun dossier favori</string>
   <string name="network_bookmarks_empty_description">Ajoutez un dossier distant aux favoris pour l’ouvrir directement depuis la page Réseau.</string>
   <string name="network_bookmark_source_format">%1$s • %2$s</string>
+  <string name="onboarding_skip">Passer</string>
+  <string name="onboarding_get_started">Commencer</string>
+  <string name="onboarding_all_set_title">Tout est prêt</string>
+  <string name="onboarding_all_set_desc">Modifiez les autorisations à tout moment dans les paramètres système.</string>
+  <string name="onboarding_show_tutorial_title">Afficher la visite rapide</string>
+  <string name="onboarding_show_tutorial_desc">Trois astuces rapides après la configuration</string>
+  <string name="tutorial_tabs_title">Sections</string>
+  <string name="tutorial_tabs_desc">Balayez ou touchez pour changer.</string>
+  <string name="tutorial_search_title">Rechercher</string>
+  <string name="tutorial_search_desc">Trouvez vite n\'importe quel fichier.</string>
+  <string name="tutorial_settings_title">Paramètres</string>
+  <string name="tutorial_settings_desc">Réglez tout ici.</string>
 </resources>

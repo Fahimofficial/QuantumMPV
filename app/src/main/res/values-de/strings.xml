@@ -1979,4 +1979,16 @@ Bitte starten Sie die App neu, damit alle Änderungen wirksam werden.</string>
   <string name="network_bookmarks_empty_title">Keine Ordner als Lesezeichen gespeichert</string>
   <string name="network_bookmarks_empty_description">Speichere einen Remote-Ordner als Lesezeichen, um ihn direkt über die Netzwerkseite zu öffnen.</string>
   <string name="network_bookmark_source_format">%1$s • %2$s</string>
+  <string name="onboarding_skip">Überspringen</string>
+  <string name="onboarding_get_started">Los geht\'s</string>
+  <string name="onboarding_all_set_title">Alles bereit</string>
+  <string name="onboarding_all_set_desc">Berechtigungen jederzeit in den Systemeinstellungen ändern.</string>
+  <string name="onboarding_show_tutorial_title">Kurze Tour anzeigen</string>
+  <string name="onboarding_show_tutorial_desc">Drei kurze Tipps nach der Einrichtung</string>
+  <string name="tutorial_tabs_title">Bereiche</string>
+  <string name="tutorial_tabs_desc">Wischen oder tippen zum Wechseln.</string>
+  <string name="tutorial_search_title">Suche</string>
+  <string name="tutorial_search_desc">Jede Datei schnell finden.</string>
+  <string name="tutorial_settings_title">Einstellungen</string>
+  <string name="tutorial_settings_desc">Hier alles anpassen.</string>
 </resources>

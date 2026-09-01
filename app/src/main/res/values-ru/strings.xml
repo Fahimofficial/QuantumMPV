@@ -1979,4 +1979,16 @@
   <string name="network_bookmarks_empty_title">Нет папок в закладках</string>
   <string name="network_bookmarks_empty_description">Добавьте удалённую папку в закладки, чтобы открывать её прямо со страницы «Сеть».</string>
   <string name="network_bookmark_source_format">%1$s • %2$s</string>
+  <string name="onboarding_skip">Пропустить</string>
+  <string name="onboarding_get_started">Начать</string>
+  <string name="onboarding_all_set_title">Всё готово</string>
+  <string name="onboarding_all_set_desc">Разрешения можно изменить в любое время в настройках системы.</string>
+  <string name="onboarding_show_tutorial_title">Показать быстрый тур</string>
+  <string name="onboarding_show_tutorial_desc">Три коротких совета после настройки</string>
+  <string name="tutorial_tabs_title">Разделы</string>
+  <string name="tutorial_tabs_desc">Смахните или нажмите для переключения.</string>
+  <string name="tutorial_search_title">Поиск</string>
+  <string name="tutorial_search_desc">Быстро найдите любой файл.</string>
+  <string name="tutorial_settings_title">Настройки</string>
+  <string name="tutorial_settings_desc">Настройте всё здесь.</string>
 </resources>

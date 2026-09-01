@@ -43,7 +43,11 @@ These notes are written in plain English and focus on what changed for real use.
 - **Ambient Sheet Theming**: Fixed the Ambient sheet appearance in light mode.
 - **Cleaner Builds**: Resolved Kotlin and Material API warnings and updated dependencies.
 
-### 📋 Media Info
+### � Onboarding & Quick Tour
+- **Step-by-Step Permission Setup**: The first-run permission page is now a guided stepper — one permission per screen with progress dots, so everything fits any display without clipping. Optional permissions (notifications, audio) can be skipped individually, and skipping storage skips the whole permission flow.
+- **Quick Tour Opt-In**: The final setup step offers a quick-tour toggle; the in-app tour itself ships in an upcoming release.
+
+### �📋 Media Info
 - **Image Details**: JPG, PNG, WebP, GIF, TIFF and other images now get a dedicated Image tab with resolution, format, bit depth, color space, compression, and orientation — including embedded cover images found inside audio and video files.
 - **Other & Raw Tabs**: Timecode tracks, programs, and future MediaInfo section kinds appear in a new Other tab together with MKV attachment names, and the complete MediaInfo report is readable in-app from a Raw tab.
 - **Full-Value Reader**: Tapping any field opens a scrollable, selectable popup with its complete value and a copy action, so long values are never lost to truncation.

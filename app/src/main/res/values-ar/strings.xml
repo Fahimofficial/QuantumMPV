@@ -1981,4 +1981,16 @@
   <string name="network_bookmarks_empty_title">لا توجد مجلدات ذات إشارات مرجعية</string>
   <string name="network_bookmarks_empty_description">ضع إشارة مرجعية على مجلد بعيد لفتحه مباشرة من صفحة الشبكة.</string>
   <string name="network_bookmark_source_format">%1$s • %2$s</string>
+  <string name="onboarding_skip">تخطي</string>
+  <string name="onboarding_get_started">ابدأ</string>
+  <string name="onboarding_all_set_title">كل شيء جاهز</string>
+  <string name="onboarding_all_set_desc">يمكنك تغيير الأذونات في أي وقت من إعدادات النظام.</string>
+  <string name="onboarding_show_tutorial_title">عرض جولة سريعة</string>
+  <string name="onboarding_show_tutorial_desc">ثلاث نصائح سريعة بعد الإعداد</string>
+  <string name="tutorial_tabs_title">الأقسام</string>
+  <string name="tutorial_tabs_desc">اسحب أو انقر للتبديل.</string>
+  <string name="tutorial_search_title">بحث</string>
+  <string name="tutorial_search_desc">اعثر على أي ملف بسرعة.</string>
+  <string name="tutorial_settings_title">الإعدادات</string>
+  <string name="tutorial_settings_desc">اضبط كل شيء من هنا.</string>
 </resources>

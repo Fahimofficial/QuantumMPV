@@ -1979,4 +1979,16 @@
   <string name="network_bookmarks_empty_title">ブックマークしたフォルダーはありません</string>
   <string name="network_bookmarks_empty_description">リモートフォルダーをブックマークすると、ネットワークページから直接開けます。</string>
   <string name="network_bookmark_source_format">%1$s • %2$s</string>
+  <string name="onboarding_skip">スキップ</string>
+  <string name="onboarding_get_started">はじめる</string>
+  <string name="onboarding_all_set_title">準備完了</string>
+  <string name="onboarding_all_set_desc">権限はいつでもシステム設定から変更できます。</string>
+  <string name="onboarding_show_tutorial_title">クイックツアーを表示</string>
+  <string name="onboarding_show_tutorial_desc">セットアップ後に3つのヒントを表示</string>
+  <string name="tutorial_tabs_title">セクション</string>
+  <string name="tutorial_tabs_desc">スワイプまたはタップで切り替え。</string>
+  <string name="tutorial_search_title">検索</string>
+  <string name="tutorial_search_desc">どんなファイルもすばやく検索。</string>
+  <string name="tutorial_settings_title">設定</string>
+  <string name="tutorial_settings_desc">ここですべてを調整。</string>
 </resources>
