@@ -24,6 +24,7 @@ These notes are written in plain English and focus on what changed for real use.
 - **Cleaner HDR Configuration**: Removed redundant tone-mapping and gamut-mapping overrides so HDR output follows the selected pipeline without conflicting transformations.
 
 ### 🎛️ Player Controls, PiP & Navigation
+- **Streaming Link Handling Toggle**: New "Open streaming site links" switch in player settings controls whether mpvRx registers for YouTube, Vimeo, Twitch, Odysee, and Bilibili links — turn it off and those links go straight to their own apps while direct media URLs keep working.
 - **Correct First Playlist Entry**: Opening any video other than the first from a folder no longer shows the opened video's name on the playlist sheet's first row — stale launch metadata from the temporary one-item queue is now cleared before the folder playlist is published.
 - **Right-Edge Action Panel**: Added a bare right-edge pull handle that opens the complete player action set in the app's movable `DraggablePanel`.
 - **Consistent Action Tiles**: Player actions use a responsive three-column tile layout with normalized icon sizes, no nested circular backgrounds, dynamic colors, and full-tile indicators for active settings such as Background Playback, HDR, Ambient, Repeat, Shuffle, transforms, speed, and zoom.

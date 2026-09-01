@@ -1991,4 +1991,6 @@
   <string name="tutorial_search_desc">どんなファイルもすばやく検索。</string>
   <string name="tutorial_settings_title">設定</string>
   <string name="tutorial_settings_desc">ここですべてを調整。</string>
+  <string name="pref_player_web_stream_links_title">ストリーミングサイトのリンクを開く</string>
+  <string name="pref_player_web_stream_links_summary">YouTube、Vimeo、Twitch、Odysee、Bilibili のリンクで mpvRx を候補に表示。オフにすると各アプリが開きます。</string>
 </resources>

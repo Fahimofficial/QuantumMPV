@@ -255,6 +255,15 @@
                 <data android:pathPattern=".*\\..*\\..*\\..*\\..*\\..*\\..*\\.m3u8*" />
             </intent-filter>
 
+            <!-- Streaming-site link filters live on WebStreamLinksActivityAlias so they can be
+                 toggled off without touching direct media URL/MIME handling (issue #525). -->
+        </activity>
+
+        <activity-alias
+            android:name=".ui.player.WebStreamLinksActivityAlias"
+            android:targetActivity=".ui.player.PlayerActivity"
+            android:exported="true"
+            android:enabled="true">
             <!-- various URL intent filters for popular youtube-dl extractors -->
             <intent-filter>
                 <action android:name="android.intent.action.VIEW" />
@@ -354,7 +363,7 @@
                 <data android:host="b23.tv" />
                 <data android:pathPattern=".*" />
             </intent-filter>
-        </activity>
+        </activity-alias>
 
         <activity
             android:name=".ui.torrent.TorrentSelectionActivity"

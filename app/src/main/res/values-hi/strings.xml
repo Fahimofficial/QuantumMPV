@@ -1895,4 +1895,6 @@
   <string name="tutorial_search_desc">कोई भी फ़ाइल तेज़ी से खोजें।</string>
   <string name="tutorial_settings_title">सेटिंग्स</string>
   <string name="tutorial_settings_desc">यहां सब कुछ समायोजित करें।</string>
+  <string name="pref_player_web_stream_links_title">स्ट्रीमिंग साइट लिंक खोलें</string>
+  <string name="pref_player_web_stream_links_summary">YouTube, Vimeo, Twitch, Odysee और Bilibili लिंक के लिए mpvRx दिखाएं। बंद करने पर उनके अपने ऐप उन्हें खोलेंगे।</string>
 </resources>

@@ -1261,6 +1261,8 @@
   <string name="tutorial_search_desc">Find any file fast.</string>
   <string name="tutorial_settings_title">Settings</string>
   <string name="tutorial_settings_desc">Tune everything here.</string>
+  <string name="pref_player_web_stream_links_title">Open streaming site links</string>
+  <string name="pref_player_web_stream_links_summary">Offer mpvRx for YouTube, Vimeo, Twitch, Odysee, and Bilibili links. Turn off to let their own apps handle them.</string>
   <string name="player_unknown_video">Unknown Video</string>
   <string name="ui_logcat">Logcat:</string>
   <string name="ui_home">Home</string>

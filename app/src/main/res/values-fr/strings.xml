@@ -1991,4 +1991,6 @@ Veuillez redémarrer l’application pour appliquer toutes les modifications.</s
   <string name="tutorial_search_desc">Trouvez vite n\'importe quel fichier.</string>
   <string name="tutorial_settings_title">Paramètres</string>
   <string name="tutorial_settings_desc">Réglez tout ici.</string>
+  <string name="pref_player_web_stream_links_title">Ouvrir les liens de sites de streaming</string>
+  <string name="pref_player_web_stream_links_summary">Proposer mpvRx pour les liens YouTube, Vimeo, Twitch, Odysee et Bilibili. Désactivez pour laisser leurs applications les ouvrir.</string>
 </resources>

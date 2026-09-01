@@ -1993,4 +1993,6 @@
   <string name="tutorial_search_desc">快速找到任何文件。</string>
   <string name="tutorial_settings_title">设置</string>
   <string name="tutorial_settings_desc">在此调整所有设置。</string>
+  <string name="pref_player_web_stream_links_title">打开流媒体网站链接</string>
+  <string name="pref_player_web_stream_links_summary">为 YouTube、Vimeo、Twitch、Odysee 和 Bilibili 链接提供 mpvRx 选项。关闭后由它们自己的应用打开。</string>
 </resources>

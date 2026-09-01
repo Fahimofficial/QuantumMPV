@@ -426,6 +426,40 @@ object PlayerPreferencesScreen : Screen {
                   )
                 },
               )
+
+              PreferenceDivider()
+
+              val enableWebStreamLinkIntents by preferences.enableWebStreamLinkIntents.collectAsState()
+              SwitchPreference(
+                modifier = Modifier.settingsSearchTarget(R.string.pref_player_web_stream_links_title),
+                value = enableWebStreamLinkIntents,
+                onValueChange = { enabled ->
+                  preferences.enableWebStreamLinkIntents.set(enabled)
+                  val componentName = ComponentName(context, "com.quantummpv.app.ui.player.WebStreamLinksActivityAlias")
+                  val newState =
+                    if (enabled) {
+                      PackageManager.COMPONENT_ENABLED_STATE_ENABLED
+                    } else {
+                      PackageManager.COMPONENT_ENABLED_STATE_DISABLED
+                    }
+                  try {
+                    context.packageManager.setComponentEnabledSetting(
+                      componentName,
+                      newState,
+                      PackageManager.DONT_KILL_APP,
+                    )
+                  } catch (e: Exception) {
+                    android.util.Log.e("PlayerPreferencesScreen", "Failed to set alias state", e)
+                  }
+                },
+                title = { Text(stringResource(R.string.pref_player_web_stream_links_title)) },
+                summary = {
+                  Text(
+                    stringResource(R.string.pref_player_web_stream_links_summary),
+                    color = MaterialTheme.colorScheme.outline,
+                  )
+                },
+              )
             }
           }
 

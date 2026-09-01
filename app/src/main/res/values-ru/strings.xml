@@ -1991,4 +1991,6 @@
   <string name="tutorial_search_desc">Быстро найдите любой файл.</string>
   <string name="tutorial_settings_title">Настройки</string>
   <string name="tutorial_settings_desc">Настройте всё здесь.</string>
+  <string name="pref_player_web_stream_links_title">Открывать ссылки стриминговых сайтов</string>
+  <string name="pref_player_web_stream_links_summary">Предлагать mpvRx для ссылок YouTube, Vimeo, Twitch, Odysee и Bilibili. Отключите, чтобы их открывали собственные приложения.</string>
 </resources>

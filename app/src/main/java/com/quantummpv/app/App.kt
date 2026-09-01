@@ -102,6 +102,24 @@ class App :
       }.onFailure { error ->
         Log.e(TAG, "Failed to initialize MediaInfoActivityAlias setting on launch", error)
       }
+      runCatching {
+        val preferences: PlayerPreferences = getKoin().get()
+        val enableWebLinks = preferences.enableWebStreamLinkIntents.get()
+        val componentName = ComponentName(this@App, "com.quantummpv.app.ui.player.WebStreamLinksActivityAlias")
+        val newState =
+          if (enableWebLinks) {
+            PackageManager.COMPONENT_ENABLED_STATE_ENABLED
+          } else {
+            PackageManager.COMPONENT_ENABLED_STATE_DISABLED
+          }
+        packageManager.setComponentEnabledSetting(
+          componentName,
+          newState,
+          PackageManager.DONT_KILL_APP,
+        )
+      }.onFailure { error ->
+        Log.e(TAG, "Failed to initialize WebStreamLinksActivityAlias setting on launch", error)
+      }
     }
 
     // TextMate grammar/theme assets for the script editor are initialized lazily on first use.
