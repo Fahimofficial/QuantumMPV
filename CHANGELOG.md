@@ -31,6 +31,7 @@ These notes are written in plain English and focus on what changed for real use.
 - **Reliable PiP Handoffs**: Expanding PiP restores the full player without interrupting playback, Back opens the mini player where appropriate, and the PiP close action stops playback cleanly.
 - **Supported-Link Routing**: Expanded Open by default coverage for supported YouTube domains.
 ### 🌐 Network Streaming & Protocols
+- **YouTube on 32-bit and x86 Devices**: Fixed shared YouTube links failing with "could not load this link" on armeabi-v7a and x86 devices — the bundled Python runtime only shipped its arm64 build configuration, so yt-dlp crashed with "No module named \_sysconfigdata\_\_android\_..." before extraction could start.
 - **SFTP Support**: Added SFTP as a full network protocol alongside SMB, FTP, and WebDAV — browse folders, stream with seeking through the secure loopback proxy, and manage connections from the same add/edit dialogs (default port 22).
 - **Large-File Freeze & EOF Seek Fix**: Network reconnect options now reach the primary playback stream, so a dropped connection or a failed seek-reopen recovers automatically instead of freezing large files or showing endless buffering when seeking back after the end of a file.
 - **Proxy Hang Guard**: A network body that ends early now surfaces as a recoverable disconnect instead of leaving the player waiting forever for missing bytes.
