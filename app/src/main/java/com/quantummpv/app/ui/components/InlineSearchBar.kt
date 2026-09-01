@@ -11,6 +11,7 @@ package com.quantummpv.app.ui.components
 
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.text.input.TextFieldLineLimits
@@ -28,6 +29,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.flow.collect
 
 @Composable
@@ -63,9 +65,12 @@ fun InlineSearchBar(
 
   val colors = SearchBarDefaults.colors()
   Surface(
-    // M3 SearchBar applied status-bar insets by default; keep that so top-bar usages
-    // don't render under the status bar / display cutout.
-    modifier = Modifier.windowInsetsPadding(windowInsets).then(modifier),
+    // M3 SearchBar applied status-bar insets by default; keep that plus breathing room so
+    // top-bar usages don't render under (or hug) the status bar / display cutout.
+    modifier = Modifier
+      .windowInsetsPadding(windowInsets)
+      .padding(top = 12.dp)
+      .then(modifier),
     shape = shape,
     color = colors.containerColor,
     tonalElevation = tonalElevation,
