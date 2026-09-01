@@ -4145,13 +4145,27 @@ class PlayerViewModel : ViewModel(),
           val targetPosition =
             durationSeconds?.let { duration ->
               val guardedEndPosition = (duration - RELATIVE_SEEK_EOF_GUARD_SECONDS).coerceAtLeast(0.0)
+              val nonPreciseForwardOvershoot =
+                !preciseSeeking &&
+                  toApply > 0 &&
+                  requestedTarget >= duration - SEEK_TARGET_TOLERANCE_SECONDS
+              val nonPreciseEndPosition =
+                if (nonPreciseForwardOvershoot) {
+                  val seekInterval =
+                    minOf(kotlin.math.abs(toApply), doubleTapToSeekDuration)
+                      .toDouble()
+                      .coerceAtLeast(RELATIVE_SEEK_EOF_GUARD_SECONDS)
+                  (duration - seekInterval).coerceAtLeast(0.0)
+                } else {
+                  guardedEndPosition
+                }
               // Precise seeking retains its explicit EOF behavior. Non-precise seeking stops at
-              // the guard and lets playback finish naturally instead of forcing an EOF pause.
+              // the last complete seek interval instead of issuing a command into keep-open EOF.
               val allowExplicitEof =
                 preciseSeeking &&
                 toApply > 0 &&
                   currentPosition >= guardedEndPosition - SEEK_TARGET_TOLERANCE_SECONDS
-              requestedTarget.coerceAtMost(if (allowExplicitEof) duration else guardedEndPosition)
+              requestedTarget.coerceAtMost(if (allowExplicitEof) duration else nonPreciseEndPosition)
             }
 
           if (toApply > 0 && targetPosition != null && targetPosition <= currentPosition) {
@@ -4160,11 +4174,11 @@ class PlayerViewModel : ViewModel(),
 
           // A backward keyframe seek can expose pre-target video while audio still starts at the
           // requested timestamp. Exact seeking decodes through that gap and keeps A/V aligned.
-          // Exact mode also guarantees an EOF-clamped seek reaches the guard instead of repeatedly
-          // resolving to the same earlier keyframe.
+          // A clamped forward seek uses an absolute target, but non-precise mode must still let
+          // MPV choose a safe keyframe instead of HR-seeking into the EOF boundary.
           val targetWasClamped = targetPosition != null && targetPosition < requestedTarget
           val useRelativeKeyframeSeek = !preciseSeeking && toApply > 0 && !targetWasClamped
-          val useExactSeeking = toApply < 0 || targetWasClamped || preciseSeeking
+          val useExactSeeking = toApply < 0 || preciseSeeking
           val seekMode =
             if (useRelativeKeyframeSeek) {
               "relative+keyframes"
