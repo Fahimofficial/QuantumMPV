@@ -245,19 +245,22 @@ class NetworkBrowserViewModel(
     intent.putExtra("network_file_path", file.path)
     intent.putExtra("network_connection_id", connectionId)
     intent.putExtra("playlist_index", playlistIndex)
-    intent.setDataAndType(uri, file.mimeType ?: "video/*")
+    // A "video/*" fallback for audio would suppress the audio-only player UI and prefs.
+    val fallbackMimeType = if (file.isPlayableNetworkAudio()) "audio/*" else "video/*"
+    intent.setDataAndType(uri, file.mimeType ?: fallbackMimeType)
     intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
     application.startActivity(intent)
   }
 
   private fun currentDirectoryPlayableFiles(clickedFile: NetworkFile): List<NetworkFile> {
-    if (!playerPreferences.playlistMode.get() || !clickedFile.isPlayableNetworkVideo()) {
+    val includeAudio = browserPreferences.includeAudioBrowser.get()
+    if (!playerPreferences.playlistMode.get() || !clickedFile.isPlayableNetworkMedia(includeAudio)) {
       return listOf(clickedFile)
     }
 
     val files =
       _files.value
-        .filter(NetworkFile::isPlayableNetworkVideo)
+        .filter { it.isPlayableNetworkMedia(includeAudio) }
         .sortedForNetworkBrowser(
           sortType = browserPreferences.networkSortType.get(),
           sortOrder = browserPreferences.networkSortOrder.get(),
@@ -292,6 +295,7 @@ class NetworkBrowserViewModel(
         when (connection.protocol) {
           NetworkProtocol.SMB -> "smb"
           NetworkProtocol.FTP -> "ftp"
+          NetworkProtocol.SFTP -> "sftp"
           NetworkProtocol.WEBDAV -> if (connection.useHttps) "https" else "http"
         }
       if (!uri.scheme.equals(expectedScheme, ignoreCase = true) ||
@@ -320,6 +324,7 @@ class NetworkBrowserViewModel(
     when (scheme.lowercase()) {
       "smb" -> 445
       "ftp" -> 21
+      "sftp" -> 22
       "https" -> 443
       else -> 80
     }
@@ -350,6 +355,18 @@ internal fun NetworkFile.isPlayableNetworkVideo(): Boolean {
   val extension = cleanName.substringAfterLast('.', missingDelimiterValue = "").lowercase()
   return extension in FileTypeUtils.VIDEO_EXTENSIONS
 }
+
+internal fun NetworkFile.isPlayableNetworkAudio(): Boolean {
+  if (isDirectory || isNetworkPlaylistFile()) return false
+  if (mimeType?.startsWith("audio/", ignoreCase = true) == true) return true
+
+  val cleanName = name.substringBefore('?').substringBefore('#')
+  val extension = cleanName.substringAfterLast('.', missingDelimiterValue = "").lowercase()
+  return extension in FileTypeUtils.AUDIO_EXTENSIONS
+}
+
+internal fun NetworkFile.isPlayableNetworkMedia(includeAudio: Boolean): Boolean =
+  isPlayableNetworkVideo() || (includeAudio && isPlayableNetworkAudio())
 
 internal fun NetworkFile.isNetworkPlaylistFile(): Boolean {
   val lowerName = name.lowercase()

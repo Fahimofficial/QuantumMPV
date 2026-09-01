@@ -32,6 +32,7 @@ class WebDavClient(
   private val connection: NetworkConnection,
 ) : NetworkClient {
   companion object {
+    private const val SKIP_BUFFER_BYTES = 64 * 1024
     private val rangeHttpClient by lazy {
       SharedHttpClient.derive {
         // A call timeout covers the entire response body and would terminate healthy long streams.
@@ -225,11 +226,23 @@ class WebDavClient(
           return@withContext getRangedFileStream(NetworkPath.from(path), offset)
         }
 
-        val streamClient = OkHttpSardine()
+        // A per-call OkHttpSardine leaks its own OkHttpClient and applies a 10s read timeout
+        // that kills healthy long-running media bodies; the shared ranged client does neither.
+        val requestBuilder =
+          Request
+            .Builder()
+            .url(buildUrl(NetworkPath.from(path).value))
+            .get()
+            .header("Accept-Encoding", "identity")
         if (!connection.isAnonymous) {
-          streamClient.setCredentials(connection.username, connection.password)
+          requestBuilder.header("Authorization", Credentials.basic(connection.username, connection.password))
         }
-        Result.success(streamClient.get(buildUrl(NetworkPath.from(path).value)))
+        val response = rangeHttpClient.newCall(requestBuilder.build()).execute()
+        if (!response.isSuccessful) {
+          response.close()
+          throw IOException("WebDAV request failed with HTTP ${response.code}")
+        }
+        Result.success(response.body.byteStream())
       } catch (cancellation: CancellationException) {
         throw cancellation
       } catch (error: Exception) {
@@ -346,7 +359,24 @@ class WebDavClient(
       }
     val bodyLength = response.body.contentLength()
 
-    // A successful HTTP 200 means the server ignored Range. Returning it as if it started at
+    // Some DAV servers ignore Range and reply 200 with the full body. Consuming up to the offset
+    // keeps seeking functional there; slow for deep seeks, but strictly better than failing.
+    if (response.code == 200 && bodyLength > offset) {
+      try {
+        skipExactly(response.body.byteStream(), offset)
+      } catch (error: Exception) {
+        response.close()
+        throw error
+      }
+      return RangedResponse(
+        response = response,
+        start = offset,
+        endInclusive = bodyLength - 1L,
+        totalLength = bodyLength,
+      )
+    }
+
+    // A bare HTTP 200 means the server ignored Range. Returning it as if it started at
     // [offset] corrupts seeking, so only a validated 206 response is accepted.
     if (
       response.code != 206 ||
@@ -371,6 +401,19 @@ class WebDavClient(
       endInclusive = returnedEnd,
       totalLength = totalLength,
     )
+  }
+
+  private fun skipExactly(
+    stream: InputStream,
+    byteCount: Long,
+  ) {
+    val scratch = ByteArray(SKIP_BUFFER_BYTES)
+    var remaining = byteCount
+    while (remaining > 0L) {
+      val read = stream.read(scratch, 0, minOf(remaining, scratch.size.toLong()).toInt())
+      if (read < 0) throw IOException("WebDAV stream ended before the requested offset")
+      remaining -= read
+    }
   }
 
   /** Credential-free origin URI. Authenticated playback must use the loopback proxy. */

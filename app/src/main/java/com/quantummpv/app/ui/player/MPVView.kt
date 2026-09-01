@@ -270,6 +270,14 @@ class MPVView(
       "http_persistent=0,reconnect=1,reconnect_on_network_error=1,reconnect_streamed=1," +
         "reconnect_delay_max=5,reconnect_max_retries=5,reconnect_delay_total_max=20",
     )
+    // demuxer-lavf-o only reaches demuxer-internal opens (HLS/DASH segments). The primary http(s)
+    // URL is opened by stream_lavf, which reads stream-lavf-o; without it a dropped connection or
+    // one failed seek-reopen permanently stalls network playback (endless buffering).
+    PlaybackSession.setOptionString(
+      "stream-lavf-o",
+      "reconnect=1,reconnect_on_network_error=1,reconnect_on_http_error=5xx,reconnect_streamed=1," +
+        "reconnect_delay_max=5,reconnect_max_retries=5,reconnect_delay_total_max=20",
+    )
     // Drop only video-output-bound late frames when rendering cannot keep up.
     // This prevents long-term jitter buildup without aggressively sacrificing smoothness.
     PlaybackSession.setOptionString("framedrop", "vo")

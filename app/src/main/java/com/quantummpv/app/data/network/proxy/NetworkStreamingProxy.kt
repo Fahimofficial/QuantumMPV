@@ -176,11 +176,17 @@ class NetworkStreamingProxy private constructor() :
 
     return try {
       val rangeHeader = session.headers["range"]
-      if (rangeHeader == null) {
-        handleFullRequest(headOnly, streamInfo, requestedPath)
-      } else {
-        handleRangeRequest(headOnly, streamInfo, requestedPath, rangeHeader)
-      }
+      val response =
+        if (rangeHeader == null) {
+          handleFullRequest(headOnly, streamInfo, requestedPath)
+        } else {
+          handleRangeRequest(headOnly, streamInfo, requestedPath, rangeHeader)
+        }
+      // NanoHTTPD keeps a fixed-length socket alive even when the upstream body ends short,
+      // leaving the player waiting forever for the missing bytes. Closing per response turns
+      // that into a visible disconnect that mpv's reconnect logic recovers from.
+      response.addHeader("Connection", "close")
+      response
     } catch (cancellation: CancellationException) {
       throw cancellation
     } catch (error: Exception) {

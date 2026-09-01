@@ -102,6 +102,7 @@ data class NetworkBrowserScreen(
     val manualGridColumnsEnabled by browserPreferences.manualGridColumnsEnabled.collectAsState()
     val videoGridColumnsPortrait by browserPreferences.videoGridColumnsPortrait.collectAsState()
     val videoGridColumnsLandscape by browserPreferences.videoGridColumnsLandscape.collectAsState()
+    val includeAudioInBrowser by browserPreferences.includeAudioBrowser.collectAsState()
     val bookmarks by bookmarkPreferences.bookmarks.collectAsState()
     val normalizedPath = remember(currentPath) { NetworkPath.from(currentPath) }
     val canBookmarkCurrentFolder = normalizedPath.segments.isNotEmpty()
@@ -271,6 +272,7 @@ data class NetworkBrowserScreen(
         manualGridColumnsEnabled = manualGridColumnsEnabled,
         videoGridColumnsPortrait = videoGridColumnsPortrait,
         videoGridColumnsLandscape = videoGridColumnsLandscape,
+        includeAudio = includeAudioInBrowser,
         searchQuery = searchQuery,
         onRefresh = { viewModel.loadFiles() },
         onFolderClick = { folder ->
@@ -309,6 +311,7 @@ private fun NetworkBrowserContent(
   manualGridColumnsEnabled: Boolean,
   videoGridColumnsPortrait: Int,
   videoGridColumnsLandscape: Int,
+  includeAudio: Boolean,
   searchQuery: String,
   onRefresh: suspend () -> Unit,
   onFolderClick: (NetworkFile) -> Unit,
@@ -387,8 +390,8 @@ private fun NetworkBrowserContent(
     else -> {
       val folders = remember(filteredFiles) { filteredFiles.filter { it.isDirectory } }
       val videos =
-        remember(filteredFiles) {
-          filteredFiles.filter { it.isPlayableNetworkVideo() || it.isNetworkPlaylistFile() }
+        remember(filteredFiles, includeAudio) {
+          filteredFiles.filter { it.isPlayableNetworkMedia(includeAudio) || it.isNetworkPlaylistFile() }
         }
       val isGrid = networkLayoutMode == MediaLayoutMode.GRID
 
