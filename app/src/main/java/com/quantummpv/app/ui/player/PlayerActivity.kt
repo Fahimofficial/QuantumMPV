@@ -952,8 +952,15 @@ class PlayerActivity :
     }
 
     // If mini player is enabled, back press within the app hands off playback to the mini player
-    // rather than entering PiP. If mini player is disabled, auto-PiP retains priority on Back.
-    if (!isMiniPlayerEnabled() && shouldEnterPipOnNavigation() && enterPipModeSmoothly()) return
+    // rather than entering PiP. If mini player is disabled, auto-PiP retains priority on Back
+    // unless the user restricted auto-PiP to the home gesture.
+    if (!isMiniPlayerEnabled() &&
+      shouldEnterPipOnNavigation() &&
+      !playerPreferences.pipOnHomeGestureOnly.get() &&
+      enterPipModeSmoothly()
+    ) {
+      return
+    }
 
     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
       runCatching {
@@ -7005,10 +7012,12 @@ class PlayerActivity :
               if (!uriStr.isNullOrBlank()) {
                 val parsedUri = Uri.parse(uriStr)
                 val cleanPath =
-                  when {
-                    parsedUri.scheme == "file" -> parsedUri.path
-                    parsedUri.scheme == "content" -> null
-                    else -> uriStr
+                  when (parsedUri.scheme) {
+                    null, "file" -> parsedUri.path ?: uriStr
+                    "content" -> null
+                    // Probing a remote/proxied URL opens a second upstream stream that competes
+                    // with live playback and audibly stalls it during Mini Player handoffs.
+                    else -> return@runCatching null
                   }
                 val retriever = android.media.MediaMetadataRetriever()
                 if (cleanPath != null) {

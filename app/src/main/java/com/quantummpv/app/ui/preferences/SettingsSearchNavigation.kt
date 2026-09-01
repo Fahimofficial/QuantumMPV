@@ -93,6 +93,7 @@ private val settingsSearchListAnchors: Map<Screen, List<SettingsSearchListAnchor
         SettingsSearchListAnchor(titleRes = R.string.pref_player_remember_brightness, itemIndex = 1),
         SettingsSearchListAnchor(titleRes = R.string.pref_autoplay_next_video_title, itemIndex = 1),
         SettingsSearchListAnchor(titleRes = R.string.pref_auto_pip_title, itemIndex = 1),
+        SettingsSearchListAnchor(titleRes = R.string.pref_auto_pip_home_only_title, itemIndex = 1),
         SettingsSearchListAnchor(titleRes = R.string.pref_player_keep_screen_on_when_paused_title, itemIndex = 1),
         SettingsSearchListAnchor(titleRes = R.string.pref_player_autoplay_after_screen_unlock_title, itemIndex = 1),
         SettingsSearchListAnchor(titleRes = R.string.pref_video_background_playback_title, itemIndex = 1),

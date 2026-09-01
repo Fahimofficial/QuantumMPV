@@ -307,6 +307,23 @@ object PlayerPreferencesScreen : Screen {
 
               PreferenceDivider()
 
+              val pipOnHomeGestureOnly by preferences.pipOnHomeGestureOnly.collectAsState()
+              SwitchPreference(
+                modifier = Modifier.settingsSearchTarget(R.string.pref_auto_pip_home_only_title),
+                value = pipOnHomeGestureOnly,
+                onValueChange = preferences.pipOnHomeGestureOnly::set,
+                enabled = autoPiPOnNavigation,
+                title = { Text(stringResource(R.string.pref_auto_pip_home_only_title)) },
+                summary = {
+                  Text(
+                    stringResource(R.string.pref_auto_pip_home_only_summary),
+                    color = MaterialTheme.colorScheme.outline,
+                  )
+                },
+              )
+
+              PreferenceDivider()
+
               val enableVideoMiniPlayer by preferences.enableVideoMiniPlayer.collectAsState()
               SwitchPreference(
                 modifier = Modifier.settingsSearchTarget(R.string.pref_enable_video_mini_player_title),

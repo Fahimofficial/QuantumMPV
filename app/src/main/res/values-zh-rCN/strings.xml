@@ -118,6 +118,8 @@
   <string name="pref_autoplay_next_video_summary_disabled">结束时停留在当前视频</string>
   <string name="pref_auto_pip_title">自动画中画</string>
   <string name="pref_auto_pip_summary">按下主页键或返回键时自动进入 PIP 模式</string>
+  <string name="pref_auto_pip_home_only_title">仅主屏幕手势进入画中画</string>
+  <string name="pref_auto_pip_home_only_summary">仅主屏幕手势或滑动进入 PIP 模式；返回键将关闭播放器</string>
   <string name="pref_enable_video_mini_player_title">启用视频迷你播放器</string>
   <string name="pref_enable_video_mini_player_summary">按返回键时将视频播放最小化为悬浮迷你播放器</string>
   <string name="pref_video_mini_player_dependency_title">启用视频后台播放？</string>

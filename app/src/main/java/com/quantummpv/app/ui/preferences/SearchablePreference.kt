@@ -320,6 +320,15 @@ object SearchablePreferences {
       )
       add(
         SearchablePreference(
+          titleRes = R.string.pref_auto_pip_home_only_title,
+          summaryRes = R.string.pref_auto_pip_home_only_summary,
+          keywords = listOf("pip", "picture", "home", "gesture", "swipe", "back", "close"),
+          category = "Player",
+          screen = PlayerPreferencesScreen,
+        ),
+      )
+      add(
+        SearchablePreference(
           titleRes = R.string.pref_player_keep_screen_on_when_paused_title,
           summaryRes = R.string.pref_player_keep_screen_on_when_paused_summary,
           keywords = listOf("keep screen on", "screen", "awake", "paused", "pause", "display", "sleep"),
