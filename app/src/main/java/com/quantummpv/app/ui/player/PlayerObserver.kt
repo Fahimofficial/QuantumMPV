@@ -96,9 +96,9 @@ class PlayerObserver(
     value: Boolean,
   ) {
     if (shouldIgnoreCallback()) return
-    // Keep false flowing so PlayerActivity can clear a completed/cancelled EOF transition. Only
-    // the unqualified true edge is suppressed; a validated true is emitted from END_FILE below.
-    if (property == "eof-reached" && value) return
+    // keep-open holds the last frame instead of emitting a natural END_FILE, so the raw
+    // eof-reached edge is the only end-of-playback signal; PlayerActivity validates it by
+    // position before advancing (a network stall can flip it mid-file).
     activity.runOnUiThread {
       if (!shouldIgnoreCallback()) activity.onObserverEvent(property, value)
     }

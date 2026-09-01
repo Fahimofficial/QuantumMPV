@@ -1625,6 +1625,15 @@ class MediaPlaybackService :
           schedulePlaybackStateSave(force = true)
         }
       }
+      "eof-reached" -> {
+        // keep-open never emits a natural END_FILE, so detached advance must key off this flag.
+        if (value &&
+          mediaDurationSeconds > 0.0 &&
+          currentPositionSeconds >= mediaDurationSeconds - 2.0
+        ) {
+          serviceScope.launch { handleDetachedEndOfFile() }
+        }
+      }
     }
   }
 

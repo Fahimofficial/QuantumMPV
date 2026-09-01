@@ -302,15 +302,24 @@ class NetworkStreamingProxy private constructor() :
         }
       }
 
+    // An abandoned operation can still complete and hand back an open stream; close it so a
+    // slow server can't permanently eat one of its own connection slots per timed-out request.
+    fun discardLateResult() {
+      job.invokeOnCompletion {
+        (result.get()?.getOrNull() as? InputStream)?.let { stream -> runCatching(stream::close) }
+      }
+      job.cancel()
+    }
+
     return try {
       if (!latch.await(PROXY_OPERATION_TIMEOUT_SECONDS, TimeUnit.SECONDS)) {
-        job.cancel()
+        discardLateResult()
         Result.failure(IOException("Upstream proxy operation timed out"))
       } else {
         result.get() ?: Result.failure(IOException("Upstream proxy operation produced no result"))
       }
     } catch (interrupted: InterruptedException) {
-      job.cancel()
+      discardLateResult()
       Thread.currentThread().interrupt()
       Result.failure(interrupted)
     }
@@ -359,7 +368,8 @@ class NetworkStreamingProxy private constructor() :
       val result = operation(client)
       result.exceptionOrNull()?.let { error ->
         if (error is CancellationException) throw error
-        Log.w(TAG, "Upstream operation failed (${error::class.java.simpleName})")
+        // Client error messages are app-constructed (HTTP status etc.) and carry no URLs/credentials.
+        Log.w(TAG, "Upstream operation failed (${error::class.java.simpleName}: ${error.message})")
         // A dead session would otherwise be reused forever; evict it so the next request
         // reconnects instead of failing every range request until the stream is re-registered.
         val activeClient = streamInfo.client

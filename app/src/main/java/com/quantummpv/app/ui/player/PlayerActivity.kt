@@ -3896,6 +3896,11 @@ class PlayerActivity :
     }
     if (isAdvancingAtEof) return
     if (isBackgroundPlaybackSessionActive || !MediaPlaybackService.activityForeground) return
+    // A dropped network stream can drain the demuxer and flip eof-reached mid-file. Only a
+    // position at (or within a couple of seconds of) the known duration is a real end.
+    val durationSecs = viewModel.duration ?: 0
+    val positionSecs = viewModel.pos ?: 0
+    if (durationSecs > 0 && positionSecs < durationSecs - 2) return
     if (fileName.isNotBlank()) saveVideoPlaybackState(fileName, immediate = true)
 
     val repeatMode = viewModel.repeatMode.value
