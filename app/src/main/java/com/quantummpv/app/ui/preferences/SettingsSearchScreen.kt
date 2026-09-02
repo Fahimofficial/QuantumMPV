@@ -19,6 +19,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -27,8 +28,6 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
-import androidx.compose.foundation.text.KeyboardActions
-import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -36,8 +35,6 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextField
-import androidx.compose.material3.TextFieldDefaults
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -52,19 +49,18 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalResources
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.quantummpv.app.R
 import com.quantummpv.app.preferences.preference.collectAsState
 import com.quantummpv.app.presentation.Screen
+import com.quantummpv.app.ui.components.InlineSearchBar
 import com.quantummpv.app.ui.icons.Icon
 import com.quantummpv.app.ui.icons.Icons
 import com.quantummpv.app.ui.theme.LocalEmphasizedTypography
@@ -144,14 +140,13 @@ object SettingsSearchScreen : Screen {
             .fillMaxSize()
             .padding(padding),
       ) {
-        TextField(
-          value = searchQuery,
-          onValueChange = { searchQuery = it },
-          modifier =
-            Modifier
-              .fillMaxWidth()
-              .padding(horizontal = 16.dp, vertical = 8.dp)
-              .focusRequester(focusRequester),
+        InlineSearchBar(
+          query = searchQuery,
+          onQueryChange = { searchQuery = it },
+          onSearch = { keyboardController?.hide() },
+          modifier = Modifier.padding(horizontal = 16.dp),
+          inputFieldModifier = Modifier.focusRequester(focusRequester),
+          windowInsets = WindowInsets(0.dp),
           placeholder = {
             Text(
               text = stringResource(R.string.settings_search_hint),
@@ -183,22 +178,6 @@ object SettingsSearchScreen : Screen {
               }
             }
           },
-          singleLine = true,
-          shape = MaterialTheme.shapes.extraExtraLarge,
-          colors =
-            TextFieldDefaults.colors(
-              focusedContainerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
-              unfocusedContainerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
-              disabledContainerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
-              focusedIndicatorColor = Color.Transparent,
-              unfocusedIndicatorColor = Color.Transparent,
-              disabledIndicatorColor = Color.Transparent,
-            ),
-          keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
-          keyboardActions =
-            KeyboardActions(
-              onSearch = { keyboardController?.hide() },
-            ),
         )
 
         Spacer(modifier = Modifier.height(8.dp))

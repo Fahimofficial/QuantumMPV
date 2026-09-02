@@ -29,7 +29,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedTextField
+
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -251,13 +251,12 @@ private fun TorrentReadyScreen(
           }
 
           if (isSearchOpen && state.catalog.playableFiles.size > 1) {
-            OutlinedTextField(
-              value = searchQuery,
-              onValueChange = { searchQuery = it },
-              modifier =
-                Modifier
-                  .fillMaxWidth()
-                  .padding(top = 4.dp, bottom = 4.dp),
+            com.quantummpv.app.ui.components.InlineSearchBar(
+              query = searchQuery,
+              onQueryChange = { searchQuery = it },
+              onSearch = {},
+              modifier = Modifier.padding(bottom = 4.dp),
+              windowInsets = androidx.compose.foundation.layout.WindowInsets(0.dp),
               placeholder = {
                 Text(
                   stringResource(R.string.ui_search_episodes),
@@ -283,9 +282,6 @@ private fun TorrentReadyScreen(
                   }
                 }
               },
-              singleLine = true,
-              shape = RoundedCornerShape(12.dp),
-              textStyle = MaterialTheme.typography.bodySmall,
             )
           }
         }

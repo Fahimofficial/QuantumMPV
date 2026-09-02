@@ -48,8 +48,6 @@ import androidx.compose.material3.FilterChipDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -787,10 +785,11 @@ object CodecCapabilitiesScreen : Screen {
         // Search Field & Filter Chips
         item {
           Column {
-            OutlinedTextField(
-              value = searchQuery,
-              onValueChange = { searchQuery = it },
-              modifier = Modifier.fillMaxWidth(),
+            com.quantummpv.app.ui.components.InlineSearchBar(
+              query = searchQuery,
+              onQueryChange = { searchQuery = it },
+              onSearch = {},
+              windowInsets = androidx.compose.foundation.layout.WindowInsets(0.dp),
               placeholder = { Text(stringResource(R.string.pref_codecs_search_placeholder)) },
               leadingIcon = {
                 Icon(
@@ -808,14 +807,6 @@ object CodecCapabilitiesScreen : Screen {
                   }
                 }
               },
-              singleLine = true,
-              shape = RoundedCornerShape(16.dp),
-              colors = OutlinedTextFieldDefaults.colors(
-                focusedBorderColor = MaterialTheme.colorScheme.primary,
-                unfocusedBorderColor = MaterialTheme.colorScheme.outlineVariant,
-                focusedContainerColor = MaterialTheme.colorScheme.surfaceContainerLow,
-                unfocusedContainerColor = MaterialTheme.colorScheme.surfaceContainerLow,
-              ),
             )
 
             Spacer(modifier = Modifier.height(12.dp))

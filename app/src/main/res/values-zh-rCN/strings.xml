@@ -2000,4 +2000,39 @@
   <string name="storage_permission_grant">授予访问权限</string>
   <string name="pref_player_web_stream_links_title">打开流媒体网站链接</string>
   <string name="pref_player_web_stream_links_summary">为 YouTube、Vimeo、Twitch、Odysee 和 Bilibili 链接提供 mpvRx 选项。关闭后由它们自己的应用打开。</string>
+
+  <!-- Downloads -->
+  <string name="downloads_title">下载</string>
+  <string name="downloads_notification_channel">下载</string>
+  <string name="downloads_notification_channel_description">显示文件下载进度</string>
+  <string name="downloads_preparing">正在准备下载…</string>
+  <string name="downloads_empty">暂无下载</string>
+  <string name="downloads_empty_hint">来自链接和 Jellyfin 的下载会显示在这里</string>
+  <string name="downloads_active_section">进行中</string>
+  <string name="downloads_completed_section">已完成</string>
+  <string name="downloads_pause">暂停</string>
+  <string name="downloads_resume">继续</string>
+  <string name="downloads_retry">重试</string>
+  <string name="downloads_cancel">取消</string>
+  <string name="downloads_remove_entry">从列表中移除</string>
+  <string name="downloads_delete_file">删除文件</string>
+  <string name="downloads_delete_confirm_title">删除下载？</string>
+  <string name="downloads_delete_confirm_message">“%1$s”及其字幕文件将从存储中删除。</string>
+  <string name="downloads_location">下载位置</string>
+  <string name="downloads_location_default">应用存储（卸载应用时会被删除）</string>
+  <string name="downloads_location_invalid">此文件夹无法用于下载</string>
+  <string name="downloads_location_reset">重置为应用存储</string>
+  <string name="downloads_queued">排队中</string>
+  <string name="downloads_failed">失败</string>
+  <string name="downloads_paused">已暂停</string>
+  <string name="downloads_cancelled">已取消</string>
+  <string name="downloads_download">下载</string>
+  <string name="downloads_downloaded">已下载</string>
+  <string name="downloads_started">下载已开始</string>
+  <string name="downloads_already_downloaded">已下载或已在队列中</string>
+  <string name="downloads_download_season">下载本季</string>
+  <string name="downloads_download_series">下载全部季</string>
+  <string name="downloads_episodes_queued">已将 %1$d 集加入下载队列</string>
+  <string name="downloads_play">播放</string>
+  <string name="downloads_open_downloads">打开下载</string>
 </resources>

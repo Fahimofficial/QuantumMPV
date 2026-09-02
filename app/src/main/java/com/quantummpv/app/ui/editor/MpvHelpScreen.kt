@@ -32,16 +32,12 @@ import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.text.KeyboardActions
-import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.FilterChipDefaults
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -62,7 +58,6 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.quantummpv.app.R
@@ -175,14 +170,13 @@ data class MpvHelpScreen(
             .fillMaxSize()
             .padding(padding),
       ) {
-        OutlinedTextField(
-          value = searchQuery,
-          onValueChange = { searchQuery = it },
-          modifier =
-            Modifier
-              .fillMaxWidth()
-              .padding(horizontal = 16.dp, vertical = 8.dp)
-              .focusRequester(focusRequester),
+        com.quantummpv.app.ui.components.InlineSearchBar(
+          query = searchQuery,
+          onQueryChange = { searchQuery = it },
+          onSearch = { keyboardController?.hide() },
+          modifier = Modifier.padding(horizontal = 16.dp),
+          inputFieldModifier = Modifier.focusRequester(focusRequester),
+          windowInsets = androidx.compose.foundation.layout.WindowInsets(0.dp),
           placeholder = {
             Text(
               text =
@@ -217,20 +211,6 @@ data class MpvHelpScreen(
               }
             }
           },
-          singleLine = true,
-          shape = RoundedCornerShape(28.dp),
-          colors =
-            OutlinedTextFieldDefaults.colors(
-              focusedBorderColor = MaterialTheme.colorScheme.primary,
-              unfocusedBorderColor = MaterialTheme.colorScheme.outline.copy(alpha = 0.5f),
-              focusedContainerColor = MaterialTheme.colorScheme.surfaceContainerLow,
-              unfocusedContainerColor = MaterialTheme.colorScheme.surfaceContainerLow,
-            ),
-          keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
-          keyboardActions =
-            KeyboardActions(
-              onSearch = { keyboardController?.hide() },
-            ),
         )
 
         Row(

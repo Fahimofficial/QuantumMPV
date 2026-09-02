@@ -149,6 +149,7 @@ object NetworkStreamingScreen : Screen {
     val ytdlPreferences = koinInject<YtdlPreferences>()
     val bookmarkPreferences = koinInject<NetworkBookmarkPreferences>()
     val wyzieSearchRepository = koinInject<WyzieSearchRepository>()
+    val linkDownloadCoordinator = koinInject<com.quantummpv.app.domain.download.LinkDownloadCoordinator>()
     val torrentPickerViewModel: TorrentSelectionViewModel =
       viewModel(
         key = "network_torrent_picker",
@@ -370,6 +371,19 @@ object NetworkStreamingScreen : Screen {
                 onSelectAll = null,
                 onInvertSelection = null,
                 onDeselectAll = null,
+                additionalActions = {
+                  IconButton(
+                    onClick = { backstack.add(com.quantummpv.app.ui.downloads.DownloadsScreen) },
+                    modifier = Modifier.padding(horizontal = 2.dp),
+                  ) {
+                    Icon(
+                      imageVector = Icons.RoundedFilled.Download,
+                      contentDescription = stringResource(R.string.downloads_open_downloads),
+                      modifier = Modifier.size(24.dp),
+                      tint = MaterialTheme.colorScheme.secondary,
+                    )
+                  }
+                },
               )
             }
           }
@@ -477,7 +491,16 @@ object NetworkStreamingScreen : Screen {
                     showTorrentPicker = true
                     torrentPickerViewModel.open(TorrentSelectionInput(source = playableSource, title = entry.fileName))
                   } else {
-                    viewModel.saveLinkToMedia(entry.canonicalSourceUri, entry.fileName)
+                    when (linkDownloadCoordinator.enqueue(playableSource, entry.fileName)) {
+                      com.quantummpv.app.domain.download.LinkDownloadCoordinator.Route.UNSUPPORTED ->
+                        android.widget.Toast
+                          .makeText(context, R.string.downloads_location_invalid, android.widget.Toast.LENGTH_SHORT)
+                          .show()
+                      else ->
+                        android.widget.Toast
+                          .makeText(context, R.string.downloads_started, android.widget.Toast.LENGTH_SHORT)
+                          .show()
+                    }
                   }
                 },
                 onDeleteRecent = viewModel::deleteStreamEntry,
@@ -1235,8 +1258,8 @@ private fun StreamLinkSection(
                 modifier = Modifier.size(32.dp),
               ) {
                 Icon(
-                  imageVector = Icons.RoundedFilled.CloudDownload,
-                  contentDescription = "Save to Torrent Sheet",
+                  imageVector = Icons.RoundedFilled.Download,
+                  contentDescription = stringResource(R.string.downloads_download),
                   tint = MaterialTheme.colorScheme.secondary,
                   modifier = Modifier.size(18.dp),
                 )

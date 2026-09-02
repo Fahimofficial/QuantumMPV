@@ -13,25 +13,24 @@ import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.windowInsetsPadding
-import androidx.compose.foundation.text.KeyboardOptions
-import androidx.compose.foundation.text.input.TextFieldLineLimits
-import androidx.compose.foundation.text.input.rememberTextFieldState
-import androidx.compose.foundation.text.input.setTextAndPlaceCursorAtEnd
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.SearchBar
 import androidx.compose.material3.SearchBarDefaults
-import androidx.compose.material3.Surface
-import androidx.compose.material3.TextField
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.rememberUpdatedState
-import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Shape
-import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
-import kotlinx.coroutines.flow.collect
 
+/**
+ * Material 3 search bar used inline at the top of list screens.
+ *
+ * Wraps the M3 [SearchBar]/[SearchBarDefaults.InputField] pair in its collapsed state so
+ * every screen gets proper search semantics, the IME Search action (which submits and
+ * hides the keyboard) and standard M3 styling from a single component.
+ */
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun InlineSearchBar(
   query: String,
@@ -47,46 +46,37 @@ fun InlineSearchBar(
   shadowElevation: Dp = SearchBarDefaults.ShadowElevation,
   windowInsets: WindowInsets = SearchBarDefaults.windowInsets,
 ) {
-  val textFieldState = rememberTextFieldState(query)
-  val currentQuery by rememberUpdatedState(query)
-  val currentOnQueryChange by rememberUpdatedState(onQueryChange)
+  val keyboardController = LocalSoftwareKeyboardController.current
 
-  LaunchedEffect(query, textFieldState) {
-    if (textFieldState.text.toString() != query) {
-      textFieldState.setTextAndPlaceCursorAtEnd(query)
-    }
-  }
-  LaunchedEffect(textFieldState) {
-    snapshotFlow { textFieldState.text.toString() }
-      .collect { updatedQuery ->
-        if (updatedQuery != currentQuery) currentOnQueryChange(updatedQuery)
-      }
-  }
-
-  val colors = SearchBarDefaults.colors()
-  Surface(
+  SearchBar(
+    inputField = {
+      SearchBarDefaults.InputField(
+        query = query,
+        onQueryChange = onQueryChange,
+        onSearch = { submitted ->
+          keyboardController?.hide()
+          onSearch(submitted)
+        },
+        expanded = false,
+        onExpandedChange = {},
+        modifier = inputFieldModifier.fillMaxWidth(),
+        placeholder = placeholder,
+        leadingIcon = leadingIcon,
+        trailingIcon = trailingIcon,
+      )
+    },
+    expanded = false,
+    onExpandedChange = {},
     // M3 SearchBar applied status-bar insets by default; keep that plus breathing room so
     // top-bar usages don't render under (or hug) the status bar / display cutout.
-    modifier = Modifier
-      .windowInsetsPadding(windowInsets)
-      .padding(top = 12.dp)
-      .then(modifier),
+    modifier =
+      Modifier
+        .windowInsetsPadding(windowInsets)
+        .then(modifier),
     shape = shape,
-    color = colors.containerColor,
     tonalElevation = tonalElevation,
     shadowElevation = shadowElevation,
-  ) {
-    TextField(
-      state = textFieldState,
-      modifier = inputFieldModifier.fillMaxWidth(),
-      placeholder = placeholder,
-      leadingIcon = leadingIcon,
-      trailingIcon = trailingIcon,
-      keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
-      onKeyboardAction = { onSearch(textFieldState.text.toString()) },
-      lineLimits = TextFieldLineLimits.SingleLine,
-      shape = shape,
-      colors = colors.inputFieldColors,
-    )
-  }
+    windowInsets = WindowInsets(0.dp),
+    content = {},
+  )
 }

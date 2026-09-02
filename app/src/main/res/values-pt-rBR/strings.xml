@@ -1998,4 +1998,39 @@ Reinicie o aplicativo para que todas as alterações entrem em vigor.</string>
   <string name="storage_permission_grant">Conceder acesso</string>
   <string name="pref_player_web_stream_links_title">Abrir links de sites de streaming</string>
   <string name="pref_player_web_stream_links_summary">Oferecer o mpvRx para links do YouTube, Vimeo, Twitch, Odysee e Bilibili. Desative para que os próprios apps os abram.</string>
+
+  <!-- Downloads -->
+  <string name="downloads_title">Downloads</string>
+  <string name="downloads_notification_channel">Downloads</string>
+  <string name="downloads_notification_channel_description">Mostra o progresso dos downloads de arquivos</string>
+  <string name="downloads_preparing">Preparando o download…</string>
+  <string name="downloads_empty">Nenhum download ainda</string>
+  <string name="downloads_empty_hint">Downloads de links e do Jellyfin aparecem aqui</string>
+  <string name="downloads_active_section">Ativos</string>
+  <string name="downloads_completed_section">Concluídos</string>
+  <string name="downloads_pause">Pausar</string>
+  <string name="downloads_resume">Retomar</string>
+  <string name="downloads_retry">Tentar novamente</string>
+  <string name="downloads_cancel">Cancelar</string>
+  <string name="downloads_remove_entry">Remover da lista</string>
+  <string name="downloads_delete_file">Excluir arquivo</string>
+  <string name="downloads_delete_confirm_title">Excluir download?</string>
+  <string name="downloads_delete_confirm_message">\"%1$s\" e seus arquivos de legenda serão excluídos do armazenamento.</string>
+  <string name="downloads_location">Local de download</string>
+  <string name="downloads_location_default">Armazenamento do app (removido ao desinstalar)</string>
+  <string name="downloads_location_invalid">Esta pasta não pode ser usada para downloads</string>
+  <string name="downloads_location_reset">Redefinir para o armazenamento do app</string>
+  <string name="downloads_queued">Na fila</string>
+  <string name="downloads_failed">Falhou</string>
+  <string name="downloads_paused">Pausado</string>
+  <string name="downloads_cancelled">Cancelado</string>
+  <string name="downloads_download">Baixar</string>
+  <string name="downloads_downloaded">Baixado</string>
+  <string name="downloads_started">Download iniciado</string>
+  <string name="downloads_already_downloaded">Já baixado ou na fila</string>
+  <string name="downloads_download_season">Baixar temporada</string>
+  <string name="downloads_download_series">Baixar todas as temporadas</string>
+  <string name="downloads_episodes_queued">%1$d episódios adicionados à fila de download</string>
+  <string name="downloads_play">Reproduzir</string>
+  <string name="downloads_open_downloads">Abrir downloads</string>
 </resources>

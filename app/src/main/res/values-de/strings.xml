@@ -1998,4 +1998,39 @@ Bitte starten Sie die App neu, damit alle Änderungen wirksam werden.</string>
   <string name="storage_permission_grant">Zugriff gewähren</string>
   <string name="pref_player_web_stream_links_title">Streaming-Website-Links öffnen</string>
   <string name="pref_player_web_stream_links_summary">mpvRx für Links von YouTube, Vimeo, Twitch, Odysee und Bilibili anbieten. Deaktivieren, damit deren eigene Apps sie öffnen.</string>
+
+  <!-- Downloads -->
+  <string name="downloads_title">Downloads</string>
+  <string name="downloads_notification_channel">Downloads</string>
+  <string name="downloads_notification_channel_description">Zeigt den Fortschritt von Datei-Downloads</string>
+  <string name="downloads_preparing">Download wird vorbereitet…</string>
+  <string name="downloads_empty">Noch keine Downloads</string>
+  <string name="downloads_empty_hint">Downloads aus Links und Jellyfin erscheinen hier</string>
+  <string name="downloads_active_section">Aktiv</string>
+  <string name="downloads_completed_section">Abgeschlossen</string>
+  <string name="downloads_pause">Pausieren</string>
+  <string name="downloads_resume">Fortsetzen</string>
+  <string name="downloads_retry">Erneut versuchen</string>
+  <string name="downloads_cancel">Abbrechen</string>
+  <string name="downloads_remove_entry">Aus Liste entfernen</string>
+  <string name="downloads_delete_file">Datei löschen</string>
+  <string name="downloads_delete_confirm_title">Download löschen?</string>
+  <string name="downloads_delete_confirm_message">„%1$s“ und die zugehörigen Untertiteldateien werden vom Speicher gelöscht.</string>
+  <string name="downloads_location">Download-Speicherort</string>
+  <string name="downloads_location_default">App-Speicher (wird bei Deinstallation entfernt)</string>
+  <string name="downloads_location_invalid">Dieser Ordner kann nicht für Downloads verwendet werden</string>
+  <string name="downloads_location_reset">Auf App-Speicher zurücksetzen</string>
+  <string name="downloads_queued">In Warteschlange</string>
+  <string name="downloads_failed">Fehlgeschlagen</string>
+  <string name="downloads_paused">Pausiert</string>
+  <string name="downloads_cancelled">Abgebrochen</string>
+  <string name="downloads_download">Herunterladen</string>
+  <string name="downloads_downloaded">Heruntergeladen</string>
+  <string name="downloads_started">Download gestartet</string>
+  <string name="downloads_already_downloaded">Bereits heruntergeladen oder in der Warteschlange</string>
+  <string name="downloads_download_season">Staffel herunterladen</string>
+  <string name="downloads_download_series">Alle Staffeln herunterladen</string>
+  <string name="downloads_episodes_queued">%1$d Episoden zum Download eingereiht</string>
+  <string name="downloads_play">Abspielen</string>
+  <string name="downloads_open_downloads">Downloads öffnen</string>
 </resources>

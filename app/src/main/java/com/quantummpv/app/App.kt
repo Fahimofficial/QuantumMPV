@@ -74,6 +74,7 @@ class App :
         DatabaseModule,
         FileManagerModule,
         com.quantummpv.app.di.domainModule,
+        com.quantummpv.app.di.DownloadModule,
       )
     }
     if (!BuildConfig.MPV_SUPPORTS_VULKAN) {

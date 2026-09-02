@@ -20,6 +20,10 @@ import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
 import com.quantummpv.app.data.jellyfin.JellyfinClient
 import com.quantummpv.app.database.entities.PlaybackStateEntity
+import com.quantummpv.app.domain.download.AppDownloadManager
+import com.quantummpv.app.domain.download.DownloadLocations
+import com.quantummpv.app.domain.download.DownloadMetadata
+import com.quantummpv.app.domain.download.DownloadSources
 import com.quantummpv.app.domain.jellyfin.JellyfinAuthMode
 import com.quantummpv.app.domain.jellyfin.JellyfinItem
 import com.quantummpv.app.domain.jellyfin.JellyfinSearchCategory
@@ -123,6 +127,7 @@ class JellyfinViewModel(
   private val playbackStateRepository: PlaybackStateRepository by inject()
   private val subtitlesPreferences: SubtitlesPreferences by inject()
   private val audioPreferences: AudioPreferences by inject()
+  private val downloadManager: AppDownloadManager by inject()
 
   private var loadDashboardJob: Job? = null
   private var loadItemsJob: Job? = null
@@ -1113,6 +1118,165 @@ class JellyfinViewModel(
     }
   }
 
+  // ── Downloads ─────────────────────────────────────────────────────────────
+
+  /** Engine download list, exposed for per-item badges and indicators. */
+  val downloads get() = downloadManager.downloads
+
+  fun downloadItem(item: JellyfinItem) {
+    val server = _uiState.value.activeServer ?: return
+    viewModelScope.launch(Dispatchers.IO) {
+      val queued = enqueueJellyfinDownload(server, item)
+      showDownloadToast(
+        if (queued) {
+          getApplication<Application>().getString(com.quantummpv.app.R.string.downloads_started)
+        } else {
+          getApplication<Application>().getString(com.quantummpv.app.R.string.downloads_already_downloaded)
+        },
+      )
+    }
+  }
+
+  /** Downloads every episode of the currently selected detail season. */
+  fun downloadSelectedSeason() {
+    val server = _uiState.value.activeServer ?: return
+    val episodes = _uiState.value.detailEpisodes.filter { it.type == "Episode" }
+    if (episodes.isEmpty()) return
+    viewModelScope.launch(Dispatchers.IO) {
+      var queued = 0
+      episodes.forEach { episode ->
+        if (enqueueJellyfinDownload(server, episode)) queued++
+      }
+      showDownloadToast(
+        getApplication<Application>().getString(com.quantummpv.app.R.string.downloads_episodes_queued, queued),
+      )
+    }
+  }
+
+  /** Downloads every episode of every season of the detail series. */
+  fun downloadWholeSeries() {
+    val server = _uiState.value.activeServer ?: return
+    val series = _uiState.value.detailItem?.takeIf { it.isSeries } ?: return
+    val seasons = _uiState.value.detailSeasons
+    if (seasons.isEmpty()) return
+    viewModelScope.launch(Dispatchers.IO) {
+      var queued = 0
+      seasons.forEach { season ->
+        val episodes =
+          jellyfinRepository
+            .getEpisodes(server, series.id, season.id)
+            .getOrDefault(emptyList())
+            .filter { it.type == "Episode" }
+        episodes.forEach { episode ->
+          if (enqueueJellyfinDownload(server, episode)) queued++
+        }
+      }
+      showDownloadToast(
+        getApplication<Application>().getString(com.quantummpv.app.R.string.downloads_episodes_queued, queued),
+      )
+    }
+  }
+
+  /**
+   * Resolves the direct stream URL plus external subtitle tracks and queues them.
+   * Subtitles are saved as sidecars with the video's basename so local playback
+   * (and the player's sibling-subtitle autoload) picks them up automatically.
+   */
+  private suspend fun enqueueJellyfinDownload(
+    server: JellyfinServer,
+    item: JellyfinItem,
+  ): Boolean {
+    if (downloadManager.entryForJellyfinItem(item.id) != null) return false
+
+    val streamUrl = jellyfinRepository.getStreamUrl(server, item)
+    if (streamUrl.isBlank()) return false
+    val subtitleTracks =
+      jellyfinRepository
+        .getSubtitleTracks(server = server, itemId = item.id)
+        .getOrDefault(emptyList())
+
+    val extension =
+      item.container
+        ?.substringBefore(',')
+        ?.trim()
+        ?.lowercase()
+        ?.takeIf { it.isNotBlank() && it.length <= 5 }
+        ?: "mkv"
+
+    val locations = downloadManager.locations
+    val isEpisode = item.type == "Episode"
+    val directory: java.io.File
+    val fileName: String
+    val displayTitle: String
+    if (isEpisode) {
+      val seriesName = item.seriesName ?: item.name
+      val episodeCode = "S%02dE%02d".format(item.parentIndexNumber ?: 1, item.indexNumber ?: 0)
+      directory = locations.jellyfinSeasonDir(seriesName, item.parentIndexNumber)
+      fileName = "${DownloadLocations.sanitizeName("$episodeCode - ${item.name}")}.$extension"
+      displayTitle = "$seriesName $episodeCode - ${item.name}"
+    } else {
+      val titleWithYear = item.name + (item.productionYear?.let { " ($it)" } ?: "")
+      directory = locations.jellyfinMovieDir(titleWithYear)
+      fileName = "${DownloadLocations.sanitizeName(titleWithYear)}.$extension"
+      displayTitle = titleWithYear
+    }
+
+    val meta =
+      DownloadMetadata(
+        source = DownloadSources.JELLYFIN,
+        title = displayTitle,
+        posterUrl = jellyfinRepository.getImageUrl(server, item),
+        sourceUrl = streamUrl,
+        jellyfinServerId = server.id.toString(),
+        jellyfinItemId = item.id,
+        jellyfinSeriesName = item.seriesName,
+        seasonNumber = item.parentIndexNumber,
+        episodeNumber = item.indexNumber,
+        isAudio = item.isAudio,
+      )
+
+    downloadManager.enqueueVideo(
+      url = streamUrl,
+      directory = directory,
+      fileName = fileName,
+      meta = meta,
+      // Belt and braces for reverse proxies that strip query-string auth.
+      headers = mapOf("X-Emby-Token" to server.accessToken),
+    )
+    downloadManager.enqueueSubtitleSidecars(directory = directory, videoFileName = fileName, tracks = subtitleTracks)
+    return true
+  }
+
+  /** Plays a completed local copy with its sidecar subtitles; true when handled. */
+  private fun playLocalCopyIfAvailable(
+    context: Context,
+    item: JellyfinItem,
+    title: String,
+    posterUrl: String?,
+    backdropUrl: String?,
+  ): Boolean {
+    val download = downloadManager.playableForJellyfinItem(item.id) ?: return false
+    MediaUtils.playFile(
+      source = download.file.absolutePath,
+      context = context,
+      launchSource = "jellyfin_download",
+      title = title,
+      subtitles = downloadManager.sidecarSubtitles(download).map { Uri.fromFile(it) },
+      posterUrl = posterUrl,
+      backdropUrl = backdropUrl,
+      isAudio = item.isAudio,
+    )
+    return true
+  }
+
+  private suspend fun showDownloadToast(message: String) {
+    withContext(Dispatchers.Main) {
+      android.widget.Toast
+        .makeText(getApplication(), message, android.widget.Toast.LENGTH_SHORT)
+        .show()
+    }
+  }
+
   fun toggleItemFavorite(item: JellyfinItem) {
     val server = _uiState.value.activeServer ?: return
     val newFavoriteState = !item.isFavorite
@@ -1278,6 +1442,31 @@ class JellyfinViewModel(
           targetItem.seriesName != null && targetItem.indexNumber != null -> "${targetItem.seriesName} S${targetItem.parentIndexNumber ?: 1}E${targetItem.indexNumber} - ${targetItem.name}"
           else -> targetItem.name
         }
+
+      // Offline-first: a completed download plays locally with its sidecar subtitles.
+      if (!isAudio) {
+        val localDownload = downloadManager.playableForJellyfinItem(targetItem.id)
+        if (localDownload != null) {
+          if (startFromBeginning) {
+            runCatching {
+              playbackStateRepository.deleteByTitle(PlaybackIdentity.forUri(localDownload.file.absolutePath))
+              playbackStateRepository.deleteByTitle(
+                PlaybackIdentity.forUri(Uri.fromFile(localDownload.file).toString()),
+              )
+            }
+          }
+          withContext(Dispatchers.Main) {
+            playLocalCopyIfAvailable(
+              context = context,
+              item = targetItem,
+              title = itemTitle,
+              posterUrl = posterUrl,
+              backdropUrl = backdropUrl,
+            )
+          }
+          return@launch
+        }
+      }
 
       if (startFromBeginning) {
         runCatching {

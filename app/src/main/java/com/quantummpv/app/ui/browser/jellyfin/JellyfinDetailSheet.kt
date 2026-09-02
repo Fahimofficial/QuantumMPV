@@ -11,7 +11,12 @@ package com.quantummpv.app.ui.browser.jellyfin
 
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.animateContentSize
+import androidx.compose.animation.core.RepeatMode
+import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -82,6 +87,8 @@ import androidx.compose.ui.unit.sp
 import android.content.Intent
 import android.net.Uri
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
+import com.quantummpv.app.R
 import com.quantummpv.app.data.jellyfin.JellyfinClient
 import com.quantummpv.app.domain.jellyfin.JellyfinItem
 import com.quantummpv.app.domain.jellyfin.JellyfinServer
@@ -112,6 +119,11 @@ fun JellyfinDetailSheet(
   onTogglePlayed: (JellyfinItem) -> Unit,
   onItemClick: (JellyfinItem) -> Unit,
   onDeleteItem: ((JellyfinItem) -> Unit)? = null,
+  onDownload: ((JellyfinItem) -> Unit)? = null,
+  onDownloadSeason: (() -> Unit)? = null,
+  onDownloadSeries: (() -> Unit)? = null,
+  downloadedItemIds: Set<String> = emptySet(),
+  activeDownloadItemIds: Set<String> = emptySet(),
   sheetState: SheetState =
     rememberBottomSheetState(
       initialValue = SheetValue.Hidden,
@@ -218,14 +230,7 @@ fun JellyfinDetailSheet(
         }
 
         if (isLoading) {
-          Box(
-            modifier = Modifier
-              .fillMaxWidth()
-              .height(150.dp),
-            contentAlignment = Alignment.Center,
-          ) {
-            CircularProgressIndicator()
-          }
+          GhostDetailSections()
         } else {
           // Albums section for Artist Sheet
           if ((item.type == "MusicArtist" || item.type == "Artist" || item.type == "AlbumArtist") && seasons.isNotEmpty()) {
@@ -614,18 +619,17 @@ fun JellyfinDetailSheet(
           }
         }
 
-        // Action Buttons Row
-        Row(
+        // Action Buttons: play on its own row, secondary icons below (one row was cramped)
+        Column(
           modifier = Modifier.fillMaxWidth(),
-          verticalAlignment = Alignment.CenterVertically,
-          horizontalArrangement = Arrangement.spacedBy(10.dp),
+          verticalArrangement = Arrangement.spacedBy(10.dp),
         ) {
           // Play / Resume Button
           Button(
             onClick = { onPlay(item, false) },
             shape = RoundedCornerShape(14.dp),
             colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary),
-            modifier = Modifier.weight(1f),
+            modifier = Modifier.fillMaxWidth(),
             contentPadding = PaddingValues(vertical = 12.dp),
           ) {
             Icon(
@@ -646,6 +650,11 @@ fun JellyfinDetailSheet(
             )
           }
 
+          Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(10.dp, Alignment.CenterHorizontally),
+          ) {
           // Trailer Button for Movies & Series
           if (item.type == "Movie" || item.isSeries || item.type == "Series") {
             FilledTonalIconButton(
@@ -671,6 +680,65 @@ fun JellyfinDetailSheet(
                 tint = MaterialTheme.colorScheme.primary,
                 modifier = Modifier.size(22.dp),
               )
+            }
+          }
+
+          // Download Button (movie: direct; series: season / all-seasons menu)
+          if (onDownload != null && (item.type == "Movie" || item.isSeries)) {
+            var isDownloadMenuOpen by remember { mutableStateOf(false) }
+            val isItemDownloaded = item.id in downloadedItemIds
+            val isItemDownloading = item.id in activeDownloadItemIds
+            Box {
+              FilledTonalIconButton(
+                onClick = {
+                  when {
+                    item.isSeries -> isDownloadMenuOpen = true
+                    isItemDownloaded || isItemDownloading -> {}
+                    else -> onDownload(item)
+                  }
+                },
+                shape = RoundedCornerShape(14.dp),
+                modifier = Modifier.size(48.dp),
+              ) {
+                when {
+                  isItemDownloading ->
+                    CircularProgressIndicator(modifier = Modifier.size(20.dp), strokeWidth = 2.dp)
+                  isItemDownloaded ->
+                    Icon(
+                      imageVector = Icons.RoundedFilled.CheckCircle,
+                      contentDescription = stringResource(R.string.downloads_downloaded),
+                      tint = MaterialTheme.colorScheme.primary,
+                      modifier = Modifier.size(22.dp),
+                    )
+                  else ->
+                    Icon(
+                      imageVector = Icons.RoundedFilled.Download,
+                      contentDescription = stringResource(R.string.downloads_download),
+                      tint = MaterialTheme.colorScheme.onSecondaryContainer,
+                      modifier = Modifier.size(22.dp),
+                    )
+                }
+              }
+
+              DropdownMenu(
+                expanded = isDownloadMenuOpen,
+                onDismissRequest = { isDownloadMenuOpen = false },
+              ) {
+                DropdownMenuItem(
+                  text = { Text(stringResource(R.string.downloads_download_season)) },
+                  onClick = {
+                    isDownloadMenuOpen = false
+                    onDownloadSeason?.invoke()
+                  },
+                )
+                DropdownMenuItem(
+                  text = { Text(stringResource(R.string.downloads_download_series)) },
+                  onClick = {
+                    isDownloadMenuOpen = false
+                    onDownloadSeries?.invoke()
+                  },
+                )
+              }
             }
           }
 
@@ -748,6 +816,7 @@ fun JellyfinDetailSheet(
                 },
               )
             }
+          }
           }
         }
 
@@ -909,15 +978,7 @@ fun JellyfinDetailSheet(
 
             // Episode List
             if (isEpisodesLoading) {
-              Box(
-                modifier =
-                  Modifier
-                    .fillMaxWidth()
-                    .height(100.dp),
-                contentAlignment = Alignment.Center,
-              ) {
-                CircularProgressIndicator(modifier = Modifier.size(32.dp))
-              }
+              GhostEpisodeRows()
             } else {
               Column(
                 modifier = Modifier.fillMaxWidth(),
@@ -928,6 +989,14 @@ fun JellyfinDetailSheet(
                     item = episode,
                     server = server,
                     onPlay = { onPlay(episode, false) },
+                    downloadState =
+                      when {
+                        onDownload == null -> null
+                        episode.id in downloadedItemIds -> EpisodeDownloadState.DOWNLOADED
+                        episode.id in activeDownloadItemIds -> EpisodeDownloadState.ACTIVE
+                        else -> EpisodeDownloadState.NOT_DOWNLOADED
+                      },
+                    onDownload = { onDownload?.invoke(episode) },
                   )
                 }
               }
@@ -1035,6 +1104,73 @@ fun JellyfinDetailSheet(
         }
 
         Spacer(modifier = Modifier.height(24.dp))
+      }
+    }
+  }
+}
+
+/** Pulsing placeholder block used while sheet sections stream in. */
+@Composable
+private fun GhostBlock(modifier: Modifier = Modifier) {
+  val transition = rememberInfiniteTransition(label = "ghost_pulse")
+  val alpha by transition.animateFloat(
+    initialValue = 0.35f,
+    targetValue = 0.8f,
+    animationSpec =
+      infiniteRepeatable(
+        animation = tween(durationMillis = 650),
+        repeatMode = RepeatMode.Reverse,
+      ),
+    label = "ghost_alpha",
+  )
+  Box(
+    modifier =
+      modifier.background(
+        MaterialTheme.colorScheme.surfaceContainerHigh.copy(alpha = alpha),
+        RoundedCornerShape(10.dp),
+      ),
+  )
+}
+
+/** Skeleton for the episode list while a season's episodes load. */
+@Composable
+private fun GhostEpisodeRows(count: Int = 4) {
+  Column(
+    modifier = Modifier.fillMaxWidth(),
+    verticalArrangement = Arrangement.spacedBy(10.dp),
+  ) {
+    repeat(count) {
+      Row(
+        modifier = Modifier.fillMaxWidth(),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(12.dp),
+      ) {
+        GhostBlock(Modifier.width(128.dp).height(72.dp))
+        Column(
+          modifier = Modifier.weight(1f),
+          verticalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+          GhostBlock(Modifier.fillMaxWidth(0.72f).height(14.dp))
+          GhostBlock(Modifier.fillMaxWidth(0.45f).height(12.dp))
+        }
+      }
+    }
+  }
+}
+
+/** Skeleton for the seasons/similar area while the full item detail loads. */
+@Composable
+private fun GhostDetailSections() {
+  Column(
+    modifier = Modifier.fillMaxWidth(),
+    verticalArrangement = Arrangement.spacedBy(14.dp),
+  ) {
+    GhostBlock(Modifier.width(160.dp).height(36.dp))
+    GhostEpisodeRows(count = 3)
+    GhostBlock(Modifier.width(140.dp).height(16.dp))
+    Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+      repeat(3) {
+        GhostBlock(Modifier.width(120.dp).height(180.dp))
       }
     }
   }

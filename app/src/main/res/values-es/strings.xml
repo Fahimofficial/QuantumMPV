@@ -1998,4 +1998,39 @@ Reinicia la aplicación para que se apliquen todos los cambios.</string>
   <string name="storage_permission_grant">Conceder acceso</string>
   <string name="pref_player_web_stream_links_title">Abrir enlaces de sitios de streaming</string>
   <string name="pref_player_web_stream_links_summary">Ofrecer mpvRx para enlaces de YouTube, Vimeo, Twitch, Odysee y Bilibili. Desactívalo para que los abran sus propias apps.</string>
+
+  <!-- Downloads -->
+  <string name="downloads_title">Descargas</string>
+  <string name="downloads_notification_channel">Descargas</string>
+  <string name="downloads_notification_channel_description">Muestra el progreso de descarga de archivos</string>
+  <string name="downloads_preparing">Preparando la descarga…</string>
+  <string name="downloads_empty">Aún no hay descargas</string>
+  <string name="downloads_empty_hint">Las descargas de enlaces y Jellyfin aparecen aquí</string>
+  <string name="downloads_active_section">Activas</string>
+  <string name="downloads_completed_section">Completadas</string>
+  <string name="downloads_pause">Pausar</string>
+  <string name="downloads_resume">Reanudar</string>
+  <string name="downloads_retry">Reintentar</string>
+  <string name="downloads_cancel">Cancelar</string>
+  <string name="downloads_remove_entry">Quitar de la lista</string>
+  <string name="downloads_delete_file">Eliminar archivo</string>
+  <string name="downloads_delete_confirm_title">¿Eliminar descarga?</string>
+  <string name="downloads_delete_confirm_message">Se eliminarán \"%1$s\" y sus archivos de subtítulos del almacenamiento.</string>
+  <string name="downloads_location">Ubicación de descarga</string>
+  <string name="downloads_location_default">Almacenamiento de la app (se elimina al desinstalar)</string>
+  <string name="downloads_location_invalid">Esta carpeta no se puede usar para descargas</string>
+  <string name="downloads_location_reset">Restablecer al almacenamiento de la app</string>
+  <string name="downloads_queued">En cola</string>
+  <string name="downloads_failed">Error</string>
+  <string name="downloads_paused">En pausa</string>
+  <string name="downloads_cancelled">Cancelada</string>
+  <string name="downloads_download">Descargar</string>
+  <string name="downloads_downloaded">Descargado</string>
+  <string name="downloads_started">Descarga iniciada</string>
+  <string name="downloads_already_downloaded">Ya descargado o en la cola</string>
+  <string name="downloads_download_season">Descargar temporada</string>
+  <string name="downloads_download_series">Descargar todas las temporadas</string>
+  <string name="downloads_episodes_queued">%1$d episodios añadidos a la cola de descarga</string>
+  <string name="downloads_play">Reproducir</string>
+  <string name="downloads_open_downloads">Abrir descargas</string>
 </resources>

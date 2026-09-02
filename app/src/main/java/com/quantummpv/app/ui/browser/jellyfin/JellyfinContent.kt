@@ -132,6 +132,16 @@ fun JellyfinContent(
   val showQuickPlayFab by appearancePreferences.showQuickPlayFab.collectAsState()
   val quickPlayFabDirect by appearancePreferences.quickPlayFabDirect.collectAsState()
 
+  val allDownloads by viewModel.downloads.collectAsState()
+  val downloadedItemIds =
+    remember(allDownloads) {
+      allDownloads.filter { it.isPlayable }.mapNotNull { it.entity.jellyfinItemId }.toSet()
+    }
+  val activeDownloadItemIds =
+    remember(allDownloads) {
+      allDownloads.filter { it.isActive }.mapNotNull { it.entity.jellyfinItemId }.toSet()
+    }
+
   var isAddDialogOpen by remember { mutableStateOf(false) }
   var serverToReauth by remember { mutableStateOf<JellyfinServer?>(null) }
   var isManageServersOpen by rememberSaveable { mutableStateOf(false) }
@@ -379,19 +389,24 @@ fun JellyfinContent(
             { isSortDialogOpen = true }
           } else null,
           onSearchClick = { isSearching = true },
-          onRequestClick = { isSeerrRequestsOpen = true },
+          // Seerr requests only surface on the untouched Jellyfin home page.
+          onRequestClick = if (uiState.openLibrary == null && uiState.selectedLibraryId == null) {
+            { isSeerrRequestsOpen = true }
+          } else {
+            null
+          },
           onSettingsClick = {
             backstack.add(com.quantummpv.app.ui.preferences.PreferencesScreen)
           },
           additionalActions = {
             if (!selectionManager.isInSelectionMode) {
               IconButton(
-                onClick = { isManageServersOpen = true },
+                onClick = { backstack.add(com.quantummpv.app.ui.downloads.DownloadsScreen) },
                 modifier = Modifier.padding(horizontal = 2.dp),
               ) {
                 Icon(
-                  imageVector = Icons.RoundedFilled.BringYourOwnIp,
-                  contentDescription = "Manage Servers",
+                  imageVector = Icons.RoundedFilled.Download,
+                  contentDescription = stringResource(R.string.downloads_open_downloads),
                   modifier = Modifier.size(24.dp),
                   tint = MaterialTheme.colorScheme.secondary,
                 )
@@ -766,6 +781,13 @@ fun JellyfinContent(
                             },
                             onLongClick = { selectionManager.handleLongClick(item) },
                             isSelected = selectionManager.isSelected(item),
+                            downloadState =
+                              when {
+                                item.id in downloadedItemIds -> EpisodeDownloadState.DOWNLOADED
+                                item.id in activeDownloadItemIds -> EpisodeDownloadState.ACTIVE
+                                else -> EpisodeDownloadState.NOT_DOWNLOADED
+                              },
+                            onDownload = { viewModel.downloadItem(item) },
                           )
                         } else {
                           JellyfinListItemCard(
@@ -784,6 +806,7 @@ fun JellyfinContent(
                             },
                             onLongClick = { selectionManager.handleLongClick(item) },
                             isSelected = selectionManager.isSelected(item),
+                            isDownloaded = item.id in downloadedItemIds,
                           )
                         }
                       }
@@ -866,6 +889,7 @@ fun JellyfinContent(
                           },
                           onLongClick = { selectionManager.handleLongClick(item) },
                           isSelected = selectionManager.isSelected(item),
+                          isDownloaded = item.id in downloadedItemIds,
                         )
                       }
                     }
@@ -1049,8 +1073,9 @@ fun JellyfinContent(
                 }
               },
             ) {
-              val checkedProgress = if (isFabExpanded && !quickPlayFabDirect) 1f else 0f
-              val imageVector by remember {
+              // The scope's animated checkedProgress drives the icon; a local val here
+              // shadowed it before, freezing the FAB on the play icon while expanded.
+              val imageVector by remember(quickPlayFabDirect) {
                 derivedStateOf {
                   if (checkedProgress > 0.5f && !quickPlayFabDirect) Icons.RoundedFilled.Close else Icons.RoundedFilled.PlayArrow
                 }
@@ -1126,6 +1151,11 @@ fun JellyfinContent(
           viewModel.closeDetail()
         }
       },
+      onDownload = { itemToDownload -> viewModel.downloadItem(itemToDownload) },
+      onDownloadSeason = { viewModel.downloadSelectedSeason() },
+      onDownloadSeries = { viewModel.downloadWholeSeries() },
+      downloadedItemIds = downloadedItemIds,
+      activeDownloadItemIds = activeDownloadItemIds,
     )
   }
 

@@ -27,6 +27,7 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.SheetValue
 import androidx.compose.material3.Text
@@ -230,6 +231,40 @@ fun PlayLinkSheet(
             text =
               androidx.compose.ui.res
                 .stringResource(com.quantummpv.app.R.string.generic_cancel),
+            fontWeight = FontWeight.Medium,
+          )
+        }
+        Spacer(modifier = Modifier.width(8.dp))
+        val linkDownloadCoordinator = koinInject<com.quantummpv.app.domain.download.LinkDownloadCoordinator>()
+        OutlinedButton(
+          onClick = {
+            val url = normalizedInput
+            if (url.isNotBlank() && MediaUtils.isURLValid(url)) {
+              val playableSource = normalizeTorrentSource(url) ?: url
+              if (isTorrentSource(playableSource)) {
+                // Torrents download through the torrent flow.
+                onPlayLink(playableSource)
+              } else {
+                when (linkDownloadCoordinator.enqueue(playableSource, MediaInfoParser.parseStreamTitle(playableSource))) {
+                  com.quantummpv.app.domain.download.LinkDownloadCoordinator.Route.UNSUPPORTED ->
+                    android.widget.Toast
+                      .makeText(context, com.quantummpv.app.R.string.downloads_location_invalid, android.widget.Toast.LENGTH_SHORT)
+                      .show()
+                  else ->
+                    android.widget.Toast
+                      .makeText(context, com.quantummpv.app.R.string.downloads_started, android.widget.Toast.LENGTH_SHORT)
+                      .show()
+                }
+              }
+              onDismiss()
+            }
+          },
+          enabled = linkInputUrl.isNotBlank() && isLinkInputUrlValid && !isSubmitting,
+        ) {
+          Text(
+            text =
+              androidx.compose.ui.res
+                .stringResource(com.quantummpv.app.R.string.downloads_download),
             fontWeight = FontWeight.Medium,
           )
         }

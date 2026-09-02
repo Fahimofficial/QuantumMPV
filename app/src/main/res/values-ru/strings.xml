@@ -1998,4 +1998,39 @@
   <string name="storage_permission_grant">Предоставить доступ</string>
   <string name="pref_player_web_stream_links_title">Открывать ссылки стриминговых сайтов</string>
   <string name="pref_player_web_stream_links_summary">Предлагать mpvRx для ссылок YouTube, Vimeo, Twitch, Odysee и Bilibili. Отключите, чтобы их открывали собственные приложения.</string>
+
+  <!-- Downloads -->
+  <string name="downloads_title">Загрузки</string>
+  <string name="downloads_notification_channel">Загрузки</string>
+  <string name="downloads_notification_channel_description">Показывает ход загрузки файлов</string>
+  <string name="downloads_preparing">Подготовка загрузки…</string>
+  <string name="downloads_empty">Загрузок пока нет</string>
+  <string name="downloads_empty_hint">Загрузки из ссылок и Jellyfin появятся здесь</string>
+  <string name="downloads_active_section">Активные</string>
+  <string name="downloads_completed_section">Завершённые</string>
+  <string name="downloads_pause">Пауза</string>
+  <string name="downloads_resume">Возобновить</string>
+  <string name="downloads_retry">Повторить</string>
+  <string name="downloads_cancel">Отменить</string>
+  <string name="downloads_remove_entry">Убрать из списка</string>
+  <string name="downloads_delete_file">Удалить файл</string>
+  <string name="downloads_delete_confirm_title">Удалить загрузку?</string>
+  <string name="downloads_delete_confirm_message">«%1$s» и его файлы субтитров будут удалены из хранилища.</string>
+  <string name="downloads_location">Папка загрузок</string>
+  <string name="downloads_location_default">Хранилище приложения (удаляется при удалении приложения)</string>
+  <string name="downloads_location_invalid">Эту папку нельзя использовать для загрузок</string>
+  <string name="downloads_location_reset">Сбросить к хранилищу приложения</string>
+  <string name="downloads_queued">В очереди</string>
+  <string name="downloads_failed">Ошибка</string>
+  <string name="downloads_paused">На паузе</string>
+  <string name="downloads_cancelled">Отменено</string>
+  <string name="downloads_download">Скачать</string>
+  <string name="downloads_downloaded">Скачано</string>
+  <string name="downloads_started">Загрузка начата</string>
+  <string name="downloads_already_downloaded">Уже скачано или в очереди</string>
+  <string name="downloads_download_season">Скачать сезон</string>
+  <string name="downloads_download_series">Скачать все сезоны</string>
+  <string name="downloads_episodes_queued">В очередь добавлено серий: %1$d</string>
+  <string name="downloads_play">Воспроизвести</string>
+  <string name="downloads_open_downloads">Открыть загрузки</string>
 </resources>

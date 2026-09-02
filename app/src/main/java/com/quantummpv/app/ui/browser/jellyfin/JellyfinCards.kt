@@ -47,6 +47,7 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.CircularProgressIndicator
 import android.content.Intent
 import android.net.Uri
 import androidx.compose.ui.platform.LocalContext
@@ -55,7 +56,6 @@ import androidx.compose.material3.FilledTonalIconButton
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.FilterChipDefaults
 import androidx.compose.material3.IconButton
-import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Surface
@@ -73,6 +73,7 @@ import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.buildAnnotatedString
@@ -82,14 +83,35 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.quantummpv.app.R
 import com.quantummpv.app.data.jellyfin.JellyfinClient
 import com.quantummpv.app.domain.jellyfin.JellyfinItem
 import com.quantummpv.app.domain.jellyfin.JellyfinServer
 import com.quantummpv.app.presentation.components.RemoteImage
 import com.quantummpv.app.ui.icons.Icon
 import com.quantummpv.app.ui.icons.Icons
+import com.quantummpv.app.ui.theme.LocalDarkAppColorScheme
 import kotlinx.coroutines.delay
 import kotlin.math.roundToInt
+
+/** Watch-progress overlay drawn on top of artwork; uses the always-dark accent so the
+ * fill stays visible on the black track in light mode. */
+@Composable
+private fun WatchProgressOverlayBar(
+  progress: Float,
+  modifier: Modifier = Modifier,
+) {
+  Box(modifier = modifier.height(4.dp)) {
+    Box(modifier = Modifier.matchParentSize().background(Color.Black.copy(alpha = 0.6f)))
+    Box(
+      modifier =
+        Modifier
+          .fillMaxHeight()
+          .fillMaxWidth(progress.coerceIn(0f, 1f))
+          .background((LocalDarkAppColorScheme.current ?: MaterialTheme.colorScheme).primary),
+    )
+  }
+}
 
 private fun buildStarSubtitle(
   partsBeforeRating: List<String>,
@@ -300,7 +322,8 @@ fun JellyfinHeroBanner(
                 Text(
                   text = badge,
                   style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.SemiBold),
-                  color = MaterialTheme.colorScheme.primary,
+                  // Always-dark accent: colorScheme.primary is too dark for the black scrim in light mode.
+                  color = (LocalDarkAppColorScheme.current ?: MaterialTheme.colorScheme).primary,
                   modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
                 )
               }
@@ -749,22 +772,13 @@ fun JellyfinResumeCard(
 
       // Progress bar at bottom
       if (item.progressPercent > 0.01f) {
-        Box(
+        WatchProgressOverlayBar(
+          progress = item.progressPercent,
           modifier =
             Modifier
               .fillMaxWidth()
-              .align(Alignment.BottomCenter)
-              .height(4.dp),
-        ) {
-          Box(modifier = Modifier.matchParentSize().background(Color.Black.copy(alpha = 0.6f)))
-          Box(
-            modifier =
-              Modifier
-                .fillMaxHeight()
-                .fillMaxWidth(item.progressPercent.coerceIn(0f, 1f))
-                .background(MaterialTheme.colorScheme.primary),
-          )
-        }
+              .align(Alignment.BottomCenter),
+        )
       }
     }
 
@@ -825,6 +839,7 @@ fun JellyfinPosterCard(
   cardWidth: androidx.compose.ui.unit.Dp? = null,
   onLongClick: (() -> Unit)? = null,
   isSelected: Boolean = false,
+  isDownloaded: Boolean = false,
 ) {
   val imageUrl =
     remember(server.serverUrl, item.id, item.primaryImageTag, server.accessToken) {
@@ -907,30 +922,26 @@ fun JellyfinPosterCard(
           Text(
             text = qBadge,
             style = MaterialTheme.typography.labelSmall.copy(fontSize = 9.sp, fontWeight = FontWeight.Bold),
-            color = MaterialTheme.colorScheme.primary,
+            // Always-dark accent: colorScheme.primary is too dark for the black scrim in light mode.
+            color = (LocalDarkAppColorScheme.current ?: MaterialTheme.colorScheme).primary,
             modifier = Modifier.padding(horizontal = 4.dp, vertical = 1.dp),
           )
         }
       }
 
+      if (isDownloaded) {
+        DownloadedBadge(modifier = Modifier.align(Alignment.TopEnd).padding(6.dp))
+      }
+
       // Progress bar if partially watched
       if (item.progressPercent > 0.02f && !item.isPlayed) {
-        Box(
+        WatchProgressOverlayBar(
+          progress = item.progressPercent,
           modifier =
             Modifier
               .fillMaxWidth()
-              .align(Alignment.BottomCenter)
-              .height(4.dp),
-        ) {
-          Box(modifier = Modifier.matchParentSize().background(Color.Black.copy(alpha = 0.6f)))
-          Box(
-            modifier =
-              Modifier
-                .fillMaxHeight()
-                .fillMaxWidth(item.progressPercent.coerceIn(0f, 1f))
-                .background(MaterialTheme.colorScheme.primary),
-          )
-        }
+              .align(Alignment.BottomCenter),
+        )
       }
 
       // Selection / Played Check badge
@@ -1390,6 +1401,8 @@ fun JellyfinEpisodeCard(
   modifier: Modifier = Modifier,
   onLongClick: (() -> Unit)? = null,
   isSelected: Boolean = false,
+  downloadState: EpisodeDownloadState? = null,
+  onDownload: (() -> Unit)? = null,
 ) {
   val imageUrl =
     remember(server.serverUrl, item.id, item.primaryImageTag, server.accessToken) {
@@ -1457,22 +1470,13 @@ fun JellyfinEpisodeCard(
 
         // Progress bar
         if (item.progressPercent > 0.02f && !item.isPlayed) {
-          Box(
+          WatchProgressOverlayBar(
+            progress = item.progressPercent,
             modifier =
               Modifier
                 .fillMaxWidth()
-                .align(Alignment.BottomCenter)
-                .height(4.dp),
-          ) {
-            Box(modifier = Modifier.matchParentSize().background(Color.Black.copy(alpha = 0.6f)))
-            Box(
-              modifier =
-                Modifier
-                  .fillMaxHeight()
-                  .fillMaxWidth(item.progressPercent.coerceIn(0f, 1f))
-                  .background(MaterialTheme.colorScheme.primary),
-            )
-          }
+                .align(Alignment.BottomCenter),
+          )
         }
 
         if (isSelected) {
@@ -1549,6 +1553,32 @@ fun JellyfinEpisodeCard(
         }
       }
 
+      when (downloadState) {
+        EpisodeDownloadState.NOT_DOWNLOADED ->
+          IconButton(onClick = { onDownload?.invoke() }) {
+            Icon(
+              imageVector = Icons.RoundedFilled.Download,
+              contentDescription = stringResource(R.string.downloads_download),
+              tint = MaterialTheme.colorScheme.onSurfaceVariant,
+              modifier = Modifier.size(22.dp),
+            )
+          }
+        EpisodeDownloadState.ACTIVE ->
+          Box(modifier = Modifier.size(40.dp), contentAlignment = Alignment.Center) {
+            CircularProgressIndicator(modifier = Modifier.size(20.dp), strokeWidth = 2.dp)
+          }
+        EpisodeDownloadState.DOWNLOADED ->
+          Box(modifier = Modifier.size(40.dp), contentAlignment = Alignment.Center) {
+            Icon(
+              imageVector = Icons.RoundedFilled.CheckCircle,
+              contentDescription = stringResource(R.string.downloads_downloaded),
+              tint = MaterialTheme.colorScheme.primary,
+              modifier = Modifier.size(22.dp),
+            )
+          }
+        null -> {}
+      }
+
       IconButton(onClick = onPlay) {
         Icon(
           imageVector = Icons.RoundedFilled.PlayArrow,
@@ -1557,6 +1587,33 @@ fun JellyfinEpisodeCard(
           modifier = Modifier.size(26.dp),
         )
       }
+    }
+  }
+}
+
+/** Download indicator shown at the trailing edge of an episode row. */
+enum class EpisodeDownloadState {
+  NOT_DOWNLOADED,
+  ACTIVE,
+  DOWNLOADED,
+}
+
+/** Small overlay badge marking items with a completed local download. */
+@Composable
+private fun DownloadedBadge(modifier: Modifier = Modifier) {
+  Surface(
+    shape = CircleShape,
+    color = Color.Black.copy(alpha = 0.7f),
+    modifier = modifier.size(20.dp),
+  ) {
+    Box(contentAlignment = Alignment.Center) {
+      Icon(
+        imageVector = Icons.RoundedFilled.Download,
+        contentDescription = null,
+        // Always-dark accent keeps the badge readable on the black scrim in light mode.
+        tint = (LocalDarkAppColorScheme.current ?: MaterialTheme.colorScheme).primary,
+        modifier = Modifier.size(13.dp),
+      )
     }
   }
 }
@@ -1574,6 +1631,7 @@ fun JellyfinListItemCard(
   modifier: Modifier = Modifier,
   onLongClick: (() -> Unit)? = null,
   isSelected: Boolean = false,
+  isDownloaded: Boolean = false,
 ) {
   val imageUrl =
     remember(server.serverUrl, item.id, item.primaryImageTag, server.accessToken) {
@@ -1646,22 +1704,17 @@ fun JellyfinListItemCard(
         }
 
         if (item.progressPercent > 0.02f && !item.isPlayed) {
-          Box(
+          WatchProgressOverlayBar(
+            progress = item.progressPercent,
             modifier =
               Modifier
                 .fillMaxWidth()
-                .align(Alignment.BottomCenter)
-                .height(4.dp),
-          ) {
-            Box(modifier = Modifier.matchParentSize().background(Color.Black.copy(alpha = 0.6f)))
-            Box(
-              modifier =
-                Modifier
-                  .fillMaxHeight()
-                  .fillMaxWidth(item.progressPercent.coerceIn(0f, 1f))
-                  .background(MaterialTheme.colorScheme.primary),
-            )
-          }
+                .align(Alignment.BottomCenter),
+          )
+        }
+
+        if (isDownloaded) {
+          DownloadedBadge(modifier = Modifier.align(Alignment.BottomEnd).padding(6.dp))
         }
 
         if (isSelected) {

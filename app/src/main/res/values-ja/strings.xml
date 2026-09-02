@@ -1998,4 +1998,39 @@
   <string name="storage_permission_grant">アクセスを許可</string>
   <string name="pref_player_web_stream_links_title">ストリーミングサイトのリンクを開く</string>
   <string name="pref_player_web_stream_links_summary">YouTube、Vimeo、Twitch、Odysee、Bilibili のリンクで mpvRx を候補に表示。オフにすると各アプリが開きます。</string>
+
+  <!-- Downloads -->
+  <string name="downloads_title">ダウンロード</string>
+  <string name="downloads_notification_channel">ダウンロード</string>
+  <string name="downloads_notification_channel_description">ファイルのダウンロード進捗を表示します</string>
+  <string name="downloads_preparing">ダウンロードを準備中…</string>
+  <string name="downloads_empty">ダウンロードはまだありません</string>
+  <string name="downloads_empty_hint">リンクや Jellyfin からのダウンロードがここに表示されます</string>
+  <string name="downloads_active_section">実行中</string>
+  <string name="downloads_completed_section">完了</string>
+  <string name="downloads_pause">一時停止</string>
+  <string name="downloads_resume">再開</string>
+  <string name="downloads_retry">再試行</string>
+  <string name="downloads_cancel">キャンセル</string>
+  <string name="downloads_remove_entry">リストから削除</string>
+  <string name="downloads_delete_file">ファイルを削除</string>
+  <string name="downloads_delete_confirm_title">ダウンロードを削除しますか？</string>
+  <string name="downloads_delete_confirm_message">「%1$s」とその字幕ファイルがストレージから削除されます。</string>
+  <string name="downloads_location">ダウンロード先</string>
+  <string name="downloads_location_default">アプリのストレージ（アンインストール時に削除）</string>
+  <string name="downloads_location_invalid">このフォルダはダウンロードに使用できません</string>
+  <string name="downloads_location_reset">アプリのストレージに戻す</string>
+  <string name="downloads_queued">待機中</string>
+  <string name="downloads_failed">失敗</string>
+  <string name="downloads_paused">一時停止中</string>
+  <string name="downloads_cancelled">キャンセル済み</string>
+  <string name="downloads_download">ダウンロード</string>
+  <string name="downloads_downloaded">ダウンロード済み</string>
+  <string name="downloads_started">ダウンロードを開始しました</string>
+  <string name="downloads_already_downloaded">すでにダウンロード済みかキューにあります</string>
+  <string name="downloads_download_season">シーズンをダウンロード</string>
+  <string name="downloads_download_series">全シーズンをダウンロード</string>
+  <string name="downloads_episodes_queued">%1$d 話をダウンロードキューに追加しました</string>
+  <string name="downloads_play">再生</string>
+  <string name="downloads_open_downloads">ダウンロードを開く</string>
 </resources>

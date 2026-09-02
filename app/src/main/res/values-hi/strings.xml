@@ -1902,4 +1902,39 @@
   <string name="storage_permission_grant">एक्सेस दें</string>
   <string name="pref_player_web_stream_links_title">स्ट्रीमिंग साइट लिंक खोलें</string>
   <string name="pref_player_web_stream_links_summary">YouTube, Vimeo, Twitch, Odysee और Bilibili लिंक के लिए mpvRx दिखाएं। बंद करने पर उनके अपने ऐप उन्हें खोलेंगे।</string>
+
+  <!-- Downloads -->
+  <string name="downloads_title">डाउनलोड</string>
+  <string name="downloads_notification_channel">डाउनलोड</string>
+  <string name="downloads_notification_channel_description">फ़ाइल डाउनलोड की प्रगति दिखाता है</string>
+  <string name="downloads_preparing">डाउनलोड तैयार हो रहा है…</string>
+  <string name="downloads_empty">अभी कोई डाउनलोड नहीं</string>
+  <string name="downloads_empty_hint">लिंक और Jellyfin से डाउनलोड यहां दिखेंगे</string>
+  <string name="downloads_active_section">सक्रिय</string>
+  <string name="downloads_completed_section">पूर्ण</string>
+  <string name="downloads_pause">रोकें</string>
+  <string name="downloads_resume">जारी रखें</string>
+  <string name="downloads_retry">फिर कोशिश करें</string>
+  <string name="downloads_cancel">रद्द करें</string>
+  <string name="downloads_remove_entry">सूची से हटाएं</string>
+  <string name="downloads_delete_file">फ़ाइल हटाएं</string>
+  <string name="downloads_delete_confirm_title">डाउनलोड हटाएं?</string>
+  <string name="downloads_delete_confirm_message">\"%1$s\" और इसकी सबटाइटल फ़ाइलें स्टोरेज से हटा दी जाएंगी।</string>
+  <string name="downloads_location">डाउनलोड स्थान</string>
+  <string name="downloads_location_default">ऐप स्टोरेज (ऐप हटाने पर हट जाता है)</string>
+  <string name="downloads_location_invalid">यह फ़ोल्डर डाउनलोड के लिए इस्तेमाल नहीं हो सकता</string>
+  <string name="downloads_location_reset">ऐप स्टोरेज पर रीसेट करें</string>
+  <string name="downloads_queued">कतार में</string>
+  <string name="downloads_failed">विफल</string>
+  <string name="downloads_paused">रुका हुआ</string>
+  <string name="downloads_cancelled">रद्द</string>
+  <string name="downloads_download">डाउनलोड करें</string>
+  <string name="downloads_downloaded">डाउनलोड हो गया</string>
+  <string name="downloads_started">डाउनलोड शुरू हुआ</string>
+  <string name="downloads_already_downloaded">पहले से डाउनलोड या कतार में है</string>
+  <string name="downloads_download_season">सीज़न डाउनलोड करें</string>
+  <string name="downloads_download_series">सभी सीज़न डाउनलोड करें</string>
+  <string name="downloads_episodes_queued">%1$d एपिसोड डाउनलोड कतार में जोड़े गए</string>
+  <string name="downloads_play">चलाएं</string>
+  <string name="downloads_open_downloads">डाउनलोड खोलें</string>
 </resources>

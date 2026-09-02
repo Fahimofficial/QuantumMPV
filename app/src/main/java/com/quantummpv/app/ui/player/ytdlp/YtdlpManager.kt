@@ -365,6 +365,19 @@ object YtdlpManager {
     }
   }
 
+  /** Ensures the yt-dlp runtime is installed regardless of URL shape (used by the downloader). */
+  suspend fun ensureRuntimeInstalled(
+    context: Context,
+    onLog: (String) -> Unit = {},
+  ): Boolean =
+    withContext(Dispatchers.IO) {
+      installMutex.withLock {
+        if (!prepareRuntimeAssets(context, onLog)) return@withLock false
+        if (isPlaybackRuntimeReady(context)) return@withLock true
+        installYtdlp(context, onLog)
+      }
+    }
+
   suspend fun copyAssets(context: Context) =
     withContext(Dispatchers.IO) {
       val ytdlDir = getYtdlDir(context)

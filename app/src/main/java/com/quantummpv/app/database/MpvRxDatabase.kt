@@ -15,6 +15,7 @@ import androidx.room.TypeConverters
 import com.quantummpv.app.database.converters.NetworkProtocolConverter
 import com.quantummpv.app.database.converters.NetworkStreamEntryTypeConverter
 import com.quantummpv.app.database.dao.DirectoryScanDao
+import com.quantummpv.app.database.dao.DownloadItemDao
 import com.quantummpv.app.database.dao.NetworkConnectionDao
 import com.quantummpv.app.database.dao.NetworkStreamEntryDao
 import com.quantummpv.app.database.dao.PlaybackStateDao
@@ -24,6 +25,7 @@ import com.quantummpv.app.database.dao.SecureMediaDao
 import com.quantummpv.app.database.dao.VideoMetadataDao
 import com.quantummpv.app.database.dao.JellyfinServerDao
 import com.quantummpv.app.database.entities.DirectoryScanEntity
+import com.quantummpv.app.database.entities.DownloadItemEntity
 import com.quantummpv.app.database.entities.JellyfinServerEntity
 import com.quantummpv.app.database.entities.NetworkStreamEntryEntity
 import com.quantummpv.app.database.entities.PlaybackStateEntity
@@ -46,8 +48,9 @@ import com.quantummpv.app.domain.network.NetworkConnection
     SecureMediaEntity::class,
     NetworkStreamEntryEntity::class,
     JellyfinServerEntity::class,
+    DownloadItemEntity::class,
   ],
-  version = 16,
+  version = 18,
   exportSchema = true,
 )
 @TypeConverters(NetworkProtocolConverter::class, NetworkStreamEntryTypeConverter::class)
@@ -69,4 +72,6 @@ abstract class MpvRxDatabase : RoomDatabase() {
   abstract fun secureMediaDao(): SecureMediaDao
 
   abstract fun jellyfinServerDao(): JellyfinServerDao
+
+  abstract fun downloadItemDao(): DownloadItemDao
 }

@@ -1998,4 +1998,39 @@ Veuillez redémarrer l’application pour appliquer toutes les modifications.</s
   <string name="storage_permission_grant">Accorder l\'accès</string>
   <string name="pref_player_web_stream_links_title">Ouvrir les liens de sites de streaming</string>
   <string name="pref_player_web_stream_links_summary">Proposer mpvRx pour les liens YouTube, Vimeo, Twitch, Odysee et Bilibili. Désactivez pour laisser leurs applications les ouvrir.</string>
+
+  <!-- Downloads -->
+  <string name="downloads_title">Téléchargements</string>
+  <string name="downloads_notification_channel">Téléchargements</string>
+  <string name="downloads_notification_channel_description">Affiche la progression des téléchargements</string>
+  <string name="downloads_preparing">Préparation du téléchargement…</string>
+  <string name="downloads_empty">Aucun téléchargement pour l’instant</string>
+  <string name="downloads_empty_hint">Les téléchargements de liens et de Jellyfin apparaissent ici</string>
+  <string name="downloads_active_section">Actifs</string>
+  <string name="downloads_completed_section">Terminés</string>
+  <string name="downloads_pause">Mettre en pause</string>
+  <string name="downloads_resume">Reprendre</string>
+  <string name="downloads_retry">Réessayer</string>
+  <string name="downloads_cancel">Annuler</string>
+  <string name="downloads_remove_entry">Retirer de la liste</string>
+  <string name="downloads_delete_file">Supprimer le fichier</string>
+  <string name="downloads_delete_confirm_title">Supprimer le téléchargement ?</string>
+  <string name="downloads_delete_confirm_message">« %1$s » et ses fichiers de sous-titres seront supprimés du stockage.</string>
+  <string name="downloads_location">Emplacement de téléchargement</string>
+  <string name="downloads_location_default">Stockage de l’app (supprimé à la désinstallation)</string>
+  <string name="downloads_location_invalid">Ce dossier ne peut pas être utilisé pour les téléchargements</string>
+  <string name="downloads_location_reset">Réinitialiser vers le stockage de l’app</string>
+  <string name="downloads_queued">En file d’attente</string>
+  <string name="downloads_failed">Échec</string>
+  <string name="downloads_paused">En pause</string>
+  <string name="downloads_cancelled">Annulé</string>
+  <string name="downloads_download">Télécharger</string>
+  <string name="downloads_downloaded">Téléchargé</string>
+  <string name="downloads_started">Téléchargement démarré</string>
+  <string name="downloads_already_downloaded">Déjà téléchargé ou dans la file d’attente</string>
+  <string name="downloads_download_season">Télécharger la saison</string>
+  <string name="downloads_download_series">Télécharger toutes les saisons</string>
+  <string name="downloads_episodes_queued">%1$d épisodes ajoutés à la file de téléchargement</string>
+  <string name="downloads_play">Lire</string>
+  <string name="downloads_open_downloads">Ouvrir les téléchargements</string>
 </resources>
