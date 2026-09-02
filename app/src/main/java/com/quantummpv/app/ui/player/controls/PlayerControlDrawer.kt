@@ -297,7 +297,14 @@ private fun PlayerControlPanelContent(
         .fillMaxWidth()
         .padding(start = 14.dp, end = 14.dp, bottom = 20.dp),
   ) {
-    val tileWidth = (maxWidth - PanelTileSpacing * (PanelColumnCount - 1)) / PanelColumnCount
+    // Floor to whole pixels: Dp rounding at some densities made 3 tiles + gaps
+    // exceed the row width, wrapping the grid to 2 columns (issue #590).
+    val density = LocalDensity.current
+    val tileWidth =
+      with(density) {
+        val availablePx = (maxWidth - PanelTileSpacing * (PanelColumnCount - 1)).toPx()
+        kotlin.math.floor(availablePx / PanelColumnCount).toDp()
+      }
     FlowRow(
       modifier = Modifier.fillMaxWidth(),
       horizontalArrangement = Arrangement.spacedBy(PanelTileSpacing),

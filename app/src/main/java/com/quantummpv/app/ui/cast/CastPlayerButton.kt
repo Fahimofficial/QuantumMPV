@@ -37,6 +37,7 @@ fun CastPlayerButton(
   hideBackground: Boolean,
   buttonSize: Dp,
   onInvoked: () -> Unit = {},
+  contentColor: ComposeColor? = null,
 ) {
   val castContentDescription =
     androidx.compose.ui.res
@@ -49,7 +50,9 @@ fun CastPlayerButton(
       } else {
         MaterialTheme.colorScheme.surfaceContainer.copy(alpha = 0.55f)
       },
-    contentColor = if (hideBackground) controlColor else MaterialTheme.colorScheme.onSurface,
+    // Callers pass the surrounding content color (e.g. drawer tiles) so the icon
+    // matches its sibling buttons instead of staying fixed white.
+    contentColor = contentColor ?: if (hideBackground) controlColor else MaterialTheme.colorScheme.onSurface,
     border =
       if (hideBackground) {
         null

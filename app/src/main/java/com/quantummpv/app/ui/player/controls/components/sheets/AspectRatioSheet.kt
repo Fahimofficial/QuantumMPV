@@ -27,6 +27,7 @@ import androidx.compose.material3.InputChip
 import androidx.compose.material3.ListItem
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -42,7 +43,6 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import com.quantummpv.app.presentation.components.PlayerSheet
 import com.quantummpv.app.ui.player.AutoCropState
-import com.quantummpv.app.ui.player.components.expressive.ExpressiveSwitch
 import com.quantummpv.app.ui.icons.Icon
 import com.quantummpv.app.ui.icons.Icons
 import com.quantummpv.app.ui.theme.spacing
@@ -115,7 +115,7 @@ fun AspectRatioSheet(
         },
         supportingContent = { Text(androidx.compose.ui.res.stringResource(autoCropSummary)) },
         trailingContent = {
-          ExpressiveSwitch(
+          Switch(
             checked = autoCropEnabled,
             onCheckedChange = onAutoCropChanged,
             enabled = autoCropControlEnabled,
