@@ -23,6 +23,10 @@ import com.quantummpv.app.domain.seerr.MediaType
 import com.quantummpv.app.domain.seerr.PublicSettings
 import com.quantummpv.app.domain.seerr.RequestsResponse
 import com.quantummpv.app.domain.seerr.SearchResultItem
+import com.quantummpv.app.domain.seerr.SeerrRadarrServer
+import com.quantummpv.app.domain.seerr.SeerrRadarrServerResponse
+import com.quantummpv.app.domain.seerr.SeerrSonarrServer
+import com.quantummpv.app.domain.seerr.SeerrSonarrServerResponse
 import com.quantummpv.app.domain.seerr.UserQuotaResponse
 import com.quantummpv.app.network.awaitResponse
 import com.quantummpv.app.preferences.SeerrPreferences
@@ -537,17 +541,63 @@ class SeerrRepository(
     }
   }
 
+  suspend fun getRadarrServers(): Result<List<SeerrRadarrServer>> = withContext(Dispatchers.IO) {
+    val req = buildRequest(path = "api/v1/service/radarr")
+    val res = executeCall<List<SeerrRadarrServer>>(req, "Failed to load Radarr servers")
+    res.map { servers ->
+      servers.map { server ->
+        val serverId = server.id ?: return@map server
+        val detailReq = buildRequest(path = "api/v1/service/radarr/$serverId")
+        val detailRes = executeCall<SeerrRadarrServerResponse>(detailReq, "Failed to load Radarr server details").getOrNull()
+        if (detailRes != null) {
+          server.copy(
+            profiles = detailRes.profiles,
+            rootFolders = detailRes.rootFolders,
+          )
+        } else {
+          server
+        }
+      }
+    }
+  }
+
+  suspend fun getSonarrServers(): Result<List<SeerrSonarrServer>> = withContext(Dispatchers.IO) {
+    val req = buildRequest(path = "api/v1/service/sonarr")
+    val res = executeCall<List<SeerrSonarrServer>>(req, "Failed to load Sonarr servers")
+    res.map { servers ->
+      servers.map { server ->
+        val serverId = server.id ?: return@map server
+        val detailReq = buildRequest(path = "api/v1/service/sonarr/$serverId")
+        val detailRes = executeCall<SeerrSonarrServerResponse>(detailReq, "Failed to load Sonarr server details").getOrNull()
+        if (detailRes != null) {
+          server.copy(
+            profiles = detailRes.profiles,
+            rootFolders = detailRes.rootFolders,
+          )
+        } else {
+          server
+        }
+      }
+    }
+  }
+
   suspend fun createRequest(
     mediaId: Int,
     mediaType: MediaType,
     seasons: List<Int>? = null,
     is4k: Boolean = false,
+    serverId: Int? = null,
+    profileId: Int? = null,
+    rootFolder: String? = null,
   ): Result<JellyseerrRequest> = withContext(Dispatchers.IO) {
     val body = CreateRequestBody(
       mediaType = mediaType.value,
       mediaId = mediaId,
       seasons = seasons,
       is4k = is4k,
+      serverId = serverId,
+      profileId = profileId,
+      rootFolder = rootFolder,
     )
     val payload = json.encodeToString(CreateRequestBody.serializer(), body)
     val req = buildRequest(path = "api/v1/request", method = "POST", bodyJson = payload)

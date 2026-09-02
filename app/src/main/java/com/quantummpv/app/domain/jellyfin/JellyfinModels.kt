@@ -72,6 +72,8 @@ data class JellyfinItem(
   val isPlayed: Boolean = false,
   val isFavorite: Boolean = false,
   val seriesName: String? = null,
+  val seriesId: String? = null,
+  val seriesPrimaryImageTag: String? = null,
   val seasonName: String? = null,
   val indexNumber: Int? = null, // Episode number
   val parentIndexNumber: Int? = null, // Season number

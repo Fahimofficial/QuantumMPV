@@ -68,6 +68,9 @@ data class SeerrUiState(
   val isDetailLoading: Boolean = false,
   val isDetailSheetOpen: Boolean = false,
   val isRequesting: Boolean = false,
+  val radarrServers: List<com.quantummpv.app.domain.seerr.SeerrRadarrServer> = emptyList(),
+  val sonarrServers: List<com.quantummpv.app.domain.seerr.SeerrSonarrServer> = emptyList(),
+  val isLoadingServers: Boolean = false,
   val actionMessage: String? = null,
 )
 
@@ -329,6 +332,10 @@ class SeerrViewModel(
       )
     }
 
+    if (_uiState.value.radarrServers.isEmpty() || _uiState.value.sonarrServers.isEmpty()) {
+      loadServerConfigs()
+    }
+
     detailJob = viewModelScope.launch {
       val res = if (item.getMediaType() == MediaType.TV) {
         seerrRepository.getTvDetails(item.id)
@@ -339,6 +346,21 @@ class SeerrViewModel(
         it.copy(
           selectedMediaDetails = res.getOrNull(),
           isDetailLoading = false,
+        )
+      }
+    }
+  }
+
+  fun loadServerConfigs() {
+    viewModelScope.launch {
+      _uiState.update { it.copy(isLoadingServers = true) }
+      val radarr = seerrRepository.getRadarrServers().getOrDefault(emptyList())
+      val sonarr = seerrRepository.getSonarrServers().getOrDefault(emptyList())
+      _uiState.update {
+        it.copy(
+          radarrServers = radarr,
+          sonarrServers = sonarr,
+          isLoadingServers = false,
         )
       }
     }
@@ -373,6 +395,9 @@ class SeerrViewModel(
   fun requestMedia(
     seasons: List<Int>?,
     is4k: Boolean,
+    serverId: Int? = null,
+    profileId: Int? = null,
+    rootFolder: String? = null,
   ) {
     val searchItem = _uiState.value.selectedSearchItem ?: return
     val mediaType = searchItem.getMediaType()
@@ -385,6 +410,9 @@ class SeerrViewModel(
         mediaType = mediaType,
         seasons = seasons,
         is4k = is4k,
+        serverId = serverId,
+        profileId = profileId,
+        rootFolder = rootFolder,
       )
       res.fold(
         onSuccess = { req ->

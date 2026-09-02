@@ -581,39 +581,56 @@ fun JellyfinContent(
                       }
                     }
 
-                    // 4. Latest Movies Section
-                    if (uiState.latestMovies.isNotEmpty()) {
-                      item {
+                    // 4. Per-Library Latest Sections (e.g. Latest Movies, Latest Shows, etc.)
+                    if (uiState.librarySections.isNotEmpty()) {
+                      items(uiState.librarySections, key = { "lib_section_${it.library.id}" }) { section ->
                         JellyfinHorizontalSection(
-                          title = "Latest Movies",
-                          subtitle = "Newly added to server",
-                          items = uiState.latestMovies,
+                          title = section.title,
+                          subtitle = section.subtitle,
+                          items = section.items,
                           server = server,
                           onItemClick = { item -> viewModel.openDetail(item) },
                           onItemLongClick = { item -> viewModel.playItem(context, item) },
                           onSeeAll = {
-                            val movieLib = uiState.libraries.find { it.collectionType?.equals("movies", ignoreCase = true) == true }
-                            if (movieLib != null) viewModel.navigateToItem(movieLib)
+                            viewModel.navigateToItem(section.library)
                           },
                         )
                       }
-                    }
+                    } else {
+                      // Fallback: Legacy Latest Movies Section
+                      if (uiState.latestMovies.isNotEmpty()) {
+                        item {
+                          JellyfinHorizontalSection(
+                            title = "Latest Movies",
+                            subtitle = "Newly added to server",
+                            items = uiState.latestMovies,
+                            server = server,
+                            onItemClick = { item -> viewModel.openDetail(item) },
+                            onItemLongClick = { item -> viewModel.playItem(context, item) },
+                            onSeeAll = {
+                              val movieLib = uiState.libraries.find { it.collectionType?.equals("movies", ignoreCase = true) == true }
+                              if (movieLib != null) viewModel.navigateToItem(movieLib)
+                            },
+                          )
+                        }
+                      }
 
-                    // 5. Latest TV Shows Section
-                    if (uiState.latestShows.isNotEmpty()) {
-                      item {
-                        JellyfinHorizontalSection(
-                          title = "Latest TV Shows",
-                          subtitle = "Newly updated series",
-                          items = uiState.latestShows,
-                          server = server,
-                          onItemClick = { item -> viewModel.openDetail(item) },
-                          onItemLongClick = { item -> viewModel.playItem(context, item) },
-                          onSeeAll = {
-                            val tvLib = uiState.libraries.find { it.collectionType?.equals("tvshows", ignoreCase = true) == true }
-                            if (tvLib != null) viewModel.navigateToItem(tvLib)
-                          },
-                        )
+                      // Fallback: Legacy Latest TV Shows Section
+                      if (uiState.latestShows.isNotEmpty()) {
+                        item {
+                          JellyfinHorizontalSection(
+                            title = "Latest TV Shows",
+                            subtitle = "Newly updated series",
+                            items = uiState.latestShows,
+                            server = server,
+                            onItemClick = { item -> viewModel.openDetail(item) },
+                            onItemLongClick = { item -> viewModel.playItem(context, item) },
+                            onSeeAll = {
+                              val tvLib = uiState.libraries.find { it.collectionType?.equals("tvshows", ignoreCase = true) == true }
+                              if (tvLib != null) viewModel.navigateToItem(tvLib)
+                            },
+                          )
+                        }
                       }
                     }
 

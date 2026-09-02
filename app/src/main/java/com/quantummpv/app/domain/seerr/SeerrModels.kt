@@ -31,10 +31,20 @@ enum class MediaStatus(val value: Int) {
   PROCESSING(3),
   PARTIALLY_AVAILABLE(4),
   AVAILABLE(5),
-  DELETED(6);
+  BLACKLISTED(6),
+  DELETED(7);
 
   companion object {
-    fun fromValue(value: Int?): MediaStatus = entries.firstOrNull { it.value == value } ?: UNKNOWN
+    fun fromValue(value: Int?): MediaStatus = when (value) {
+      1 -> UNKNOWN
+      2 -> PENDING
+      3 -> PROCESSING
+      4 -> PARTIALLY_AVAILABLE
+      5 -> AVAILABLE
+      6 -> BLACKLISTED
+      7 -> DELETED
+      else -> UNKNOWN
+    }
   }
 }
 
@@ -98,7 +108,9 @@ data class SearchResultItem(
     }
 
   fun hasExistingRequest(): Boolean =
-    mediaInfo?.status != null && mediaInfo.status != MediaStatus.UNKNOWN.value
+    mediaInfo?.status != null &&
+      mediaInfo.status != MediaStatus.UNKNOWN.value &&
+      mediaInfo.status != MediaStatus.DELETED.value
 
   fun getMediaStatus(): MediaStatus? {
     val standardStatus = mediaInfo?.status
@@ -203,6 +215,28 @@ data class MediaDetails(
 
   fun getDirector(): String? =
     credits?.crew?.firstOrNull { it.job == "Director" }?.name
+ 
+  fun getMediaStatus(): MediaStatus? {
+    val standardStatus = mediaInfo?.status
+    val status4k = mediaInfo?.status4k
+    fun isValid(status: Int?) = status != null && status != 1
+    return when {
+      isValid(standardStatus) -> MediaStatus.fromValue(standardStatus)
+      isValid(status4k) -> MediaStatus.fromValue(status4k)
+      else -> mediaInfo?.status?.let { MediaStatus.fromValue(it) }
+    }
+  }
+
+  fun getDisplayStatus(): MediaStatus? {
+    val status = getMediaStatus() ?: return null
+    if (status == MediaStatus.PENDING) {
+      val hasApprovedRequest = mediaInfo?.requests?.any { it.status == RequestStatus.APPROVED.value } == true
+      if (hasApprovedRequest) {
+        return MediaStatus.PROCESSING
+      }
+    }
+    return status
+  }
 }
 
 @Serializable
@@ -406,6 +440,56 @@ data class ApproveRequestBody(
   @SerialName("serverId") val serverId: Int? = null,
   @SerialName("profileId") val profileId: Int? = null,
   @SerialName("rootFolder") val rootFolder: String? = null,
+)
+
+@Serializable
+data class SeerrServiceProfile(
+  @SerialName("id") val id: Int? = null,
+  @SerialName("name") val name: String? = null,
+)
+
+@Serializable
+data class SeerrRootFolder(
+  @SerialName("id") val id: Int? = null,
+  @SerialName("path") val path: String? = null,
+)
+
+@Serializable
+data class SeerrRadarrServer(
+  @SerialName("id") val id: Int? = null,
+  @SerialName("name") val name: String? = null,
+  @SerialName("is4k") val is4k: Boolean? = false,
+  @SerialName("isDefault") val isDefault: Boolean? = false,
+  @SerialName("activeProfileId") val activeProfileId: Int? = null,
+  @SerialName("activeDirectory") val activeDirectory: String? = null,
+  @SerialName("profiles") val profiles: List<SeerrServiceProfile> = emptyList(),
+  @SerialName("rootFolders") val rootFolders: List<SeerrRootFolder> = emptyList(),
+)
+
+@Serializable
+data class SeerrRadarrServerResponse(
+  @SerialName("server") val server: SeerrRadarrServer? = null,
+  @SerialName("profiles") val profiles: List<SeerrServiceProfile> = emptyList(),
+  @SerialName("rootFolders") val rootFolders: List<SeerrRootFolder> = emptyList(),
+)
+
+@Serializable
+data class SeerrSonarrServer(
+  @SerialName("id") val id: Int? = null,
+  @SerialName("name") val name: String? = null,
+  @SerialName("is4k") val is4k: Boolean? = false,
+  @SerialName("isDefault") val isDefault: Boolean? = false,
+  @SerialName("activeProfileId") val activeProfileId: Int? = null,
+  @SerialName("activeDirectory") val activeDirectory: String? = null,
+  @SerialName("profiles") val profiles: List<SeerrServiceProfile> = emptyList(),
+  @SerialName("rootFolders") val rootFolders: List<SeerrRootFolder> = emptyList(),
+)
+
+@Serializable
+data class SeerrSonarrServerResponse(
+  @SerialName("server") val server: SeerrSonarrServer? = null,
+  @SerialName("profiles") val profiles: List<SeerrServiceProfile> = emptyList(),
+  @SerialName("rootFolders") val rootFolders: List<SeerrRootFolder> = emptyList(),
 )
 
 @Serializable

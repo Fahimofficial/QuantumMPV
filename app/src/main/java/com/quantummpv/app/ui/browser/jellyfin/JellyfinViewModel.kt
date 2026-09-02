@@ -39,6 +39,7 @@ import com.quantummpv.app.utils.media.MediaUtils
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -67,10 +68,19 @@ data class JellyfinLibraryView(
   val isMusic: Boolean = false,
 )
 
+data class JellyfinHomeSection(
+  val library: JellyfinItem,
+  val title: String,
+  val subtitle: String? = null,
+  val items: List<JellyfinItem> = emptyList(),
+  val isShows: Boolean = false,
+)
+
 data class JellyfinUiState(
   val servers: List<JellyfinServer> = emptyList(),
   val activeServer: JellyfinServer? = null,
   val libraries: List<JellyfinItem> = emptyList(),
+  val librarySections: List<JellyfinHomeSection> = emptyList(),
   val heroItems: List<JellyfinItem> = emptyList(),
   val resumeItems: List<JellyfinItem> = emptyList(),
   val latestMovies: List<JellyfinItem> = emptyList(),
@@ -172,6 +182,7 @@ class JellyfinViewModel(
         heroItems = emptyList(),
         latestMovies = emptyList(),
         latestShows = emptyList(),
+        librarySections = emptyList(),
         recommendations = emptyList(),
         searchQuery = "",
         detailItem = null,
@@ -272,13 +283,69 @@ class JellyfinViewModel(
         }
 
         val resume = resumeRaw.filter { isVideoMedia(it) }
-        val latestMovies = latestRaw.filter { isVideoMedia(it) && (it.type == "Movie" || it.collectionType?.equals("movies", ignoreCase = true) == true) }
-        val latestShows = latestRaw.filter { isVideoMedia(it) && (it.type == "Series" || it.type == "Episode" || it.collectionType?.equals("tvshows", ignoreCase = true) == true) }
 
-        // Top Picks For You: Combined API suggestions + top community-rated items (up to 36 items)
-        val recommendations = (suggestionsRaw + topRatedRaw + latestRaw)
+        // Fetch latest media for each non-music library concurrently
+        val videoLibs = libs.filter { !isMusicLibrary(it) }
+        val librarySectionsDeferred = videoLibs.map { lib ->
+          async {
+            val isShowLib = isSeriesLibrary(lib)
+            val latestItemsResult = jellyfinRepository.getLatestMedia(
+              server = server,
+              parentId = lib.id,
+              limit = 16,
+              groupItems = true,
+            )
+            val rawItems = latestItemsResult.getOrDefault(emptyList()).filter { isVideoMedia(it) }
+            val containsShows = rawItems.any { it.isSeries || it.type == "Episode" || it.seriesName != null }
+            val isShows = isShowLib || containsShows
+
+            val processedItems = if (isShows) {
+              resolveShowsAsSeries(server, rawItems)
+            } else {
+              rawItems
+            }
+
+            if (processedItems.isNotEmpty()) {
+              val title = if (lib.name.startsWith("Latest", ignoreCase = true)) {
+                lib.name
+              } else {
+                "Latest ${lib.name}"
+              }
+              val subtitle = if (isShows) "Newly updated series" else "Newly added to ${lib.name}"
+              JellyfinHomeSection(
+                library = lib,
+                title = title,
+                subtitle = subtitle,
+                items = processedItems,
+                isShows = isShows,
+              )
+            } else {
+              null
+            }
+          }
+        }
+        val librarySections = librarySectionsDeferred.awaitAll().filterNotNull()
+
+        val legacyLatestMovies = latestRaw.filter { isVideoMedia(it) && (it.type == "Movie" || it.collectionType?.equals("movies", ignoreCase = true) == true) }
+        val legacyLatestShows = resolveShowsAsSeries(
+          server,
+          latestRaw.filter { isVideoMedia(it) && (it.type == "Series" || it.type == "Episode" || it.collectionType?.equals("tvshows", ignoreCase = true) == true) },
+        )
+
+        val latestMovies = librarySections.filter { !it.isShows }.flatMap { it.items }.ifEmpty { legacyLatestMovies }
+        val latestShows = librarySections.filter { it.isShows }.flatMap { it.items }.ifEmpty { legacyLatestShows }
+
+        // Top Picks For You: Combined API suggestions + top community-rated items + library sections + latest
+        val rawRecommendationCandidates = (suggestionsRaw + topRatedRaw + librarySections.flatMap { it.items } + latestRaw)
           .filter { isVideoMedia(it) && (!it.backdropImageTag.isNullOrBlank() || !it.primaryImageTag.isNullOrBlank()) }
-          .distinctBy { it.id }
+
+        val recommendations = resolveShowsAsSeries(server, rawRecommendationCandidates)
+          .sortedWith(
+            compareByDescending<JellyfinItem> { it.isSeries || it.type == "Series" }
+              .thenByDescending { it.childCount ?: 0 }
+              .thenByDescending { it.communityRating ?: 0.0 }
+          )
+          .distinctBy { mediaDeduplicationKey(it) }
           .take(36)
 
         val latestMusic = (musicRaw + latestRaw.filter { it.isAudio || it.type == "MusicAlbum" || it.type == "Audio" })
@@ -293,17 +360,23 @@ class JellyfinViewModel(
 
         val finalHero =
           if (fetchedHero.isNotEmpty()) {
-            fetchedHero.take(15)
+            resolveShowsAsSeries(server, fetchedHero)
+              .distinctBy { mediaDeduplicationKey(it) }
+              .take(15)
           } else {
-            (latestRaw + suggestionsRaw)
-              .filter { !it.isPlayed && isVideoMedia(it) && (!it.backdropImageTag.isNullOrBlank() || !it.primaryImageTag.isNullOrBlank()) }
-              .distinctBy { it.id }
+            resolveShowsAsSeries(
+              server,
+              (librarySections.flatMap { it.items } + recommendations)
+                .filter { !it.isPlayed && isVideoMedia(it) && (!it.backdropImageTag.isNullOrBlank() || !it.primaryImageTag.isNullOrBlank()) },
+            )
+              .distinctBy { mediaDeduplicationKey(it) }
               .take(15)
           }
 
         _uiState.update {
           it.copy(
             libraries = libs,
+            librarySections = librarySections,
             resumeItems = resume,
             latestMovies = latestMovies,
             latestShows = latestShows,
@@ -311,10 +384,67 @@ class JellyfinViewModel(
             recommendations = recommendations,
             heroItems = finalHero,
             isLoading = false,
-            error = if (libs.isEmpty() && latestRaw.isEmpty() && resumeRaw.isEmpty()) libsResult.exceptionOrNull()?.message else null,
+            error = if (libs.isEmpty() && latestRaw.isEmpty() && resumeRaw.isEmpty() && librarySections.isEmpty()) libsResult.exceptionOrNull()?.message else null,
           )
         }
       }
+  }
+
+  private fun mediaDeduplicationKey(item: JellyfinItem): String {
+    if (item.isSeries || item.type == "Series" || item.type == "Episode" || !item.seriesName.isNullOrBlank()) {
+      val showName = (item.seriesName ?: item.name).trim().lowercase()
+      return "series_$showName"
+    }
+    val movieName = item.name.trim().lowercase()
+    return "movie_$movieName"
+  }
+
+  private suspend fun resolveShowsAsSeries(
+    server: JellyfinServer,
+    items: List<JellyfinItem>,
+  ): List<JellyfinItem> {
+    if (items.isEmpty()) return emptyList()
+
+    val episodeItems = items.filter { it.type == "Episode" && !it.seriesId.isNullOrBlank() }
+    val seriesMap = if (episodeItems.isNotEmpty()) {
+      val distinctSeriesIds = episodeItems.mapNotNull { it.seriesId }.distinct()
+      distinctSeriesIds.map { seriesId ->
+        viewModelScope.async(Dispatchers.IO) {
+          seriesId to jellyfinRepository.getItem(server, seriesId).getOrNull()
+        }
+      }.awaitAll().toMap()
+    } else {
+      emptyMap()
+    }
+
+    return items.map { item ->
+      if (item.type == "Episode") {
+        val series = item.seriesId?.let { seriesMap[it] }
+        series ?: item.copy(
+          id = item.seriesId ?: item.id,
+          name = item.seriesName ?: item.name,
+          type = "Series",
+          primaryImageTag = item.seriesPrimaryImageTag ?: item.primaryImageTag,
+        )
+      } else {
+        item
+      }
+    }.distinctBy { mediaDeduplicationKey(it) }
+  }
+
+  private fun isSeriesLibrary(lib: JellyfinItem): Boolean {
+    val col = lib.collectionType?.lowercase()?.trim() ?: ""
+    val type = lib.type.lowercase().trim()
+    val name = lib.name.lowercase().trim()
+    return col == "tvshows" || col == "series" || type == "series" ||
+      name.contains("show") || name.contains("series") || name.contains("tv") || name.contains("anime") || name.contains("drama")
+  }
+
+  private fun isMusicLibrary(item: JellyfinItem): Boolean {
+    val col = item.collectionType?.lowercase()?.trim() ?: ""
+    val type = item.type.lowercase().trim()
+    val name = item.name.lowercase().trim()
+    return col == "music" || type == "music" || type == "audio" || (name.contains("music") && !name.contains("video"))
   }
 
   private fun sortJellyfinLibraries(libs: List<JellyfinItem>): List<JellyfinItem> {
@@ -1291,6 +1421,7 @@ class JellyfinViewModel(
         resumeItems = updateItemInList(state.resumeItems),
         latestMovies = updateItemInList(state.latestMovies),
         latestShows = updateItemInList(state.latestShows),
+        librarySections = state.librarySections.map { it.copy(items = updateItemInList(it.items)) },
         recommendations = updateItemInList(state.recommendations),
         currentItems = updateItemInList(state.currentItems),
         detailItem = if (state.detailItem?.id == item.id) state.detailItem.copy(isFavorite = newFavoriteState) else state.detailItem,
@@ -1409,6 +1540,7 @@ class JellyfinViewModel(
           heroItems = emptyList(),
           latestMovies = emptyList(),
           latestShows = emptyList(),
+          librarySections = emptyList(),
         )
       }
       if (newActive != null) {
@@ -1427,6 +1559,22 @@ class JellyfinViewModel(
       val targetItem = if (item.type == "MusicAlbum" || item.type == "MusicArtist" || (item.isFolder && item.collectionType == "music")) {
         val tracksResult = jellyfinRepository.getItems(server = server, parentId = item.id, includeItemTypes = "Audio").getOrNull()
         tracksResult?.items?.firstOrNull() ?: item
+      } else if (item.isSeries) {
+        val unplayedEpisode = jellyfinRepository.getItems(
+          server = server,
+          parentId = item.id,
+          includeItemTypes = "Episode",
+          sortBy = JellyfinSortBy.NAME,
+          isPlayed = false,
+          limit = 1,
+        ).getOrNull()?.items?.firstOrNull()
+
+        unplayedEpisode ?: jellyfinRepository.getItems(
+          server = server,
+          parentId = item.id,
+          includeItemTypes = "Episode",
+          limit = 1,
+        ).getOrNull()?.items?.firstOrNull() ?: item
       } else {
         item
       }
@@ -1789,6 +1937,7 @@ class JellyfinViewModel(
             heroItems = updateList(state.heroItems),
             latestMovies = updateList(state.latestMovies),
             latestShows = updateList(state.latestShows),
+            librarySections = state.librarySections.map { it.copy(items = updateList(it.items)) },
             detailItem = if (state.detailItem?.id == item.id) state.detailItem.copy(isPlayed = targetPlayed) else state.detailItem,
           )
         }
@@ -1830,13 +1979,17 @@ class JellyfinViewModel(
           heroItems = updateList(state.heroItems),
           latestMovies = updateList(state.latestMovies),
           latestShows = updateList(state.latestShows),
+          librarySections = state.librarySections.map { it.copy(items = updateList(it.items)) },
         )
       }
     }
   }
 
   fun playRandom(context: Context) {
-    val items = (_uiState.value.currentItems.ifEmpty { _uiState.value.latestMovies + _uiState.value.latestShows }).filter { it.isVideo }
+    val items = (_uiState.value.currentItems.ifEmpty {
+      val fromSections = _uiState.value.librarySections.flatMap { it.items }
+      if (fromSections.isNotEmpty()) fromSections else _uiState.value.latestMovies + _uiState.value.latestShows
+    }).filter { it.isVideo }
     if (items.isNotEmpty()) {
       playItem(context, items.random())
     }
