@@ -295,6 +295,8 @@
   <string name="pref_audio_visualizer_galaxy_credit">مستوحى من عمل Zain Raza على CodePen</string>
   <string name="pref_audio_ambient_mode_title">الوضع المحيطي</string>
   <string name="pref_audio_ambient_mode_summary">عرض تدرجات ألوان ديناميكية مستمدة من غلاف الألبوم في مشغل الموسيقى (معطل عند تفعيل المؤثر البصري)</string>
+  <string name="pref_audio_wavy_seekbar_title">شريط تقديم متموج</string>
+  <string name="pref_audio_wavy_seekbar_summary">عرض رسوم متحركة لمؤثر بصري متموج متعدد الطبقات وانسيابي فوق شريط التقديم</string>
   <string name="pref_audio_channels">قنوات الصوت</string>
   <string name="pref_audio_channels_auto">تلقائي</string>
   <string name="pref_audio_channels_auto_safe">تلقائي آمن</string>

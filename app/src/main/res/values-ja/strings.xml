@@ -295,6 +295,8 @@
   <string name="pref_audio_visualizer_galaxy_credit">CodePenのZain Razaに着想を得ています</string>
   <string name="pref_audio_ambient_mode_title">アンビエントモード</string>
   <string name="pref_audio_ambient_mode_summary">音楽プレーヤーでアルバムのアートワークから抽出したダイナミックなグラデーションを表示（ビジュアライザー有効時は無効）</string>
+  <string name="pref_audio_wavy_seekbar_title">波状シークバー</string>
+  <string name="pref_audio_wavy_seekbar_summary">シークバーの上に多層の流体ウェーブビジュアライザーアニメーションを表示</string>
   <string name="pref_audio_channels">音声チャンネル</string>
   <string name="pref_audio_channels_auto">自動</string>
   <string name="pref_audio_channels_auto_safe">安全な自動設定</string>

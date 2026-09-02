@@ -290,6 +290,7 @@ fun SeekbarWithTimers(
   paused: Boolean,
   seekbarStyle: SeekbarStyle = SeekbarStyle.Wavy,
   useWavySeekbar: Boolean = true,
+  showWavyVisualizer: Boolean = false,
   loopStart: Float? = null,
   loopEnd: Float? = null,
   bufferDuration: Float? = null,
@@ -342,6 +343,7 @@ fun SeekbarWithTimers(
         isUserInteracting = isUserInteracting,
         seekbarStyle = seekbarStyle,
         useWavySeekbar = useWavySeekbar,
+        showWavyVisualizer = showWavyVisualizer,
         loopStart = loopStart,
         loopEnd = loopEnd,
         bufferDuration = bufferDuration,
@@ -351,7 +353,7 @@ fun SeekbarWithTimers(
         onValueChangeFinished = onValueChangeFinished,
         scope = scope,
         animatedPosition = animatedPosition,
-        modifier = Modifier.fillMaxWidth().height(44.dp), // Taller for visibility
+        modifier = Modifier.fillMaxWidth().height(if (showWavyVisualizer) 50.dp else 44.dp), // Taller for visibility
       )
 
       Row(
@@ -408,6 +410,7 @@ fun SeekbarWithTimers(
         isUserInteracting = isUserInteracting,
         seekbarStyle = seekbarStyle,
         useWavySeekbar = useWavySeekbar,
+        showWavyVisualizer = showWavyVisualizer,
         loopStart = loopStart,
         loopEnd = loopEnd,
         bufferDuration = bufferDuration,
@@ -417,7 +420,7 @@ fun SeekbarWithTimers(
         onValueChangeFinished = onValueChangeFinished,
         scope = scope,
         animatedPosition = animatedPosition,
-        modifier = Modifier.weight(1f).height(48.dp),
+        modifier = Modifier.weight(1f).height(if (showWavyVisualizer) 50.dp else 48.dp),
       )
 
       VideoTimer(
@@ -446,6 +449,7 @@ private fun SeekbarContent(
   isUserInteracting: Boolean,
   seekbarStyle: SeekbarStyle,
   useWavySeekbar: Boolean,
+  showWavyVisualizer: Boolean = false,
   loopStart: Float?,
   loopEnd: Float?,
   bufferDuration: Float?,
@@ -483,7 +487,7 @@ private fun SeekbarContent(
     }
   val overlayTrackHeight =
     when (seekbarStyle) {
-      SeekbarStyle.Normal -> 8.dp
+      SeekbarStyle.Normal -> 4.dp
       SeekbarStyle.Slim ->
         when {
           isVisuallyInteracting -> 15.dp
@@ -616,6 +620,18 @@ private fun SeekbarContent(
           )
         }
       }
+    }
+
+    if (showWavyVisualizer) {
+      SeekbarWavyVisualizerOverlay(
+        positionProvider = positionProvider,
+        duration = safeDuration,
+        isPaused = paused,
+        isScrubbing = isVisuallyInteracting,
+        trackHeight = overlayTrackHeight,
+        seekbarStyle = seekbarStyle,
+        modifier = Modifier.fillMaxWidth().matchParentSize(),
+      )
     }
 
     Canvas(
