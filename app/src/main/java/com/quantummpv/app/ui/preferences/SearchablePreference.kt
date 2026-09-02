@@ -1428,6 +1428,7 @@ object SearchablePreferences {
         screen = AudioPreferencesScreen,
         anchorItemIndex = 3,
         SearchEntrySpec(R.string.pref_audio_ambient_mode_title, listOf("audio", "ambient", "background", "visualizer")),
+        SearchEntrySpec(R.string.pref_audio_wavy_seekbar_title, listOf("audio", "wavy", "seekbar", "visualizer", "animation", "wave")),
       )
       addSearchEntries(
         category = "Audio",

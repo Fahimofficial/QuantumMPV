@@ -351,6 +351,21 @@ object AudioPreferencesScreen : Screen {
                   )
                 },
               )
+
+              PreferenceDivider()
+              val audioWavySeekbar by preferences.audioWavySeekbar.collectAsState()
+              SwitchPreference(
+                modifier = Modifier.settingsSearchTarget(R.string.pref_audio_wavy_seekbar_title),
+                value = audioWavySeekbar,
+                onValueChange = { preferences.audioWavySeekbar.set(it) },
+                title = { Text(stringResource(R.string.pref_audio_wavy_seekbar_title)) },
+                summary = {
+                  Text(
+                    stringResource(R.string.pref_audio_wavy_seekbar_summary),
+                    color = MaterialTheme.colorScheme.outline,
+                  )
+                },
+              )
             }
           }
 

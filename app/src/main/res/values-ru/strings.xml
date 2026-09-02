@@ -295,6 +295,8 @@
   <string name="pref_audio_visualizer_galaxy_credit">Вдохновлено работой Zain Raza на CodePen</string>
   <string name="pref_audio_ambient_mode_title">Эмбиент режим</string>
   <string name="pref_audio_ambient_mode_summary">Отображать динамические цветовые градиенты на основе обложки альбома в плеере (отключается при включенном визуализаторе)</string>
+  <string name="pref_audio_wavy_seekbar_title">Волнообразная шкала перемотки</string>
+  <string name="pref_audio_wavy_seekbar_summary">Отображать плавную многослойную волновую анимацию визуализатора над шкалой перемотки</string>
   <string name="pref_audio_channels">Аудиоканалы</string>
   <string name="pref_audio_channels_auto">Авто</string>
   <string name="pref_audio_channels_auto_safe">Безопасный авто</string>

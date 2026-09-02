@@ -595,6 +595,7 @@ fun AudioPlayerControls(
   val audioPreferences = koinInject<AudioPreferences>()
   val appearancePreferences = koinInject<AppearancePreferences>()
   val audioVisualizerStyle by audioPreferences.audioVisualizerStyle.collectAsState()
+  val audioWavySeekbar by audioPreferences.audioWavySeekbar.collectAsState()
   val backgroundPlaybackEnabled by audioPreferences.audioBackgroundPlayback.collectAsState()
   val colorScheme = MaterialTheme.colorScheme
   val palette =
@@ -1394,6 +1395,7 @@ fun AudioPlayerControls(
       val remaining  by PlaybackSession.propFloat["playtime-remaining"].collectAsState()
       val precisePosition by viewModel.precisePosition.collectAsStateWithLifecycle()
       val currentPosSec = if (precisePosition > 0f) precisePosition else position?.toFloat() ?: 0f
+      val isPaused = paused ?: false
 
       SeekbarWithTimers(
         position = currentPosSec,
@@ -1407,8 +1409,9 @@ fun AudioPlayerControls(
         positionTimerOnClick = {},
         chapters = seekbarChapters,
         skipSegments = persistentListOf(),
-        paused = paused ?: false,
+        paused = isPaused,
         seekbarStyle = seekbarStyle,
+        showWavyVisualizer = audioWavySeekbar,
         loopStart = abLoopA?.toFloat(),
         loopEnd = abLoopB?.toFloat(),
         isPortrait = isPortrait,
