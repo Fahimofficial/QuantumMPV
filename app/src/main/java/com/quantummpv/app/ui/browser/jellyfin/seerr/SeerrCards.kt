@@ -213,6 +213,16 @@ fun SeerrStatusChip(
       Color(0xFFF3E5F5),
       R.string.seerr_status_pending,
     )
+    MediaStatus.DELETED -> Triple(
+      Color(0xFFD32F2F).copy(alpha = 0.9f),
+      Color(0xFFFFEBEE),
+      R.string.seerr_status_deleted,
+    )
+    MediaStatus.BLACKLISTED -> Triple(
+      Color(0xFF37474F).copy(alpha = 0.85f),
+      Color(0xFFECEFF1),
+      R.string.seerr_status_blacklisted,
+    )
     else -> Triple(
       Color.Black.copy(alpha = 0.7f),
       Color.White,
@@ -361,12 +371,73 @@ fun SeerrRequestCard(
       }
 
       // Top-Left status badge
-      SeerrRequestStatusChip(
-        status = request.getRequestStatus(),
-        modifier = Modifier
-          .align(Alignment.TopStart)
-          .padding(8.dp),
-      )
+      val mediaStatus = MediaStatus.fromValue(request.media.status)
+      when {
+        mediaStatus == MediaStatus.DELETED -> {
+          SeerrStatusChip(
+            status = MediaStatus.DELETED,
+            modifier = Modifier
+              .align(Alignment.TopStart)
+              .padding(8.dp),
+          )
+        }
+        mediaStatus == MediaStatus.PARTIALLY_AVAILABLE -> {
+          SeerrStatusChip(
+            status = MediaStatus.PARTIALLY_AVAILABLE,
+            modifier = Modifier
+              .align(Alignment.TopStart)
+              .padding(8.dp),
+          )
+        }
+        request.getRequestStatus() == RequestStatus.PENDING -> {
+          SeerrRequestStatusChip(
+            status = RequestStatus.PENDING,
+            modifier = Modifier
+              .align(Alignment.TopStart)
+              .padding(8.dp),
+          )
+        }
+        request.getRequestStatus() == RequestStatus.DECLINED -> {
+          SeerrRequestStatusChip(
+            status = RequestStatus.DECLINED,
+            modifier = Modifier
+              .align(Alignment.TopStart)
+              .padding(8.dp),
+          )
+        }
+        request.getRequestStatus() == RequestStatus.FAILED -> {
+          SeerrRequestStatusChip(
+            status = RequestStatus.FAILED,
+            modifier = Modifier
+              .align(Alignment.TopStart)
+              .padding(8.dp),
+          )
+        }
+        mediaStatus == MediaStatus.AVAILABLE -> {
+          SeerrStatusChip(
+            status = MediaStatus.AVAILABLE,
+            modifier = Modifier
+              .align(Alignment.TopStart)
+              .padding(8.dp),
+          )
+        }
+        mediaStatus == MediaStatus.PROCESSING || request.getRequestStatus() == RequestStatus.APPROVED -> {
+          SeerrStatusChip(
+            status = MediaStatus.PROCESSING,
+            modifier = Modifier
+              .align(Alignment.TopStart)
+              .padding(8.dp),
+          )
+        }
+        else -> {
+          SeerrRequestStatusChip(
+            status = request.getRequestStatus(),
+            modifier = Modifier
+              .align(Alignment.TopStart)
+              .padding(8.dp),
+          )
+        }
+      }
 
       // Requester Photo on Bottom Left of Thumbnail
       val rawAvatar = request.requestedBy.avatar

@@ -2009,6 +2009,8 @@
   <string name="seerr_status_partially_available">Partially Available</string>
   <string name="seerr_status_requested">Requested</string>
   <string name="seerr_status_not_requested">Not Requested</string>
+  <string name="seerr_status_deleted">Deleted</string>
+  <string name="seerr_status_blacklisted">Blacklisted</string>
   <string name="seerr_approve">Approve</string>
   <string name="seerr_decline">Decline</string>
   <string name="seerr_delete">Delete</string>

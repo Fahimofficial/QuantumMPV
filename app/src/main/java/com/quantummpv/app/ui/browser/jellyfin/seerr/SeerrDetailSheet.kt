@@ -10,6 +10,7 @@
 package com.quantummpv.app.ui.browser.jellyfin.seerr
 
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
@@ -38,6 +39,8 @@ import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.FilterChip
@@ -82,6 +85,14 @@ import com.quantummpv.app.presentation.components.RemoteImage
 import com.quantummpv.app.ui.icons.Icon
 import com.quantummpv.app.ui.icons.Icons
 
+data class ResolutionOption(
+  val label: String,
+  val is4k: Boolean,
+  val serverId: Int?,
+  val profileId: Int?,
+  val rootFolder: String?,
+)
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun SeerrDetailSheet(
@@ -90,8 +101,11 @@ fun SeerrDetailSheet(
   isLoading: Boolean,
   isRequesting: Boolean,
   isAdmin: Boolean,
+  radarrServers: List<com.quantummpv.app.domain.seerr.SeerrRadarrServer> = emptyList(),
+  sonarrServers: List<com.quantummpv.app.domain.seerr.SeerrSonarrServer> = emptyList(),
+  isLoadingServers: Boolean = false,
   onDismiss: () -> Unit,
-  onRequest: (seasons: List<Int>?, is4k: Boolean) -> Unit,
+  onRequest: (seasons: List<Int>?, is4k: Boolean, serverId: Int?, profileId: Int?, rootFolder: String?) -> Unit,
   onApprove: (requestId: Int) -> Unit,
   onDecline: (requestId: Int) -> Unit,
   onDeleteRequest: ((requestId: Int) -> Unit)? = null,
@@ -118,9 +132,9 @@ fun SeerrDetailSheet(
   val runtime = details?.runtime
 
   val mediaInfo = details?.mediaInfo ?: searchItem?.mediaInfo
-  val mediaStatus = MediaStatus.fromValue(mediaInfo?.status ?: searchItem?.getDisplayStatus()?.value ?: MediaStatus.UNKNOWN.value)
+  val mediaStatus = details?.getDisplayStatus() ?: searchItem?.getDisplayStatus() ?: MediaStatus.fromValue(mediaInfo?.status ?: MediaStatus.UNKNOWN.value)
   val jellyfinId = mediaInfo?.getJellyfinItemId()
-  val isAvailableInJellyfin = mediaStatus == MediaStatus.AVAILABLE || !jellyfinId.isNullOrBlank()
+  val isAvailableInJellyfin = mediaStatus == MediaStatus.AVAILABLE && !jellyfinId.isNullOrBlank()
 
   val seasons = details?.seasons?.filter { (it.seasonNumber ?: 0) > 0 } ?: emptyList()
   val seasonStatusMap = remember(details?.mediaInfo, searchItem?.mediaInfo) {
@@ -138,7 +152,79 @@ fun SeerrDetailSheet(
       addAll(unrequestedSeasons)
     }
   }
-  var is4kRequested by remember { mutableStateOf(false) }
+
+  val isTv = mediaType == MediaType.TV
+  val resolutionOptions = remember(isTv, radarrServers, sonarrServers) {
+    val options = mutableListOf<ResolutionOption>()
+    if (isTv) {
+      sonarrServers.forEach { server ->
+        server.profiles.forEach { profile ->
+          val label = buildString {
+            append(profile.name ?: "Default")
+            if (server.is4k == true) append(" (4K)")
+            else if (sonarrServers.size > 1) append(" (${server.name})")
+          }
+          options.add(
+            ResolutionOption(
+              label = label,
+              is4k = server.is4k == true,
+              serverId = server.id,
+              profileId = profile.id,
+              rootFolder = server.activeDirectory,
+            ),
+          )
+        }
+      }
+    } else {
+      radarrServers.forEach { server ->
+        server.profiles.forEach { profile ->
+          val label = buildString {
+            append(profile.name ?: "Default")
+            if (server.is4k == true) append(" (4K)")
+            else if (radarrServers.size > 1) append(" (${server.name})")
+          }
+          options.add(
+            ResolutionOption(
+              label = label,
+              is4k = server.is4k == true,
+              serverId = server.id,
+              profileId = profile.id,
+              rootFolder = server.activeDirectory,
+            ),
+          )
+        }
+      }
+    }
+
+    if (options.isEmpty()) {
+      options.add(
+        ResolutionOption(
+          label = "Standard (1080p)",
+          is4k = false,
+          serverId = null,
+          profileId = null,
+          rootFolder = null,
+        ),
+      )
+      options.add(
+        ResolutionOption(
+          label = "4K Ultra HD",
+          is4k = true,
+          serverId = null,
+          profileId = null,
+          rootFolder = null,
+        ),
+      )
+    }
+    options
+  }
+
+  var selectedResolution by remember(resolutionOptions) {
+    mutableStateOf(
+      resolutionOptions.firstOrNull { !it.is4k } ?: resolutionOptions.first(),
+    )
+  }
+  var isResolutionDropdownExpanded by remember { mutableStateOf(false) }
   var isOverviewExpanded by remember { mutableStateOf(false) }
 
   ModalBottomSheet(
@@ -348,7 +434,7 @@ fun SeerrDetailSheet(
         verticalArrangement = Arrangement.spacedBy(8.dp),
       ) {
         // 1. Play in Jellyfin (if available and ID present)
-        if (!jellyfinId.isNullOrBlank() && onOpenJellyfinItem != null) {
+        if (isAvailableInJellyfin && !jellyfinId.isNullOrBlank() && onOpenJellyfinItem != null) {
           Button(
             onClick = { onOpenJellyfinItem(jellyfinId) },
             colors = ButtonDefaults.buttonColors(
@@ -440,10 +526,25 @@ fun SeerrDetailSheet(
 
           // Unrequested / Partially Available
           else -> {
+            // Resolution Profile Dropdown
+            ResolutionProfileDropdown(
+              selectedResolution = selectedResolution,
+              onSelectResolution = { selectedResolution = it },
+              resolutionOptions = resolutionOptions,
+              isLoading = isLoadingServers,
+              modifier = Modifier.padding(bottom = 6.dp),
+            )
+
             Button(
               onClick = {
                 val seasonsToRequest = if (mediaType == MediaType.TV) selectedSeasons.toList() else null
-                onRequest(seasonsToRequest, is4kRequested)
+                onRequest(
+                  seasonsToRequest,
+                  selectedResolution.is4k,
+                  selectedResolution.serverId,
+                  selectedResolution.profileId,
+                  selectedResolution.rootFolder,
+                )
               },
               enabled = !isRequesting && (mediaType != MediaType.TV || selectedSeasons.isNotEmpty()),
               colors = ButtonDefaults.buttonColors(
@@ -485,7 +586,7 @@ fun SeerrDetailSheet(
           }
         }
 
-        // TV Show Season Selection & 4K Toggle (Only when unrequested / partially available and not already processing/pending/available)
+        // TV Show Season Selection (Only when unrequested / partially available and not already processing/pending/available)
         if (mediaType == MediaType.TV && seasons.isNotEmpty() && unrequestedSeasons.isNotEmpty() && mediaStatus != MediaStatus.AVAILABLE && mediaStatus != MediaStatus.PROCESSING && mediaStatus != MediaStatus.PENDING) {
           Spacer(modifier = Modifier.height(4.dp))
           Row(
@@ -567,26 +668,6 @@ fun SeerrDetailSheet(
                 ),
               )
             }
-          }
-        }
-
-        // 4K Toggle (Only if requesting)
-        if (mediaStatus != MediaStatus.AVAILABLE && mediaStatus != MediaStatus.PROCESSING && mediaStatus != MediaStatus.PENDING) {
-          Row(
-            modifier = Modifier
-              .fillMaxWidth()
-              .padding(vertical = 2.dp),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically,
-          ) {
-            Text(
-              text = stringResource(R.string.seerr_request_4k),
-              style = MaterialTheme.typography.bodyMedium,
-            )
-            Switch(
-              checked = is4kRequested,
-              onCheckedChange = { is4kRequested = it },
-            )
           }
         }
 
@@ -796,6 +877,104 @@ fun SeerrDetailSheet(
       }
 
       Spacer(modifier = Modifier.height(32.dp))
+    }
+  }
+}
+
+@Composable
+private fun ResolutionProfileDropdown(
+  selectedResolution: ResolutionOption,
+  onSelectResolution: (ResolutionOption) -> Unit,
+  resolutionOptions: List<ResolutionOption>,
+  isLoading: Boolean,
+  modifier: Modifier = Modifier,
+) {
+  var expanded by remember { mutableStateOf(false) }
+
+  Column(
+    modifier = modifier.fillMaxWidth(),
+    verticalArrangement = Arrangement.spacedBy(6.dp),
+  ) {
+    Text(
+      text = "Resolution Profile",
+      style = MaterialTheme.typography.labelLarge,
+      fontWeight = FontWeight.SemiBold,
+      color = MaterialTheme.colorScheme.onSurface,
+    )
+
+    Box(modifier = Modifier.fillMaxWidth()) {
+      Surface(
+        onClick = { expanded = true },
+        shape = RoundedCornerShape(12.dp),
+        color = MaterialTheme.colorScheme.surfaceContainerHighest.copy(alpha = 0.7f),
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)),
+        modifier = Modifier.fillMaxWidth(),
+      ) {
+        Row(
+          modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 14.dp, vertical = 12.dp),
+          horizontalArrangement = Arrangement.SpaceBetween,
+          verticalAlignment = Alignment.CenterVertically,
+        ) {
+          Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+          ) {
+            if (isLoading) {
+              CircularProgressIndicator(modifier = Modifier.size(16.dp), strokeWidth = 2.dp)
+            }
+            Text(
+              text = selectedResolution.label,
+              style = MaterialTheme.typography.bodyMedium,
+              fontWeight = FontWeight.SemiBold,
+              color = MaterialTheme.colorScheme.onSurface,
+            )
+          }
+          Icon(
+            Icons.RoundedFilled.ArrowDropDown,
+            contentDescription = "Select Resolution",
+            modifier = Modifier.size(20.dp),
+            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+          )
+        }
+      }
+
+      DropdownMenu(
+        expanded = expanded,
+        onDismissRequest = { expanded = false },
+      ) {
+        resolutionOptions.forEach { option ->
+          val isSelected = option == selectedResolution
+          DropdownMenuItem(
+            text = {
+              Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically,
+              ) {
+                Text(
+                  text = option.label,
+                  fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
+                  color = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface,
+                )
+                if (isSelected) {
+                  Icon(
+                    Icons.RoundedFilled.Check,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.size(18.dp),
+                  )
+                }
+              }
+            },
+            onClick = {
+              onSelectResolution(option)
+              expanded = false
+            },
+          )
+        }
+      }
     }
   }
 }
