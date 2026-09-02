@@ -65,8 +65,9 @@ class JellyfinRepository(
     server: JellyfinServer,
     parentId: String? = null,
     limit: Int = 16,
+    groupItems: Boolean = true,
   ): Result<List<JellyfinItem>> =
-    client.getLatestMedia(server.serverUrl, server.userId, parentId, limit, server.accessToken)
+    client.getLatestMedia(server.serverUrl, server.userId, parentId, limit, server.accessToken, groupItems)
 
   suspend fun getSuggestions(
     server: JellyfinServer,

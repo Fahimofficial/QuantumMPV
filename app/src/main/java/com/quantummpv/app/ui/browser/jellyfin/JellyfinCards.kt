@@ -841,12 +841,22 @@ fun JellyfinPosterCard(
   isSelected: Boolean = false,
   isDownloaded: Boolean = false,
 ) {
+  val posterImageTag = if (item.type == "Episode" && !item.seriesPrimaryImageTag.isNullOrBlank()) {
+    item.seriesPrimaryImageTag
+  } else {
+    item.primaryImageTag
+  }
+  val posterItemId = if (item.type == "Episode" && !item.seriesId.isNullOrBlank() && !item.seriesPrimaryImageTag.isNullOrBlank()) {
+    item.seriesId
+  } else {
+    item.id
+  }
   val imageUrl =
-    remember(server.serverUrl, item.id, item.primaryImageTag, server.accessToken) {
+    remember(server.serverUrl, posterItemId, posterImageTag, server.accessToken) {
       JellyfinClient.getImageUrl(
         serverUrl = server.serverUrl,
-        itemId = item.id,
-        imageTag = item.primaryImageTag,
+        itemId = posterItemId,
+        imageTag = posterImageTag,
         maxWidth = 400,
         token = server.accessToken,
       )
@@ -897,7 +907,7 @@ fun JellyfinPosterCard(
             when {
               item.isAudio -> Icons.RoundedFilled.Audiotrack
               item.isFolder -> Icons.RoundedFilled.Folder
-              item.isSeries -> Icons.RoundedFilled.Tv
+              item.isSeries || (item.type == "Episode" && !item.seriesName.isNullOrBlank()) -> Icons.RoundedFilled.Tv
               else -> Icons.RoundedFilled.Movie
             }
           Icon(
@@ -989,8 +999,9 @@ fun JellyfinPosterCard(
           .padding(top = 6.dp),
       horizontalAlignment = Alignment.Start,
     ) {
+      val title = if (item.type == "Episode" && !item.seriesName.isNullOrBlank()) item.seriesName else item.name
       Text(
-        text = item.name,
+        text = title,
         style = MaterialTheme.typography.bodyMedium,
         fontWeight = FontWeight.SemiBold,
         maxLines = 1,
@@ -1003,11 +1014,17 @@ fun JellyfinPosterCard(
         run {
           val before = buildList {
             item.productionYear?.let { add(it.toString()) }
-              ?: if (item.isSeries && item.childCount != null) {
-                add("${item.childCount} Seasons")
+            if (item.isSeries && item.childCount != null && item.childCount > 0) {
+              add(if (item.childCount == 1) "1 Season" else "${item.childCount} Seasons")
+            } else if (item.type == "Episode") {
+              if (item.parentIndexNumber != null && item.indexNumber != null) {
+                add("S${item.parentIndexNumber}:E${item.indexNumber}")
               } else {
-                add(item.type)
+                add("Episode")
               }
+            } else if (item.productionYear == null) {
+              add(item.type)
+            }
           }
           buildStarSubtitle(before, item.communityRating, item.criticRating)
         }

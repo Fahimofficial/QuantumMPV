@@ -360,7 +360,7 @@ class JellyfinClient(
       runCatching {
         val base = normalizeUrl(serverUrl)
         val endpoint =
-          "$base/Users/$userId/Items/Resume?Limit=$limit&Fields=Overview,PrimaryImageAspectRatio,UserData,SeriesName,SeasonName,IndexNumber,ParentIndexNumber,MediaSources,MediaStreams,Genres,OfficialRating,CommunityRating,CriticRating,ProductionYear,Taglines,PremiereDate,Status"
+          "$base/Users/$userId/Items/Resume?Limit=$limit&Fields=Overview,PrimaryImageAspectRatio,UserData,SeriesName,SeriesId,SeriesPrimaryImageTag,SeasonName,IndexNumber,ParentIndexNumber,MediaSources,MediaStreams,Genres,OfficialRating,CommunityRating,CriticRating,ProductionYear,Taglines,PremiereDate,Status"
         val request =
           Request
             .Builder()
@@ -387,13 +387,15 @@ class JellyfinClient(
     parentId: String? = null,
     limit: Int = 16,
     token: String,
+    groupItems: Boolean = true,
   ): Result<List<JellyfinItem>> =
     withContext(Dispatchers.IO) {
       runCatching {
         val base = normalizeUrl(serverUrl)
         val parentParam = if (!parentId.isNullOrBlank()) "&ParentId=$parentId" else ""
+        val groupParam = "&GroupItems=$groupItems"
         val endpoint =
-          "$base/Users/$userId/Items/Latest?Limit=$limit$parentParam&Fields=Overview,PrimaryImageAspectRatio,UserData,SeriesName,SeasonName,IndexNumber,ParentIndexNumber,MediaSources,MediaStreams,Genres,OfficialRating,CommunityRating,CriticRating,ProductionYear,Taglines,ChildCount,PremiereDate,Status"
+          "$base/Users/$userId/Items/Latest?Limit=$limit$parentParam$groupParam&Fields=Overview,PrimaryImageAspectRatio,UserData,SeriesName,SeriesId,SeriesPrimaryImageTag,SeasonName,IndexNumber,ParentIndexNumber,MediaSources,MediaStreams,Genres,OfficialRating,CommunityRating,CriticRating,ProductionYear,Taglines,ChildCount,PremiereDate,Status"
         val request =
           Request
             .Builder()
@@ -429,7 +431,7 @@ class JellyfinClient(
       runCatching {
         val base = normalizeUrl(serverUrl)
         val endpoint =
-          "$base/Users/$userId/Suggestions?Limit=$limit&Fields=Overview,PrimaryImageAspectRatio,UserData,SeriesName,SeasonName,IndexNumber,ParentIndexNumber,MediaSources,MediaStreams,Genres,OfficialRating,CommunityRating,CriticRating,ProductionYear,Taglines,ChildCount,PremiereDate,Status"
+          "$base/Users/$userId/Suggestions?Limit=$limit&Fields=Overview,PrimaryImageAspectRatio,UserData,SeriesName,SeriesId,SeriesPrimaryImageTag,SeasonName,IndexNumber,ParentIndexNumber,MediaSources,MediaStreams,Genres,OfficialRating,CommunityRating,CriticRating,ProductionYear,Taglines,ChildCount,PremiereDate,Status"
         val request =
           Request
             .Builder()
@@ -497,7 +499,7 @@ class JellyfinClient(
       runCatching {
         val base = normalizeUrl(serverUrl)
         val endpoint =
-          "$base/Users/$userId/Items/$itemId?Fields=Overview,PrimaryImageAspectRatio,UserData,SeriesName,SeasonName,IndexNumber,ParentIndexNumber,MediaSources,MediaStreams,Genres,OfficialRating,CommunityRating,CriticRating,ProductionYear,Taglines,ChildCount,PremiereDate,Status,People,RemoteTrailers"
+          "$base/Users/$userId/Items/$itemId?Fields=Overview,PrimaryImageAspectRatio,UserData,SeriesName,SeriesId,SeriesPrimaryImageTag,SeasonName,IndexNumber,ParentIndexNumber,MediaSources,MediaStreams,Genres,OfficialRating,CommunityRating,CriticRating,ProductionYear,Taglines,ChildCount,PremiereDate,Status,People,RemoteTrailers"
         val request =
           Request
             .Builder()
@@ -538,7 +540,7 @@ class JellyfinClient(
         val base = normalizeUrl(serverUrl)
         val urlBuilder =
           StringBuilder(
-            "$base/Users/$userId/Items?Fields=Overview,PrimaryImageAspectRatio,UserData,ChildCount,MediaSources,MediaStreams,ProductionYear,CommunityRating,CriticRating,Genres,OfficialRating,Taglines,SeriesName,SeasonName,IndexNumber,ParentIndexNumber,PremiereDate,Status,RemoteTrailers&StartIndex=$startIndex&Limit=$limit&SortBy=${sortBy.apiValue}&SortOrder=${sortOrder.apiValue}",
+            "$base/Users/$userId/Items?Fields=Overview,PrimaryImageAspectRatio,UserData,ChildCount,MediaSources,MediaStreams,ProductionYear,CommunityRating,CriticRating,Genres,OfficialRating,Taglines,SeriesName,SeriesId,SeriesPrimaryImageTag,SeasonName,IndexNumber,ParentIndexNumber,PremiereDate,Status,RemoteTrailers&StartIndex=$startIndex&Limit=$limit&SortBy=${sortBy.apiValue}&SortOrder=${sortOrder.apiValue}",
           )
 
         if (!parentId.isNullOrBlank()) {
@@ -988,6 +990,8 @@ class JellyfinClient(
       ?: obj["Artists"]?.jsonArray?.firstOrNull()?.let { element ->
         if (element is JsonObject) element["Name"]?.jsonPrimitive?.content else element.jsonPrimitive.content
       }
+    val seriesId = obj["SeriesId"]?.jsonPrimitive?.content
+    val seriesPrimaryImageTag = obj["SeriesPrimaryImageTag"]?.jsonPrimitive?.content
     val seasonName = obj["SeasonName"]?.jsonPrimitive?.content
     val indexNumber = obj["IndexNumber"]?.jsonPrimitive?.intOrNull
     val parentIndexNumber = obj["ParentIndexNumber"]?.jsonPrimitive?.intOrNull
@@ -1095,6 +1099,8 @@ class JellyfinClient(
       isPlayed = isPlayed,
       isFavorite = isFavorite,
       seriesName = seriesName,
+      seriesId = seriesId,
+      seriesPrimaryImageTag = seriesPrimaryImageTag,
       seasonName = seasonName,
       indexNumber = indexNumber,
       parentIndexNumber = parentIndexNumber,
