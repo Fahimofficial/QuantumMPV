@@ -634,6 +634,8 @@
 
   <!-- Player - Display & Controls Section                        -->
   <string name="pref_section_display_controls">显示和控制</string>
+  <string name="pref_player_controls_drawer_title">控制面板侧拉抽屉</string>
+  <string name="pref_player_controls_drawer_summary">显示边缘滑块，拖拽即可打开控制面板</string>
   <string name="pref_nav_bar_title">显示带控制项的导航栏</string>
   <string name="pref_nav_bar_summary">在播放器控制项上方显示 Android 系统导航栏</string>
 

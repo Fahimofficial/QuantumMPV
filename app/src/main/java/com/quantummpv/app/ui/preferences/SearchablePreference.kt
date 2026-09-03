@@ -532,6 +532,15 @@ object SearchablePreferences {
       )
       add(
         SearchablePreference(
+          titleRes = R.string.pref_player_controls_drawer_title,
+          summaryRes = R.string.pref_player_controls_drawer_summary,
+          keywords = listOf("controls", "drawer", "chevron", "panel", "side", "drag", "more controls"),
+          category = "Player",
+          screen = PlayerPreferencesScreen,
+        ),
+      )
+      add(
+        SearchablePreference(
           titleRes = R.string.pref_player_display_show_status_bar,
           keywords = listOf("status bar", "navigation", "system", "show", "hide", "immersive"),
           category = "Player",

@@ -632,6 +632,8 @@ Weiter: NEXT</string>
 
   <!-- Player - Display & Controls Section                        -->
   <string name="pref_section_display_controls">Anzeige und Steuerelemente</string>
+  <string name="pref_player_controls_drawer_title">Steuerungsleiste</string>
+  <string name="pref_player_controls_drawer_summary">Randgriff anzeigen, um das Steuerungsfeld durch Ziehen zu öffnen</string>
   <string name="pref_nav_bar_title">Navigationsleiste mit Steuerelementen anzeigen</string>
   <string name="pref_nav_bar_summary">Android-Systemnavigationsleiste über den Player-Steuerelementen anzeigen</string>
 

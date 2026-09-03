@@ -208,6 +208,7 @@ fun PlayerControls(
   val audioPreferences = koinInject<AudioPreferences>()
   val showSystemStatusBar by playerPreferences.showSystemStatusBar.collectAsState()
   val showSystemNavigationBar by playerPreferences.showSystemNavigationBar.collectAsState()
+  val showControlsDrawer by playerPreferences.showControlsDrawer.collectAsState()
   val interactionSource = remember { MutableInteractionSource() }
   val controlsShown by viewModel.controlsShown.collectAsState()
   val statisticsPage by advancedPreferences.enabledStatisticsPage.collectAsState()
@@ -483,12 +484,19 @@ fun PlayerControls(
 
   var isUnlockSliderDragging by remember { mutableStateOf(false) }
   var isPlayerDrawerShown by remember { mutableStateOf(false) }
+  LaunchedEffect(showControlsDrawer) {
+    if (!showControlsDrawer && isPlayerDrawerShown) {
+      isPlayerDrawerShown = false
+    }
+  }
   val setPlayerDrawerShown: (Boolean) -> Unit = { visible ->
-    isPlayerDrawerShown = visible
-    if (visible) {
-      viewModel.hideControls()
-    } else if (viewModel.sheetShown.value == Sheets.None && viewModel.panelShown.value == Panels.None) {
-      viewModel.showControls()
+    if (showControlsDrawer) {
+      isPlayerDrawerShown = visible
+      if (visible) {
+        viewModel.hideControls()
+      } else if (viewModel.sheetShown.value == Sheets.None && viewModel.panelShown.value == Panels.None) {
+        viewModel.showControls()
+      }
     }
   }
   val isBrightnessSliderShown by viewModel.isBrightnessSliderShown.collectAsState()
@@ -504,13 +512,14 @@ fun PlayerControls(
     isUnlockSliderDragging,
     isAudioOnly,
     isPlayerDrawerShown,
+    showControlsDrawer,
   ) {
     if (!isAudioOnly &&
       controlsShown &&
       paused == false &&
       !isSeeking &&
       !isUnlockSliderDragging &&
-      !isPlayerDrawerShown
+      !(showControlsDrawer && isPlayerDrawerShown)
     ) {
       // Use 2 second delay when controls are locked, otherwise use user preference
       val delayTime = if (areControlsLocked) 2000L else playerTimeToDisappear.toLong()
@@ -536,7 +545,7 @@ fun PlayerControls(
   GestureHandler(
     viewModel = viewModel,
     interactionSource = interactionSource,
-    externalPanelShown = isPlayerDrawerShown,
+    externalPanelShown = showControlsDrawer && isPlayerDrawerShown,
     onDismissExternalPanel = { setPlayerDrawerShown(false) },
   )
 
@@ -1949,41 +1958,43 @@ fun PlayerControls(
         }
       }
 
-    PlayerButtonTheme(hideBackground = false) {
-      PlayerControlDrawer(
-        buttons = playerDrawerButtons,
-        activeButtons = activePlayerDrawerButtons,
-        controlsVisible =
-          controlsShown &&
-            !areControlsLocked &&
-            !areSlidersShown &&
-            sheetShown == Sheets.None &&
-            panel == Panels.None,
-        panelVisible = isPlayerDrawerShown,
-        onPanelVisibilityChanged = setPlayerDrawerShown,
-        renderButton = { button ->
-          RenderPlayerButton(
-            button = button,
-            chapters = chapters,
-            currentChapter = currentChapter,
-            isPortrait = isPortrait,
-            isSpeedNonOne = isSpeedNonOne,
-            currentZoom = currentZoom,
-            aspect = aspect,
-            mediaTitle = mediaTitle,
-            hideBackground = true,
-            decoder = decoder,
-            playbackSpeed = playbackSpeed ?: 1f,
-            onBackPress = onBackPress,
-            onOpenSheet = onOpenSheet,
-            onOpenPanel = onOpenPanel,
-            viewModel = viewModel,
-            activity = playerActivity,
-            buttonSize = 44.dp,
-            compact = true,
-          )
-        },
-      )
+    if (showControlsDrawer) {
+      PlayerButtonTheme(hideBackground = false) {
+        PlayerControlDrawer(
+          buttons = playerDrawerButtons,
+          activeButtons = activePlayerDrawerButtons,
+          controlsVisible =
+            controlsShown &&
+              !areControlsLocked &&
+              !areSlidersShown &&
+              sheetShown == Sheets.None &&
+              panel == Panels.None,
+          panelVisible = isPlayerDrawerShown,
+          onPanelVisibilityChanged = setPlayerDrawerShown,
+          renderButton = { button ->
+            RenderPlayerButton(
+              button = button,
+              chapters = chapters,
+              currentChapter = currentChapter,
+              isPortrait = isPortrait,
+              isSpeedNonOne = isSpeedNonOne,
+              currentZoom = currentZoom,
+              aspect = aspect,
+              mediaTitle = mediaTitle,
+              hideBackground = true,
+              decoder = decoder,
+              playbackSpeed = playbackSpeed ?: 1f,
+              onBackPress = onBackPress,
+              onOpenSheet = onOpenSheet,
+              onOpenPanel = onOpenPanel,
+              viewModel = viewModel,
+              activity = playerActivity,
+              buttonSize = 44.dp,
+              compact = true,
+            )
+          },
+        )
+      }
     }
   }
 }

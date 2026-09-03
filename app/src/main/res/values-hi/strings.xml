@@ -610,6 +610,8 @@
   <string name="pref_auto_skip_outro_title">आउट्रो ऑटो-स्किप करें</string>
   <string name="pref_auto_skip_outro_summary">प्लेबैक के दौरान एंडिंग मार्कर अपने आप स्किप करें</string>
   <string name="pref_section_display_controls">डिस्प्ले और कंट्रोल्स</string>
+  <string name="pref_player_controls_drawer_title">कंट्रोल्स दराज</string>
+  <string name="pref_player_controls_drawer_summary">कंट्रोल्स पैनल को खींचकर खोलने के लिए किनारे का हैंडल प्रदर्शित करें</string>
   <string name="pref_nav_bar_title">कंट्रोल्स के साथ नेविगेशन बार दिखाएं</string>
   <string name="pref_nav_bar_summary">प्लेयर कंट्रोल्स के ऊपर Android सिस्टम नेविगेशन बार दिखाएं</string>
   <string name="pref_section_overlays">जेस्चर और एक्शन ओवरले</string>

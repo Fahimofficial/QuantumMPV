@@ -632,6 +632,8 @@
 
   <!-- Player - Display & Controls Section                        -->
   <string name="pref_section_display_controls">表示と操作</string>
+  <string name="pref_player_controls_drawer_title">コントロールの引き出し</string>
+  <string name="pref_player_controls_drawer_summary">ドラッグしてコントロールパネルを開くためのエッジハンドルを表示</string>
   <string name="pref_nav_bar_title">操作中にナビゲーションバーを表示</string>
   <string name="pref_nav_bar_summary">プレーヤー操作の上にAndroidシステムナビゲーションバーを表示します</string>
 

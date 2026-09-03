@@ -632,6 +632,8 @@
 
   <!-- Player - Display & Controls Section                        -->
   <string name="pref_section_display_controls">Экран и управление</string>
+  <string name="pref_player_controls_drawer_title">Панель управления</string>
+  <string name="pref_player_controls_drawer_summary">Отображать боковой маркер для открытия панели управления перетаскиванием</string>
   <string name="pref_nav_bar_title">Показывать панель навигации с элементами управления</string>
   <string name="pref_nav_bar_summary">Показывать системную панель навигации Android поверх элементов управления проигрывателем</string>
 

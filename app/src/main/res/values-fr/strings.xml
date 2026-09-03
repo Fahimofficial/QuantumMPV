@@ -632,6 +632,8 @@ Suivant : NEXT</string>
 
   <!-- Player - Display & Controls Section                        -->
   <string name="pref_section_display_controls">Affichage et commandes</string>
+  <string name="pref_player_controls_drawer_title">Tiroir de commandes</string>
+  <string name="pref_player_controls_drawer_summary">Afficher la poignée latérale pour ouvrir le panneau de commandes en faisant glisser</string>
   <string name="pref_nav_bar_title">Afficher la barre de navigation avec les commandes</string>
   <string name="pref_nav_bar_summary">Afficher la barre de navigation du système Android au-dessus des commandes du lecteur</string>
 

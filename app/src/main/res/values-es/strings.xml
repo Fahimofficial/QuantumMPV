@@ -632,6 +632,8 @@ Siguiente: NEXT</string>
 
   <!-- Player - Display & Controls Section                        -->
   <string name="pref_section_display_controls">Pantalla y controles</string>
+  <string name="pref_player_controls_drawer_title">Cajón de controles</string>
+  <string name="pref_player_controls_drawer_summary">Mostrar el tirador del borde para abrir el panel de controles arrastrando</string>
   <string name="pref_nav_bar_title">Mostrar barra de navegación con controles</string>
   <string name="pref_nav_bar_summary">Mostrar la barra de navegación del sistema Android sobre los controles del reproductor</string>
 

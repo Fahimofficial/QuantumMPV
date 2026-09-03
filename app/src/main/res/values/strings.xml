@@ -714,6 +714,8 @@
 
   <!-- Player - Display & Controls Section                        -->
   <string name="pref_section_display_controls">Display &amp; Controls</string>
+  <string name="pref_player_controls_drawer_title">Controls drawer</string>
+  <string name="pref_player_controls_drawer_summary">Display edge handle to drag open the controls panel</string>
   <string name="pref_nav_bar_title">Show navigation bar with controls</string>
   <string name="pref_nav_bar_summary">Display the Android system navigation bar over player controls</string>
 

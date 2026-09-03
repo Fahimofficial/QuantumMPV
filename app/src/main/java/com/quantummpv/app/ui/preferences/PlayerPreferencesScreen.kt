@@ -739,6 +739,22 @@ object PlayerPreferencesScreen : Screen {
           item { PreferenceSectionHeader(title = stringResource(R.string.pref_section_display_controls)) }
           item {
             PreferenceCard {
+              val showControlsDrawer by preferences.showControlsDrawer.collectAsState()
+              SwitchPreference(
+                modifier = Modifier.settingsSearchTarget(R.string.pref_player_controls_drawer_title),
+                value = showControlsDrawer,
+                onValueChange = preferences.showControlsDrawer::set,
+                title = { Text(stringResource(R.string.pref_player_controls_drawer_title)) },
+                summary = {
+                  Text(
+                    stringResource(R.string.pref_player_controls_drawer_summary),
+                    color = MaterialTheme.colorScheme.outline,
+                  )
+                },
+              )
+
+              PreferenceDivider()
+
               val showSystemStatusBar by preferences.showSystemStatusBar.collectAsState()
               SwitchPreference(
                 modifier = Modifier.settingsSearchTarget(R.string.pref_player_display_show_status_bar),

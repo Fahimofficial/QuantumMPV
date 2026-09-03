@@ -81,6 +81,7 @@ class PlayerPreferences(
   val defaultBrightness = preferenceStore.getFloat("default_brightness", -1f)
 
   val allowGesturesInPanels = preferenceStore.getBoolean("allow_gestures_in_panels")
+  val showControlsDrawer = preferenceStore.getBoolean("show_controls_drawer", true)
   val showSystemStatusBar = preferenceStore.getBoolean("show_system_status_bar")
   val showSystemNavigationBar = preferenceStore.getBoolean("show_system_navigation_bar")
   val safeAreaWindow = preferenceStore.getBoolean("safe_area_window", false)

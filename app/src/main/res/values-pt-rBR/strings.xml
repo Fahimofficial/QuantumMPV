@@ -632,6 +632,8 @@ Próximo: NEXT</string>
 
   <!-- Player - Display & Controls Section                        -->
   <string name="pref_section_display_controls">Tela e controles</string>
+  <string name="pref_player_controls_drawer_title">Gaveta de controles</string>
+  <string name="pref_player_controls_drawer_summary">Exibir alça de borda para abrir o painel de controles arrastrando</string>
   <string name="pref_nav_bar_title">Mostrar barra de navegação com controles</string>
   <string name="pref_nav_bar_summary">Exibir a barra de navegação do sistema Android sobre os controles do player</string>
 
