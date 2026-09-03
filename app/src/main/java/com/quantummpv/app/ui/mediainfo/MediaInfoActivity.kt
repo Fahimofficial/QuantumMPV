@@ -60,12 +60,14 @@ import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -93,6 +95,16 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import org.koin.android.ext.android.inject
 import java.io.File
+
+private data class ValueDetailSelection(
+  val label: String,
+  val value: String,
+)
+
+private val LocalValueDetailRequest =
+  staticCompositionLocalOf<(String, String) -> Unit> {
+    error("No value-detail dialog host")
+  }
 
 class MediaInfoActivity : AppCompatActivity() {
   private val appearancePreferences by inject<AppearancePreferences>()
@@ -139,6 +151,7 @@ class MediaInfoActivity : AppCompatActivity() {
     var fileName by remember { mutableStateOf("Media File") }
     var fileUri by remember { mutableStateOf<Uri?>(null) }
     var mediaInfo by remember { mutableStateOf<MediaInfoOps.MediaInfoData?>(null) }
+    var valueDetail by remember { mutableStateOf<ValueDetailSelection?>(null) }
 
     LaunchedEffect(Unit) {
       val uri =
@@ -306,9 +319,26 @@ class MediaInfoActivity : AppCompatActivity() {
         when {
           isLoading -> LoadingContent()
           error != null -> ErrorContent(error!!)
-          mediaInfo != null -> MediaInfoContent(mediaInfo!!, fileName, fullMediaInfoText, fileUri)
+          mediaInfo != null ->
+            CompositionLocalProvider(
+              LocalValueDetailRequest provides { label, value ->
+                valueDetail = ValueDetailSelection(label, value)
+              },
+            ) {
+              MediaInfoContent(mediaInfo!!, fileName, fullMediaInfoText, fileUri)
+            }
         }
       }
+    }
+
+    valueDetail?.let { detail ->
+      ValueDetailDialog(
+        label = detail.label,
+        value = detail.value,
+        onDismiss = {
+          if (valueDetail == detail) valueDetail = null
+        },
+      )
     }
   }
 
@@ -1175,12 +1205,9 @@ class MediaInfoActivity : AppCompatActivity() {
     value: String,
     modifier: Modifier = Modifier,
   ) {
-    var showFullValue by remember { mutableStateOf(false) }
-    if (showFullValue) {
-      ValueDetailDialog(label = label, value = value, onDismiss = { showFullValue = false })
-    }
+    val requestValueDetail = LocalValueDetailRequest.current
     Surface(
-      modifier = modifier.clip(RoundedCornerShape(12.dp)).clickable { showFullValue = true },
+      modifier = modifier.clip(RoundedCornerShape(12.dp)).clickable { requestValueDetail(label, value) },
       shape = RoundedCornerShape(12.dp),
       color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.1f),
       border = BorderStroke(1.dp, MaterialTheme.colorScheme.onSurface.copy(alpha = 0.05f)),
@@ -1426,17 +1453,14 @@ class MediaInfoActivity : AppCompatActivity() {
     label: String,
     value: String,
   ) {
-    var showFullValue by remember { mutableStateOf(false) }
-    if (showFullValue) {
-      ValueDetailDialog(label = label, value = value, onDismiss = { showFullValue = false })
-    }
+    val requestValueDetail = LocalValueDetailRequest.current
 
     Row(
       modifier =
         Modifier
           .fillMaxWidth()
           .clip(RoundedCornerShape(8.dp))
-          .clickable { showFullValue = true }
+          .clickable { requestValueDetail(label, value) }
           .padding(vertical = 4.dp),
       horizontalArrangement = Arrangement.SpaceBetween,
       verticalAlignment = Alignment.Top,

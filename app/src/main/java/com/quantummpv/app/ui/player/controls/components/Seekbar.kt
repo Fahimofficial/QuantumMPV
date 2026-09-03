@@ -86,6 +86,9 @@ import com.quantummpv.app.preferences.SeekbarStyle
 import com.quantummpv.app.ui.player.SkipSegment
 import com.quantummpv.app.ui.player.clip.ClipEditorUiState
 import com.quantummpv.app.ui.player.controls.LocalPlayerButtonsClickEvent
+import com.quantummpv.app.ui.player.visualizer.AudioFeatures
+import com.quantummpv.app.ui.player.visualizer.VisualizerPalette
+import com.quantummpv.app.ui.player.visualizer.WaveVisualizerOverlay
 import com.quantummpv.app.ui.theme.AppMotion
 import com.quantummpv.app.ui.theme.spacing
 import dev.vivvvek.seeker.Seeker
@@ -275,7 +278,7 @@ private fun normalizeSeekerSegments(
 }
 
 @Composable
-fun SeekbarWithTimers(
+internal fun SeekbarWithTimers(
   position: Float,
   duration: Float,
   remaining: Float,
@@ -291,6 +294,10 @@ fun SeekbarWithTimers(
   seekbarStyle: SeekbarStyle = SeekbarStyle.Wavy,
   useWavySeekbar: Boolean = true,
   showWavyVisualizer: Boolean = false,
+  waveFeatures: AudioFeatures? = null,
+  wavePalette: VisualizerPalette? = null,
+  waveVolumeScale: Float = 1f,
+  waveSheetOpen: Boolean = false,
   loopStart: Float? = null,
   loopEnd: Float? = null,
   bufferDuration: Float? = null,
@@ -344,6 +351,10 @@ fun SeekbarWithTimers(
         seekbarStyle = seekbarStyle,
         useWavySeekbar = useWavySeekbar,
         showWavyVisualizer = showWavyVisualizer,
+        waveFeatures = waveFeatures,
+        wavePalette = wavePalette,
+        waveVolumeScale = waveVolumeScale,
+        waveSheetOpen = waveSheetOpen,
         loopStart = loopStart,
         loopEnd = loopEnd,
         bufferDuration = bufferDuration,
@@ -411,6 +422,10 @@ fun SeekbarWithTimers(
         seekbarStyle = seekbarStyle,
         useWavySeekbar = useWavySeekbar,
         showWavyVisualizer = showWavyVisualizer,
+        waveFeatures = waveFeatures,
+        wavePalette = wavePalette,
+        waveVolumeScale = waveVolumeScale,
+        waveSheetOpen = waveSheetOpen,
         loopStart = loopStart,
         loopEnd = loopEnd,
         bufferDuration = bufferDuration,
@@ -450,6 +465,10 @@ private fun SeekbarContent(
   seekbarStyle: SeekbarStyle,
   useWavySeekbar: Boolean,
   showWavyVisualizer: Boolean = false,
+  waveFeatures: AudioFeatures? = null,
+  wavePalette: VisualizerPalette? = null,
+  waveVolumeScale: Float = 1f,
+  waveSheetOpen: Boolean = false,
   loopStart: Float?,
   loopEnd: Float?,
   bufferDuration: Float?,
@@ -542,7 +561,23 @@ private fun SeekbarContent(
     modifier = modifier,
     contentAlignment = Alignment.Center,
   ) {
-    // Visual seekbar (smaller, centered)
+    val waveSeekbarActive = showWavyVisualizer && waveFeatures != null && wavePalette != null
+    if (waveSeekbarActive) {
+      val waveTrackHeight = if (seekbarStyle == SeekbarStyle.Wavy) 5.dp else overlayTrackHeight
+      WaveVisualizerOverlay(
+        palette = wavePalette!!,
+        isSheetOpen = waveSheetOpen,
+        volumeScale = waveVolumeScale,
+        features = waveFeatures!!,
+        isPlaying = !paused && !isVisuallyInteracting,
+        progressProvider = {
+          if (safeDuration > 0f) (positionProvider() / safeDuration).coerceIn(0f, 1f) else 0f
+        },
+        trackHeight = waveTrackHeight,
+        modifier = Modifier.fillMaxWidth().matchParentSize(),
+      )
+    }
+    // Visual seekbar (smaller, centered) - always drawn on top of the wave
     Box(
       modifier =
         Modifier
@@ -584,7 +619,7 @@ private fun SeekbarContent(
             chapters = chapters,
             isPaused = paused,
             isScrubbing = isVisuallyInteracting,
-            useWavySeekbar = useWavySeekbar,
+            useWavySeekbar = useWavySeekbar && !waveSeekbarActive,
             seekbarStyle = SeekbarStyle.Wavy,
             onSeek = { }, // Touch handled by parent
             onSeekFinished = { }, // Touch handled by parent
@@ -620,18 +655,6 @@ private fun SeekbarContent(
           )
         }
       }
-    }
-
-    if (showWavyVisualizer) {
-      SeekbarWavyVisualizerOverlay(
-        positionProvider = positionProvider,
-        duration = safeDuration,
-        isPaused = paused,
-        isScrubbing = isVisuallyInteracting,
-        trackHeight = overlayTrackHeight,
-        seekbarStyle = seekbarStyle,
-        modifier = Modifier.fillMaxWidth().matchParentSize(),
-      )
     }
 
     Canvas(

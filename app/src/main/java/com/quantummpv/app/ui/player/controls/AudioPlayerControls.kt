@@ -15,6 +15,7 @@ import android.Manifest
 import android.content.pm.PackageManager
 import android.content.res.Configuration
 import android.graphics.Bitmap
+import android.graphics.Color as AndroidColor
 import android.media.MediaMetadataRetriever
 import android.net.Uri
 import android.util.LruCache
@@ -137,6 +138,7 @@ import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.unit.IntOffset
 import androidx.core.content.ContextCompat
+import kotlin.math.abs
 import kotlin.math.roundToInt
 import com.quantummpv.app.R
 import com.quantummpv.app.domain.thumbnail.EmbeddedArtworkResolver
@@ -313,6 +315,59 @@ private fun rememberAudioAlbumArt(
   pathOrUri: String?,
   artworkUri: String? = null,
 ): Bitmap? = rememberAudioPresentationMetadata(pathOrUri, artworkUri)?.artwork
+
+private fun ribbonPaletteFromAccent(
+  materialPalette: VisualizerPalette,
+  accentArgb: Int,
+): VisualizerPalette {
+  val hsv = FloatArray(3)
+  AndroidColor.colorToHSV(accentArgb, hsv)
+  val saturation = hsv[1].coerceAtLeast(0.24f)
+
+  fun shade(
+    saturationScale: Float,
+    value: Float,
+  ): Int =
+    AndroidColor.HSVToColor(
+      floatArrayOf(
+        hsv[0],
+        (saturation * saturationScale).coerceIn(0f, 1f),
+        value.coerceIn(0f, 1f),
+      ),
+    )
+
+  return materialPalette.copy(
+    secondary =
+      shade(
+        saturationScale = 1.05f,
+        value = (hsv[2] * 0.72f).coerceIn(0.24f, 0.68f),
+      ),
+    tertiary =
+      shade(
+        saturationScale = 0.88f,
+        value = (hsv[2] + (1f - hsv[2]) * 0.18f).coerceIn(0.48f, 0.88f),
+      ),
+  )
+}
+
+private fun artworkRibbonPalette(
+  bitmap: Bitmap,
+  materialPalette: VisualizerPalette,
+): VisualizerPalette {
+  val extracted = Palette.from(bitmap).maximumColorCount(20).generate()
+  val maximumPopulation = extracted.swatches.maxOfOrNull { it.population }?.coerceAtLeast(1) ?: 1
+  val accent =
+    extracted.swatches
+      .asSequence()
+      .filter { swatch -> swatch.hsl[1] >= 0.18f && swatch.hsl[2] in 0.12f..0.88f }
+      .maxByOrNull { swatch ->
+        val population = swatch.population.toFloat() / maximumPopulation
+        val centeredLightness = 1f - abs(swatch.hsl[2] - 0.52f)
+        swatch.hsl[1] * 0.58f + population * 0.27f + centeredLightness * 0.15f
+      }?.rgb
+      ?: materialPalette.primary
+  return ribbonPaletteFromAccent(materialPalette, accent)
+}
 
 /**
  * Cuboid is a Compose Canvas and does not pass through the GLSurfaceView VisualizerOverlay, so it
@@ -607,6 +662,22 @@ fun AudioPlayerControls(
         tertiary = colorScheme.tertiary.toArgb(),
       )
     }
+  val fallbackRibbonPalette = remember(palette) { ribbonPaletteFromAccent(palette, palette.primary) }
+  val seekbarRibbonPalette by produceState(
+    initialValue = fallbackRibbonPalette,
+    key1 = albumArtBitmap,
+    key2 = fallbackRibbonPalette,
+  ) {
+    val artwork = albumArtBitmap
+    value =
+      if (artwork == null) {
+        fallbackRibbonPalette
+      } else {
+        withContext(Dispatchers.Default) {
+          runCatching { artworkRibbonPalette(artwork, palette) }.getOrDefault(fallbackRibbonPalette)
+        }
+      }
+  }
 
    val isPlaying = paused == false
    val currentDurSec = if (preciseDuration > 0f) preciseDuration else duration?.toFloat() ?: 0f
@@ -1412,6 +1483,10 @@ fun AudioPlayerControls(
         paused = isPaused,
         seekbarStyle = seekbarStyle,
         showWavyVisualizer = audioWavySeekbar,
+        waveFeatures = if (audioWavySeekbar) visualizerFeatures else null,
+        wavePalette = seekbarRibbonPalette,
+        waveVolumeScale = volumeScale,
+        waveSheetOpen = isSheetOpen,
         loopStart = abLoopA?.toFloat(),
         loopEnd = abLoopB?.toFloat(),
         isPortrait = isPortrait,
