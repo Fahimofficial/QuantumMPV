@@ -685,6 +685,16 @@ fun AudioPlayerControls(
    val volumeScale = currentVolumePercent / 100f
    val visualizerFeatures = rememberAudioVisualizerFeatures(isPlaying, volumeScale)
 
+  // Hardware buttons, Bluetooth devices and system panels can change STREAM_MUSIC without
+  // going through the player's volume callbacks. Keep the visualizer's gain synchronized.
+  LaunchedEffect(viewModel, isPlaying) {
+    viewModel.syncCurrentVolumeState()
+    while (isPlaying && isActive) {
+      kotlinx.coroutines.delay(200L)
+      viewModel.syncCurrentVolumeState()
+    }
+  }
+
   val repeatMode by viewModel.repeatMode.collectAsState()
   val shuffleEnabled by viewModel.shuffleEnabled.collectAsState()
   val playlistModeEnabled = viewModel.hasPlaylistSupport()

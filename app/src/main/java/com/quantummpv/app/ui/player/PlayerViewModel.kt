@@ -6223,23 +6223,11 @@ class PlayerViewModel : ViewModel(),
       // Landscape mode: ambient glow goes on left/right (pillarbox)
       // Both are handled by the same scaleX/scaleY math below
 
-      var (vidW, vidH) = VideoAspectGeometry.currentEffectiveDimensions()
-      val par = PlaybackSession.getPropertyDouble("video-params/par") ?: 1.0
-      val rot = PlaybackSession.getPropertyInt("video-params/rotate") ?: 0
+      val vidAr = VideoAspectGeometry.currentEffectiveDisplayAspect() ?: return
 
-      if (osdW <= 0 || osdH <= 0 || vidW <= 0.0 || vidH <= 0.0) return
-
-      // Apply pixel aspect ratio (non-square pixels)
-      vidW *= par
-      // Swap dimensions for 90°/270° rotated videos (portrait shot stored as landscape)
-      if (rot == 90 || rot == 270) {
-        val tmp = vidW
-        vidW = vidH
-        vidH = tmp
-      }
+      if (osdW <= 0 || osdH <= 0) return
 
       val screenAr = osdW.toDouble() / osdH.toDouble()
-      val vidAr = vidW / vidH
 
       // Scale the video to fill the screen — the shader remaps it back to the
       // correct aspect ratio, so only the "overflow" area receives ambient glow.

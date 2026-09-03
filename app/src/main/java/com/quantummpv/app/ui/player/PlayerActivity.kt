@@ -1023,6 +1023,7 @@ class PlayerActivity :
       val lifecycleActive by viewModel.isAmbientLifecycleActive.collectAsState()
       val isAudioOnly by viewModel.isAudioOnly.collectAsState()
       val playbackState by PlaybackSession.state.collectAsState()
+      val videoCrop by PlaybackSession.propString["video-crop"].collectAsState()
       val hdrScreenMode by viewModel.hdrScreenMode.collectAsState()
       val orientation = LocalConfiguration.current.orientation
       val playbackReady =
@@ -1059,7 +1060,9 @@ class PlayerActivity :
         )
       val presentationActive = active && ambientFrame.supported && ambientFrame.frame != null
 
-      LaunchedEffect(presentationActive) {
+      // Auto-crop changes after playback becomes ready. Refreshing on the property itself keeps
+      // YouTube Ambient's SurfaceView aligned with the newly cropped content rectangle.
+      LaunchedEffect(presentationActive, videoCrop) {
         setVideoAmbientPresentationActive(presentationActive)
       }
 
@@ -1090,7 +1093,7 @@ class PlayerActivity :
     if (!isVideoAmbientPresentationActive || binding.player.visibility != View.VISIBLE) return
     val containerWidth = binding.root.width
     val containerHeight = binding.root.height
-    val videoAspect = binding.player.getVideoOutAspect()
+    val videoAspect = VideoAspectGeometry.currentEffectiveDisplayAspect()
     if (containerWidth <= 0 || containerHeight <= 0 || videoAspect == null || videoAspect <= 0.0) return
 
     val containerAspect = containerWidth.toDouble() / containerHeight.toDouble()

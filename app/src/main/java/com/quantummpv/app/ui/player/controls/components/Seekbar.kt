@@ -364,7 +364,7 @@ internal fun SeekbarWithTimers(
         onValueChangeFinished = onValueChangeFinished,
         scope = scope,
         animatedPosition = animatedPosition,
-        modifier = Modifier.fillMaxWidth().height(if (showWavyVisualizer) 50.dp else 44.dp), // Taller for visibility
+        modifier = Modifier.fillMaxWidth().height(if (showWavyVisualizer) 64.dp else 44.dp),
       )
 
       Row(
@@ -395,7 +395,7 @@ internal fun SeekbarWithTimers(
     }
   } else {
     Row(
-      modifier = modifier.height(48.dp),
+      modifier = modifier.height(if (showWavyVisualizer) 64.dp else 48.dp),
       verticalAlignment = Alignment.CenterVertically,
       horizontalArrangement = Arrangement.spacedBy(2.dp),
     ) {
@@ -435,7 +435,7 @@ internal fun SeekbarWithTimers(
         onValueChangeFinished = onValueChangeFinished,
         scope = scope,
         animatedPosition = animatedPosition,
-        modifier = Modifier.weight(1f).height(if (showWavyVisualizer) 50.dp else 48.dp),
+        modifier = Modifier.weight(1f).height(if (showWavyVisualizer) 64.dp else 48.dp),
       )
 
       VideoTimer(
