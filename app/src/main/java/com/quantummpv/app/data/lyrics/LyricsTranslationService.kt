@@ -32,6 +32,22 @@ data class TranslationResult(
   val translation: String,
   val romanization: String? = null,
   val detectedSourceLang: String? = null,
+  val isResolved: Boolean = true,
+)
+
+data class LyricsTranslationOutcome(
+  val lyrics: Lyrics,
+  val resolvedLineCount: Int,
+  val requestedLineCount: Int,
+) {
+  val isSuccessful: Boolean get() = resolvedLineCount > 0
+  val isComplete: Boolean get() = requestedLineCount > 0 && resolvedLineCount >= requestedLineCount
+}
+
+private data class TranslatedLines<T>(
+  val lines: List<T>,
+  val resolvedLineCount: Int,
+  val requestedLineCount: Int,
 )
 
 data class SupportedLanguage(
@@ -87,7 +103,6 @@ class LyricsTranslationService(
   companion object {
     private const val TAG = "LyricsTranslationService"
     private const val CHUNK_SIZE = 20
-    private const val INPUT_TOOLS_CHUNK_SIZE = 4
     private const val MAX_CONCURRENT_TRANSLATION_REQUESTS = 4
     private const val USER_AGENT =
       "Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36"
@@ -106,17 +121,17 @@ class LyricsTranslationService(
 
   private val json = Json { ignoreUnknownKeys = true; isLenient = true }
   private val requestSemaphore = Semaphore(MAX_CONCURRENT_TRANSLATION_REQUESTS)
-  // Cache key: "${mediaPathOrTrackId}_${targetLang}" -> Translated Lyrics
-  private val translationCache = LruCache<String, Lyrics>(64)
+  private val translationCache = LruCache<String, LyricsTranslationOutcome>(64)
 
   suspend fun translateLyrics(
     lyrics: Lyrics,
     targetLanguage: String,
     cacheKey: String? = null,
-  ): Lyrics = withContext(Dispatchers.IO) {
-    if (!lyrics.isValid()) return@withContext lyrics
+  ): LyricsTranslationOutcome = withContext(Dispatchers.IO) {
+    val requestedLineCount = lyrics.synced?.count { it.line.isNotBlank() } ?: lyrics.plain?.count { it.isNotBlank() } ?: 0
+    if (!lyrics.isValid()) return@withContext LyricsTranslationOutcome(lyrics, 0, requestedLineCount)
 
-    val key = cacheKey?.let { "${it}_$targetLanguage" }
+    val key = cacheKey?.let { "${it}_${lyrics.hashCode()}_$targetLanguage" }
     if (key != null) {
       translationCache.get(key)?.let { return@withContext it }
     }
@@ -124,14 +139,22 @@ class LyricsTranslationService(
     try {
       if (!lyrics.synced.isNullOrEmpty()) {
         val translatedSynced = translateSyncedLines(lyrics.synced, targetLanguage)
-        val result = lyrics.copy(synced = translatedSynced)
-        if (key != null) translationCache.put(key, result)
-        return@withContext result
+        val outcome = LyricsTranslationOutcome(
+          lyrics = lyrics.copy(synced = translatedSynced.lines),
+          resolvedLineCount = translatedSynced.resolvedLineCount,
+          requestedLineCount = translatedSynced.requestedLineCount,
+        )
+        if (key != null && outcome.isComplete) translationCache.put(key, outcome)
+        return@withContext outcome
       } else if (!lyrics.plain.isNullOrEmpty()) {
         val translatedPlain = translatePlainLines(lyrics.plain, targetLanguage)
-        val result = lyrics.copy(plain = translatedPlain)
-        if (key != null) translationCache.put(key, result)
-        return@withContext result
+        val outcome = LyricsTranslationOutcome(
+          lyrics = lyrics.copy(plain = translatedPlain.lines),
+          resolvedLineCount = translatedPlain.resolvedLineCount,
+          requestedLineCount = translatedPlain.requestedLineCount,
+        )
+        if (key != null && outcome.isComplete) translationCache.put(key, outcome)
+        return@withContext outcome
       }
     } catch (cancellation: CancellationException) {
       throw cancellation
@@ -139,41 +162,43 @@ class LyricsTranslationService(
       Log.e(TAG, "Error translating lyrics to $targetLanguage: ${e.message}", e)
     }
 
-    lyrics
+    LyricsTranslationOutcome(lyrics, 0, requestedLineCount)
   }
 
   private suspend fun translateSyncedLines(
     lines: List<SyncedLine>,
     targetLanguage: String,
-  ): List<SyncedLine> {
+  ): TranslatedLines<SyncedLine> {
     val textsToTranslate = lines.map { it.line }
     val translations = batchTranslate(textsToTranslate, targetLanguage)
 
-    return lines.mapIndexed { index, line ->
+    val translatedLines = lines.mapIndexed { index, line ->
       val res = translations.getOrNull(index)
-      if (res != null) {
-        val translatedText = res.translation.takeIf { it.isNotBlank() }
-        val romanizedText = res.romanization?.takeIf { it.isNotBlank() }
-        line.copy(
-          translation = when {
-            targetLanguage == "romaji" || targetLanguage == "hinglish" || targetLanguage == "hinglish_casual" ->
-              romanizedText ?: translatedText
-            else -> translatedText
-          },
-          romanization = romanizedText,
-        )
-      } else {
-        line
-      }
+      if (res == null) return@mapIndexed line
+      val translatedText = res.translation.takeIf(String::isNotBlank)
+      val romanizedText = res.romanization?.takeIf(String::isNotBlank)
+      line.copy(
+        translation = when {
+          targetLanguage == "romaji" || targetLanguage == "hinglish" || targetLanguage == "hinglish_casual" ->
+            romanizedText ?: translatedText
+          else -> translatedText
+        },
+        romanization = romanizedText,
+      )
     }
+    return TranslatedLines(
+      lines = translatedLines,
+      resolvedLineCount = translations.count { it.isResolved && it.translation.isNotBlank() },
+      requestedLineCount = textsToTranslate.count(String::isNotBlank),
+    )
   }
 
   private suspend fun translatePlainLines(
     lines: List<String>,
     targetLanguage: String,
-  ): List<String> {
+  ): TranslatedLines<String> {
     val translations = batchTranslate(lines, targetLanguage)
-    return lines.mapIndexed { index, original ->
+    val translatedLines = lines.mapIndexed { index, original ->
       val res = translations.getOrNull(index)
       if (res != null) {
         val text = if (targetLanguage == "romaji" || targetLanguage == "hinglish" || targetLanguage == "hinglish_casual") {
@@ -190,6 +215,11 @@ class LyricsTranslationService(
         original
       }
     }
+    return TranslatedLines(
+      lines = translatedLines,
+      resolvedLineCount = translations.count { it.isResolved && it.translation.isNotBlank() },
+      requestedLineCount = lines.count(String::isNotBlank),
+    )
   }
 
   private suspend fun batchTranslate(
@@ -206,17 +236,6 @@ class LyricsTranslationService(
     // Special handling for casual Hinglish (Hindi, Punjabi/Gurmukhi, Bengali, Tamil, etc. -> everyday Latin spelling)
     if (targetLang.equals("hinglish_casual", ignoreCase = true)) {
       return@coroutineScope handleHinglishCasualTransliteration(texts)
-    }
-
-    val isSourceLatin = isPredominantlyLatin(texts)
-    val isTargetIndic = targetLang.lowercase() in listOf("hi", "bn", "ta", "te", "mr", "pa", "ur", "ar", "ru", "el")
-
-    // If source is Latin script (e.g. Hinglish) and target is Hindi/Indic native script, use InputTools directly in small chunks
-    if (isSourceLatin && isTargetIndic) {
-      val inputToolsResults = translateWithGoogleInputTools(texts, targetLang)
-      if (inputToolsResults.any { it.translation.isNotBlank() && !it.translation.equals(texts.firstOrNull()?.trim(), ignoreCase = true) }) {
-        return@coroutineScope inputToolsResults
-      }
     }
 
     val chunks = texts.chunked(CHUNK_SIZE)
@@ -717,7 +736,7 @@ class LyricsTranslationService(
       val googleResult = translateWithGoogleWeb(queryText, targetLang)
       if (!googleResult.isNullOrBlank()) {
         val parsed = parseIndexedTranslations(googleResult, chunk.size, indexMap, chunk)
-        if (parsed.any { it.translation.isNotBlank() }) {
+        if (parsed.any(TranslationResult::isResolved)) {
           return parsed
         }
       }
@@ -732,7 +751,7 @@ class LyricsTranslationService(
       val myMemoryResult = translateWithMyMemory(queryText, targetLang)
       if (!myMemoryResult.isNullOrBlank()) {
         val parsed = parseIndexedTranslations(myMemoryResult, chunk.size, indexMap, chunk)
-        if (parsed.any { it.translation.isNotBlank() }) {
+        if (parsed.any(TranslationResult::isResolved)) {
           return parsed
         }
       }
@@ -747,7 +766,7 @@ class LyricsTranslationService(
       val fallbackResult = translateWithGoogleApiFallback(queryText, targetLang)
       if (!fallbackResult.isNullOrBlank()) {
         val parsed = parseIndexedTranslations(fallbackResult, chunk.size, indexMap, chunk)
-        if (parsed.any { it.translation.isNotBlank() }) {
+        if (parsed.any(TranslationResult::isResolved)) {
           return parsed
         }
       }
@@ -757,113 +776,13 @@ class LyricsTranslationService(
       Log.w(TAG, "Google API fallback failed for chunk: ${e.message}")
     }
 
-    // Fallback: return original trimmed lines
-    return chunk.map { TranslationResult(translation = it.trim(), romanization = it.trim()) }
-  }
-
-  private suspend fun translateWithGoogleInputTools(
-    texts: List<String>,
-    targetLang: String,
-  ): List<TranslationResult> = coroutineScope {
-    val subChunks = texts.chunked(INPUT_TOOLS_CHUNK_SIZE)
-    val deferred = subChunks.map { subChunk ->
-      async(Dispatchers.IO) {
-        requestSemaphore.withPermit { translateSubChunkWithInputTools(subChunk, targetLang) }
-      }
+    return chunk.map {
+      TranslationResult(
+        translation = it.trim(),
+        romanization = it.trim(),
+        isResolved = false,
+      )
     }
-    deferred.awaitAll().flatten()
-  }
-
-  private suspend fun translateSubChunkWithInputTools(
-    subChunk: List<String>,
-    targetLang: String,
-  ): List<TranslationResult> {
-    val itc = when (targetLang.lowercase()) {
-      "hi" -> "hi-t-i0-und"
-      "bn" -> "bn-t-i0-und"
-      "ta" -> "ta-t-i0-und"
-      "te" -> "te-t-i0-und"
-      "mr" -> "mr-t-i0-und"
-      "pa" -> "pa-t-i0-und"
-      "ur" -> "ur-t-i0-und"
-      "ar" -> "ar-t-i0-und"
-      "ru" -> "ru-t-i0-und"
-      "el" -> "el-t-i0-und"
-      else -> return subChunk.map { TranslationResult(translation = it.trim(), romanization = it.trim()) }
-    }
-
-    val stringBuilder = StringBuilder()
-    val indexMap = mutableMapOf<Int, Int>()
-    var marker = 1
-
-    for ((localIdx, line) in subChunk.withIndex()) {
-      val trimmed = line.trim()
-      if (trimmed.isNotEmpty()) {
-        stringBuilder.append("[$marker] ").append(trimmed).append("\n")
-        indexMap[marker] = localIdx
-        marker++
-      }
-    }
-
-    if (indexMap.isEmpty()) {
-      return subChunk.map { TranslationResult(translation = "") }
-    }
-
-    val query = stringBuilder.toString().trim()
-
-    try {
-      val url = HttpUrl.Builder()
-        .scheme("https")
-        .host("inputtools.google.com")
-        .addPathSegment("request")
-        .addQueryParameter("text", query)
-        .addQueryParameter("itc", itc)
-        .addQueryParameter("num", "1")
-        .addQueryParameter("app", "demopage")
-        .build()
-
-      val request = Request.Builder()
-        .url(url)
-        .header("User-Agent", USER_AGENT)
-        .get()
-        .build()
-
-      client.newCall(request).awaitResponse().use { response ->
-        if (response.isSuccessful) {
-          val bodyStr = response.body.string()
-          val root = json.parseToJsonElement(bodyStr).jsonArray
-          val status = root.getOrNull(0)?.jsonPrimitive?.content
-          if (status == "SUCCESS") {
-            val resultsArray = root.getOrNull(1)?.jsonArray
-            if (resultsArray != null && resultsArray.isNotEmpty()) {
-              val sb = StringBuilder()
-              for (itemElement in resultsArray) {
-                val itemArray = itemElement.jsonArray
-                val candidateList = itemArray.getOrNull(1)?.jsonArray
-                val candidate = candidateList?.getOrNull(0)?.jsonPrimitive?.content
-                if (!candidate.isNullOrBlank()) {
-                  sb.append(candidate)
-                }
-              }
-              val fullTrans = sb.toString().trim()
-              if (fullTrans.isNotEmpty()) {
-                val unescaped = unescapeHtml(fullTrans)
-                val parsed = parseIndexedTranslations(unescaped, subChunk.size, indexMap, subChunk)
-                if (parsed.any { it.translation.isNotBlank() }) {
-                  return parsed
-                }
-              }
-            }
-          }
-        }
-      }
-    } catch (cancellation: CancellationException) {
-      throw cancellation
-    } catch (e: Exception) {
-      Log.w(TAG, "InputTools sub-chunk error: ${e.message}")
-    }
-
-    return subChunk.map { TranslationResult(translation = it.trim(), romanization = it.trim()) }
   }
 
   private suspend fun translateWithGoogleWeb(
@@ -974,7 +893,7 @@ class LyricsTranslationService(
     // Default each position with the original line so missing markers never leave lines blank
     val results = Array(chunkSize) { idx ->
       val orig = originalChunk[idx].trim()
-      TranslationResult(translation = orig, romanization = orig)
+      TranslationResult(translation = orig, romanization = orig, isResolved = false)
     }
 
     // Normalize Indic/Arabic/Fullwidth digits and brackets so regex matching works across all languages
@@ -999,6 +918,7 @@ class LyricsTranslationService(
           results[localIdx] = TranslationResult(
             translation = cleanContent.ifEmpty { orig },
             romanization = cleanContent.ifEmpty { orig },
+            isResolved = cleanContent.isNotEmpty(),
           )
         }
       }
@@ -1025,6 +945,7 @@ class LyricsTranslationService(
       results[localIdx] = TranslationResult(
         translation = originalChunk[localIdx].trim(),
         romanization = originalChunk[localIdx].trim(),
+        isResolved = false,
       )
     }
     return results.toList()
@@ -1040,17 +961,10 @@ class LyricsTranslationService(
       when (c) {
         '［', '【', '(' -> sb.append('[')
         '］', '】', ')' -> sb.append(']')
-        // Devanagari / Marathi / Hindi digits (०..९)
-        in '\u0966'..'\u096F' -> sb.append((c - '\u0966' + '0'.code).toChar())
-        // Bengali digits (০..৯)
-        in '\u09E6'..'\u09EF' -> sb.append((c - '\u09E6' + '0'.code).toChar())
-        // Arabic-Indic digits (٠..٩)
-        in '\u0660'..'\u0669' -> sb.append((c - '\u0660' + '0'.code).toChar())
-        // Eastern Arabic-Indic digits (۰..۹)
-        in '\u06F0'..'\u06F9' -> sb.append((c - '\u06F0' + '0'.code).toChar())
-        // Fullwidth digits (０..９)
-        in '\uFF10'..'\uFF19' -> sb.append((c - '\uFF10' + '0'.code).toChar())
-        else -> sb.append(c)
+        else -> {
+          val digit = Character.digit(c, 10)
+          sb.append(if (digit >= 0) ('0'.code + digit).toChar() else c)
+        }
       }
     }
     return sb.toString()

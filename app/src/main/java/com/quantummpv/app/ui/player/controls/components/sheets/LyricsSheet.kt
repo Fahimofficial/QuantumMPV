@@ -53,6 +53,7 @@ import com.quantummpv.app.domain.lyrics.SyncedLine
 import com.quantummpv.app.ui.icons.Icon
 import com.quantummpv.app.ui.icons.Icons
 import com.quantummpv.app.ui.player.PlayerViewModel
+import com.quantummpv.app.ui.theme.fontFamilyForText
 
 @Composable
 fun LyricsSheet(
@@ -120,6 +121,7 @@ fun LyricsSheet(
               text = displayTitle,
               style = MaterialTheme.typography.titleMedium,
               fontWeight = FontWeight.Bold,
+              fontFamily = fontFamilyForText(displayTitle),
               maxLines = 1,
               overflow = TextOverflow.Ellipsis,
             )
@@ -128,6 +130,7 @@ fun LyricsSheet(
             Text(
               text = displayArtist,
               style = MaterialTheme.typography.bodySmall,
+              fontFamily = fontFamilyForText(displayArtist),
               color = MaterialTheme.colorScheme.onSurfaceVariant,
               maxLines = 1,
               overflow = TextOverflow.Ellipsis,
@@ -188,6 +191,17 @@ fun LyricsSheet(
             color = MaterialTheme.colorScheme.primary,
           )
         }
+      }
+
+      state.errorMessage?.let { message ->
+        Text(
+          text = message,
+          style = MaterialTheme.typography.bodySmall,
+          fontFamily = fontFamilyForText(message),
+          color = MaterialTheme.colorScheme.error,
+          textAlign = TextAlign.Center,
+          modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
+        )
       }
 
       Spacer(modifier = Modifier.height(12.dp))
@@ -254,6 +268,7 @@ fun LyricsSheet(
                     color = textColor,
                     fontSize = if (isActive) 20.sp else 16.sp,
                     fontWeight = if (isActive) FontWeight.Bold else FontWeight.Normal,
+                    fontFamily = fontFamilyForText(line.line),
                     textAlign = TextAlign.Center,
                     modifier = Modifier.fillMaxWidth(),
                   )
@@ -265,6 +280,7 @@ fun LyricsSheet(
                       color = if (isActive) MaterialTheme.colorScheme.primary.copy(alpha = 0.85f) else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.70f),
                       fontSize = if (isActive) 15.sp else 13.sp,
                       fontWeight = FontWeight.Medium,
+                      fontFamily = fontFamilyForText(trans),
                       textAlign = TextAlign.Center,
                       modifier = Modifier.fillMaxWidth(),
                     )
@@ -288,6 +304,7 @@ fun LyricsSheet(
                   text = lineText,
                   color = MaterialTheme.colorScheme.onSurface,
                   fontSize = 16.sp,
+                  fontFamily = fontFamilyForText(lineText),
                   textAlign = TextAlign.Center,
                   modifier = Modifier.fillMaxWidth(),
                 )

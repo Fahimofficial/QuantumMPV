@@ -55,6 +55,7 @@ import com.quantummpv.app.preferences.preference.collectAsState
 import com.quantummpv.app.ui.icons.Icon
 import com.quantummpv.app.ui.icons.Icons
 import com.quantummpv.app.ui.player.PlayerViewModel
+import com.quantummpv.app.ui.theme.fontFamilyForText
 import org.koin.compose.koinInject
 
 @Composable
@@ -120,10 +121,7 @@ fun LyricsTranslateDialog(
             .fillMaxWidth()
             .clip(RoundedCornerShape(12.dp))
             .clickable {
-              audioPreferences.lyricsAutoTranslate.set(false)
-              if (state.isTranslationActive) {
-                viewModel.toggleLyricsTranslation()
-              }
+              viewModel.showOriginalLyrics()
               onDismiss()
             },
           color = if (!state.isTranslationActive) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surfaceVariant,
@@ -233,6 +231,7 @@ fun LyricsTranslateDialog(
                   text = lang.displayName,
                   style = MaterialTheme.typography.bodyMedium,
                   fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
+                  fontFamily = fontFamilyForText(lang.displayName),
                   color = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface,
                 )
                 if (lang.isRomanization) {

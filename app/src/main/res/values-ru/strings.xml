@@ -1863,6 +1863,8 @@
   <string name="lyrics_translate_title">Перевести текст песни</string>
   <string name="lyrics_translating">Перевод текста песни…</string>
   <string name="lyrics_translation_off">Оригинальный текст</string>
+  <string name="lyrics_translation_failed">Не удалось перевести текст песни. Попробуйте ещё раз.</string>
+  <string name="lyrics_translation_partial">Не удалось перевести некоторые строки.</string>
   <string name="lyrics_select_language">Выбрать язык перевода</string>
 
   <!-- Clip -->

@@ -1863,6 +1863,8 @@ Veuillez redémarrer l’application pour appliquer toutes les modifications.</s
   <string name="lyrics_translate_title">Traduire les paroles</string>
   <string name="lyrics_translating">Traduction des paroles…</string>
   <string name="lyrics_translation_off">Paroles originales</string>
+  <string name="lyrics_translation_failed">Les paroles n’ont pas pu être traduites. Réessayez.</string>
+  <string name="lyrics_translation_partial">Certaines lignes des paroles n’ont pas pu être traduites.</string>
   <string name="lyrics_select_language">Sélectionner la langue cible</string>
 
   <!-- Clip -->

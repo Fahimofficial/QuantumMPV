@@ -1863,6 +1863,8 @@ Reinicie o aplicativo para que todas as alterações entrem em vigor.</string>
   <string name="lyrics_translate_title">Traduzir letras</string>
   <string name="lyrics_translating">Traduzindo letras…</string>
   <string name="lyrics_translation_off">Letras originais</string>
+  <string name="lyrics_translation_failed">Não foi possível traduzir a letra. Tente novamente.</string>
+  <string name="lyrics_translation_partial">Não foi possível traduzir alguns versos.</string>
   <string name="lyrics_select_language">Selecionar idioma de destino</string>
 
   <!-- Clip -->

@@ -1767,6 +1767,8 @@
   <string name="lyrics_translate_title">बोल अनुवाद करें</string>
   <string name="lyrics_translating">बोल अनुवाद हो रहे हैं…</string>
   <string name="lyrics_translation_off">मूल बोल</string>
+  <string name="lyrics_translation_failed">बोलों का अनुवाद नहीं हो सका। फिर से कोशिश करें।</string>
+  <string name="lyrics_translation_partial">बोलों की कुछ पंक्तियों का अनुवाद नहीं हो सका।</string>
   <string name="lyrics_select_language">लक्षित भाषा चुनें</string>
 
   <!-- Clip -->

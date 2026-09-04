@@ -1950,6 +1950,8 @@
   <string name="lyrics_translate_title">Translate Lyrics</string>
   <string name="lyrics_translating">Translating lyrics…</string>
   <string name="lyrics_translation_off">Original Lyrics</string>
+  <string name="lyrics_translation_failed">Lyrics could not be translated. Try again.</string>
+  <string name="lyrics_translation_partial">Some lyric lines could not be translated.</string>
   <string name="lyrics_select_language">Select Target Language</string>
 
   <!-- Clip -->

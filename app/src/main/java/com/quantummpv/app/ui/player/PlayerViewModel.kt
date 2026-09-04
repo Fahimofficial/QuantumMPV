@@ -1072,11 +1072,12 @@ class PlayerViewModel : ViewModel(),
       isTranslating = true,
       targetLanguage = lang,
       originalLyrics = current.originalLyrics ?: current.lyrics,
+      errorMessage = null,
     )
 
     lyricsTranslateJob?.cancel()
     lyricsTranslateJob = viewModelScope.launch(Dispatchers.IO) {
-      val translated = lyricsTranslationService.translateLyrics(
+      val outcome = lyricsTranslationService.translateLyrics(
         lyrics = baseLyrics,
         targetLanguage = lang,
         cacheKey = path,
@@ -1088,6 +1089,17 @@ class PlayerViewModel : ViewModel(),
         ?: PlaybackSession.getPropertyString("stream-open-filename")
       if (stillCurrentPath != path) return@launch
 
+      if (!outcome.isSuccessful) {
+        lyricsUiState.value = lyricsUiState.value.copy(
+          isTranslating = false,
+          isTranslationActive = false,
+          lyrics = baseLyrics,
+          errorMessage = appContext.getString(R.string.lyrics_translation_failed),
+        )
+        return@launch
+      }
+
+      val translated = outcome.lyrics
       val activeIndex = com.quantummpv.app.utils.media.LyricsUtils.getActiveLineIndex(
         syncedLines = translated.synced,
         positionMs = (precisePosition.value * 1000).toLong(),
@@ -1098,28 +1110,38 @@ class PlayerViewModel : ViewModel(),
         isTranslationActive = true,
         lyrics = translated,
         activeLineIndex = activeIndex,
+        errorMessage =
+          if (outcome.isComplete) null else appContext.getString(R.string.lyrics_translation_partial),
       )
     }
   }
 
   fun toggleLyricsTranslation() {
     val current = lyricsUiState.value
-    if (current.isTranslationActive) {
-      audioPreferences.lyricsAutoTranslate.set(false)
-      val orig = current.originalLyrics ?: return
-      val activeIndex = com.quantummpv.app.utils.media.LyricsUtils.getActiveLineIndex(
-        syncedLines = orig.synced,
-        positionMs = (precisePosition.value * 1000).toLong(),
-        offsetMs = current.syncOffsetMs,
-      )
-      lyricsUiState.value = current.copy(
-        isTranslationActive = false,
-        lyrics = orig,
-        activeLineIndex = activeIndex,
-      )
+    if (current.isTranslationActive || current.isTranslating) {
+      showOriginalLyrics()
     } else {
       translateLyrics()
     }
+  }
+
+  fun showOriginalLyrics() {
+    audioPreferences.lyricsAutoTranslate.set(false)
+    lyricsTranslateJob?.cancel()
+    val current = lyricsUiState.value
+    val original = current.originalLyrics ?: current.lyrics ?: return
+    val activeIndex = com.quantummpv.app.utils.media.LyricsUtils.getActiveLineIndex(
+      syncedLines = original.synced,
+      positionMs = (precisePosition.value * 1000).toLong(),
+      offsetMs = current.syncOffsetMs,
+    )
+    lyricsUiState.value = current.copy(
+      isTranslating = false,
+      isTranslationActive = false,
+      lyrics = original,
+      activeLineIndex = activeIndex,
+      errorMessage = null,
+    )
   }
 
   fun setEqualizerVolumeBoost(db: Int) {

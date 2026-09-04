@@ -45,6 +45,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.unit.dp
 import com.quantummpv.app.R
+import com.quantummpv.app.preferences.DEFAULT_SUBTITLE_FONT_FAMILY
 import com.quantummpv.app.preferences.SubtitleJustification
 import com.quantummpv.app.preferences.SubtitlesPreferences
 import com.quantummpv.app.preferences.preference.deleteAndGet
@@ -242,12 +243,13 @@ fun SubtitleSettingsTypographyCard(
           modifier = Modifier.size(32.dp),
         )
         ExposedTextDropDownMenu(
-          selectedValue = font?.ifEmpty { "Default" } ?: "Default",
+          selectedValue = font?.takeUnless { it == DEFAULT_SUBTITLE_FONT_FAMILY }.orEmpty().ifEmpty { "Default" },
           options = fonts.toImmutableList(),
           label = stringResource(R.string.player_sheets_sub_typography_font),
           onValueChangedEvent = {
-            val actualFont = if (it == "Default") "" else it
-            preferences.font.set(actualFont)
+            val storedFont = if (it == "Default") "" else it
+            val actualFont = storedFont.ifBlank { DEFAULT_SUBTITLE_FONT_FAMILY }
+            preferences.font.set(storedFont)
             PlaybackSession.setPropertyString("sub-font", actualFont)
             PlaybackSession.setPropertyString("secondary-sub-font", actualFont)
           },
@@ -330,7 +332,7 @@ fun resetTypography(preferences: SubtitlesPreferences) {
   val bold = preferences.bold.deleteAndGet()
   val italic = preferences.italic.deleteAndGet()
   val justify = preferences.justification.deleteAndGet().value
-  val font = preferences.font.deleteAndGet()
+  val font = preferences.font.deleteAndGet().ifBlank { DEFAULT_SUBTITLE_FONT_FAMILY }
   val fontSize = preferences.fontSize.deleteAndGet()
   val borderSize = preferences.borderSize.deleteAndGet()
   val shadowOffset = preferences.shadowOffset.deleteAndGet()

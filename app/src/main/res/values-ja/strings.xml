@@ -1863,6 +1863,8 @@
   <string name="lyrics_translate_title">歌詞を翻訳</string>
   <string name="lyrics_translating">歌詞を翻訳中…</string>
   <string name="lyrics_translation_off">元の歌詞</string>
+  <string name="lyrics_translation_failed">歌詞を翻訳できませんでした。もう一度お試しください。</string>
+  <string name="lyrics_translation_partial">一部の歌詞を翻訳できませんでした。</string>
   <string name="lyrics_select_language">翻訳先言語を選択</string>
 
   <!-- Clip -->

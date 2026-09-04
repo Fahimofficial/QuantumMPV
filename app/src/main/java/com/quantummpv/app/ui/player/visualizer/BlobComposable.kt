@@ -153,17 +153,15 @@ private fun <T> VisualizerOverlay(
     modifier = modifier,
     update = { view ->
       view.updatePalette(palette)
+      view.setZOrderOnTop(false)
+      view.setZOrderMediaOverlay(true)
       if (isSheetOpen) {
         // A sheet fully covers the expensive GLSurfaceView. Keep the last frame but stop the
         // continuous render loop (particle/galaxy renderers otherwise burn GPU underneath it).
         view.renderMode = GLSurfaceView.RENDERMODE_WHEN_DIRTY
         view.requestRender()
-        view.setZOrderOnTop(false)
-        view.setZOrderMediaOverlay(true)
       } else {
         view.renderMode = GLSurfaceView.RENDERMODE_CONTINUOUSLY
-        view.setZOrderMediaOverlay(false)
-        view.setZOrderOnTop(true)
       }
     },
   )

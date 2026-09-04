@@ -1865,6 +1865,8 @@
   <string name="lyrics_translate_title">翻译歌词</string>
   <string name="lyrics_translating">正在翻译歌词…</string>
   <string name="lyrics_translation_off">原始歌词</string>
+  <string name="lyrics_translation_failed">无法翻译歌词，请重试。</string>
+  <string name="lyrics_translation_partial">部分歌词未能翻译。</string>
   <string name="lyrics_select_language">选择目标语言</string>
 
   <!-- Clip -->

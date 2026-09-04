@@ -24,8 +24,10 @@ import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.Crossfade
+import androidx.compose.animation.SizeTransform
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.Spring
@@ -111,6 +113,8 @@ import sh.calvin.reorderable.ReorderableItem
 import sh.calvin.reorderable.rememberReorderableLazyListState
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.BlurredEdgeTreatment
+import androidx.compose.ui.draw.blur
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.draw.drawWithCache
@@ -138,6 +142,7 @@ import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.unit.IntOffset
 import androidx.core.content.ContextCompat
+import androidx.core.graphics.ColorUtils
 import kotlin.math.abs
 import kotlin.math.roundToInt
 import com.quantummpv.app.R
@@ -166,6 +171,7 @@ import com.quantummpv.app.ui.player.visualizer.GalaxyOverlay
 import com.quantummpv.app.ui.player.visualizer.ParticleOverlay
 import com.quantummpv.app.ui.player.visualizer.VisualizerPalette
 import com.quantummpv.app.ui.player.visualizer.rememberAudioVisualizerFeatures
+import com.quantummpv.app.ui.theme.fontFamilyForText
 import com.quantummpv.app.ui.utils.isMpvOptionOwnedByConfig
 
 import com.quantummpv.app.utils.media.fileExtension
@@ -350,7 +356,7 @@ private fun ribbonPaletteFromAccent(
   )
 }
 
-private fun artworkRibbonPalette(
+private fun artworkVisualizerPalette(
   bitmap: Bitmap,
   materialPalette: VisualizerPalette,
 ): VisualizerPalette {
@@ -366,16 +372,104 @@ private fun artworkRibbonPalette(
         swatch.hsl[1] * 0.58f + population * 0.27f + centeredLightness * 0.15f
       }?.rgb
       ?: materialPalette.primary
-  return ribbonPaletteFromAccent(materialPalette, accent)
+  val artworkTones = ribbonPaletteFromAccent(materialPalette, accent)
+  return VisualizerPalette(
+    background = ColorUtils.blendARGB(materialPalette.background, accent, 0.12f),
+    primary = ColorUtils.blendARGB(materialPalette.primary, accent, 0.48f),
+    secondary = ColorUtils.blendARGB(materialPalette.secondary, artworkTones.secondary, 0.62f),
+    tertiary = ColorUtils.blendARGB(materialPalette.tertiary, artworkTones.tertiary, 0.58f),
+  )
 }
 
-/**
- * Cuboid is a Compose Canvas and does not pass through the GLSurfaceView VisualizerOverlay, so it
- * needs the same scoped Android spectrum capture explicitly. The capture exists only while Cuboid
- * is actually visible; album-art mode, lyrics and modal sheets release it immediately.
- */
 @Composable
-private fun CuboidSpectrumCaptureEffect(
+private fun AudioVisualizerViewport(
+  style: AudioVisualizerStyle,
+  palette: VisualizerPalette,
+  isPlaying: Boolean,
+  isSheetOpen: Boolean,
+  volumeScale: Float,
+  features: AudioFeatures,
+  onClick: () -> Unit,
+  onLongClick: () -> Unit,
+  modifier: Modifier = Modifier,
+) {
+  BoxWithConstraints(
+    modifier =
+      modifier
+        .combinedClickable(
+          interactionSource = remember { MutableInteractionSource() },
+          indication = null,
+          onClick = onClick,
+          onLongClick = onLongClick,
+        ),
+    contentAlignment = Alignment.Center,
+  ) {
+    val surfaceColor = MaterialTheme.colorScheme.surface
+    val rendererModifier =
+      Modifier.fillMaxSize()
+        .graphicsLayer {
+          scaleX = 1.03f
+          scaleY = 1.03f
+        }
+
+    when (style) {
+      AudioVisualizerStyle.Galaxy ->
+        GalaxyOverlay(
+          palette = palette,
+          isSheetOpen = isSheetOpen,
+          volumeScale = volumeScale,
+          features = features,
+          modifier = rendererModifier,
+        )
+      AudioVisualizerStyle.Blob ->
+        BlobOverlay(
+          palette = palette,
+          isSheetOpen = isSheetOpen,
+          volumeScale = volumeScale,
+          features = features,
+          modifier = rendererModifier,
+        )
+      AudioVisualizerStyle.Cuboid ->
+        CuboidOverlay(
+          isPlaying = isPlaying,
+          palette = palette,
+          isSheetOpen = isSheetOpen,
+          volumeScale = volumeScale,
+          features = features,
+          modifier = rendererModifier,
+        )
+      AudioVisualizerStyle.Particle ->
+        ParticleOverlay(
+          palette = palette,
+          isSheetOpen = isSheetOpen,
+          volumeScale = volumeScale,
+          features = features,
+          modifier = rendererModifier,
+        )
+    }
+
+    Box(
+      modifier =
+        Modifier
+          .align(Alignment.BottomCenter)
+          .fillMaxWidth()
+          .height(maxHeight * 0.28f)
+          .blur(32.dp, BlurredEdgeTreatment.Unbounded)
+          .background(
+            Brush.verticalGradient(
+              0f to Color.Transparent,
+              0.34f to surfaceColor.copy(alpha = 0.24f),
+              0.72f to surfaceColor.copy(alpha = 0.82f),
+              1f to surfaceColor,
+            ),
+          ),
+    )
+  }
+}
+
+/** Compose Canvas visualizers need scoped spectrum capture outside VisualizerOverlay. */
+@Composable
+private fun CanvasSpectrumCaptureEffect(
   enabled: Boolean,
   features: AudioFeatures,
 ) {
@@ -662,19 +756,18 @@ fun AudioPlayerControls(
         tertiary = colorScheme.tertiary.toArgb(),
       )
     }
-  val fallbackRibbonPalette = remember(palette) { ribbonPaletteFromAccent(palette, palette.primary) }
-  val seekbarRibbonPalette by produceState(
-    initialValue = fallbackRibbonPalette,
+  val visualizerPalette by produceState(
+    initialValue = palette,
     key1 = albumArtBitmap,
-    key2 = fallbackRibbonPalette,
+    key2 = palette,
   ) {
     val artwork = albumArtBitmap
     value =
       if (artwork == null) {
-        fallbackRibbonPalette
+        palette
       } else {
         withContext(Dispatchers.Default) {
-          runCatching { artworkRibbonPalette(artwork, palette) }.getOrDefault(fallbackRibbonPalette)
+          runCatching { artworkVisualizerPalette(artwork, palette) }.getOrDefault(palette)
         }
       }
   }
@@ -702,7 +795,7 @@ fun AudioPlayerControls(
   val sheetShown by viewModel.sheetShown.collectAsState()
   val isSheetOpen = sheetShown != Sheets.None
 
-  CuboidSpectrumCaptureEffect(
+  CanvasSpectrumCaptureEffect(
     enabled =
       showVisualizer &&
         !showInPlaceLyrics &&
@@ -879,7 +972,6 @@ fun AudioPlayerControls(
     animationSpec = tween(durationMillis = 800),
     label = "ambient_bottom_color",
   )
-
   Box(
     modifier =
       modifier
@@ -1025,12 +1117,18 @@ fun AudioPlayerControls(
       BoxWithConstraints(
         modifier =
           visualizerModifier
-            .clipToBounds()
-            .combinedClickable(
-              interactionSource = remember { MutableInteractionSource() },
-              indication = null,
-              onClick = { viewModel.toggleAudioVisualizer() },
-              onLongClick = { onOpenSheet(Sheets.VisualizerStyle) },
+            .then(if (showVisualizer) Modifier else Modifier.clipToBounds())
+            .then(
+              if (showVisualizer || showInPlaceLyrics) {
+                Modifier
+              } else {
+                Modifier.combinedClickable(
+                  interactionSource = remember { MutableInteractionSource() },
+                  indication = null,
+                  onClick = { viewModel.toggleAudioVisualizer() },
+                  onLongClick = { onOpenSheet(Sheets.VisualizerStyle) },
+                )
+              },
             ),
         contentAlignment = Alignment.Center,
       ) {
@@ -1048,68 +1146,39 @@ fun AudioPlayerControls(
           AnimatedContent(
             targetState = showVisualizer,
             transitionSpec = {
-              if (targetState) {
-                (fadeIn(animationSpec = tween(350, easing = FastOutSlowInEasing)) +
-                  scaleIn(animationSpec = tween(350, easing = FastOutSlowInEasing), initialScale = 0.90f))
-                  .togetherWith(
-                    fadeOut(animationSpec = tween(280)) +
-                      scaleOut(animationSpec = tween(280), targetScale = 1.06f),
-                  )
-              } else {
-                (fadeIn(animationSpec = tween(350, easing = FastOutSlowInEasing)) +
-                  scaleIn(animationSpec = spring(dampingRatio = 0.72f, stiffness = 400f), initialScale = 0.88f))
-                  .togetherWith(
-                    fadeOut(animationSpec = tween(280)) +
-                      scaleOut(animationSpec = tween(280), targetScale = 1.06f),
-                  )
-              }
+              val contentTransform =
+                if (targetState) {
+                  (fadeIn(animationSpec = tween(350, easing = FastOutSlowInEasing)) +
+                    scaleIn(animationSpec = tween(350, easing = FastOutSlowInEasing), initialScale = 0.90f))
+                    .togetherWith(
+                      fadeOut(animationSpec = tween(280)) +
+                        scaleOut(animationSpec = tween(280), targetScale = 1.06f),
+                    )
+                } else {
+                  (fadeIn(animationSpec = tween(350, easing = FastOutSlowInEasing)) +
+                    scaleIn(animationSpec = spring(dampingRatio = 0.72f, stiffness = 400f), initialScale = 0.88f))
+                    .togetherWith(
+                      fadeOut(animationSpec = tween(280)) +
+                        scaleOut(animationSpec = tween(280), targetScale = 1.06f),
+                    )
+                }
+              contentTransform.using(SizeTransform(clip = false))
             },
             label = "visualizer_toggle",
             modifier = Modifier.fillMaxHeight().fillMaxWidth(if (isTabletPortrait) 0.65f else 1.0f),
           ) { isVisualizerActive ->
           if (isVisualizerActive) {
-            Box(
+            AudioVisualizerViewport(
+              style = audioVisualizerStyle,
+              palette = visualizerPalette,
+              isPlaying = isPlaying,
+              isSheetOpen = isSheetOpen,
+              volumeScale = volumeScale,
+              features = visualizerFeatures,
+              onClick = viewModel::toggleAudioVisualizer,
+              onLongClick = { onOpenSheet(Sheets.VisualizerStyle) },
               modifier = Modifier.fillMaxSize(),
-              contentAlignment = Alignment.Center,
-            ) {
-               when (audioVisualizerStyle) {
-                 AudioVisualizerStyle.Galaxy ->
-                   GalaxyOverlay(
-                     palette = palette,
-                     isSheetOpen = isSheetOpen,
-                     volumeScale = volumeScale,
-                     features = visualizerFeatures,
-                     modifier = Modifier.fillMaxSize(),
-                   )
-                 AudioVisualizerStyle.Blob ->
-                   BlobOverlay(
-                     palette = palette,
-                     isSheetOpen = isSheetOpen,
-                     volumeScale = volumeScale,
-                     features = visualizerFeatures,
-                     modifier = Modifier.fillMaxSize(),
-                   )
-                 AudioVisualizerStyle.Cuboid ->
-                   if (!isSheetOpen) {
-                     CuboidOverlay(
-                       isPlaying = isPlaying,
-                       palette = palette,
-                       isSheetOpen = false,
-                       volumeScale = volumeScale,
-                       features = visualizerFeatures,
-                       modifier = Modifier.fillMaxSize(),
-                     )
-                   }
-                 AudioVisualizerStyle.Particle ->
-                   ParticleOverlay(
-                     palette = palette,
-                     isSheetOpen = isSheetOpen,
-                     volumeScale = volumeScale,
-                     features = visualizerFeatures,
-                     modifier = Modifier.fillMaxSize(),
-                   )
-               }
-            }
+            )
           } else {
             val coverShape = RoundedCornerShape(32.dp)
             val density = LocalDensity.current
@@ -1238,6 +1307,7 @@ fun AudioPlayerControls(
         Text(
           text = displayTitle,
           style = MaterialTheme.typography.headlineMedium.copy(fontWeight = FontWeight.ExtraBold),
+          fontFamily = fontFamilyForText(displayTitle),
           color = MaterialTheme.colorScheme.onSurface,
           maxLines = 1,
           overflow = TextOverflow.Ellipsis,
@@ -1249,6 +1319,7 @@ fun AudioPlayerControls(
         Text(
           text = displayArtist,
           style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Medium),
+          fontFamily = fontFamilyForText(displayArtist),
           color = MaterialTheme.colorScheme.onSurfaceVariant,
           maxLines = 1,
           overflow = TextOverflow.Ellipsis,
@@ -1494,7 +1565,7 @@ fun AudioPlayerControls(
         seekbarStyle = seekbarStyle,
         showWavyVisualizer = audioWavySeekbar,
         waveFeatures = if (audioWavySeekbar) visualizerFeatures else null,
-        wavePalette = seekbarRibbonPalette,
+        wavePalette = visualizerPalette,
         waveVolumeScale = volumeScale,
         waveSheetOpen = isSheetOpen,
         loopStart = abLoopA?.toFloat(),
@@ -1803,6 +1874,7 @@ fun AudioPlayerControls(
         modifier = Modifier
           .fillMaxSize()
           .clickable(
+            enabled = showInPlaceLyrics,
             interactionSource = remember { MutableInteractionSource() },
             indication = null,
           ) { resetInactivityTimer() },

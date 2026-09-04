@@ -1865,6 +1865,8 @@
   <string name="lyrics_translate_title">ترجمة كلمات الأغاني</string>
   <string name="lyrics_translating">جارٍ ترجمة كلمات الأغاني…</string>
   <string name="lyrics_translation_off">كلمات الأغاني الأصلية</string>
+  <string name="lyrics_translation_failed">تعذّرت ترجمة كلمات الأغنية. حاول مرة أخرى.</string>
+  <string name="lyrics_translation_partial">تعذّرت ترجمة بعض أسطر كلمات الأغنية.</string>
   <string name="lyrics_select_language">تحديد اللغة المستهدفة</string>
 
   <!-- Clip -->

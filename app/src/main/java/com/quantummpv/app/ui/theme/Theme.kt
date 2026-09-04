@@ -52,6 +52,7 @@ import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalView
@@ -278,7 +279,12 @@ fun MpvrxTheme(
   val appTheme by preferences.appTheme.collectAsState()
   val useSystemFont by preferences.useSystemFont.collectAsState()
   val darkTheme = isSystemInDarkTheme()
+  val configuration = LocalConfiguration.current
   val context = LocalContext.current
+  val localeNeedsSystemFont =
+    remember(configuration) {
+      localeRequiresSystemFont(configuration.locales[0])
+    }
 
   val useDarkTheme =
     when (darkMode) {
@@ -317,7 +323,7 @@ fun MpvrxTheme(
     ThemeTransitionContent {
       MaterialExpressiveTheme(
         colorScheme = colorScheme,
-        typography = if (useSystemFont) SystemTypography else AppTypography,
+        typography = if (useSystemFont || localeNeedsSystemFont) SystemTypography else AppTypography,
         shapes = AppShapes,
         motionScheme = MotionScheme.expressive(),
         content = content,

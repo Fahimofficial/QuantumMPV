@@ -19,6 +19,8 @@ import com.quantummpv.app.ui.icons.AppIcon
 import com.quantummpv.app.ui.icons.Icons
 import com.quantummpv.app.ui.player.controls.components.panels.SubtitlesBorderStyle
 
+const val DEFAULT_SUBTITLE_FONT_FAMILY = "sans-serif"
+
 class SubtitlesPreferences(
   preferenceStore: PreferenceStore,
 ) {
