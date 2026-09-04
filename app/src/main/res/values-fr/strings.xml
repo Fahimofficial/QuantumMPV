@@ -2007,6 +2007,24 @@ Veuillez redémarrer l’application pour appliquer toutes les modifications.</s
   <string name="pref_player_web_stream_links_title">Ouvrir les liens de sites de streaming</string>
   <string name="pref_player_web_stream_links_summary">Proposer mpvRx pour les liens YouTube, Vimeo, Twitch, Odysee et Bilibili. Désactivez pour laisser leurs applications les ouvrir.</string>
 
+  <string name="btn_label_scopes">Scopes</string>
+  <string name="scopes_title">Scopes</string>
+  <string name="scopes_expand">Agrandir les scopes</string>
+  <string name="scopes_show_overlay">Afficher la superposition</string>
+  <string name="scopes_no_audio_track">Aucune piste audio sélectionnée</string>
+  <string name="scopes_channel_count">Canaux : %1$d</string>
+  <string name="scopes_luma">Luma</string>
+  <string name="scopes_rgby">RGBY</string>
+  <string name="scopes_vectorscope">Vectorscope</string>
+  <string name="scopes_resolution">Résolution</string>
+  <string name="scopes_frame_rate">Fréquence d’images</string>
+  <string name="scopes_credit">Inspiré par Aagedal Media Player</string>
+  <string name="scopes_audio_waveform">Forme d’onde audio</string>
+  <string name="scopes_video">Scopes vidéo</string>
+  <string name="scopes_generating_waveform">Génération de la forme d’onde…</string>
+  <string name="scopes_audio_unavailable">La piste audio sélectionnée ne peut pas être décodée pour l’aperçu de la forme d’onde.</string>
+  <string name="scopes_video_unavailable">Impossible de capturer une image vidéo pour les scopes.</string>
+
   <!-- Downloads -->
   <string name="downloads_title">Téléchargements</string>
   <string name="downloads_notification_channel">Téléchargements</string>

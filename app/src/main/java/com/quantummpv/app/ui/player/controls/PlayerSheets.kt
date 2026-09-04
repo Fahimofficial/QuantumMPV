@@ -38,6 +38,7 @@ import com.quantummpv.app.ui.player.controls.components.sheets.MoreSheet
 import com.quantummpv.app.ui.player.controls.components.sheets.OnlineSubtitleSearchSheet
 import com.quantummpv.app.ui.player.controls.components.sheets.PlaybackSpeedSheet
 import com.quantummpv.app.ui.player.controls.components.sheets.PlaylistSheet
+import com.quantummpv.app.ui.player.controls.components.sheets.ScopesSheet
 import com.quantummpv.app.ui.player.controls.components.sheets.SubtitlesSheet
 import com.quantummpv.app.ui.player.controls.components.sheets.VideoZoomSheet
 import com.quantummpv.app.ui.player.controls.components.sheets.VideoQualitySheet
@@ -572,6 +573,15 @@ fun PlayerSheets(
       com.quantummpv.app.ui.player.controls.components.sheets.LyricsSheet(
         viewModel = viewModel,
         onDismiss = onDismissRequest,
+      )
+    }
+
+    Sheets.Scopes -> {
+      ScopesSheet(
+        viewModel = viewModel,
+        audioTracks = audioTracks,
+        onSelectAudio = onSelectAudio,
+        onDismissRequest = onDismissRequest,
       )
     }
   }

@@ -2007,6 +2007,24 @@ Reinicie o aplicativo para que todas as alterações entrem em vigor.</string>
   <string name="pref_player_web_stream_links_title">Abrir links de sites de streaming</string>
   <string name="pref_player_web_stream_links_summary">Oferecer o mpvRx para links do YouTube, Vimeo, Twitch, Odysee e Bilibili. Desative para que os próprios apps os abram.</string>
 
+  <string name="btn_label_scopes">Escopos</string>
+  <string name="scopes_title">Escopos</string>
+  <string name="scopes_expand">Expandir escopos</string>
+  <string name="scopes_show_overlay">Mostrar sobreposição</string>
+  <string name="scopes_no_audio_track">Nenhuma faixa de áudio selecionada</string>
+  <string name="scopes_channel_count">Canais: %1$d</string>
+  <string name="scopes_luma">Luma</string>
+  <string name="scopes_rgby">RGBY</string>
+  <string name="scopes_vectorscope">Vectorscópio</string>
+  <string name="scopes_resolution">Resolução</string>
+  <string name="scopes_frame_rate">Taxa de quadros</string>
+  <string name="scopes_credit">Inspirado no Aagedal Media Player</string>
+  <string name="scopes_audio_waveform">Forma de onda de áudio</string>
+  <string name="scopes_video">Escopos de vídeo</string>
+  <string name="scopes_generating_waveform">Gerando forma de onda…</string>
+  <string name="scopes_audio_unavailable">A faixa de áudio selecionada não pode ser decodificada para a visualização da forma de onda.</string>
+  <string name="scopes_video_unavailable">Não foi possível capturar um quadro de vídeo para os escopos.</string>
+
   <!-- Downloads -->
   <string name="downloads_title">Downloads</string>
   <string name="downloads_notification_channel">Downloads</string>

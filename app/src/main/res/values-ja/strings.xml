@@ -2007,6 +2007,24 @@
   <string name="pref_player_web_stream_links_title">ストリーミングサイトのリンクを開く</string>
   <string name="pref_player_web_stream_links_summary">YouTube、Vimeo、Twitch、Odysee、Bilibili のリンクで mpvRx を候補に表示。オフにすると各アプリが開きます。</string>
 
+  <string name="btn_label_scopes">スコープ</string>
+  <string name="scopes_title">スコープ</string>
+  <string name="scopes_expand">スコープを拡大</string>
+  <string name="scopes_show_overlay">オーバーレイを表示</string>
+  <string name="scopes_no_audio_track">音声トラックが選択されていません</string>
+  <string name="scopes_channel_count">チャンネル：%1$d</string>
+  <string name="scopes_luma">輝度</string>
+  <string name="scopes_rgby">RGBY</string>
+  <string name="scopes_vectorscope">ベクトルスコープ</string>
+  <string name="scopes_resolution">解像度</string>
+  <string name="scopes_frame_rate">フレームレート</string>
+  <string name="scopes_credit">Aagedal Media Player に着想を得ています</string>
+  <string name="scopes_audio_waveform">音声波形</string>
+  <string name="scopes_video">ビデオスコープ</string>
+  <string name="scopes_generating_waveform">波形を生成しています…</string>
+  <string name="scopes_audio_unavailable">選択した音声トラックを波形プレビュー用にデコードできません。</string>
+  <string name="scopes_video_unavailable">スコープ用のビデオフレームを取得できませんでした。</string>
+
   <!-- Downloads -->
   <string name="downloads_title">ダウンロード</string>
   <string name="downloads_notification_channel">ダウンロード</string>

@@ -844,6 +844,56 @@ class PlayerViewModel : ViewModel(),
 
   val lyricsUiState = MutableStateFlow(LyricsUiState())
 
+  private val _mediaScopesUiState =
+    MutableStateFlow(
+      com.quantummpv.app.ui.player.scopes.MediaScopesUiState(
+        analysisResolution = playerPreferences.mediaScopeAnalysisResolution.get().coerceIn(256, 720),
+        frameRate = playerPreferences.mediaScopeFrameRate.get().coerceIn(5, 30),
+      ),
+    )
+  val mediaScopesUiState = _mediaScopesUiState.asStateFlow()
+
+  fun setMediaScopesOverlayVisible(visible: Boolean) {
+    _mediaScopesUiState.update { state ->
+      state.copy(overlayVisible = visible, expanded = state.expanded && visible)
+    }
+  }
+
+  fun setMediaScopeTab(tab: com.quantummpv.app.ui.player.scopes.MediaScopeTab) {
+    _mediaScopesUiState.update { it.copy(tab = tab) }
+  }
+
+  fun toggleMediaScopes(tab: com.quantummpv.app.ui.player.scopes.MediaScopeTab) {
+    _mediaScopesUiState.update { state ->
+      val closing = state.overlayVisible && state.tab == tab
+      state.copy(
+        overlayVisible = !closing,
+        tab = tab,
+        expanded = state.expanded && !closing,
+      )
+    }
+  }
+
+  fun setVideoScopeMode(mode: com.quantummpv.app.ui.player.scopes.VideoScopeMode) {
+    _mediaScopesUiState.update { it.copy(videoMode = mode) }
+  }
+
+  fun toggleMediaScopesExpanded() {
+    _mediaScopesUiState.update { it.copy(expanded = !it.expanded, overlayVisible = true) }
+  }
+
+  fun setMediaScopeAnalysisResolution(resolution: Int) {
+    val bounded = resolution.coerceIn(256, 720)
+    playerPreferences.mediaScopeAnalysisResolution.set(bounded)
+    _mediaScopesUiState.update { it.copy(analysisResolution = bounded) }
+  }
+
+  fun setMediaScopeFrameRate(frameRate: Int) {
+    val bounded = frameRate.coerceIn(5, 30)
+    playerPreferences.mediaScopeFrameRate.set(bounded)
+    _mediaScopesUiState.update { it.copy(frameRate = bounded) }
+  }
+
   private data class LyricsLoadRequest(
     val path: String,
     val title: String,

@@ -148,6 +148,7 @@ import com.quantummpv.app.ui.player.controls.components.AnimatedPlayPauseIcon
 import com.quantummpv.app.ui.player.controls.components.BrightnessSlider
 import com.quantummpv.app.ui.player.controls.components.LocalForceDarkPlayerButtonsBackground
 import com.quantummpv.app.ui.player.controls.components.LocalHidePlayerButtonsBackground
+import com.quantummpv.app.ui.player.controls.components.MediaScopesOverlay
 import com.quantummpv.app.ui.player.controls.components.MultipleSpeedPlayerUpdate
 import com.quantummpv.app.ui.player.controls.components.SeekPlayerUpdate
 import com.quantummpv.app.ui.player.controls.components.SeekbarWithTimers
@@ -219,6 +220,8 @@ fun PlayerControls(
   val duration by PlaybackSession.propInt["duration"].collectAsState()
   val playbackQueue by PlaybackSession.queue.collectAsStateWithLifecycle()
   val preciseDuration by viewModel.preciseDuration.collectAsState()
+  val scopeAudioTracks by viewModel.audioTracks.collectAsState(persistentListOf())
+  val mediaScopesState by viewModel.mediaScopesUiState.collectAsState()
   val demuxerCacheTime by PlaybackSession.propDouble["demuxer-cache-time"].collectAsState()
   val playbackSpeed by PlaybackSession.propFloat["speed"].collectAsState()
   val seekbarDuration = if (preciseDuration > 0) preciseDuration else duration?.toFloat() ?: 0f
@@ -582,6 +585,13 @@ fun PlayerControls(
             ).padding(top = 16.dp, start = 14.dp),
       )
     }
+
+    MediaScopesOverlay(
+      viewModel = viewModel,
+      audioTracks = scopeAudioTracks.toImmutableList(),
+      durationSeconds = seekbarDuration,
+      modifier = Modifier.fillMaxSize(),
+    )
 
     CompositionLocalProvider(
       LocalRippleConfiguration provides playerRippleConfiguration,
@@ -1942,6 +1952,7 @@ fun PlayerControls(
         isAmbientEnabled,
         backgroundPlaybackEnabled,
         statisticsPage,
+        mediaScopesState.overlayVisible,
       ) {
         buildSet {
           if (isSpeedNonOne) add(PlayerButton.PLAYBACK_SPEED)
@@ -1955,6 +1966,7 @@ fun PlayerControls(
           if (isAmbientEnabled) add(PlayerButton.AMBIENT_MODE)
           if (backgroundPlaybackEnabled) add(PlayerButton.BACKGROUND_PLAYBACK)
           if (statisticsPage == 6) add(PlayerButton.TIME_NETWORK)
+          if (mediaScopesState.overlayVisible) add(PlayerButton.SCOPES)
         }
       }
 

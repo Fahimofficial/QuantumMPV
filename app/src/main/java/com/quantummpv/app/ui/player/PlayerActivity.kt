@@ -6010,6 +6010,22 @@ class PlayerActivity :
       }
     val hasModifiers = modifierEvent != null
 
+    if (!viewModel.isAudioOnly.value &&
+      event?.isShiftPressed == true &&
+      (event.isCtrlPressed || event.isMetaPressed)
+    ) {
+      when (keyCode) {
+        KeyEvent.KEYCODE_A -> {
+          viewModel.toggleMediaScopes(com.quantummpv.app.ui.player.scopes.MediaScopeTab.Audio)
+          return true
+        }
+        KeyEvent.KEYCODE_W -> {
+          viewModel.toggleMediaScopes(com.quantummpv.app.ui.player.scopes.MediaScopeTab.Video)
+          return true
+        }
+      }
+    }
+
     when (keyCode) {
       KeyEvent.KEYCODE_DPAD_UP -> {
         if (hasModifiers) {

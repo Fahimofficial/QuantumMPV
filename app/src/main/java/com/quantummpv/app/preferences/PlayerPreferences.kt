@@ -98,6 +98,8 @@ class PlayerPreferences(
   val screenshotQuality = preferenceStore.getInt("screenshot_quality", 90)
   val screenshotPngCompression = preferenceStore.getInt("screenshot_png_compression", 7)
   val screenshotWebpLossless = preferenceStore.getBoolean("screenshot_webp_lossless", false)
+  val mediaScopeAnalysisResolution = preferenceStore.getInt("media_scope_analysis_resolution", 360)
+  val mediaScopeFrameRate = preferenceStore.getInt("media_scope_frame_rate", 5)
 
   val playlistMode = preferenceStore.getBoolean("playlist_mode", true)
   val playlistViewMode = preferenceStore.getBoolean("playlist_view_mode_list", true) // true = list, false = grid

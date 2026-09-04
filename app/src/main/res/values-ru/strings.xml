@@ -2007,6 +2007,24 @@
   <string name="pref_player_web_stream_links_title">Открывать ссылки стриминговых сайтов</string>
   <string name="pref_player_web_stream_links_summary">Предлагать mpvRx для ссылок YouTube, Vimeo, Twitch, Odysee и Bilibili. Отключите, чтобы их открывали собственные приложения.</string>
 
+  <string name="btn_label_scopes">Скопы</string>
+  <string name="scopes_title">Скопы</string>
+  <string name="scopes_expand">Развернуть скопы</string>
+  <string name="scopes_show_overlay">Показывать наложение</string>
+  <string name="scopes_no_audio_track">Аудиодорожка не выбрана</string>
+  <string name="scopes_channel_count">Каналы: %1$d</string>
+  <string name="scopes_luma">Яркость</string>
+  <string name="scopes_rgby">RGBY</string>
+  <string name="scopes_vectorscope">Векторскоп</string>
+  <string name="scopes_resolution">Разрешение</string>
+  <string name="scopes_frame_rate">Частота кадров</string>
+  <string name="scopes_credit">Вдохновлено Aagedal Media Player</string>
+  <string name="scopes_audio_waveform">Звуковая волна</string>
+  <string name="scopes_video">Видеоскопы</string>
+  <string name="scopes_generating_waveform">Создание волновой формы…</string>
+  <string name="scopes_audio_unavailable">Выбранную аудиодорожку не удалось декодировать для предварительного просмотра.</string>
+  <string name="scopes_video_unavailable">Не удалось захватить кадр видео для скопов.</string>
+
   <!-- Downloads -->
   <string name="downloads_title">Загрузки</string>
   <string name="downloads_notification_channel">Загрузки</string>

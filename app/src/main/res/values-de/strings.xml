@@ -2007,6 +2007,24 @@ Bitte starten Sie die App neu, damit alle Änderungen wirksam werden.</string>
   <string name="pref_player_web_stream_links_title">Streaming-Website-Links öffnen</string>
   <string name="pref_player_web_stream_links_summary">mpvRx für Links von YouTube, Vimeo, Twitch, Odysee und Bilibili anbieten. Deaktivieren, damit deren eigene Apps sie öffnen.</string>
 
+  <string name="btn_label_scopes">Scopes</string>
+  <string name="scopes_title">Scopes</string>
+  <string name="scopes_expand">Scopes erweitern</string>
+  <string name="scopes_show_overlay">Overlay anzeigen</string>
+  <string name="scopes_no_audio_track">Keine Audiospur ausgewählt</string>
+  <string name="scopes_channel_count">Kanäle: %1$d</string>
+  <string name="scopes_luma">Luma</string>
+  <string name="scopes_rgby">RGBY</string>
+  <string name="scopes_vectorscope">Vektorskop</string>
+  <string name="scopes_resolution">Auflösung</string>
+  <string name="scopes_frame_rate">Bildrate</string>
+  <string name="scopes_credit">Inspiriert von Aagedal Media Player</string>
+  <string name="scopes_audio_waveform">Audio-Wellenform</string>
+  <string name="scopes_video">Video-Scopes</string>
+  <string name="scopes_generating_waveform">Wellenform wird erstellt…</string>
+  <string name="scopes_audio_unavailable">Die ausgewählte Audiospur kann für die Wellenformvorschau nicht decodiert werden.</string>
+  <string name="scopes_video_unavailable">Für die Scopes konnte kein Videobild erfasst werden.</string>
+
   <!-- Downloads -->
   <string name="downloads_title">Downloads</string>
   <string name="downloads_notification_channel">Downloads</string>

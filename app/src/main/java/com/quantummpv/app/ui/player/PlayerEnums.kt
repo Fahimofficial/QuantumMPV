@@ -128,6 +128,7 @@ enum class Sheets {
   AudioProperties,
   VisualizerStyle,
   Lyrics,
+  Scopes,
 }
 
 enum class Panels {

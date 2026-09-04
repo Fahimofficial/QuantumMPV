@@ -2009,6 +2009,24 @@
   <string name="pref_player_web_stream_links_title">打开流媒体网站链接</string>
   <string name="pref_player_web_stream_links_summary">为 YouTube、Vimeo、Twitch、Odysee 和 Bilibili 链接提供 mpvRx 选项。关闭后由它们自己的应用打开。</string>
 
+  <string name="btn_label_scopes">示波器</string>
+  <string name="scopes_title">示波器</string>
+  <string name="scopes_expand">展开示波器</string>
+  <string name="scopes_show_overlay">显示叠加层</string>
+  <string name="scopes_no_audio_track">未选择音轨</string>
+  <string name="scopes_channel_count">声道：%1$d</string>
+  <string name="scopes_luma">亮度</string>
+  <string name="scopes_rgby">RGBY</string>
+  <string name="scopes_vectorscope">矢量示波器</string>
+  <string name="scopes_resolution">分辨率</string>
+  <string name="scopes_frame_rate">帧率</string>
+  <string name="scopes_credit">灵感来自 Aagedal Media Player</string>
+  <string name="scopes_audio_waveform">音频波形</string>
+  <string name="scopes_video">视频示波器</string>
+  <string name="scopes_generating_waveform">正在生成波形…</string>
+  <string name="scopes_audio_unavailable">无法解码所选音轨以预览波形。</string>
+  <string name="scopes_video_unavailable">无法为示波器捕获视频帧。</string>
+
   <!-- Downloads -->
   <string name="downloads_title">下载</string>
   <string name="downloads_notification_channel">下载</string>

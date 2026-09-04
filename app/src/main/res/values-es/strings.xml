@@ -2007,6 +2007,24 @@ Reinicia la aplicación para que se apliquen todos los cambios.</string>
   <string name="pref_player_web_stream_links_title">Abrir enlaces de sitios de streaming</string>
   <string name="pref_player_web_stream_links_summary">Ofrecer mpvRx para enlaces de YouTube, Vimeo, Twitch, Odysee y Bilibili. Desactívalo para que los abran sus propias apps.</string>
 
+  <string name="btn_label_scopes">Monitores</string>
+  <string name="scopes_title">Monitores</string>
+  <string name="scopes_expand">Ampliar monitores</string>
+  <string name="scopes_show_overlay">Mostrar superposición</string>
+  <string name="scopes_no_audio_track">No hay ninguna pista de audio seleccionada</string>
+  <string name="scopes_channel_count">Canales: %1$d</string>
+  <string name="scopes_luma">Luma</string>
+  <string name="scopes_rgby">RGBY</string>
+  <string name="scopes_vectorscope">Vectorscopio</string>
+  <string name="scopes_resolution">Resolución</string>
+  <string name="scopes_frame_rate">Frecuencia de imagen</string>
+  <string name="scopes_credit">Inspirado en Aagedal Media Player</string>
+  <string name="scopes_audio_waveform">Forma de onda de audio</string>
+  <string name="scopes_video">Monitores de vídeo</string>
+  <string name="scopes_generating_waveform">Generando forma de onda…</string>
+  <string name="scopes_audio_unavailable">No se puede decodificar la pista de audio seleccionada para la vista previa de la forma de onda.</string>
+  <string name="scopes_video_unavailable">No se pudo capturar un fotograma para los monitores.</string>
+
   <!-- Downloads -->
   <string name="downloads_title">Descargas</string>
   <string name="downloads_notification_channel">Descargas</string>

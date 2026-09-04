@@ -1911,6 +1911,24 @@
   <string name="pref_player_web_stream_links_title">स्ट्रीमिंग साइट लिंक खोलें</string>
   <string name="pref_player_web_stream_links_summary">YouTube, Vimeo, Twitch, Odysee और Bilibili लिंक के लिए mpvRx दिखाएं। बंद करने पर उनके अपने ऐप उन्हें खोलेंगे।</string>
 
+  <string name="btn_label_scopes">स्कोप</string>
+  <string name="scopes_title">स्कोप</string>
+  <string name="scopes_expand">स्कोप बड़ा करें</string>
+  <string name="scopes_show_overlay">ओवरले दिखाएँ</string>
+  <string name="scopes_no_audio_track">कोई ऑडियो ट्रैक नहीं चुना गया</string>
+  <string name="scopes_channel_count">चैनल: %1$d</string>
+  <string name="scopes_luma">ल्यूमा</string>
+  <string name="scopes_rgby">RGBY</string>
+  <string name="scopes_vectorscope">वेक्टरस्कोप</string>
+  <string name="scopes_resolution">रिज़ॉल्यूशन</string>
+  <string name="scopes_frame_rate">फ़्रेम दर</string>
+  <string name="scopes_credit">Aagedal Media Player से प्रेरित</string>
+  <string name="scopes_audio_waveform">ऑडियो वेवफ़ॉर्म</string>
+  <string name="scopes_video">वीडियो स्कोप</string>
+  <string name="scopes_generating_waveform">वेवफ़ॉर्म बनाया जा रहा है…</string>
+  <string name="scopes_audio_unavailable">चुने गए ऑडियो ट्रैक को वेवफ़ॉर्म पूर्वावलोकन के लिए डिकोड नहीं किया जा सकता।</string>
+  <string name="scopes_video_unavailable">स्कोप के लिए वीडियो फ़्रेम कैप्चर नहीं हो सका।</string>
+
   <!-- Downloads -->
   <string name="downloads_title">डाउनलोड</string>
   <string name="downloads_notification_channel">डाउनलोड</string>

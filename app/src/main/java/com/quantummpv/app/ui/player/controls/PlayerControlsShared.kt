@@ -756,6 +756,23 @@ fun RenderPlayerButton(
       )
     }
 
+    PlayerButton.SCOPES -> {
+      val scopeState by viewModel.mediaScopesUiState.collectAsState()
+      ControlsButton(
+        icon = button.icon,
+        onClick = { onOpenSheet(Sheets.Scopes) },
+        color =
+          if (scopeState.overlayVisible) {
+            MaterialTheme.colorScheme.primary
+          } else if (hideBackground) {
+            controlColor
+          } else {
+            MaterialTheme.colorScheme.onSurface
+          },
+        modifier = Modifier.size(buttonSize),
+      )
+    }
+
     PlayerButton.CURRENT_CHAPTER -> {
       if (isPortrait) {
       } else if (compact) {

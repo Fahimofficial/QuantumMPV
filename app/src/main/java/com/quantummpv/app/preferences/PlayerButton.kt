@@ -51,6 +51,7 @@ enum class PlayerButton(
   AMBIENT_MODE(Icons.RoundedFilled.BlurOff),
   TIME_NETWORK(Icons.RoundedFilled.AccessTime),
   EQUALIZER(Icons.RoundedFilled.Equalizer),
+  SCOPES(Icons.RoundedFilled.Tune),
   NONE(Icons.RoundedFilled.Bookmarks),
 }
 
@@ -100,5 +101,6 @@ fun getPlayerButtonLabel(button: PlayerButton): String =
     PlayerButton.AMBIENT_MODE -> stringResource(R.string.btn_label_ambient)
     PlayerButton.TIME_NETWORK -> stringResource(R.string.btn_label_time_network)
     PlayerButton.EQUALIZER -> stringResource(R.string.btn_label_equalizer)
+    PlayerButton.SCOPES -> stringResource(R.string.btn_label_scopes)
     PlayerButton.NONE -> stringResource(R.string.btn_label_none)
   }
