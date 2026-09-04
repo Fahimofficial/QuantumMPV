@@ -373,6 +373,8 @@
   <string name="pref_about_donate_upi">UPI</string>
   <string name="player_sheets_add_ext_sub">添加外部字幕</string>
   <string name="player_sheets_add_ext_audio">添加外部音轨</string>
+  <string name="player_sheets_embedded_audio_tracks">内嵌音轨</string>
+  <string name="player_sheets_external_audio_tracks">外部音轨</string>
   <string name="player_sheets_tracks_off">关闭</string>
   <string name="player_sheets_off">关闭</string>
   <string name="player_sheets_subtitles_settings_title">字幕设置</string>

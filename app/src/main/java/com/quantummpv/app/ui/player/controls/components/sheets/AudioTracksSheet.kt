@@ -30,6 +30,7 @@ import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
@@ -64,6 +65,10 @@ fun AudioTracksSheet(
 ) {
   val audioPreferences = koinInject<AudioPreferences>()
   val audioChannels by audioPreferences.audioChannels.collectAsState()
+  val (embeddedTracks, externalTracks) =
+    remember(tracks) {
+      tracks.partition { track -> track.external != true }
+    }
 
   PlayerSheet(onDismissRequest) {
     Column(modifier) {
@@ -83,7 +88,25 @@ fun AudioTracksSheet(
       )
 
       LazyColumn {
-        items(tracks, key = { it.id }) {
+        if (embeddedTracks.isNotEmpty()) {
+          item(key = "embedded_audio_tracks_header") {
+            AudioTrackSectionHeader(stringResource(R.string.player_sheets_embedded_audio_tracks))
+          }
+        }
+        items(embeddedTracks, key = { it.id }) {
+          AudioTrackRow(
+            title = getTrackTitle(it),
+            details = audioTrackDetails(it),
+            isSelected = it.isSelected,
+            onClick = { onSelect(it) },
+          )
+        }
+        if (externalTracks.isNotEmpty()) {
+          item(key = "external_audio_tracks_header") {
+            AudioTrackSectionHeader(stringResource(R.string.player_sheets_external_audio_tracks))
+          }
+        }
+        items(externalTracks, key = { it.id }) {
           AudioTrackRow(
             title = getTrackTitle(it),
             details = audioTrackDetails(it),
@@ -163,6 +186,20 @@ fun AudioTracksSheet(
       }
     }
   }
+}
+
+@Composable
+private fun AudioTrackSectionHeader(title: String) {
+  Text(
+    text = title,
+    modifier =
+      Modifier
+        .fillMaxWidth()
+        .padding(horizontal = MaterialTheme.spacing.medium, vertical = MaterialTheme.spacing.extraSmall),
+    style = MaterialTheme.typography.labelLarge,
+    color = MaterialTheme.colorScheme.primary,
+    fontWeight = FontWeight.Bold,
+  )
 }
 
 @Composable

@@ -373,6 +373,8 @@
   <string name="pref_about_donate_upi">UPI</string>
   <string name="player_sheets_add_ext_sub">外部字幕を追加</string>
   <string name="player_sheets_add_ext_audio">外部音声トラックを追加</string>
+  <string name="player_sheets_embedded_audio_tracks">埋め込み音声トラック</string>
+  <string name="player_sheets_external_audio_tracks">外部音声トラック</string>
   <string name="player_sheets_tracks_off">オフ</string>
   <string name="player_sheets_off">オフ</string>
   <string name="player_sheets_subtitles_settings_title">字幕設定</string>

@@ -373,6 +373,8 @@
   <string name="pref_about_donate_upi">UPI</string>
   <string name="player_sheets_add_ext_sub">Добавить внешние субтитры</string>
   <string name="player_sheets_add_ext_audio">Добавить внешние аудиодорожки</string>
+  <string name="player_sheets_embedded_audio_tracks">Встроенные аудиодорожки</string>
+  <string name="player_sheets_external_audio_tracks">Внешние аудиодорожки</string>
   <string name="player_sheets_tracks_off">Выкл.</string>
   <string name="player_sheets_off">Выкл.</string>
   <string name="player_sheets_subtitles_settings_title">Настройки субтитров</string>

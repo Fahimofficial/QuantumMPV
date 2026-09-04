@@ -373,6 +373,8 @@
   <string name="pref_about_donate_upi">UPI</string>
   <string name="player_sheets_add_ext_sub">إضافة ترجمة خارجية</string>
   <string name="player_sheets_add_ext_audio">إضافة مسارات صوت خارجية</string>
+  <string name="player_sheets_embedded_audio_tracks">مسارات صوت مضمنة</string>
+  <string name="player_sheets_external_audio_tracks">مسارات صوت خارجية</string>
   <string name="player_sheets_tracks_off">إيقاف</string>
   <string name="player_sheets_off">إيقاف</string>
   <string name="player_sheets_subtitles_settings_title">إعدادات الترجمة</string>
