@@ -19,54 +19,82 @@ internal object VideoScopeAnalyzer {
   private const val OUTPUT_WIDTH = 320
   private const val OUTPUT_HEIGHT = 180
   private const val VECTOR_SIZE = 220
+  private const val PARADE_GAP = 2
+  private const val PARADE_CHANNEL_WIDTH = (OUTPUT_WIDTH - PARADE_GAP * 3) / 4
+
+  private val analysisLock = Any()
+  private var sourcePixels = IntArray(0)
+  private val waveformBins = IntArray(OUTPUT_WIDTH * OUTPUT_HEIGHT)
+  private val waveformSumRed = LongArray(waveformBins.size)
+  private val waveformSumGreen = LongArray(waveformBins.size)
+  private val waveformSumBlue = LongArray(waveformBins.size)
+  private val waveformOutput = IntArray(waveformBins.size)
+  private val paradeBins = Array(4) { IntArray(PARADE_CHANNEL_WIDTH * OUTPUT_HEIGHT) }
+  private val paradeOutput = IntArray(OUTPUT_WIDTH * OUTPUT_HEIGHT)
+  private val vectorBins = IntArray(VECTOR_SIZE * VECTOR_SIZE)
+  private val vectorSumRed = LongArray(vectorBins.size)
+  private val vectorSumGreen = LongArray(vectorBins.size)
+  private val vectorSumBlue = LongArray(vectorBins.size)
+  private val vectorOutput = IntArray(vectorBins.size)
+  private val paradeColors =
+    intArrayOf(
+      Color.rgb(255, 45, 45),
+      Color.rgb(45, 255, 70),
+      Color.rgb(65, 95, 255),
+      Color.rgb(225, 225, 225),
+    )
 
   fun analyze(source: Bitmap, mode: VideoScopeMode): Bitmap =
-    when (mode) {
-      VideoScopeMode.LumaWaveform -> lumaWaveform(source)
-      VideoScopeMode.RgbyParade -> rgbyParade(source)
-      VideoScopeMode.Vectorscope -> vectorscope(source)
+    synchronized(analysisLock) {
+      val sourcePixelCount = source.width * source.height
+      if (sourcePixels.size < sourcePixelCount) sourcePixels = IntArray(sourcePixelCount)
+      source.getPixels(sourcePixels, 0, source.width, 0, 0, source.width, source.height)
+      when (mode) {
+        VideoScopeMode.LumaWaveform -> lumaWaveform(source.width, source.height)
+        VideoScopeMode.RgbyParade -> rgbyParade(source.width, source.height)
+        VideoScopeMode.Vectorscope -> vectorscope(sourcePixelCount)
+      }
     }
 
-  private fun lumaWaveform(source: Bitmap): Bitmap {
-    val sourcePixels = source.readPixels()
-    val bins = IntArray(OUTPUT_WIDTH * OUTPUT_HEIGHT)
-    val sumRed = LongArray(bins.size)
-    val sumGreen = LongArray(bins.size)
-    val sumBlue = LongArray(bins.size)
+  private fun lumaWaveform(sourceWidth: Int, sourceHeight: Int): Bitmap {
+    waveformBins.fill(0)
+    waveformSumRed.fill(0)
+    waveformSumGreen.fill(0)
+    waveformSumBlue.fill(0)
+    waveformOutput.fill(0)
 
-    for (y in 0 until source.height) {
-      val row = y * source.width
-      for (x in 0 until source.width) {
+    for (y in 0 until sourceHeight) {
+      val row = y * sourceWidth
+      for (x in 0 until sourceWidth) {
         val color = sourcePixels[row + x]
         val red = Color.red(color)
         val green = Color.green(color)
         val blue = Color.blue(color)
         val luma = (red * 0.2126f + green * 0.7152f + blue * 0.0722f) / 255f
-        val column = x * OUTPUT_WIDTH / source.width
+        val column = x * OUTPUT_WIDTH / sourceWidth
         val level = (luma * (OUTPUT_HEIGHT - 1)).toInt().coerceIn(0, OUTPUT_HEIGHT - 1)
         val index = column * OUTPUT_HEIGHT + level
-        bins[index]++
-        sumRed[index] += red
-        sumGreen[index] += green
-        sumBlue[index] += blue
+        waveformBins[index]++
+        waveformSumRed[index] += red
+        waveformSumGreen[index] += green
+        waveformSumBlue[index] += blue
       }
     }
 
-    val maximum = bins.maxOrNull()?.coerceAtLeast(1) ?: 1
+    val maximum = waveformBins.maxOrNull()?.coerceAtLeast(1) ?: 1
     val logMaximum = ln(1f + maximum)
-    val output = IntArray(OUTPUT_WIDTH * OUTPUT_HEIGHT)
     for (column in 0 until OUTPUT_WIDTH) {
       for (level in 0 until OUTPUT_HEIGHT) {
         val sourceIndex = column * OUTPUT_HEIGHT + level
-        val count = bins[sourceIndex]
+        val count = waveformBins[sourceIndex]
         if (count == 0) continue
         val intensity = (ln(1f + count) / logMaximum * 2.4f).coerceIn(0f, 1f)
-        val averageRed = sumRed[sourceIndex].toFloat() / count
-        val averageGreen = sumGreen[sourceIndex].toFloat() / count
-        val averageBlue = sumBlue[sourceIndex].toFloat() / count
+        val averageRed = waveformSumRed[sourceIndex].toFloat() / count
+        val averageGreen = waveformSumGreen[sourceIndex].toFloat() / count
+        val averageBlue = waveformSumBlue[sourceIndex].toFloat() / count
         val colorMax = max(averageRed, max(averageGreen, averageBlue)).coerceAtLeast(1f)
         val outputIndex = (OUTPUT_HEIGHT - 1 - level) * OUTPUT_WIDTH + column
-        output[outputIndex] = Color.argb(
+        waveformOutput[outputIndex] = Color.argb(
           (intensity * 255).toInt(),
           (averageRed / colorMax * 255).toInt(),
           (averageGreen / colorMax * 255).toInt(),
@@ -74,47 +102,43 @@ internal object VideoScopeAnalyzer {
         )
       }
     }
-    return output.toBitmap(OUTPUT_WIDTH, OUTPUT_HEIGHT)
+    return waveformOutput.toBitmap(OUTPUT_WIDTH, OUTPUT_HEIGHT)
   }
 
-  private fun rgbyParade(source: Bitmap): Bitmap {
-    val sourcePixels = source.readPixels()
-    val gap = 2
-    val channelWidth = (OUTPUT_WIDTH - gap * 3) / 4
-    val bins = Array(4) { IntArray(channelWidth * OUTPUT_HEIGHT) }
+  private fun rgbyParade(sourceWidth: Int, sourceHeight: Int): Bitmap {
+    paradeBins.forEach { it.fill(0) }
+    paradeOutput.fill(0)
 
-    for (y in 0 until source.height) {
-      val row = y * source.width
-      for (x in 0 until source.width) {
+    for (y in 0 until sourceHeight) {
+      val row = y * sourceWidth
+      for (x in 0 until sourceWidth) {
         val color = sourcePixels[row + x]
         val red = Color.red(color)
         val green = Color.green(color)
         val blue = Color.blue(color)
-        val column = x * channelWidth / source.width
+        val column = x * PARADE_CHANNEL_WIDTH / sourceWidth
         val columnOffset = column * OUTPUT_HEIGHT
-        bins[0][columnOffset + red * (OUTPUT_HEIGHT - 1) / 255]++
-        bins[1][columnOffset + green * (OUTPUT_HEIGHT - 1) / 255]++
-        bins[2][columnOffset + blue * (OUTPUT_HEIGHT - 1) / 255]++
+        paradeBins[0][columnOffset + red * (OUTPUT_HEIGHT - 1) / 255]++
+        paradeBins[1][columnOffset + green * (OUTPUT_HEIGHT - 1) / 255]++
+        paradeBins[2][columnOffset + blue * (OUTPUT_HEIGHT - 1) / 255]++
         val lumaLevel =
           ((red * 0.2126f + green * 0.7152f + blue * 0.0722f) * (OUTPUT_HEIGHT - 1) / 255f)
             .toInt()
             .coerceIn(0, OUTPUT_HEIGHT - 1)
-        bins[3][columnOffset + lumaLevel]++
+        paradeBins[3][columnOffset + lumaLevel]++
       }
     }
 
-    val maximum = bins.maxOf { it.maxOrNull() ?: 0 }.coerceAtLeast(1)
-    val colors = intArrayOf(Color.rgb(255, 45, 45), Color.rgb(45, 255, 70), Color.rgb(65, 95, 255), Color.rgb(225, 225, 225))
-    val output = IntArray(OUTPUT_WIDTH * OUTPUT_HEIGHT)
-    for (channel in bins.indices) {
-      val xOffset = channel * (channelWidth + gap)
-      for (column in 0 until channelWidth) {
+    val maximum = paradeBins.maxOf { it.maxOrNull() ?: 0 }.coerceAtLeast(1)
+    for (channel in paradeBins.indices) {
+      val xOffset = channel * (PARADE_CHANNEL_WIDTH + PARADE_GAP)
+      for (column in 0 until PARADE_CHANNEL_WIDTH) {
         for (level in 0 until OUTPUT_HEIGHT) {
-          val count = bins[channel][column * OUTPUT_HEIGHT + level]
+          val count = paradeBins[channel][column * OUTPUT_HEIGHT + level]
           if (count == 0) continue
           val intensity = (count.toFloat() / (maximum * 0.22f)).coerceIn(0f, 1f)
-          val tint = colors[channel]
-          output[(OUTPUT_HEIGHT - 1 - level) * OUTPUT_WIDTH + xOffset + column] = Color.argb(
+          val tint = paradeColors[channel]
+          paradeOutput[(OUTPUT_HEIGHT - 1 - level) * OUTPUT_WIDTH + xOffset + column] = Color.argb(
             255,
             (Color.red(tint) * intensity).toInt(),
             (Color.green(tint) * intensity).toInt(),
@@ -123,19 +147,20 @@ internal object VideoScopeAnalyzer {
         }
       }
     }
-    return output.toBitmap(OUTPUT_WIDTH, OUTPUT_HEIGHT)
+    return paradeOutput.toBitmap(OUTPUT_WIDTH, OUTPUT_HEIGHT)
   }
 
-  private fun vectorscope(source: Bitmap): Bitmap {
-    val sourcePixels = source.readPixels()
-    val bins = IntArray(VECTOR_SIZE * VECTOR_SIZE)
-    val sumRed = LongArray(bins.size)
-    val sumGreen = LongArray(bins.size)
-    val sumBlue = LongArray(bins.size)
+  private fun vectorscope(sourcePixelCount: Int): Bitmap {
+    vectorBins.fill(0)
+    vectorSumRed.fill(0)
+    vectorSumGreen.fill(0)
+    vectorSumBlue.fill(0)
+    vectorOutput.fill(0)
     val half = VECTOR_SIZE / 2f
     val scale = half * 0.9f
 
-    for (color in sourcePixels) {
+    for (sourceIndex in 0 until sourcePixelCount) {
+      val color = sourcePixels[sourceIndex]
       val red = Color.red(color) / 255f
       val green = Color.green(color) / 255f
       val blue = Color.blue(color) / 255f
@@ -145,37 +170,31 @@ internal object VideoScopeAnalyzer {
       val y = (half - cr * scale * 2f).toInt()
       if (x !in 0 until VECTOR_SIZE || y !in 0 until VECTOR_SIZE) continue
       val index = y * VECTOR_SIZE + x
-      bins[index]++
-      sumRed[index] += Color.red(color)
-      sumGreen[index] += Color.green(color)
-      sumBlue[index] += Color.blue(color)
+      vectorBins[index]++
+      vectorSumRed[index] += Color.red(color)
+      vectorSumGreen[index] += Color.green(color)
+      vectorSumBlue[index] += Color.blue(color)
     }
 
-    val maximum = bins.maxOrNull()?.coerceAtLeast(1) ?: 1
+    val maximum = vectorBins.maxOrNull()?.coerceAtLeast(1) ?: 1
     val logMaximum = ln(1f + maximum)
-    val output = IntArray(VECTOR_SIZE * VECTOR_SIZE)
-    for (index in bins.indices) {
-      val count = bins[index]
+    for (index in vectorBins.indices) {
+      val count = vectorBins[index]
       if (count == 0) continue
       val intensity = (ln(1f + count) / logMaximum * 2.8f).coerceIn(0f, 1f)
-      val averageRed = sumRed[index].toFloat() / count
-      val averageGreen = sumGreen[index].toFloat() / count
-      val averageBlue = sumBlue[index].toFloat() / count
+      val averageRed = vectorSumRed[index].toFloat() / count
+      val averageGreen = vectorSumGreen[index].toFloat() / count
+      val averageBlue = vectorSumBlue[index].toFloat() / count
       val colorMax = max(averageRed, max(averageGreen, averageBlue)).coerceAtLeast(1f)
-      output[index] = Color.argb(
+      vectorOutput[index] = Color.argb(
         (intensity * 255).toInt(),
         (averageRed / colorMax * 255).toInt(),
         (averageGreen / colorMax * 255).toInt(),
         (averageBlue / colorMax * 255).toInt(),
       )
     }
-    return output.toBitmap(VECTOR_SIZE, VECTOR_SIZE)
+    return vectorOutput.toBitmap(VECTOR_SIZE, VECTOR_SIZE)
   }
-
-  private fun Bitmap.readPixels(): IntArray =
-    IntArray(width * height).also { pixels ->
-      getPixels(pixels, 0, width, 0, 0, width, height)
-    }
 
   private fun IntArray.toBitmap(width: Int, height: Int): Bitmap =
     Bitmap.createBitmap(this, width, height, Bitmap.Config.ARGB_8888)

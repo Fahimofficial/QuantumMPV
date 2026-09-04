@@ -2012,6 +2012,7 @@
   <string name="btn_label_scopes">示波器</string>
   <string name="scopes_title">示波器</string>
   <string name="scopes_expand">展开示波器</string>
+  <string name="scopes_resize">调整示波器大小</string>
   <string name="scopes_show_overlay">显示叠加层</string>
   <string name="scopes_no_audio_track">未选择音轨</string>
   <string name="scopes_channel_count">声道：%1$d</string>

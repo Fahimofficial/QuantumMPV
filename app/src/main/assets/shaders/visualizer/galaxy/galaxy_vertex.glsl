@@ -20,6 +20,7 @@ uniform float uReducedMotion;
 
 out vec3 vStarColorWeights;
 out float vBrightness;
+out float vVerticalPosition;
 
 void main() {
     float baseSize = aStarData.x;
@@ -40,6 +41,7 @@ void main() {
 
     vec4 clipPosition = uMvp * vec4(position, 1.0);
     gl_Position = clipPosition;
+    vVerticalPosition = clamp(clipPosition.y / max(clipPosition.w, 0.0001) * 0.5 + 0.5, 0.0, 1.0);
 
     float transient = uTreble * 0.55 + uBeat * 0.85 + uFlux * 0.50;
     float twinkle = 0.5 + 0.5 * sin(uTime * motion * 3.8 + phase);

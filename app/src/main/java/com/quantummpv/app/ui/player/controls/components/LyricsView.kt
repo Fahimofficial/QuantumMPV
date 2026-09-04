@@ -52,6 +52,7 @@ import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.withFrameNanos
 import com.quantummpv.app.preferences.preference.collectAsState
@@ -90,7 +91,13 @@ import com.quantummpv.app.ui.icons.Icons
 import com.quantummpv.app.ui.player.PlayerViewModel
 import com.quantummpv.app.ui.player.controls.components.sheets.LyricsTranslateDialog
 import com.quantummpv.app.ui.theme.fontFamilyForText
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.isActive
 import org.koin.compose.koinInject
+import kotlin.math.abs
+import kotlin.math.exp
+import kotlin.math.roundToInt
+import kotlin.math.roundToLong
 
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
@@ -119,27 +126,33 @@ fun LyricsView(
   val smoothPositionMs = rememberSmoothedPositionMs(currentPosMs, paused == false, playbackSpeed ?: 1f)
 
   // Keep the active lyric centered without snapping as playback advances.
-  LaunchedEffect(state.activeLineIndex, isLyricsFullscreen, lyricsViewportPx) {
+  LaunchedEffect(state.activeLineIndex, isLyricsFullscreen, lyricsViewportPx, state.lyrics) {
     val target = state.activeLineIndex
-    if (target < 0 || lyricsViewportPx <= 0) return@LaunchedEffect
-    runCatching {
+    val syncedLineCount = state.lyrics?.synced?.size ?: 0
+    if (target !in 0 until syncedLineCount || lyricsViewportPx <= 0) return@LaunchedEffect
+    try {
       withFrameNanos {}
       var item = listState.layoutInfo.visibleItemsInfo.firstOrNull { it.index == target }
       if (item == null) {
+        val layoutInfo = listState.layoutInfo
+        val viewportCenter =
+          (layoutInfo.viewportStartOffset + layoutInfo.viewportEndOffset) / 2f
         val estimatedItemHeight =
-          listState.layoutInfo.visibleItemsInfo
+          layoutInfo.visibleItemsInfo
             .map { it.size }
             .average()
             .takeIf(Double::isFinite)
             ?.toInt()
             ?: with(density) { 48.dp.roundToPx() }
-        val centeredOffset = -((lyricsViewportPx - estimatedItemHeight) / 2).coerceAtLeast(0)
+        val centeredOffset = (estimatedItemHeight / 2f - viewportCenter).roundToInt()
         listState.animateScrollToItem(target, scrollOffset = centeredOffset)
         item = listState.layoutInfo.visibleItemsInfo.firstOrNull { it.index == target }
       }
 
       item?.let { targetItem ->
-        val viewportCenter = listState.layoutInfo.viewportSize.height / 2f
+        val layoutInfo = listState.layoutInfo
+        val viewportCenter =
+          (layoutInfo.viewportStartOffset + layoutInfo.viewportEndOffset) / 2f
         val itemCenter = targetItem.offset + targetItem.size / 2f
         val centerDelta = itemCenter - viewportCenter
         if (kotlin.math.abs(centerDelta) > 0.5f) {
@@ -149,6 +162,10 @@ fun LyricsView(
           )
         }
       }
+    } catch (cancellation: CancellationException) {
+      throw cancellation
+    } catch (_: Exception) {
+      // Lyrics can be replaced while a target line is being laid out.
     }
   }
 
@@ -344,14 +361,14 @@ fun LyricsView(
                       isActiveLine || state.activeLineIndex < 0 -> 0.dp
                       distanceFromActive == 1 -> 0.6.dp
                       distanceFromActive == 2 -> 1.0.dp
-                      else -> 1.4.dp
+                      else -> 0.dp
                     },
                   animationSpec = tween(durationMillis = 420, easing = FastOutSlowInEasing),
                   label = "LineBlur",
                 )
 
-                val activeColor = Color.White
-                val inactiveColor = Color.White.copy(alpha = 0.55f)
+                val activeColor = MaterialTheme.colorScheme.onSurface
+                val inactiveColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.62f)
 
                 val lineColor by animateColorAsState(
                   targetValue = if (isActiveLine) activeColor else inactiveColor,
@@ -362,7 +379,16 @@ fun LyricsView(
                 Column(
                   modifier = Modifier
                     .fillMaxWidth()
-                    .blur(lineBlur, edgeTreatment = BlurredEdgeTreatment.Unbounded)
+                    .then(
+                      if (lineBlur > 0.dp) {
+                        Modifier.blur(
+                          lineBlur,
+                          edgeTreatment = BlurredEdgeTreatment(RoundedCornerShape(8.dp)),
+                        )
+                      } else {
+                        Modifier
+                      },
+                    )
                     .graphicsLayer {
                       alpha = lineAlpha
                       scaleX = lineScale
@@ -387,11 +413,14 @@ fun LyricsView(
                       verticalArrangement = Arrangement.Center,
                     ) {
                       line.words.forEachIndexed { wordIndex, word ->
+                        val wordStartMs = word.time.toLong()
                         val wordEndMs =
                           line.words.getOrNull(wordIndex + 1)?.time?.toLong()
+                            ?.takeIf { it > wordStartMs }
                             ?: activeLyrics.synced.getOrNull(index + 1)?.time?.toLong()
                               ?.coerceAtMost(line.time.toLong() + 8_000L)
-                            ?: (word.time + 600).toLong()
+                              ?.takeIf { it > wordStartMs }
+                            ?: (wordStartMs + 600L)
                         AnimatedLyricWord(
                           word = word,
                           endTimeMs = wordEndMs,
@@ -638,21 +667,62 @@ private fun rememberSmoothedPositionMs(
   speed: Float,
 ): State<Long> {
   val smoothed = remember { mutableLongStateOf(rawPositionMs) }
-  LaunchedEffect(rawPositionMs, isPlaying, speed) {
-    smoothed.longValue =
-      if (rawPositionMs < smoothed.longValue || rawPositionMs > smoothed.longValue + 1_000L) {
-        rawPositionMs
+  val latestRawPositionMs by rememberUpdatedState(rawPositionMs)
+
+  LaunchedEffect(rawPositionMs, isPlaying) {
+    if (!isPlaying) smoothed.longValue = rawPositionMs
+  }
+
+  LaunchedEffect(isPlaying, speed) {
+    val playbackRate = speed.coerceIn(0.1f, 8f).toDouble()
+    if (!isPlaying) {
+      smoothed.longValue = latestRawPositionMs
+      return@LaunchedEffect
+    }
+
+    var observedRawMs = latestRawPositionMs
+    var anchorRawMs = observedRawMs.toDouble()
+    var renderedMs =
+      if (abs(smoothed.longValue - observedRawMs) > 400L) {
+        observedRawMs.toDouble()
       } else {
-        maxOf(smoothed.longValue, rawPositionMs)
+        maxOf(smoothed.longValue.toDouble(), observedRawMs.toDouble())
       }
-    if (!isPlaying) return@LaunchedEffect
-    val anchorMs = smoothed.longValue
-    var anchorFrameNanos = -1L
-    while (true) {
+    var anchorFrameNanos = 0L
+    var previousFrameNanos = 0L
+
+    while (isActive) {
       withFrameNanos { frameNanos ->
-        if (anchorFrameNanos < 0L) anchorFrameNanos = frameNanos
-        val elapsedMs = (frameNanos - anchorFrameNanos) / 1_000_000f
-        smoothed.longValue = anchorMs + (elapsedMs * speed.coerceIn(0.1f, 8f)).toLong().coerceAtMost(800L)
+        if (previousFrameNanos == 0L) {
+          anchorFrameNanos = frameNanos
+          previousFrameNanos = frameNanos
+          smoothed.longValue = renderedMs.roundToLong()
+          return@withFrameNanos
+        }
+
+        val rawMs = latestRawPositionMs
+        var snappedToPoll = false
+        if (rawMs != observedRawMs) {
+          val anchorElapsedMs = (frameNanos - anchorFrameNanos) / 1_000_000.0
+          val expectedRawMs = anchorRawMs + (anchorElapsedMs * playbackRate).coerceAtMost(800.0)
+          if (rawMs < observedRawMs || abs(rawMs - expectedRawMs) > 400.0) {
+            renderedMs = rawMs.toDouble()
+            snappedToPoll = true
+          }
+          observedRawMs = rawMs
+          anchorRawMs = rawMs.toDouble()
+          anchorFrameNanos = frameNanos
+        }
+
+        val elapsedFromAnchorMs = (frameNanos - anchorFrameNanos) / 1_000_000.0
+        val targetMs = anchorRawMs + (elapsedFromAnchorMs * playbackRate).coerceAtMost(800.0)
+        val frameDeltaMs = ((frameNanos - previousFrameNanos) / 1_000_000.0).coerceIn(0.0, 50.0)
+        val predictedMs = renderedMs + frameDeltaMs * playbackRate
+        val correction = 1.0 - exp(-frameDeltaMs / 120.0)
+        val correctedMs = predictedMs + (targetMs - predictedMs) * correction
+        renderedMs = if (snappedToPoll) targetMs else maxOf(renderedMs, correctedMs)
+        smoothed.longValue = renderedMs.roundToLong()
+        previousFrameNanos = frameNanos
       }
     }
   }
@@ -683,13 +753,11 @@ private fun AnimatedLyricWord(
 
   val startTimeMs = word.time.toLong()
   val durationMs = (endTimeMs - startTimeMs).coerceAtLeast(1L)
-  val currentPositionMs by positionMs
-  val fillProgress = ((currentPositionMs - startTimeMs).toFloat() / durationMs).coerceIn(0f, 1f)
   val activeStyle =
     textStyle.copy(
       shadow =
         Shadow(
-          color = activeColor.copy(alpha = if (fillProgress in 0.001f..0.999f) 0.55f else 0.24f),
+          color = activeColor.copy(alpha = 0.42f),
           offset = Offset.Zero,
           blurRadius = 10f,
         ),
@@ -703,6 +771,9 @@ private fun AnimatedLyricWord(
       style = activeStyle,
       modifier =
         Modifier.drawWithContent {
+          val fillProgress =
+            ((positionMs.value - startTimeMs).toFloat() / durationMs)
+              .coerceIn(0f, 1f)
           clipRect(right = size.width * fillProgress) {
             this@drawWithContent.drawContent()
           }

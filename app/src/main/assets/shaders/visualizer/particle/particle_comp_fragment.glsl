@@ -40,7 +40,8 @@ void main(){
 
   // Calculate particle alpha based on brightness (0.0 = completely transparent background)
   float lum = dot(col, vec3(0.299, 0.587, 0.114));
-  float alpha = clamp(lum * 3.5, 0.0, 1.0);
+  float bottomFade = smoothstep(0.0, 0.22, vUv.y);
+  float alpha = clamp(lum * 3.5, 0.0, 1.0) * bottomFade;
 
   if (alpha < 0.005) {
     // 100% transparent background everywhere there are no particles

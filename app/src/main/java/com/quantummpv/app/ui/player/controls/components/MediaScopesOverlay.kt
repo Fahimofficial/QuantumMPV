@@ -13,17 +13,20 @@ import android.content.res.Configuration
 import android.graphics.Bitmap
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.Image
-import androidx.compose.foundation.background
+import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
@@ -36,8 +39,11 @@ import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -51,9 +57,14 @@ import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import com.quantummpv.app.R
 import com.quantummpv.app.ui.icons.Icon
@@ -77,6 +88,7 @@ import kotlinx.coroutines.isActive
 import kotlinx.coroutines.withContext
 import java.util.concurrent.atomic.AtomicReference
 import kotlin.math.max
+import kotlin.math.roundToInt
 
 private sealed interface AudioWaveformLoadState {
   data object Loading : AudioWaveformLoadState
@@ -94,76 +106,229 @@ fun MediaScopesOverlay(
   modifier: Modifier = Modifier,
 ) {
   val state by viewModel.mediaScopesUiState.collectAsState()
-  if (!state.overlayVisible) return
-
   val configuration = LocalConfiguration.current
   val isPortrait = configuration.orientation == Configuration.ORIENTATION_PORTRAIT
+  val resizeDescription = stringResource(R.string.scopes_resize)
+  var requestedWidthDp by rememberSaveable(isPortrait) { mutableFloatStateOf(-1f) }
+  var requestedHeightDp by rememberSaveable(isPortrait) { mutableFloatStateOf(-1f) }
+  var requestedOffsetX by rememberSaveable(isPortrait) { mutableFloatStateOf(-1f) }
+  var requestedOffsetY by rememberSaveable(isPortrait) { mutableFloatStateOf(-1f) }
 
-  Box(modifier = modifier.fillMaxSize()) {
+  if (!state.overlayVisible) return
+
+  BoxWithConstraints(modifier = modifier.fillMaxSize()) {
+    val density = LocalDensity.current
+    val edgeInset = 8.dp
+    val availableWidth = (maxWidth - edgeInset * 2).coerceAtLeast(1.dp)
+    val availableHeight = (maxHeight - edgeInset * 2).coerceAtLeast(1.dp)
+    val minimumWidth = minOf(240.dp, availableWidth)
+    val minimumHeight = minOf(180.dp, availableHeight)
+    val defaultWidth =
+      if (isPortrait) {
+        (maxWidth * 0.92f).coerceIn(minimumWidth, availableWidth)
+      } else {
+        (maxWidth * 0.44f).coerceIn(minimumWidth, availableWidth)
+      }
+    val defaultHeight =
+      if (isPortrait) {
+        (maxHeight * 0.42f).coerceIn(minimumHeight, availableHeight)
+      } else {
+        (maxHeight * 0.74f).coerceIn(minimumHeight, availableHeight)
+      }
+    val panelWidth =
+      (if (requestedWidthDp > 0f) requestedWidthDp.dp else defaultWidth)
+        .coerceIn(minimumWidth, availableWidth)
+    val panelHeight =
+      (if (requestedHeightDp > 0f) requestedHeightDp.dp else defaultHeight)
+        .coerceIn(minimumHeight, availableHeight)
+
+    val parentWidthPx = constraints.maxWidth.toFloat()
+    val parentHeightPx = constraints.maxHeight.toFloat()
+    val insetPx = with(density) { edgeInset.toPx() }
+    val panelWidthPx = with(density) { panelWidth.toPx() }
+    val panelHeightPx = with(density) { panelHeight.toPx() }
+    val latestPanelWidthPx by rememberUpdatedState(panelWidthPx)
+    val latestPanelHeightPx by rememberUpdatedState(panelHeightPx)
+    val minimumWidthPx = with(density) { minimumWidth.toPx() }
+    val minimumHeightPx = with(density) { minimumHeight.toPx() }
+    val maxOffsetX = (parentWidthPx - panelWidthPx - insetPx).coerceAtLeast(insetPx)
+    val maxOffsetY = (parentHeightPx - panelHeightPx - insetPx).coerceAtLeast(insetPx)
+    val defaultOffsetX =
+      if (isPortrait) {
+        ((parentWidthPx - panelWidthPx) / 2f).coerceIn(insetPx, maxOffsetX)
+      } else {
+        maxOffsetX
+      }
+    val defaultOffsetY =
+      if (isPortrait) {
+        (parentHeightPx - panelHeightPx - with(density) { 88.dp.toPx() })
+          .coerceIn(insetPx, maxOffsetY)
+      } else {
+        ((parentHeightPx - panelHeightPx) / 2f).coerceIn(insetPx, maxOffsetY)
+      }
+    val panelOffsetX =
+      (if (requestedOffsetX >= 0f) requestedOffsetX else defaultOffsetX)
+        .coerceIn(insetPx, maxOffsetX)
+    val panelOffsetY =
+      (if (requestedOffsetY >= 0f) requestedOffsetY else defaultOffsetY)
+        .coerceIn(insetPx, maxOffsetY)
+
+    val moveModifier =
+      if (state.expanded) {
+        Modifier
+      } else {
+        Modifier.pointerInput(parentWidthPx, parentHeightPx, panelWidthPx, panelHeightPx) {
+          var dragX = panelOffsetX
+          var dragY = panelOffsetY
+          detectDragGestures(
+            onDragStart = {
+              dragX =
+                (if (requestedOffsetX >= 0f) requestedOffsetX else defaultOffsetX)
+                  .coerceIn(insetPx, maxOffsetX)
+              dragY =
+                (if (requestedOffsetY >= 0f) requestedOffsetY else defaultOffsetY)
+                  .coerceIn(insetPx, maxOffsetY)
+            },
+          ) { change, dragAmount ->
+            change.consume()
+            dragX = (dragX + dragAmount.x).coerceIn(insetPx, maxOffsetX)
+            dragY = (dragY + dragAmount.y).coerceIn(insetPx, maxOffsetY)
+            requestedOffsetX = dragX
+            requestedOffsetY = dragY
+          }
+        }
+      }
+
     val panelModifier =
-      when {
-        state.expanded ->
-          Modifier
-            .fillMaxSize()
-            .padding(12.dp)
-        isPortrait ->
-          Modifier
-            .align(Alignment.BottomCenter)
-            .fillMaxWidth()
-            .fillMaxHeight(0.42f)
-            .padding(start = 10.dp, end = 10.dp, bottom = 96.dp)
-        else ->
-          Modifier
-            .align(Alignment.CenterEnd)
-            .fillMaxWidth(0.44f)
-            .fillMaxHeight(0.74f)
-            .padding(end = 14.dp)
+      if (state.expanded) {
+        Modifier
+          .fillMaxSize()
+          .padding(12.dp)
+      } else {
+        Modifier
+          .offset { IntOffset(panelOffsetX.roundToInt(), panelOffsetY.roundToInt()) }
+          .size(panelWidth, panelHeight)
       }
     Surface(
       modifier = panelModifier,
       shape = RoundedCornerShape(8.dp),
-      color = Color.Black.copy(alpha = if (state.expanded) 0.96f else 0.82f),
+      color = Color.Black.copy(alpha = if (state.expanded) 0.92f else 0.76f),
       contentColor = Color.White,
       tonalElevation = 0.dp,
       shadowElevation = 8.dp,
     ) {
-      Column(modifier = Modifier.fillMaxSize()) {
-        Row(
-          modifier = Modifier.fillMaxWidth().padding(start = 12.dp, top = 4.dp, end = 4.dp),
-          verticalAlignment = Alignment.CenterVertically,
-        ) {
-          Text(
-            text =
-              stringResource(
-                if (state.tab == MediaScopeTab.Audio) R.string.scopes_audio_waveform else R.string.scopes_video,
-              ),
-            style = MaterialTheme.typography.labelLarge,
-            fontWeight = FontWeight.Bold,
-            modifier = Modifier.weight(1f),
-          )
-          IconButton(onClick = viewModel::toggleMediaScopesExpanded) {
-            Icon(Icons.RoundedFilled.ZoomOutMap, stringResource(R.string.scopes_expand))
+      Box(modifier = Modifier.fillMaxSize()) {
+        Column(modifier = Modifier.fillMaxSize()) {
+          Row(
+            modifier = Modifier.fillMaxWidth().padding(start = 6.dp, top = 4.dp, end = 4.dp),
+            verticalAlignment = Alignment.CenterVertically,
+          ) {
+            Row(
+              modifier = Modifier.weight(1f).then(moveModifier).padding(start = 4.dp),
+              verticalAlignment = Alignment.CenterVertically,
+            ) {
+              if (!state.expanded) {
+                Icon(
+                  imageVector = Icons.RoundedFilled.DragHandle,
+                  contentDescription = null,
+                  tint = Color.White.copy(alpha = 0.68f),
+                  modifier = Modifier.size(20.dp),
+                )
+                Spacer(modifier = Modifier.width(6.dp))
+              }
+              Text(
+                text =
+                  stringResource(
+                    if (state.tab == MediaScopeTab.Audio) R.string.scopes_audio_waveform else R.string.scopes_video,
+                  ),
+                style = MaterialTheme.typography.labelLarge,
+                fontWeight = FontWeight.Bold,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.weight(1f),
+              )
+            }
+            IconButton(onClick = viewModel::toggleMediaScopesExpanded) {
+              Icon(Icons.RoundedFilled.ZoomOutMap, stringResource(R.string.scopes_expand))
+            }
+            IconButton(onClick = { viewModel.setMediaScopesOverlayVisible(false) }) {
+              Icon(Icons.RoundedFilled.Close, stringResource(R.string.ui_close))
+            }
           }
-          IconButton(onClick = { viewModel.setMediaScopesOverlayVisible(false) }) {
-            Icon(Icons.RoundedFilled.Close, stringResource(R.string.ui_close))
+
+          when (state.tab) {
+            MediaScopeTab.Audio ->
+              AudioWaveformScope(
+                viewModel = viewModel,
+                audioTracks = audioTracks,
+                durationSeconds = durationSeconds,
+                modifier = Modifier.fillMaxSize(),
+              )
+            MediaScopeTab.Video ->
+              VideoScope(
+                mode = state.videoMode,
+                resolution = state.analysisResolution,
+                frameRate = state.frameRate,
+                modifier = Modifier.fillMaxSize(),
+              )
           }
         }
 
-        when (state.tab) {
-          MediaScopeTab.Audio ->
-            AudioWaveformScope(
-              viewModel = viewModel,
-              audioTracks = audioTracks,
-              durationSeconds = durationSeconds,
-              modifier = Modifier.fillMaxSize(),
-            )
-          MediaScopeTab.Video ->
-            VideoScope(
-              mode = state.videoMode,
-              resolution = state.analysisResolution,
-              frameRate = state.frameRate,
-              modifier = Modifier.fillMaxSize(),
-            )
+        if (!state.expanded) {
+          Box(
+            modifier =
+              Modifier
+                .align(Alignment.BottomEnd)
+                .size(48.dp)
+                .semantics { contentDescription = resizeDescription }
+                .pointerInput(parentWidthPx, parentHeightPx, minimumWidthPx, minimumHeightPx) {
+                  var resizeWidthPx = latestPanelWidthPx
+                  var resizeHeightPx = latestPanelHeightPx
+                  var resizeOriginX = panelOffsetX
+                  var resizeOriginY = panelOffsetY
+                  detectDragGestures(
+                    onDragStart = {
+                      resizeOriginX =
+                        (if (requestedOffsetX >= 0f) requestedOffsetX else defaultOffsetX)
+                          .coerceIn(insetPx, maxOffsetX)
+                      resizeOriginY =
+                        (if (requestedOffsetY >= 0f) requestedOffsetY else defaultOffsetY)
+                          .coerceIn(insetPx, maxOffsetY)
+                      resizeWidthPx = latestPanelWidthPx
+                      resizeHeightPx = latestPanelHeightPx
+                      requestedOffsetX = resizeOriginX
+                      requestedOffsetY = resizeOriginY
+                    },
+                  ) { change, dragAmount ->
+                    change.consume()
+                    val maximumResizeWidth =
+                      (parentWidthPx - resizeOriginX - insetPx).coerceAtLeast(minimumWidthPx)
+                    val maximumResizeHeight =
+                      (parentHeightPx - resizeOriginY - insetPx).coerceAtLeast(minimumHeightPx)
+                    resizeWidthPx =
+                      (resizeWidthPx + dragAmount.x).coerceIn(minimumWidthPx, maximumResizeWidth)
+                    resizeHeightPx =
+                      (resizeHeightPx + dragAmount.y).coerceIn(minimumHeightPx, maximumResizeHeight)
+                    requestedWidthDp = with(density) { resizeWidthPx.toDp().value }
+                    requestedHeightDp = with(density) { resizeHeightPx.toDp().value }
+                  }
+                },
+            contentAlignment = Alignment.BottomEnd,
+          ) {
+            Canvas(modifier = Modifier.padding(end = 7.dp, bottom = 7.dp).size(18.dp)) {
+              val gripColor = Color.White.copy(alpha = 0.62f)
+              val strokeWidth = 1.5.dp.toPx()
+              for (length in listOf(6.dp, 11.dp, 16.dp)) {
+                val lengthPx = length.toPx()
+                drawLine(
+                  color = gripColor,
+                  start = Offset(size.width - lengthPx, size.height),
+                  end = Offset(size.width, size.height - lengthPx),
+                  strokeWidth = strokeWidth,
+                )
+              }
+            }
+          }
         }
       }
     }
@@ -377,14 +542,16 @@ private fun VideoScope(
         }
         if (paused == true) break
         val elapsedMs = (System.nanoTime() - startedAt) / 1_000_000L
-        delay((frameIntervalMs - elapsedMs).coerceAtLeast(1L))
+        val cadenceDelayMs = (frameIntervalMs - elapsedMs).coerceAtLeast(1L)
+        val processingBackoffMs = (elapsedMs / 3L).coerceAtLeast(1L)
+        delay(maxOf(cadenceDelayMs, processingBackoffMs))
       } while (isActive)
     } finally {
       pendingFrame.getAndSet(null)?.takeUnless(Bitmap::isRecycled)?.recycle()
     }
   }
 
-  Box(modifier = modifier.background(Color.Black), contentAlignment = Alignment.Center) {
+  Box(modifier = modifier, contentAlignment = Alignment.Center) {
     val bitmap = scopeBitmap
     if (bitmap != null && !bitmap.isRecycled) {
       DisposableEffect(bitmap) {

@@ -2010,6 +2010,7 @@ Bitte starten Sie die App neu, damit alle Änderungen wirksam werden.</string>
   <string name="btn_label_scopes">Scopes</string>
   <string name="scopes_title">Scopes</string>
   <string name="scopes_expand">Scopes erweitern</string>
+  <string name="scopes_resize">Scopes skalieren</string>
   <string name="scopes_show_overlay">Overlay anzeigen</string>
   <string name="scopes_no_audio_track">Keine Audiospur ausgewählt</string>
   <string name="scopes_channel_count">Kanäle: %1$d</string>

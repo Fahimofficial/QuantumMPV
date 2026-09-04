@@ -7,6 +7,7 @@ uniform vec3 uTertiaryColor;
 
 in vec3 vStarColorWeights;
 in float vBrightness;
+in float vVerticalPosition;
 out vec4 fragColor;
 
 void main() {
@@ -28,6 +29,7 @@ void main() {
 
     vec3 color = mix(themeColor * 0.85, uTertiaryColor, halo * 0.25);
     color = mix(color, vec3(1.0), hotCore * 0.55);
-    float alpha = softEdge * clamp(vBrightness * (0.85 + halo * 0.28), 0.0, 1.5);
+    float bottomFade = smoothstep(0.0, 0.22, vVerticalPosition);
+    float alpha = softEdge * clamp(vBrightness * (0.85 + halo * 0.28), 0.0, 1.5) * bottomFade;
     fragColor = vec4(color * vBrightness, alpha);
 }

@@ -2010,6 +2010,7 @@ Reinicia la aplicación para que se apliquen todos los cambios.</string>
   <string name="btn_label_scopes">Monitores</string>
   <string name="scopes_title">Monitores</string>
   <string name="scopes_expand">Ampliar monitores</string>
+  <string name="scopes_resize">Cambiar tamaño de los monitores</string>
   <string name="scopes_show_overlay">Mostrar superposición</string>
   <string name="scopes_no_audio_track">No hay ninguna pista de audio seleccionada</string>
   <string name="scopes_channel_count">Canales: %1$d</string>

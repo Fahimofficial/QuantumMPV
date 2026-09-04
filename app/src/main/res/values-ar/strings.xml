@@ -2012,6 +2012,7 @@
   <string name="btn_label_scopes">النطاقات</string>
   <string name="scopes_title">النطاقات</string>
   <string name="scopes_expand">توسيع النطاقات</string>
+  <string name="scopes_resize">تغيير حجم النطاقات</string>
   <string name="scopes_show_overlay">إظهار التراكب</string>
   <string name="scopes_no_audio_track">لم يتم تحديد مسار صوتي</string>
   <string name="scopes_channel_count">القنوات: %1$d</string>

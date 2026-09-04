@@ -113,14 +113,14 @@ import sh.calvin.reorderable.ReorderableItem
 import sh.calvin.reorderable.rememberReorderableLazyListState
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.BlurredEdgeTreatment
-import androidx.compose.ui.draw.blur
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.draw.drawWithCache
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.BlendMode
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.CompositingStrategy
 import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.graphicsLayer
@@ -322,39 +322,51 @@ private fun rememberAudioAlbumArt(
   artworkUri: String? = null,
 ): Bitmap? = rememberAudioPresentationMetadata(pathOrUri, artworkUri)?.artwork
 
-private fun ribbonPaletteFromAccent(
-  materialPalette: VisualizerPalette,
-  accentArgb: Int,
-): VisualizerPalette {
+private fun contrastingVisualizerTone(
+  colorArgb: Int,
+  backgroundArgb: Int,
+  isDarkTheme: Boolean,
+): Int {
   val hsv = FloatArray(3)
-  AndroidColor.colorToHSV(accentArgb, hsv)
-  val saturation = hsv[1].coerceAtLeast(0.24f)
+  AndroidColor.colorToHSV(colorArgb, hsv)
+  hsv[1] = hsv[1].coerceAtLeast(if (isDarkTheme) 0.42f else 0.52f)
+  hsv[2] =
+    if (isDarkTheme) {
+      hsv[2].coerceIn(0.72f, 0.98f)
+    } else {
+      hsv[2].coerceIn(0.28f, 0.56f)
+    }
+  val base = AndroidColor.HSVToColor(hsv)
+  val contrastTarget = if (isDarkTheme) AndroidColor.WHITE else AndroidColor.BLACK
+  val minimumContrast = if (isDarkTheme) 2.4 else 3.2
+  if (ColorUtils.calculateContrast(base, backgroundArgb) >= minimumContrast) return base
 
-  fun shade(
-    saturationScale: Float,
-    value: Float,
-  ): Int =
-    AndroidColor.HSVToColor(
-      floatArrayOf(
-        hsv[0],
-        (saturation * saturationScale).coerceIn(0f, 1f),
-        value.coerceIn(0f, 1f),
-      ),
-    )
+  for (step in 1..9) {
+    val adjusted = ColorUtils.blendARGB(base, contrastTarget, step * 0.08f)
+    if (ColorUtils.calculateContrast(adjusted, backgroundArgb) >= minimumContrast) return adjusted
+  }
+  return ColorUtils.blendARGB(base, contrastTarget, 0.72f)
+}
 
-  return materialPalette.copy(
-    secondary =
-      shade(
-        saturationScale = 1.05f,
-        value = (hsv[2] * 0.72f).coerceIn(0.24f, 0.68f),
-      ),
-    tertiary =
-      shade(
-        saturationScale = 0.88f,
-        value = (hsv[2] + (1f - hsv[2]) * 0.18f).coerceIn(0.48f, 0.88f),
-      ),
+private fun VisualizerPalette.withThemeContrast(): VisualizerPalette {
+  val isDarkTheme = ColorUtils.calculateLuminance(background) < 0.5
+  return copy(
+    primary = contrastingVisualizerTone(primary, background, isDarkTheme),
+    secondary = contrastingVisualizerTone(secondary, background, isDarkTheme),
+    tertiary = contrastingVisualizerTone(tertiary, background, isDarkTheme),
   )
 }
+
+private fun visualizerPaletteFromAccent(
+  materialPalette: VisualizerPalette,
+  accentArgb: Int,
+): VisualizerPalette =
+  materialPalette.copy(
+    primary = ColorUtils.blendARGB(materialPalette.primary, accentArgb, 0.56f),
+    secondary = ColorUtils.blendARGB(materialPalette.secondary, accentArgb, 0.36f),
+    tertiary = ColorUtils.blendARGB(materialPalette.tertiary, accentArgb, 0.28f),
+  )
+    .withThemeContrast()
 
 private fun artworkVisualizerPalette(
   bitmap: Bitmap,
@@ -372,13 +384,7 @@ private fun artworkVisualizerPalette(
         swatch.hsl[1] * 0.58f + population * 0.27f + centeredLightness * 0.15f
       }?.rgb
       ?: materialPalette.primary
-  val artworkTones = ribbonPaletteFromAccent(materialPalette, accent)
-  return VisualizerPalette(
-    background = ColorUtils.blendARGB(materialPalette.background, accent, 0.12f),
-    primary = ColorUtils.blendARGB(materialPalette.primary, accent, 0.48f),
-    secondary = ColorUtils.blendARGB(materialPalette.secondary, artworkTones.secondary, 0.62f),
-    tertiary = ColorUtils.blendARGB(materialPalette.tertiary, artworkTones.tertiary, 0.58f),
-  )
+  return visualizerPaletteFromAccent(materialPalette, accent)
 }
 
 @Composable
@@ -387,13 +393,12 @@ private fun AudioVisualizerViewport(
   palette: VisualizerPalette,
   isPlaying: Boolean,
   isSheetOpen: Boolean,
-  volumeScale: Float,
   features: AudioFeatures,
   onClick: () -> Unit,
   onLongClick: () -> Unit,
   modifier: Modifier = Modifier,
 ) {
-  BoxWithConstraints(
+  Box(
     modifier =
       modifier
         .combinedClickable(
@@ -404,20 +409,37 @@ private fun AudioVisualizerViewport(
         ),
     contentAlignment = Alignment.Center,
   ) {
-    val surfaceColor = MaterialTheme.colorScheme.surface
     val rendererModifier =
-      Modifier.fillMaxSize()
-        .graphicsLayer {
-          scaleX = 1.03f
-          scaleY = 1.03f
-        }
+      Modifier
+        .fillMaxSize()
+        .then(
+          if (style == AudioVisualizerStyle.Cuboid) {
+            Modifier
+              .graphicsLayer { compositingStrategy = CompositingStrategy.Offscreen }
+              .drawWithCache {
+                val bottomFade =
+                  Brush.verticalGradient(
+                    0f to Color.White,
+                    0.78f to Color.White,
+                    1f to Color.Transparent,
+                    startY = 0f,
+                    endY = size.height,
+                  )
+                onDrawWithContent {
+                  drawContent()
+                  drawRect(brush = bottomFade, blendMode = BlendMode.DstIn)
+                }
+              }
+          } else {
+            Modifier
+          },
+        )
 
     when (style) {
       AudioVisualizerStyle.Galaxy ->
         GalaxyOverlay(
           palette = palette,
           isSheetOpen = isSheetOpen,
-          volumeScale = volumeScale,
           features = features,
           modifier = rendererModifier,
         )
@@ -425,7 +447,6 @@ private fun AudioVisualizerViewport(
         BlobOverlay(
           palette = palette,
           isSheetOpen = isSheetOpen,
-          volumeScale = volumeScale,
           features = features,
           modifier = rendererModifier,
         )
@@ -434,7 +455,6 @@ private fun AudioVisualizerViewport(
           isPlaying = isPlaying,
           palette = palette,
           isSheetOpen = isSheetOpen,
-          volumeScale = volumeScale,
           features = features,
           modifier = rendererModifier,
         )
@@ -442,34 +462,17 @@ private fun AudioVisualizerViewport(
         ParticleOverlay(
           palette = palette,
           isSheetOpen = isSheetOpen,
-          volumeScale = volumeScale,
           features = features,
           modifier = rendererModifier,
         )
     }
 
-    Box(
-      modifier =
-        Modifier
-          .align(Alignment.BottomCenter)
-          .fillMaxWidth()
-          .height(maxHeight * 0.28f)
-          .blur(32.dp, BlurredEdgeTreatment.Unbounded)
-          .background(
-            Brush.verticalGradient(
-              0f to Color.Transparent,
-              0.34f to surfaceColor.copy(alpha = 0.24f),
-              0.72f to surfaceColor.copy(alpha = 0.82f),
-              1f to surfaceColor,
-            ),
-          ),
-    )
   }
 }
 
-/** Compose Canvas visualizers need scoped spectrum capture outside VisualizerOverlay. */
+/** One capture owner feeds the main visualizer and seekbar ribbon. */
 @Composable
-private fun CanvasSpectrumCaptureEffect(
+private fun AudioSpectrumCaptureEffect(
   enabled: Boolean,
   features: AudioFeatures,
 ) {
@@ -754,7 +757,7 @@ fun AudioPlayerControls(
         primary = colorScheme.primary.toArgb(),
         secondary = colorScheme.secondary.toArgb(),
         tertiary = colorScheme.tertiary.toArgb(),
-      )
+      ).withThemeContrast()
     }
   val visualizerPalette by produceState(
     initialValue = palette,
@@ -795,12 +798,12 @@ fun AudioPlayerControls(
   val sheetShown by viewModel.sheetShown.collectAsState()
   val isSheetOpen = sheetShown != Sheets.None
 
-  CanvasSpectrumCaptureEffect(
+  AudioSpectrumCaptureEffect(
     enabled =
-      showVisualizer &&
-        !showInPlaceLyrics &&
+      isPlaying &&
         !isSheetOpen &&
-        audioVisualizerStyle == AudioVisualizerStyle.Cuboid,
+        ((showVisualizer && !showInPlaceLyrics) ||
+          (audioWavySeekbar && !isLyricsFullscreen)),
     features = visualizerFeatures,
   )
 
@@ -1173,7 +1176,6 @@ fun AudioPlayerControls(
               palette = visualizerPalette,
               isPlaying = isPlaying,
               isSheetOpen = isSheetOpen,
-              volumeScale = volumeScale,
               features = visualizerFeatures,
               onClick = viewModel::toggleAudioVisualizer,
               onLongClick = { onOpenSheet(Sheets.VisualizerStyle) },
@@ -1566,7 +1568,6 @@ fun AudioPlayerControls(
         showWavyVisualizer = audioWavySeekbar,
         waveFeatures = if (audioWavySeekbar) visualizerFeatures else null,
         wavePalette = visualizerPalette,
-        waveVolumeScale = volumeScale,
         waveSheetOpen = isSheetOpen,
         loopStart = abLoopA?.toFloat(),
         loopEnd = abLoopB?.toFloat(),

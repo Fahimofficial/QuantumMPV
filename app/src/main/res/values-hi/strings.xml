@@ -1914,6 +1914,7 @@
   <string name="btn_label_scopes">स्कोप</string>
   <string name="scopes_title">स्कोप</string>
   <string name="scopes_expand">स्कोप बड़ा करें</string>
+  <string name="scopes_resize">स्कोप का आकार बदलें</string>
   <string name="scopes_show_overlay">ओवरले दिखाएँ</string>
   <string name="scopes_no_audio_track">कोई ऑडियो ट्रैक नहीं चुना गया</string>
   <string name="scopes_channel_count">चैनल: %1$d</string>

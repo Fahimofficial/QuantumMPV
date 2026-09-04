@@ -2010,6 +2010,7 @@ Veuillez redémarrer l’application pour appliquer toutes les modifications.</s
   <string name="btn_label_scopes">Scopes</string>
   <string name="scopes_title">Scopes</string>
   <string name="scopes_expand">Agrandir les scopes</string>
+  <string name="scopes_resize">Redimensionner les scopes</string>
   <string name="scopes_show_overlay">Afficher la superposition</string>
   <string name="scopes_no_audio_track">Aucune piste audio sélectionnée</string>
   <string name="scopes_channel_count">Canaux : %1$d</string>

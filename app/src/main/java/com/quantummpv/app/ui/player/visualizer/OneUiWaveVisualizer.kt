@@ -9,37 +9,23 @@
 
 package com.quantummpv.app.ui.player.visualizer
 
-import android.Manifest
-import android.content.pm.PackageManager
-import androidx.activity.compose.rememberLauncherForActivityResult
-import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.spring
 import androidx.compose.foundation.Canvas
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableLongStateOf
-import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
-import androidx.core.content.ContextCompat
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.delay
-import kotlinx.coroutines.isActive
-import kotlinx.coroutines.launch
-import java.util.concurrent.atomic.AtomicBoolean
 import kotlin.math.PI
 import kotlin.math.exp
 import kotlin.math.min
@@ -85,55 +71,12 @@ internal fun ribbonLiftScale(
 internal fun WaveVisualizerOverlay(
   palette: VisualizerPalette,
   isSheetOpen: Boolean,
-  volumeScale: Float,
   features: AudioFeatures,
   isPlaying: Boolean,
   progressProvider: () -> Float,
   trackHeight: Dp,
   modifier: Modifier = Modifier,
 ) {
-  val context = LocalContext.current
-  val scope = rememberCoroutineScope()
-  val realAnalyzerActive = remember(features) { AtomicBoolean(false) }
-  var hasRecordPermission by remember {
-    mutableStateOf(
-      ContextCompat.checkSelfPermission(context, Manifest.permission.RECORD_AUDIO) ==
-        PackageManager.PERMISSION_GRANTED,
-    )
-  }
-  val recordPermissionLauncher =
-    rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
-      hasRecordPermission = granted
-    }
-
-  LaunchedEffect(volumeScale) {
-    features.volumeScale = volumeScale.coerceIn(0f, 1f)
-  }
-  LaunchedEffect(hasRecordPermission) {
-    if (!hasRecordPermission) recordPermissionLauncher.launch(Manifest.permission.RECORD_AUDIO)
-  }
-
-  // Audio capture stays scoped to the visible visualizer so album-art-only playback
-  // never holds the Visualizer effect or polls capture freshness in the background.
-  DisposableEffect(hasRecordPermission, features, isSheetOpen) {
-    val analyzer = if (hasRecordPermission && !isSheetOpen) AudioSpectrumAnalyzer(features) else null
-    val job =
-      scope.launch(Dispatchers.Default) {
-        while (isActive && analyzer != null) {
-          val captureFresh = features.active && features.hasRecentCapture(1_500_000_000L)
-          if (!realAnalyzerActive.get() || !captureFresh) {
-            realAnalyzerActive.set(analyzer.start(0).isSuccess)
-          }
-          delay(if (realAnalyzerActive.get()) 1_500L else 400L)
-        }
-      }
-    onDispose {
-      job.cancel()
-      realAnalyzerActive.set(false)
-      analyzer?.stop(resetFeatures = false)
-    }
-  }
-
   // Each ribbon owns a frequency-band envelope; system volume remains a separate live gain.
   var frameNanos by remember { mutableLongStateOf(0L) }
   var lowPhase by remember { mutableFloatStateOf(0f) }
@@ -143,7 +86,7 @@ internal fun WaveVisualizerOverlay(
   var midLevel by remember { mutableFloatStateOf(0f) }
   var highLevel by remember { mutableFloatStateOf(0f) }
   var loudness by remember { mutableFloatStateOf(0f) }
-  var outputVolume by remember { mutableFloatStateOf(volumeScale.coerceIn(0f, 1f)) }
+  var outputVolume by remember { mutableFloatStateOf(features.volumeScale.coerceIn(0f, 1f)) }
   var beatPulse by remember { mutableFloatStateOf(0f) }
   LaunchedEffect(isPlaying, isSheetOpen) {
     if (!isPlaying || isSheetOpen) {

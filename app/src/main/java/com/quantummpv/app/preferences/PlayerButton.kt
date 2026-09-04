@@ -51,7 +51,7 @@ enum class PlayerButton(
   AMBIENT_MODE(Icons.RoundedFilled.BlurOff),
   TIME_NETWORK(Icons.RoundedFilled.AccessTime),
   EQUALIZER(Icons.RoundedFilled.Equalizer),
-  SCOPES(Icons.RoundedFilled.Tune),
+  SCOPES(Icons.RoundedFilled.Mystery),
   NONE(Icons.RoundedFilled.Bookmarks),
 }
 

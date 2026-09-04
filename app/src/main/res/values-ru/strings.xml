@@ -2010,6 +2010,7 @@
   <string name="btn_label_scopes">Скопы</string>
   <string name="scopes_title">Скопы</string>
   <string name="scopes_expand">Развернуть скопы</string>
+  <string name="scopes_resize">Изменить размер скопов</string>
   <string name="scopes_show_overlay">Показывать наложение</string>
   <string name="scopes_no_audio_track">Аудиодорожка не выбрана</string>
   <string name="scopes_channel_count">Каналы: %1$d</string>

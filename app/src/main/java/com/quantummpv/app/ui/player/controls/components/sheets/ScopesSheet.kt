@@ -133,7 +133,12 @@ fun ScopesSheet(
         MediaScopeTab.Audio -> {
           val selectedTrack = audioTracks.firstOrNull(TrackNode::isSelected)
           Text(
-            text = selectedTrack?.let(::getTrackTitle) ?: stringResource(R.string.scopes_no_audio_track),
+            text =
+              if (selectedTrack != null) {
+                getTrackTitle(selectedTrack)
+              } else {
+                stringResource(R.string.scopes_no_audio_track)
+              },
             style = MaterialTheme.typography.titleMedium,
             color = MaterialTheme.colorScheme.primary,
           )

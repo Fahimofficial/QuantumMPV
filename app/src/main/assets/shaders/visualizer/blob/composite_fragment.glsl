@@ -15,5 +15,6 @@ void main() {
     vec3 mapped = vec3(1.0) - exp(-hdr * uExposure);
     mapped = pow(mapped, vec3(1.0 / 2.2));
     float visualCoverage = clamp(max(max(hdr.r, hdr.g), hdr.b) * 1.8, 0.0, 1.0);
-    fragColor = vec4(mapped, visualCoverage);
+    float bottomFade = smoothstep(0.0, 0.22, vUv.y);
+    fragColor = vec4(mapped, visualCoverage * bottomFade);
 }

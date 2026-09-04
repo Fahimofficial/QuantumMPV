@@ -200,16 +200,11 @@ internal fun CuboidOverlay(
   isPlaying: Boolean = false,
   palette: VisualizerPalette,
   isSheetOpen: Boolean = false,
-  volumeScale: Float = 1f,
   features: AudioFeatures,
 ) {
   val state = remember { CuboidTunnelState() }
   val tones = remember(palette) { palette.toCuboidTones() }
   var frameTick by remember { mutableLongStateOf(0L) }
-
-  LaunchedEffect(volumeScale) {
-    features.volumeScale = volumeScale.coerceIn(0f, 1f)
-  }
 
   LaunchedEffect(isSheetOpen) {
     if (isSheetOpen) return@LaunchedEffect

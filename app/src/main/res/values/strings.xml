@@ -1244,6 +1244,7 @@
   <string name="btn_label_none">None</string>
   <string name="scopes_title">Scopes</string>
   <string name="scopes_expand">Expand scopes</string>
+  <string name="scopes_resize">Resize scopes</string>
   <string name="scopes_show_overlay">Show overlay</string>
   <string name="scopes_no_audio_track">No audio track selected</string>
   <string name="scopes_channel_count">Channels: %1$d</string>

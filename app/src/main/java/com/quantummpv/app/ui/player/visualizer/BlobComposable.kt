@@ -9,29 +9,20 @@
 
 package com.quantummpv.app.ui.player.visualizer
 
-import android.Manifest
-import android.content.pm.PackageManager
 import android.opengl.GLSurfaceView
+import android.view.View
 import android.view.ViewGroup
-import androidx.activity.compose.rememberLauncherForActivityResult
-import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.viewinterop.AndroidView
-import androidx.core.content.ContextCompat
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
-import java.util.concurrent.atomic.AtomicBoolean
 import kotlin.math.sin
 
 @Composable
@@ -39,13 +30,11 @@ internal fun BlobOverlay(
   modifier: Modifier = Modifier,
   palette: VisualizerPalette,
   isSheetOpen: Boolean = false,
-  volumeScale: Float = 1f,
   features: AudioFeatures,
 ) = VisualizerOverlay(
   modifier = modifier,
   palette = palette,
   isSheetOpen = isSheetOpen,
-  volumeScale = volumeScale,
   features = features,
   factory = { ctx, features, p -> BlobVisualizerView(ctx, features, p) },
 )
@@ -55,13 +44,11 @@ internal fun GalaxyOverlay(
   modifier: Modifier = Modifier,
   palette: VisualizerPalette,
   isSheetOpen: Boolean = false,
-  volumeScale: Float = 1f,
   features: AudioFeatures,
 ) = VisualizerOverlay(
   modifier = modifier,
   palette = palette,
   isSheetOpen = isSheetOpen,
-  volumeScale = volumeScale,
   features = features,
   factory = { ctx, features, p -> GalaxyVisualizerView(ctx, features, p) },
 )
@@ -71,13 +58,11 @@ internal fun ParticleOverlay(
   modifier: Modifier = Modifier,
   palette: VisualizerPalette,
   isSheetOpen: Boolean = false,
-  volumeScale: Float = 1f,
   features: AudioFeatures,
 ) = VisualizerOverlay(
   modifier = modifier,
   palette = palette,
   isSheetOpen = isSheetOpen,
-  volumeScale = volumeScale,
   features = features,
   factory = { ctx, features, p -> ParticleVisualizerView(ctx, features, p) },
 )
@@ -91,55 +76,9 @@ private fun <T> VisualizerOverlay(
   modifier: Modifier = Modifier,
   palette: VisualizerPalette,
   isSheetOpen: Boolean = false,
-  volumeScale: Float = 1f,
   features: AudioFeatures,
   factory: (android.content.Context, AudioFeatures, VisualizerPalette) -> T,
 ) where T : GLSurfaceView, T : PaletteConsumer {
-  val context = LocalContext.current
-  val scope = rememberCoroutineScope()
-  val realAnalyzerActive = remember(features) { AtomicBoolean(false) }
-  var hasRecordPermission by remember {
-    mutableStateOf(
-      ContextCompat.checkSelfPermission(context, Manifest.permission.RECORD_AUDIO) ==
-        PackageManager.PERMISSION_GRANTED,
-    )
-  }
-  val recordPermissionLauncher =
-    rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
-      hasRecordPermission = granted
-    }
-
-  LaunchedEffect(volumeScale) {
-    features.volumeScale = volumeScale
-  }
-  LaunchedEffect(hasRecordPermission) {
-    if (!hasRecordPermission) recordPermissionLauncher.launch(Manifest.permission.RECORD_AUDIO)
-  }
-
-  // The overlay itself is only composed while a visualizer is visible. Keep Android's audio
-  // capture pipeline scoped to this lifecycle so album-art-only playback does not hold a Visualizer
-  // effect, poll capture freshness, or repeatedly retry the audio session in the background.
-  // A modal sheet covers the renderer, so suspend capture there too and let the UI consume zero
-  // analyzer work until the visualizer is visible again.
-  DisposableEffect(hasRecordPermission, features, isSheetOpen) {
-    val analyzer = if (hasRecordPermission && !isSheetOpen) AudioSpectrumAnalyzer(features) else null
-    val job =
-      scope.launch(Dispatchers.Default) {
-        while (isActive && analyzer != null) {
-          val captureFresh = features.active && features.hasRecentCapture(1_500_000_000L)
-          if (!realAnalyzerActive.get() || !captureFresh) {
-            realAnalyzerActive.set(analyzer.start(0).isSuccess)
-          }
-          delay(if (realAnalyzerActive.get()) 1_500L else 400L)
-        }
-      }
-    onDispose {
-      job.cancel()
-      realAnalyzerActive.set(false)
-      analyzer?.stop(resetFeatures = false)
-    }
-  }
-
   AndroidView(
     factory = { ctx ->
       factory(ctx, features, palette).apply {
@@ -153,14 +92,12 @@ private fun <T> VisualizerOverlay(
     modifier = modifier,
     update = { view ->
       view.updatePalette(palette)
-      view.setZOrderOnTop(false)
-      view.setZOrderMediaOverlay(true)
       if (isSheetOpen) {
-        // A sheet fully covers the expensive GLSurfaceView. Keep the last frame but stop the
-        // continuous render loop (particle/galaxy renderers otherwise burn GPU underneath it).
+        // Translucent GL surfaces sit above the app window, so hide them while a sheet is open.
+        view.visibility = View.INVISIBLE
         view.renderMode = GLSurfaceView.RENDERMODE_WHEN_DIRTY
-        view.requestRender()
       } else {
+        view.visibility = View.VISIBLE
         view.renderMode = GLSurfaceView.RENDERMODE_CONTINUOUSLY
       }
     },

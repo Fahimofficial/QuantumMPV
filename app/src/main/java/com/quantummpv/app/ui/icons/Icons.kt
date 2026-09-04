@@ -166,6 +166,7 @@ object Icons {
     val MoreTime by lazy(LazyThreadSafetyMode.NONE) { AppIcon(MaterialSymbols.RoundedFilled.More_time) }
     val MoreVert by lazy(LazyThreadSafetyMode.NONE) { AppIcon(MaterialSymbols.RoundedFilled.More_vert) }
     val Movie by lazy(LazyThreadSafetyMode.NONE) { AppIcon(MaterialSymbols.RoundedFilled.Movie) }
+    val Mystery by lazy(LazyThreadSafetyMode.NONE) { AppIcon(MaterialSymbols.RoundedFilled.Mystery) }
     val Notifications by lazy(LazyThreadSafetyMode.NONE) { AppIcon(MaterialSymbols.RoundedFilled.Notifications) }
     val NotInterested by lazy(LazyThreadSafetyMode.NONE) { AppIcon(MaterialSymbols.RoundedFilled.Block) }
     val Opacity by lazy(LazyThreadSafetyMode.NONE) { AppIcon(MaterialSymbols.RoundedFilled.Opacity) }
@@ -388,6 +389,7 @@ object Icons {
     val MoreTime get() = Shared.MoreTime
     val MoreVert get() = Shared.MoreVert
     val Movie get() = Shared.Movie
+    val Mystery get() = Shared.Mystery
     val Notifications get() = Shared.Notifications
     val NotInterested get() = Shared.NotInterested
     val Opacity get() = Shared.Opacity

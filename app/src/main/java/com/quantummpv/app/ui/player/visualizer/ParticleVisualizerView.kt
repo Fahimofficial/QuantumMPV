@@ -10,6 +10,7 @@
 package com.quantummpv.app.ui.player.visualizer
 
 import android.content.Context
+import android.graphics.Color
 import android.graphics.PixelFormat
 import android.opengl.GLSurfaceView
 import android.view.MotionEvent
@@ -31,11 +32,11 @@ internal class ParticleVisualizerView(
     setEGLContextClientVersion(3)
     setEGLConfigChooser(8, 8, 8, 8, 16, 0)
     holder.setFormat(PixelFormat.TRANSLUCENT)
-    setZOrderOnTop(false)
-    setZOrderMediaOverlay(true)
+    setBackgroundColor(Color.TRANSPARENT)
+    setZOrderOnTop(true)
     preserveEGLContextOnPause = true
     setRenderer(renderer)
-    renderMode = RENDERMODE_CONTINUOUSLY
+    renderMode = RENDERMODE_WHEN_DIRTY
     isClickable = true
   }
 

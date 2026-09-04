@@ -2010,6 +2010,7 @@ Reinicie o aplicativo para que todas as alterações entrem em vigor.</string>
   <string name="btn_label_scopes">Escopos</string>
   <string name="scopes_title">Escopos</string>
   <string name="scopes_expand">Expandir escopos</string>
+  <string name="scopes_resize">Redimensionar escopos</string>
   <string name="scopes_show_overlay">Mostrar sobreposição</string>
   <string name="scopes_no_audio_track">Nenhuma faixa de áudio selecionada</string>
   <string name="scopes_channel_count">Canais: %1$d</string>

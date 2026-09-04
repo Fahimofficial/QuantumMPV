@@ -2010,6 +2010,7 @@
   <string name="btn_label_scopes">スコープ</string>
   <string name="scopes_title">スコープ</string>
   <string name="scopes_expand">スコープを拡大</string>
+  <string name="scopes_resize">スコープのサイズを変更</string>
   <string name="scopes_show_overlay">オーバーレイを表示</string>
   <string name="scopes_no_audio_track">音声トラックが選択されていません</string>
   <string name="scopes_channel_count">チャンネル：%1$d</string>

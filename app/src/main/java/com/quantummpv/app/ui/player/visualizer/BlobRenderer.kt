@@ -13,6 +13,8 @@ import android.content.Context
 import android.opengl.GLES30
 import android.opengl.GLSurfaceView
 import android.opengl.Matrix
+import java.nio.ByteBuffer
+import java.nio.ByteOrder
 import java.nio.FloatBuffer
 import java.nio.IntBuffer
 import javax.microedition.khronos.egl.EGLConfig
@@ -113,6 +115,11 @@ internal class BlobRenderer(
   private var bloomB = RenderTarget.EMPTY
 
   private var spectrumTexture = 0
+  private val spectrumUploadBuffer =
+    ByteBuffer
+      .allocateDirect(512 * Float.SIZE_BYTES)
+      .order(ByteOrder.nativeOrder())
+      .asFloatBuffer()
 
   private var surfaceWidth = 1
   private var surfaceHeight = 1
@@ -392,15 +399,19 @@ internal class BlobRenderer(
     GLES30.glBindTexture(GLES30.GL_TEXTURE_2D, 0)
   }
 
-   private fun updateSpectrumTexture(
-     spectrum: FloatArray,
-     volumeScale: Float,
-   ) {
-     val data = java.nio.FloatBuffer.wrap(spectrum.copyOf(512).also { scaled ->
-       for (i in scaled.indices) {
-         scaled[i] *= volumeScale
-       }
-     })
+  private fun updateSpectrumTexture(
+    spectrum: FloatArray,
+    volumeScale: Float,
+  ) {
+    spectrumUploadBuffer.clear()
+    val populatedBins = min(spectrum.size, 512)
+    for (index in 0 until populatedBins) {
+      spectrumUploadBuffer.put(spectrum[index] * volumeScale)
+    }
+    for (index in populatedBins until 512) {
+      spectrumUploadBuffer.put(0f)
+    }
+    spectrumUploadBuffer.flip()
     GLES30.glBindTexture(GLES30.GL_TEXTURE_2D, spectrumTexture)
     GLES30.glTexSubImage2D(
       GLES30.GL_TEXTURE_2D,
@@ -411,7 +422,7 @@ internal class BlobRenderer(
       1,
       GLES30.GL_RED,
       GLES30.GL_FLOAT,
-      data,
+      spectrumUploadBuffer,
     )
     GLES30.glBindTexture(GLES30.GL_TEXTURE_2D, 0)
   }
