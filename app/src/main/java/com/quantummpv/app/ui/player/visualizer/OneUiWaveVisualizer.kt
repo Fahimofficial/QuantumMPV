@@ -41,6 +41,7 @@ import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import java.util.concurrent.atomic.AtomicBoolean
 import kotlin.math.PI
+import kotlin.math.exp
 import kotlin.math.min
 import kotlin.math.sin
 import kotlin.math.sqrt
@@ -143,9 +144,14 @@ internal fun WaveVisualizerOverlay(
   var highLevel by remember { mutableFloatStateOf(0f) }
   var loudness by remember { mutableFloatStateOf(0f) }
   var outputVolume by remember { mutableFloatStateOf(volumeScale.coerceIn(0f, 1f)) }
+  var beatPulse by remember { mutableFloatStateOf(0f) }
   LaunchedEffect(isPlaying, isSheetOpen) {
-    if (!isPlaying || isSheetOpen) return@LaunchedEffect
+    if (!isPlaying || isSheetOpen) {
+      beatPulse = 0f
+      return@LaunchedEffect
+    }
     var previous = 0L
+    var beatWasActive = false
     fun responsiveLevel(value: Float): Float = sqrt(value.coerceIn(0f, 1f))
 
     while (true) {
@@ -191,6 +197,15 @@ internal fun WaveVisualizerOverlay(
         val volumeTarget = features.volumeScale.coerceIn(0f, 1f)
         outputVolume +=
           (volumeTarget - outputVolume) * min(1f, dt * 8f)
+        beatPulse *= exp(-6f * dt)
+        val beatActive = features.beat >= 0.5f
+        if (beatActive && !beatWasActive) {
+          beatPulse = 1f
+          lowPhase += 0.10f * outputVolume
+          midPhase += 0.16f * outputVolume
+          highPhase += 0.22f * outputVolume
+        }
+        beatWasActive = beatActive
         lowPhase +=
           dt * 1.15f * ribbonSpeedMultiplier(outputVolume * (loudness * 0.55f + lowLevel * 0.45f))
         midPhase +=
@@ -240,9 +255,10 @@ internal fun WaveVisualizerOverlay(
       baseLift: Float,
       phase: Float,
       liftScale: Float,
+      beatLift: Float,
     ) {
       val availableLift = (trackTop - 1.dp.toPx()).coerceAtLeast(0f)
-      val lift = min(baseLift * amplitudeFraction * liftScale, availableLift)
+      val lift = min((baseLift * liftScale + beatLift) * amplitudeFraction, availableLift)
       val joinInset = trackHalf.coerceAtLeast(1.dp.toPx())
       val ribbonStart = joinInset.coerceAtMost(waveEnd / 2f)
       val ribbonEnd = (waveEnd - joinInset).coerceAtLeast(ribbonStart)
@@ -282,6 +298,7 @@ internal fun WaveVisualizerOverlay(
         ribbonLiftScale(outputVolume, loudness, highLevel),
         middleLiftScale * 1.18f,
       )
+    val beatImpact = beatPulse * outputVolume
 
     // Band-specific motion stays ordered rear > middle > front at every volume.
     drawRibbon(
@@ -291,6 +308,7 @@ internal fun WaveVisualizerOverlay(
       baseLift = 15.5.dp.toPx(),
       phase = lowPhase,
       liftScale = rearLiftScale,
+      beatLift = 4.dp.toPx() * beatImpact,
     )
     drawRibbon(
       path = midRibbonPath,
@@ -299,6 +317,7 @@ internal fun WaveVisualizerOverlay(
       baseLift = 12.dp.toPx(),
       phase = midPhase,
       liftScale = middleLiftScale,
+      beatLift = 3.dp.toPx() * beatImpact,
     )
     drawRibbon(
       path = highRibbonPath,
@@ -307,6 +326,7 @@ internal fun WaveVisualizerOverlay(
       baseLift = 9.dp.toPx(),
       phase = highPhase,
       liftScale = frontLiftScale,
+      beatLift = 2.dp.toPx() * beatImpact,
     )
   }
 }
