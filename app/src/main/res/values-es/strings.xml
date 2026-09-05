@@ -2060,4 +2060,19 @@ Reinicia la aplicación para que se apliquen todos los cambios.</string>
   <string name="downloads_episodes_queued">%1$d episodios añadidos a la cola de descarga</string>
   <string name="downloads_play">Reproducir</string>
   <string name="downloads_open_downloads">Abrir descargas</string>
+  <string name="pref_player_resume_playback_title">Reanudar reproducción</string>
+  <string name="pref_player_resume_playback_summary">Elige cómo se abren los vídeos vistos anteriormente</string>
+  <string name="pref_player_resume_mode_always">Reanudar siempre</string>
+  <string name="pref_player_resume_mode_always_summary">Reanudar automáticamente desde la última posición guardada</string>
+  <string name="pref_player_resume_mode_ask">Preguntar siempre</string>
+  <string name="pref_player_resume_mode_ask_summary">Empezar en 00:00 y seguir reproduciendo mientras la píldora ofrece reanudar desde la posición guardada</string>
+  <string name="pref_player_resume_mode_never">Empezar siempre de nuevo</string>
+  <string name="pref_player_resume_mode_never_summary">Iniciar siempre la reproducción desde 00:00</string>
+  <string name="player_resumed_from_pill">Reanudado desde %1$s</string>
+  <string name="player_resume_from_pill">¿Reanudar desde %1$s?</string>
+  <string name="player_resume_action">Reanudar</string>
+  <string name="player_started_afresh_pill">Iniciado desde el principio</string>
+  <string name="player_restart_action">Reiniciar</string>
+  <string name="pref_resume_indicator_overlay_title">Indicador de reanudación</string>
+  <string name="pref_resume_indicator_overlay_summary">Mostrar píldoras de posición de reanudación o inicio. El modo Preguntar siempre muestra su píldora de reanudación interactiva</string>
 </resources>

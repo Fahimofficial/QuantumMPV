@@ -56,6 +56,7 @@ import com.quantummpv.app.ui.icons.Icon
 import com.quantummpv.app.ui.icons.Icons
 import com.quantummpv.app.ui.player.NotificationStyle
 import com.quantummpv.app.ui.player.PlayerOrientation
+import com.quantummpv.app.ui.player.ResumePlaybackMode
 import com.quantummpv.app.ui.player.screenshot.ScreenshotFormat
 import com.quantummpv.app.ui.preferences.components.SwitchPreference
 import com.quantummpv.app.ui.utils.LocalBackStack
@@ -148,7 +149,25 @@ object PlayerPreferencesScreen : Screen {
 
               PreferenceDivider()
 
-              val savePositionOnQuit by preferences.savePositionOnQuit.collectAsState()
+val resumePlaybackMode by preferences.resumePlaybackMode.collectAsState()
+ListPreference(
+  modifier = Modifier.settingsSearchTarget(R.string.pref_player_resume_playback_title),
+  value = resumePlaybackMode,
+  onValueChange = preferences.resumePlaybackMode::set,
+  values = ResumePlaybackMode.entries,
+  valueToText = { AnnotatedString(resources.getString(it.titleRes)) },
+  title = { Text(stringResource(R.string.pref_player_resume_playback_title)) },
+  summary = {
+    Text(
+      stringResource(resumePlaybackMode.summaryRes),
+      color = MaterialTheme.colorScheme.outline,
+    )
+  },
+)
+
+PreferenceDivider()
+
+val savePositionOnQuit by preferences.savePositionOnQuit.collectAsState()
               SwitchPreference(
                 modifier = Modifier.settingsSearchTarget(R.string.pref_player_save_position_on_quit),
                 value = savePositionOnQuit,
@@ -1076,7 +1095,23 @@ object PlayerPreferencesScreen : Screen {
 
               PreferenceDivider()
 
-              val showProviderStatusOverlay by preferences.showProviderStatusOverlay.collectAsState()
+val showResumeIndicatorOverlay by preferences.showResumeIndicatorOverlay.collectAsState()
+SwitchPreference(
+  modifier = Modifier.settingsSearchTarget(R.string.pref_resume_indicator_overlay_title),
+  value = showResumeIndicatorOverlay,
+  onValueChange = preferences.showResumeIndicatorOverlay::set,
+  title = { Text(stringResource(R.string.pref_resume_indicator_overlay_title)) },
+  summary = {
+    Text(
+      stringResource(R.string.pref_resume_indicator_overlay_summary),
+      color = MaterialTheme.colorScheme.outline,
+    )
+  },
+)
+
+PreferenceDivider()
+
+val showProviderStatusOverlay by preferences.showProviderStatusOverlay.collectAsState()
               SwitchPreference(
                 modifier = Modifier.settingsSearchTarget(R.string.pref_provider_status_overlay_title),
                 value = showProviderStatusOverlay,

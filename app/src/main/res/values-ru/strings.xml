@@ -2060,4 +2060,19 @@
   <string name="downloads_episodes_queued">В очередь добавлено серий: %1$d</string>
   <string name="downloads_play">Воспроизвести</string>
   <string name="downloads_open_downloads">Открыть загрузки</string>
+  <string name="pref_player_resume_playback_title">Возобновление воспроизведения</string>
+  <string name="pref_player_resume_playback_summary">Выберите, как открывать ранее просмотренные видео</string>
+  <string name="pref_player_resume_mode_always">Всегда продолжать</string>
+  <string name="pref_player_resume_mode_always_summary">Автоматически продолжать с последней сохранённой позиции</string>
+  <string name="pref_player_resume_mode_ask">Спрашивать каждый раз</string>
+  <string name="pref_player_resume_mode_ask_summary">Начинать с 00:00 и продолжать воспроизведение, показывая в плашке возможность продолжить с сохранённой позиции</string>
+  <string name="pref_player_resume_mode_never">Всегда начинать сначала</string>
+  <string name="pref_player_resume_mode_never_summary">Всегда начинать воспроизведение с 00:00</string>
+  <string name="player_resumed_from_pill">Продолжено с %1$s</string>
+  <string name="player_resume_from_pill">Продолжить с %1$s?</string>
+  <string name="player_resume_action">Продолжить</string>
+  <string name="player_started_afresh_pill">Запущено с начала</string>
+  <string name="player_restart_action">Начать сначала</string>
+  <string name="pref_resume_indicator_overlay_title">Индикатор возобновления</string>
+  <string name="pref_resume_indicator_overlay_summary">Показывать плашки позиции продолжения или начала. В режиме запроса интерактивная плашка продолжения показывается всегда</string>
 </resources>

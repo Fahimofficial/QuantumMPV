@@ -4786,7 +4786,22 @@ class PlayerActivity :
 
       if (!PlaybackSession.isCurrentGeneration(loadGeneration)) return@runCatching false
 
-      if (positionRestoreOverride == null && !initialPositionApplied) restorePlaybackPosition(state)
+      if (positionRestoreOverride == null) {
+        if (!initialPositionApplied) {
+          restorePlaybackPosition(state)
+        } else if (
+          state != null &&
+          playerPreferences.resumePlaybackMode.get() == ResumePlaybackMode.Always &&
+          state.lastPosition > 3 &&
+          !viewModel.isAudioOnly.value &&
+          !isCurrentMediaKnownAudio() &&
+          playerPreferences.showResumeIndicatorOverlay.get()
+        ) {
+          withContext(Dispatchers.Main) {
+            viewModel.playerUpdate.value = PlayerUpdates.ResumedFrom(state.lastPosition)
+          }
+        }
+      }
       applyPlaybackState(state, restoreAudioTrack = positionRestoreOverride == null)
 
       if (!PlaybackSession.isCurrentGeneration(loadGeneration)) return@runCatching false
@@ -4864,18 +4879,45 @@ class PlayerActivity :
     viewModel.setVideoZoom(state.videoZoom)
   }
 
-  private fun restorePlaybackPosition(state: PlaybackStateEntity?) {
-    if (state != null &&
-      playerPreferences.savePositionOnQuit.get() &&
-      state.lastPosition != 0 &&
-      !viewModel.isAudioOnly.value &&
-      !isCurrentMediaKnownAudio()
-    ) {
-      PlaybackSession.setPropertyInt("time-pos", state.lastPosition)
-    }
+private suspend fun restorePlaybackPosition(state: PlaybackStateEntity?) {
+  if (state == null || viewModel.isAudioOnly.value || isCurrentMediaKnownAudio()) return
+
+  val resumeMode = playerPreferences.resumePlaybackMode.get()
+  val hasValidSavedPosition = state.lastPosition > 3
+  if (!playerPreferences.savePositionOnQuit.get() || !hasValidSavedPosition) {
+    PlaybackSession.setPropertyInt("time-pos", 0)
+    return
   }
 
-  /**
+  when (resumeMode) {
+    ResumePlaybackMode.Always -> {
+      PlaybackSession.setPropertyInt("time-pos", state.lastPosition)
+      if (playerPreferences.showResumeIndicatorOverlay.get()) {
+        withContext(Dispatchers.Main) {
+          viewModel.playerUpdate.value = PlayerUpdates.ResumedFrom(state.lastPosition)
+        }
+      }
+    }
+
+    ResumePlaybackMode.Ask -> {
+      PlaybackSession.setPropertyInt("time-pos", 0)
+      withContext(Dispatchers.Main) {
+        viewModel.playerUpdate.value = PlayerUpdates.ResumeAvailable(state.lastPosition)
+      }
+    }
+
+    ResumePlaybackMode.Never -> {
+      PlaybackSession.setPropertyInt("time-pos", 0)
+      if (playerPreferences.showResumeIndicatorOverlay.get()) {
+        withContext(Dispatchers.Main) {
+          viewModel.playerUpdate.value = PlayerUpdates.StartedAfresh
+        }
+      }
+    }
+  }
+}
+
+/**
    * Applies default settings when no saved state exists.
    *
    * Sets subtitle speed to user default if not present in saved state.
@@ -5537,15 +5579,19 @@ class PlayerActivity :
   ) {
     ensureCurrentMediaRequest(requestGeneration)
     val restoreSavedPosition = playerPreferences.savePositionOnQuit.get()
-    // Give mpv the resume point as a load-local option so the demuxer starts there instead of
-    // decoding at zero and visibly seeking only after FILE_LOADED.
+    val resumeMode = playerPreferences.resumePlaybackMode.get()
+    // Only Always Resume may use the fast load-local start option. Never starts at zero.
     val initialPositionSeconds =
       if (positionRestoreOverride != null) {
         positionRestoreOverride.positionSeconds?.takeIf { it.isFinite() && it > 0.0 }
-      } else if (restoreSavedPosition && !item.isDefinitelyAudioOnly()) {
+      } else if (
+        restoreSavedPosition &&
+        resumeMode == ResumePlaybackMode.Always &&
+        !item.isDefinitelyAudioOnly()
+      ) {
         resolvePlaybackState(item.stableId, legacyMediaIdentifier)
           ?.lastPosition
-          ?.takeIf { it > 0 }
+          ?.takeIf { it > 3 }
           ?.toDouble()
       } else {
         null

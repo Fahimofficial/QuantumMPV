@@ -2062,4 +2062,19 @@
   <string name="downloads_episodes_queued">تمت إضافة %1$d حلقة إلى قائمة التنزيل</string>
   <string name="downloads_play">تشغيل</string>
   <string name="downloads_open_downloads">فتح التنزيلات</string>
+  <string name="pref_player_resume_playback_title">استئناف التشغيل</string>
+  <string name="pref_player_resume_playback_summary">اختر كيفية فتح مقاطع الفيديو التي شاهدتها سابقًا</string>
+  <string name="pref_player_resume_mode_always">الاستئناف دائمًا</string>
+  <string name="pref_player_resume_mode_always_summary">استئناف التشغيل تلقائيًا من آخر موضع محفوظ</string>
+  <string name="pref_player_resume_mode_ask">اسأل في كل مرة</string>
+  <string name="pref_player_resume_mode_ask_summary">ابدأ من 00:00 واستمر في التشغيل مع عرض خيار المتابعة من الموضع المحفوظ</string>
+  <string name="pref_player_resume_mode_never">البدء من جديد دائمًا</string>
+  <string name="pref_player_resume_mode_never_summary">بدء التشغيل دائمًا من 00:00</string>
+  <string name="player_resumed_from_pill">تم الاستئناف من %1$s</string>
+  <string name="player_resume_from_pill">المتابعة من %1$s؟</string>
+  <string name="player_resume_action">متابعة</string>
+  <string name="player_started_afresh_pill">بدأ من البداية</string>
+  <string name="player_restart_action">إعادة البدء</string>
+  <string name="pref_resume_indicator_overlay_title">مؤشر الاستئناف</string>
+  <string name="pref_resume_indicator_overlay_summary">عرض مؤشرات موضع الاستئناف أو البدء. وضع السؤال يعرض دائمًا مؤشر الاستئناف التفاعلي</string>
 </resources>

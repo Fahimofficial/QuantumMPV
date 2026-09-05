@@ -2060,4 +2060,19 @@ Reinicie o aplicativo para que todas as alterações entrem em vigor.</string>
   <string name="downloads_episodes_queued">%1$d episódios adicionados à fila de download</string>
   <string name="downloads_play">Reproduzir</string>
   <string name="downloads_open_downloads">Abrir downloads</string>
+  <string name="pref_player_resume_playback_title">Retomar reprodução</string>
+  <string name="pref_player_resume_playback_summary">Escolha como os vídeos assistidos anteriormente são abertos</string>
+  <string name="pref_player_resume_mode_always">Retomar sempre</string>
+  <string name="pref_player_resume_mode_always_summary">Retomar automaticamente da última posição salva</string>
+  <string name="pref_player_resume_mode_ask">Perguntar sempre</string>
+  <string name="pref_player_resume_mode_ask_summary">Iniciar em 00:00 e continuar reproduzindo enquanto a pílula oferece retomar da posição salva</string>
+  <string name="pref_player_resume_mode_never">Sempre começar do início</string>
+  <string name="pref_player_resume_mode_never_summary">Sempre iniciar a reprodução em 00:00</string>
+  <string name="player_resumed_from_pill">Retomado de %1$s</string>
+  <string name="player_resume_from_pill">Retomar de %1$s?</string>
+  <string name="player_resume_action">Retomar</string>
+  <string name="player_started_afresh_pill">Iniciado do começo</string>
+  <string name="player_restart_action">Reiniciar</string>
+  <string name="pref_resume_indicator_overlay_title">Indicador de retomada</string>
+  <string name="pref_resume_indicator_overlay_summary">Mostrar pílulas de feedback da posição de retomada ou início. O modo Perguntar sempre mostra sua pílula de retomada interativa</string>
 </resources>

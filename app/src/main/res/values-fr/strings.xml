@@ -2060,4 +2060,19 @@ Veuillez redémarrer l’application pour appliquer toutes les modifications.</s
   <string name="downloads_episodes_queued">%1$d épisodes ajoutés à la file de téléchargement</string>
   <string name="downloads_play">Lire</string>
   <string name="downloads_open_downloads">Ouvrir les téléchargements</string>
+  <string name="pref_player_resume_playback_title">Reprendre la lecture</string>
+  <string name="pref_player_resume_playback_summary">Choisissez comment ouvrir les vidéos déjà regardées</string>
+  <string name="pref_player_resume_mode_always">Toujours reprendre</string>
+  <string name="pref_player_resume_mode_always_summary">Reprendre automatiquement à la dernière position enregistrée</string>
+  <string name="pref_player_resume_mode_ask">Demander à chaque fois</string>
+  <string name="pref_player_resume_mode_ask_summary">Démarrer à 00:00 et continuer la lecture pendant que la pastille propose la position enregistrée</string>
+  <string name="pref_player_resume_mode_never">Toujours recommencer</string>
+  <string name="pref_player_resume_mode_never_summary">Toujours démarrer la lecture à 00:00</string>
+  <string name="player_resumed_from_pill">Reprise à %1$s</string>
+  <string name="player_resume_from_pill">Reprendre à %1$s ?</string>
+  <string name="player_resume_action">Reprendre</string>
+  <string name="player_started_afresh_pill">Lecture démarrée depuis le début</string>
+  <string name="player_restart_action">Redémarrer</string>
+  <string name="pref_resume_indicator_overlay_title">Indicateur de reprise</string>
+  <string name="pref_resume_indicator_overlay_summary">Afficher les pastilles de position de reprise ou de départ. Le mode Demander affiche toujours sa pastille de reprise interactive</string>
 </resources>

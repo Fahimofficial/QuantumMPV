@@ -2062,4 +2062,19 @@
   <string name="downloads_episodes_queued">已将 %1$d 集加入下载队列</string>
   <string name="downloads_play">播放</string>
   <string name="downloads_open_downloads">打开下载</string>
+  <string name="pref_player_resume_playback_title">继续播放</string>
+  <string name="pref_player_resume_playback_summary">选择之前看过的视频如何打开</string>
+  <string name="pref_player_resume_mode_always">始终继续播放</string>
+  <string name="pref_player_resume_mode_always_summary">自动从上次保存的位置继续播放</string>
+  <string name="pref_player_resume_mode_ask">每次询问</string>
+  <string name="pref_player_resume_mode_ask_summary">从 00:00 开始并继续播放，同时通过提示条提供从保存位置继续播放的选项</string>
+  <string name="pref_player_resume_mode_never">始终从头开始</string>
+  <string name="pref_player_resume_mode_never_summary">始终从 00:00 开始播放</string>
+  <string name="player_resumed_from_pill">已从 %1$s 继续播放</string>
+  <string name="player_resume_from_pill">从 %1$s 继续播放？</string>
+  <string name="player_resume_action">继续播放</string>
+  <string name="player_started_afresh_pill">已从头开始播放</string>
+  <string name="player_restart_action">重新开始</string>
+  <string name="pref_resume_indicator_overlay_title">继续播放提示</string>
+  <string name="pref_resume_indicator_overlay_summary">显示继续播放或起始位置反馈提示条。询问模式始终显示可操作的继续播放提示条</string>
 </resources>

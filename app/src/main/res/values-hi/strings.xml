@@ -1964,4 +1964,19 @@
   <string name="downloads_episodes_queued">%1$d एपिसोड डाउनलोड कतार में जोड़े गए</string>
   <string name="downloads_play">चलाएं</string>
   <string name="downloads_open_downloads">डाउनलोड खोलें</string>
+  <string name="pref_player_resume_playback_title">प्लेबैक फिर से शुरू करें</string>
+  <string name="pref_player_resume_playback_summary">चुनें कि पहले देखे गए वीडियो कैसे खोले जाएँ</string>
+  <string name="pref_player_resume_mode_always">हमेशा फिर से शुरू करें</string>
+  <string name="pref_player_resume_mode_always_summary">अंतिम सहेजी गई स्थिति से अपने-आप फिर से शुरू करें</string>
+  <string name="pref_player_resume_mode_ask">हर बार पूछें</string>
+  <string name="pref_player_resume_mode_ask_summary">00:00 से चलाना शुरू करें और सेव की गई जगह से फिर शुरू करने का विकल्प पिल में दिखाते हुए वीडियो चलता रहने दें</string>
+  <string name="pref_player_resume_mode_never">हमेशा शुरू से चलाएँ</string>
+  <string name="pref_player_resume_mode_never_summary">प्लेबैक हमेशा 00:00 से शुरू करें</string>
+  <string name="player_resumed_from_pill">%1$s से फिर से शुरू किया</string>
+  <string name="player_resume_from_pill">%1$s से फिर शुरू करें?</string>
+  <string name="player_resume_action">फिर शुरू करें</string>
+  <string name="player_started_afresh_pill">शुरुआत से चलाया गया</string>
+  <string name="player_restart_action">दोबारा शुरू करें</string>
+  <string name="pref_resume_indicator_overlay_title">फिर से शुरू करने का संकेतक</string>
+  <string name="pref_resume_indicator_overlay_summary">फिर शुरू करने या शुरुआत की स्थिति का फीडबैक पिल दिखाएँ। पूछें मोड में उसका इंटरैक्टिव फिर-से-शुरू पिल हमेशा दिखेगा</string>
 </resources>

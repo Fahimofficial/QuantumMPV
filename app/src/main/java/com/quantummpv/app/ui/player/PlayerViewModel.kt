@@ -1426,7 +1426,12 @@ class PlayerViewModel : ViewModel(),
   val areControlsLocked: StateFlow<Boolean> = _areControlsLocked.asStateFlow()
 
   val playerUpdate = MutableStateFlow<PlayerUpdates>(PlayerUpdates.None)
-  val isBrightnessSliderShown = MutableStateFlow(false)
+fun restartFromBeginning() {
+  seekTo(0)
+  runCatching { PlaybackSession.setPropertyBoolean("pause", false) }
+}
+
+val isBrightnessSliderShown = MutableStateFlow(false)
   val isVolumeSliderShown = MutableStateFlow(false)
   val volumeSliderTimestamp = MutableStateFlow(0L)
   val brightnessSliderTimestamp = MutableStateFlow(0L)

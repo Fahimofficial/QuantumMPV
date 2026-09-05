@@ -2060,4 +2060,19 @@ Bitte starten Sie die App neu, damit alle Änderungen wirksam werden.</string>
   <string name="downloads_episodes_queued">%1$d Episoden zum Download eingereiht</string>
   <string name="downloads_play">Abspielen</string>
   <string name="downloads_open_downloads">Downloads öffnen</string>
+  <string name="pref_player_resume_playback_title">Wiedergabe fortsetzen</string>
+  <string name="pref_player_resume_playback_summary">Wähle, wie bereits angesehene Videos geöffnet werden</string>
+  <string name="pref_player_resume_mode_always">Immer fortsetzen</string>
+  <string name="pref_player_resume_mode_always_summary">Automatisch an der zuletzt gespeicherten Position fortsetzen</string>
+  <string name="pref_player_resume_mode_ask">Jedes Mal fragen</string>
+  <string name="pref_player_resume_mode_ask_summary">Bei 00:00 starten und weiterlaufen, während die Fortsetzen-Pille die gespeicherte Position anbietet</string>
+  <string name="pref_player_resume_mode_never">Immer neu beginnen</string>
+  <string name="pref_player_resume_mode_never_summary">Wiedergabe immer bei 00:00 starten</string>
+  <string name="player_resumed_from_pill">Fortgesetzt ab %1$s</string>
+  <string name="player_resume_from_pill">Ab %1$s fortsetzen?</string>
+  <string name="player_resume_action">Fortsetzen</string>
+  <string name="player_started_afresh_pill">Von vorne gestartet</string>
+  <string name="player_restart_action">Neu starten</string>
+  <string name="pref_resume_indicator_overlay_title">Fortsetzungsanzeige</string>
+  <string name="pref_resume_indicator_overlay_summary">Feedback-Pillen für Fortsetzen und Startposition anzeigen. Im Fragen-Modus wird die interaktive Fortsetzen-Pille immer angezeigt</string>
 </resources>

@@ -2060,4 +2060,19 @@
   <string name="downloads_episodes_queued">%1$d 話をダウンロードキューに追加しました</string>
   <string name="downloads_play">再生</string>
   <string name="downloads_open_downloads">ダウンロードを開く</string>
+  <string name="pref_player_resume_playback_title">再生を再開</string>
+  <string name="pref_player_resume_playback_summary">以前視聴した動画をどのように開くか選択します</string>
+  <string name="pref_player_resume_mode_always">常に再開</string>
+  <string name="pref_player_resume_mode_always_summary">最後に保存した位置から自動的に再開します</string>
+  <string name="pref_player_resume_mode_ask">毎回確認</string>
+  <string name="pref_player_resume_mode_ask_summary">00:00 から再生を続けながら、保存位置から再開する選択肢をピルで表示します</string>
+  <string name="pref_player_resume_mode_never">常に最初から再生</string>
+  <string name="pref_player_resume_mode_never_summary">常に 00:00 から再生を開始します</string>
+  <string name="player_resumed_from_pill">%1$s から再開しました</string>
+  <string name="player_resume_from_pill">%1$s から再開しますか？</string>
+  <string name="player_resume_action">再開</string>
+  <string name="player_started_afresh_pill">最初から再生しました</string>
+  <string name="player_restart_action">最初から再生</string>
+  <string name="pref_resume_indicator_overlay_title">再開インジケーター</string>
+  <string name="pref_resume_indicator_overlay_summary">再開位置または開始位置のフィードバックピルを表示します。確認モードの操作用再開ピルは常に表示されます</string>
 </resources>
