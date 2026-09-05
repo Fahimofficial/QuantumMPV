@@ -15,6 +15,7 @@ import android.content.ComponentName
 import android.content.pm.PackageManager
 import android.os.Build
 import android.os.Bundle
+import android.os.StrictMode
 import android.util.Log
 import android.view.View
 import androidx.core.view.ViewCompat
@@ -29,6 +30,7 @@ import com.quantummpv.app.preferences.PlayerPreferences
 import com.quantummpv.app.presentation.crash.CrashActivity
 import com.quantummpv.app.presentation.crash.GlobalExceptionHandler
 import com.quantummpv.app.repository.NetworkRepository
+import com.quantummpv.app.ui.player.PlaybackPerformanceTrace
 import com.quantummpv.app.ui.player.PlaybackPhase
 import com.quantummpv.app.ui.player.PlaybackSession
 import com.quantummpv.app.ui.player.PlayerActivity
@@ -38,6 +40,7 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.launch
 import org.koin.android.ext.koin.androidContext
@@ -66,6 +69,8 @@ class App :
   override fun onCreate() {
     super.onCreate()
 
+    configureDebugStrictMode()
+
     // Initialize Koin
     startKoin {
       androidContext(this@App)
@@ -81,6 +86,8 @@ class App :
       getKoin().get<DecoderPreferences>().useVulkan.set(false)
     }
     registerActivityLifecycleCallbacks(this)
+    PlaybackSession.addObserver(PlaybackPerformanceTrace)
+    startPlaybackPerformanceTracing()
     Thread.setDefaultUncaughtExceptionHandler(GlobalExceptionHandler(applicationContext, CrashActivity::class.java))
     startIdleMpvCoreReaper()
 
@@ -134,6 +141,7 @@ class App :
   }
 
   override fun onActivityStarted(activity: Activity) {
+    if (activity is PlayerActivity) PlaybackPerformanceTrace.mark("PLAYER_ACTIVITY_STARTED")
     if (startedActivityCount++ == 0) {
       getKoin().get<com.quantummpv.app.domain.syncplay.SyncplayManager>().onAppForegrounded()
       scheduleFastThumbnailWarmupOnce()
@@ -142,6 +150,7 @@ class App :
   }
 
   override fun onActivityStopped(activity: Activity) {
+    if (activity is PlayerActivity) PlaybackPerformanceTrace.mark("PLAYER_ACTIVITY_STOPPED")
     startedActivityCount = (startedActivityCount - 1).coerceAtLeast(0)
     if (startedActivityCount == 0 && !activity.isChangingConfigurations) {
       pauseVideoWhenBackgroundPlaybackDisabled(activity)
@@ -168,10 +177,18 @@ class App :
     Log.d(TAG, "Paused video because video background playback is disabled")
   }
 
+  override fun onActivityPreCreated(
+    activity: Activity,
+    savedInstanceState: Bundle?,
+  ) {
+    if (activity is PlayerActivity) PlaybackPerformanceTrace.mark("PLAYER_ACTIVITY_CREATE_START")
+  }
+
   override fun onActivityCreated(
     activity: Activity,
     savedInstanceState: Bundle?,
   ) {
+    if (activity is PlayerActivity) PlaybackPerformanceTrace.mark("PLAYER_ACTIVITY_CREATE_END")
     if (activity.javaClass.name.contains("leakcanary", ignoreCase = true)) {
       val rootView = activity.findViewById<View>(android.R.id.content)
       rootView?.let { view ->
@@ -190,16 +207,55 @@ class App :
     }
   }
 
-  override fun onActivityResumed(activity: Activity) = Unit
+  override fun onActivityResumed(activity: Activity) {
+    when (activity) {
+      is PlayerActivity -> {
+        PlaybackPerformanceTrace.mark("PLAYER_ACTIVITY_RESUMED")
+        activity.window.decorView.postOnAnimation {
+          PlaybackPerformanceTrace.mark("PLAYER_FIRST_FRAME")
+        }
+      }
+      is MainActivity -> {
+        PlaybackPerformanceTrace.mark("MAIN_ACTIVITY_RESUMED")
+        activity.window.decorView.postOnAnimation {
+          PlaybackPerformanceTrace.mark("BROWSER_FIRST_FRAME")
+        }
+      }
+    }
+  }
+
+  override fun onActivityPrePaused(activity: Activity) {
+    if (activity is PlayerActivity) PlaybackPerformanceTrace.begin("ON_PAUSE")
+  }
 
   override fun onActivityPaused(activity: Activity) = Unit
+
+  override fun onActivityPostPaused(activity: Activity) {
+    if (activity is PlayerActivity) PlaybackPerformanceTrace.end("ON_PAUSE")
+  }
+
+  override fun onActivityPreStopped(activity: Activity) {
+    if (activity is PlayerActivity) PlaybackPerformanceTrace.begin("ON_STOP")
+  }
+
+  override fun onActivityPostStopped(activity: Activity) {
+    if (activity is PlayerActivity) PlaybackPerformanceTrace.end("ON_STOP")
+  }
 
   override fun onActivitySaveInstanceState(
     activity: Activity,
     outState: Bundle,
   ) = Unit
 
+  override fun onActivityPreDestroyed(activity: Activity) {
+    if (activity is PlayerActivity) PlaybackPerformanceTrace.begin("ON_DESTROY")
+  }
+
   override fun onActivityDestroyed(activity: Activity) = Unit
+
+  override fun onActivityPostDestroyed(activity: Activity) {
+    if (activity is PlayerActivity) PlaybackPerformanceTrace.end("ON_DESTROY")
+  }
 
   /**
    * Keep libmpv warm for quick navigation/re-entry, but do not pin its native decoder/renderer
@@ -231,6 +287,48 @@ class App :
         }
       }
     }
+  }
+
+  private fun startPlaybackPerformanceTracing() {
+    applicationScope.launch {
+      var previousPhase: PlaybackPhase? = null
+      var previousSurfaceAttached: Boolean? = null
+      var previousGeneration = -1L
+      PlaybackSession.state.collect { state ->
+        if (state.phase != previousPhase) {
+          PlaybackPerformanceTrace.mark("SESSION_PHASE", state.phase.name)
+          previousPhase = state.phase
+        }
+        if (state.surfaceAttached != previousSurfaceAttached) {
+          PlaybackPerformanceTrace.mark(
+            if (state.surfaceAttached) "SURFACE_BOUND" else "SURFACE_UNBOUND",
+            "generation=${state.generation}",
+          )
+          previousSurfaceAttached = state.surfaceAttached
+        }
+        if (state.generation != previousGeneration) {
+          PlaybackPerformanceTrace.mark("SESSION_GENERATION", state.generation.toString())
+          previousGeneration = state.generation
+        }
+      }
+    }
+  }
+
+  private fun configureDebugStrictMode() {
+    if (!BuildConfig.DEBUG) return
+
+    StrictMode.setThreadPolicy(
+      StrictMode.ThreadPolicy.Builder()
+        .detectAll()
+        .penaltyLog()
+        .build(),
+    )
+    StrictMode.setVmPolicy(
+      StrictMode.VmPolicy.Builder()
+        .detectAll()
+        .penaltyLog()
+        .build(),
+    )
   }
 
   private fun scheduleFastThumbnailWarmupOnce() {
