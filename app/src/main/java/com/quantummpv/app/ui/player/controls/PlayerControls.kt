@@ -161,8 +161,12 @@ import com.quantummpv.app.ui.player.controls.components.playerButtonBorderColor
 import com.quantummpv.app.ui.player.controls.components.playerButtonContainerColor
 import com.quantummpv.app.ui.player.controls.components.playerButtonContentColor
 import com.quantummpv.app.ui.player.controls.components.rememberBufferingState
+import com.quantummpv.app.ui.player.controls.components.rememberTvInitialFocusRequester
+import com.quantummpv.app.ui.player.controls.components.tvFocusHighlight
+import com.quantummpv.app.ui.player.controls.components.tvInitialFocus
 import com.quantummpv.app.ui.player.controls.components.sheets.toFixed
 import com.quantummpv.app.ui.theme.controlColor
+import com.quantummpv.app.utils.device.DeviceFormFactor
 import com.quantummpv.app.ui.theme.playerRippleConfiguration
 import com.quantummpv.app.ui.theme.spacing
 import dev.vivvvek.seeker.Segment
@@ -198,6 +202,7 @@ fun PlayerControls(
   modifier: Modifier = Modifier,
 ) {
   val spacing = MaterialTheme.spacing
+  val isTelevision = DeviceFormFactor.isTelevision(LocalContext.current)
   val advancedPreferences = koinInject<AdvancedPreferences>()
   val appearancePreferences = koinInject<AppearancePreferences>()
   val aiPreferences = koinInject<AiPreferences>()
@@ -214,6 +219,7 @@ fun PlayerControls(
   val showControlsDrawer by playerPreferences.showControlsDrawer.collectAsState()
   val interactionSource = remember { MutableInteractionSource() }
   val controlsShown by viewModel.controlsShown.collectAsState()
+  val tvPlayFocusRequester = rememberTvInitialFocusRequester(enabled = controlsShown)
   val statisticsPage by advancedPreferences.enabledStatisticsPage.collectAsState()
   val areControlsLocked by viewModel.areControlsLocked.collectAsState()
   val seekBarShown by viewModel.seekBarShown.collectAsState()
@@ -519,7 +525,8 @@ fun PlayerControls(
     isPlayerDrawerShown,
     showControlsDrawer,
   ) {
-    if (!isAudioOnly &&
+    if (!isTelevision &&
+      !isAudioOnly &&
       controlsShown &&
       paused == false &&
       !isSeeking &&
@@ -1419,6 +1426,7 @@ is PlayerUpdates.FrameInfo -> {
                   modifier =
                     Modifier
                       .size(56.dp)
+                      .tvFocusHighlight(CircleShape, enabled = viewModel.hasPrevious())
                       .clip(CircleShape)
                       .clickable(
                         enabled = viewModel.hasPrevious(),
@@ -1475,10 +1483,12 @@ is PlayerUpdates.FrameInfo -> {
 
                 Surface(
                   modifier =
-                    Modifier
-                      .size(64.dp)
-                      .clip(CircleShape)
-                      .clickable(interaction, ripple(), onClick = {
+                  Modifier
+                    .size(64.dp)
+                    .tvInitialFocus(tvPlayFocusRequester)
+                    .tvFocusHighlight(CircleShape)
+                    .clip(CircleShape)
+                    .clickable(interaction, ripple(), onClick = {
                         resetControlsTimestamp = System.currentTimeMillis()
                         viewModel.pauseUnpause()
                       })
@@ -1520,6 +1530,7 @@ is PlayerUpdates.FrameInfo -> {
                   modifier =
                     Modifier
                       .size(56.dp)
+                      .tvFocusHighlight(CircleShape, enabled = viewModel.hasNext())
                       .clip(CircleShape)
                       .clickable(
                         enabled = viewModel.hasNext(),
@@ -1579,6 +1590,8 @@ is PlayerUpdates.FrameInfo -> {
                 modifier =
                   Modifier
                     .size(64.dp)
+                    .tvInitialFocus(tvPlayFocusRequester)
+                    .tvFocusHighlight(CircleShape)
                     .clip(CircleShape)
                     .clickable(interaction, ripple(), onClick = {
                       resetControlsTimestamp = System.currentTimeMillis()

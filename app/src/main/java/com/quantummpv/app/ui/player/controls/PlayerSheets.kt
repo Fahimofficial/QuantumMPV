@@ -19,6 +19,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.platform.LocalContext
 import com.quantummpv.app.preferences.AdvancedPreferences
 import com.quantummpv.app.preferences.MpvConfigControlledFeatures
 import com.quantummpv.app.preferences.MpvConfigOverride
@@ -44,6 +45,7 @@ import com.quantummpv.app.ui.player.controls.components.sheets.VideoZoomSheet
 import com.quantummpv.app.ui.player.controls.components.sheets.VideoQualitySheet
 import com.quantummpv.app.ui.player.controls.components.sheets.VisualizerStyleSheet
 import com.quantummpv.app.ui.player.setTrackSelectionId
+import com.quantummpv.app.utils.device.DeviceFormFactor
 import dev.vivvvek.seeker.Segment
 import kotlinx.collections.immutable.ImmutableList
 import kotlinx.collections.immutable.toImmutableList
@@ -88,6 +90,7 @@ fun PlayerSheets(
   onShowSheet: (Sheets) -> Unit,
   onDismissRequest: () -> Unit,
 ) {
+  val isTelevision = DeviceFormFactor.isTelevision(LocalContext.current)
   val advancedPreferences = koinInject<AdvancedPreferences>()
   val storedConfigOverrides by advancedPreferences.mpvConfOverrides.collectAsState()
   val configOwnedOptions =
@@ -180,7 +183,14 @@ fun PlayerSheets(
 
       SubtitlesSheet(
         tracks = subtitles.toImmutableList(),
-        onToggleSubtitle = onToggleSubtitle,
+        onToggleSubtitle = { id ->
+          if (isTelevision) {
+            viewModel.selectPrimarySubtitle(id)
+            onDismissRequest()
+          } else {
+            onToggleSubtitle(id)
+          }
+        },
         isSubtitleSelected = isSubtitleSelected,
         subtitleSelectionIndicator = subtitleSelectionIndicator,
         onAddSubtitle = { showFilePicker = true },
@@ -210,6 +220,7 @@ fun PlayerSheets(
           setTrackSelectionId("sid", null)
           setTrackSelectionId("secondary-sid", null)
           subtitlesPreferences.autoEnableSubtitles.set(false)
+          if (isTelevision) onDismissRequest()
         },
       )
     }
@@ -337,7 +348,10 @@ fun PlayerSheets(
 
       AudioTracksSheet(
         tracks = audioTracks,
-        onSelect = onSelectAudio,
+        onSelect = { track ->
+          onSelectAudio(track)
+          if (isTelevision) onDismissRequest()
+        },
         onAddAudioTrack = { showAudioFilePicker = true },
         onOpenDelayPanel = { onOpenPanel(Panels.AudioDelay) },
         onOpenEqualizerSheet = { onShowSheet(Sheets.Equalizer) },
