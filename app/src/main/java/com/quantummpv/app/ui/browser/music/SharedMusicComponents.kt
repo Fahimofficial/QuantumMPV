@@ -10,19 +10,29 @@ import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.aspectRatio
+import android.content.res.Configuration
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.grid.GridCells
+import androidx.compose.foundation.lazy.grid.LazyHorizontalGrid
+import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.Button
+import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -34,10 +44,13 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalConfiguration
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import com.quantummpv.app.R
 import com.quantummpv.app.presentation.components.RemoteImage
 import com.quantummpv.app.ui.icons.AppIcon
 import com.quantummpv.app.ui.icons.Icon
@@ -287,6 +300,287 @@ fun SharedMusicGridCard(
         overflow = TextOverflow.Ellipsis,
         color = MaterialTheme.colorScheme.onSurfaceVariant,
       )
+    }
+  }
+}
+
+@Composable
+fun SharedMusicSectionHeader(
+  title: String,
+  modifier: Modifier = Modifier,
+  onSeeAllClick: (() -> Unit)? = null,
+) {
+  Row(
+    modifier = modifier
+      .fillMaxWidth()
+      .padding(start = 16.dp, end = 16.dp, bottom = 12.dp),
+    horizontalArrangement = Arrangement.SpaceBetween,
+    verticalAlignment = Alignment.CenterVertically,
+  ) {
+    Text(
+      text = title,
+      style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.Bold),
+      color = MaterialTheme.colorScheme.onBackground,
+    )
+    if (onSeeAllClick != null) {
+      Text(
+        text = "See all",
+        style = MaterialTheme.typography.labelLarge.copy(fontWeight = FontWeight.SemiBold),
+        color = MaterialTheme.colorScheme.primary,
+        modifier = Modifier
+          .clip(RoundedCornerShape(8.dp))
+          .clickable(onClick = onSeeAllClick)
+          .padding(horizontal = 8.dp, vertical = 4.dp),
+      )
+    }
+  }
+}
+
+@Composable
+fun <T> SharedCompactTrackGridSection(
+  title: String,
+  tracks: List<T>,
+  getId: (T) -> String,
+  getTitle: (T) -> String,
+  getSubtitle: (T) -> String,
+  getArtworkUrl: (T) -> String?,
+  onTrackClick: (T) -> Unit,
+  modifier: Modifier = Modifier,
+  onSeeAllClick: (() -> Unit)? = null,
+) {
+  val isLandscape = LocalConfiguration.current.orientation == Configuration.ORIENTATION_LANDSCAPE
+  val rowsCount = when {
+    tracks.size >= 6 -> 3
+    tracks.size >= 3 -> 2
+    else -> 1
+  }
+  val rowHeight = if (isLandscape) 70 else 64
+  val itemWidth = if (isLandscape) 320.dp else 280.dp
+  val gridHeight = (rowsCount * rowHeight + (rowsCount - 1) * 12).dp
+
+  Column(modifier = modifier) {
+    SharedMusicSectionHeader(
+      title = title,
+      onSeeAllClick = onSeeAllClick,
+    )
+    LazyHorizontalGrid(
+      rows = GridCells.Fixed(rowsCount),
+      modifier = Modifier
+        .height(gridHeight)
+        .padding(horizontal = 16.dp),
+      horizontalArrangement = Arrangement.spacedBy(16.dp),
+      verticalArrangement = Arrangement.spacedBy(12.dp),
+    ) {
+      items(tracks, key = { getId(it) }) { track ->
+        val artworkUrl = getArtworkUrl(track)
+        Row(
+          modifier = Modifier
+            .width(itemWidth)
+            .clip(RoundedCornerShape(8.dp))
+            .clickable { onTrackClick(track) },
+          verticalAlignment = Alignment.CenterVertically,
+        ) {
+          Box(
+            modifier = Modifier
+              .size(56.dp)
+              .clip(RoundedCornerShape(6.dp))
+              .background(MaterialTheme.colorScheme.surfaceContainerHighest),
+            contentAlignment = Alignment.Center,
+          ) {
+            if (!artworkUrl.isNullOrBlank()) {
+              RemoteImage(
+                url = artworkUrl,
+                contentDescription = getTitle(track),
+                contentScale = ContentScale.Crop,
+                modifier = Modifier.fillMaxSize(),
+              )
+            } else {
+              Icon(
+                imageVector = Icons.RoundedFilled.Audiotrack,
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.primary,
+                modifier = Modifier.size(24.dp),
+              )
+            }
+          }
+          Spacer(Modifier.width(12.dp))
+          Column(modifier = Modifier.weight(1f)) {
+            Text(
+              text = getTitle(track),
+              style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.SemiBold),
+              color = MaterialTheme.colorScheme.onSurface,
+              maxLines = 1,
+              overflow = TextOverflow.Ellipsis,
+            )
+            val subtitle = getSubtitle(track)
+            if (subtitle.isNotBlank()) {
+              Text(
+                text = subtitle,
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+              )
+            }
+          }
+        }
+      }
+    }
+  }
+}
+
+@Composable
+fun <T> SharedMusicCarouselSection(
+  title: String,
+  items: List<T>,
+  getId: (T) -> String,
+  getTitle: (T) -> String,
+  getSubtitle: (T) -> String,
+  getArtworkUrl: (T) -> String?,
+  onClick: (T) -> Unit,
+  modifier: Modifier = Modifier,
+  onLongClick: ((T) -> Unit)? = null,
+  onSeeAllClick: (() -> Unit)? = null,
+  isCircular: Boolean = false,
+  cardWidth: Dp = if (isCircular) 130.dp else 140.dp,
+  fallbackIcon: AppIcon = if (isCircular) Icons.RoundedFilled.Person else Icons.RoundedFilled.Audiotrack,
+) {
+  Column(modifier = modifier) {
+    SharedMusicSectionHeader(
+      title = title,
+      onSeeAllClick = onSeeAllClick,
+    )
+    LazyRow(
+      horizontalArrangement = Arrangement.spacedBy(if (isCircular) 16.dp else 12.dp),
+      contentPadding = PaddingValues(horizontal = 16.dp),
+    ) {
+      items(items, key = { getId(it) }) { item ->
+        SharedMusicGridCard(
+          title = getTitle(item),
+          subtitle = getSubtitle(item),
+          artworkUrl = getArtworkUrl(item),
+          fallbackIcon = fallbackIcon,
+          isCircular = isCircular,
+          cardWidth = cardWidth,
+          onClick = { onClick(item) },
+          onLongClick = onLongClick?.let { { it(item) } },
+        )
+      }
+    }
+  }
+}
+
+@Composable
+fun SharedMusicDetailHeader(
+  title: String,
+  subtitle: String? = null,
+  itemCountText: String? = null,
+  artworkUrl: String? = null,
+  fallbackIcon: AppIcon = Icons.RoundedFilled.Audiotrack,
+  isCircular: Boolean = false,
+  onPlayAll: (() -> Unit)? = null,
+  onShuffle: (() -> Unit)? = null,
+  trailingAction: (@Composable () -> Unit)? = null,
+  playButtonText: String = "Play",
+  modifier: Modifier = Modifier,
+) {
+  Column(
+    modifier = modifier.fillMaxWidth(),
+    verticalArrangement = Arrangement.spacedBy(16.dp),
+  ) {
+    Row(
+      modifier = Modifier.fillMaxWidth(),
+      verticalAlignment = Alignment.CenterVertically,
+    ) {
+      Box(
+        modifier = Modifier
+          .size(64.dp)
+          .clip(if (isCircular) CircleShape else RoundedCornerShape(8.dp))
+          .background(MaterialTheme.colorScheme.surfaceVariant),
+        contentAlignment = Alignment.Center,
+      ) {
+        if (!artworkUrl.isNullOrBlank()) {
+          RemoteImage(
+            url = artworkUrl,
+            contentDescription = title,
+            contentScale = ContentScale.Crop,
+            modifier = Modifier.fillMaxSize(),
+          )
+        } else {
+          Icon(
+            imageVector = fallbackIcon,
+            contentDescription = null,
+            tint = MaterialTheme.colorScheme.primary,
+            modifier = Modifier.size(32.dp),
+          )
+        }
+      }
+
+      Spacer(modifier = Modifier.width(14.dp))
+
+      Column(modifier = Modifier.weight(1f)) {
+        Text(
+          text = title,
+          style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.Bold),
+          maxLines = 1,
+          overflow = TextOverflow.Ellipsis,
+        )
+        if (!subtitle.isNullOrBlank()) {
+          Text(
+            text = subtitle,
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+          )
+        }
+        if (!itemCountText.isNullOrBlank()) {
+          Text(
+            text = itemCountText,
+            style = MaterialTheme.typography.labelSmall,
+            color = MaterialTheme.colorScheme.primary,
+          )
+        }
+      }
+
+      if (trailingAction != null) {
+        trailingAction()
+      } else if (onPlayAll != null && onShuffle == null) {
+        Button(onClick = onPlayAll) {
+          Icon(imageVector = Icons.RoundedFilled.PlayArrow, contentDescription = null)
+          Spacer(modifier = Modifier.width(4.dp))
+          Text(playButtonText)
+        }
+      }
+    }
+
+    if (onShuffle != null) {
+      Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.spacedBy(12.dp),
+      ) {
+        if (onPlayAll != null) {
+          Button(
+            onClick = onPlayAll,
+            modifier = Modifier.weight(1f),
+            shape = RoundedCornerShape(12.dp),
+          ) {
+            Icon(Icons.RoundedFilled.PlayArrow, contentDescription = null, modifier = Modifier.size(20.dp))
+            Spacer(Modifier.width(6.dp))
+            Text(playButtonText)
+          }
+        }
+
+        FilledTonalButton(
+          onClick = onShuffle,
+          modifier = if (onPlayAll != null) Modifier.weight(1f) else Modifier.fillMaxWidth(),
+          shape = RoundedCornerShape(12.dp),
+        ) {
+          Icon(Icons.RoundedFilled.Shuffle, contentDescription = null, modifier = Modifier.size(20.dp))
+          Spacer(Modifier.width(6.dp))
+          Text("Shuffle")
+        }
+      }
     }
   }
 }

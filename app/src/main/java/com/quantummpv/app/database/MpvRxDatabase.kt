@@ -24,9 +24,11 @@ import com.quantummpv.app.database.dao.RecentlyPlayedDao
 import com.quantummpv.app.database.dao.SecureMediaDao
 import com.quantummpv.app.database.dao.VideoMetadataDao
 import com.quantummpv.app.database.dao.JellyfinServerDao
+import com.quantummpv.app.database.dao.NavidromeServerDao
 import com.quantummpv.app.database.entities.DirectoryScanEntity
 import com.quantummpv.app.database.entities.DownloadItemEntity
 import com.quantummpv.app.database.entities.JellyfinServerEntity
+import com.quantummpv.app.database.entities.NavidromeServerEntity
 import com.quantummpv.app.database.entities.NetworkStreamEntryEntity
 import com.quantummpv.app.database.entities.PlaybackStateEntity
 import com.quantummpv.app.database.entities.PlaylistEntity
@@ -49,8 +51,9 @@ import com.quantummpv.app.domain.network.NetworkConnection
     NetworkStreamEntryEntity::class,
     JellyfinServerEntity::class,
     DownloadItemEntity::class,
+    NavidromeServerEntity::class,
   ],
-  version = 19,
+  version = 21,
   exportSchema = true,
 )
 @TypeConverters(NetworkProtocolConverter::class, NetworkStreamEntryTypeConverter::class)
@@ -74,4 +77,6 @@ abstract class MpvRxDatabase : RoomDatabase() {
   abstract fun jellyfinServerDao(): JellyfinServerDao
 
   abstract fun downloadItemDao(): DownloadItemDao
+
+  abstract fun navidromeServerDao(): NavidromeServerDao
 }

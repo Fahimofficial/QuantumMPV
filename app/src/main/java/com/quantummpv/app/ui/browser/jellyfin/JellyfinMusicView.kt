@@ -66,6 +66,8 @@ import com.quantummpv.app.ui.icons.Icons
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.PagerState
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.quantummpv.app.ui.browser.music.SharedCompactTrackGridSection
+import com.quantummpv.app.ui.browser.music.SharedMusicCarouselSection
 import com.quantummpv.app.ui.browser.music.SharedMusicGridCard
 import com.quantummpv.app.ui.browser.music.SharedMusicTrackListItem
 import com.quantummpv.app.ui.player.PlaybackSession
@@ -267,114 +269,27 @@ fun JellyfinCompactTrackGridSection(
   modifier: Modifier = Modifier,
   onSeeAllClick: (() -> Unit)? = null,
 ) {
-  val isLandscape = LocalConfiguration.current.orientation == android.content.res.Configuration.ORIENTATION_LANDSCAPE
-  val rowsCount = when {
-    tracks.size >= 6 -> 3
-    tracks.size >= 3 -> 2
-    else -> 1
-  }
-  val rowHeight = if (isLandscape) 70 else 64
-  val itemWidth = if (isLandscape) 320.dp else 280.dp
-  val gridHeight = (rowsCount * rowHeight + (rowsCount - 1) * 12).dp
-
-  Column(modifier = modifier) {
-    Row(
-      modifier = Modifier
-        .fillMaxWidth()
-        .padding(start = 16.dp, end = 16.dp, bottom = 12.dp),
-      horizontalArrangement = Arrangement.SpaceBetween,
-      verticalAlignment = Alignment.CenterVertically,
-    ) {
-      Text(
-        text = title,
-        style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.Bold),
-        color = MaterialTheme.colorScheme.onBackground,
-      )
-      if (onSeeAllClick != null) {
-        Text(
-          text = "See all",
-          style = MaterialTheme.typography.labelLarge.copy(fontWeight = FontWeight.SemiBold),
-          color = MaterialTheme.colorScheme.primary,
-          modifier = Modifier
-            .clip(RoundedCornerShape(8.dp))
-            .clickable(onClick = onSeeAllClick)
-            .padding(horizontal = 8.dp, vertical = 4.dp),
+  SharedCompactTrackGridSection(
+    title = title,
+    tracks = tracks,
+    getId = { it.id },
+    getTitle = { it.name },
+    getSubtitle = { it.seriesName ?: it.overview ?: "" },
+    getArtworkUrl = { track ->
+      if (!track.primaryImageTag.isNullOrBlank()) {
+        JellyfinClient.getImageUrl(
+          serverUrl = server.serverUrl,
+          itemId = track.id,
+          imageTag = track.primaryImageTag,
+          maxWidth = 200,
+          token = server.accessToken,
         )
-      }
-    }
-    LazyHorizontalGrid(
-      rows = GridCells.Fixed(rowsCount),
-      modifier = Modifier
-        .height(gridHeight)
-        .padding(horizontal = 16.dp),
-      horizontalArrangement = Arrangement.spacedBy(16.dp),
-      verticalArrangement = Arrangement.spacedBy(12.dp),
-    ) {
-      items(tracks, key = { it.id }) { track ->
-        val imageUrl = remember(server.serverUrl, track.id, track.primaryImageTag, server.accessToken) {
-          JellyfinClient.getImageUrl(
-            serverUrl = server.serverUrl,
-            itemId = track.id,
-            imageTag = track.primaryImageTag,
-            maxWidth = 200,
-            token = server.accessToken,
-          )
-        }
-
-        Row(
-          modifier = Modifier
-            .width(itemWidth)
-            .clip(RoundedCornerShape(8.dp))
-            .clickable { onTrackClick(track) },
-          verticalAlignment = Alignment.CenterVertically,
-        ) {
-          Box(
-            modifier = Modifier
-              .size(56.dp)
-              .clip(RoundedCornerShape(6.dp))
-              .background(MaterialTheme.colorScheme.surfaceContainerHighest),
-            contentAlignment = Alignment.Center,
-          ) {
-            if (!track.primaryImageTag.isNullOrBlank()) {
-              RemoteImage(
-                url = imageUrl,
-                contentDescription = track.name,
-                contentScale = ContentScale.Crop,
-                modifier = Modifier.fillMaxSize(),
-              )
-            } else {
-              Icon(
-                imageVector = Icons.RoundedFilled.Audiotrack,
-                contentDescription = null,
-                tint = MaterialTheme.colorScheme.primary,
-                modifier = Modifier.size(24.dp),
-              )
-            }
-          }
-          Spacer(Modifier.width(12.dp))
-          Column(modifier = Modifier.weight(1f)) {
-            Text(
-              text = track.name,
-              style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.SemiBold),
-              color = MaterialTheme.colorScheme.onSurface,
-              maxLines = 1,
-              overflow = TextOverflow.Ellipsis,
-            )
-            val subtitle = track.seriesName ?: track.overview ?: ""
-            if (subtitle.isNotBlank()) {
-              Text(
-                text = subtitle,
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-              )
-            }
-          }
-        }
-      }
-    }
-  }
+      } else null
+    },
+    onTrackClick = onTrackClick,
+    onSeeAllClick = onSeeAllClick,
+    modifier = modifier,
+  )
 }
 
 @Composable
@@ -387,46 +302,30 @@ fun JellyfinPlaylistsRowSection(
   modifier: Modifier = Modifier,
   onSeeAllClick: (() -> Unit)? = null,
 ) {
-  Column(modifier = modifier) {
-    Row(
-      modifier = Modifier
-        .fillMaxWidth()
-        .padding(start = 16.dp, end = 16.dp, bottom = 12.dp),
-      horizontalArrangement = Arrangement.SpaceBetween,
-      verticalAlignment = Alignment.CenterVertically,
-    ) {
-      Text(
-        text = title,
-        style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.Bold),
-        color = MaterialTheme.colorScheme.onBackground,
-      )
-      if (onSeeAllClick != null) {
-        Text(
-          text = "See all",
-          style = MaterialTheme.typography.labelLarge.copy(fontWeight = FontWeight.SemiBold),
-          color = MaterialTheme.colorScheme.primary,
-          modifier = Modifier
-            .clip(RoundedCornerShape(8.dp))
-            .clickable(onClick = onSeeAllClick)
-            .padding(horizontal = 8.dp, vertical = 4.dp),
+  SharedMusicCarouselSection(
+    title = title,
+    items = playlists,
+    getId = { it.id },
+    getTitle = { it.name },
+    getSubtitle = { it.seriesName ?: it.overview ?: "" },
+    getArtworkUrl = { playlist ->
+      if (!playlist.primaryImageTag.isNullOrBlank()) {
+        JellyfinClient.getImageUrl(
+          serverUrl = server.serverUrl,
+          itemId = playlist.id,
+          imageTag = playlist.primaryImageTag,
+          maxWidth = 300,
+          token = server.accessToken,
         )
-      }
-    }
-    LazyRow(
-      horizontalArrangement = Arrangement.spacedBy(12.dp),
-      contentPadding = PaddingValues(horizontal = 16.dp),
-    ) {
-      items(playlists, key = { it.id }) { playlist ->
-        JellyfinMusicCard(
-          item = playlist,
-          server = server,
-          onClick = { onPlaylistClick(playlist) },
-          onLongClick = { onPlaylistLongClick(playlist) },
-          cardWidth = 140.dp,
-        )
-      }
-    }
-  }
+      } else null
+    },
+    fallbackIcon = Icons.RoundedFilled.QueueMusic,
+    onClick = onPlaylistClick,
+    onLongClick = onPlaylistLongClick,
+    onSeeAllClick = onSeeAllClick,
+    cardWidth = 140.dp,
+    modifier = modifier,
+  )
 }
 
 @Composable
@@ -438,28 +337,28 @@ fun JellyfinMusicAlbumRowSection(
   onAlbumLongClick: (JellyfinItem) -> Unit,
   modifier: Modifier = Modifier,
 ) {
-  Column(modifier = modifier) {
-    Text(
-      text = title,
-      style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.Bold),
-      color = MaterialTheme.colorScheme.onBackground,
-      modifier = Modifier.padding(start = 16.dp, bottom = 12.dp),
-    )
-    LazyRow(
-      horizontalArrangement = Arrangement.spacedBy(12.dp),
-      contentPadding = PaddingValues(horizontal = 16.dp),
-    ) {
-      items(albums, key = { it.id }) { album ->
-        JellyfinMusicCard(
-          item = album,
-          server = server,
-          onClick = { onAlbumClick(album) },
-          onLongClick = { onAlbumLongClick(album) },
-          cardWidth = 140.dp,
+  SharedMusicCarouselSection(
+    title = title,
+    items = albums,
+    getId = { it.id },
+    getTitle = { it.name },
+    getSubtitle = { it.seriesName ?: it.overview ?: "" },
+    getArtworkUrl = { album ->
+      if (!album.primaryImageTag.isNullOrBlank()) {
+        JellyfinClient.getImageUrl(
+          serverUrl = server.serverUrl,
+          itemId = album.id,
+          imageTag = album.primaryImageTag,
+          maxWidth = 300,
+          token = server.accessToken,
         )
-      }
-    }
-  }
+      } else null
+    },
+    onClick = onAlbumClick,
+    onLongClick = onAlbumLongClick,
+    cardWidth = 140.dp,
+    modifier = modifier,
+  )
 }
 
 @Composable
@@ -471,28 +370,30 @@ fun JellyfinArtistsRowSection(
   onArtistLongClick: (JellyfinItem) -> Unit,
   modifier: Modifier = Modifier,
 ) {
-  Column(modifier = modifier) {
-    Text(
-      text = title,
-      style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.Bold),
-      color = MaterialTheme.colorScheme.onBackground,
-      modifier = Modifier.padding(start = 16.dp, bottom = 12.dp),
-    )
-    LazyRow(
-      horizontalArrangement = Arrangement.spacedBy(16.dp),
-      contentPadding = PaddingValues(horizontal = 16.dp),
-    ) {
-      items(artists, key = { it.id }) { artist ->
-        JellyfinMusicCard(
-          item = artist,
-          server = server,
-          onClick = { onArtistClick(artist) },
-          onLongClick = { onArtistLongClick(artist) },
-          cardWidth = 130.dp,
+  SharedMusicCarouselSection(
+    title = title,
+    items = artists,
+    getId = { it.id },
+    getTitle = { it.name },
+    getSubtitle = { "" },
+    getArtworkUrl = { artist ->
+      if (!artist.primaryImageTag.isNullOrBlank()) {
+        JellyfinClient.getImageUrl(
+          serverUrl = server.serverUrl,
+          itemId = artist.id,
+          imageTag = artist.primaryImageTag,
+          maxWidth = 300,
+          token = server.accessToken,
         )
-      }
-    }
-  }
+      } else null
+    },
+    isCircular = true,
+    cardWidth = 130.dp,
+    fallbackIcon = Icons.RoundedFilled.Person,
+    onClick = onArtistClick,
+    onLongClick = onArtistLongClick,
+    modifier = modifier,
+  )
 }
 
 @OptIn(ExperimentalFoundationApi::class)
