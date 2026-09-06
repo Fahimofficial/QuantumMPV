@@ -543,6 +543,17 @@ class JellyfinViewModel(
     }
   }
 
+  fun ensureMusicLibraryOpened() {
+    val active = _uiState.value.activeServer ?: return
+    if (_uiState.value.openLibrary?.isMusic == true) return
+    val musicLib = _uiState.value.libraries.firstOrNull {
+      it.collectionType?.equals("music", ignoreCase = true) == true || it.type == "MusicAlbum" || it.type == "MusicArtist"
+    }
+    if (musicLib != null) {
+      navigateToItem(musicLib)
+    }
+  }
+
   fun setGenreFilter(genre: String?) {
     if (_uiState.value.selectedGenreFilter == genre) return
     _uiState.update { it.copy(selectedGenreFilter = genre) }

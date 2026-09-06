@@ -31,6 +31,7 @@ import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -93,8 +94,12 @@ import androidx.compose.ui.util.lerp
 import kotlin.math.roundToInt
 import com.quantummpv.app.R
 import com.quantummpv.app.preferences.AppearancePreferences
+import com.quantummpv.app.preferences.MediaServerPreferences
+import com.quantummpv.app.preferences.MusicSourceProvider
 import com.quantummpv.app.preferences.preference.collectAsState
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.quantummpv.app.presentation.Screen
+import com.quantummpv.app.ui.utils.LocalBackStack
 import com.quantummpv.app.ui.browser.folderlist.FolderListScreen
 import com.quantummpv.app.ui.browser.music.MusicLibraryContent
 import com.quantummpv.app.ui.browser.networkstreaming.NetworkStreamingScreen
@@ -161,7 +166,10 @@ object MainScreen : Screen {
   @SuppressLint("ComposableNaming")
   @Composable
   override fun Content() {
+    val backStack = LocalBackStack.current
     val appearancePreferences = koinInject<AppearancePreferences>()
+    val mediaServerPreferences = koinInject<MediaServerPreferences>()
+    val musicSourceProvider by mediaServerPreferences.musicSourceProvider.collectAsState()
     val showHomeTab by appearancePreferences.showHomeTab.collectAsState()
     val showMusicTab by appearancePreferences.showMusicTab.collectAsState()
     val showRecentsTab by appearancePreferences.showRecentsTab.collectAsState()
@@ -386,7 +394,73 @@ object MainScreen : Screen {
               val tab = visibleTabs.getOrNull(page) ?: return@HorizontalPager
               when (tab) {
                 MainTab.HOME -> FolderListScreen.Content()
-                MainTab.MUSIC -> MusicLibraryContent()
+                MainTab.MUSIC -> {
+                  if (musicSourceProvider == MusicSourceProvider.JELLYFIN) {
+                    val jellyfinUiState by jellyfinViewModel.uiState.collectAsStateWithLifecycle()
+                    if (jellyfinUiState.activeServer == null) {
+                      Box(
+                        modifier = Modifier.fillMaxSize().padding(24.dp),
+                        contentAlignment = Alignment.Center,
+                      ) {
+                        androidx.compose.material3.Card(
+                          shape = androidx.compose.foundation.shape.RoundedCornerShape(24.dp),
+                          colors =
+                            androidx.compose.material3.CardDefaults.cardColors(
+                              containerColor = MaterialTheme.colorScheme.surfaceContainerLow,
+                            ),
+                        ) {
+                          Column(
+                            modifier = Modifier.padding(24.dp),
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            verticalArrangement = Arrangement.spacedBy(16.dp),
+                          ) {
+                            androidx.compose.material3.Icon(
+                              painter = painterResource(R.drawable.ic_jellyfin),
+                              contentDescription = null,
+                              modifier = Modifier.size(56.dp),
+                              tint = MaterialTheme.colorScheme.primary,
+                            )
+                            Text(
+                              text = stringResource(R.string.music_source_jellyfin),
+                              style = MaterialTheme.typography.titleLarge,
+                              fontWeight = FontWeight.Bold,
+                            )
+                            Text(
+                              text = stringResource(R.string.pref_jellyfin_no_server),
+                              style = MaterialTheme.typography.bodyMedium,
+                              color = MaterialTheme.colorScheme.onSurfaceVariant,
+                              textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+                            )
+                            androidx.compose.material3.FilledTonalButton(
+                              onClick = {
+                                backStack.add(com.quantummpv.app.ui.preferences.MediaServersPreferencesScreen)
+                              },
+                            ) {
+                              Text(stringResource(R.string.generic_configure))
+                            }
+                            androidx.compose.material3.TextButton(
+                              onClick = {
+                                mediaServerPreferences.musicSourceProvider.set(MusicSourceProvider.LOCAL)
+                              },
+                            ) {
+                              Text(stringResource(R.string.music_source_local))
+                            }
+                          }
+                        }
+                      }
+                    } else {
+                      LaunchedEffect(jellyfinUiState.libraries) {
+                        jellyfinViewModel.ensureMusicLibraryOpened()
+                      }
+                      com.quantummpv.app.ui.browser.jellyfin.JellyfinContent(
+                        viewModel = jellyfinViewModel,
+                        isMusicOnlyMode = true,
+                      )
+                    }
+                  } else {
+                    MusicLibraryContent()
+                  }
+                }
                 MainTab.RECENTS -> RecentlyPlayedScreen.Content()
                 MainTab.PLAYLISTS -> PlaylistScreen.Content()
                 MainTab.NETWORK -> NetworkStreamingScreen.Content()

@@ -102,6 +102,7 @@ import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.layout.Layout
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -122,6 +123,8 @@ import com.quantummpv.app.presentation.components.RemoteImage
 import com.quantummpv.app.presentation.components.pullrefresh.PullRefreshBox
 import com.quantummpv.app.preferences.BrowserPreferences
 import com.quantummpv.app.preferences.AppearancePreferences
+import com.quantummpv.app.preferences.MediaServerPreferences
+import com.quantummpv.app.preferences.MusicSourceProvider
 import com.quantummpv.app.preferences.preference.collectAsState
 import com.quantummpv.app.ui.preferences.PreferencesScreen
 import com.quantummpv.app.ui.browser.LocalNavigationBarHeight
@@ -209,6 +212,8 @@ fun MusicLibraryContent(
   val isPlaybackActive by musicViewModel.isPlaybackActive.collectAsState()
 
   val browserPreferences = koinInject<BrowserPreferences>()
+  val mediaServerPreferences = koinInject<MediaServerPreferences>()
+  val currentMusicSource by mediaServerPreferences.musicSourceProvider.collectAsState()
   val foldersPreferences = koinInject<com.quantummpv.app.preferences.FoldersPreferences>()
   val folderSortType by browserPreferences.folderSortType.collectAsState()
   val folderSortOrder by browserPreferences.folderSortOrder.collectAsState()
@@ -550,7 +555,139 @@ fun MusicLibraryContent(
               onRenameClick = null,
               isSingleSelection = activeSelectionManager.isSingleSelection,
               onInfoClick = null,
-              onAddToPlaylistClick = null
+              onAddToPlaylistClick = null,
+              preSearchActions = {
+                if (!activeSelectionManager.isInSelectionMode) {
+                  var isSourceDropdownOpen by remember { mutableStateOf(false) }
+                  Box {
+                    Surface(
+                      shape = RoundedCornerShape(16.dp),
+                      color = MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.8f),
+                      modifier = Modifier
+                        .padding(horizontal = 4.dp, vertical = 6.dp)
+                        .clickable { isSourceDropdownOpen = true },
+                    ) {
+                      Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
+                      ) {
+                        if (currentMusicSource == MusicSourceProvider.JELLYFIN) {
+                          androidx.compose.material3.Icon(
+                            painter = painterResource(R.drawable.ic_jellyfin),
+                            contentDescription = null,
+                            modifier = Modifier.size(16.dp),
+                            tint = MaterialTheme.colorScheme.onSecondaryContainer,
+                          )
+                        } else {
+                          Icon(
+                            Icons.RoundedFilled.Folder,
+                            contentDescription = null,
+                            modifier = Modifier.size(16.dp),
+                            tint = MaterialTheme.colorScheme.onSecondaryContainer,
+                          )
+                        }
+                        Spacer(Modifier.width(6.dp))
+                        Text(
+                          text = if (currentMusicSource == MusicSourceProvider.JELLYFIN) {
+                            stringResource(R.string.pref_jellyfin_title)
+                          } else {
+                            stringResource(R.string.music_source_local)
+                          },
+                          style = MaterialTheme.typography.labelMedium,
+                          fontWeight = FontWeight.Bold,
+                          color = MaterialTheme.colorScheme.onSecondaryContainer,
+                        )
+                        Spacer(Modifier.width(2.dp))
+                        Icon(
+                          Icons.RoundedFilled.ArrowDropDown,
+                          contentDescription = null,
+                          modifier = Modifier.size(16.dp),
+                          tint = MaterialTheme.colorScheme.onSecondaryContainer,
+                        )
+                      }
+                    }
+
+                    DropdownMenu(
+                      expanded = isSourceDropdownOpen,
+                      onDismissRequest = { isSourceDropdownOpen = false },
+                    ) {
+                      DropdownMenuItem(
+                        text = {
+                          Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            modifier = Modifier.fillMaxWidth(),
+                          ) {
+                            Text(stringResource(R.string.music_source_local))
+                            if (currentMusicSource == MusicSourceProvider.LOCAL) {
+                              Spacer(Modifier.width(12.dp))
+                              Icon(
+                                Icons.RoundedFilled.Check,
+                                contentDescription = null,
+                                modifier = Modifier.size(18.dp),
+                                tint = MaterialTheme.colorScheme.primary,
+                              )
+                            }
+                          }
+                        },
+                        leadingIcon = {
+                          Icon(Icons.RoundedFilled.Folder, contentDescription = null)
+                        },
+                        onClick = {
+                          mediaServerPreferences.musicSourceProvider.set(MusicSourceProvider.LOCAL)
+                          isSourceDropdownOpen = false
+                        },
+                      )
+
+                      DropdownMenuItem(
+                        text = {
+                          Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            modifier = Modifier.fillMaxWidth(),
+                          ) {
+                            Text(stringResource(R.string.music_source_jellyfin))
+                            if (currentMusicSource == MusicSourceProvider.JELLYFIN) {
+                              Spacer(Modifier.width(12.dp))
+                              Icon(
+                                Icons.RoundedFilled.Check,
+                                contentDescription = null,
+                                modifier = Modifier.size(18.dp),
+                                tint = MaterialTheme.colorScheme.primary,
+                              )
+                            }
+                          }
+                        },
+                        leadingIcon = {
+                          androidx.compose.material3.Icon(
+                            painter = painterResource(R.drawable.ic_jellyfin),
+                            contentDescription = null,
+                            modifier = Modifier.size(20.dp),
+                            tint = MaterialTheme.colorScheme.primary,
+                          )
+                        },
+                        onClick = {
+                          mediaServerPreferences.musicSourceProvider.set(MusicSourceProvider.JELLYFIN)
+                          isSourceDropdownOpen = false
+                        },
+                      )
+
+                      HorizontalDivider()
+
+                      DropdownMenuItem(
+                        text = { Text(stringResource(R.string.pref_media_servers_title)) },
+                        leadingIcon = {
+                          Icon(Icons.RoundedFilled.Settings, contentDescription = null)
+                        },
+                        onClick = {
+                          isSourceDropdownOpen = false
+                          backStack.add(com.quantummpv.app.ui.preferences.MediaServersPreferencesScreen)
+                        },
+                      )
+                    }
+                  }
+                }
+              },
             )
           }
         }
