@@ -4,9 +4,11 @@
 
 package com.quantummpv.app.ui.browser.music
 
+import android.app.Application
 import android.graphics.BitmapFactory
 import android.net.Uri
 import android.text.format.DateUtils
+import com.quantummpv.app.ui.browser.jellyfin.JellyfinViewModel
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.fadeIn
@@ -188,11 +190,18 @@ private fun MusicSong.toVideo(): Video {
 @Composable
 fun MusicLibraryContent(
   modifier: Modifier = Modifier,
-  musicViewModel: MusicLibraryViewModel = viewModel()
+  musicViewModel: MusicLibraryViewModel = viewModel(),
+  jellyfinViewModel: JellyfinViewModel? = null,
 ) {
   val context = LocalContext.current
   val backStack = LocalBackStack.current
   val scope = rememberCoroutineScope()
+
+  val jfViewModel: JellyfinViewModel =
+    jellyfinViewModel
+      ?: viewModel(factory = JellyfinViewModel.factory(context.applicationContext as Application))
+  val jellyfinUiState by jfViewModel.uiState.collectAsStateWithLifecycle()
+  val hasJellyfinMusicLibrary = jellyfinUiState.hasMusicLibrary
 
   val selectedTab by musicViewModel.selectedTab.collectAsState()
   val searchQuery by musicViewModel.searchQuery.collectAsState()
@@ -557,7 +566,7 @@ fun MusicLibraryContent(
               onInfoClick = null,
               onAddToPlaylistClick = null,
               preSearchActions = {
-                if (!activeSelectionManager.isInSelectionMode) {
+                if (!activeSelectionManager.isInSelectionMode && hasJellyfinMusicLibrary) {
                   var isSourceDropdownOpen by remember { mutableStateOf(false) }
                   Box {
                     Surface(
