@@ -90,6 +90,7 @@ fun BrowserTopBar(
   onInvertSelection: (() -> Unit)? = null,
   onDeselectAll: (() -> Unit)? = null,
   preSearchActions: @Composable RowScope.() -> Unit = { },
+  postSearchActions: @Composable RowScope.() -> Unit = { },
   additionalActions: @Composable RowScope.() -> Unit = { },
   onTitleLongPress: (() -> Unit)? = null,
   onTitleDoubleTap: (() -> Unit)? = null,
@@ -134,6 +135,7 @@ fun BrowserTopBar(
       onRequestClick = onRequestClick,
       onSettingsClick = onSettingsClick,
       preSearchActions = preSearchActions,
+      postSearchActions = postSearchActions,
       additionalActions = additionalActions,
       modifier = modifier,
       onTitleLongPress = onTitleLongPress,
@@ -158,6 +160,7 @@ private fun NormalTopBar(
   onRequestClick: (() -> Unit)? = null,
   onSettingsClick: (() -> Unit)?,
   preSearchActions: @Composable RowScope.() -> Unit = { },
+  postSearchActions: @Composable RowScope.() -> Unit = { },
   additionalActions: @Composable RowScope.() -> Unit,
   modifier: Modifier = Modifier,
   onTitleLongPress: (() -> Unit)?,
@@ -322,6 +325,7 @@ private fun NormalTopBar(
           )
         }
       }
+      postSearchActions()
       if (onRequestClick != null) {
         IconButton(
           onClick = onRequestClick,

@@ -435,55 +435,55 @@ fun JellyfinContent(
           },
           preSearchActions = {
             if (!selectionManager.isInSelectionMode) {
-              if (currentMusicSource == MusicSourceProvider.JELLYFIN || uiState.openLibrary?.isMusic == true) {
+              if (isMusicOnlyMode) {
                 var isSourceDropdownOpen by remember { mutableStateOf(false) }
                 Box {
-                Surface(
-                  shape = RoundedCornerShape(16.dp),
-                  color = MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.8f),
-                  modifier = Modifier
-                    .padding(horizontal = 4.dp, vertical = 6.dp)
-                    .clickable { isSourceDropdownOpen = true },
-                ) {
-                  Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
+                  Surface(
+                    shape = RoundedCornerShape(16.dp),
+                    color = MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.8f),
+                    modifier = Modifier
+                      .padding(horizontal = 4.dp, vertical = 6.dp)
+                      .clickable { isSourceDropdownOpen = true },
                   ) {
-                    if (currentMusicSource == MusicSourceProvider.JELLYFIN) {
-                      androidx.compose.material3.Icon(
-                        painter = painterResource(R.drawable.ic_jellyfin),
-                        contentDescription = null,
-                        modifier = Modifier.size(16.dp),
-                        tint = MaterialTheme.colorScheme.onSecondaryContainer,
+                    Row(
+                      verticalAlignment = Alignment.CenterVertically,
+                      modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
+                    ) {
+                      if (currentMusicSource == MusicSourceProvider.JELLYFIN) {
+                        androidx.compose.material3.Icon(
+                          painter = painterResource(R.drawable.ic_jellyfin),
+                          contentDescription = null,
+                          modifier = Modifier.size(16.dp),
+                          tint = MaterialTheme.colorScheme.onSecondaryContainer,
+                        )
+                      } else {
+                        Icon(
+                          Icons.RoundedFilled.Folder,
+                          contentDescription = null,
+                          modifier = Modifier.size(16.dp),
+                          tint = MaterialTheme.colorScheme.onSecondaryContainer,
+                        )
+                      }
+                      Spacer(Modifier.width(6.dp))
+                      Text(
+                        text = if (currentMusicSource == MusicSourceProvider.JELLYFIN) {
+                          stringResource(R.string.pref_jellyfin_title)
+                        } else {
+                          stringResource(R.string.music_source_local)
+                        },
+                        style = MaterialTheme.typography.labelMedium,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.onSecondaryContainer,
                       )
-                    } else {
+                      Spacer(Modifier.width(2.dp))
                       Icon(
-                        Icons.RoundedFilled.Folder,
+                        Icons.RoundedFilled.ArrowDropDown,
                         contentDescription = null,
                         modifier = Modifier.size(16.dp),
                         tint = MaterialTheme.colorScheme.onSecondaryContainer,
                       )
                     }
-                    Spacer(Modifier.width(6.dp))
-                    Text(
-                      text = if (currentMusicSource == MusicSourceProvider.JELLYFIN) {
-                        stringResource(R.string.pref_jellyfin_title)
-                      } else {
-                        stringResource(R.string.music_source_local)
-                      },
-                      style = MaterialTheme.typography.labelMedium,
-                      fontWeight = FontWeight.Bold,
-                      color = MaterialTheme.colorScheme.onSecondaryContainer,
-                    )
-                    Spacer(Modifier.width(2.dp))
-                    Icon(
-                      Icons.RoundedFilled.ArrowDropDown,
-                      contentDescription = null,
-                      modifier = Modifier.size(16.dp),
-                      tint = MaterialTheme.colorScheme.onSecondaryContainer,
-                    )
                   }
-                }
 
                   DropdownMenu(
                     expanded = isSourceDropdownOpen,
@@ -565,7 +565,10 @@ fun JellyfinContent(
                   }
                 }
               }
-
+            }
+          },
+          postSearchActions = {
+            if (!selectionManager.isInSelectionMode) {
               IconButton(
                 onClick = { backstack.add(com.quantummpv.app.ui.downloads.DownloadsScreen) },
                 modifier = Modifier.padding(horizontal = 2.dp),
