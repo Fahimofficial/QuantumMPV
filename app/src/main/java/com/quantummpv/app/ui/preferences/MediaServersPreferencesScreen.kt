@@ -414,16 +414,16 @@ object MediaServersPreferencesScreen : Screen {
               } else {
                 Preference(
                   modifier = Modifier.settingsSearchTarget(R.string.pref_seerr_server_management),
-                  title = { Text(stringResource(R.string.pref_seerr_server_management)) },
+                  title = { Text(stringResource(R.string.pref_seerr_add_server)) },
                   summary = {
                     Text(
-                      text = stringResource(R.string.pref_seerr_not_connected),
+                      text = stringResource(R.string.pref_seerr_add_server_desc),
                       color = MaterialTheme.colorScheme.outline,
                     )
                   },
                   icon = {
                     Icon(
-                      imageVector = Icons.RoundedFilled.CloudDone,
+                      painter = painterResource(R.drawable.ic_seerr_logo),
                       contentDescription = null,
                       tint = MaterialTheme.colorScheme.primary,
                       modifier = Modifier.size(24.dp),
@@ -581,13 +581,22 @@ private fun SeerrServerAvatar(
       modifier = Modifier.fillMaxSize(),
       contentAlignment = Alignment.Center,
     ) {
-      val initial = (currentUser?.displayName ?: currentUser?.username ?: "S").trim().take(1).uppercase()
-      Text(
-        text = initial,
-        style = MaterialTheme.typography.titleMedium,
-        fontWeight = FontWeight.Bold,
-        color = MaterialTheme.colorScheme.onPrimaryContainer,
-      )
+      val initial = (currentUser?.displayName ?: currentUser?.username ?: "").trim().take(1).uppercase()
+      if (initial.isNotBlank()) {
+        Text(
+          text = initial,
+          style = MaterialTheme.typography.titleMedium,
+          fontWeight = FontWeight.Bold,
+          color = MaterialTheme.colorScheme.onPrimaryContainer,
+        )
+      } else {
+        Icon(
+          painter = painterResource(R.drawable.ic_seerr_logo),
+          contentDescription = null,
+          tint = MaterialTheme.colorScheme.primary,
+          modifier = Modifier.size(22.dp),
+        )
+      }
 
       if (avatarUrl != null) {
         RemoteImage(
