@@ -31,12 +31,18 @@ import com.quantummpv.app.preferences.MusicSourceProvider
 import com.quantummpv.app.repository.NavidromeRepository
 import com.quantummpv.app.utils.media.MediaUtils
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.async
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.firstOrNull
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import com.quantummpv.app.preferences.BrowserPreferences
+import com.quantummpv.app.ui.browser.music.MusicSortField
+import com.quantummpv.app.ui.browser.music.MusicSortOrder
+import com.quantummpv.app.ui.browser.music.MusicViewMode
 import kotlinx.coroutines.withContext
 import org.koin.core.component.KoinComponent
 import org.koin.core.component.inject
@@ -61,6 +67,9 @@ data class NavidromeUiState(
   val detailPlaylist: NavidromePlaylist? = null,
   val isConnectingServer: Boolean = false,
   val connectServerError: String? = null,
+  val sortField: MusicSortField = MusicSortField.TITLE,
+  val sortOrder: MusicSortOrder = MusicSortOrder.ASCENDING,
+  val viewMode: MusicViewMode = MusicViewMode.GRID,
 )
 
 class NavidromeViewModel(
@@ -69,8 +78,15 @@ class NavidromeViewModel(
   private val navidromeRepository: NavidromeRepository by inject()
   private val navidromeClient: NavidromeClient by inject()
   private val mediaServerPreferences: MediaServerPreferences by inject()
+  private val browserPreferences: BrowserPreferences by inject()
 
-  private val _uiState = MutableStateFlow(NavidromeUiState())
+  private val _uiState = MutableStateFlow(
+    NavidromeUiState(
+      sortField = browserPreferences.navidromeSortField.get(),
+      sortOrder = browserPreferences.navidromeSortOrder.get(),
+      viewMode = browserPreferences.navidromeViewMode.get(),
+    )
+  )
   val uiState: StateFlow<NavidromeUiState> = _uiState.asStateFlow()
 
   init {
@@ -88,6 +104,11 @@ class NavidromeViewModel(
         if (_uiState.value.activeServer != null) {
           loadAllData()
         }
+      }
+    }
+    viewModelScope.launch {
+      navidromeRepository.favoriteUpdates.collect { (songId, isFav) ->
+        applyFavoriteUpdate(songId, isFav)
       }
     }
   }
@@ -143,37 +164,45 @@ class NavidromeViewModel(
     _uiState.update { it.copy(isLoading = true, error = null) }
 
     try {
-      // 1. Home quick mix & tracks
-      val randomSongsResult = navidromeRepository.getRandomSongs(server, 50)
-      val randomSongs = randomSongsResult.getOrDefault(emptyList())
+      coroutineScope {
+        val randomSongsDeferred = async { navidromeRepository.getRandomSongs(server, 50).getOrDefault(emptyList()) }
+        val playlistsDeferred = async { navidromeRepository.getPlaylists(server).getOrDefault(emptyList()) }
+        val starredDeferred = async { navidromeRepository.getStarred(server).getOrDefault(emptyList()).map { it.copy(isFavorite = true) } }
+        val recentAlbumsDeferred = async { navidromeRepository.getAlbums(server, type = "recent", size = 20).getOrDefault(emptyList()) }
+        val allAlbumsDeferred = async { navidromeRepository.getAlbums(server, type = "alphabeticalByName", size = 500).getOrDefault(emptyList()) }
+        val artistsDeferred = async { navidromeRepository.getArtists(server).getOrDefault(emptyList()) }
 
-      // 2. Playlists
-      val playlistsResult = navidromeRepository.getPlaylists(server)
-      val playlists = playlistsResult.getOrDefault(emptyList())
+        val rawRandomSongs = randomSongsDeferred.await()
+        val serverPlaylists = playlistsDeferred.await()
+        val starredSongs = starredDeferred.await()
+        val recentAlbums = recentAlbumsDeferred.await()
+        val allAlbums = allAlbumsDeferred.await()
+        val artists = artistsDeferred.await()
 
-      // 3. Recently added albums
-      val recentAlbumsResult = navidromeRepository.getAlbums(server, type = "recent", size = 20)
-      val recentAlbums = recentAlbumsResult.getOrDefault(emptyList())
+        val starredSongIds = starredSongs.map { it.id }.toSet()
+        val randomSongs = rawRandomSongs.map { if (it.id in starredSongIds) it.copy(isFavorite = true) else it }
 
-      // 4. Alphabetical albums
-      val allAlbumsResult = navidromeRepository.getAlbums(server, type = "alphabeticalByName", size = 500)
-      val allAlbums = allAlbumsResult.getOrDefault(emptyList())
-
-      // 5. Artists
-      val artistsResult = navidromeRepository.getArtists(server)
-      val artists = artistsResult.getOrDefault(emptyList())
-
-      _uiState.update {
-        it.copy(
-          isLoading = false,
-          jumpBackIn = randomSongs.take(12),
-          tracks = randomSongs,
-          playlists = playlists,
-          recentlyAddedAlbums = recentAlbums,
-          artistsToExplore = artists.shuffled().take(15),
-          albums = allAlbums,
-          artists = artists,
+        val favoritesVirtualPlaylist = NavidromePlaylist(
+          id = "virtual_favorites_playlist",
+          name = "Favorites",
+          songCount = starredSongs.size,
+          durationSeconds = starredSongs.sumOf { it.durationSeconds },
+          songs = starredSongs,
         )
+        val combinedPlaylists = listOf(favoritesVirtualPlaylist) + serverPlaylists.filter { !it.name.equals("Favorites", ignoreCase = true) }
+
+        _uiState.update {
+          it.copy(
+            isLoading = false,
+            jumpBackIn = randomSongs.take(12),
+            tracks = randomSongs,
+            playlists = combinedPlaylists,
+            recentlyAddedAlbums = recentAlbums,
+            artistsToExplore = artists.shuffled().take(15),
+            albums = allAlbums,
+            artists = artists,
+          )
+        }
       }
     } catch (e: Exception) {
       _uiState.update { it.copy(isLoading = false, error = e.message) }
@@ -197,13 +226,38 @@ class NavidromeViewModel(
     viewModelScope.launch(Dispatchers.IO) {
       val fullArtist = navidromeRepository.getArtist(server, artist.id).getOrNull()
       if (fullArtist != null) {
-        _uiState.update { it.copy(detailArtist = fullArtist) }
+        _uiState.update {
+          it.copy(
+            detailArtist = fullArtist.copy(
+              artistImageUrl = fullArtist.artistImageUrl ?: artist.artistImageUrl,
+              coverArtId = fullArtist.coverArtId ?: artist.coverArtId,
+            )
+          )
+        }
       }
     }
   }
 
   fun openPlaylistDetail(playlist: NavidromePlaylist) {
     val server = _uiState.value.activeServer ?: return
+    if (playlist.id == "virtual_favorites_playlist" || playlist.id == "favorites") {
+      _uiState.update { it.copy(detailPlaylist = playlist, detailAlbum = null, detailArtist = null) }
+      viewModelScope.launch(Dispatchers.IO) {
+        val starredSongs = navidromeRepository.getStarred(server).getOrDefault(emptyList()).map { it.copy(isFavorite = true) }
+        _uiState.update { current ->
+          val updatedFav = playlist.copy(
+            songCount = starredSongs.size,
+            durationSeconds = starredSongs.sumOf { s -> s.durationSeconds },
+            songs = starredSongs,
+          )
+          current.copy(
+            detailPlaylist = updatedFav,
+            playlists = listOf(updatedFav) + current.playlists.filterNot { it.id == "virtual_favorites_playlist" || it.id == "favorites" },
+          )
+        }
+      }
+      return
+    }
     _uiState.update { it.copy(detailPlaylist = playlist, detailAlbum = null, detailArtist = null) }
     viewModelScope.launch(Dispatchers.IO) {
       val fullPlaylist = navidromeRepository.getPlaylist(server, playlist.id).getOrNull()
@@ -247,13 +301,13 @@ class NavidromeViewModel(
   ) {
     if (songs.isEmpty()) return
     val currentSong = songs.getOrNull(startIndex) ?: songs.first()
-    val streamUrl = navidromeRepository.getStreamUrl(server, currentSong.id)
-    val posterUrl = navidromeRepository.getCoverArtUrl(server, currentSong.coverArtId)
+    val posterUrl = navidromeRepository.getSongCoverArtUrl(server, currentSong)
 
     val playlistUris = songs.map { Uri.parse(navidromeRepository.getStreamUrl(server, it.id)) }
+    val streamUrl = playlistUris.getOrNull(startIndex)?.toString() ?: navidromeRepository.getStreamUrl(server, currentSong.id)
     val playlistTitles = songs.map { it.title }
     val playlistArtists = songs.map { it.artist }
-    val playlistArtworkUrls = songs.map { navidromeRepository.getCoverArtUrl(server, it.coverArtId) ?: "" }
+    val playlistArtworkUrls = songs.map { navidromeRepository.getSongCoverArtUrl(server, it) ?: "" }
 
     MediaUtils.playFile(
       source = streamUrl,
@@ -270,23 +324,90 @@ class NavidromeViewModel(
     )
   }
 
+  fun setSortField(field: MusicSortField) {
+    browserPreferences.navidromeSortField.set(field)
+    _uiState.update { it.copy(sortField = field) }
+  }
+
+  fun setSortOrder(order: MusicSortOrder) {
+    browserPreferences.navidromeSortOrder.set(order)
+    _uiState.update { it.copy(sortOrder = order) }
+  }
+
+  fun setViewMode(mode: MusicViewMode) {
+    browserPreferences.navidromeViewMode.set(mode)
+    _uiState.update { it.copy(viewMode = mode) }
+  }
+
   fun toggleFavorite(song: NavidromeSong) {
     val server = _uiState.value.activeServer ?: return
     val newFav = !song.isFavorite
+    applyFavoriteUpdate(song.id, newFav, song)
     viewModelScope.launch(Dispatchers.IO) {
       navidromeRepository.toggleFavorite(server, song, newFav)
-      _uiState.update { current ->
-        current.copy(
-          tracks = current.tracks.map { if (it.id == song.id) it.copy(isFavorite = newFav) else it },
-          jumpBackIn = current.jumpBackIn.map { if (it.id == song.id) it.copy(isFavorite = newFav) else it },
-          detailAlbum = current.detailAlbum?.copy(
-            songs = current.detailAlbum.songs.map { if (it.id == song.id) it.copy(isFavorite = newFav) else it }
-          ),
-          detailPlaylist = current.detailPlaylist?.copy(
-            songs = current.detailPlaylist.songs.map { if (it.id == song.id) it.copy(isFavorite = newFav) else it }
-          ),
+    }
+  }
+
+  fun applyFavoriteUpdate(songId: String, isFav: Boolean, songHint: NavidromeSong? = null) {
+    _uiState.update { current ->
+      val updatedTracks = current.tracks.map { if (it.id == songId) it.copy(isFavorite = isFav) else it }
+      val updatedJump = current.jumpBackIn.map { if (it.id == songId) it.copy(isFavorite = isFav) else it }
+      val updatedSearch = current.searchResult?.let { res ->
+        res.copy(songs = res.songs.map { if (it.id == songId) it.copy(isFavorite = isFav) else it })
+      }
+      val updatedDetailAlbum = current.detailAlbum?.let { alb ->
+        alb.copy(songs = alb.songs.map { if (it.id == songId) it.copy(isFavorite = isFav) else it })
+      }
+
+      val existingFavPlaylist = current.playlists.firstOrNull { it.id == "virtual_favorites_playlist" || it.id == "favorites" }
+      val targetSong = songHint
+        ?: current.tracks.firstOrNull { it.id == songId }
+        ?: current.jumpBackIn.firstOrNull { it.id == songId }
+        ?: current.detailPlaylist?.songs?.firstOrNull { it.id == songId }
+        ?: current.detailAlbum?.songs?.firstOrNull { it.id == songId }
+
+      val updatedFavSongs = if (existingFavPlaylist != null) {
+        if (isFav) {
+          if (existingFavPlaylist.songs.any { it.id == songId }) {
+            existingFavPlaylist.songs.map { if (it.id == songId) it.copy(isFavorite = true) else it }
+          } else if (targetSong != null) {
+            listOf(targetSong.copy(isFavorite = true)) + existingFavPlaylist.songs
+          } else existingFavPlaylist.songs
+        } else {
+          existingFavPlaylist.songs.filterNot { it.id == songId }
+        }
+      } else {
+        if (isFav && targetSong != null) listOf(targetSong.copy(isFavorite = true)) else emptyList()
+      }
+
+      val updatedFavPlaylist = (existingFavPlaylist ?: NavidromePlaylist(
+        id = "virtual_favorites_playlist",
+        name = "Favorites",
+      )).copy(
+        songCount = updatedFavSongs.size,
+        durationSeconds = updatedFavSongs.sumOf { it.durationSeconds },
+        songs = updatedFavSongs,
+      )
+
+      val otherPlaylists = current.playlists.filterNot { it.id == "virtual_favorites_playlist" || it.id == "favorites" }
+      val updatedPlaylists = listOf(updatedFavPlaylist) + otherPlaylists
+
+      val updatedDetailPlaylist = if (current.detailPlaylist?.id == "virtual_favorites_playlist" || current.detailPlaylist?.id == "favorites") {
+        updatedFavPlaylist
+      } else {
+        current.detailPlaylist?.copy(
+          songs = current.detailPlaylist.songs.map { if (it.id == songId) it.copy(isFavorite = isFav) else it }
         )
       }
+
+      current.copy(
+        tracks = updatedTracks,
+        jumpBackIn = updatedJump,
+        searchResult = updatedSearch,
+        detailAlbum = updatedDetailAlbum,
+        detailPlaylist = updatedDetailPlaylist,
+        playlists = updatedPlaylists,
+      )
     }
   }
 

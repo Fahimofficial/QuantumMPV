@@ -81,6 +81,8 @@ import com.quantummpv.app.ui.browser.music.SharedMusicTrackListItem
 import com.quantummpv.app.ui.icons.Icon
 import com.quantummpv.app.ui.icons.Icons
 import com.quantummpv.app.ui.utils.LocalBackStack
+import com.quantummpv.app.ui.browser.dialogs.MusicSortDialog
+import com.quantummpv.app.ui.browser.music.MusicSortField
 import com.quantummpv.app.ui.browser.LocalNavigationBarHeight
 import kotlinx.coroutines.launch
 import org.koin.compose.koinInject
@@ -105,6 +107,7 @@ fun NavidromeContent(
 
   var isSearching by rememberSaveable { mutableStateOf(false) }
   var isAddDialogOpen by remember { mutableStateOf(false) }
+  var isSortDialogOpen by rememberSaveable { mutableStateOf(false) }
   val searchFocusRequester = remember { FocusRequester() }
 
   val musicTabs = remember {
@@ -219,6 +222,9 @@ fun NavidromeContent(
           selectedCount = 0,
           totalCount = 0,
           onCancelSelection = { },
+          onSortClick = if (uiState.activeTab != NavidromeMusicTab.HOME) {
+            { isSortDialogOpen = true }
+          } else null,
           onSearchClick = { isSearching = true },
           onSettingsClick = {
             backstack.add(com.quantummpv.app.ui.preferences.PreferencesScreen)
@@ -496,7 +502,7 @@ fun NavidromeContent(
               title = song.title,
               subtitle = song.artist,
               durationSeconds = song.durationSeconds.toLong(),
-              artworkUrl = navidromeRepository.getCoverArtUrl(server, song.coverArtId),
+              artworkUrl = navidromeRepository.getSongCoverArtUrl(server, song),
               onClick = { viewModel.playSong(context, song) },
             )
           }
@@ -518,6 +524,26 @@ fun NavidromeContent(
               durationSeconds = null,
               artworkUrl = navidromeRepository.getCoverArtUrl(server, album.coverArtId),
               onClick = { viewModel.openAlbumDetail(album) },
+            )
+          }
+        }
+
+        if (result.artists.isNotEmpty()) {
+          item {
+            Text(
+              text = "Artists (${result.artists.size})",
+              style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
+              color = MaterialTheme.colorScheme.onSurface,
+              modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
+            )
+          }
+          items(result.artists, key = { it.id }) { artist ->
+            SharedMusicTrackListItem(
+              title = artist.name,
+              subtitle = "${artist.albumCount} albums",
+              durationSeconds = null,
+              artworkUrl = navidromeRepository.getArtistImageUrl(server, artist),
+              onClick = { viewModel.openArtistDetail(artist) },
             )
           }
         }
@@ -561,6 +587,48 @@ fun NavidromeContent(
         onDismiss = { viewModel.closeDetail() },
       )
     }
+
+    // Sort & View dialog
+    val availableFields = remember(uiState.activeTab) {
+      when (uiState.activeTab) {
+        NavidromeMusicTab.TRACKS -> listOf(
+          MusicSortField.TITLE,
+          MusicSortField.ARTIST,
+          MusicSortField.ALBUM,
+          MusicSortField.DURATION,
+          MusicSortField.YEAR,
+        )
+        NavidromeMusicTab.ALBUMS -> listOf(
+          MusicSortField.TITLE,
+          MusicSortField.ARTIST,
+          MusicSortField.YEAR,
+          MusicSortField.TRACK_COUNT,
+          MusicSortField.DURATION,
+        )
+        NavidromeMusicTab.ARTISTS -> listOf(
+          MusicSortField.ARTIST,
+          MusicSortField.TRACK_COUNT,
+        )
+        NavidromeMusicTab.PLAYLISTS -> listOf(
+          MusicSortField.TITLE,
+          MusicSortField.TRACK_COUNT,
+          MusicSortField.DURATION,
+        )
+        else -> emptyList()
+      }
+    }
+
+    MusicSortDialog(
+      isOpen = isSortDialogOpen,
+      onDismiss = { isSortDialogOpen = false },
+      sortField = uiState.sortField,
+      sortOrder = uiState.sortOrder,
+      viewMode = uiState.viewMode,
+      onSortFieldChange = { viewModel.setSortField(it) },
+      onSortOrderChange = { viewModel.setSortOrder(it) },
+      onViewModeChange = { viewModel.setViewMode(it) },
+      availableFields = availableFields,
+    )
 
     // Add server dialog
     AddNavidromeServerDialog(

@@ -19,6 +19,7 @@ import com.quantummpv.app.domain.navidrome.NavidromePlaylist
 import com.quantummpv.app.domain.navidrome.NavidromeServer
 import com.quantummpv.app.domain.navidrome.NavidromeSong
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.map
 
 class NavidromeRepository(
@@ -27,6 +28,8 @@ class NavidromeRepository(
 ) {
   val allServers: Flow<List<NavidromeServer>> =
     dao.getAllServers().map { list -> list.map { it.toDomain() } }
+
+  val favoriteUpdates = MutableSharedFlow<Pair<String, Boolean>>(extraBufferCapacity = 64)
 
   suspend fun getServerById(id: Long): NavidromeServer? =
     dao.getServerById(id)?.toDomain()
@@ -78,15 +81,22 @@ class NavidromeRepository(
   suspend fun getSong(server: NavidromeServer, songId: String): Result<NavidromeSong> =
     client.getSong(server, songId)
 
+  suspend fun getStarred(server: NavidromeServer): Result<List<NavidromeSong>> =
+    client.getStarred(server)
+
   suspend fun toggleFavorite(server: NavidromeServer, song: NavidromeSong, isFavorite: Boolean): Result<Unit> =
     toggleFavorite(server, song.id, isFavorite)
 
   suspend fun toggleFavorite(server: NavidromeServer, songId: String, isFavorite: Boolean): Result<Unit> {
-    return if (isFavorite) {
+    val res = if (isFavorite) {
       client.starItem(server, id = songId)
     } else {
       client.unstarItem(server, id = songId)
     }
+    if (res.isSuccess) {
+      favoriteUpdates.tryEmit(songId to isFavorite)
+    }
+    return res
   }
 
   suspend fun toggleAlbumFavorite(server: NavidromeServer, album: NavidromeAlbum, isFavorite: Boolean): Result<Unit> {
@@ -110,4 +120,10 @@ class NavidromeRepository(
 
   fun getCoverArtUrl(server: NavidromeServer, coverArtId: String?, size: Int = 500): String? =
     client.getCoverArtUrl(server, coverArtId, size)
+
+  fun getArtistImageUrl(server: NavidromeServer, artist: NavidromeArtist, size: Int = 500): String? =
+    client.getArtistImageUrl(server, artist, size)
+
+  fun getSongCoverArtUrl(server: NavidromeServer, song: NavidromeSong, size: Int = 500): String? =
+    client.getSongCoverArtUrl(server, song, size)
 }

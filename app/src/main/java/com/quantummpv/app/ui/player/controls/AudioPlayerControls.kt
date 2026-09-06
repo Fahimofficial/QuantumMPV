@@ -578,9 +578,10 @@ fun AudioPlayerControls(
   val queueState by PlaybackSession.queue.collectAsStateWithLifecycle()
   val currentItem = playbackState.currentItem ?: queueState.currentItem
   val playlistItems by viewModel.playlistItems.collectAsState()
+  val isAudioOnly by viewModel.isAudioOnly.collectAsState()
   val filteredPlaylist =
-    remember(playlistItems) {
-      playlistItems.filter { it.isAudio }
+    remember(playlistItems, isAudioOnly) {
+      if (isAudioOnly) playlistItems else playlistItems.filter { it.isAudio }
     }
 
   var showInPlaceLyrics by rememberSaveable { mutableStateOf(false) }
@@ -879,14 +880,16 @@ fun AudioPlayerControls(
     }
   }
 
-  val navidromeInfo = remember(activeTrackPath, mediaPath) {
-    val path = mediaPath?.takeIf { it.isNotBlank() } ?: activeTrackPath
+  val navidromeInfo = remember(activeTrackPath, mediaPath, currentMediaSource) {
+    val path = mediaPath?.takeIf { it.isNotBlank() } ?: activeTrackPath ?: currentMediaSource
     if (path.isNullOrBlank()) null
     else {
       val uri = runCatching { Uri.parse(path) }.getOrNull()
       if (uri == null) null
       else {
-        if (uri.path?.contains("/rest/stream", ignoreCase = true) == true) {
+        if (uri.path?.contains("/rest/stream", ignoreCase = true) == true ||
+            uri.path?.contains("stream.view", ignoreCase = true) == true ||
+            uri.query?.contains("stream.view", ignoreCase = true) == true) {
           val songId = uri.getQueryParameter("id")
           val username = uri.getQueryParameter("u")
           val scheme = uri.scheme ?: "http"
@@ -943,8 +946,6 @@ fun AudioPlayerControls(
   LaunchedEffect(Unit) {
     viewModel.refreshPlaylistItems()
   }
-
-  val isAudioOnly by viewModel.isAudioOnly.collectAsState()
 
   val configuration = LocalConfiguration.current
   val isPortrait = configuration.orientation == Configuration.ORIENTATION_PORTRAIT

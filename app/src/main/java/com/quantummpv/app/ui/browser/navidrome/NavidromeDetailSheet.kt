@@ -39,9 +39,13 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.SheetValue
-import androidx.compose.material3.Text
 import androidx.compose.material3.rememberBottomSheetState
+import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.quantummpv.app.ui.player.PlaybackSession
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -90,6 +94,9 @@ fun NavidromeDetailSheet(
       enabledValues = setOf(SheetValue.Hidden, SheetValue.Expanded),
     )
 
+  val queueState by PlaybackSession.queue.collectAsStateWithLifecycle()
+  val currentSessionItem = queueState.currentItem
+
   ModalBottomSheet(
     onDismissRequest = onDismiss,
     sheetState = sheetState,
@@ -110,80 +117,136 @@ fun NavidromeDetailSheet(
             if (album.songCount > 0) add("${album.songCount} tracks")
           }.joinToString(" • ")
 
-          SharedMusicDetailHeader(
-            title = album.title,
-            subtitle = album.artist.ifBlank { null },
-            itemCountText = details.ifBlank { null },
-            artworkUrl = navidromeRepository.getCoverArtUrl(server, album.coverArtId, size = 300),
-            onPlayAll = { viewModel.playAll(context, album.songs, 0) },
-            onShuffle = { viewModel.shufflePlay(context, album.songs) },
-            trailingAction = {
-              IconButton(onClick = { viewModel.toggleAlbumFavorite(album) }) {
-                Icon(
-                  imageVector = if (album.isFavorite) Icons.RoundedFilled.Favorite else Icons.RoundedFilled.FavoriteBorder,
-                  contentDescription = null,
-                  tint = if (album.isFavorite) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-              }
-            },
-          )
-          Spacer(Modifier.height(8.dp))
-          HorizontalDivider()
+          Box(
+            modifier = Modifier
+              .fillMaxWidth()
+              .padding(horizontal = 16.dp, vertical = 8.dp),
+          ) {
+            SharedMusicDetailHeader(
+              title = album.title,
+              subtitle = album.artist.ifBlank { null },
+              itemCountText = details.ifBlank { null },
+              artworkUrl = navidromeRepository.getCoverArtUrl(server, album.coverArtId, size = 300),
+              onPlayAll = { viewModel.playAll(context, album.songs, 0) },
+              onShuffle = { viewModel.shufflePlay(context, album.songs) },
+              trailingAction = {
+                IconButton(onClick = { viewModel.toggleAlbumFavorite(album) }) {
+                  Icon(
+                    imageVector = if (album.isFavorite) Icons.RoundedFilled.Favorite else Icons.RoundedFilled.FavoriteBorder,
+                    contentDescription = null,
+                    tint = if (album.isFavorite) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurfaceVariant,
+                  )
+                }
+              },
+            )
+          }
+
+          if (album.songs.isNotEmpty()) {
+            Spacer(Modifier.height(8.dp))
+            Text(
+              text = "Tracks",
+              style = MaterialTheme.typography.titleMedium,
+              fontWeight = FontWeight.Bold,
+              color = MaterialTheme.colorScheme.onSurface,
+              modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
+            )
+          }
         }
 
         itemsIndexed(album.songs, key = { _, s -> s.id }) { index, song ->
+          val isTrackPlaying = remember(currentSessionItem, song.id) {
+            if (currentSessionItem == null || song.id.isBlank()) false
+            else {
+              val orig = currentSessionItem.originalUri
+              val play = currentSessionItem.playableUri
+              orig.contains(song.id, ignoreCase = true) || play.contains(song.id, ignoreCase = true)
+            }
+          }
           SharedMusicTrackListItem(
             title = song.title,
             subtitle = song.artist,
             durationSeconds = song.durationSeconds.toLong(),
-            artworkUrl = navidromeRepository.getCoverArtUrl(server, song.coverArtId),
+            artworkUrl = navidromeRepository.getSongCoverArtUrl(server, song),
+            isPlaying = isTrackPlaying,
+            isFavorite = song.isFavorite,
+            onFavoriteClick = { viewModel.toggleFavorite(song) },
             onClick = { viewModel.playSong(context, song) },
           )
         }
       } else if (playlist != null) {
         item {
-          SharedMusicDetailHeader(
-            title = playlist.name,
-            subtitle = null,
-            itemCountText = "${playlist.songCount} tracks",
-            artworkUrl = navidromeRepository.getCoverArtUrl(server, playlist.coverArtId, size = 300),
-            fallbackIcon = Icons.RoundedFilled.QueueMusic,
-            onPlayAll = { viewModel.playAll(context, playlist.songs, 0) },
-            onShuffle = { viewModel.shufflePlay(context, playlist.songs) },
-          )
-          Spacer(Modifier.height(8.dp))
-          HorizontalDivider()
+          Box(
+            modifier = Modifier
+              .fillMaxWidth()
+              .padding(horizontal = 16.dp, vertical = 8.dp),
+          ) {
+            SharedMusicDetailHeader(
+              title = playlist.name,
+              subtitle = null,
+              itemCountText = "${playlist.songCount} tracks",
+              artworkUrl = navidromeRepository.getCoverArtUrl(server, playlist.coverArtId, size = 300),
+              fallbackIcon = if (playlist.id == "virtual_favorites_playlist" || playlist.id == "favorites") Icons.RoundedFilled.Favorite else Icons.RoundedFilled.QueueMusic,
+              onPlayAll = { viewModel.playAll(context, playlist.songs, 0) },
+              onShuffle = { viewModel.shufflePlay(context, playlist.songs) },
+            )
+          }
+
+          if (playlist.songs.isNotEmpty()) {
+            Spacer(Modifier.height(8.dp))
+            Text(
+              text = "Tracks",
+              style = MaterialTheme.typography.titleMedium,
+              fontWeight = FontWeight.Bold,
+              color = MaterialTheme.colorScheme.onSurface,
+              modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
+            )
+          }
         }
 
         itemsIndexed(playlist.songs, key = { _, s -> s.id }) { index, song ->
+          val isTrackPlaying = remember(currentSessionItem, song.id) {
+            if (currentSessionItem == null || song.id.isBlank()) false
+            else {
+              val orig = currentSessionItem.originalUri
+              val play = currentSessionItem.playableUri
+              orig.contains(song.id, ignoreCase = true) || play.contains(song.id, ignoreCase = true)
+            }
+          }
           SharedMusicTrackListItem(
             title = song.title,
             subtitle = song.artist,
             durationSeconds = song.durationSeconds.toLong(),
-            artworkUrl = navidromeRepository.getCoverArtUrl(server, song.coverArtId),
+            artworkUrl = navidromeRepository.getSongCoverArtUrl(server, song),
+            isPlaying = isTrackPlaying,
+            isFavorite = song.isFavorite,
+            onFavoriteClick = { viewModel.toggleFavorite(song) },
             onClick = { viewModel.playSong(context, song) },
           )
         }
       } else if (artist != null) {
         item {
-          SharedMusicDetailHeader(
-            title = artist.name,
-            subtitle = "${artist.albumCount} albums",
-            artworkUrl = navidromeRepository.getCoverArtUrl(server, artist.artistImageUrl, size = 300),
-            fallbackIcon = Icons.RoundedFilled.Person,
-            isCircular = true,
-            trailingAction = {
-              IconButton(onClick = { viewModel.toggleArtistFavorite(artist) }) {
-                Icon(
-                  imageVector = if (artist.isFavorite) Icons.RoundedFilled.Favorite else Icons.RoundedFilled.FavoriteBorder,
-                  contentDescription = null,
-                  tint = if (artist.isFavorite) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-              }
-            },
-          )
-          Spacer(Modifier.height(8.dp))
-          HorizontalDivider()
+          Box(
+            modifier = Modifier
+              .fillMaxWidth()
+              .padding(horizontal = 16.dp, vertical = 8.dp),
+          ) {
+            SharedMusicDetailHeader(
+              title = artist.name,
+              subtitle = "${artist.albumCount} albums",
+              artworkUrl = navidromeRepository.getArtistImageUrl(server, artist, size = 300),
+              fallbackIcon = Icons.RoundedFilled.Person,
+              isCircular = true,
+              trailingAction = {
+                IconButton(onClick = { viewModel.toggleArtistFavorite(artist) }) {
+                  Icon(
+                    imageVector = if (artist.isFavorite) Icons.RoundedFilled.Favorite else Icons.RoundedFilled.FavoriteBorder,
+                    contentDescription = null,
+                    tint = if (artist.isFavorite) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurfaceVariant,
+                  )
+                }
+              },
+            )
+          }
         }
 
         if (artist.albums.isNotEmpty()) {

@@ -32,7 +32,10 @@ import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Button
+import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.FilledTonalButton
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -47,6 +50,7 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
@@ -67,9 +71,15 @@ fun SharedMusicTrackListItem(
   artworkUrl: String? = null,
   albumArtUri: Uri? = null,
   durationSeconds: Long? = null,
+  trailingText: String? = null,
   isPlaying: Boolean = false,
   isSelected: Boolean = false,
-  coverArtSizeDp: Int = 44,
+  fallbackIcon: AppIcon = Icons.RoundedFilled.Audiotrack,
+  isCircular: Boolean = false,
+  coverArtSizeDp: Int = 48,
+  isFavorite: Boolean = false,
+  onFavoriteClick: (() -> Unit)? = null,
+  trailingContent: (@Composable () -> Unit)? = null,
   onClick: () -> Unit,
   onLongClick: (() -> Unit)? = null,
   modifier: Modifier = Modifier,
@@ -99,10 +109,11 @@ fun SharedMusicTrackListItem(
         .padding(horizontal = 12.dp, vertical = 8.dp),
       verticalAlignment = Alignment.CenterVertically,
     ) {
+      val itemArtSize = if (isCircular) (coverArtSizeDp * 1.3f).toInt().coerceAtLeast(48).dp else coverArtSizeDp.dp
       Box(
         modifier = Modifier
-          .size(coverArtSizeDp.dp)
-          .clip(AppShapeScale.medium)
+          .size(itemArtSize)
+          .clip(if (isCircular) CircleShape else AppShapeScale.medium)
           .background(MaterialTheme.colorScheme.surfaceVariant),
         contentAlignment = Alignment.Center,
       ) {
@@ -124,10 +135,10 @@ fun SharedMusicTrackListItem(
           }
           else -> {
             Icon(
-              imageVector = Icons.RoundedFilled.Audiotrack,
+              imageVector = fallbackIcon,
               contentDescription = null,
               tint = if (isPlaying) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
-              modifier = Modifier.size(20.dp),
+              modifier = Modifier.size(if (isCircular) 28.dp else 20.dp),
             )
           }
         }
@@ -136,6 +147,7 @@ fun SharedMusicTrackListItem(
           Box(
             modifier = Modifier
               .fillMaxSize()
+              .then(if (isCircular) Modifier.clip(CircleShape) else Modifier)
               .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.45f)),
             contentAlignment = Alignment.Center,
           ) {
@@ -152,6 +164,7 @@ fun SharedMusicTrackListItem(
           Box(
             modifier = Modifier
               .fillMaxSize()
+              .then(if (isCircular) Modifier.clip(CircleShape) else Modifier)
               .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.55f)),
             contentAlignment = Alignment.Center,
           ) {
@@ -194,6 +207,33 @@ fun SharedMusicTrackListItem(
           style = MaterialTheme.typography.labelMedium,
           color = if (isPlaying) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
         )
+      } else if (!trailingText.isNullOrBlank()) {
+        Spacer(modifier = Modifier.width(8.dp))
+        Text(
+          text = trailingText,
+          style = MaterialTheme.typography.labelMedium,
+          color = if (isPlaying) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+      }
+
+      if (onFavoriteClick != null) {
+        Spacer(modifier = Modifier.width(4.dp))
+        IconButton(
+          onClick = onFavoriteClick,
+          modifier = Modifier.size(36.dp),
+        ) {
+          Icon(
+            imageVector = if (isFavorite) Icons.RoundedFilled.Favorite else Icons.RoundedFilled.FavoriteBorder,
+            contentDescription = if (isFavorite) "Remove from favorites" else "Add to favorites",
+            tint = if (isFavorite) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.size(20.dp),
+          )
+        }
+      }
+
+      if (trailingContent != null) {
+        Spacer(modifier = Modifier.width(4.dp))
+        trailingContent()
       }
     }
   }
@@ -204,102 +244,148 @@ fun SharedMusicTrackListItem(
 fun SharedMusicGridCard(
   title: String,
   subtitle: String? = null,
+  thirdLine: String? = null,
   artworkUrl: String? = null,
   albumArtUri: Uri? = null,
   fallbackIcon: AppIcon = Icons.RoundedFilled.Audiotrack,
   isCircular: Boolean = false,
-  cardWidth: Dp = 145.dp,
+  cardWidth: Dp? = null,
   isSelected: Boolean = false,
+  isPlaying: Boolean = false,
   onClick: () -> Unit,
   onLongClick: (() -> Unit)? = null,
   modifier: Modifier = Modifier,
 ) {
-  Column(
+  Card(
     modifier = modifier
-      .width(cardWidth)
-      .clip(if (isCircular) CircleShape else AppShapeScale.extraLarge)
-      .then(
-        if (onLongClick != null) {
-          Modifier.combinedClickable(onClick = onClick, onLongClick = onLongClick)
-        } else {
-          Modifier.clickable(onClick = onClick)
-        }
-      )
-      .padding(4.dp),
-    horizontalAlignment = Alignment.CenterHorizontally,
+      .then(if (cardWidth != null) Modifier.width(cardWidth) else Modifier.fillMaxWidth())
+      .clip(AppShapeScale.large)
+      .combinedClickable(onClick = onClick, onLongClick = onLongClick),
+    shape = AppShapeScale.large,
+    colors = CardDefaults.cardColors(
+      containerColor = when {
+        isSelected -> MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.6f)
+        isPlaying -> MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.35f)
+        else -> Color.Transparent
+      }
+    )
   ) {
-    Box(
+    Column(
       modifier = Modifier
         .fillMaxWidth()
-        .aspectRatio(1f)
-        .clip(if (isCircular) CircleShape else AppShapeScale.large)
-        .background(
-          if (isSelected) MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.6f)
-          else MaterialTheme.colorScheme.surfaceVariant
-        ),
-      contentAlignment = Alignment.Center,
+        .padding(if (isCircular) 14.dp else 8.dp),
+      horizontalAlignment = if (isCircular) Alignment.CenterHorizontally else Alignment.Start,
     ) {
-      when {
-        !artworkUrl.isNullOrBlank() -> {
-          RemoteImage(
-            url = artworkUrl,
-            contentDescription = title,
-            contentScale = ContentScale.Crop,
-            modifier = Modifier.fillMaxSize(),
-          )
+      Box(
+        modifier = Modifier
+          .fillMaxWidth()
+          .aspectRatio(1f)
+          .clip(if (isCircular) CircleShape else AppShapeScale.medium)
+          .background(MaterialTheme.colorScheme.surfaceVariant),
+        contentAlignment = Alignment.Center,
+      ) {
+        when {
+          !artworkUrl.isNullOrBlank() -> {
+            RemoteImage(
+              url = artworkUrl,
+              contentDescription = title,
+              contentScale = ContentScale.Crop,
+              modifier = Modifier.fillMaxSize(),
+            )
+          }
+          albumArtUri != null -> {
+            LocalAlbumArtImage(
+              uri = albumArtUri,
+              contentDescription = title,
+              modifier = Modifier.fillMaxSize(),
+            )
+          }
+          else -> {
+            Icon(
+              imageVector = fallbackIcon,
+              contentDescription = null,
+              tint = MaterialTheme.colorScheme.primary,
+              modifier = Modifier.size(if (isCircular) 48.dp else 36.dp),
+            )
+          }
         }
-        albumArtUri != null -> {
-          LocalAlbumArtImage(
-            uri = albumArtUri,
-            contentDescription = title,
-            modifier = Modifier.fillMaxSize(),
-          )
-        }
-        else -> {
-          Icon(
-            imageVector = fallbackIcon,
-            contentDescription = null,
-            tint = MaterialTheme.colorScheme.primary,
-            modifier = Modifier.size(36.dp),
-          )
+
+        if (isSelected) {
+          Box(
+            modifier = Modifier
+              .fillMaxSize()
+              .then(if (isCircular) Modifier.clip(CircleShape) else Modifier)
+              .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.45f)),
+            contentAlignment = Alignment.Center,
+          ) {
+            Icon(
+              imageVector = Icons.RoundedFilled.CheckCircle,
+              contentDescription = "Selected",
+              tint = Color.White,
+              modifier = Modifier.size(36.dp),
+            )
+          }
+        } else if (isPlaying) {
+          val paused by PlaybackSession.propBoolean["pause"].collectAsState()
+          val isPlaybackActive = paused != true
+          Box(
+            modifier = Modifier
+              .fillMaxSize()
+              .then(if (isCircular) Modifier.clip(CircleShape) else Modifier)
+              .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.55f)),
+            contentAlignment = Alignment.Center,
+          ) {
+            MiniAudioVisualizer(
+              isPlaying = isPlaybackActive,
+              color = Color.White,
+              modifier = Modifier.size(width = 28.dp, height = 24.dp),
+              barCount = 4,
+            )
+          }
         }
       }
 
-      if (isSelected) {
-        Box(
-          modifier = Modifier
-            .fillMaxSize()
-            .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.45f)),
-          contentAlignment = Alignment.Center,
-        ) {
-          Icon(
-            imageVector = Icons.RoundedFilled.CheckCircle,
-            contentDescription = "Selected",
-            tint = Color.White,
-            modifier = Modifier.size(32.dp),
+      Spacer(modifier = Modifier.height(if (isCircular) 8.dp else 6.dp))
+
+      Column(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalAlignment = if (isCircular) Alignment.CenterHorizontally else Alignment.Start,
+      ) {
+        Text(
+          text = title,
+          style = if (isCircular) MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Bold)
+          else MaterialTheme.typography.bodyLarge.copy(
+            fontWeight = if (isPlaying) FontWeight.ExtraBold else FontWeight.Bold
+          ),
+          maxLines = 1,
+          overflow = TextOverflow.Ellipsis,
+          color = if (isPlaying) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface,
+          textAlign = if (isCircular) TextAlign.Center else TextAlign.Start,
+          modifier = Modifier.fillMaxWidth(),
+        )
+
+        if (!subtitle.isNullOrBlank()) {
+          Text(
+            text = subtitle,
+            style = MaterialTheme.typography.bodySmall,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+            color = if (isPlaying) MaterialTheme.colorScheme.primary.copy(alpha = 0.8f) else MaterialTheme.colorScheme.onSurfaceVariant,
+            textAlign = if (isCircular) TextAlign.Center else TextAlign.Start,
+            modifier = Modifier.fillMaxWidth(),
+          )
+        }
+
+        if (!thirdLine.isNullOrBlank()) {
+          Text(
+            text = thirdLine,
+            style = MaterialTheme.typography.labelSmall,
+            color = MaterialTheme.colorScheme.primary,
+            textAlign = if (isCircular) TextAlign.Center else TextAlign.Start,
+            modifier = Modifier.fillMaxWidth(),
           )
         }
       }
-    }
-
-    Spacer(modifier = Modifier.height(6.dp))
-
-    Text(
-      text = title,
-      style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Bold),
-      maxLines = 1,
-      overflow = TextOverflow.Ellipsis,
-      color = MaterialTheme.colorScheme.onSurface,
-    )
-
-    if (!subtitle.isNullOrBlank()) {
-      Text(
-        text = subtitle,
-        style = MaterialTheme.typography.bodySmall,
-        maxLines = 1,
-        overflow = TextOverflow.Ellipsis,
-        color = MaterialTheme.colorScheme.onSurfaceVariant,
-      )
     }
   }
 }
@@ -444,6 +530,7 @@ fun <T> SharedMusicCarouselSection(
   isCircular: Boolean = false,
   cardWidth: Dp = if (isCircular) 130.dp else 140.dp,
   fallbackIcon: AppIcon = if (isCircular) Icons.RoundedFilled.Person else Icons.RoundedFilled.Audiotrack,
+  getFallbackIcon: ((T) -> AppIcon)? = null,
 ) {
   Column(modifier = modifier) {
     SharedMusicSectionHeader(
@@ -459,7 +546,7 @@ fun <T> SharedMusicCarouselSection(
           title = getTitle(item),
           subtitle = getSubtitle(item),
           artworkUrl = getArtworkUrl(item),
-          fallbackIcon = fallbackIcon,
+          fallbackIcon = getFallbackIcon?.invoke(item) ?: fallbackIcon,
           isCircular = isCircular,
           cardWidth = cardWidth,
           onClick = { onClick(item) },

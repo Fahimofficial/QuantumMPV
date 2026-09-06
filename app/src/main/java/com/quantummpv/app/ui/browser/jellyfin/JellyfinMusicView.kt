@@ -55,9 +55,12 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import android.text.format.DateUtils
 import com.quantummpv.app.data.jellyfin.JellyfinClient
 import com.quantummpv.app.domain.jellyfin.JellyfinItem
 import com.quantummpv.app.domain.jellyfin.JellyfinServer
+import com.quantummpv.app.preferences.BrowserPreferences
+import com.quantummpv.app.preferences.preference.collectAsState
 import com.quantummpv.app.presentation.components.RemoteImage
 import com.quantummpv.app.ui.icons.AppIcon
 import com.quantummpv.app.ui.icons.Icon
@@ -66,11 +69,15 @@ import com.quantummpv.app.ui.icons.Icons
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.PagerState
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.quantummpv.app.ui.browser.music.MusicSortField
+import com.quantummpv.app.ui.browser.music.MusicSortOrder
+import com.quantummpv.app.ui.browser.music.MusicViewMode
 import com.quantummpv.app.ui.browser.music.SharedCompactTrackGridSection
 import com.quantummpv.app.ui.browser.music.SharedMusicCarouselSection
 import com.quantummpv.app.ui.browser.music.SharedMusicGridCard
 import com.quantummpv.app.ui.browser.music.SharedMusicTrackListItem
 import com.quantummpv.app.ui.player.PlaybackSession
+import org.koin.compose.koinInject
 
 @Composable
 fun JellyfinMusicView(
@@ -84,6 +91,11 @@ fun JellyfinMusicView(
   navigationBarHeight: Dp,
   modifier: Modifier = Modifier,
 ) {
+  val browserPreferences = koinInject<BrowserPreferences>()
+  val coverArtSizeDp by browserPreferences.musicCoverArtSize.collectAsState()
+  val queueState by PlaybackSession.queue.collectAsStateWithLifecycle()
+  val currentSessionItem = queueState.currentItem
+
   HorizontalPager(
     state = pagerState,
     modifier = modifier
@@ -125,13 +137,97 @@ fun JellyfinMusicView(
               CircularProgressIndicator()
             }
           } else {
-            JellyfinTracksList(
-              tracks = uiState.musicTracks,
-              server = server,
-              onTrackClick = onItemClick,
-              onTrackLongClick = onItemLongClick,
-              navigationBarHeight = navigationBarHeight,
-            )
+            val sortedTracks = remember(uiState.musicTracks, uiState.musicSortField, uiState.musicSortOrder) {
+              val sorted = when (uiState.musicSortField) {
+                MusicSortField.TITLE -> uiState.musicTracks.sortedBy { it.name.lowercase() }
+                MusicSortField.ARTIST -> uiState.musicTracks.sortedBy { (it.seriesName ?: it.overview ?: "").lowercase() }
+                MusicSortField.ALBUM -> uiState.musicTracks.sortedBy { (it.seriesName ?: it.overview ?: "").lowercase() }
+                MusicSortField.DURATION -> uiState.musicTracks.sortedBy { it.durationSeconds }
+                MusicSortField.YEAR -> uiState.musicTracks.sortedBy { it.productionYear ?: 0 }
+                else -> uiState.musicTracks.sortedBy { it.name.lowercase() }
+              }
+              if (uiState.musicSortOrder == MusicSortOrder.DESCENDING) sorted.reversed() else sorted
+            }
+
+            if (uiState.musicViewMode == MusicViewMode.GRID) {
+              LazyVerticalGrid(
+                columns = GridCells.Adaptive(minSize = 145.dp),
+                modifier = Modifier.fillMaxSize(),
+                contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 16.dp, bottom = navigationBarHeight + 84.dp),
+                horizontalArrangement = Arrangement.spacedBy(14.dp),
+                verticalArrangement = Arrangement.spacedBy(14.dp),
+              ) {
+                items(sortedTracks, key = { it.id }) { track ->
+                  val imageUrl = remember(server.serverUrl, track.id, track.primaryImageTag, server.accessToken) {
+                    if (!track.primaryImageTag.isNullOrBlank()) {
+                      JellyfinClient.getImageUrl(
+                        serverUrl = server.serverUrl,
+                        itemId = track.id,
+                        imageTag = track.primaryImageTag,
+                        maxWidth = 300,
+                        token = server.accessToken,
+                      )
+                    } else null
+                  }
+                  val isPlaying = remember(currentSessionItem, track.id) {
+                    if (currentSessionItem == null || track.id.isBlank()) false
+                    else {
+                      val orig = currentSessionItem.originalUri
+                      val play = currentSessionItem.playableUri
+                      orig.contains(track.id, ignoreCase = true) || play.contains(track.id, ignoreCase = true)
+                    }
+                  }
+                  val artistName = track.seriesName ?: track.overview ?: ""
+                  SharedMusicGridCard(
+                    title = track.name,
+                    subtitle = artistName,
+                    thirdLine = track.durationSeconds.takeIf { it > 0 }?.let { DateUtils.formatElapsedTime(it) },
+                    artworkUrl = imageUrl,
+                    isPlaying = isPlaying,
+                    onClick = { onItemClick(track) },
+                    onLongClick = { onItemLongClick(track) },
+                  )
+                }
+              }
+            } else {
+              LazyColumn(
+                modifier = Modifier.fillMaxSize(),
+                contentPadding = PaddingValues(start = 0.dp, top = 8.dp, end = 0.dp, bottom = navigationBarHeight + 84.dp),
+              ) {
+                items(sortedTracks, key = { it.id }) { track ->
+                  val imageUrl = remember(server.serverUrl, track.id, track.primaryImageTag, server.accessToken) {
+                    if (!track.primaryImageTag.isNullOrBlank()) {
+                      JellyfinClient.getImageUrl(
+                        serverUrl = server.serverUrl,
+                        itemId = track.id,
+                        imageTag = track.primaryImageTag,
+                        maxWidth = 200,
+                        token = server.accessToken,
+                      )
+                    } else null
+                  }
+                  val isPlaying = remember(currentSessionItem, track.id) {
+                    if (currentSessionItem == null || track.id.isBlank()) false
+                    else {
+                      val orig = currentSessionItem.originalUri
+                      val play = currentSessionItem.playableUri
+                      orig.contains(track.id, ignoreCase = true) || play.contains(track.id, ignoreCase = true)
+                    }
+                  }
+                  val subtitle = track.seriesName ?: track.overview ?: ""
+                  SharedMusicTrackListItem(
+                    title = track.name,
+                    subtitle = subtitle,
+                    artworkUrl = imageUrl,
+                    durationSeconds = track.durationSeconds,
+                    isPlaying = isPlaying,
+                    coverArtSizeDp = coverArtSizeDp,
+                    onClick = { onItemClick(track) },
+                    onLongClick = { onItemLongClick(track) },
+                  )
+                }
+              }
+            }
           }
         }
         JellyfinMusicTab.ALBUMS -> {
@@ -143,13 +239,79 @@ fun JellyfinMusicView(
               CircularProgressIndicator()
             }
           } else {
-            JellyfinMusicGrid(
-              items = uiState.musicAlbums,
-              server = server,
-              onItemClick = onItemClick,
-              onItemLongClick = onItemLongClick,
-              navigationBarHeight = navigationBarHeight,
-            )
+            val sortedAlbums = remember(uiState.musicAlbums, uiState.musicSortField, uiState.musicSortOrder) {
+              val sorted = when (uiState.musicSortField) {
+                MusicSortField.TITLE -> uiState.musicAlbums.sortedBy { it.name.lowercase() }
+                MusicSortField.ARTIST -> uiState.musicAlbums.sortedBy { (it.seriesName ?: it.overview ?: "").lowercase() }
+                MusicSortField.YEAR -> uiState.musicAlbums.sortedBy { it.productionYear ?: 0 }
+                MusicSortField.TRACK_COUNT -> uiState.musicAlbums.sortedBy { it.childCount ?: 0 }
+                MusicSortField.DURATION -> uiState.musicAlbums.sortedBy { it.durationSeconds }
+                else -> uiState.musicAlbums.sortedBy { it.name.lowercase() }
+              }
+              if (uiState.musicSortOrder == MusicSortOrder.DESCENDING) sorted.reversed() else sorted
+            }
+
+            if (uiState.musicViewMode == MusicViewMode.GRID) {
+              LazyVerticalGrid(
+                columns = GridCells.Adaptive(minSize = 145.dp),
+                modifier = Modifier.fillMaxSize(),
+                contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 16.dp, bottom = navigationBarHeight + 84.dp),
+                horizontalArrangement = Arrangement.spacedBy(14.dp),
+                verticalArrangement = Arrangement.spacedBy(14.dp),
+              ) {
+                items(sortedAlbums, key = { it.id }) { album ->
+                  val imageUrl = remember(server.serverUrl, album.id, album.primaryImageTag, server.accessToken) {
+                    if (!album.primaryImageTag.isNullOrBlank()) {
+                      JellyfinClient.getImageUrl(
+                        serverUrl = server.serverUrl,
+                        itemId = album.id,
+                        imageTag = album.primaryImageTag,
+                        maxWidth = 300,
+                        token = server.accessToken,
+                      )
+                    } else null
+                  }
+                  val artistName = album.seriesName ?: album.overview ?: ""
+                  SharedMusicGridCard(
+                    title = album.name,
+                    subtitle = artistName,
+                    thirdLine = album.childCount?.let { if (it == 1) "1 song" else "$it songs" },
+                    artworkUrl = imageUrl,
+                    onClick = { onItemClick(album) },
+                    onLongClick = { onItemLongClick(album) },
+                  )
+                }
+              }
+            } else {
+              LazyColumn(
+                modifier = Modifier.fillMaxSize(),
+                contentPadding = PaddingValues(start = 0.dp, top = 8.dp, end = 0.dp, bottom = navigationBarHeight + 84.dp),
+              ) {
+                items(sortedAlbums, key = { it.id }) { album ->
+                  val imageUrl = remember(server.serverUrl, album.id, album.primaryImageTag, server.accessToken) {
+                    if (!album.primaryImageTag.isNullOrBlank()) {
+                      JellyfinClient.getImageUrl(
+                        serverUrl = server.serverUrl,
+                        itemId = album.id,
+                        imageTag = album.primaryImageTag,
+                        maxWidth = 200,
+                        token = server.accessToken,
+                      )
+                    } else null
+                  }
+                  val artistName = album.seriesName ?: album.overview ?: ""
+                  SharedMusicTrackListItem(
+                    title = album.name,
+                    subtitle = artistName,
+                    trailingText = album.childCount?.let { if (it == 1) "1 song" else "$it songs" },
+                    artworkUrl = imageUrl,
+                    coverArtSizeDp = coverArtSizeDp,
+                    onClick = { onItemClick(album) },
+                    onLongClick = { onItemLongClick(album) },
+                  )
+                }
+              }
+            }
           }
         }
         JellyfinMusicTab.ARTISTS -> {
@@ -161,13 +323,75 @@ fun JellyfinMusicView(
               CircularProgressIndicator()
             }
           } else {
-            JellyfinArtistsGrid(
-              artists = uiState.musicArtists,
-              server = server,
-              onItemClick = onItemClick,
-              onItemLongClick = onItemLongClick,
-              navigationBarHeight = navigationBarHeight,
-            )
+            val sortedArtists = remember(uiState.musicArtists, uiState.musicSortField, uiState.musicSortOrder) {
+              val sorted = when (uiState.musicSortField) {
+                MusicSortField.TRACK_COUNT -> uiState.musicArtists.sortedBy { it.childCount ?: 0 }
+                else -> uiState.musicArtists.sortedBy { it.name.lowercase() }
+              }
+              if (uiState.musicSortOrder == MusicSortOrder.DESCENDING) sorted.reversed() else sorted
+            }
+
+            if (uiState.musicViewMode == MusicViewMode.GRID) {
+              LazyVerticalGrid(
+                columns = GridCells.Adaptive(minSize = 160.dp),
+                modifier = Modifier.fillMaxSize(),
+                contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 16.dp, bottom = navigationBarHeight + 84.dp),
+                horizontalArrangement = Arrangement.spacedBy(16.dp),
+                verticalArrangement = Arrangement.spacedBy(16.dp),
+              ) {
+                items(sortedArtists, key = { it.id }) { artist ->
+                  val imageUrl = remember(server.serverUrl, artist.id, artist.primaryImageTag, server.accessToken) {
+                    if (!artist.primaryImageTag.isNullOrBlank()) {
+                      JellyfinClient.getImageUrl(
+                        serverUrl = server.serverUrl,
+                        itemId = artist.id,
+                        imageTag = artist.primaryImageTag,
+                        maxWidth = 300,
+                        token = server.accessToken,
+                      )
+                    } else null
+                  }
+                  SharedMusicGridCard(
+                    title = artist.name,
+                    subtitle = artist.childCount?.let { if (it == 1) "1 album" else "$it albums" } ?: "",
+                    artworkUrl = imageUrl,
+                    isCircular = true,
+                    fallbackIcon = Icons.RoundedFilled.Person,
+                    onClick = { onItemClick(artist) },
+                    onLongClick = { onItemLongClick(artist) },
+                  )
+                }
+              }
+            } else {
+              LazyColumn(
+                modifier = Modifier.fillMaxSize(),
+                contentPadding = PaddingValues(start = 0.dp, top = 8.dp, end = 0.dp, bottom = navigationBarHeight + 84.dp),
+              ) {
+                items(sortedArtists, key = { it.id }) { artist ->
+                  val imageUrl = remember(server.serverUrl, artist.id, artist.primaryImageTag, server.accessToken) {
+                    if (!artist.primaryImageTag.isNullOrBlank()) {
+                      JellyfinClient.getImageUrl(
+                        serverUrl = server.serverUrl,
+                        itemId = artist.id,
+                        imageTag = artist.primaryImageTag,
+                        maxWidth = 200,
+                        token = server.accessToken,
+                      )
+                    } else null
+                  }
+                  SharedMusicTrackListItem(
+                    title = artist.name,
+                    subtitle = artist.childCount?.let { if (it == 1) "1 album" else "$it albums" },
+                    artworkUrl = imageUrl,
+                    isCircular = true,
+                    fallbackIcon = Icons.RoundedFilled.Person,
+                    coverArtSizeDp = coverArtSizeDp,
+                    onClick = { onItemClick(artist) },
+                    onLongClick = { onItemLongClick(artist) },
+                  )
+                }
+              }
+            }
           }
         }
         JellyfinMusicTab.PLAYLISTS -> {
@@ -179,13 +403,77 @@ fun JellyfinMusicView(
               CircularProgressIndicator()
             }
           } else {
-            JellyfinMusicGrid(
-              items = uiState.musicPlaylists,
-              server = server,
-              onItemClick = onItemClick,
-              onItemLongClick = onItemLongClick,
-              navigationBarHeight = navigationBarHeight,
-            )
+            val sortedPlaylists = remember(uiState.musicPlaylists, uiState.musicSortField, uiState.musicSortOrder) {
+              val favorites = uiState.musicPlaylists.filter { it.id == "virtual_favorites_playlist" || it.id == "favorites" }
+              val others = uiState.musicPlaylists.filter { it.id != "virtual_favorites_playlist" && it.id != "favorites" }
+              val sorted = when (uiState.musicSortField) {
+                MusicSortField.TRACK_COUNT -> others.sortedBy { it.childCount ?: 0 }
+                MusicSortField.DURATION -> others.sortedBy { it.durationSeconds }
+                else -> others.sortedBy { it.name.lowercase() }
+              }
+              val result = if (uiState.musicSortOrder == MusicSortOrder.DESCENDING) sorted.reversed() else sorted
+              favorites + result
+            }
+
+            if (uiState.musicViewMode == MusicViewMode.GRID) {
+              LazyVerticalGrid(
+                columns = GridCells.Adaptive(minSize = 145.dp),
+                modifier = Modifier.fillMaxSize(),
+                contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 16.dp, bottom = navigationBarHeight + 84.dp),
+                horizontalArrangement = Arrangement.spacedBy(14.dp),
+                verticalArrangement = Arrangement.spacedBy(14.dp),
+              ) {
+                items(sortedPlaylists, key = { it.id }) { playlist ->
+                  val imageUrl = remember(server.serverUrl, playlist.id, playlist.primaryImageTag, server.accessToken) {
+                    if (!playlist.primaryImageTag.isNullOrBlank()) {
+                      JellyfinClient.getImageUrl(
+                        serverUrl = server.serverUrl,
+                        itemId = playlist.id,
+                        imageTag = playlist.primaryImageTag,
+                        maxWidth = 300,
+                        token = server.accessToken,
+                      )
+                    } else null
+                  }
+                  SharedMusicGridCard(
+                    title = playlist.name,
+                    subtitle = playlist.childCount?.let { if (it == 1) "1 track" else "$it tracks" } ?: "",
+                    artworkUrl = imageUrl,
+                    fallbackIcon = if (playlist.id == "virtual_favorites_playlist" || playlist.id == "favorites") Icons.RoundedFilled.Favorite else Icons.RoundedFilled.QueueMusic,
+                    onClick = { onItemClick(playlist) },
+                    onLongClick = { onItemLongClick(playlist) },
+                  )
+                }
+              }
+            } else {
+              LazyColumn(
+                modifier = Modifier.fillMaxSize(),
+                contentPadding = PaddingValues(start = 0.dp, top = 8.dp, end = 0.dp, bottom = navigationBarHeight + 84.dp),
+              ) {
+                items(sortedPlaylists, key = { it.id }) { playlist ->
+                  val imageUrl = remember(server.serverUrl, playlist.id, playlist.primaryImageTag, server.accessToken) {
+                    if (!playlist.primaryImageTag.isNullOrBlank()) {
+                      JellyfinClient.getImageUrl(
+                        serverUrl = server.serverUrl,
+                        itemId = playlist.id,
+                        imageTag = playlist.primaryImageTag,
+                        maxWidth = 200,
+                        token = server.accessToken,
+                      )
+                    } else null
+                  }
+                  SharedMusicTrackListItem(
+                    title = playlist.name,
+                    subtitle = playlist.childCount?.let { if (it == 1) "1 track" else "$it tracks" },
+                    artworkUrl = imageUrl,
+                    fallbackIcon = if (playlist.id == "virtual_favorites_playlist" || playlist.id == "favorites") Icons.RoundedFilled.Favorite else Icons.RoundedFilled.QueueMusic,
+                    coverArtSizeDp = coverArtSizeDp,
+                    onClick = { onItemClick(playlist) },
+                    onLongClick = { onItemLongClick(playlist) },
+                  )
+                }
+              }
+            }
           }
         }
       }
@@ -320,6 +608,7 @@ fun JellyfinPlaylistsRowSection(
       } else null
     },
     fallbackIcon = Icons.RoundedFilled.QueueMusic,
+    getFallbackIcon = { if (it.id == "virtual_favorites_playlist" || it.id == "favorites") Icons.RoundedFilled.Favorite else Icons.RoundedFilled.QueueMusic },
     onClick = onPlaylistClick,
     onLongClick = onPlaylistLongClick,
     onSeeAllClick = onSeeAllClick,
@@ -436,107 +725,3 @@ fun JellyfinMusicCard(
   )
 }
 
-@Composable
-fun JellyfinMusicGrid(
-  items: List<JellyfinItem>,
-  server: JellyfinServer,
-  onItemClick: (JellyfinItem) -> Unit,
-  onItemLongClick: (JellyfinItem) -> Unit,
-  navigationBarHeight: Dp,
-  modifier: Modifier = Modifier,
-) {
-  LazyVerticalGrid(
-    columns = GridCells.Adaptive(minSize = 140.dp),
-    modifier = modifier.fillMaxSize(),
-    contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 16.dp, bottom = navigationBarHeight + 84.dp),
-    horizontalArrangement = Arrangement.spacedBy(12.dp),
-    verticalArrangement = Arrangement.spacedBy(16.dp),
-  ) {
-    items(items, key = { it.id }) { item ->
-      JellyfinMusicCard(
-        item = item,
-        server = server,
-        onClick = { onItemClick(item) },
-        onLongClick = { onItemLongClick(item) },
-      )
-    }
-  }
-}
-
-@Composable
-fun JellyfinArtistsGrid(
-  artists: List<JellyfinItem>,
-  server: JellyfinServer,
-  onItemClick: (JellyfinItem) -> Unit,
-  onItemLongClick: (JellyfinItem) -> Unit,
-  navigationBarHeight: Dp,
-  modifier: Modifier = Modifier,
-) {
-  LazyVerticalGrid(
-    columns = GridCells.Adaptive(minSize = 130.dp),
-    modifier = modifier.fillMaxSize(),
-    contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 16.dp, bottom = navigationBarHeight + 84.dp),
-    horizontalArrangement = Arrangement.spacedBy(16.dp),
-    verticalArrangement = Arrangement.spacedBy(16.dp),
-  ) {
-    items(artists, key = { it.id }) { artist ->
-      JellyfinMusicCard(
-        item = artist,
-        server = server,
-        onClick = { onItemClick(artist) },
-        onLongClick = { onItemLongClick(artist) },
-        cardWidth = 130.dp,
-      )
-    }
-  }
-}
-
-@Composable
-fun JellyfinTracksList(
-  tracks: List<JellyfinItem>,
-  server: JellyfinServer,
-  onTrackClick: (JellyfinItem) -> Unit,
-  onTrackLongClick: (JellyfinItem) -> Unit,
-  navigationBarHeight: Dp,
-  modifier: Modifier = Modifier,
-) {
-  val queueState by PlaybackSession.queue.collectAsStateWithLifecycle()
-  val currentSessionItem = queueState.currentItem
-
-  LazyColumn(
-    modifier = modifier.fillMaxSize(),
-    contentPadding = PaddingValues(bottom = navigationBarHeight + 84.dp),
-  ) {
-    items(tracks, key = { it.id }) { track ->
-      val imageUrl = remember(server.serverUrl, track.id, track.primaryImageTag, server.accessToken) {
-        JellyfinClient.getImageUrl(
-          serverUrl = server.serverUrl,
-          itemId = track.id,
-          imageTag = track.primaryImageTag,
-          maxWidth = 200,
-          token = server.accessToken,
-        )
-      }
-
-      val isPlaying = remember(currentSessionItem, track.id) {
-        if (currentSessionItem == null || track.id.isBlank()) false
-        else {
-          val orig = currentSessionItem.originalUri
-          val play = currentSessionItem.playableUri
-          orig.contains(track.id, ignoreCase = true) || play.contains(track.id, ignoreCase = true)
-        }
-      }
-      val subtitle = track.seriesName ?: track.overview ?: ""
-
-      SharedMusicTrackListItem(
-        title = track.name,
-        subtitle = subtitle,
-        artworkUrl = if (!track.primaryImageTag.isNullOrBlank()) imageUrl else null,
-        durationSeconds = track.durationSeconds,
-        isPlaying = isPlaying,
-        onClick = { onTrackClick(track) },
-        onLongClick = { onTrackLongClick(track) },
-      )
-    }
-  }
-}

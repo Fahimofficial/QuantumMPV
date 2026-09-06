@@ -5350,13 +5350,20 @@ val isBrightnessSliderShown = MutableStateFlow(false)
       val localPath = uri.extractLocalPath() ?: if (uri.scheme == "file") uri.path else null
       val path = localPath ?: resolvedUri.path?.takeIf { File(it).exists() } ?: resolvedUri.toString()
       val isAudio =
+        isAudioOnly.value ||
+        item.mimeType?.startsWith("audio/", ignoreCase = true) == true ||
         path
           .substringBefore('?')
           .substringBefore('#')
           .substringAfterLast('.', "")
           .lowercase() in FileTypeUtils.AUDIO_EXTENSIONS ||
-          resolvedUri.toString().lowercase().contains("audio") ||
-          uri.toString().lowercase().contains("audio")
+        resolvedUri.toString().lowercase().contains("audio") ||
+        uri.toString().lowercase().contains("audio") ||
+        resolvedUri.toString().lowercase().contains("stream.view") ||
+        uri.toString().lowercase().contains("stream.view") ||
+        resolvedUri.toString().lowercase().contains("/rest/stream") ||
+        uri.toString().lowercase().contains("/rest/stream") ||
+        (item.artist?.isNotBlank() == true && item.durationSeconds != null)
       val isCurrentlyPlaying = index == queue.currentIndex
 
       // Try to get from cache first (synchronized access)

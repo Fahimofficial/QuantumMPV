@@ -119,7 +119,27 @@ class NavidromeClient(
 
   fun getCoverArtUrl(server: NavidromeServer, coverArtId: String?, size: Int = 500): String? {
     if (coverArtId.isNullOrBlank()) return null
+    if (coverArtId.startsWith("http://", ignoreCase = true) || coverArtId.startsWith("https://", ignoreCase = true)) {
+      return coverArtId
+    }
+    if (coverArtId.startsWith("/")) {
+      return "${server.serverUrl.trimEnd('/')}$coverArtId"
+    }
     return buildSubsonicUrl(server, "getCoverArt.view", mapOf("id" to coverArtId, "size" to size.toString()))
+  }
+
+  fun getArtistImageUrl(server: NavidromeServer, artist: NavidromeArtist, size: Int = 500): String? {
+    val urlOrId = artist.artistImageUrl?.takeIf { it.isNotBlank() }
+      ?: artist.coverArtId?.takeIf { it.isNotBlank() }
+      ?: artist.id.takeIf { it.isNotBlank() }
+    return getCoverArtUrl(server, urlOrId, size)
+  }
+
+  fun getSongCoverArtUrl(server: NavidromeServer, song: NavidromeSong, size: Int = 500): String? {
+    val urlOrId = song.coverArtId?.takeIf { it.isNotBlank() }
+      ?: song.albumId.takeIf { it.isNotBlank() }
+      ?: song.id.takeIf { it.isNotBlank() }
+    return getCoverArtUrl(server, urlOrId, size)
   }
 
   private suspend fun executeGet(url: String): Result<JsonObject> = withContext(Dispatchers.IO) {
@@ -202,6 +222,16 @@ class NavidromeClient(
       val baseArtist = parseArtist(artistObj)
       val albumsList = artistObj["album"]?.jsonArray?.map { parseAlbum(it.jsonObject) } ?: emptyList()
       baseArtist.copy(albums = albumsList)
+    }
+  }
+
+  suspend fun getArtistInfo(server: NavidromeServer, artistId: String): Result<String?> = withContext(Dispatchers.IO) {
+    val url = buildSubsonicUrl(server, "getArtistInfo2.view", mapOf("id" to artistId))
+    executeGet(url).map { response ->
+      val info = response["artistInfo2"]?.jsonObject ?: response["artistInfo"]?.jsonObject
+      info?.get("largeImageUrl")?.jsonPrimitive?.content
+        ?: info?.get("mediumImageUrl")?.jsonPrimitive?.content
+        ?: info?.get("smallImageUrl")?.jsonPrimitive?.content
     }
   }
 
@@ -325,6 +355,20 @@ class NavidromeClient(
     executeGet(url).map { }
   }
 
+  suspend fun getStarred(server: NavidromeServer): Result<List<NavidromeSong>> = withContext(Dispatchers.IO) {
+    val url = buildSubsonicUrl(server, "getStarred2.view")
+    val res = executeGet(url)
+    val finalRes = if (res.isFailure) {
+      executeGet(buildSubsonicUrl(server, "getStarred.view"))
+    } else res
+
+    finalRes.map { response ->
+      val starredObj = response["starred2"]?.jsonObject ?: response["starred"]?.jsonObject
+      val songArray = starredObj?.get("song")?.jsonArray
+      songArray?.map { parseSong(it.jsonObject).copy(isFavorite = true) } ?: emptyList()
+    }
+  }
+
   private fun parseSong(obj: JsonObject): NavidromeSong {
     val starred = obj["starred"]?.jsonPrimitive?.content
     return NavidromeSong(
@@ -368,7 +412,8 @@ class NavidromeClient(
       id = obj["id"]?.jsonPrimitive?.content ?: "",
       name = obj["name"]?.jsonPrimitive?.content ?: "Unknown Artist",
       albumCount = obj["albumCount"]?.jsonPrimitive?.intOrNull ?: 0,
-      artistImageUrl = obj["artistImageUrl"]?.jsonPrimitive?.content ?: obj["coverArt"]?.jsonPrimitive?.content,
+      artistImageUrl = obj["artistImageUrl"]?.jsonPrimitive?.content,
+      coverArtId = obj["coverArt"]?.jsonPrimitive?.content,
       isFavorite = !starred.isNullOrBlank(),
     )
   }

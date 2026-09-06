@@ -68,6 +68,7 @@ data class NavidromeArtist(
   val name: String,
   val albumCount: Int = 0,
   val artistImageUrl: String? = null,
+  val coverArtId: String? = null,
   val isFavorite: Boolean = false,
   val albums: List<NavidromeAlbum> = emptyList(),
 )
