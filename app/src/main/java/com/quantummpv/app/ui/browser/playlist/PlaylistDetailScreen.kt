@@ -332,7 +332,7 @@ data class PlaylistDetailScreen(
             isSingleSelection = selectionManager.isSingleSelection,
             useRemoveIcon = true, // Show remove icon instead of delete for playlist
             onInfoClick =
-              if (selectionManager.isSingleSelection) {
+              if (selectionManager.isSingleSelection && playlist?.isXtreamPlaylist != true) {
                 {
                   val item = selectionManager.getSelectedItems().firstOrNull()
                   if (item != null) {

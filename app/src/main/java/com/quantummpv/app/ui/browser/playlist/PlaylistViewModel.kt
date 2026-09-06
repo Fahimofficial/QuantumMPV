@@ -153,6 +153,12 @@ class PlaylistViewModel(
     userAgent: String? = null,
   ): Result<Long> = repository.createM3UPlaylist(url, userAgent)
 
+  suspend fun createXtreamPlaylist(
+    serverUrl: String,
+    username: String,
+    password: String,
+  ): Result<Long> = repository.createXtreamPlaylist(serverUrl, username, password)
+
   suspend fun createM3UPlaylistFromFile(uri: android.net.Uri): Result<Long> =
     repository.createM3UPlaylistFromFile(getApplication(), uri)
 

@@ -77,6 +77,7 @@ fun PlaylistCard(
       } == true
     val chipText =
       when {
+        playlist.isXtreamPlaylist -> stringResource(R.string.playlist_xtream_badge)
         isOnlinePlaylist -> stringResource(R.string.playlist_online_badge)
         playlist.isM3uPlaylist -> stringResource(R.string.playlist_m3u_badge)
         else -> "Local"
@@ -115,11 +116,12 @@ fun PlaylistCard(
     onLongClick = onLongClick,
     onThumbClick = onThumbClick,
     showDateModified = true,
-    customIcon = if (isFavorites) {
-      Icons.RoundedFilled.Favorite
-    } else {
-      Icons.RoundedFilled.PlaylistPlay
-    },
+    customIcon =
+      when {
+        isFavorites -> Icons.RoundedFilled.Favorite
+        playlist.isXtreamPlaylist -> Icons.RoundedFilled.Tv
+        else -> Icons.RoundedFilled.PlaylistPlay
+      },
     modifier = modifier,
     customChipContent = customChipRenderer,
     isGridMode = isGridMode,

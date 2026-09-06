@@ -298,7 +298,7 @@ object PlaylistScreen : Screen {
             EmptyState(
               icon = Icons.RoundedFilled.PlaylistAdd,
               title = stringResource(R.string.ui_no_playlists_yet),
-              message = "Create a playlist or add one from an m3u URL",
+              message = stringResource(R.string.playlist_empty_description),
             )
           }
         }
@@ -335,6 +335,7 @@ object PlaylistScreen : Screen {
       onCreatePlaylist = viewModel::createPlaylist,
       onCreateM3UPlaylistFromFile = viewModel::createM3UPlaylistFromFile,
       onCreateM3UPlaylist = viewModel::createM3UPlaylist,
+      onCreateXtreamPlaylist = viewModel::createXtreamPlaylist,
       context = context,
     )
 

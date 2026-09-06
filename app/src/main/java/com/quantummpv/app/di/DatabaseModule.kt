@@ -13,6 +13,7 @@ import androidx.room.Room
 import androidx.room.RoomDatabase
 import androidx.room.migration.Migration
 import androidx.sqlite.db.SupportSQLiteDatabase
+import com.quantummpv.app.data.network.XtreamClient
 import com.quantummpv.app.data.network.credentials.AndroidNetworkCredentialKey
 import com.quantummpv.app.data.network.credentials.NetworkCredentialCipher
 import com.quantummpv.app.database.MpvRxDatabase
@@ -734,6 +735,25 @@ val MIGRATION_17_18 =
     }
   }
 
+val MIGRATION_18_19 =
+  object : Migration(18, 19) {
+    override fun migrate(db: SupportSQLiteDatabase) {
+      db.execSQL("ALTER TABLE `PlaylistEntity` ADD COLUMN `isXtreamPlaylist` INTEGER NOT NULL DEFAULT 0")
+      db.execSQL("ALTER TABLE `PlaylistEntity` ADD COLUMN `xtreamAccountKey` TEXT")
+      db.execSQL("ALTER TABLE `PlaylistEntity` ADD COLUMN `xtreamServerUrl` TEXT")
+      db.execSQL("ALTER TABLE `PlaylistEntity` ADD COLUMN `xtreamUsername` TEXT")
+      db.execSQL("ALTER TABLE `PlaylistEntity` ADD COLUMN `xtreamEncryptedPassword` TEXT")
+      db.execSQL(
+        "CREATE UNIQUE INDEX IF NOT EXISTS `index_PlaylistEntity_xtreamAccountKey` " +
+          "ON `PlaylistEntity` (`xtreamAccountKey`)",
+      )
+      db.execSQL(
+        "CREATE INDEX IF NOT EXISTS `index_PlaylistEntity_xtreamServerUrl_xtreamUsername` " +
+          "ON `PlaylistEntity` (`xtreamServerUrl`, `xtreamUsername`)",
+      )
+    }
+  }
+
 val DatabaseModule =
   module {
     single<Json> {
@@ -766,6 +786,7 @@ val DatabaseModule =
           MIGRATION_15_16,
           MIGRATION_16_17,
           MIGRATION_17_18,
+          MIGRATION_18_19,
         ).build()
     }
 
@@ -803,6 +824,13 @@ val DatabaseModule =
     }
 
     single {
+      XtreamClient(
+        httpClient = get(),
+        json = get(),
+      )
+    }
+
+    single {
       com.quantummpv.app.repository.NetworkRepository(
         dao = get(),
         credentialCipher = get(),
@@ -815,6 +843,8 @@ val DatabaseModule =
         httpClient = get(),
         applicationContext = androidContext(),
         ytdlPreferences = get(),
+        credentialCipher = get(),
+        xtreamClient = get(),
       )
     }
 

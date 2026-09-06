@@ -11,9 +11,13 @@ package com.quantummpv.app.database.repository
 
 import android.content.Context
 import android.net.Uri
+import com.quantummpv.app.data.network.XtreamClient
+import com.quantummpv.app.data.network.credentials.NetworkCredentialCipher
+import com.quantummpv.app.data.network.credentials.NetworkCredentialStorageException
 import com.quantummpv.app.database.dao.PlaylistDao
 import com.quantummpv.app.database.entities.PlaylistEntity
 import com.quantummpv.app.database.entities.PlaylistItemEntity
+import com.quantummpv.app.domain.network.XtreamPlaybackUri
 import com.quantummpv.app.preferences.YtdlPreferences
 import com.quantummpv.app.ui.player.ytdlp.YtdlpManager
 import com.quantummpv.app.ui.player.ytdlp.YtdlpPlaylistMetadata
@@ -26,13 +30,19 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
+import okhttp3.HttpUrl.Companion.toHttpUrlOrNull
 import okhttp3.OkHttpClient
+import java.net.URLDecoder
+import java.nio.charset.StandardCharsets
+import java.util.UUID
 
 class PlaylistRepository(
   private val playlistDao: PlaylistDao,
   private val httpClient: OkHttpClient,
   private val applicationContext: Context,
   private val ytdlPreferences: YtdlPreferences,
+  private val credentialCipher: NetworkCredentialCipher,
+  private val xtreamClient: XtreamClient,
 ) {
   companion object {
     const val FAVORITES_PLAYLIST_NAME = "Favorites"
@@ -388,6 +398,75 @@ class PlaylistRepository(
       Result.failure(e)
     }
 
+  suspend fun createXtreamPlaylist(
+    serverUrl: String,
+    username: String,
+    password: String,
+  ): Result<Long> =
+    try {
+      val accountUsername = username
+      val catalog =
+        xtreamClient
+          .loadCatalog(serverUrl, accountUsername, password)
+          .getOrElse { error -> return Result.failure(error) }
+      val encryptedPassword = encryptXtreamPassword(password)
+
+      remotePlaylistWriteMutex.withLock {
+        val existing = playlistDao.getXtreamPlaylistByIdentity(catalog.serverUrl, accountUsername)
+        val accountKey = existing?.xtreamAccountKey ?: UUID.randomUUID().toString()
+        val securedPlaylist =
+          secureXtreamPlaylist(
+            parseResult = catalog.playlist,
+            accountKey = accountKey,
+            username = accountUsername,
+            password = password,
+          )
+        val now = System.currentTimeMillis()
+
+        if (existing != null) {
+          replaceRemotePlaylist(
+            playlist =
+              existing.copy(
+                updatedAt = now,
+                isM3uPlaylist = true,
+                isXtreamPlaylist = true,
+                xtreamAccountKey = accountKey,
+                xtreamServerUrl = catalog.serverUrl,
+                xtreamUsername = accountUsername,
+                xtreamEncryptedPassword = encryptedPassword,
+              ),
+            parseResult = securedPlaylist,
+            name = existing.name,
+            userAgent = existing.userAgent,
+          )
+          Result.success(existing.id.toLong())
+        } else {
+          val host = catalog.serverUrl.toHttpUrlOrNull()?.host ?: "Server"
+          val playlist =
+            PlaylistEntity(
+              name = "Xtream – $host",
+              createdAt = now,
+              updatedAt = now,
+              isM3uPlaylist = true,
+              isXtreamPlaylist = true,
+              xtreamAccountKey = accountKey,
+              xtreamServerUrl = catalog.serverUrl,
+              xtreamUsername = accountUsername,
+              xtreamEncryptedPassword = encryptedPassword,
+            )
+          val items =
+            securedPlaylist.items.mapIndexed { index, item ->
+              item.toEntity(playlistId = 0, position = index, now = now)
+            }
+          Result.success(playlistDao.insertPlaylistWithItems(playlist, items))
+        }
+      }
+    } catch (error: CancellationException) {
+      throw error
+    } catch (error: Exception) {
+      Result.failure(error)
+    }
+
   suspend fun createM3UPlaylistFromFile(
     context: Context,
     uri: Uri,
@@ -473,6 +552,10 @@ class PlaylistRepository(
         getPlaylistById(playlistId)
           ?: return Result.failure(Exception("Playlist not found"))
 
+      if (playlist.isXtreamPlaylist) {
+        return refreshXtreamPlaylist(playlist)
+      }
+
       if (!playlist.isM3uPlaylist || playlist.m3uSourceUrl == null) {
         return Result.failure(Exception("Not an M3U playlist or no source URL available"))
       }
@@ -498,6 +581,124 @@ class PlaylistRepository(
       Result.failure(e)
     }
   }
+
+  suspend fun resolveXtreamStream(reference: XtreamPlaybackUri.Reference): Result<String> =
+    try {
+      val playlist =
+        playlistDao.getXtreamPlaylistByAccountKey(reference.accountKey)
+          ?: return Result.failure(IllegalStateException("Xtream account is unavailable"))
+      val serverUrl = playlist.xtreamServerUrl
+        ?: return Result.failure(IllegalStateException("Xtream server is unavailable"))
+      val username = playlist.xtreamUsername
+        ?: return Result.failure(IllegalStateException("Xtream username is unavailable"))
+      val password = decryptXtreamPassword(playlist)
+      Result.success(XtreamPlaybackUri.resolve(reference, serverUrl, username, password))
+    } catch (error: CancellationException) {
+      throw error
+    } catch (error: Exception) {
+      Result.failure(error)
+    }
+
+  private suspend fun refreshXtreamPlaylist(playlist: PlaylistEntity): Result<Unit> {
+    val serverUrl = playlist.xtreamServerUrl
+      ?: return Result.failure(IllegalStateException("Xtream server is unavailable"))
+    val username = playlist.xtreamUsername
+      ?: return Result.failure(IllegalStateException("Xtream username is unavailable"))
+    val accountKey = playlist.xtreamAccountKey
+      ?: return Result.failure(IllegalStateException("Xtream account is unavailable"))
+    val password =
+      runCatching { decryptXtreamPassword(playlist) }
+        .getOrElse { error -> return Result.failure(error) }
+    val catalog =
+      xtreamClient
+        .loadCatalog(serverUrl, username, password)
+        .getOrElse { error -> return Result.failure(error) }
+    val securedPlaylist =
+      runCatching {
+        secureXtreamPlaylist(catalog.playlist, accountKey, username, password)
+      }.getOrElse { error -> return Result.failure(error) }
+
+    return remotePlaylistWriteMutex.withLock {
+      val current = getPlaylistById(playlist.id)
+        ?: return@withLock Result.failure(IllegalStateException("Playlist not found"))
+      if (!current.isXtreamPlaylist || current.xtreamAccountKey != accountKey) {
+        return@withLock Result.failure(IllegalStateException("Xtream account changed; refresh again"))
+      }
+      replaceRemotePlaylist(
+        playlist = current.copy(xtreamServerUrl = catalog.serverUrl),
+        parseResult = securedPlaylist,
+        name = current.name,
+        userAgent = current.userAgent,
+      )
+      Result.success(Unit)
+    }
+  }
+
+  private fun secureXtreamPlaylist(
+    parseResult: M3UParseResult.Success,
+    accountKey: String,
+    username: String,
+    password: String,
+  ): M3UParseResult.Success =
+    parseResult.copy(
+      items =
+        parseResult.items.map { item ->
+          val reference =
+            XtreamPlaybackUri.fromProviderUrl(item.url, accountKey, username, password)
+              ?: throw IllegalArgumentException("Xtream catalog contains an unsupported stream URL")
+          item.copy(
+            url = XtreamPlaybackUri.create(reference),
+            title = scrubXtreamPassword(item.title, password),
+            tvgId = scrubXtreamPassword(item.tvgId, password),
+            tvgName = scrubXtreamPassword(item.tvgName, password),
+            tvgLogo = sanitizeXtreamUrlMetadata(item.tvgLogo, password),
+            groupTitle = scrubXtreamPassword(item.groupTitle, password),
+            licenseType = scrubXtreamPassword(item.licenseType, password),
+            licenseKey = sanitizeXtreamUrlMetadata(item.licenseKey, password),
+            userAgent = scrubXtreamPassword(item.userAgent, password),
+          )
+        },
+    )
+
+  private fun encryptXtreamPassword(password: String): String =
+    try {
+      credentialCipher.encrypt(password)
+    } catch (error: Exception) {
+      throw NetworkCredentialStorageException(error)
+    }
+
+  private fun decryptXtreamPassword(playlist: PlaylistEntity): String {
+    val encrypted = playlist.xtreamEncryptedPassword
+      ?: throw IllegalStateException("Saved Xtream password is unavailable. Add the account again.")
+    return try {
+      credentialCipher.decrypt(encrypted)
+    } catch (_: Exception) {
+      throw IllegalStateException("Saved Xtream password is unavailable. Add the account again.")
+    }
+  }
+
+  private fun sanitizeXtreamUrlMetadata(
+    value: String?,
+    password: String,
+  ): String? =
+    value?.takeUnless { candidate ->
+      containsSecret(candidate, password)
+    }
+
+  private fun containsSecret(
+    value: String,
+    secret: String,
+  ): Boolean {
+    if (secret.isBlank()) return false
+    if (value.contains(secret)) return true
+    val decoded = runCatching { URLDecoder.decode(value, StandardCharsets.UTF_8.name()) }.getOrDefault(value)
+    return decoded.contains(secret)
+  }
+
+  private fun scrubXtreamPassword(
+    value: String?,
+    password: String,
+  ): String? = value?.replace(password, "•••")
 
   private suspend fun persistM3UPlaylist(
     parseResult: M3UParseResult.Success,
@@ -547,6 +748,10 @@ class PlaylistRepository(
       previousItems.values
         .filter { item -> !item.tvgId.isNullOrBlank() }
         .associateBy { item -> item.tvgId }
+    val previousXtreamItems =
+      previousItems.values.mapNotNull { item ->
+        xtreamItemIdentity(item.filePath)?.let { identity -> identity to item }
+      }.toMap()
     val now = System.currentTimeMillis()
     val items =
       parseResult.items.mapIndexed { index, item ->
@@ -555,7 +760,10 @@ class PlaylistRepository(
           playlistId = playlist.id,
           position = index,
           now = now,
-          previousItem = previousItems[normalizedPath] ?: item.tvgId?.let(previousItemsByTvgId::get),
+          previousItem =
+            previousItems[normalizedPath]
+              ?: xtreamItemIdentity(normalizedPath)?.let(previousXtreamItems::get)
+              ?: item.tvgId?.let(previousItemsByTvgId::get),
         )
       }
     playlistDao.replacePlaylistItems(
@@ -644,3 +852,8 @@ private fun M3UPlaylistItem.toEntity(
     userAgent = userAgent,
     isFavorite = previousItem?.isFavorite ?: false,
   )
+
+private fun xtreamItemIdentity(uri: String): String? =
+  XtreamPlaybackUri.parse(uri)?.let { reference ->
+    "${reference.accountKey}:${reference.route.wireValue}:${reference.streamId}"
+  }

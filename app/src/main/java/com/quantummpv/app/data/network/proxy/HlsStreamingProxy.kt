@@ -20,18 +20,16 @@ import kotlinx.coroutines.SupervisorJob
 import okhttp3.HttpUrl.Companion.toHttpUrlOrNull
 import okhttp3.OkHttpClient
 import okhttp3.Request
-import okhttp3.Response as OkResponse
 import java.io.ByteArrayInputStream
 import java.io.IOException
-import java.io.InputStream
 import java.net.URI
-import java.net.URLDecoder
-import java.net.URLEncoder
 import java.nio.charset.StandardCharsets
 import java.security.SecureRandom
 import java.util.Base64
+import java.util.LinkedHashMap
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.TimeUnit
+import okhttp3.Response as OkResponse
 
 /**
  * An embedded loopback proxy for HLS (m3u8) streams.
@@ -40,15 +38,14 @@ import java.util.concurrent.TimeUnit
  * HLS manifests using OkHttp on Android, rewriting manifests to route all child playlists,
  * media segments, and encryption keys through local loopback (127.0.0.1) for libmpv.
  */
-class HlsStreamingProxy private constructor() :
-  NanoHTTPD("127.0.0.1", 0) {
-
+class HlsStreamingProxy private constructor() : NanoHTTPD("127.0.0.1", 0) {
   companion object {
     private const val TAG = "HlsStreamingProxy"
     private const val TOKEN_BYTES = 24
     private const val TIMEOUT_SECONDS = 30L
     private const val MIME_M3U8 = "application/vnd.apple.mpegurl"
     private const val MIME_OCTET = "application/octet-stream"
+    private const val MAX_TARGETS_PER_SESSION = 8_192
 
     @Volatile
     private var instance: HlsStreamingProxy? = null
@@ -75,7 +72,10 @@ class HlsStreamingProxy private constructor() :
     val sourceUrl: String,
     val headers: Map<String, String>,
     val userAgent: String?,
-  )
+  ) {
+    internal val targetUrlsByToken = LinkedHashMap<String, String>(16, 0.75f, true)
+    internal val targetTokensByUrl = mutableMapOf<String, String>()
+  }
 
   private val random = SecureRandom()
   private val proxyJob = SupervisorJob()
@@ -154,18 +154,18 @@ class HlsStreamingProxy private constructor() :
           handleMasterManifest(token, hlsSession, headOnly)
         }
         subPath.startsWith("variant.m3u8", ignoreCase = true) -> {
-          val targetUrl = session.parameters["u"]?.firstOrNull()?.let(::decodeUrl)
+          val targetUrl = session.parameters["r"]?.firstOrNull()?.let { resolveTarget(hlsSession, it) }
           if (targetUrl.isNullOrBlank()) return notFound(headOnly)
           handleVariantManifest(token, hlsSession, targetUrl, headOnly)
         }
         subPath.startsWith("segment", ignoreCase = true) -> {
-          val targetUrl = session.parameters["u"]?.firstOrNull()?.let(::decodeUrl)
+          val targetUrl = session.parameters["r"]?.firstOrNull()?.let { resolveTarget(hlsSession, it) }
           if (targetUrl.isNullOrBlank()) return notFound(headOnly)
           val rangeHeader = session.headers["range"]
           handleSegment(hlsSession, targetUrl, rangeHeader, headOnly)
         }
         subPath.startsWith("key", ignoreCase = true) -> {
-          val targetUrl = session.parameters["u"]?.firstOrNull()?.let(::decodeUrl)
+          val targetUrl = session.parameters["r"]?.firstOrNull()?.let { resolveTarget(hlsSession, it) }
           if (targetUrl.isNullOrBlank()) return notFound(headOnly)
           handleKey(hlsSession, targetUrl, headOnly)
         }
@@ -174,8 +174,8 @@ class HlsStreamingProxy private constructor() :
     } catch (e: CancellationException) {
       throw e
     } catch (e: Exception) {
-      Log.e(TAG, "Error handling HLS proxy request for $uri: ${e.message}")
-      newFixedLengthResponse(Response.Status.INTERNAL_ERROR, MIME_PLAINTEXT, "HLS Proxy Error: ${e.message}")
+      Log.e(TAG, "HLS proxy request failed (${e::class.java.simpleName})")
+      newFixedLengthResponse(Response.Status.INTERNAL_ERROR, MIME_PLAINTEXT, "HLS proxy request failed")
         .apply { addCorsHeaders(this) }
     }
   }
@@ -197,7 +197,7 @@ class HlsStreamingProxy private constructor() :
     try {
       okResponse = httpClient.newCall(requestBuilder.build()).execute()
     } catch (e: IOException) {
-      Log.e(TAG, "Failed to fetch master manifest from upstream: ${e.message}")
+      Log.e(TAG, "Failed to fetch master manifest (${e::class.java.simpleName})")
       return newFixedLengthResponse(CustomStatus(502, "Bad Gateway"), MIME_PLAINTEXT, "Failed to fetch upstream manifest")
         .apply { addCorsHeaders(this) }
     }
@@ -216,7 +216,7 @@ class HlsStreamingProxy private constructor() :
     val finalUrl = okResponse.request.url.toString()
     okResponse.close()
 
-    val rewritten = rewriteMasterManifest(content, token, finalUrl)
+    val rewritten = rewriteMasterManifest(content, token, session, finalUrl)
     val bytes = rewritten.toByteArray(StandardCharsets.UTF_8)
     val stream = if (headOnly) ByteArrayInputStream(ByteArray(0)) else ByteArrayInputStream(bytes)
 
@@ -239,7 +239,7 @@ class HlsStreamingProxy private constructor() :
     try {
       okResponse = httpClient.newCall(requestBuilder.build()).execute()
     } catch (e: IOException) {
-      Log.e(TAG, "Failed to fetch variant manifest from upstream ($variantUrl): ${e.message}")
+      Log.e(TAG, "Failed to fetch variant manifest (${e::class.java.simpleName})")
       return newFixedLengthResponse(CustomStatus(502, "Bad Gateway"), MIME_PLAINTEXT, "Failed to fetch upstream variant")
         .apply { addCorsHeaders(this) }
     }
@@ -258,7 +258,7 @@ class HlsStreamingProxy private constructor() :
     val finalUrl = okResponse.request.url.toString()
     okResponse.close()
 
-    val rewritten = rewriteVariantManifest(content, token, finalUrl)
+    val rewritten = rewriteVariantManifest(content, token, session, finalUrl)
     val bytes = rewritten.toByteArray(StandardCharsets.UTF_8)
     val stream = if (headOnly) ByteArrayInputStream(ByteArray(0)) else ByteArrayInputStream(bytes)
 
@@ -284,7 +284,7 @@ class HlsStreamingProxy private constructor() :
     try {
       okResponse = httpClient.newCall(requestBuilder.build()).execute()
     } catch (e: IOException) {
-      Log.e(TAG, "Failed to fetch segment ($segmentUrl): ${e.message}")
+      Log.e(TAG, "Failed to fetch segment (${e::class.java.simpleName})")
       return newFixedLengthResponse(CustomStatus(502, "Bad Gateway"), MIME_PLAINTEXT, "Failed to fetch segment")
         .apply { addCorsHeaders(this) }
     }
@@ -336,7 +336,7 @@ class HlsStreamingProxy private constructor() :
     try {
       okResponse = httpClient.newCall(requestBuilder.build()).execute()
     } catch (e: IOException) {
-      Log.e(TAG, "Failed to fetch key ($keyUrl): ${e.message}")
+      Log.e(TAG, "Failed to fetch key (${e::class.java.simpleName})")
       return newFixedLengthResponse(CustomStatus(502, "Bad Gateway"), MIME_PLAINTEXT, "Failed to fetch key")
         .apply { addCorsHeaders(this) }
     }
@@ -363,6 +363,7 @@ class HlsStreamingProxy private constructor() :
   private fun rewriteMasterManifest(
     manifestContent: String,
     token: String,
+    session: HlsSession,
     baseUrl: String,
   ): String {
     val lines = manifestContent.lines()
@@ -381,7 +382,7 @@ class HlsStreamingProxy private constructor() :
       if (nextLineIsVariant) {
         if (!line.startsWith("#")) {
           val resolvedVariantUrl = resolveUrl(baseUrl, line)
-          val proxiedVariantUrl = "/hls/$token/variant.m3u8?u=${encodeUrl(resolvedVariantUrl)}"
+          val proxiedVariantUrl = proxyTargetUrl(token, session, "variant.m3u8", resolvedVariantUrl)
           rewrittenLines.add(proxiedVariantUrl)
           nextLineIsVariant = false
           continue
@@ -398,7 +399,7 @@ class HlsStreamingProxy private constructor() :
           if (uriMatch != null) {
             val originalUri = uriMatch.groupValues[1]
             val resolvedUri = resolveUrl(baseUrl, originalUri)
-            val proxiedUri = "/hls/$token/variant.m3u8?u=${encodeUrl(resolvedUri)}"
+            val proxiedUri = proxyTargetUrl(token, session, "variant.m3u8", resolvedUri)
             val rewrittenMediaLine = line.replace(uriMatch.value, """URI="$proxiedUri"""")
             rewrittenLines.add(rewrittenMediaLine)
           } else {
@@ -408,7 +409,7 @@ class HlsStreamingProxy private constructor() :
         !isMasterPlaylist && !line.startsWith("#") -> {
           // Single-variant media playlist received as master
           val resolvedSegmentUrl = resolveUrl(baseUrl, line)
-          val proxiedSegmentUrl = "/hls/$token/segment?u=${encodeUrl(resolvedSegmentUrl)}"
+          val proxiedSegmentUrl = proxyTargetUrl(token, session, "segment", resolvedSegmentUrl)
           rewrittenLines.add(proxiedSegmentUrl)
         }
         else -> {
@@ -423,6 +424,7 @@ class HlsStreamingProxy private constructor() :
   private fun rewriteVariantManifest(
     manifestContent: String,
     token: String,
+    session: HlsSession,
     baseUrl: String,
   ): String {
     val lines = manifestContent.lines()
@@ -441,7 +443,7 @@ class HlsStreamingProxy private constructor() :
           if (uriMatch != null) {
             val originalUri = uriMatch.groupValues[1]
             val resolvedUri = resolveUrl(baseUrl, originalUri)
-            val proxiedUri = "/hls/$token/key?u=${encodeUrl(resolvedUri)}"
+            val proxiedUri = proxyTargetUrl(token, session, "key", resolvedUri)
             rewrittenLines.add(line.replace(uriMatch.value, """URI="$proxiedUri""""))
           } else {
             rewrittenLines.add(line)
@@ -452,7 +454,7 @@ class HlsStreamingProxy private constructor() :
           if (uriMatch != null) {
             val originalUri = uriMatch.groupValues[1]
             val resolvedUri = resolveUrl(baseUrl, originalUri)
-            val proxiedUri = "/hls/$token/segment?u=${encodeUrl(resolvedUri)}"
+            val proxiedUri = proxyTargetUrl(token, session, "segment", resolvedUri)
             rewrittenLines.add(line.replace(uriMatch.value, """URI="$proxiedUri""""))
           } else {
             rewrittenLines.add(line)
@@ -469,7 +471,7 @@ class HlsStreamingProxy private constructor() :
         else -> {
           // Segment URL
           val resolvedSegmentUrl = resolveUrl(baseUrl, line)
-          val proxiedSegmentUrl = "/hls/$token/segment?u=${encodeUrl(resolvedSegmentUrl)}"
+          val proxiedSegmentUrl = proxyTargetUrl(token, session, "segment", resolvedSegmentUrl)
           rewrittenLines.add(proxiedSegmentUrl)
         }
       }
@@ -484,6 +486,42 @@ class HlsStreamingProxy private constructor() :
     val resolved = base.resolve(cleanRelative)
     return resolved?.toString() ?: cleanRelative
   }
+
+  private fun proxyTargetUrl(
+    sessionToken: String,
+    session: HlsSession,
+    route: String,
+    targetUrl: String,
+  ): String = "/hls/$sessionToken/$route?r=${registerTarget(session, targetUrl)}"
+
+  private fun registerTarget(
+    session: HlsSession,
+    targetUrl: String,
+  ): String =
+    synchronized(session) {
+      session.targetTokensByUrl[targetUrl]?.let { existingToken ->
+        session.targetUrlsByToken[existingToken]
+        return@synchronized existingToken
+      }
+      var token: String
+      do {
+        token = generateToken()
+      } while (session.targetUrlsByToken.containsKey(token))
+      session.targetUrlsByToken[token] = targetUrl
+      session.targetTokensByUrl[targetUrl] = token
+      while (session.targetUrlsByToken.size > MAX_TARGETS_PER_SESSION) {
+        val iterator = session.targetUrlsByToken.entries.iterator()
+        val eldest = iterator.next()
+        iterator.remove()
+        session.targetTokensByUrl.remove(eldest.value)
+      }
+      token
+    }
+
+  private fun resolveTarget(
+    session: HlsSession,
+    token: String,
+  ): String? = synchronized(session) { session.targetUrlsByToken[token] }
 
   /**
    * Manifest-supplied targets are attacker-influenced and may point at any host, so the session's
@@ -572,14 +610,4 @@ class HlsStreamingProxy private constructor() :
     random.nextBytes(bytes)
     return Base64.getUrlEncoder().withoutPadding().encodeToString(bytes)
   }
-
-  private fun encodeUrl(url: String): String =
-    URLEncoder.encode(url, StandardCharsets.UTF_8.name())
-
-  private fun decodeUrl(encoded: String): String =
-    try {
-      URLDecoder.decode(encoded, StandardCharsets.UTF_8.name())
-    } catch (_: Exception) {
-      encoded
-    }
 }

@@ -10,9 +10,15 @@
 package com.quantummpv.app.database.entities
 
 import androidx.room.Entity
+import androidx.room.Index
 import androidx.room.PrimaryKey
 
-@Entity
+@Entity(
+  indices = [
+    Index(value = ["xtreamAccountKey"], unique = true),
+    Index(value = ["xtreamServerUrl", "xtreamUsername"]),
+  ],
+)
 data class PlaylistEntity(
   @PrimaryKey(autoGenerate = true) val id: Int = 0,
   val name: String,
@@ -22,4 +28,9 @@ data class PlaylistEntity(
   val isM3uPlaylist: Boolean = false, // True if this playlist was created from an M3U source
   val userAgent: String? = null, // Custom User-Agent for fetching this M3U
   val isAudio: Boolean = false, // True if this playlist was created in music mode
+  val isXtreamPlaylist: Boolean = false,
+  val xtreamAccountKey: String? = null,
+  val xtreamServerUrl: String? = null,
+  val xtreamUsername: String? = null,
+  val xtreamEncryptedPassword: String? = null,
 )

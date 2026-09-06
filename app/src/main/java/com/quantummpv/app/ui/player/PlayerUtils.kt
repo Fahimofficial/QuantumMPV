@@ -16,6 +16,7 @@ import android.provider.DocumentsContract
 import android.provider.MediaStore
 import android.util.Log
 import com.quantummpv.app.domain.network.NetworkPlaybackUri
+import com.quantummpv.app.domain.network.XtreamPlaybackUri
 import com.quantummpv.app.ui.player.PlayerActivity.Companion.TAG
 import `is`.xyz.mpv.MPVNode
 import `is`.xyz.mpv.Utils
@@ -248,7 +249,7 @@ internal fun Uri.resolveUri(
         ?: if (allowFdFallback) null else toString()
     "data" -> "data://$schemeSpecificPart"
     "magnet", "torrent" -> toString()
-    NetworkPlaybackUri.SCHEME -> toString()
+    NetworkPlaybackUri.SCHEME, XtreamPlaybackUri.SCHEME -> toString()
     in Utils.PROTOCOLS -> toString()
     else -> {
       Log.e(TAG, "Unsupported URI scheme: $scheme")

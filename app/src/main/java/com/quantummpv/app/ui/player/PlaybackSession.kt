@@ -18,7 +18,9 @@ import android.util.Log
 import android.view.Surface
 import com.quantummpv.app.data.network.proxy.HlsStreamingProxy
 import com.quantummpv.app.data.network.proxy.NetworkStreamingProxy
+import com.quantummpv.app.data.network.proxy.XtreamStreamingProxy
 import com.quantummpv.app.domain.network.NetworkPlaybackUri
+import com.quantummpv.app.domain.network.XtreamPlaybackUri
 import com.quantummpv.app.preferences.MpvConfigOverridePolicy
 import `is`.xyz.mpv.MPVLib
 import `is`.xyz.mpv.MPVNode
@@ -121,6 +123,7 @@ object PlaybackSession : MPVLib.EventObserver {
   private data class NetworkStreamRegistration(
     val proxy: NetworkStreamingProxy? = null,
     val hlsProxy: HlsStreamingProxy? = null,
+    val xtreamProxy: XtreamStreamingProxy? = null,
     val streamId: String,
   )
 
@@ -1636,6 +1639,20 @@ object PlaybackSession : MPVLib.EventObserver {
   }
 
   private fun resolvePlayableUri(item: PlaybackItem): ResolvedPlayable {
+    val xtreamReference = XtreamPlaybackUri.parse(item.playableUri)
+    if (xtreamReference != null) {
+      val proxy = XtreamStreamingProxy.getInstance()
+      val streamId = "xtream-${streamSequence.incrementAndGet()}"
+      val uri =
+        proxy.registerStream(
+          streamId = streamId,
+          reference = xtreamReference,
+          headers = item.headers,
+          mimeType = item.mimeType ?: "application/octet-stream",
+        )
+      return ResolvedPlayable(uri, NetworkStreamRegistration(xtreamProxy = proxy, streamId = streamId))
+    }
+
     val reference =
       NetworkPlaybackUri.parse(item.playableUri)
         ?: item.networkSource?.let { source ->
@@ -1713,6 +1730,7 @@ object PlaybackSession : MPVLib.EventObserver {
     runCatching {
       registration.proxy?.unregisterStream(registration.streamId)
       registration.hlsProxy?.unregisterStream(registration.streamId)
+      registration.xtreamProxy?.unregisterStream(registration.streamId)
     }.onFailure { error -> Log.w(TAG, "Failed to release network stream", error) }
   }
 
