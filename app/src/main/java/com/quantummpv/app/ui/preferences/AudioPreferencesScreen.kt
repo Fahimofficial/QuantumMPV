@@ -47,6 +47,8 @@ import com.quantummpv.app.preferences.AudioChannels
 import com.quantummpv.app.preferences.AudioPlayerOrientation
 import com.quantummpv.app.preferences.AudioPreferences
 import com.quantummpv.app.preferences.LyricsTranslationDisplayMode
+import com.quantummpv.app.preferences.MediaServerPreferences
+import com.quantummpv.app.preferences.MusicSourceProvider
 import com.quantummpv.app.data.lyrics.LyricsLanguageOptions
 import com.quantummpv.app.preferences.AudioVisualizerStyle
 import com.quantummpv.app.preferences.BrowserPreferences
@@ -263,6 +265,35 @@ object AudioPreferencesScreen : Screen {
                   style = MaterialTheme.typography.bodyMedium,
                 )
               }
+
+              PreferenceDivider()
+              val mediaServerPreferences = koinInject<MediaServerPreferences>()
+              val musicSourceProvider by mediaServerPreferences.musicSourceProvider.collectAsState()
+              ListPreference(
+                modifier = Modifier.settingsSearchTarget(R.string.pref_music_player_switch_title),
+                value = musicSourceProvider,
+                onValueChange = { mediaServerPreferences.musicSourceProvider.set(it) },
+                values = listOf(MusicSourceProvider.LOCAL, MusicSourceProvider.JELLYFIN),
+                valueToText = { source ->
+                  AnnotatedString(
+                    when (source) {
+                      MusicSourceProvider.LOCAL -> context.getString(R.string.music_source_local)
+                      MusicSourceProvider.JELLYFIN -> context.getString(R.string.music_source_jellyfin)
+                    },
+                  )
+                },
+                title = { Text(stringResource(R.string.pref_music_player_switch_title)) },
+                summary = {
+                  Text(
+                    text =
+                      when (musicSourceProvider) {
+                        MusicSourceProvider.LOCAL -> stringResource(R.string.music_source_local)
+                        MusicSourceProvider.JELLYFIN -> stringResource(R.string.music_source_jellyfin)
+                      },
+                    color = MaterialTheme.colorScheme.outline,
+                  )
+                },
+              )
             }
           }
 

@@ -18,6 +18,7 @@ import com.quantummpv.app.preferences.DecoderPreferences
 import com.quantummpv.app.preferences.DownloadPreferences
 import com.quantummpv.app.preferences.FoldersPreferences
 import com.quantummpv.app.preferences.GesturePreferences
+import com.quantummpv.app.preferences.MediaServerPreferences
 import com.quantummpv.app.preferences.NetworkBookmarkPreferences
 import com.quantummpv.app.preferences.PlayerPreferences
 import com.quantummpv.app.preferences.SecureFolderPreferences
@@ -51,5 +52,6 @@ val PreferencesModule =
     singleOf(::SettingsManager)
     singleOf(::SecureFolderPreferences)
     singleOf(::SeerrPreferences)
+    singleOf(::MediaServerPreferences)
     singleOf(::DownloadPreferences)
   }
