@@ -10,6 +10,7 @@
 package app.gyrolet.mpvrx.repository
 
 import android.util.Log
+import app.gyrolet.mpvrx.data.network.ServerUrlUtils
 import app.gyrolet.mpvrx.domain.seerr.ApproveRequestBody
 import app.gyrolet.mpvrx.domain.seerr.CreateRequestBody
 import app.gyrolet.mpvrx.domain.seerr.DiscoverSlider
@@ -79,22 +80,7 @@ class SeerrRepository(
     .build()
 
   fun generateCandidateUrls(input: String): List<String> {
-    val trimmed = input.trim().removeSuffix("/")
-    if (trimmed.isBlank()) return emptyList()
-    val hasScheme = trimmed.startsWith("http://", ignoreCase = true) || trimmed.startsWith("https://", ignoreCase = true)
-    val withScheme = if (hasScheme) trimmed else "http://$trimmed"
-    val uri = runCatching { URI(withScheme) }.getOrNull()
-    val host = uri?.host?.takeIf { it.isNotBlank() } ?: trimmed
-    val port = uri?.port ?: -1
-    val scheme = if (hasScheme) uri?.scheme else null
-
-    return when {
-      hasScheme && port != -1 -> listOf(trimmed)
-      !hasScheme && port != -1 -> listOf("https://$trimmed", "http://$trimmed")
-      hasScheme && scheme.equals("https", ignoreCase = true) -> listOf(trimmed, "https://$host:5055")
-      hasScheme && scheme.equals("http", ignoreCase = true) -> listOf(trimmed, "http://$host:5055")
-      else -> listOf("https://$host", "https://$host:5055", "http://$host:5055", "http://$host")
-    }
+    return ServerUrlUtils.generateCandidateUrls(input, defaultPort = 5055)
   }
 
   suspend fun verifyServer(url: String): Boolean = withContext(Dispatchers.IO) {

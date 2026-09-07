@@ -14,6 +14,7 @@ import androidx.compose.animation.expandVertically
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.shrinkVertically
+import app.gyrolet.mpvrx.data.network.ServerUrlUtils
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -193,7 +194,7 @@ fun SharedAddServerDialog(
             }
           }
         },
-        supportingText = { Text("HTTPS will be tried first automatically") },
+        supportingText = { Text(ServerUrlUtils.getConnectionHint(serverUrl)) },
         singleLine = true,
         shape = RoundedCornerShape(16.dp),
         modifier = Modifier.fillMaxWidth(),

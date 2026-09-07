@@ -10,6 +10,7 @@
 package app.gyrolet.mpvrx.ui.browser.jellyfin.seerr
 
 import androidx.compose.animation.AnimatedVisibility
+import app.gyrolet.mpvrx.data.network.ServerUrlUtils
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -343,6 +344,7 @@ fun SeerrConnectionDialog(
           Icon(Icons.RoundedFilled.Language, contentDescription = null)
         },
         singleLine = true,
+        supportingText = { Text(ServerUrlUtils.getConnectionHint(serverUrl)) },
         shape = RoundedCornerShape(12.dp),
         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Uri, imeAction = ImeAction.Next),
         modifier = Modifier.fillMaxWidth(),
@@ -446,8 +448,10 @@ fun SeerrConnectionDialog(
           shape = RoundedCornerShape(12.dp),
           keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password, imeAction = ImeAction.Done),
           keyboardActions = KeyboardActions(onDone = {
-            if (serverUrl.isNotBlank() && username.isNotBlank()) {
-              onConnectWithCredentials(serverUrl, username, password, authType == SeerrAuthType.JELLYFIN)
+            val trimmedUrl = serverUrl.trim()
+            val trimmedUser = username.trim()
+            if (trimmedUrl.isNotBlank() && trimmedUser.isNotBlank()) {
+              onConnectWithCredentials(trimmedUrl, trimmedUser, password, authType == SeerrAuthType.JELLYFIN)
             }
           }),
           modifier = Modifier.fillMaxWidth(),
@@ -487,10 +491,11 @@ fun SeerrConnectionDialog(
 
       Button(
         onClick = {
+          val trimmedUrl = serverUrl.trim()
           if (authType == SeerrAuthType.API_KEY) {
-            onConnectWithApiKey(serverUrl, apiKey)
+            onConnectWithApiKey(trimmedUrl, apiKey.trim())
           } else {
-            onConnectWithCredentials(serverUrl, username, password, authType == SeerrAuthType.JELLYFIN)
+            onConnectWithCredentials(trimmedUrl, username.trim(), password, authType == SeerrAuthType.JELLYFIN)
           }
         },
         enabled = !isConnecting && serverUrl.isNotBlank() && (

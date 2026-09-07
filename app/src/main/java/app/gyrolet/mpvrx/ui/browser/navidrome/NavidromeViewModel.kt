@@ -18,6 +18,7 @@ import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
 import app.gyrolet.mpvrx.data.navidrome.NavidromeClient
+import app.gyrolet.mpvrx.data.network.ServerUrlUtils
 import app.gyrolet.mpvrx.data.navidrome.NavidromeSearchResult
 import app.gyrolet.mpvrx.domain.navidrome.NavidromeAlbum
 import app.gyrolet.mpvrx.domain.navidrome.NavidromeArtist
@@ -476,26 +477,40 @@ class NavidromeViewModel(
         runCatching { Uri.parse(cleanUrl).host.orEmpty() }.getOrDefault("").ifBlank { "Navidrome ($effectiveUsername)" }
       }
 
-      val candidateServer = NavidromeServer(
-        id = existingServer?.id ?: 0,
-        name = displayName,
-        serverUrl = cleanUrl,
-        username = effectiveUsername,
-        password = password,
-        token = token,
-        authMode = authMode,
-        lastConnected = System.currentTimeMillis(),
-      )
+      val candidateUrls = ServerUrlUtils.generateCandidateUrls(cleanUrl, defaultPort = 4533)
+      val urlsToTry = if (candidateUrls.isNotEmpty()) candidateUrls else listOf(cleanUrl)
 
-      val pingResult = navidromeRepository.ping(candidateServer)
-      if (pingResult.isSuccess) {
+      var successfulServer: NavidromeServer? = null
+      var lastError: String? = null
+
+      for (candUrl in urlsToTry) {
+        val testServer = NavidromeServer(
+          id = existingServer?.id ?: 0,
+          name = displayName,
+          serverUrl = candUrl,
+          username = effectiveUsername,
+          password = password,
+          token = token,
+          authMode = authMode,
+          lastConnected = System.currentTimeMillis(),
+        )
+        val pingResult = navidromeRepository.ping(testServer)
+        if (pingResult.isSuccess) {
+          successfulServer = testServer
+          break
+        } else {
+          lastError = pingResult.exceptionOrNull()?.message
+        }
+      }
+
+      if (successfulServer != null) {
         val savedId = if (existingServer != null) {
-          navidromeRepository.updateServer(candidateServer)
+          navidromeRepository.updateServer(successfulServer)
           existingServer.id
         } else {
-          navidromeRepository.saveServer(candidateServer)
+          navidromeRepository.saveServer(successfulServer)
         }
-        val savedServer = candidateServer.copy(id = savedId)
+        val savedServer = successfulServer.copy(id = savedId)
         _uiState.update {
           it.copy(
             isConnectingServer = false,
@@ -508,7 +523,7 @@ class NavidromeViewModel(
           onSuccess()
         }
       } else {
-        val err = pingResult.exceptionOrNull()?.message ?: "Failed to connect to Navidrome server"
+        val err = lastError ?: "Failed to connect to Navidrome server"
         _uiState.update {
           it.copy(isConnectingServer = false, connectServerError = err)
         }
