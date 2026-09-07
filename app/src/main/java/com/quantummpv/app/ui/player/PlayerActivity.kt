@@ -7055,7 +7055,7 @@ private suspend fun restorePlaybackPosition(state: PlaybackStateEntity?) {
 
     val uri = playlist[index]
     val playableUri = uri.openContentFd(this, allowFdFallback = false) ?: uri.toString()
-    currentPlayableUri = uri.toString()
+    currentPlayableUri = playableUri
     val persistedNetworkReference = NetworkPlaybackUri.parse(uri.toString())
     val networkFilePath =
       networkPlaylistPaths.getOrNull(index)?.takeIf { it.isNotBlank() }
