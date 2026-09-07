@@ -510,11 +510,6 @@ fun PlayerSheets(
     }
 
     Sheets.Playlist -> {
-      // Refresh playlist items when sheet is shown
-      LaunchedEffect(Unit) {
-        viewModel.refreshPlaylistItems()
-      }
-
       // Observe playlist updates
       val playlist by viewModel.playlistItems.collectAsState()
       val isAudioOnly by viewModel.isAudioOnly.collectAsState()
@@ -600,4 +595,3 @@ fun PlayerSheets(
     }
   }
 }
-
