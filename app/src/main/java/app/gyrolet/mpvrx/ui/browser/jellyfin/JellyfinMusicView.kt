@@ -93,6 +93,7 @@ fun JellyfinMusicView(
 ) {
   val browserPreferences = koinInject<BrowserPreferences>()
   val coverArtSizeDp by browserPreferences.musicCoverArtSize.collectAsState()
+  val gridCoverArtSizeDp by browserPreferences.musicGridCoverArtSize.collectAsState()
   val queueState by PlaybackSession.queue.collectAsStateWithLifecycle()
   val currentSessionItem = queueState.currentItem
 
@@ -151,7 +152,7 @@ fun JellyfinMusicView(
 
             if (uiState.musicViewMode == MusicViewMode.GRID) {
               LazyVerticalGrid(
-                columns = GridCells.Adaptive(minSize = 145.dp),
+                columns = GridCells.Adaptive(minSize = gridCoverArtSizeDp.dp),
                 modifier = Modifier.fillMaxSize(),
                 contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 16.dp, bottom = navigationBarHeight + 84.dp),
                 horizontalArrangement = Arrangement.spacedBy(14.dp),
@@ -253,7 +254,7 @@ fun JellyfinMusicView(
 
             if (uiState.musicViewMode == MusicViewMode.GRID) {
               LazyVerticalGrid(
-                columns = GridCells.Adaptive(minSize = 145.dp),
+                columns = GridCells.Adaptive(minSize = gridCoverArtSizeDp.dp),
                 modifier = Modifier.fillMaxSize(),
                 contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 16.dp, bottom = navigationBarHeight + 84.dp),
                 horizontalArrangement = Arrangement.spacedBy(14.dp),
@@ -333,7 +334,7 @@ fun JellyfinMusicView(
 
             if (uiState.musicViewMode == MusicViewMode.GRID) {
               LazyVerticalGrid(
-                columns = GridCells.Adaptive(minSize = 160.dp),
+                columns = GridCells.Adaptive(minSize = (gridCoverArtSizeDp * 1.1f).toInt().dp),
                 modifier = Modifier.fillMaxSize(),
                 contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 16.dp, bottom = navigationBarHeight + 84.dp),
                 horizontalArrangement = Arrangement.spacedBy(16.dp),
@@ -417,7 +418,7 @@ fun JellyfinMusicView(
 
             if (uiState.musicViewMode == MusicViewMode.GRID) {
               LazyVerticalGrid(
-                columns = GridCells.Adaptive(minSize = 145.dp),
+                columns = GridCells.Adaptive(minSize = gridCoverArtSizeDp.dp),
                 modifier = Modifier.fillMaxSize(),
                 contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 16.dp, bottom = navigationBarHeight + 84.dp),
                 horizontalArrangement = Arrangement.spacedBy(14.dp),

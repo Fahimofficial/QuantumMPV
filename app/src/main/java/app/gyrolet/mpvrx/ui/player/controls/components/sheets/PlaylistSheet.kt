@@ -226,12 +226,13 @@ private fun PlaylistThumbnail(
   }
 
   val currentImageBitmap = remember(bitmap) { bitmap?.asImageBitmap() }
+  val isEdgeToEdge = item.isAudio || isYouTubeArtwork
   if (hasArtwork) {
     RemoteImage(
       url = item.tvgLogo,
       contentDescription = contentDescription,
-      contentScale = if (isYouTubeArtwork) ContentScale.Crop else contentScale,
-      modifier = if (isYouTubeArtwork) modifier else modifier.padding(4.dp),
+      contentScale = if (isEdgeToEdge) ContentScale.Crop else contentScale,
+      modifier = if (isEdgeToEdge) modifier else modifier.padding(4.dp),
     )
   } else if (currentImageBitmap != null) {
     androidx.compose.foundation.Image(

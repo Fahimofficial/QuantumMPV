@@ -232,6 +232,7 @@ fun MusicLibraryContent(
   val folderSortType by browserPreferences.folderSortType.collectAsState()
   val folderSortOrder by browserPreferences.folderSortOrder.collectAsState()
   val coverArtSizeDp by browserPreferences.musicCoverArtSize.collectAsState()
+  val gridCoverArtSizeDp by browserPreferences.musicGridCoverArtSize.collectAsState()
 
   val isRefreshing = remember { mutableStateOf(false) }
   var isSearchActive by remember { mutableStateOf(false) }
@@ -933,6 +934,7 @@ fun MusicLibraryContent(
                 recentlyPlayedFilePath = recentlyPlayedFilePath,
                 isPlaybackActive = isPlaybackActive,
                 coverArtSizeDp = coverArtSizeDp,
+                gridCoverArtSizeDp = gridCoverArtSizeDp,
                 onSongClick = { song ->
                   if (songSelectionManager.isInSelectionMode) {
                     songSelectionManager.toggle(song)
@@ -952,6 +954,7 @@ fun MusicLibraryContent(
                 albums = albums,
                 viewMode = viewMode,
                 coverArtSizeDp = coverArtSizeDp,
+                gridCoverArtSizeDp = gridCoverArtSizeDp,
                 onAlbumClick = { album ->
                   if (albumSelectionManager.isInSelectionMode) {
                     albumSelectionManager.toggle(album)
@@ -971,6 +974,7 @@ fun MusicLibraryContent(
                 artists = artists,
                 viewMode = viewMode,
                 coverArtSizeDp = coverArtSizeDp,
+                gridCoverArtSizeDp = gridCoverArtSizeDp,
                 onArtistClick = { artist ->
                   if (artistSelectionManager.isInSelectionMode) {
                     artistSelectionManager.toggle(artist)
@@ -991,6 +995,7 @@ fun MusicLibraryContent(
                 songs = songs,
                 viewMode = viewMode,
                 coverArtSizeDp = coverArtSizeDp.dp,
+                gridCoverArtSizeDp = gridCoverArtSizeDp,
                 onPlaylistClick = { playlist ->
                   if (playlistSelectionManager.isInSelectionMode) {
                     playlistSelectionManager.toggle(playlist)
@@ -1544,6 +1549,7 @@ private fun SongsTabContent(
   recentlyPlayedFilePath: String?,
   isPlaybackActive: Boolean = false,
   coverArtSizeDp: Int = 48,
+  gridCoverArtSizeDp: Int = 145,
   onSongClick: (MusicSong) -> Unit,
   onSongLongClick: (MusicSong) -> Unit,
   selectionManager: app.gyrolet.mpvrx.ui.browser.selection.SelectionManager<MusicSong, Long>,
@@ -1572,7 +1578,7 @@ private fun SongsTabContent(
     if (viewMode == MusicViewMode.GRID) {
       LazyVerticalGrid(
         state = gridState,
-        columns = GridCells.Adaptive(minSize = 145.dp),
+        columns = GridCells.Adaptive(minSize = gridCoverArtSizeDp.dp),
         modifier = Modifier.fillMaxSize(),
         contentPadding = PaddingValues(start = 16.dp, top = 16.dp, end = 16.dp, bottom = navBarHeight + 16.dp),
         verticalArrangement = Arrangement.spacedBy(14.dp),
@@ -1749,6 +1755,7 @@ private fun AlbumsTabContent(
   albums: List<MusicAlbum>,
   viewMode: MusicViewMode,
   coverArtSizeDp: Int = 48,
+  gridCoverArtSizeDp: Int = 145,
   onAlbumClick: (MusicAlbum) -> Unit,
   onAlbumLongClick: (MusicAlbum) -> Unit,
   selectionManager: app.gyrolet.mpvrx.ui.browser.selection.SelectionManager<MusicAlbum, Long>,
@@ -1764,7 +1771,7 @@ private fun AlbumsTabContent(
   if (viewMode == MusicViewMode.GRID) {
     LazyVerticalGrid(
       state = gridState,
-      columns = GridCells.Adaptive(minSize = 145.dp),
+      columns = GridCells.Adaptive(minSize = gridCoverArtSizeDp.dp),
       modifier = Modifier.fillMaxSize(),
       contentPadding = PaddingValues(start = 16.dp, top = 16.dp, end = 16.dp, bottom = navBarHeight + 16.dp),
       verticalArrangement = Arrangement.spacedBy(14.dp),
@@ -1973,6 +1980,7 @@ private fun ArtistsTabContent(
   artists: List<MusicArtist>,
   viewMode: MusicViewMode,
   coverArtSizeDp: Int = 48,
+  gridCoverArtSizeDp: Int = 145,
   onArtistClick: (MusicArtist) -> Unit,
   onArtistLongClick: (MusicArtist) -> Unit,
   selectionManager: app.gyrolet.mpvrx.ui.browser.selection.SelectionManager<MusicArtist, Long>,
@@ -1988,7 +1996,7 @@ private fun ArtistsTabContent(
   if (viewMode == MusicViewMode.GRID) {
     LazyVerticalGrid(
       state = gridState,
-      columns = GridCells.Adaptive(minSize = 160.dp),
+      columns = GridCells.Adaptive(minSize = (gridCoverArtSizeDp * 1.1f).toInt().dp),
       modifier = Modifier.fillMaxSize(),
       contentPadding = PaddingValues(start = 16.dp, top = 16.dp, end = 16.dp, bottom = navBarHeight + 16.dp),
       verticalArrangement = Arrangement.spacedBy(16.dp),
@@ -2476,6 +2484,7 @@ private fun PlaylistsTabContent(
   songs: List<MusicSong>,
   viewMode: MusicViewMode,
   coverArtSizeDp: Dp = 52.dp,
+  gridCoverArtSizeDp: Int = 145,
   onPlaylistClick: (PlaylistEntity) -> Unit,
   onPlaylistLongClick: (PlaylistEntity) -> Unit,
   selectionManager: app.gyrolet.mpvrx.ui.browser.selection.SelectionManager<PlaylistEntity, Long>,
@@ -2518,7 +2527,7 @@ private fun PlaylistsTabContent(
       if (viewMode == MusicViewMode.GRID) {
         LazyVerticalGrid(
           state = gridState,
-          columns = GridCells.Adaptive(minSize = 145.dp),
+          columns = GridCells.Adaptive(minSize = gridCoverArtSizeDp.dp),
           modifier = Modifier.fillMaxSize(),
           contentPadding = PaddingValues(start = 16.dp, top = 16.dp, end = 16.dp, bottom = navBarHeight + 16.dp),
           verticalArrangement = Arrangement.spacedBy(14.dp),

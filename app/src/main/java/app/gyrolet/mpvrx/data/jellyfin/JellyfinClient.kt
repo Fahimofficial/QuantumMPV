@@ -14,6 +14,7 @@ import android.net.Uri
 import android.os.Build
 import android.util.Log
 import app.gyrolet.mpvrx.BuildConfig
+import app.gyrolet.mpvrx.data.network.ServerUrlUtils
 import app.gyrolet.mpvrx.domain.jellyfin.JellyfinAuthResult
 import app.gyrolet.mpvrx.domain.jellyfin.JellyfinItem
 import app.gyrolet.mpvrx.domain.jellyfin.JellyfinUser
@@ -87,35 +88,14 @@ class JellyfinClient(
 
     private val JSON_MEDIA_TYPE = "application/json; charset=utf-8".toMediaType()
 
-    private fun isLocalHostOrIp(host: String): Boolean {
-      val h = host.substringBefore(":").substringBefore("/")
-      return h.equals("localhost", ignoreCase = true) ||
-        h == "127.0.0.1" ||
-        h.startsWith("192.168.") ||
-        h.startsWith("10.") ||
-        (h.startsWith("172.") && (h.substringAfter("172.").substringBefore(".").toIntOrNull() in 16..31)) ||
-        h.endsWith(".local", ignoreCase = true) ||
-        h.endsWith(".lan", ignoreCase = true)
-    }
+    fun isLocalHostOrIp(host: String): Boolean =
+      ServerUrlUtils.isLocalOrPrivateHost(host)
 
-    fun normalizeUrlCandidates(rawUrl: String): List<String> {
-      val trimmed = rawUrl.trim().removeSuffix("/")
-      if (trimmed.startsWith("http://", ignoreCase = true) || trimmed.startsWith("https://", ignoreCase = true)) {
-        return listOf(trimmed)
-      }
-      val clean = trimmed.removePrefix("//")
-      val port = clean.substringAfterLast(":", "").substringBefore("/").toIntOrNull()
-      val isLocal = isLocalHostOrIp(clean)
-      return if (isLocal || port == 80 || port == 8096) {
-        listOf("http://$clean", "https://$clean")
-      } else {
-        listOf("https://$clean", "http://$clean")
-      }
-    }
+    fun normalizeUrlCandidates(rawUrl: String): List<String> =
+      ServerUrlUtils.generateCandidateUrls(rawUrl, defaultPort = 8096)
 
-    fun normalizeUrl(rawUrl: String): String {
-      return normalizeUrlCandidates(rawUrl).first()
-    }
+    fun normalizeUrl(rawUrl: String): String =
+      ServerUrlUtils.normalizeUrl(rawUrl, defaultPort = 8096)
 
     fun authHeader(token: String? = null, context: Context? = null): String {
       val deviceId = getDeviceId(context)
