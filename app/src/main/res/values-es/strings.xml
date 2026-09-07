@@ -1340,7 +1340,8 @@ Reinicia la aplicación para que se apliquen todos los cambios.</string>
   <string name="ui_clear_loop">Borrar bucle</string>
   <string name="ui_ambience_mode">Modo ambiental</string>
   <string name="ui_time_and_network">Hora y red</string>
-  <string name="ui_slide_to_unlock">Desliza para desbloquear</string>
+  <string name="ui_unlock_controls">Desbloquear controles</string>
+  <string name="player_press_back_again_to_unlock">Pulsa Atrás de nuevo para desbloquear los controles</string>
   <string name="ui_hdr_output">Salida HDR</string>
   <string name="ui_hdr_cannot_be_enabled">No se puede activar HDR</string>
   <string name="ui_enable_gpu_next_and_vulkan_before_using_hdr_modes">Activa GPU Next y Vulkan antes de usar los modos HDR</string>

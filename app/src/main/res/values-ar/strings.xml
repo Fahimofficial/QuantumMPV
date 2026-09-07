@@ -1340,7 +1340,8 @@
   <string name="ui_clear_loop">مسح التكرار</string>
   <string name="ui_ambience_mode">وضع الإضاءة المحيطية</string>
   <string name="ui_time_and_network">الوقت والشبكة</string>
-  <string name="ui_slide_to_unlock">اسحب لإلغاء القفل</string>
+  <string name="ui_unlock_controls">إلغاء قفل عناصر التحكم</string>
+  <string name="player_press_back_again_to_unlock">اضغط على رجوع مرة أخرى لإلغاء قفل عناصر التحكم</string>
   <string name="ui_hdr_output">إخراج HDR</string>
   <string name="ui_hdr_cannot_be_enabled">لا يمكن تفعيل HDR</string>
   <string name="ui_enable_gpu_next_and_vulkan_before_using_hdr_modes">فعّل GPU Next وVulkan قبل استخدام أوضاع HDR</string>

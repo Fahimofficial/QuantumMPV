@@ -332,6 +332,7 @@ class PlayerActivity :
   private var activeSaveMediaIdentifier: String = ""
 
   private var pendingBackgroundPlaybackStart = false
+  private var lastLockedControlsBackPressAtMs = 0L
 
   /**
    * Playlist of URIs for sequential playback
@@ -954,6 +955,8 @@ class PlayerActivity :
       return
     }
 
+    if (handleLockedControlsBackPress()) return
+
     if (isTelevision && viewModel.controlsShown.value) {
       viewModel.hideControls()
       return
@@ -1005,6 +1008,32 @@ class PlayerActivity :
 
     isUserFinishing = true
     finish()
+  }
+
+  private fun handleLockedControlsBackPress(): Boolean {
+    if (!viewModel.areControlsLocked.value) {
+      lastLockedControlsBackPressAtMs = 0L
+      return false
+    }
+
+    val now = android.os.SystemClock.elapsedRealtime()
+    val isSecondPress =
+      lastLockedControlsBackPressAtMs != 0L &&
+        now - lastLockedControlsBackPressAtMs <= LOCKED_CONTROLS_DOUBLE_BACK_TIMEOUT_MS
+
+    if (isSecondPress) {
+      lastLockedControlsBackPressAtMs = 0L
+      viewModel.unlockControls()
+    } else {
+      lastLockedControlsBackPressAtMs = now
+      viewModel.showControls()
+      Toast.makeText(
+        this,
+        R.string.player_press_back_again_to_unlock,
+        Toast.LENGTH_SHORT,
+      ).show()
+    }
+    return true
   }
 
   private fun setupPlayerControls() {
@@ -8088,6 +8117,7 @@ private suspend fun restorePlaybackPosition(state: PlaybackStateEntity?) {
     private const val PLAYBACK_LOAD_ERROR_SETTLE_MS = 300L
     private const val MAX_PLAYBACK_LOAD_RETRIES = 1
     private const val DEFERRED_MPV_ASSET_SYNC_DELAY_MS = 5_000L
+    private const val LOCKED_CONTROLS_DOUBLE_BACK_TIMEOUT_MS = 2_000L
     private const val MPV_ASSET_SYNC_PREFERENCES = "mpv_asset_sync"
     private const val USER_MPV_ASSET_SELECTION = "user_mpv_asset_selection_v1"
     private val deferredUserMpvAssetRefreshStarted = AtomicBoolean(false)
