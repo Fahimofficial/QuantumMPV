@@ -754,6 +754,78 @@ val MIGRATION_18_19 =
     }
   }
 
+val MIGRATION_19_20 =
+  object : Migration(19, 20) {
+    override fun migrate(db: SupportSQLiteDatabase) {
+      db.execSQL(
+        "CREATE TABLE IF NOT EXISTS `navidrome_servers` (" +
+          "`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, " +
+          "`name` TEXT NOT NULL, " +
+          "`serverUrl` TEXT NOT NULL, " +
+          "`username` TEXT NOT NULL, " +
+          "`password` TEXT NOT NULL, " +
+          "`token` TEXT NOT NULL DEFAULT '', " +
+          "`authMode` TEXT NOT NULL DEFAULT 'CREDENTIALS', " +
+          "`lastConnected` INTEGER NOT NULL" +
+          ")",
+      )
+      try {
+        db.execSQL("ALTER TABLE `navidrome_servers` ADD COLUMN `token` TEXT NOT NULL DEFAULT ''")
+      } catch (_: Exception) {}
+      try {
+        db.execSQL("ALTER TABLE `navidrome_servers` ADD COLUMN `authMode` TEXT NOT NULL DEFAULT 'CREDENTIALS'")
+      } catch (_: Exception) {}
+    }
+  }
+
+val MIGRATION_20_21 =
+  object : Migration(20, 21) {
+    override fun migrate(db: SupportSQLiteDatabase) {
+      db.execSQL(
+        "CREATE TABLE IF NOT EXISTS `navidrome_servers` (" +
+          "`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, " +
+          "`name` TEXT NOT NULL, " +
+          "`serverUrl` TEXT NOT NULL, " +
+          "`username` TEXT NOT NULL, " +
+          "`password` TEXT NOT NULL, " +
+          "`token` TEXT NOT NULL DEFAULT '', " +
+          "`authMode` TEXT NOT NULL DEFAULT 'CREDENTIALS', " +
+          "`lastConnected` INTEGER NOT NULL" +
+          ")",
+      )
+      try {
+        db.execSQL("ALTER TABLE `navidrome_servers` ADD COLUMN `token` TEXT NOT NULL DEFAULT ''")
+      } catch (_: Exception) {}
+      try {
+        db.execSQL("ALTER TABLE `navidrome_servers` ADD COLUMN `authMode` TEXT NOT NULL DEFAULT 'CREDENTIALS'")
+      } catch (_: Exception) {}
+    }
+  }
+
+val MIGRATION_19_21 =
+  object : Migration(19, 21) {
+    override fun migrate(db: SupportSQLiteDatabase) {
+      db.execSQL(
+        "CREATE TABLE IF NOT EXISTS `navidrome_servers` (" +
+          "`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, " +
+          "`name` TEXT NOT NULL, " +
+          "`serverUrl` TEXT NOT NULL, " +
+          "`username` TEXT NOT NULL, " +
+          "`password` TEXT NOT NULL, " +
+          "`token` TEXT NOT NULL DEFAULT '', " +
+          "`authMode` TEXT NOT NULL DEFAULT 'CREDENTIALS', " +
+          "`lastConnected` INTEGER NOT NULL" +
+          ")",
+      )
+      try {
+        db.execSQL("ALTER TABLE `navidrome_servers` ADD COLUMN `token` TEXT NOT NULL DEFAULT ''")
+      } catch (_: Exception) {}
+      try {
+        db.execSQL("ALTER TABLE `navidrome_servers` ADD COLUMN `authMode` TEXT NOT NULL DEFAULT 'CREDENTIALS'")
+      } catch (_: Exception) {}
+    }
+  }
+
 val DatabaseModule =
   module {
     single<Json> {
@@ -787,6 +859,9 @@ val DatabaseModule =
           MIGRATION_16_17,
           MIGRATION_17_18,
           MIGRATION_18_19,
+          MIGRATION_19_20,
+          MIGRATION_20_21,
+          MIGRATION_19_21,
         ).build()
     }
 
@@ -871,6 +946,24 @@ val DatabaseModule =
 
     single {
       app.gyrolet.mpvrx.repository.JellyfinRepository(
+        dao = get(),
+        client = get(),
+      )
+    }
+
+    single {
+      get<MpvRxDatabase>().navidromeServerDao()
+    }
+
+    single {
+      app.gyrolet.mpvrx.data.navidrome.NavidromeClient(
+        httpClient = get(),
+        json = get(),
+      )
+    }
+
+    single {
+      app.gyrolet.mpvrx.repository.NavidromeRepository(
         dao = get(),
         client = get(),
       )

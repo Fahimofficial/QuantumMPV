@@ -103,6 +103,7 @@ import kotlinx.coroutines.launch
 import androidx.palette.graphics.Palette
 import app.gyrolet.mpvrx.database.repository.PlaylistRepository
 import app.gyrolet.mpvrx.repository.JellyfinRepository
+import app.gyrolet.mpvrx.repository.NavidromeRepository
 import app.gyrolet.mpvrx.domain.media.model.Video
 import app.gyrolet.mpvrx.ui.browser.dialogs.AddToPlaylistDialog
 import app.gyrolet.mpvrx.ui.player.resolveUri
@@ -577,9 +578,10 @@ fun AudioPlayerControls(
   val queueState by PlaybackSession.queue.collectAsStateWithLifecycle()
   val currentItem = playbackState.currentItem ?: queueState.currentItem
   val playlistItems by viewModel.playlistItems.collectAsState()
+  val isAudioOnly by viewModel.isAudioOnly.collectAsState()
   val filteredPlaylist =
-    remember(playlistItems) {
-      playlistItems.filter { it.isAudio }
+    remember(playlistItems, isAudioOnly) {
+      if (isAudioOnly) playlistItems else playlistItems.filter { it.isAudio }
     }
 
   var showInPlaceLyrics by rememberSaveable { mutableStateOf(false) }
@@ -817,6 +819,8 @@ fun AudioPlayerControls(
   val playlistRepository = koinInject<PlaylistRepository>()
   val jellyfinRepository = koinInject<JellyfinRepository>()
   val jellyfinServers by jellyfinRepository.allServers.collectAsState(initial = emptyList())
+  val navidromeRepository = koinInject<NavidromeRepository>()
+  val navidromeServers by navidromeRepository.allServers.collectAsState(initial = emptyList())
   val coroutineScope = rememberCoroutineScope()
   val activeTrackPath = mediaPath?.takeIf { it.isNotBlank() } ?: currentMediaSource
 
@@ -876,11 +880,59 @@ fun AudioPlayerControls(
     }
   }
 
+  val navidromeInfo = remember(activeTrackPath, mediaPath, currentMediaSource) {
+    val path = mediaPath?.takeIf { it.isNotBlank() } ?: activeTrackPath ?: currentMediaSource
+    if (path.isNullOrBlank()) null
+    else {
+      val uri = runCatching { Uri.parse(path) }.getOrNull()
+      if (uri == null) null
+      else {
+        if (uri.path?.contains("/rest/stream", ignoreCase = true) == true ||
+            uri.path?.contains("stream.view", ignoreCase = true) == true ||
+            uri.query?.contains("stream.view", ignoreCase = true) == true) {
+          val songId = uri.getQueryParameter("id")
+          val username = uri.getQueryParameter("u")
+          val scheme = uri.scheme ?: "http"
+          val authority = uri.encodedAuthority
+          val baseUrl = if (authority != null) "$scheme://$authority" else null
+          if (!songId.isNullOrBlank()) {
+            Triple(baseUrl, songId, username)
+          } else null
+        } else null
+      }
+    }
+  }
+
+  val activeNavidromeServer = remember(navidromeServers, navidromeInfo) {
+    if (navidromeInfo == null) null
+    else {
+      navidromeServers.firstOrNull { s ->
+        s.serverUrl.contains(runCatching { Uri.parse(navidromeInfo.first.orEmpty()).host.orEmpty() }.getOrDefault("")) ||
+          (!navidromeInfo.third.isNullOrBlank() && s.username == navidromeInfo.third)
+      } ?: navidromeServers.firstOrNull()
+    }
+  }
+
+  var navidromeFavoriteOverride by remember(activeTrackPath, mediaPath) { mutableStateOf<Boolean?>(null) }
+
+  LaunchedEffect(activeNavidromeServer, navidromeInfo?.second) {
+    val server = activeNavidromeServer
+    val songId = navidromeInfo?.second
+    if (server != null && !songId.isNullOrBlank()) {
+      val song = withContext(Dispatchers.IO) {
+        navidromeRepository.getSong(server, songId).getOrNull()
+      }
+      if (song != null) {
+        navidromeFavoriteOverride = song.isFavorite
+      }
+    }
+  }
+
   val isCurrentTrackFavoriteLocal by remember(activeTrackPath, mediaPath) {
     playlistRepository.observeIsFavorite((mediaPath?.takeIf { it.isNotBlank() } ?: activeTrackPath).orEmpty(), isAudio = true)
   }.collectAsState(initial = false)
 
-  val isCurrentTrackFavorite = jellyfinFavoriteOverride ?: isCurrentTrackFavoriteLocal
+  val isCurrentTrackFavorite = jellyfinFavoriteOverride ?: navidromeFavoriteOverride ?: isCurrentTrackFavoriteLocal
 
   val seekbarStyle by appearancePreferences.seekbarStyle.collectAsState()
   val invertDuration by playerPreferences.invertDuration.collectAsState()
@@ -894,8 +946,6 @@ fun AudioPlayerControls(
   LaunchedEffect(Unit) {
     viewModel.refreshPlaylistItems()
   }
-
-  val isAudioOnly by viewModel.isAudioOnly.collectAsState()
 
   val configuration = LocalConfiguration.current
   val isPortrait = configuration.orientation == Configuration.ORIENTATION_PORTRAIT
@@ -1504,6 +1554,8 @@ fun AudioPlayerControls(
                 val path = mediaPath?.takeIf { it.isNotBlank() } ?: activeTrackPath ?: return@ReactiveIconButton
                 val server = activeJellyfinServer
                 val itemId = jellyfinInfo?.second
+                val navServer = activeNavidromeServer
+                val navSongId = navidromeInfo?.second
                 val newFavState = !isCurrentTrackFavorite
 
                 coroutineScope.launch {
@@ -1514,6 +1566,13 @@ fun AudioPlayerControls(
                     jellyfinFavoriteOverride = newFavState
                     withContext(Dispatchers.IO) {
                       jellyfinRepository.toggleFavorite(server = server, itemId = itemId, isFavorite = newFavState)
+                    }
+                  }
+                  // Toggle Navidrome server favorite status via API if playing from Navidrome
+                  if (navServer != null && !navSongId.isNullOrBlank()) {
+                    navidromeFavoriteOverride = newFavState
+                    withContext(Dispatchers.IO) {
+                      navidromeRepository.toggleFavorite(server = navServer, songId = navSongId, isFavorite = newFavState)
                     }
                   }
                 }
@@ -2017,7 +2076,8 @@ fun AudioPlayerControls(
           (mediaPath.contains("api_key=", ignoreCase = true) ||
             mediaPath.contains("/Items/", ignoreCase = true) ||
             mediaPath.contains("/Audio/", ignoreCase = true) ||
-            mediaPath.contains("jellyfin", ignoreCase = true))
+            mediaPath.contains("jellyfin", ignoreCase = true) ||
+            mediaPath.contains("/rest/stream", ignoreCase = true))
       }
 
       AddToPlaylistDialog(

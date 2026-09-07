@@ -51,6 +51,12 @@ class BrowserPreferences(
   val networkSortOrder = preferenceStore.getEnum("network_sort_order", SortOrder.Ascending)
   val networkLayoutMode = preferenceStore.getEnum("network_layout_mode", MediaLayoutMode.LIST)
   val jellyfinLayoutMode = preferenceStore.getEnum("jellyfin_layout_mode", MediaLayoutMode.GRID)
+  val jellyfinMusicViewMode = preferenceStore.getEnum("jellyfin_music_view_mode", MusicViewMode.GRID)
+  val jellyfinMusicSortField = preferenceStore.getEnum("jellyfin_music_sort_field", MusicSortField.TITLE)
+  val jellyfinMusicSortOrder = preferenceStore.getEnum("jellyfin_music_sort_order", MusicSortOrder.ASCENDING)
+  val navidromeViewMode = preferenceStore.getEnum("navidrome_view_mode", MusicViewMode.GRID)
+  val navidromeSortField = preferenceStore.getEnum("navidrome_sort_field", MusicSortField.TITLE)
+  val navidromeSortOrder = preferenceStore.getEnum("navidrome_sort_order", MusicSortOrder.ASCENDING)
 
   val folderViewMode = preferenceStore.getEnum("folder_view_mode", FolderViewMode.AlbumView)
   val dualPaneForTablet = preferenceStore.getBoolean("dual_pane_for_tablet", true)

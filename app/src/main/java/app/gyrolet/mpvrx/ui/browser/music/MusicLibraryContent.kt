@@ -192,6 +192,7 @@ fun MusicLibraryContent(
   modifier: Modifier = Modifier,
   musicViewModel: MusicLibraryViewModel = viewModel(),
   jellyfinViewModel: JellyfinViewModel? = null,
+  navidromeViewModel: app.gyrolet.mpvrx.ui.browser.navidrome.NavidromeViewModel? = null,
 ) {
   val context = LocalContext.current
   val backStack = LocalBackStack.current
@@ -202,6 +203,10 @@ fun MusicLibraryContent(
       ?: viewModel(factory = JellyfinViewModel.factory(context.applicationContext as Application))
   val jellyfinUiState by jfViewModel.uiState.collectAsStateWithLifecycle()
   val hasJellyfinMusicLibrary = jellyfinUiState.hasMusicLibrary
+
+  val navidromeRepository = koinInject<app.gyrolet.mpvrx.repository.NavidromeRepository>()
+  val navidromeServers by navidromeRepository.allServers.collectAsState(initial = emptyList())
+  val hasNavidromeServer = navidromeServers.isNotEmpty()
 
   val selectedTab by musicViewModel.selectedTab.collectAsState()
   val searchQuery by musicViewModel.searchQuery.collectAsState()
@@ -566,7 +571,7 @@ fun MusicLibraryContent(
               onInfoClick = null,
               onAddToPlaylistClick = null,
               preSearchActions = {
-                if (!activeSelectionManager.isInSelectionMode && hasJellyfinMusicLibrary) {
+                if (!activeSelectionManager.isInSelectionMode && (hasJellyfinMusicLibrary || hasNavidromeServer)) {
                   var isSourceDropdownOpen by remember { mutableStateOf(false) }
                   Box {
                     Surface(
@@ -580,27 +585,38 @@ fun MusicLibraryContent(
                         verticalAlignment = Alignment.CenterVertically,
                         modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
                       ) {
-                        if (currentMusicSource == MusicSourceProvider.JELLYFIN) {
-                          androidx.compose.material3.Icon(
-                            painter = painterResource(R.drawable.ic_jellyfin),
-                            contentDescription = null,
-                            modifier = Modifier.size(16.dp),
-                            tint = MaterialTheme.colorScheme.onSecondaryContainer,
-                          )
-                        } else {
-                          Icon(
-                            Icons.RoundedFilled.Folder,
-                            contentDescription = null,
-                            modifier = Modifier.size(16.dp),
-                            tint = MaterialTheme.colorScheme.onSecondaryContainer,
-                          )
+                        when (currentMusicSource) {
+                          MusicSourceProvider.JELLYFIN -> {
+                            androidx.compose.material3.Icon(
+                              painter = painterResource(R.drawable.ic_jellyfin),
+                              contentDescription = null,
+                              modifier = Modifier.size(16.dp),
+                              tint = MaterialTheme.colorScheme.onSecondaryContainer,
+                            )
+                          }
+                          MusicSourceProvider.NAVIDROME -> {
+                            androidx.compose.material3.Icon(
+                              painter = painterResource(R.drawable.ic_navidrome),
+                              contentDescription = null,
+                              modifier = Modifier.size(16.dp),
+                              tint = MaterialTheme.colorScheme.onSecondaryContainer,
+                            )
+                          }
+                          else -> {
+                            Icon(
+                              Icons.RoundedFilled.Folder,
+                              contentDescription = null,
+                              modifier = Modifier.size(16.dp),
+                              tint = MaterialTheme.colorScheme.onSecondaryContainer,
+                            )
+                          }
                         }
                         Spacer(Modifier.width(6.dp))
                         Text(
-                          text = if (currentMusicSource == MusicSourceProvider.JELLYFIN) {
-                            stringResource(R.string.pref_jellyfin_title)
-                          } else {
-                            stringResource(R.string.music_source_local)
+                          text = when (currentMusicSource) {
+                            MusicSourceProvider.JELLYFIN -> stringResource(R.string.pref_jellyfin_title)
+                            MusicSourceProvider.NAVIDROME -> stringResource(R.string.music_source_navidrome)
+                            else -> stringResource(R.string.music_source_local)
                           },
                           style = MaterialTheme.typography.labelMedium,
                           fontWeight = FontWeight.Bold,
@@ -648,38 +664,75 @@ fun MusicLibraryContent(
                         },
                       )
 
-                      DropdownMenuItem(
-                        text = {
-                          Row(
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            modifier = Modifier.fillMaxWidth(),
-                          ) {
-                            Text(stringResource(R.string.music_source_jellyfin))
-                            if (currentMusicSource == MusicSourceProvider.JELLYFIN) {
-                              Spacer(Modifier.width(12.dp))
-                              Icon(
-                                Icons.RoundedFilled.Check,
-                                contentDescription = null,
-                                modifier = Modifier.size(18.dp),
-                                tint = MaterialTheme.colorScheme.primary,
-                              )
+                      if (hasJellyfinMusicLibrary) {
+                        DropdownMenuItem(
+                          text = {
+                            Row(
+                              verticalAlignment = Alignment.CenterVertically,
+                              horizontalArrangement = Arrangement.SpaceBetween,
+                              modifier = Modifier.fillMaxWidth(),
+                            ) {
+                              Text(stringResource(R.string.music_source_jellyfin))
+                              if (currentMusicSource == MusicSourceProvider.JELLYFIN) {
+                                Spacer(Modifier.width(12.dp))
+                                Icon(
+                                  Icons.RoundedFilled.Check,
+                                  contentDescription = null,
+                                  modifier = Modifier.size(18.dp),
+                                  tint = MaterialTheme.colorScheme.primary,
+                                )
+                              }
                             }
-                          }
-                        },
-                        leadingIcon = {
-                          androidx.compose.material3.Icon(
-                            painter = painterResource(R.drawable.ic_jellyfin),
-                            contentDescription = null,
-                            modifier = Modifier.size(20.dp),
-                            tint = MaterialTheme.colorScheme.primary,
-                          )
-                        },
-                        onClick = {
-                          mediaServerPreferences.musicSourceProvider.set(MusicSourceProvider.JELLYFIN)
-                          isSourceDropdownOpen = false
-                        },
-                      )
+                          },
+                          leadingIcon = {
+                            androidx.compose.material3.Icon(
+                              painter = painterResource(R.drawable.ic_jellyfin),
+                              contentDescription = null,
+                              modifier = Modifier.size(20.dp),
+                              tint = MaterialTheme.colorScheme.primary,
+                            )
+                          },
+                          onClick = {
+                            mediaServerPreferences.musicSourceProvider.set(MusicSourceProvider.JELLYFIN)
+                            isSourceDropdownOpen = false
+                          },
+                        )
+                      }
+
+                      if (hasNavidromeServer) {
+                        DropdownMenuItem(
+                          text = {
+                            Row(
+                              verticalAlignment = Alignment.CenterVertically,
+                              horizontalArrangement = Arrangement.SpaceBetween,
+                              modifier = Modifier.fillMaxWidth(),
+                            ) {
+                              Text(stringResource(R.string.music_source_navidrome))
+                              if (currentMusicSource == MusicSourceProvider.NAVIDROME) {
+                                Spacer(Modifier.width(12.dp))
+                                Icon(
+                                  Icons.RoundedFilled.Check,
+                                  contentDescription = null,
+                                  modifier = Modifier.size(18.dp),
+                                  tint = MaterialTheme.colorScheme.primary,
+                                )
+                              }
+                            }
+                          },
+                          leadingIcon = {
+                            androidx.compose.material3.Icon(
+                              painter = painterResource(R.drawable.ic_navidrome),
+                              contentDescription = null,
+                              modifier = Modifier.size(20.dp),
+                              tint = MaterialTheme.colorScheme.primary,
+                            )
+                          },
+                          onClick = {
+                            mediaServerPreferences.musicSourceProvider.set(MusicSourceProvider.NAVIDROME)
+                            isSourceDropdownOpen = false
+                          },
+                        )
+                      }
 
                       HorizontalDivider()
 

@@ -98,6 +98,7 @@ import app.gyrolet.mpvrx.ui.icons.Icons
 import kotlin.math.roundToInt
 
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import app.gyrolet.mpvrx.ui.browser.music.SharedMusicDetailHeader
 import app.gyrolet.mpvrx.ui.browser.music.SharedMusicTrackListItem
 import app.gyrolet.mpvrx.ui.player.PlaybackSession
 
@@ -150,84 +151,33 @@ fun JellyfinDetailSheet(
         verticalArrangement = Arrangement.spacedBy(16.dp),
       ) {
         // Header Row (Avatar / Artwork + Title + Play Button)
-        Row(
-          modifier = Modifier.fillMaxWidth(),
-          verticalAlignment = Alignment.CenterVertically,
-        ) {
-          val imageUrl = remember(server.serverUrl, item.id, item.primaryImageTag, server.accessToken) {
-            JellyfinClient.getImageUrl(
-              serverUrl = server.serverUrl,
-              itemId = item.id,
-              imageTag = item.primaryImageTag,
-              maxWidth = 300,
-              token = server.accessToken,
-            )
-          }
-          Box(
-            modifier = Modifier
-              .size(64.dp)
-              .clip(if (item.type == "MusicArtist" || item.type == "Artist" || item.type == "AlbumArtist") CircleShape else RoundedCornerShape(8.dp))
-              .background(MaterialTheme.colorScheme.surfaceVariant),
-            contentAlignment = Alignment.Center,
-          ) {
-            if (!item.primaryImageTag.isNullOrBlank()) {
-              RemoteImage(
-                url = imageUrl,
-                contentDescription = item.name,
-                contentScale = ContentScale.Crop,
-                modifier = Modifier.fillMaxSize(),
-              )
-            } else {
-              Icon(
-                imageVector = when (item.type) {
-                  "MusicArtist", "Artist", "AlbumArtist" -> Icons.RoundedFilled.Person
-                  "Playlist" -> Icons.RoundedFilled.QueueMusic
-                  else -> Icons.RoundedFilled.Audiotrack
-                },
-                contentDescription = null,
-                tint = MaterialTheme.colorScheme.primary,
-                modifier = Modifier.size(32.dp),
-              )
-            }
-          }
-
-          Spacer(modifier = Modifier.width(14.dp))
-
-          Column(modifier = Modifier.weight(1f)) {
-            Text(
-              text = item.name,
-              style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.Bold),
-              maxLines = 1,
-              overflow = TextOverflow.Ellipsis,
-            )
-            val isArtist = item.type == "MusicArtist" || item.type == "Artist" || item.type == "AlbumArtist"
-            if (!isArtist) {
-              val subtitle = item.seriesName ?: item.overview ?: ""
-              if ((item.type == "MusicAlbum" || item.type == "Album") && subtitle.isNotBlank()) {
-                Text(
-                  text = subtitle,
-                  style = MaterialTheme.typography.bodyMedium,
-                  color = MaterialTheme.colorScheme.onSurfaceVariant,
-                  maxLines = 1,
-                  overflow = TextOverflow.Ellipsis,
-                )
-              }
-              Text(
-                text = "${episodes.size} ${if (item.type == "Playlist") "Items" else "Tracks"}",
-                style = MaterialTheme.typography.labelSmall,
-                color = MaterialTheme.colorScheme.primary,
-              )
-            }
-          }
-
-          if (episodes.isNotEmpty()) {
-            Button(onClick = { onPlay(episodes.first(), false) }) {
-              Icon(imageVector = Icons.RoundedFilled.PlayArrow, contentDescription = null)
-              Spacer(modifier = Modifier.width(4.dp))
-              Text(if (item.type == "MusicArtist" || item.type == "Artist" || item.type == "AlbumArtist") "Play All" else "Play")
-            }
-          }
+        val imageUrl = remember(server.serverUrl, item.id, item.primaryImageTag, server.accessToken) {
+          JellyfinClient.getImageUrl(
+            serverUrl = server.serverUrl,
+            itemId = item.id,
+            imageTag = item.primaryImageTag,
+            maxWidth = 300,
+            token = server.accessToken,
+          )
         }
+        val isArtist = item.type == "MusicArtist" || item.type == "Artist" || item.type == "AlbumArtist"
+        val subtitle = if (isArtist) null else (item.seriesName ?: item.overview)?.takeIf { it.isNotBlank() }
+        val itemCountText = if (isArtist) null else "${episodes.size} ${if (item.type == "Playlist") "Items" else "Tracks"}"
+
+        SharedMusicDetailHeader(
+          title = item.name,
+          subtitle = subtitle,
+          itemCountText = itemCountText,
+          artworkUrl = if (!item.primaryImageTag.isNullOrBlank()) imageUrl else null,
+          fallbackIcon = when {
+            isArtist -> Icons.RoundedFilled.Person
+            item.type == "Playlist" -> Icons.RoundedFilled.QueueMusic
+            else -> Icons.RoundedFilled.Audiotrack
+          },
+          isCircular = isArtist,
+          onPlayAll = if (episodes.isNotEmpty()) ({ onPlay(episodes.first(), false) }) else null,
+          playButtonText = if (isArtist) "Play All" else "Play",
+        )
 
         if (isLoading) {
           GhostDetailSections()

@@ -366,6 +366,13 @@ object MainScreen : Screen {
             context.applicationContext as android.app.Application,
           ),
       )
+    val navidromeViewModel: app.gyrolet.mpvrx.ui.browser.navidrome.NavidromeViewModel =
+      androidx.lifecycle.viewmodel.compose.viewModel(
+        factory =
+          app.gyrolet.mpvrx.ui.browser.navidrome.NavidromeViewModel.factory(
+            context.applicationContext as android.app.Application,
+          ),
+      )
 
     // Scaffold with bottom navigation bar
     Scaffold(
@@ -508,8 +515,70 @@ object MainScreen : Screen {
                         isMusicOnlyMode = true,
                       )
                     }
+                  } else if (musicSourceProvider == MusicSourceProvider.NAVIDROME) {
+                    val navidromeUiState by navidromeViewModel.uiState.collectAsStateWithLifecycle()
+                    if (navidromeUiState.activeServer == null) {
+                      Box(
+                        modifier = Modifier.fillMaxSize().padding(24.dp),
+                        contentAlignment = Alignment.Center,
+                      ) {
+                        androidx.compose.material3.Card(
+                          shape = androidx.compose.foundation.shape.RoundedCornerShape(24.dp),
+                          colors =
+                            androidx.compose.material3.CardDefaults.cardColors(
+                              containerColor = MaterialTheme.colorScheme.surfaceContainerLow,
+                            ),
+                        ) {
+                          Column(
+                            modifier = Modifier.padding(24.dp),
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            verticalArrangement = Arrangement.spacedBy(16.dp),
+                          ) {
+                            androidx.compose.material3.Icon(
+                              painter = painterResource(R.drawable.ic_navidrome),
+                              contentDescription = null,
+                              modifier = Modifier.size(56.dp),
+                              tint = MaterialTheme.colorScheme.primary,
+                            )
+                            Text(
+                              text = stringResource(R.string.music_source_navidrome),
+                              style = MaterialTheme.typography.titleLarge,
+                              fontWeight = FontWeight.Bold,
+                            )
+                            Text(
+                              text = stringResource(R.string.pref_navidrome_no_server),
+                              style = MaterialTheme.typography.bodyMedium,
+                              color = MaterialTheme.colorScheme.onSurfaceVariant,
+                              textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+                            )
+                            androidx.compose.material3.FilledTonalButton(
+                              onClick = {
+                                backStack.add(app.gyrolet.mpvrx.ui.preferences.MediaServersPreferencesScreen)
+                              },
+                            ) {
+                              Text(stringResource(R.string.generic_configure))
+                            }
+                            androidx.compose.material3.TextButton(
+                              onClick = {
+                                mediaServerPreferences.musicSourceProvider.set(MusicSourceProvider.LOCAL)
+                              },
+                            ) {
+                              Text(stringResource(R.string.music_source_local))
+                            }
+                          }
+                        }
+                      }
+                    } else {
+                      app.gyrolet.mpvrx.ui.browser.navidrome.NavidromeContent(
+                        viewModel = navidromeViewModel,
+                        isMusicOnlyMode = true,
+                      )
+                    }
                   } else {
-                    MusicLibraryContent(jellyfinViewModel = jellyfinViewModel)
+                    MusicLibraryContent(
+                      jellyfinViewModel = jellyfinViewModel,
+                      navidromeViewModel = navidromeViewModel,
+                    )
                   }
                 }
                 MainTab.RECENTS -> RecentlyPlayedScreen.Content()

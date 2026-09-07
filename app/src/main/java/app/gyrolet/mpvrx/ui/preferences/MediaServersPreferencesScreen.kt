@@ -51,6 +51,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import app.gyrolet.mpvrx.R
 import app.gyrolet.mpvrx.domain.jellyfin.JellyfinServer
+import app.gyrolet.mpvrx.domain.navidrome.NavidromeServer
 import app.gyrolet.mpvrx.domain.seerr.JellyseerrUser
 import app.gyrolet.mpvrx.presentation.Screen
 import app.gyrolet.mpvrx.presentation.components.RemoteImage
@@ -58,6 +59,8 @@ import app.gyrolet.mpvrx.ui.browser.jellyfin.AddJellyfinServerDialog
 import app.gyrolet.mpvrx.ui.browser.jellyfin.JellyfinViewModel
 import app.gyrolet.mpvrx.ui.browser.jellyfin.seerr.SeerrConnectionDialog
 import app.gyrolet.mpvrx.ui.browser.jellyfin.seerr.SeerrViewModel
+import app.gyrolet.mpvrx.ui.browser.navidrome.AddNavidromeServerDialog
+import app.gyrolet.mpvrx.ui.browser.navidrome.NavidromeViewModel
 import app.gyrolet.mpvrx.ui.icons.Icon
 import app.gyrolet.mpvrx.ui.icons.Icons
 import app.gyrolet.mpvrx.ui.utils.LocalBackStack
@@ -84,9 +87,15 @@ object MediaServersPreferencesScreen : Screen {
       viewModel(factory = SeerrViewModel.factory(context.applicationContext as Application))
     val seerrUiState by seerrViewModel.uiState.collectAsStateWithLifecycle()
 
+    val navidromeViewModel: NavidromeViewModel =
+      viewModel(factory = NavidromeViewModel.factory(context.applicationContext as Application))
+    val navidromeUiState by navidromeViewModel.uiState.collectAsStateWithLifecycle()
+
     var isAddServerOpen by remember { mutableStateOf(false) }
     var serverToReauth by remember { mutableStateOf<JellyfinServer?>(null) }
     var isSeerrConnectionDialogOpen by remember { mutableStateOf(false) }
+    var isAddNavidromeServerOpen by remember { mutableStateOf(false) }
+    var navidromeServerToEdit by remember { mutableStateOf<NavidromeServer?>(null) }
 
     Scaffold(
       topBar = {
@@ -434,6 +443,187 @@ object MediaServersPreferencesScreen : Screen {
               }
             }
           }
+
+          // --- NAVIDROME SECTION ---
+          item {
+            PreferenceSectionHeader(
+              title = stringResource(R.string.pref_navidrome_title),
+              modifier = Modifier.settingsSearchTarget(R.string.pref_media_servers_title),
+            )
+          }
+
+          item {
+            PreferenceCard {
+              if (navidromeUiState.servers.isEmpty()) {
+                Preference(
+                  modifier = Modifier.settingsSearchTarget(R.string.pref_navidrome_title),
+                  title = { Text(stringResource(R.string.pref_navidrome_add_server)) },
+                  summary = {
+                    Text(
+                      text = stringResource(R.string.pref_navidrome_add_server_desc),
+                      color = MaterialTheme.colorScheme.outline,
+                    )
+                  },
+                  icon = {
+                    Icon(
+                      painter = painterResource(R.drawable.ic_navidrome),
+                      contentDescription = null,
+                      tint = MaterialTheme.colorScheme.primary,
+                      modifier = Modifier.size(24.dp),
+                    )
+                  },
+                  onClick = {
+                    navidromeServerToEdit = null
+                    isAddNavidromeServerOpen = true
+                  },
+                )
+              } else {
+                navidromeUiState.servers.forEachIndexed { index, server ->
+                  if (index > 0) {
+                    PreferenceDivider()
+                  }
+                  val isActive = server.id == navidromeUiState.activeServer?.id
+                  ServerPreferenceItem(
+                    modifier = Modifier.settingsSearchTarget(R.string.pref_navidrome_title),
+                    title = {
+                      Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                      ) {
+                        Text(
+                          text = server.name,
+                          style = MaterialTheme.typography.titleMedium,
+                          fontWeight = if (isActive) FontWeight.Bold else FontWeight.SemiBold,
+                          maxLines = 1,
+                          overflow = TextOverflow.Ellipsis,
+                        )
+                        if (isActive) {
+                          Surface(
+                            shape = RoundedCornerShape(6.dp),
+                            color = MaterialTheme.colorScheme.primary,
+                          ) {
+                            Text(
+                              text = stringResource(R.string.pref_server_active),
+                              style = MaterialTheme.typography.labelSmall,
+                              color = MaterialTheme.colorScheme.onPrimary,
+                              modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
+                            )
+                          }
+                        }
+                      }
+                    },
+                    summary = {
+                      Text(
+                        text = if (server.username.isNotBlank()) "${server.username} • ${server.serverUrl}" else server.serverUrl,
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.outline,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                      )
+                    },
+                    icon = {
+                      NavidromeServerAvatar(
+                        server = server,
+                        isActive = isActive,
+                      )
+                    },
+                    trailing = {
+                      var menuExpanded by remember { mutableStateOf(false) }
+                      Box {
+                        IconButton(onClick = { menuExpanded = true }) {
+                          Icon(
+                            imageVector = Icons.RoundedFilled.MoreVert,
+                            contentDescription = stringResource(R.string.pref_server_more_options),
+                          )
+                        }
+                        DropdownMenu(
+                          expanded = menuExpanded,
+                          onDismissRequest = { menuExpanded = false },
+                        ) {
+                          if (!isActive) {
+                            DropdownMenuItem(
+                              text = { Text(stringResource(R.string.pref_server_set_active)) },
+                              leadingIcon = {
+                                Icon(
+                                  imageVector = Icons.RoundedFilled.Check,
+                                  contentDescription = null,
+                                )
+                              },
+                              onClick = {
+                                menuExpanded = false
+                                navidromeViewModel.selectServer(server)
+                              },
+                            )
+                          }
+                          DropdownMenuItem(
+                            text = { Text(stringResource(R.string.ui_edit)) },
+                            leadingIcon = {
+                              Icon(
+                                imageVector = Icons.RoundedFilled.Edit,
+                                contentDescription = null,
+                              )
+                            },
+                            onClick = {
+                              menuExpanded = false
+                              navidromeServerToEdit = server
+                              isAddNavidromeServerOpen = true
+                            },
+                          )
+                          DropdownMenuItem(
+                            text = {
+                              Text(
+                                text = stringResource(R.string.delete),
+                                color = MaterialTheme.colorScheme.error,
+                              )
+                            },
+                            leadingIcon = {
+                              Icon(
+                                imageVector = Icons.RoundedFilled.Delete,
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.error,
+                              )
+                            },
+                            onClick = {
+                              menuExpanded = false
+                              navidromeViewModel.deleteServer(server)
+                            },
+                          )
+                        }
+                      }
+                    },
+                    onClick = {
+                      navidromeServerToEdit = server
+                      isAddNavidromeServerOpen = true
+                    },
+                  )
+                }
+
+                PreferenceDivider()
+
+                Preference(
+                  modifier = Modifier.settingsSearchTarget(R.string.pref_navidrome_title),
+                  title = { Text(stringResource(R.string.pref_navidrome_add_another_server)) },
+                  summary = {
+                    Text(
+                      text = stringResource(R.string.pref_navidrome_add_another_server_desc),
+                      color = MaterialTheme.colorScheme.outline,
+                    )
+                  },
+                  icon = {
+                    Icon(
+                      imageVector = Icons.RoundedFilled.Add,
+                      contentDescription = null,
+                      tint = MaterialTheme.colorScheme.primary,
+                    )
+                  },
+                  onClick = {
+                    navidromeServerToEdit = null
+                    isAddNavidromeServerOpen = true
+                  },
+                )
+              }
+            }
+          }
         }
       }
     }
@@ -487,6 +677,68 @@ object MediaServersPreferencesScreen : Screen {
         seerrViewModel.disconnect()
       },
     )
+
+    // Add / Edit Navidrome Server Dialog
+    AddNavidromeServerDialog(
+      isOpen = isAddNavidromeServerOpen,
+      isLoading = navidromeUiState.isConnectingServer,
+      errorMessage = navidromeUiState.connectServerError,
+      initialServer = navidromeServerToEdit,
+      onDismiss = {
+        isAddNavidromeServerOpen = false
+        navidromeServerToEdit = null
+      },
+      onConnect = { url, name, authMode, username, password, token ->
+        navidromeViewModel.connectServer(
+          serverUrl = url,
+          serverName = name,
+          authMode = authMode,
+          username = username,
+          password = password,
+          token = token,
+          existingServer = navidromeServerToEdit,
+          onSuccess = {
+            isAddNavidromeServerOpen = false
+            navidromeServerToEdit = null
+          },
+        )
+      },
+    )
+  }
+}
+
+@Composable
+private fun NavidromeServerAvatar(
+  server: NavidromeServer,
+  isActive: Boolean,
+  modifier: Modifier = Modifier,
+) {
+  Surface(
+    shape = CircleShape,
+    color =
+      if (isActive) {
+        MaterialTheme.colorScheme.primaryContainer
+      } else {
+        MaterialTheme.colorScheme.surfaceContainerHighest
+      },
+    modifier = modifier.size(40.dp),
+  ) {
+    Box(
+      modifier = Modifier.fillMaxSize(),
+      contentAlignment = Alignment.Center,
+    ) {
+      Icon(
+        painter = painterResource(R.drawable.ic_navidrome),
+        contentDescription = null,
+        tint =
+          if (isActive) {
+            MaterialTheme.colorScheme.primary
+          } else {
+            MaterialTheme.colorScheme.onSurfaceVariant
+          },
+        modifier = Modifier.size(22.dp),
+      )
+    }
   }
 }
 

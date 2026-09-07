@@ -2147,4 +2147,19 @@
   <string name="pref_server_set_active">Set as active</string>
   <string name="pref_server_more_options">More options</string>
   <string name="jellyfin_no_music_library">No music library found on this Jellyfin server</string>
+  <string name="pref_navidrome_title">Navidrome</string>
+  <string name="pref_navidrome_add_server">Connect Navidrome</string>
+  <string name="pref_navidrome_add_server_desc">Add and connect to a Navidrome or OpenSubsonic server</string>
+  <string name="pref_navidrome_add_another_server">Add another server</string>
+  <string name="pref_navidrome_add_another_server_desc">Connect an additional Navidrome server</string>
+  <string name="music_source_navidrome">Navidrome Music</string>
+  <string name="music_source_navidrome_desc">Stream music from your Navidrome server</string>
+  <string name="pref_navidrome_no_server">No Navidrome server connected</string>
+  <string name="navidrome_server_address">Server Address</string>
+  <string name="navidrome_server_name">Server Name (Optional)</string>
+  <string name="navidrome_username">Username</string>
+  <string name="navidrome_password">Password</string>
+  <string name="navidrome_connect">Connect</string>
+  <string name="navidrome_connecting">Connecting…</string>
+  <string name="navidrome_connect_failed">Failed to connect to Navidrome server</string>
 </resources>

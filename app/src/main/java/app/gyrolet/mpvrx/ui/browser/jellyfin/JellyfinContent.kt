@@ -114,6 +114,8 @@ import app.gyrolet.mpvrx.ui.browser.components.BrowserTopBar
 import app.gyrolet.mpvrx.ui.browser.components.ExpressiveScrollBar
 import app.gyrolet.mpvrx.ui.browser.components.fastScrollGlyph
 import app.gyrolet.mpvrx.ui.browser.dialogs.JellyfinSortDialog
+import app.gyrolet.mpvrx.ui.browser.dialogs.MusicSortDialog
+import app.gyrolet.mpvrx.ui.browser.music.MusicSortField
 import app.gyrolet.mpvrx.ui.browser.fab.FabScrollHelper
 import app.gyrolet.mpvrx.ui.browser.selection.rememberSelectionManager
 import app.gyrolet.mpvrx.ui.components.InlineSearchBar
@@ -136,6 +138,8 @@ fun JellyfinContent(
   val mediaServerPreferences = koinInject<MediaServerPreferences>()
   val appearancePreferences = koinInject<AppearancePreferences>()
   val currentMusicSource by mediaServerPreferences.musicSourceProvider.collectAsState()
+  val navidromeRepository = koinInject<app.gyrolet.mpvrx.repository.NavidromeRepository>()
+  val navidromeServers by navidromeRepository.allServers.collectAsState(initial = emptyList())
   val layoutMode by browserPreferences.jellyfinLayoutMode.collectAsState()
   val showQuickPlayFab by appearancePreferences.showQuickPlayFab.collectAsState()
   val quickPlayFabDirect by appearancePreferences.quickPlayFabDirect.collectAsState()
@@ -449,27 +453,38 @@ fun JellyfinContent(
                       verticalAlignment = Alignment.CenterVertically,
                       modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
                     ) {
-                      if (currentMusicSource == MusicSourceProvider.JELLYFIN) {
-                        androidx.compose.material3.Icon(
-                          painter = painterResource(R.drawable.ic_jellyfin),
-                          contentDescription = null,
-                          modifier = Modifier.size(16.dp),
-                          tint = MaterialTheme.colorScheme.onSecondaryContainer,
-                        )
-                      } else {
-                        Icon(
-                          Icons.RoundedFilled.Folder,
-                          contentDescription = null,
-                          modifier = Modifier.size(16.dp),
-                          tint = MaterialTheme.colorScheme.onSecondaryContainer,
-                        )
+                      when (currentMusicSource) {
+                        MusicSourceProvider.JELLYFIN -> {
+                          androidx.compose.material3.Icon(
+                            painter = painterResource(R.drawable.ic_jellyfin),
+                            contentDescription = null,
+                            modifier = Modifier.size(16.dp),
+                            tint = MaterialTheme.colorScheme.onSecondaryContainer,
+                          )
+                        }
+                        MusicSourceProvider.NAVIDROME -> {
+                          androidx.compose.material3.Icon(
+                            painter = painterResource(R.drawable.ic_navidrome),
+                            contentDescription = null,
+                            modifier = Modifier.size(16.dp),
+                            tint = MaterialTheme.colorScheme.onSecondaryContainer,
+                          )
+                        }
+                        else -> {
+                          Icon(
+                            Icons.RoundedFilled.Folder,
+                            contentDescription = null,
+                            modifier = Modifier.size(16.dp),
+                            tint = MaterialTheme.colorScheme.onSecondaryContainer,
+                          )
+                        }
                       }
                       Spacer(Modifier.width(6.dp))
                       Text(
-                        text = if (currentMusicSource == MusicSourceProvider.JELLYFIN) {
-                          stringResource(R.string.pref_jellyfin_title)
-                        } else {
-                          stringResource(R.string.music_source_local)
+                        text = when (currentMusicSource) {
+                          MusicSourceProvider.JELLYFIN -> stringResource(R.string.pref_jellyfin_title)
+                          MusicSourceProvider.NAVIDROME -> stringResource(R.string.music_source_navidrome)
+                          else -> stringResource(R.string.music_source_local)
                         },
                         style = MaterialTheme.typography.labelMedium,
                         fontWeight = FontWeight.Bold,
@@ -549,6 +564,41 @@ fun JellyfinContent(
                         isSourceDropdownOpen = false
                       },
                     )
+
+                    if (navidromeServers.isNotEmpty()) {
+                      DropdownMenuItem(
+                        text = {
+                          Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            modifier = Modifier.fillMaxWidth(),
+                          ) {
+                            Text(stringResource(R.string.music_source_navidrome))
+                            if (currentMusicSource == MusicSourceProvider.NAVIDROME) {
+                              Spacer(Modifier.width(12.dp))
+                              Icon(
+                                Icons.RoundedFilled.Check,
+                                contentDescription = null,
+                                modifier = Modifier.size(18.dp),
+                                tint = MaterialTheme.colorScheme.primary,
+                              )
+                            }
+                          }
+                        },
+                        leadingIcon = {
+                          androidx.compose.material3.Icon(
+                            painter = painterResource(R.drawable.ic_navidrome),
+                            contentDescription = null,
+                            modifier = Modifier.size(20.dp),
+                            tint = MaterialTheme.colorScheme.primary,
+                          )
+                        },
+                        onClick = {
+                          mediaServerPreferences.musicSourceProvider.set(MusicSourceProvider.NAVIDROME)
+                          isSourceDropdownOpen = false
+                        },
+                      )
+                    }
 
                     HorizontalDivider()
 
@@ -1345,27 +1395,70 @@ fun JellyfinContent(
     )
   }
 
-  // Standard Material 3 Sort Dialog (matches Home and Network Browser)
-  JellyfinSortDialog(
-    isOpen = isSortDialogOpen,
-    onDismiss = { isSortDialogOpen = false },
-    sortBy = uiState.sortBy,
-    onSortByChange = { newSort ->
-      viewModel.setSort(newSort, uiState.sortOrder)
-    },
-    sortOrder = uiState.sortOrder,
-    onSortOrderChange = { newOrder ->
-      viewModel.setSort(uiState.sortBy, newOrder)
-    },
-    isUnplayedOnly = uiState.isUnplayedOnly,
-    onUnplayedOnlyChange = {
-      viewModel.toggleUnplayedOnly()
-    },
-    layoutMode = layoutMode,
-    onLayoutModeChange = { newMode ->
-      browserPreferences.jellyfinLayoutMode.set(newMode)
-    },
-  )
+  if (uiState.openLibrary?.isMusic == true) {
+    val availableFields = remember(uiState.musicActiveTab) {
+      when (uiState.musicActiveTab) {
+        JellyfinMusicTab.TRACKS -> listOf(
+          MusicSortField.TITLE,
+          MusicSortField.ARTIST,
+          MusicSortField.ALBUM,
+          MusicSortField.DURATION,
+          MusicSortField.YEAR,
+        )
+        JellyfinMusicTab.ALBUMS -> listOf(
+          MusicSortField.TITLE,
+          MusicSortField.ARTIST,
+          MusicSortField.YEAR,
+          MusicSortField.TRACK_COUNT,
+          MusicSortField.DURATION,
+        )
+        JellyfinMusicTab.ARTISTS -> listOf(
+          MusicSortField.ARTIST,
+          MusicSortField.TRACK_COUNT,
+        )
+        JellyfinMusicTab.PLAYLISTS -> listOf(
+          MusicSortField.TITLE,
+          MusicSortField.TRACK_COUNT,
+          MusicSortField.DURATION,
+        )
+        else -> emptyList()
+      }
+    }
+
+    MusicSortDialog(
+      isOpen = isSortDialogOpen,
+      onDismiss = { isSortDialogOpen = false },
+      sortField = uiState.musicSortField,
+      sortOrder = uiState.musicSortOrder,
+      viewMode = uiState.musicViewMode,
+      onSortFieldChange = { viewModel.setMusicSortField(it) },
+      onSortOrderChange = { viewModel.setMusicSortOrder(it) },
+      onViewModeChange = { viewModel.setMusicViewMode(it) },
+      availableFields = availableFields,
+    )
+  } else {
+    // Standard Material 3 Sort Dialog (matches Home and Network Browser)
+    JellyfinSortDialog(
+      isOpen = isSortDialogOpen,
+      onDismiss = { isSortDialogOpen = false },
+      sortBy = uiState.sortBy,
+      onSortByChange = { newSort ->
+        viewModel.setSort(newSort, uiState.sortOrder)
+      },
+      sortOrder = uiState.sortOrder,
+      onSortOrderChange = { newOrder ->
+        viewModel.setSort(uiState.sortBy, newOrder)
+      },
+      isUnplayedOnly = uiState.isUnplayedOnly,
+      onUnplayedOnlyChange = {
+        viewModel.toggleUnplayedOnly()
+      },
+      layoutMode = layoutMode,
+      onLayoutModeChange = { newMode ->
+        browserPreferences.jellyfinLayoutMode.set(newMode)
+      },
+    )
+  }
 
   // Manage Servers Dialog
   ManageJellyfinServersDialog(

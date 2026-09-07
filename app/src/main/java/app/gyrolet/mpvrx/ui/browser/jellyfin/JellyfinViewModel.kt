@@ -32,8 +32,12 @@ import app.gyrolet.mpvrx.domain.jellyfin.JellyfinSortBy
 import app.gyrolet.mpvrx.domain.jellyfin.JellyfinSortOrder
 import app.gyrolet.mpvrx.domain.playbackstate.repository.PlaybackStateRepository
 import app.gyrolet.mpvrx.preferences.AudioPreferences
+import app.gyrolet.mpvrx.preferences.BrowserPreferences
 import app.gyrolet.mpvrx.preferences.SubtitlesPreferences
 import app.gyrolet.mpvrx.repository.JellyfinRepository
+import app.gyrolet.mpvrx.ui.browser.music.MusicSortField
+import app.gyrolet.mpvrx.ui.browser.music.MusicSortOrder
+import app.gyrolet.mpvrx.ui.browser.music.MusicViewMode
 import app.gyrolet.mpvrx.ui.player.PlaybackIdentity
 import app.gyrolet.mpvrx.utils.media.MediaUtils
 import kotlinx.coroutines.Dispatchers
@@ -108,6 +112,9 @@ data class JellyfinUiState(
 
   // Jellyfin Music Tab State (AFinity style)
   val musicActiveTab: JellyfinMusicTab = JellyfinMusicTab.HOME,
+  val musicViewMode: MusicViewMode = MusicViewMode.GRID,
+  val musicSortField: MusicSortField = MusicSortField.TITLE,
+  val musicSortOrder: MusicSortOrder = MusicSortOrder.ASCENDING,
   val musicFavorites: List<JellyfinItem> = emptyList(),
   val musicJumpBackIn: List<JellyfinItem> = emptyList(),
   val musicRecentlyPlayedAlbums: List<JellyfinItem> = emptyList(),
@@ -140,6 +147,7 @@ class JellyfinViewModel(
   private val playbackStateRepository: PlaybackStateRepository by inject()
   private val subtitlesPreferences: SubtitlesPreferences by inject()
   private val audioPreferences: AudioPreferences by inject()
+  private val browserPreferences: BrowserPreferences by inject()
   private val downloadManager: AppDownloadManager by inject()
 
   private var loadDashboardJob: Job? = null
@@ -150,7 +158,13 @@ class JellyfinViewModel(
   private var musicLoadJob: Job? = null
   private var loadedMusicHomeLibraryId: String? = null
 
-  private val _uiState = MutableStateFlow(JellyfinUiState())
+  private val _uiState = MutableStateFlow(
+    JellyfinUiState(
+      musicViewMode = browserPreferences.jellyfinMusicViewMode.get(),
+      musicSortField = browserPreferences.jellyfinMusicSortField.get(),
+      musicSortOrder = browserPreferences.jellyfinMusicSortOrder.get(),
+    )
+  )
   val uiState: StateFlow<JellyfinUiState> = _uiState.asStateFlow()
 
   init {
@@ -733,6 +747,21 @@ class JellyfinViewModel(
     } else {
       loadMusicTabItems(active, library, tab)
     }
+  }
+
+  fun setMusicViewMode(mode: MusicViewMode) {
+    browserPreferences.jellyfinMusicViewMode.set(mode)
+    _uiState.update { it.copy(musicViewMode = mode) }
+  }
+
+  fun setMusicSortField(field: MusicSortField) {
+    browserPreferences.jellyfinMusicSortField.set(field)
+    _uiState.update { it.copy(musicSortField = field) }
+  }
+
+  fun setMusicSortOrder(order: MusicSortOrder) {
+    browserPreferences.jellyfinMusicSortOrder.set(order)
+    _uiState.update { it.copy(musicSortOrder = order) }
   }
 
   private fun loadMusicTabItems(

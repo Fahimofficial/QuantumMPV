@@ -7,66 +7,72 @@
  * (at your option) any later version.
  */
 
-package app.gyrolet.mpvrx.ui.browser.jellyfin
+package app.gyrolet.mpvrx.ui.browser.navidrome
 
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Surface
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.unit.dp
-import app.gyrolet.mpvrx.domain.jellyfin.JellyfinAuthMode
-import app.gyrolet.mpvrx.domain.jellyfin.JellyfinServer
+import app.gyrolet.mpvrx.R
+import app.gyrolet.mpvrx.domain.navidrome.NavidromeAuthMode
+import app.gyrolet.mpvrx.domain.navidrome.NavidromeServer
 import app.gyrolet.mpvrx.ui.browser.dialogs.SharedAddServerDialog
 import app.gyrolet.mpvrx.ui.browser.dialogs.SharedManageServersDialog
-import app.gyrolet.mpvrx.ui.icons.Icon
-import app.gyrolet.mpvrx.ui.icons.Icons
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun AddJellyfinServerDialog(
+fun AddNavidromeServerDialog(
   isOpen: Boolean,
   isLoading: Boolean,
   errorMessage: String?,
-  initialServer: JellyfinServer? = null,
+  initialServer: NavidromeServer? = null,
   onDismiss: () -> Unit,
-  onConnect: (serverUrl: String, serverName: String, authMode: JellyfinAuthMode, username: String, password: String, token: String) -> Unit,
+  onConnect: (serverUrl: String, serverName: String, authMode: NavidromeAuthMode, username: String, password: String, token: String) -> Unit,
 ) {
   if (!isOpen) return
 
   var serverUrl by remember(initialServer) { mutableStateOf(initialServer?.serverUrl ?: "") }
   var serverName by remember(initialServer) { mutableStateOf(initialServer?.name ?: "") }
-  var authMode by remember(initialServer) { mutableStateOf(JellyfinAuthMode.CREDENTIALS) }
+  var authMode by remember(initialServer) { mutableStateOf(initialServer?.authMode ?: NavidromeAuthMode.CREDENTIALS) }
   var username by remember(initialServer) { mutableStateOf(initialServer?.username ?: "") }
-  var password by remember(initialServer) { mutableStateOf("") }
-  var token by remember(initialServer) { mutableStateOf("") }
+  var password by remember(initialServer) { mutableStateOf(initialServer?.password ?: "") }
+  var token by remember(initialServer) { mutableStateOf(initialServer?.token ?: "") }
 
   val canConnect =
     serverUrl.isNotBlank() &&
       when (authMode) {
-        JellyfinAuthMode.CREDENTIALS -> username.isNotBlank()
-        JellyfinAuthMode.TOKEN -> token.isNotBlank()
+        NavidromeAuthMode.CREDENTIALS -> username.isNotBlank() && password.isNotBlank()
+        NavidromeAuthMode.TOKEN -> token.isNotBlank()
       }
 
   SharedAddServerDialog(
     isOpen = isOpen,
     isLoading = isLoading,
     errorMessage = errorMessage,
-    title = if (initialServer == null) "Add Jellyfin Server" else "Edit Jellyfin Server",
-    subtitle = "Enter your server address and account details",
+    title = if (initialServer == null) "Connect to Navidrome" else "Edit Navidrome Server",
+    subtitle = "Enter your Navidrome / Subsonic server address",
     serverUrl = serverUrl,
     onServerUrlChange = { serverUrl = it },
-    serverUrlPlaceholder = "jellyfin.example.com or 192.168.1.100:8096",
+    serverUrlPlaceholder = "music.example.com:4533 or 192.168.1.100:4533",
     serverName = serverName,
     onServerNameChange = { serverName = it },
-    serverNamePlaceholder = "Home Server",
-    isTokenAuth = authMode == JellyfinAuthMode.TOKEN,
+    serverNamePlaceholder = "Navidrome",
+    isTokenAuth = authMode == NavidromeAuthMode.TOKEN,
     onAuthModeChange = { isToken ->
-      authMode = if (isToken) JellyfinAuthMode.TOKEN else JellyfinAuthMode.CREDENTIALS
+      authMode = if (isToken) NavidromeAuthMode.TOKEN else NavidromeAuthMode.CREDENTIALS
     },
     username = username,
     onUsernameChange = { username = it },
@@ -74,10 +80,11 @@ fun AddJellyfinServerDialog(
     onPasswordChange = { password = it },
     token = token,
     onTokenChange = { token = it },
-    tokenLabel = "API Key / Access Token",
-    tokenPlaceholder = "Paste token from Jellyfin dashboard",
-    tokenSupportingText = "Dashboard > Advanced > API Keys",
-    usernameInTokenMode = false,
+    tokenLabel = "API Token / App Password",
+    tokenPlaceholder = "Paste token or app password",
+    tokenSupportingText = "Navidrome Personal Settings > App Password / Subsonic Token",
+    usernameInTokenMode = true,
+    usernameInTokenModePlaceholder = "Auto-detected from token or enter username",
     canConnect = canConnect,
     onDismiss = onDismiss,
     onSubmit = {
@@ -90,7 +97,7 @@ fun AddJellyfinServerDialog(
         }
       onConnect(
         formattedUrl,
-        serverName.trim().ifBlank { "Jellyfin" },
+        serverName.trim().ifBlank { "Navidrome" },
         authMode,
         username.trim(),
         password,
@@ -99,7 +106,7 @@ fun AddJellyfinServerDialog(
     },
     headerIcon = {
       Icon(
-        imageVector = Icons.RoundedFilled.BringYourOwnIp,
+        painter = painterResource(id = R.drawable.ic_navidrome),
         contentDescription = null,
         tint = MaterialTheme.colorScheme.primary,
         modifier = Modifier.size(28.dp),
@@ -110,18 +117,18 @@ fun AddJellyfinServerDialog(
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun ManageJellyfinServersDialog(
+fun ManageNavidromeServersDialog(
   isOpen: Boolean,
-  servers: List<JellyfinServer>,
-  activeServer: JellyfinServer?,
+  servers: List<NavidromeServer>,
+  activeServer: NavidromeServer?,
   onDismiss: () -> Unit,
-  onSelectServer: (JellyfinServer) -> Unit,
-  onDeleteServer: (JellyfinServer) -> Unit,
+  onSelectServer: (NavidromeServer) -> Unit,
+  onDeleteServer: (NavidromeServer) -> Unit,
   onAddServerClick: () -> Unit,
 ) {
   SharedManageServersDialog(
     isOpen = isOpen,
-    title = "Jellyfin Servers",
+    title = "Navidrome Servers",
     servers = servers,
     activeServerId = activeServer?.id,
     getServerId = { it.id },
@@ -134,5 +141,34 @@ fun ManageJellyfinServersDialog(
     onSelectServer = onSelectServer,
     onDeleteServer = onDeleteServer,
     onAddServerClick = onAddServerClick,
+    avatarContent = { _, isSelected ->
+      Surface(
+        shape = CircleShape,
+        color =
+          if (isSelected) {
+            MaterialTheme.colorScheme.primary
+          } else {
+            MaterialTheme.colorScheme.surfaceContainerHighest
+          },
+        modifier = Modifier.size(40.dp),
+      ) {
+        Box(
+          modifier = Modifier.fillMaxSize(),
+          contentAlignment = Alignment.Center,
+        ) {
+          Icon(
+            painter = painterResource(id = R.drawable.ic_navidrome),
+            contentDescription = null,
+            tint =
+              if (isSelected) {
+                MaterialTheme.colorScheme.onPrimary
+              } else {
+                MaterialTheme.colorScheme.onSurfaceVariant
+              },
+            modifier = Modifier.size(20.dp),
+          )
+        }
+      }
+    },
   )
 }

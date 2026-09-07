@@ -574,7 +574,7 @@ fun PlaylistTrackListItem(
   modifier: Modifier = Modifier,
   dragHandle: @Composable () -> Unit = {},
 ) {
-  val isAudioItem = item.isAudio
+  val isAudioItem = item.isAudio || isAudioOnly
   val effectiveItem =
     remember(item, isAudioItem) {
       if (item.isAudio != isAudioItem) item.copy(isAudio = isAudioItem) else item
@@ -805,7 +805,7 @@ fun PlaylistTrackGridItem(
   isAudioOnly: Boolean = false,
   modifier: Modifier = Modifier,
 ) {
-  val isAudioItem = item.isAudio
+  val isAudioItem = item.isAudio || isAudioOnly
   val effectiveItem =
     remember(item, isAudioItem) {
       if (item.isAudio != isAudioItem) item.copy(isAudio = isAudioItem) else item
