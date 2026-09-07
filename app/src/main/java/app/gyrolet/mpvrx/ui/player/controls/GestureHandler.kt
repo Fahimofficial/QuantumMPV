@@ -763,7 +763,7 @@ fun GestureHandler(
                           } else if (deltaY > speedLockThreshold && isSpeedLocked) {
                             isSpeedLocked = false
                             isDynamicSpeedControlActive = false
-                            originalSpeed = 1f
+                            originalSpeed = playerPreferences.defaultSpeed.get()
                             PlaybackSession.setPropertyFloat("speed", originalSpeed)
                             haptics.performHapticFeedback(HapticFeedbackType.LongPress)
                             viewModel.playerUpdate.update {

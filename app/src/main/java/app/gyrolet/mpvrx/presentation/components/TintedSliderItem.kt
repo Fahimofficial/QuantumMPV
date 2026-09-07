@@ -28,8 +28,9 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.tooling.preview.Preview
-import app.gyrolet.mpvrx.ui.theme.spacing
+import androidx.compose.ui.unit.dp
 import app.gyrolet.mpvrx.ui.player.controls.components.tvFocusHighlight
+import app.gyrolet.mpvrx.ui.theme.spacing
 import kotlin.math.max
 import kotlin.math.min
 import kotlin.math.roundToInt
