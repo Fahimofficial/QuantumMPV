@@ -29,6 +29,10 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.DialogProperties
+import app.gyrolet.mpvrx.ui.player.controls.components.rememberTvInitialFocusRequester
+import app.gyrolet.mpvrx.ui.player.controls.components.tvFocusGroup
+import app.gyrolet.mpvrx.ui.player.controls.components.tvFocusHighlight
+import app.gyrolet.mpvrx.ui.player.controls.components.tvInitialFocus
 
 @Composable
 fun <T> OptionsDialog(
@@ -39,6 +43,11 @@ fun <T> OptionsDialog(
   onDismiss: () -> Unit,
   optionLabel: @Composable (T) -> String,
 ) {
+  val initialFocusRequester =
+    rememberTvInitialFocusRequester(
+      enabled = options.isNotEmpty(),
+      requestKey = selectedOption,
+    )
   AlertDialog(
     onDismissRequest = onDismiss,
     title = {
@@ -54,13 +63,20 @@ fun <T> OptionsDialog(
           contentPadding =
             androidx.compose.foundation.layout
               .PaddingValues(vertical = 8.dp),
-          modifier = Modifier.selectableGroup(),
+          modifier = Modifier.selectableGroup().tvFocusGroup(),
         ) {
           items(options, key = { option -> option?.hashCode() ?: System.identityHashCode(option) }) { option ->
             Row(
               modifier =
                 Modifier
                   .fillMaxWidth()
+                  .then(
+                    if (option == selectedOption) {
+                      Modifier.tvInitialFocus(initialFocusRequester)
+                    } else {
+                      Modifier
+                    },
+                  ).tvFocusHighlight(MaterialTheme.shapes.medium, focusedScale = 1.01f)
                   .clickable { onOptionSelected(option) }
                   .padding(horizontal = 16.dp, vertical = 12.dp),
               verticalAlignment = Alignment.CenterVertically,

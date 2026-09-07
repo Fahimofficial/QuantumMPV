@@ -17,6 +17,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Slider
 import androidx.compose.material3.Text
@@ -32,6 +33,7 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.Constraints
 import androidx.compose.ui.unit.dp
 import app.gyrolet.mpvrx.ui.theme.spacing
+import app.gyrolet.mpvrx.ui.player.controls.components.tvFocusHighlight
 import kotlin.math.roundToInt
 
 @Composable
@@ -88,7 +90,10 @@ fun SliderItem(
             haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
           }
         },
-        modifier = Modifier.fillMaxWidth(),
+        modifier =
+          Modifier
+            .fillMaxWidth()
+            .tvFocusHighlight(RoundedCornerShape(12.dp), enabled = enabled, focusedScale = 1.01f),
         valueRange = min.toFloat()..max.toFloat(),
         steps = (max - min - 1).coerceAtLeast(0),
         enabled = enabled,
@@ -152,7 +157,10 @@ fun SliderItem(
             haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
           }
         },
-        modifier = Modifier.fillMaxWidth(),
+        modifier =
+          Modifier
+            .fillMaxWidth()
+            .tvFocusHighlight(RoundedCornerShape(12.dp), enabled = enabled, focusedScale = 1.01f),
         valueRange = min..max,
         steps = steps,
         enabled = enabled,
@@ -217,6 +225,7 @@ fun VerticalSlider(
   Slider(
     modifier =
       modifier
+        .tvFocusHighlight(RoundedCornerShape(12.dp), focusedScale = 1.01f)
         .graphicsLayer {
           rotationZ = 270f
           transformOrigin = TransformOrigin(0f, 0f)

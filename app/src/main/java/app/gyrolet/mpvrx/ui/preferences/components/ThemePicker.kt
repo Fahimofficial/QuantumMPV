@@ -28,6 +28,9 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import app.gyrolet.mpvrx.R
+import app.gyrolet.mpvrx.ui.player.controls.components.rememberTvInitialFocusRequester
+import app.gyrolet.mpvrx.ui.player.controls.components.tvFocusGroup
+import app.gyrolet.mpvrx.ui.player.controls.components.tvInitialFocus
 import app.gyrolet.mpvrx.ui.theme.AppTheme
 
 /**
@@ -42,6 +45,8 @@ fun ThemePicker(
   modifier: Modifier = Modifier,
 ) {
   val listState = rememberLazyListState()
+  val initialFocusRequester =
+    rememberTvInitialFocusRequester(requestKey = currentTheme)
 
   LaunchedEffect(Unit) {
     val index = AppTheme.entries.indexOf(currentTheme)
@@ -61,7 +66,7 @@ fun ThemePicker(
     )
 
     LazyRow(
-      modifier = Modifier.fillMaxWidth(),
+      modifier = Modifier.fillMaxWidth().tvFocusGroup(),
       state = listState,
       contentPadding = PaddingValues(horizontal = 12.dp),
       horizontalArrangement = Arrangement.spacedBy(4.dp),
@@ -72,6 +77,12 @@ fun ThemePicker(
           isSelected = theme == currentTheme,
           isDarkMode = isDarkMode,
           onClick = { position -> onThemeSelected(theme, position) },
+          modifier =
+            if (theme == currentTheme) {
+              Modifier.tvInitialFocus(initialFocusRequester)
+            } else {
+              Modifier
+            },
         )
       }
     }

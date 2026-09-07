@@ -36,6 +36,10 @@ import app.gyrolet.mpvrx.preferences.preference.getEnum
 import app.gyrolet.mpvrx.ui.theme.AppTheme
 import app.gyrolet.mpvrx.ui.theme.DarkMode
 import app.gyrolet.mpvrx.ui.theme.spacing
+import app.gyrolet.mpvrx.ui.player.controls.components.rememberTvInitialFocusRequester
+import app.gyrolet.mpvrx.ui.player.controls.components.tvFocusGroup
+import app.gyrolet.mpvrx.ui.player.controls.components.tvFocusHighlight
+import app.gyrolet.mpvrx.ui.player.controls.components.tvInitialFocus
 import kotlinx.collections.immutable.ImmutableList
 
 class AppearancePreferences(
@@ -170,10 +174,16 @@ fun MultiChoiceSegmentedButton(
   onClick: (Int, Offset) -> Unit,
   modifier: Modifier = Modifier,
 ) {
+  val initialFocusRequester =
+    rememberTvInitialFocusRequester(
+      enabled = choices.isNotEmpty(),
+      requestKey = selectedIndices,
+    )
   Row(
     modifier =
       modifier
         .fillMaxWidth()
+        .tvFocusGroup()
         .padding(MaterialTheme.spacing.medium),
     horizontalArrangement = Arrangement.spacedBy(ButtonGroupDefaults.ConnectedSpaceBetween),
   ) {
@@ -185,6 +195,13 @@ fun MultiChoiceSegmentedButton(
         modifier =
           Modifier
             .weight(1f)
+            .then(
+              if (index == selectedIndices.firstOrNull()) {
+                Modifier.tvInitialFocus(initialFocusRequester)
+              } else {
+                Modifier
+              },
+            ).tvFocusHighlight(MaterialTheme.shapes.medium, focusedScale = 1.03f)
             .defaultMinSize(minHeight = MaterialTheme.spacing.extraLarge)
             .onGloballyPositioned { buttonCenter = it.boundsInWindow().center }
             .semantics { role = Role.RadioButton },

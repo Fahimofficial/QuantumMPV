@@ -164,6 +164,7 @@ import app.gyrolet.mpvrx.ui.player.RepeatMode
 import app.gyrolet.mpvrx.ui.player.Sheets
 import app.gyrolet.mpvrx.ui.player.controls.components.AbLoopIcon
 import app.gyrolet.mpvrx.ui.player.controls.components.SeekbarWithTimers
+import app.gyrolet.mpvrx.ui.player.controls.components.tvFocusHighlight
 import app.gyrolet.mpvrx.ui.player.visualizer.AudioFeatures
 import app.gyrolet.mpvrx.ui.player.visualizer.AudioSpectrumAnalyzer
 import app.gyrolet.mpvrx.ui.player.visualizer.BlobOverlay
@@ -2441,6 +2442,7 @@ private fun ReactiveIconButton(
     Box(
       modifier =
         modifier
+          .tvFocusHighlight(CircleShape, enabled = enabled, focusedScale = 1.08f)
           .graphicsLayer {
             scaleX = scale
             scaleY = scale
@@ -2473,10 +2475,12 @@ private fun ReactiveIconButton(
       enabled = enabled,
       interactionSource = interactionSource,
       modifier =
-        modifier.graphicsLayer {
-          scaleX = scale
-          scaleY = scale
-        },
+        modifier
+          .tvFocusHighlight(CircleShape, enabled = enabled, focusedScale = 1.08f)
+          .graphicsLayer {
+            scaleX = scale
+            scaleY = scale
+          },
     ) {
       content()
     }
@@ -2514,10 +2518,12 @@ private fun ReactiveSurfaceButton(
     enabled = enabled,
     interactionSource = interactionSource,
     modifier =
-      modifier.graphicsLayer {
-        scaleX = scale
-        scaleY = scale
-      },
+      modifier
+        .tvFocusHighlight(shape, enabled = enabled, focusedScale = 1.06f)
+        .graphicsLayer {
+          scaleX = scale
+          scaleY = scale
+        },
   ) {
     content()
   }

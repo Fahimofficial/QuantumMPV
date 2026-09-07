@@ -56,6 +56,10 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.Constraints
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import app.gyrolet.mpvrx.ui.player.controls.components.tvFocusHighlight
+import app.gyrolet.mpvrx.ui.player.controls.components.rememberTvInitialFocusRequester
+import app.gyrolet.mpvrx.ui.player.controls.components.tvFocusGroup
+import app.gyrolet.mpvrx.ui.player.controls.components.tvInitialFocus
 import kotlin.math.roundToInt
 
 enum class EqualizerPreset(
@@ -114,6 +118,8 @@ fun EqualizerSheet(
   onDismissRequest: () -> Unit,
   modifier: Modifier = Modifier,
 ) {
+  val initialFocusRequester =
+    rememberTvInitialFocusRequester(requestKey = state.isEnabled)
   val sheetState =
     rememberBottomSheetState(
       initialValue = SheetValue.Hidden,
@@ -125,7 +131,7 @@ fun EqualizerSheet(
     sheetState = sheetState,
     containerColor = MaterialTheme.colorScheme.surfaceContainer,
     dragHandle = null,
-    modifier = modifier,
+    modifier = modifier.tvFocusGroup(),
   ) {
     Column(
       modifier =
@@ -149,7 +155,11 @@ fun EqualizerSheet(
         IconSwitch(
           checked = state.isEnabled,
           onCheckedChange = onEnabledChanged,
-          modifier = Modifier.scale(0.8f),
+          modifier =
+            Modifier
+              .tvInitialFocus(initialFocusRequester)
+              .tvFocusHighlight(RoundedCornerShape(12.dp), focusedScale = 1.04f)
+              .scale(0.8f),
         )
       }
 
@@ -251,7 +261,10 @@ fun EqualizerSheet(
         },
         valueRange = 0f..10f,
         enabled = state.isEnabled,
-        modifier = Modifier.fillMaxWidth(),
+        modifier =
+          Modifier
+            .fillMaxWidth()
+            .tvFocusHighlight(MaterialTheme.shapes.small, enabled = state.isEnabled),
       )
 
       Row(
@@ -295,6 +308,7 @@ private fun PresetChip(
     modifier =
       Modifier
         .alpha(if (isEnabled) 1f else 0.38f)
+        .tvFocusHighlight(RoundedCornerShape(50), enabled = isEnabled, focusedScale = 1.03f)
         .clip(RoundedCornerShape(50))
         .background(
           if (isSelected) {
@@ -367,6 +381,7 @@ private fun BandColumn(
       modifier =
         Modifier
           .weight(1f)
+          .tvFocusHighlight(MaterialTheme.shapes.small, enabled = isEnabled)
           .padding(vertical = 12.dp)
           .layout { measurable, constraints ->
             val placeable =

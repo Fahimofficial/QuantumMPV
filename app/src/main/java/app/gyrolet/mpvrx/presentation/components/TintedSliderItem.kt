@@ -16,6 +16,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Slider
 import androidx.compose.material3.SliderColors
@@ -28,6 +29,7 @@ import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.tooling.preview.Preview
 import app.gyrolet.mpvrx.ui.theme.spacing
+import app.gyrolet.mpvrx.ui.player.controls.components.tvFocusHighlight
 import kotlin.math.max
 import kotlin.math.min
 import kotlin.math.roundToInt
@@ -112,7 +114,12 @@ fun TintedSlider(
   Slider(
     value = value,
     onValueChange = onValueChange,
-    modifier = modifier,
+    modifier =
+      modifier.tvFocusHighlight(
+        RoundedCornerShape(12.dp),
+        enabled = enabled,
+        focusedScale = 1.01f,
+      ),
     enabled = enabled,
     valueRange = valueRange,
     steps = steps,

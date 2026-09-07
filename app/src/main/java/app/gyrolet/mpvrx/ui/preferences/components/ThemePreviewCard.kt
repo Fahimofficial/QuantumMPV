@@ -11,6 +11,7 @@ package app.gyrolet.mpvrx.ui.preferences.components
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -41,6 +42,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.boundsInWindow
 import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -48,6 +50,8 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import app.gyrolet.mpvrx.ui.theme.AppTheme
+import app.gyrolet.mpvrx.ui.player.controls.components.tvFocusHighlight
+import app.gyrolet.mpvrx.utils.device.DeviceFormFactor
 
 /**
  * A theme preview card that displays a mini preview of the app UI with the theme's colors.
@@ -62,6 +66,8 @@ fun ThemePreviewCard(
   modifier: Modifier = Modifier,
 ) {
   var cardOrigin by remember { mutableStateOf(Offset.Zero) }
+  var cardCenter by remember { mutableStateOf(Offset.Zero) }
+  val isTelevision = DeviceFormFactor.isTelevision(LocalContext.current)
   val colorScheme = if (isDarkMode) theme.getDarkColorScheme() else theme.getLightColorScheme()
 
   // Use the current MaterialTheme primary for selection to ensure visibility
@@ -77,12 +83,23 @@ fun ThemePreviewCard(
     modifier =
       modifier
         .width(100.dp)
-        .onGloballyPositioned { cardOrigin = it.boundsInWindow().topLeft }
-        .pointerInput(Unit) {
-          detectTapGestures { localPosition ->
-            onClick(cardOrigin + localPosition)
-          }
-        },
+        .onGloballyPositioned {
+          val bounds = it.boundsInWindow()
+          cardOrigin = bounds.topLeft
+          cardCenter = bounds.center
+        }.then(
+          if (isTelevision) {
+            Modifier
+              .tvFocusHighlight(RoundedCornerShape(12.dp), focusedScale = 1.05f)
+              .clickable { onClick(cardCenter) }
+          } else {
+            Modifier.pointerInput(Unit) {
+              detectTapGestures { localPosition ->
+                onClick(cardOrigin + localPosition)
+              }
+            }
+          },
+        ),
     horizontalAlignment = Alignment.CenterHorizontally,
   ) {
     // Theme preview card

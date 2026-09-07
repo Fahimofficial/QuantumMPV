@@ -28,6 +28,10 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import app.gyrolet.mpvrx.R
+import app.gyrolet.mpvrx.ui.player.controls.components.rememberTvInitialFocusRequester
+import app.gyrolet.mpvrx.ui.player.controls.components.tvFocusGroup
+import app.gyrolet.mpvrx.ui.player.controls.components.tvFocusHighlight
+import app.gyrolet.mpvrx.ui.player.controls.components.tvInitialFocus
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalMaterial3ExpressiveApi::class)
 @Composable
@@ -39,6 +43,7 @@ fun ConfirmDialog(
   modifier: Modifier = Modifier,
   customContent: (@Composable () -> Unit)? = null,
 ) {
+  val initialFocusRequester = rememberTvInitialFocusRequester(requestKey = title)
   BasicAlertDialog(
     onCancel,
     modifier = modifier,
@@ -68,12 +73,16 @@ fun ConfirmDialog(
           customContent()
         }
         Row(
-          Modifier.fillMaxWidth(),
+          Modifier.fillMaxWidth().tvFocusGroup(),
           horizontalArrangement = Arrangement.End,
         ) {
           TextButton(
             onCancel,
             shape = MaterialTheme.shapes.extraLarge,
+            modifier =
+              Modifier
+                .tvInitialFocus(initialFocusRequester)
+                .tvFocusHighlight(MaterialTheme.shapes.extraLarge, focusedScale = 1.04f),
           ) {
             Text(
               stringResource(R.string.generic_cancel),
@@ -83,6 +92,7 @@ fun ConfirmDialog(
           TextButton(
             onConfirm,
             shape = MaterialTheme.shapes.extraLarge,
+            modifier = Modifier.tvFocusHighlight(MaterialTheme.shapes.extraLarge, focusedScale = 1.04f),
           ) {
             Text(
               stringResource(R.string.generic_confirm),

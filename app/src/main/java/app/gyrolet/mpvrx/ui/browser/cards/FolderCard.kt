@@ -54,6 +54,7 @@ import app.gyrolet.mpvrx.preferences.preference.collectAsState
 import app.gyrolet.mpvrx.ui.icons.AppIcon
 import app.gyrolet.mpvrx.ui.icons.Icon
 import app.gyrolet.mpvrx.ui.icons.Icons
+import app.gyrolet.mpvrx.ui.player.controls.components.tvFocusHighlight
 import app.gyrolet.mpvrx.ui.theme.AppShapeScale
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -276,6 +277,7 @@ fun FolderCard(
                     .height(thumbHeightDp)
                 }
               ).clip(AppShapeScale.medium)
+                .tvFocusHighlight(AppShapeScale.medium, focusedScale = 1.03f)
                 .background(MaterialTheme.colorScheme.surfaceContainerHigh)
                 .combinedClickable(
                   onClick = onThumbClick,
@@ -396,6 +398,7 @@ fun FolderCard(
             modifier =
               Modifier
                 .size(64.dp)
+                .tvFocusHighlight(AppShapeScale.medium, focusedScale = 1.03f)
                 .clip(AppShapeScale.medium)
                 .background(MaterialTheme.colorScheme.surfaceContainerHigh)
                 .combinedClickable(

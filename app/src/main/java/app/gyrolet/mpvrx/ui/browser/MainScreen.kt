@@ -107,6 +107,9 @@ import app.gyrolet.mpvrx.ui.browser.playlist.PlaylistScreen
 import app.gyrolet.mpvrx.ui.browser.recentlyplayed.RecentlyPlayedScreen
 import app.gyrolet.mpvrx.ui.icons.Icon
 import app.gyrolet.mpvrx.ui.icons.Icons
+import app.gyrolet.mpvrx.ui.player.controls.components.rememberTvInitialFocusRequester
+import app.gyrolet.mpvrx.ui.player.controls.components.tvFocusHighlight
+import app.gyrolet.mpvrx.ui.player.controls.components.tvInitialFocus
 import app.gyrolet.mpvrx.ui.theme.AppMotion
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.cancelAndJoin
@@ -710,6 +713,7 @@ private fun ExpressivePillNavigationBar(
   pagerState: PagerState? = null,
 ) {
   val haptics = LocalHapticFeedback.current
+  val initialFocusRequester = rememberTvInitialFocusRequester(visibleTabs.isNotEmpty())
 
   val position =
     if (pagerState != null && visibleTabs.isNotEmpty()) {
@@ -819,6 +823,14 @@ private fun ExpressivePillNavigationBar(
               Modifier
                 .width(tabWidth)
                 .height(44.dp)
+                .then(
+                  if (tab == selectedTab) {
+                    Modifier.tvInitialFocus(initialFocusRequester)
+                  } else {
+                    Modifier
+                  },
+                )
+                .tvFocusHighlight(CircleShape, focusedScale = 1.06f)
                 .clip(CircleShape)
                 .clickable(
                   interactionSource = remember { MutableInteractionSource() },

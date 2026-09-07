@@ -11,6 +11,7 @@ package app.gyrolet.mpvrx.presentation.components
 
 import android.view.MotionEvent
 import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.FilledTonalIconButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -21,7 +22,10 @@ import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.input.pointer.pointerInteropFilter
+import app.gyrolet.mpvrx.ui.player.controls.components.tvFocusHighlight
+import app.gyrolet.mpvrx.utils.device.DeviceFormFactor
 import kotlinx.coroutines.delay
 
 @OptIn(ExperimentalComposeUiApi::class)
@@ -37,21 +41,24 @@ fun RepeatingIconButton(
   content: @Composable () -> Unit,
 ) {
   val currentClickListener by rememberUpdatedState(onClick)
+  val isTelevision = DeviceFormFactor.isTelevision(LocalContext.current)
   var pressed by remember { mutableStateOf(false) }
 
   FilledTonalIconButton(
     modifier =
-      modifier.pointerInteropFilter {
-        pressed =
-          when (it.action) {
-            MotionEvent.ACTION_DOWN, MotionEvent.ACTION_MOVE -> true
-            MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> false
-            else -> pressed
-          }
+      modifier
+        .tvFocusHighlight(CircleShape, enabled = enabled, focusedScale = 1.06f)
+        .pointerInteropFilter {
+          pressed =
+            when (it.action) {
+              MotionEvent.ACTION_DOWN, MotionEvent.ACTION_MOVE -> true
+              MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> false
+              else -> pressed
+            }
 
-        true
-      },
-    onClick = {},
+          true
+        },
+    onClick = { if (isTelevision) currentClickListener() },
     enabled = enabled,
     interactionSource = interactionSource,
     content = content,

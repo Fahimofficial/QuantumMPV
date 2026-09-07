@@ -10,8 +10,11 @@
 package app.gyrolet.mpvrx.ui.player.controls.components
 
 import androidx.compose.foundation.border
+import androidx.compose.foundation.focusGroup
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.spring
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -25,6 +28,7 @@ import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Shape
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import app.gyrolet.mpvrx.utils.device.DeviceFormFactor
@@ -32,14 +36,24 @@ import app.gyrolet.mpvrx.utils.device.DeviceFormFactor
 fun Modifier.tvFocusHighlight(
   shape: Shape = RoundedCornerShape(8.dp),
   enabled: Boolean = true,
+  focusedScale: Float = 1f,
 ): Modifier =
   composed {
     val isTelevision = DeviceFormFactor.isTelevision(LocalContext.current)
     if (!isTelevision || !enabled) return@composed this
 
     var focused by remember { mutableStateOf(false) }
+    val scale by animateFloatAsState(
+      targetValue = if (focused) focusedScale.coerceAtLeast(1f) else 1f,
+      animationSpec = spring(dampingRatio = 0.82f, stiffness = 420f),
+      label = "tv_focus_scale",
+    )
     this
       .onFocusChanged { state -> focused = state.isFocused || state.hasFocus }
+      .graphicsLayer {
+        scaleX = scale
+        scaleY = scale
+      }
       .then(
         if (focused) {
           Modifier.border(3.dp, MaterialTheme.colorScheme.primary, shape)
@@ -50,10 +64,13 @@ fun Modifier.tvFocusHighlight(
   }
 
 @Composable
-fun rememberTvInitialFocusRequester(enabled: Boolean = true): FocusRequester {
+fun rememberTvInitialFocusRequester(
+  enabled: Boolean = true,
+  requestKey: Any? = Unit,
+): FocusRequester {
   val isTelevision = DeviceFormFactor.isTelevision(LocalContext.current)
-  val requester = remember { FocusRequester() }
-  LaunchedEffect(isTelevision, enabled) {
+  val requester = remember(requestKey) { FocusRequester() }
+  LaunchedEffect(isTelevision, enabled, requestKey) {
     if (isTelevision && enabled) {
       withFrameNanos { }
       runCatching { requester.requestFocus() }
@@ -65,4 +82,9 @@ fun rememberTvInitialFocusRequester(enabled: Boolean = true): FocusRequester {
 fun Modifier.tvInitialFocus(requester: FocusRequester): Modifier =
   composed {
     if (DeviceFormFactor.isTelevision(LocalContext.current)) this.focusRequester(requester) else this
+  }
+
+fun Modifier.tvFocusGroup(): Modifier =
+  composed {
+    if (DeviceFormFactor.isTelevision(LocalContext.current)) this.focusGroup() else this
   }

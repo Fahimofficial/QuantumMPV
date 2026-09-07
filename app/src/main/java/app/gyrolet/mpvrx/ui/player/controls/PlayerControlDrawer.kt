@@ -68,6 +68,8 @@ import app.gyrolet.mpvrx.preferences.getPlayerButtonLabel
 import app.gyrolet.mpvrx.ui.icons.Icon
 import app.gyrolet.mpvrx.ui.icons.Icons
 import app.gyrolet.mpvrx.ui.player.controls.components.LocalHidePlayerButtonsBackground
+import app.gyrolet.mpvrx.ui.player.controls.components.tvFocusGroup
+import app.gyrolet.mpvrx.ui.player.controls.components.tvFocusHighlight
 import app.gyrolet.mpvrx.ui.player.controls.components.panels.DraggablePanel
 import app.gyrolet.mpvrx.ui.theme.controlColor
 import app.gyrolet.mpvrx.ui.theme.spacing
@@ -306,7 +308,7 @@ private fun PlayerControlPanelContent(
         kotlin.math.floor(availablePx / PanelColumnCount).toDp()
       }
     FlowRow(
-      modifier = Modifier.fillMaxWidth(),
+      modifier = Modifier.fillMaxWidth().tvFocusGroup(),
       horizontalArrangement = Arrangement.spacedBy(PanelTileSpacing),
       verticalArrangement = Arrangement.spacedBy(PanelTileSpacing),
       maxItemsInEachRow = PanelColumnCount,
@@ -354,7 +356,10 @@ private fun PlayerControlTile(
     )
 
   Surface(
-    modifier = modifier.height(104.dp),
+    modifier =
+      modifier
+        .tvFocusHighlight(RoundedCornerShape(18.dp), focusedScale = 1.02f)
+        .height(104.dp),
     shape = RoundedCornerShape(18.dp),
     color = containerColor,
     contentColor = contentColor,

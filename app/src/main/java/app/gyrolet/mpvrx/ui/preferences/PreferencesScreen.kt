@@ -61,6 +61,10 @@ import app.gyrolet.mpvrx.presentation.Screen
 import app.gyrolet.mpvrx.ui.icons.AppIcon
 import app.gyrolet.mpvrx.ui.icons.Icon
 import app.gyrolet.mpvrx.ui.icons.Icons
+import app.gyrolet.mpvrx.ui.player.controls.components.rememberTvInitialFocusRequester
+import app.gyrolet.mpvrx.ui.player.controls.components.tvFocusGroup
+import app.gyrolet.mpvrx.ui.player.controls.components.tvFocusHighlight
+import app.gyrolet.mpvrx.ui.player.controls.components.tvInitialFocus
 import app.gyrolet.mpvrx.ui.securefolder.SecureFolderGateScreen
 import app.gyrolet.mpvrx.ui.theme.LocalEmphasizedTypography
 import app.gyrolet.mpvrx.ui.utils.LocalBackStack
@@ -98,7 +102,7 @@ object PreferencesScreen : Screen {
 
     if (isTablet) {
       Row(modifier = Modifier.fillMaxSize()) {
-        Box(modifier = Modifier.weight(0.4f)) {
+        Box(modifier = Modifier.weight(0.4f).tvFocusGroup()) {
           SettingsPane(
             sections = sections,
             selectedScreen = selectedScreen,
@@ -110,7 +114,7 @@ object PreferencesScreen : Screen {
           color = colorScheme.outlineVariant.copy(alpha = 0.5f),
           thickness = 1.dp,
         )
-        Box(modifier = Modifier.weight(0.6f)) {
+        Box(modifier = Modifier.weight(0.6f).tvFocusGroup()) {
           key(selectedScreen) {
             @Suppress("UNCHECKED_CAST")
             val detailBackstack = rememberNavBackStack(selectedScreen) as NavBackStack<Screen>
@@ -145,6 +149,7 @@ object PreferencesScreen : Screen {
     val backstack = LocalBackStack.current
     val colorScheme = MaterialTheme.colorScheme
     val emphasizedTypography = LocalEmphasizedTypography.current
+    val initialFocusRequester = rememberTvInitialFocusRequester()
 
     Scaffold(
       topBar = {
@@ -171,6 +176,7 @@ object PreferencesScreen : Screen {
         modifier =
           Modifier
             .fillMaxSize()
+            .tvFocusGroup()
             .padding(padding),
         contentPadding = PaddingValues(bottom = 28.dp),
         verticalArrangement = Arrangement.spacedBy(4.dp),
@@ -178,7 +184,10 @@ object PreferencesScreen : Screen {
         item {
           SettingsSearchEntry(
             onClick = { backstack.add(SettingsSearchScreen) },
-            modifier = Modifier.padding(start = 16.dp, end = 16.dp, top = 8.dp, bottom = 18.dp),
+            modifier =
+              Modifier
+                .padding(start = 16.dp, end = 16.dp, top = 8.dp, bottom = 18.dp)
+                .tvInitialFocus(initialFocusRequester),
           )
         }
 
@@ -368,6 +377,7 @@ private fun SettingsSearchEntry(
     modifier =
       modifier
         .fillMaxWidth()
+        .tvFocusHighlight(MaterialTheme.shapes.extraExtraLarge, focusedScale = 1.02f)
         .clip(MaterialTheme.shapes.extraExtraLarge)
         .clickable(onClick = onClick),
     shape = MaterialTheme.shapes.extraExtraLarge,
@@ -491,6 +501,7 @@ private fun SettingsDestinationRow(
     modifier =
       Modifier
         .fillMaxWidth()
+        .tvFocusHighlight(MaterialTheme.shapes.medium, focusedScale = 1.01f)
         .background(rowBgColor)
         .clickable(onClick = onClick)
         .padding(horizontal = 14.dp, vertical = 13.dp),

@@ -23,6 +23,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.unit.dp
 import app.gyrolet.mpvrx.ui.components.IconSwitch
+import app.gyrolet.mpvrx.ui.player.controls.components.tvFocusHighlight
 
 @Composable
 fun SwitchPreference(
@@ -41,6 +42,7 @@ fun SwitchPreference(
     modifier =
       modifier
         .fillMaxWidth()
+        .tvFocusHighlight(MaterialTheme.shapes.medium, enabled = enabled, focusedScale = 1.01f)
         .clickable(enabled = enabled) { onValueChange(!value) }
         .padding(horizontal = 16.dp, vertical = 12.dp),
     verticalAlignment = Alignment.CenterVertically,

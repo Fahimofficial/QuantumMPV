@@ -90,6 +90,7 @@ import app.gyrolet.mpvrx.domain.jellyfin.JellyfinServer
 import app.gyrolet.mpvrx.presentation.components.RemoteImage
 import app.gyrolet.mpvrx.ui.icons.Icon
 import app.gyrolet.mpvrx.ui.icons.Icons
+import app.gyrolet.mpvrx.ui.player.controls.components.tvFocusHighlight
 import app.gyrolet.mpvrx.ui.theme.LocalDarkAppColorScheme
 import kotlinx.coroutines.delay
 import kotlin.math.roundToInt
@@ -676,6 +677,7 @@ fun JellyfinResumeCard(
         Modifier
           .fillMaxWidth()
           .aspectRatio(16f / 9f)
+          .tvFocusHighlight(RoundedCornerShape(10.dp), focusedScale = 1.03f)
           .then(posterBorderModifier)
           .background(MaterialTheme.colorScheme.surfaceContainerHighest)
           .combinedClickable(
@@ -884,6 +886,7 @@ fun JellyfinPosterCard(
         Modifier
           .fillMaxWidth()
           .aspectRatio(2f / 3f)
+          .tvFocusHighlight(RoundedCornerShape(8.dp), focusedScale = 1.03f)
           .then(posterBorderModifier)
           .background(MaterialTheme.colorScheme.surfaceContainerHighest)
           .combinedClickable(
@@ -1082,6 +1085,7 @@ fun JellyfinMusicCard(
         Modifier
           .fillMaxWidth()
           .aspectRatio(1f)
+          .tvFocusHighlight(RoundedCornerShape(8.dp), focusedScale = 1.03f)
           .then(posterBorderModifier)
           .background(MaterialTheme.colorScheme.surfaceContainerHighest)
           .combinedClickable(
@@ -1336,6 +1340,7 @@ fun JellyfinLibraryCard(
     modifier =
       modifier
         .width(cardWidth)
+        .tvFocusHighlight(RoundedCornerShape(10.dp), focusedScale = 1.03f)
         .clip(RoundedCornerShape(10.dp))
         .clickable(onClick = onClick),
   ) {
@@ -1443,6 +1448,7 @@ fun JellyfinEpisodeCard(
     modifier =
       modifier
         .fillMaxWidth()
+        .tvFocusHighlight(RoundedCornerShape(8.dp), focusedScale = 1.02f)
         .clip(RoundedCornerShape(8.dp))
         .combinedClickable(
           onClick = onPlay,
@@ -1672,6 +1678,7 @@ fun JellyfinListItemCard(
     modifier =
       modifier
         .fillMaxWidth()
+        .tvFocusHighlight(RoundedCornerShape(8.dp), focusedScale = 1.02f)
         .clip(RoundedCornerShape(8.dp))
         .combinedClickable(
           onClick = onClick,

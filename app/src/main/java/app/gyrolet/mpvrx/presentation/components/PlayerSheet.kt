@@ -64,6 +64,7 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.Velocity
 import androidx.compose.ui.unit.dp
+import app.gyrolet.mpvrx.ui.player.controls.components.tvFocusGroup
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.filter
 import kotlinx.coroutines.launch
@@ -183,6 +184,7 @@ fun PlayerSheet(
               anchoredDraggableState.preUpPostDownNestedScrollConnection()
             },
           ).then(modifier)
+          .tvFocusGroup()
           .offset {
             val baseOffset =
               anchoredDraggableState.offset

@@ -20,6 +20,7 @@ import android.net.Uri
 import android.os.Build
 import android.os.Environment
 import android.provider.Settings
+import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedContent
@@ -89,7 +90,11 @@ import app.gyrolet.mpvrx.R
 import app.gyrolet.mpvrx.preferences.BrowserPreferences
 import app.gyrolet.mpvrx.ui.icons.Icon
 import app.gyrolet.mpvrx.ui.icons.Icons
+import app.gyrolet.mpvrx.ui.player.controls.components.rememberTvInitialFocusRequester
+import app.gyrolet.mpvrx.ui.player.controls.components.tvFocusHighlight
+import app.gyrolet.mpvrx.ui.player.controls.components.tvInitialFocus
 import app.gyrolet.mpvrx.ui.theme.AppShapeScale
+import app.gyrolet.mpvrx.utils.device.DeviceFormFactor
 import app.gyrolet.mpvrx.utils.permission.PermissionUtils
 import org.koin.compose.koinInject
 
@@ -125,6 +130,17 @@ private fun checkAudioPermission(context: Context): Boolean {
   ) == PackageManager.PERMISSION_GRANTED
 }
 
+private fun openStoragePermissionSettings(context: Context): Boolean {
+  val packageUri = Uri.parse("package:${context.packageName}")
+  val intents =
+    listOf(
+      Intent(Settings.ACTION_MANAGE_APP_ALL_FILES_ACCESS_PERMISSION).apply { data = packageUri },
+      Intent(Settings.ACTION_MANAGE_ALL_FILES_ACCESS_PERMISSION),
+      Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS).apply { data = packageUri },
+    )
+  return intents.any { intent -> runCatching { context.startActivity(intent) }.isSuccess }
+}
+
 private enum class OnboardingStep { STORAGE, NOTIFICATIONS, AUDIO, FINISH }
 
 @SuppressLint("UseKtx")
@@ -136,6 +152,7 @@ fun PermissionDeniedState(
 ) {
   val context = LocalContext.current
   val lifecycleOwner = LocalLifecycleOwner.current
+  val isTelevision = DeviceFormFactor.isTelevision(context)
   var showExplanationDialog by remember { mutableStateOf(false) }
 
   val isPlayStoreBuild = remember { BuildConfig.SCOPED_STORAGE_ONLY }
@@ -210,16 +227,37 @@ fun PermissionDeniedState(
     }
   var stepIndex by rememberSaveable { mutableIntStateOf(0) }
   val currentStep = steps[stepIndex.coerceIn(0, steps.lastIndex)]
+  val currentStepGranted =
+    when (currentStep) {
+      OnboardingStep.STORAGE -> isFileGranted
+      OnboardingStep.NOTIFICATIONS -> isNotificationGranted
+      OnboardingStep.AUDIO -> isAudioGranted
+      OnboardingStep.FINISH -> true
+    }
+  val stepFocusRequester =
+    rememberTvInitialFocusRequester(requestKey = currentStep to currentStepGranted)
+  val explanationFocusRequester =
+    rememberTvInitialFocusRequester(
+      enabled = showExplanationDialog,
+      requestKey = showExplanationDialog,
+    )
   val goNext: () -> Unit = { if (stepIndex < steps.lastIndex) stepIndex++ }
   val finishSetup: () -> Unit = {
     browserPreferences.onboardingCompleted.set(true)
     if (onNext != null) onNext() else onRequestPermission()
   }
 
+  BackHandler(enabled = isTelevision && stepIndex > 0 && !showExplanationDialog) {
+    stepIndex--
+  }
+
   Box(
     modifier = modifier
       .fillMaxSize()
-      .padding(top = 16.dp, bottom = 48.dp),
+      .padding(
+        top = if (isTelevision) 32.dp else 16.dp,
+        bottom = if (isTelevision) 32.dp else 48.dp,
+      ),
   ) {
     Surface(
       modifier = Modifier.fillMaxSize(),
@@ -231,10 +269,13 @@ fun PermissionDeniedState(
       ) {
         Column(
           modifier = Modifier
-            .widthIn(max = 560.dp)
+            .widthIn(max = if (isTelevision) 760.dp else 560.dp)
             .fillMaxWidth()
             .fillMaxHeight()
-            .padding(horizontal = 24.dp, vertical = 16.dp),
+            .padding(
+              horizontal = if (isTelevision) 48.dp else 24.dp,
+              vertical = 16.dp,
+            ),
           horizontalAlignment = Alignment.CenterHorizontally,
         ) {
           // Step progress dots
@@ -343,20 +384,19 @@ fun PermissionDeniedState(
                       },
                       isGranted = isFileGranted,
                       icon = Icons.RoundedFilled.Folder,
+                      modifier =
+                        if (!isFileGranted) {
+                          Modifier.tvInitialFocus(stepFocusRequester)
+                        } else {
+                          Modifier
+                        },
                       onClick = {
                         if (!isFileGranted) {
                           if (isPlayStoreBuild) {
                             onRequestPermission()
                           } else {
                             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
-                              try {
-                                val intent = Intent(Settings.ACTION_MANAGE_APP_ALL_FILES_ACCESS_PERMISSION)
-                                intent.data = Uri.parse("package:${context.packageName}")
-                                context.startActivity(intent)
-                              } catch (_: Exception) {
-                                val intent = Intent(Settings.ACTION_MANAGE_ALL_FILES_ACCESS_PERMISSION)
-                                context.startActivity(intent)
-                              }
+                              if (!openStoragePermissionSettings(context)) onRequestPermission()
                             } else {
                               onRequestPermission()
                             }
@@ -371,6 +411,12 @@ fun PermissionDeniedState(
                       description = stringResource(R.string.ui_notification_permission_desc),
                       isGranted = isNotificationGranted,
                       icon = Icons.RoundedFilled.Notifications,
+                      modifier =
+                        if (!isNotificationGranted) {
+                          Modifier.tvInitialFocus(stepFocusRequester)
+                        } else {
+                          Modifier
+                        },
                       onClick = {
                         if (!isNotificationGranted && Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
                           notificationLauncher.launch(android.Manifest.permission.POST_NOTIFICATIONS)
@@ -384,6 +430,12 @@ fun PermissionDeniedState(
                       description = stringResource(R.string.ui_audio_record_permission_desc),
                       isGranted = isAudioGranted,
                       icon = Icons.RoundedFilled.Mic,
+                      modifier =
+                        if (!isAudioGranted) {
+                          Modifier.tvInitialFocus(stepFocusRequester)
+                        } else {
+                          Modifier
+                        },
                       onClick = {
                         if (!isAudioGranted) {
                           audioLauncher.launch(android.Manifest.permission.RECORD_AUDIO)
@@ -454,12 +506,7 @@ fun PermissionDeniedState(
               .fillMaxWidth()
               .padding(top = 16.dp),
           ) {
-            val nextEnabled = when (currentStep) {
-              OnboardingStep.STORAGE -> isFileGranted
-              OnboardingStep.NOTIFICATIONS -> isNotificationGranted
-              OnboardingStep.AUDIO -> isAudioGranted
-              OnboardingStep.FINISH -> true
-            }
+            val nextEnabled = currentStepGranted
             Row(
               modifier = Modifier.fillMaxWidth(),
               horizontalArrangement = Arrangement.spacedBy(12.dp),
@@ -473,6 +520,7 @@ fun PermissionDeniedState(
                   },
                   modifier = Modifier
                     .weight(0.35f)
+                    .tvFocusHighlight(AppShapeScale.large, focusedScale = 1.04f)
                     .height(54.dp),
                   shape = AppShapeScale.large,
                 ) {
@@ -492,6 +540,13 @@ fun PermissionDeniedState(
                 enabled = nextEnabled,
                 modifier = Modifier
                   .weight(1f)
+                  .then(
+                    if (nextEnabled) {
+                      Modifier.tvInitialFocus(stepFocusRequester)
+                    } else {
+                      Modifier
+                    },
+                  ).tvFocusHighlight(AppShapeScale.large, enabled = nextEnabled, focusedScale = 1.04f)
                   .height(54.dp)
                   .alpha(if (nextEnabled) 1f else 0.45f),
                 shape = AppShapeScale.large,
@@ -531,6 +586,7 @@ fun PermissionDeniedState(
               // "Why do I see this?" link
               TextButton(
                 onClick = { showExplanationDialog = true },
+                modifier = Modifier.tvFocusHighlight(AppShapeScale.medium, focusedScale = 1.04f),
               ) {
                 Icon(
                   imageVector = Icons.RoundedFilled.Info,
@@ -669,6 +725,10 @@ fun PermissionDeniedState(
         FilledTonalButton(
           onClick = { showExplanationDialog = false },
           shape = AppShapeScale.medium,
+          modifier =
+            Modifier
+              .tvInitialFocus(explanationFocusRequester)
+              .tvFocusHighlight(AppShapeScale.medium, focusedScale = 1.04f),
         ) {
           Text(stringResource(R.string.got_it))
         }
@@ -685,7 +745,9 @@ private fun PermissionSectionCard(
   isGranted: Boolean,
   icon: app.gyrolet.mpvrx.ui.icons.AppIcon,
   onClick: () -> Unit,
+  modifier: Modifier = Modifier,
 ) {
+  val isTelevision = DeviceFormFactor.isTelevision(LocalContext.current)
   val cardBgColor by animateColorAsState(
     targetValue = if (isGranted) {
       MaterialTheme.colorScheme.surfaceContainerLowest
@@ -706,10 +768,15 @@ private fun PermissionSectionCard(
   }
 
   Card(
-    modifier = Modifier
+    modifier = modifier
       .fillMaxWidth()
       .alpha(if (isGranted) 0.65f else 1f)
       .then(borderModifier)
+      .tvFocusHighlight(
+        AppShapeScale.largeIncreased,
+        enabled = !isGranted,
+        focusedScale = 1.025f,
+      )
       .clip(AppShapeScale.largeIncreased)
       .clickable(enabled = !isGranted, onClick = onClick),
     colors = CardDefaults.cardColors(containerColor = cardBgColor),
@@ -759,7 +826,7 @@ private fun PermissionSectionCard(
         ) {
           Text(
             text = title,
-            style = MaterialTheme.typography.titleMedium,
+            style = if (isTelevision) MaterialTheme.typography.titleLarge else MaterialTheme.typography.titleMedium,
             fontWeight = FontWeight.Bold,
             color = if (isGranted) {
               MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f)
@@ -778,7 +845,7 @@ private fun PermissionSectionCard(
 
         Text(
           text = description,
-          style = MaterialTheme.typography.bodySmall,
+          style = if (isTelevision) MaterialTheme.typography.bodyMedium else MaterialTheme.typography.bodySmall,
           color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
 
@@ -844,6 +911,12 @@ fun StoragePermissionPrompt(
   val isPlayStoreBuild = remember { BuildConfig.SCOPED_STORAGE_ONLY }
   var isFileGranted by remember { mutableStateOf(checkFilePermission(context)) }
   val lifecycleOwner = LocalLifecycleOwner.current
+  val isTelevision = DeviceFormFactor.isTelevision(context)
+  val grantFocusRequester =
+    rememberTvInitialFocusRequester(
+      enabled = !isFileGranted,
+      requestKey = isFileGranted,
+    )
 
   DisposableEffect(lifecycleOwner) {
     val observer = LifecycleEventObserver { _, event ->
@@ -860,8 +933,8 @@ fun StoragePermissionPrompt(
     Column(
       horizontalAlignment = Alignment.CenterHorizontally,
       modifier = Modifier
-        .widthIn(max = 420.dp)
-        .padding(horizontal = 24.dp),
+        .widthIn(max = if (isTelevision) 560.dp else 420.dp)
+        .padding(horizontal = if (isTelevision) 48.dp else 24.dp),
     ) {
       Surface(
         modifier = Modifier.size(64.dp),
@@ -897,20 +970,17 @@ fun StoragePermissionPrompt(
         onClick = {
           if (isFileGranted) return@Button
           if (!isPlayStoreBuild && Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
-            try {
-              val intent = Intent(Settings.ACTION_MANAGE_APP_ALL_FILES_ACCESS_PERMISSION)
-              intent.data = Uri.parse("package:${context.packageName}")
-              context.startActivity(intent)
-            } catch (_: Exception) {
-              val intent = Intent(Settings.ACTION_MANAGE_ALL_FILES_ACCESS_PERMISSION)
-              context.startActivity(intent)
-            }
+            if (!openStoragePermissionSettings(context)) onRequestPermission()
           } else {
             onRequestPermission()
           }
         },
         shape = AppShapeScale.large,
-        modifier = Modifier.height(48.dp),
+        modifier =
+          Modifier
+            .tvInitialFocus(grantFocusRequester)
+            .tvFocusHighlight(AppShapeScale.large, enabled = !isFileGranted, focusedScale = 1.04f)
+            .height(48.dp),
       ) {
         Text(
           text = stringResource(R.string.storage_permission_grant),

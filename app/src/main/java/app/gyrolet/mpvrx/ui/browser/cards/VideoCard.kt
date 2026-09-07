@@ -60,6 +60,7 @@ import app.gyrolet.mpvrx.preferences.ThumbnailQuality
 import app.gyrolet.mpvrx.preferences.preference.collectAsState
 import app.gyrolet.mpvrx.ui.icons.Icon
 import app.gyrolet.mpvrx.ui.icons.Icons
+import app.gyrolet.mpvrx.ui.player.controls.components.tvFocusHighlight
 import app.gyrolet.mpvrx.ui.theme.AppShapeScale
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.filter
@@ -208,7 +209,8 @@ fun VideoCard(
       modifier
         .then(
           if (isGridMode) Modifier.fillMaxWidth() else Modifier.fillMaxWidth(),
-        ).clip(cardShape)
+        ).tvFocusHighlight(cardShape, focusedScale = 1.03f)
+        .clip(cardShape)
         .combinedClickable(
           onClick = onClick,
           onLongClick = onLongClick,

@@ -49,6 +49,7 @@ import app.gyrolet.mpvrx.presentation.components.RepeatingIconButton
 import app.gyrolet.mpvrx.ui.icons.Icon
 import app.gyrolet.mpvrx.ui.icons.Icons
 import app.gyrolet.mpvrx.ui.preferences.components.SwitchPreference
+import app.gyrolet.mpvrx.ui.player.controls.components.tvFocusHighlight
 import app.gyrolet.mpvrx.ui.theme.spacing
 import me.zhanghai.compose.preference.ProvidePreferenceLocals
 import org.koin.compose.koinInject
@@ -121,7 +122,10 @@ fun PlaybackSpeedSheet(
           },
           valueRange = 0.1f..4.0f,
           enabled = speedControlEnabled,
-          modifier = Modifier.weight(1f),
+          modifier =
+            Modifier
+              .weight(1f)
+              .tvFocusHighlight(MaterialTheme.shapes.small, enabled = speedControlEnabled),
         )
 
         RepeatingIconButton(
