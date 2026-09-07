@@ -878,6 +878,7 @@ internal fun VideoListContent(
   val gesturePreferences = koinInject<GesturePreferences>()
   val browserPreferences = koinInject<BrowserPreferences>()
   val appearancePreferences = koinInject<AppearancePreferences>()
+  val musicGridCoverArtSize by browserPreferences.musicGridCoverArtSize.collectAsState()
   val configuration = androidx.compose.ui.platform.LocalConfiguration.current
   val isTablet = configuration.smallestScreenWidthDp >= 600
   val density = LocalDensity.current
@@ -983,7 +984,10 @@ internal fun VideoListContent(
         val itemSpacing = 4.dp
         val usableWidth = maxWidth - (contentHorizontalPadding * 2) - itemSpacing
         val videoGridColumns =
-          if (manualGridColumnsEnabled) {
+          if (isAudio) {
+            val audioMinWidth = musicGridCoverArtSize.dp
+            (usableWidth / audioMinWidth).toInt().coerceAtLeast(1)
+          } else if (manualGridColumnsEnabled) {
             videoGridColumnsPref.coerceAtLeast(1)
           } else {
             val videoMinWidth = 130.dp
