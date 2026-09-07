@@ -1092,6 +1092,7 @@ fun MusicSortDialog(
 ) {
   val browserPreferences = koinInject<BrowserPreferences>()
   val musicCoverArtSize by browserPreferences.musicCoverArtSize.collectAsState()
+  val musicGridCoverArtSize by browserPreferences.musicGridCoverArtSize.collectAsState()
 
   val fieldIcon = { field: MusicSortField ->
     when (field) {
@@ -1152,7 +1153,14 @@ fun MusicSortDialog(
           unitSuffix = "dp",
         )
       } else {
-        null
+        GridColumnSelector(
+          label = "Cover Art Size",
+          currentValue = musicGridCoverArtSize,
+          onValueChange = { browserPreferences.musicGridCoverArtSize.set(it) },
+          valueRange = 100f..260f,
+          steps = 31,
+          unitSuffix = "dp",
+        )
       },
   )
 }
