@@ -1340,7 +1340,8 @@
   <string name="ui_clear_loop">ループを解除</string>
   <string name="ui_ambience_mode">アンビエントモード</string>
   <string name="ui_time_and_network">時刻とネットワーク</string>
-  <string name="ui_slide_to_unlock">スライドしてロック解除</string>
+  <string name="ui_unlock_controls">操作のロックを解除</string>
+  <string name="player_press_back_again_to_unlock">操作のロックを解除するには、もう一度戻るを押してください</string>
   <string name="ui_hdr_output">HDR出力</string>
   <string name="ui_hdr_cannot_be_enabled">HDRを有効にできません</string>
   <string name="ui_enable_gpu_next_and_vulkan_before_using_hdr_modes">HDRモードを使用する前にGPU NextとVulkanを有効にしてください</string>

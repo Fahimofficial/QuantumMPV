@@ -1276,7 +1276,8 @@
   <string name="ui_clear_loop">लूप साफ करें</string>
   <string name="ui_ambience_mode">एम्बिएंस मोड</string>
   <string name="ui_time_and_network">समय और नेटवर्क</string>
-  <string name="ui_slide_to_unlock">अनलॉक करने के लिए स्लाइड करें</string>
+  <string name="ui_unlock_controls">कंट्रोल अनलॉक करें</string>
+  <string name="player_press_back_again_to_unlock">कंट्रोल अनलॉक करने के लिए फिर से वापस दबाएँ</string>
   <string name="ui_hdr_output">HDR आउटपुट</string>
   <string name="ui_hdr_cannot_be_enabled">HDR सक्षम नहीं किया जा सकता</string>
   <string name="ui_enable_gpu_next_and_vulkan_before_using_hdr_modes">HDR मोड इस्तेमाल करने से पहले GPU Next और Vulkan सक्षम करें</string>

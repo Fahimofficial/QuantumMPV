@@ -1541,7 +1541,8 @@
   <string name="ui_clear_loop">Clear Loop</string>
   <string name="ui_ambience_mode">Ambience Mode</string>
   <string name="ui_time_and_network">Time and Network</string>
-  <string name="ui_slide_to_unlock">Slide to Unlock</string>
+  <string name="ui_unlock_controls">Unlock Controls</string>
+  <string name="player_press_back_again_to_unlock">Press Back again to unlock controls</string>
   <string name="ui_hdr_output">HDR Output</string>
   <string name="ui_hdr_cannot_be_enabled">HDR cannot be enabled</string>
   <string name="ui_enable_gpu_next_and_vulkan_before_using_hdr_modes">Enable GPU Next and Vulkan before using HDR modes</string>

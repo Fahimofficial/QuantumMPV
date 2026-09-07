@@ -1340,7 +1340,8 @@
   <string name="ui_clear_loop">Очистить цикл</string>
   <string name="ui_ambience_mode">Режим подсветки</string>
   <string name="ui_time_and_network">Время и сеть</string>
-  <string name="ui_slide_to_unlock">Проведите, чтобы разблокировать</string>
+  <string name="ui_unlock_controls">Разблокировать управление</string>
+  <string name="player_press_back_again_to_unlock">Нажмите «Назад» ещё раз, чтобы разблокировать управление</string>
   <string name="ui_hdr_output">Вывод HDR</string>
   <string name="ui_hdr_cannot_be_enabled">Не удаётся включить HDR</string>
   <string name="ui_enable_gpu_next_and_vulkan_before_using_hdr_modes">Включите GPU Next и Vulkan перед использованием режимов HDR</string>

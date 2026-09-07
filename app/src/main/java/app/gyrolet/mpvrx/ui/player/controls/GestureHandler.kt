@@ -47,6 +47,7 @@ import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -119,12 +120,14 @@ fun GestureHandler(
   modifier: Modifier = Modifier,
   externalPanelShown: Boolean = false,
   onDismissExternalPanel: () -> Unit = {},
+  onLockedTouchSideChanged: (isLeft: Boolean) -> Unit = {},
 ) {
   val playerPreferences = koinInject<PlayerPreferences>()
   val audioPreferences = koinInject<AudioPreferences>()
   val gesturePreferences = koinInject<GesturePreferences>()
   val subtitlesPreferences = koinInject<SubtitlesPreferences>()
   val context = LocalContext.current
+  val currentOnLockedTouchSideChanged by rememberUpdatedState(onLockedTouchSideChanged)
   val subtitleTracks by viewModel.subtitleTracks.collectAsState(emptyList())
   val videoAspectState by PlaybackSession.propDouble["video-params/aspect"].collectAsState()
   val videoZoomState by PlaybackSession.propDouble["video-zoom"].collectAsState()
@@ -294,7 +297,9 @@ fun GestureHandler(
             if (panelShown != Panels.None) viewModel.panelShown.update { Panels.None }
             if (externalPanelShown) onDismissExternalPanel()
           }
-          if (controlsShown) {
+          if (areControlsLocked) {
+            viewModel.showControls()
+          } else if (controlsShown) {
             viewModel.hideControls()
           } else {
             viewModel.showControls()
@@ -333,6 +338,10 @@ fun GestureHandler(
             beginGesture(down.id.value, down.uptimeMillis)
             val downPosition = down.position
             val downTime = System.currentTimeMillis()
+
+            if (areControlsLocked) {
+              currentOnLockedTouchSideChanged(downPosition.x < size.width / 2f)
+            }
 
             // Calculate regions
             val seekAreaFraction = doubleTapSeekAreaWidth / 100f

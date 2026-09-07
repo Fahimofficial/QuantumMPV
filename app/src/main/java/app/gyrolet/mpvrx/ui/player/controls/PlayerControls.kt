@@ -146,6 +146,7 @@ import app.gyrolet.mpvrx.ui.player.buildControlsExitH
 import app.gyrolet.mpvrx.ui.player.buildControlsExitV
 import app.gyrolet.mpvrx.ui.player.controls.components.AnimatedPlayPauseIcon
 import app.gyrolet.mpvrx.ui.player.controls.components.BrightnessSlider
+import app.gyrolet.mpvrx.ui.player.controls.components.ControlsButton
 import app.gyrolet.mpvrx.ui.player.controls.components.LocalForceDarkPlayerButtonsBackground
 import app.gyrolet.mpvrx.ui.player.controls.components.LocalHidePlayerButtonsBackground
 import app.gyrolet.mpvrx.ui.player.controls.components.MediaScopesOverlay
@@ -154,7 +155,6 @@ import app.gyrolet.mpvrx.ui.player.controls.components.ResumeAvailablePlayerUpda
 import app.gyrolet.mpvrx.ui.player.controls.components.ResumedFromPlayerUpdate
 import app.gyrolet.mpvrx.ui.player.controls.components.SeekPlayerUpdate
 import app.gyrolet.mpvrx.ui.player.controls.components.SeekbarWithTimers
-import app.gyrolet.mpvrx.ui.player.controls.components.SlideToUnlock
 import app.gyrolet.mpvrx.ui.player.controls.components.TextPlayerUpdate
 import app.gyrolet.mpvrx.ui.player.controls.components.VolumeSlider
 import app.gyrolet.mpvrx.ui.player.controls.components.playerButtonBorderColor
@@ -493,7 +493,7 @@ fun PlayerControls(
       }
     }
 
-  var isUnlockSliderDragging by remember { mutableStateOf(false) }
+  var showUnlockOnLeft by remember { mutableStateOf(true) }
   var isPlayerDrawerShown by remember { mutableStateOf(false) }
   LaunchedEffect(showControlsDrawer) {
     if (!showControlsDrawer && isPlayerDrawerShown) {
@@ -520,7 +520,6 @@ fun PlayerControls(
     isSeeking,
     resetControlsTimestamp,
     areControlsLocked,
-    isUnlockSliderDragging,
     isAudioOnly,
     isPlayerDrawerShown,
     showControlsDrawer,
@@ -530,7 +529,6 @@ fun PlayerControls(
       controlsShown &&
       paused == false &&
       !isSeeking &&
-      !isUnlockSliderDragging &&
       !(showControlsDrawer && isPlayerDrawerShown)
     ) {
       // Use 2 second delay when controls are locked, otherwise use user preference
@@ -559,6 +557,10 @@ fun PlayerControls(
     interactionSource = interactionSource,
     externalPanelShown = showControlsDrawer && isPlayerDrawerShown,
     onDismissExternalPanel = { setPlayerDrawerShown(false) },
+    onLockedTouchSideChanged = { isLeft ->
+      showUnlockOnLeft = isLeft
+      resetControlsTimestamp = System.currentTimeMillis()
+    },
   )
 
   DoubleTapToSeekOvals(doubleTapSeekAmount, seekText, showDoubleTapOvals, showSeekTime, showSeekTime, interactionSource)
@@ -1259,16 +1261,39 @@ is PlayerUpdates.FrameInfo -> {
             exit = buildControlsExitV(controlsAnimStyle, reduceMotion, exitMs) { it },
             modifier =
               Modifier
-                .constrainAs(unlockControlsButton) {
-                  bottom.linkTo(parent.bottom, spacing.extraLarge)
-                  start.linkTo(parent.start)
-                  end.linkTo(parent.end)
+                .then(
+                  if (showSystemStatusBar) {
+                    Modifier.windowInsetsPadding(WindowInsets.statusBars)
+                  } else {
+                    Modifier
+                  },
+                ).then(
+                  if (showSystemNavigationBar) {
+                    val navBarPadding = WindowInsets.navigationBars.asPaddingValues()
+                    Modifier.padding(
+                      start = navBarPadding.calculateLeftPadding(LayoutDirection.Ltr),
+                      end = navBarPadding.calculateRightPadding(LayoutDirection.Ltr),
+                    )
+                  } else {
+                    Modifier
+                  },
+                ).constrainAs(unlockControlsButton) {
+                  top.linkTo(parent.top, if (isPortrait) spacing.extraLarge else spacing.small)
+                  if (showUnlockOnLeft) {
+                    start.linkTo(parent.start, spacing.large)
+                  } else {
+                    end.linkTo(parent.end, spacing.large)
+                  }
                 },
           ) {
-            SlideToUnlock(
-              onUnlock = { viewModel.unlockControls() },
-              onDraggingChanged = { isDragging -> isUnlockSliderDragging = isDragging },
-            )
+            PlayerButtonTheme(hideBackground) {
+              ControlsButton(
+                icon = Icons.RoundedFilled.LockOpen,
+                onClick = viewModel::unlockControls,
+                title = stringResource(R.string.ui_unlock_controls),
+                modifier = Modifier.size(45.dp),
+              )
+            }
           }
 
           val skipChipVisible =

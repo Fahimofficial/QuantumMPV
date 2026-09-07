@@ -1340,7 +1340,8 @@ Reinicie o aplicativo para que todas as alterações entrem em vigor.</string>
   <string name="ui_clear_loop">Limpar loop</string>
   <string name="ui_ambience_mode">Modo ambiente</string>
   <string name="ui_time_and_network">Hora e rede</string>
-  <string name="ui_slide_to_unlock">Deslize para desbloquear</string>
+  <string name="ui_unlock_controls">Desbloquear controles</string>
+  <string name="player_press_back_again_to_unlock">Pressione Voltar novamente para desbloquear os controles</string>
   <string name="ui_hdr_output">Saída HDR</string>
   <string name="ui_hdr_cannot_be_enabled">Não foi possível ativar o HDR</string>
   <string name="ui_enable_gpu_next_and_vulkan_before_using_hdr_modes">Ative GPU Next e Vulkan antes de usar os modos HDR</string>

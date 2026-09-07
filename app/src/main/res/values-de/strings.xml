@@ -1340,7 +1340,8 @@ Bitte starten Sie die App neu, damit alle Änderungen wirksam werden.</string>
   <string name="ui_clear_loop">Schleife löschen</string>
   <string name="ui_ambience_mode">Umgebungsmodus</string>
   <string name="ui_time_and_network">Zeit und Netzwerk</string>
-  <string name="ui_slide_to_unlock">Zum Entsperren schieben</string>
+  <string name="ui_unlock_controls">Steuerung entsperren</string>
+  <string name="player_press_back_again_to_unlock">Zum Entsperren der Steuerung erneut Zurück drücken</string>
   <string name="ui_hdr_output">HDR-Ausgabe</string>
   <string name="ui_hdr_cannot_be_enabled">HDR kann nicht aktiviert werden</string>
   <string name="ui_enable_gpu_next_and_vulkan_before_using_hdr_modes">GPU Next und Vulkan aktivieren, bevor HDR-Modi verwendet werden</string>

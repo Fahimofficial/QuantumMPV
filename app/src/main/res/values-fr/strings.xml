@@ -1340,7 +1340,8 @@ Veuillez redémarrer l’application pour appliquer toutes les modifications.</s
   <string name="ui_clear_loop">Effacer la boucle</string>
   <string name="ui_ambience_mode">Mode ambiant</string>
   <string name="ui_time_and_network">Horaire et réseau</string>
-  <string name="ui_slide_to_unlock">Faites glisser pour déverrouiller</string>
+  <string name="ui_unlock_controls">Déverrouiller les commandes</string>
+  <string name="player_press_back_again_to_unlock">Appuyez de nouveau sur Retour pour déverrouiller les commandes</string>
   <string name="ui_hdr_output">Sortie HDR</string>
   <string name="ui_hdr_cannot_be_enabled">Impossible d’activer le HDR</string>
   <string name="ui_enable_gpu_next_and_vulkan_before_using_hdr_modes">Activez GPU Next et Vulkan avant d’utiliser les modes HDR</string>
