@@ -273,12 +273,13 @@ object AudioPreferencesScreen : Screen {
                 modifier = Modifier.settingsSearchTarget(R.string.pref_music_player_switch_title),
                 value = musicSourceProvider,
                 onValueChange = { mediaServerPreferences.musicSourceProvider.set(it) },
-                values = listOf(MusicSourceProvider.LOCAL, MusicSourceProvider.JELLYFIN),
+                values = listOf(MusicSourceProvider.LOCAL, MusicSourceProvider.JELLYFIN, MusicSourceProvider.NAVIDROME),
                 valueToText = { source ->
                   AnnotatedString(
                     when (source) {
                       MusicSourceProvider.LOCAL -> context.getString(R.string.music_source_local)
                       MusicSourceProvider.JELLYFIN -> context.getString(R.string.music_source_jellyfin)
+                      MusicSourceProvider.NAVIDROME -> context.getString(R.string.music_source_navidrome)
                     },
                   )
                 },
@@ -289,6 +290,7 @@ object AudioPreferencesScreen : Screen {
                       when (musicSourceProvider) {
                         MusicSourceProvider.LOCAL -> stringResource(R.string.music_source_local)
                         MusicSourceProvider.JELLYFIN -> stringResource(R.string.music_source_jellyfin)
+                        MusicSourceProvider.NAVIDROME -> stringResource(R.string.music_source_navidrome)
                       },
                     color = MaterialTheme.colorScheme.outline,
                   )

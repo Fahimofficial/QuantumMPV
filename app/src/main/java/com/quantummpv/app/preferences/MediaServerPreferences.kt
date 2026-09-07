@@ -14,7 +14,8 @@ import com.quantummpv.app.preferences.preference.getEnum
 
 enum class MusicSourceProvider(val id: String) {
   LOCAL("local"),
-  JELLYFIN("jellyfin");
+  JELLYFIN("jellyfin"),
+  NAVIDROME("navidrome");
 
   companion object {
     fun fromId(id: String): MusicSourceProvider =
