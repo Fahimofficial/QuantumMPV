@@ -82,14 +82,8 @@ fun AddJellyfinServerDialog(
     onDismiss = onDismiss,
     onSubmit = {
       val trimmedUrl = serverUrl.trim()
-      val formattedUrl =
-        if (!trimmedUrl.startsWith("http://") && !trimmedUrl.startsWith("https://")) {
-          "https://$trimmedUrl"
-        } else {
-          trimmedUrl
-        }
       onConnect(
-        formattedUrl,
+        trimmedUrl,
         serverName.trim().ifBlank { "Jellyfin" },
         authMode,
         username.trim(),
