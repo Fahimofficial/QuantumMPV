@@ -60,6 +60,7 @@ import com.quantummpv.app.preferences.ThumbnailQuality
 import com.quantummpv.app.preferences.preference.collectAsState
 import com.quantummpv.app.ui.icons.Icon
 import com.quantummpv.app.ui.icons.Icons
+import com.quantummpv.app.ui.player.controls.components.tvFocusHighlight
 import com.quantummpv.app.ui.theme.AppShapeScale
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.filter
@@ -208,7 +209,8 @@ fun VideoCard(
       modifier
         .then(
           if (isGridMode) Modifier.fillMaxWidth() else Modifier.fillMaxWidth(),
-        ).clip(cardShape)
+        ).tvFocusHighlight(cardShape, focusedScale = 1.03f)
+        .clip(cardShape)
         .combinedClickable(
           onClick = onClick,
           onLongClick = onLongClick,

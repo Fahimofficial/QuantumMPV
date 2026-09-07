@@ -40,6 +40,7 @@ import androidx.compose.ui.unit.dp
 import com.quantummpv.app.ui.icons.AppIcon
 import com.quantummpv.app.ui.icons.Icon
 import com.quantummpv.app.ui.icons.Icons
+import com.quantummpv.app.ui.player.controls.components.tvFocusHighlight
 
 private data class BarLayoutParams(
   val buttonSize: androidx.compose.ui.unit.Dp,
@@ -328,7 +329,10 @@ private fun BrowserBottomBarButton(
   if (show) {
     IconButton(
       onClick = onClick,
-      modifier = Modifier.size(buttonSize),
+      modifier =
+        Modifier
+          .tvFocusHighlight(CircleShape, focusedScale = 1.06f)
+          .size(buttonSize),
     ) {
       Icon(
         imageVector = icon,

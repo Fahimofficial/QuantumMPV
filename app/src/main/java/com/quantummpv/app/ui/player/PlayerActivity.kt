@@ -5955,6 +5955,10 @@ private suspend fun restorePlaybackPosition(state: PlaybackStateEntity?) {
    * to the correct orientation, starting with landscape as fallback.
    */
   private fun setOrientation() {
+    if (isTelevision) {
+      requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE
+      return
+    }
     if (isCurrentMediaKnownAudio() || viewModel.isAudioOnly.value) {
       val audioOrient =
         when (audioPreferences.audioOrientation.get()) {
@@ -6001,6 +6005,10 @@ private suspend fun restorePlaybackPosition(state: PlaybackStateEntity?) {
   }
 
   private fun applyInitialVideoOrientation(sourceIntent: Intent) {
+    if (isTelevision) {
+      requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE
+      return
+    }
     if (playerPreferences.orientation.get() != PlayerOrientation.Video || isKnownAudioLaunch(sourceIntent)) return
 
     var width = sourceIntent.getIntExtra(EXTRA_VIDEO_WIDTH, 0)

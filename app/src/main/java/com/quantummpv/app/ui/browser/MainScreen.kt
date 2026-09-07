@@ -107,6 +107,9 @@ import com.quantummpv.app.ui.browser.playlist.PlaylistScreen
 import com.quantummpv.app.ui.browser.recentlyplayed.RecentlyPlayedScreen
 import com.quantummpv.app.ui.icons.Icon
 import com.quantummpv.app.ui.icons.Icons
+import com.quantummpv.app.ui.player.controls.components.rememberTvInitialFocusRequester
+import com.quantummpv.app.ui.player.controls.components.tvFocusHighlight
+import com.quantummpv.app.ui.player.controls.components.tvInitialFocus
 import com.quantummpv.app.ui.theme.AppMotion
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.cancelAndJoin
@@ -710,6 +713,7 @@ private fun ExpressivePillNavigationBar(
   pagerState: PagerState? = null,
 ) {
   val haptics = LocalHapticFeedback.current
+  val initialFocusRequester = rememberTvInitialFocusRequester(visibleTabs.isNotEmpty())
 
   val position =
     if (pagerState != null && visibleTabs.isNotEmpty()) {
@@ -819,6 +823,14 @@ private fun ExpressivePillNavigationBar(
               Modifier
                 .width(tabWidth)
                 .height(44.dp)
+                .then(
+                  if (tab == selectedTab) {
+                    Modifier.tvInitialFocus(initialFocusRequester)
+                  } else {
+                    Modifier
+                  },
+                )
+                .tvFocusHighlight(CircleShape, focusedScale = 1.06f)
                 .clip(CircleShape)
                 .clickable(
                   interactionSource = remember { MutableInteractionSource() },

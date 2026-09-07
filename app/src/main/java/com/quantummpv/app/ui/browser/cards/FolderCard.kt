@@ -54,6 +54,7 @@ import com.quantummpv.app.preferences.preference.collectAsState
 import com.quantummpv.app.ui.icons.AppIcon
 import com.quantummpv.app.ui.icons.Icon
 import com.quantummpv.app.ui.icons.Icons
+import com.quantummpv.app.ui.player.controls.components.tvFocusHighlight
 import com.quantummpv.app.ui.theme.AppShapeScale
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -276,6 +277,7 @@ fun FolderCard(
                     .height(thumbHeightDp)
                 }
               ).clip(AppShapeScale.medium)
+                .tvFocusHighlight(AppShapeScale.medium, focusedScale = 1.03f)
                 .background(MaterialTheme.colorScheme.surfaceContainerHigh)
                 .combinedClickable(
                   onClick = onThumbClick,
@@ -396,6 +398,7 @@ fun FolderCard(
             modifier =
               Modifier
                 .size(64.dp)
+                .tvFocusHighlight(AppShapeScale.medium, focusedScale = 1.03f)
                 .clip(AppShapeScale.medium)
                 .background(MaterialTheme.colorScheme.surfaceContainerHigh)
                 .combinedClickable(

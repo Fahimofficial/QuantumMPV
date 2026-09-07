@@ -78,6 +78,7 @@ import com.quantummpv.app.ui.icons.Icon
 import com.quantummpv.app.ui.icons.Icons
 import com.quantummpv.app.ui.player.screenshot.ScreenshotSaver
 import com.quantummpv.app.ui.player.screenshot.ScreenshotSettings
+import com.quantummpv.app.ui.player.controls.components.tvFocusHighlight
 import com.quantummpv.app.ui.theme.spacing
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -580,7 +581,13 @@ private fun FrameReviewOverlay(
           },
           valueRange = 0f..lastFrame.coerceAtLeast(1).toFloat(),
           enabled = totalFrames > 1 && duration > 0.0 && !isSnapshotLoading,
-          modifier = Modifier.fillMaxWidth(),
+          modifier =
+            Modifier
+              .fillMaxWidth()
+              .tvFocusHighlight(
+                MaterialTheme.shapes.small,
+                enabled = totalFrames > 1 && duration > 0.0 && !isSnapshotLoading,
+              ),
         )
       }
     }

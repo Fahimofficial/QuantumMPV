@@ -164,6 +164,7 @@ import com.quantummpv.app.ui.player.RepeatMode
 import com.quantummpv.app.ui.player.Sheets
 import com.quantummpv.app.ui.player.controls.components.AbLoopIcon
 import com.quantummpv.app.ui.player.controls.components.SeekbarWithTimers
+import com.quantummpv.app.ui.player.controls.components.tvFocusHighlight
 import com.quantummpv.app.ui.player.visualizer.AudioFeatures
 import com.quantummpv.app.ui.player.visualizer.AudioSpectrumAnalyzer
 import com.quantummpv.app.ui.player.visualizer.BlobOverlay
@@ -2441,6 +2442,7 @@ private fun ReactiveIconButton(
     Box(
       modifier =
         modifier
+          .tvFocusHighlight(CircleShape, enabled = enabled, focusedScale = 1.08f)
           .graphicsLayer {
             scaleX = scale
             scaleY = scale
@@ -2473,10 +2475,12 @@ private fun ReactiveIconButton(
       enabled = enabled,
       interactionSource = interactionSource,
       modifier =
-        modifier.graphicsLayer {
-          scaleX = scale
-          scaleY = scale
-        },
+        modifier
+          .tvFocusHighlight(CircleShape, enabled = enabled, focusedScale = 1.08f)
+          .graphicsLayer {
+            scaleX = scale
+            scaleY = scale
+          },
     ) {
       content()
     }
@@ -2514,10 +2518,12 @@ private fun ReactiveSurfaceButton(
     enabled = enabled,
     interactionSource = interactionSource,
     modifier =
-      modifier.graphicsLayer {
-        scaleX = scale
-        scaleY = scale
-      },
+      modifier
+        .tvFocusHighlight(shape, enabled = enabled, focusedScale = 1.06f)
+        .graphicsLayer {
+          scaleX = scale
+          scaleY = scale
+        },
   ) {
     content()
   }

@@ -22,6 +22,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.FloatingActionButtonDefaults
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -39,6 +40,7 @@ import androidx.compose.ui.unit.dp
 import com.quantummpv.app.R
 import com.quantummpv.app.ui.icons.Icon
 import com.quantummpv.app.ui.icons.Icons
+import com.quantummpv.app.ui.player.controls.components.tvFocusHighlight
 import com.quantummpv.app.utils.history.RecentlyPlayedOps
 import com.quantummpv.app.utils.media.MediaUtils
 import kotlinx.coroutines.launch
@@ -121,6 +123,7 @@ fun QuickPlayFab(
       },
       modifier = Modifier
         .padding(bottom = bottomPadding)
+        .tvFocusHighlight(CircleShape, focusedScale = 1.06f)
         .graphicsLayer {
           scaleX = scale
           scaleY = scale

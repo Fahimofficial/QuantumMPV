@@ -38,6 +38,7 @@ import com.quantummpv.app.preferences.AppearancePreferences
 import com.quantummpv.app.preferences.preference.collectAsState
 import com.quantummpv.app.ui.icons.Icon
 import com.quantummpv.app.ui.icons.Icons
+import com.quantummpv.app.ui.player.controls.components.tvFocusHighlight
 import com.quantummpv.app.ui.theme.AppShapeScale
 import org.koin.compose.koinInject
 
@@ -65,6 +66,7 @@ fun NetworkFolderCard(
     modifier =
       modifier
         .fillMaxWidth()
+        .tvFocusHighlight(AppShapeScale.large, focusedScale = 1.03f)
         .clip(AppShapeScale.large)
         .combinedClickable(
           onClick = onClick,

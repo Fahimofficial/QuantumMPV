@@ -57,6 +57,7 @@ import androidx.compose.ui.unit.sp
 import com.quantummpv.app.ui.icons.AppIcon
 import com.quantummpv.app.ui.icons.Icon
 import com.quantummpv.app.ui.icons.Icons
+import com.quantummpv.app.ui.player.controls.components.tvFocusHighlight
 import java.util.Locale
 import kotlin.math.abs
 
@@ -207,7 +208,10 @@ private fun CastSeekBar(
         activeTrackColor = MaterialTheme.colorScheme.primary,
         inactiveTrackColor = Color.White.copy(alpha = 0.2f),
       ),
-    modifier = Modifier.fillMaxWidth(),
+    modifier =
+      Modifier
+        .fillMaxWidth()
+        .tvFocusHighlight(MaterialTheme.shapes.small),
   )
 
   Row(
@@ -366,7 +370,10 @@ private fun CastVolumeSlider(
           activeTrackColor = MaterialTheme.colorScheme.primary,
           inactiveTrackColor = Color.White.copy(alpha = 0.2f),
         ),
-      modifier = Modifier.weight(1f),
+      modifier =
+        Modifier
+          .weight(1f)
+          .tvFocusHighlight(MaterialTheme.shapes.small),
     )
     Text(
       text = "${(volumeSliderValue * 100).toInt()}%",

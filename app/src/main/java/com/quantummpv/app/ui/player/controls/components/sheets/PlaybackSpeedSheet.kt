@@ -49,6 +49,7 @@ import com.quantummpv.app.presentation.components.RepeatingIconButton
 import com.quantummpv.app.ui.icons.Icon
 import com.quantummpv.app.ui.icons.Icons
 import com.quantummpv.app.ui.preferences.components.SwitchPreference
+import com.quantummpv.app.ui.player.controls.components.tvFocusHighlight
 import com.quantummpv.app.ui.theme.spacing
 import me.zhanghai.compose.preference.ProvidePreferenceLocals
 import org.koin.compose.koinInject
@@ -121,7 +122,10 @@ fun PlaybackSpeedSheet(
           },
           valueRange = 0.1f..4.0f,
           enabled = speedControlEnabled,
-          modifier = Modifier.weight(1f),
+          modifier =
+            Modifier
+              .weight(1f)
+              .tvFocusHighlight(MaterialTheme.shapes.small, enabled = speedControlEnabled),
         )
 
         RepeatingIconButton(

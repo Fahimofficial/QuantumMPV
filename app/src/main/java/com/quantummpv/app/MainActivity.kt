@@ -12,6 +12,7 @@ package com.quantummpv.app
 import android.Manifest
 import android.content.Intent
 import android.content.pm.PackageManager
+import android.content.pm.ActivityInfo
 import android.content.res.Configuration
 import android.os.Build
 import android.os.Bundle
@@ -100,6 +101,7 @@ import com.quantummpv.app.ui.player.toObject
 import com.quantummpv.app.ui.utils.LocalBackStack
 import com.quantummpv.app.ui.utils.popSafely
 import com.quantummpv.app.utils.device.VulkanCapabilities
+import com.quantummpv.app.utils.device.DeviceFormFactor
 import com.quantummpv.app.utils.media.fileExtension
 import com.quantummpv.app.utils.permission.PermissionUtils
 import com.quantummpv.app.utils.storage.FileTypeUtils
@@ -245,6 +247,10 @@ class MainActivity : AppCompatActivity() {
 
   override fun onCreate(savedInstanceState: Bundle?) {
     super.onCreate(savedInstanceState)
+
+    if (DeviceFormFactor.isTelevision(this)) {
+      requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE
+    }
 
     pipHelper = MPVPipHelper(
       activity = this,

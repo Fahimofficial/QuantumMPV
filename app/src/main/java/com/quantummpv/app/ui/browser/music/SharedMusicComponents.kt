@@ -59,6 +59,7 @@ import com.quantummpv.app.presentation.components.RemoteImage
 import com.quantummpv.app.ui.icons.AppIcon
 import com.quantummpv.app.ui.icons.Icon
 import com.quantummpv.app.ui.icons.Icons
+import com.quantummpv.app.ui.player.controls.components.tvFocusHighlight
 import com.quantummpv.app.ui.player.PlaybackSession
 import com.quantummpv.app.ui.player.controls.components.MiniAudioVisualizer
 import com.quantummpv.app.ui.theme.AppShapeScale
@@ -259,6 +260,7 @@ fun SharedMusicGridCard(
   Card(
     modifier = modifier
       .then(if (cardWidth != null) Modifier.width(cardWidth) else Modifier.fillMaxWidth())
+      .tvFocusHighlight(AppShapeScale.large, focusedScale = 1.03f)
       .clip(AppShapeScale.large)
       .combinedClickable(onClick = onClick, onLongClick = onLongClick),
     shape = AppShapeScale.large,

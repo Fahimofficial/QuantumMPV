@@ -53,6 +53,7 @@ import com.quantummpv.app.preferences.preference.collectAsState
 import com.quantummpv.app.presentation.components.RemoteImage
 import com.quantummpv.app.ui.icons.Icon
 import com.quantummpv.app.ui.icons.Icons
+import com.quantummpv.app.ui.player.controls.components.tvFocusHighlight
 import com.quantummpv.app.ui.theme.AppShapeScale
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.filter
@@ -196,6 +197,7 @@ fun M3UVideoCard(
     modifier =
       modifier
         .fillMaxWidth()
+        .tvFocusHighlight(AppShapeScale.large, focusedScale = 1.03f)
         .clip(AppShapeScale.large)
         .combinedClickable(
           onClick = onClick,

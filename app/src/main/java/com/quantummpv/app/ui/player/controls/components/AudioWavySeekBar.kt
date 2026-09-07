@@ -542,6 +542,7 @@ fun AudioWavySeekBar(
         ),
         modifier = Modifier
           .matchParentSize()
+          .tvFocusHighlight(MaterialTheme.shapes.small, enabled = boundedDuration > 0f)
           .alpha(0f),
       )
     }
