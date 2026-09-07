@@ -44,7 +44,6 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
-import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
@@ -83,6 +82,7 @@ import kotlinx.collections.immutable.toImmutableList
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import org.koin.compose.koinInject
+import kotlin.math.abs
 import sh.calvin.reorderable.ReorderableCollectionItemScope
 import sh.calvin.reorderable.ReorderableItem
 import sh.calvin.reorderable.rememberReorderableLazyListState
@@ -289,16 +289,31 @@ fun PlaylistSheet(
   val lazyListState = rememberLazyListState()
 
   // Find the currently playing item index - tracks changes in playlist items
-  val playingItemIndex by remember {
-    derivedStateOf {
-      playlist.indexOfFirst { it.isPlaying }
-    }
-  }
+  val playingItemIndex = remember(playlist) { playlist.indexOfFirst { it.isPlaying } }
 
-  // Scroll to the currently playing item when the playing item changes or when sheet opens
+  var hasPositionedInitialPlayingItem by remember { mutableStateOf(false) }
+
+  // Position the initial item without competing with the sheet entrance animation. Animate only
+  // later track changes, when the sheet is already settled and visible.
   LaunchedEffect(playingItemIndex) {
     if (playingItemIndex >= 0) {
-      lazyListState.animateScrollToItem(playingItemIndex)
+      if (hasPositionedInitialPlayingItem) {
+        val distanceFromVisibleItem = playingItemIndex - lazyListState.firstVisibleItemIndex
+        if (abs(distanceFromVisibleItem) > PLAYLIST_SCROLL_APPROACH_ITEMS) {
+          val approachOffset =
+            if (distanceFromVisibleItem > 0) {
+              PLAYLIST_SCROLL_APPROACH_ITEMS
+            } else {
+              -PLAYLIST_SCROLL_APPROACH_ITEMS
+            }
+          val approachIndex = playingItemIndex - approachOffset
+          lazyListState.scrollToItem(approachIndex.coerceIn(0, playlist.lastIndex))
+        }
+        lazyListState.animateScrollToItem(playingItemIndex)
+      } else {
+        lazyListState.scrollToItem(playingItemIndex)
+        hasPositionedInitialPlayingItem = true
+      }
     }
   }
 
@@ -1103,3 +1118,5 @@ private fun String.stripExtension(): String {
   val ext = substring(dotIndex + 1)
   return if (ext.length in 2..5 && ext.none { it.isWhitespace() }) substring(0, dotIndex) else this
 }
+
+private const val PLAYLIST_SCROLL_APPROACH_ITEMS = 6
