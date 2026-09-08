@@ -1,0 +1,34 @@
+---
+title: Build variants
+description: Choose between Standard, No Vulkan, and FongMi releases and select the right APK architecture.
+---
+
+mpvRx publishes three native distributions. They share the same Android application and settings surface, but package different native playback libraries.
+
+| Variant | Choose it when | Packaging |
+| --- | --- | --- |
+| **Standard** | You want the recommended build and normal Vulkan-capable playback path. | Universal and architecture-specific APKs may be available. |
+| **No Vulkan** | Vulkan is unavailable, unstable, or unnecessarily expensive on the device. | Universal APK. |
+| **FongMi** | You specifically need the alternate native MediaCodec/Vulkan integration. | Universal APK. |
+
+:::tip
+Start with **Standard**. A different variant is a compatibility choice, not a general quality upgrade.
+:::
+
+## CPU architecture
+
+| APK label | Typical device |
+| --- | --- |
+| `arm64-v8a` | Most current Android phones, tablets, TVs, and handhelds. |
+| `armeabi-v7a` | Older 32-bit ARM devices. |
+| `x86_64` | 64-bit Android emulators and uncommon Intel/AMD devices. |
+| `x86` | Older 32-bit Intel Android targets. |
+| `universal` | Includes every packaged ABI; larger, but easiest when architecture is unknown. |
+
+## When playback fails
+
+1. Reset custom `mpv.conf`, shaders, and decoder overrides.
+2. Retry the same file in Standard.
+3. If the failure is Vulkan-specific, test No Vulkan.
+4. Use FongMi only when its alternate native path addresses the device or codec behavior.
+5. Report the exact variant and media codec information if all builds fail.

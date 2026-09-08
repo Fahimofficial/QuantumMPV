@@ -1,0 +1,45 @@
+---
+title: Installation
+description: Install mpvRx from GitHub Releases or track stable updates through Obtainium.
+---
+
+mpvRx supports Android 8.0 (API 26) and newer. Releases are distributed from GitHub as APK files; the app is not installed through Google Play.
+
+:::warning[Download from the project]
+Use the [official mpvRx releases page](https://github.com/Riteshp2001/mpvRx/releases/latest). APKs copied to mirrors may be modified or outdated.
+:::
+
+## Install a stable release
+
+<Steps>
+  <Step title="Open the latest release">
+    Visit [GitHub Releases](https://github.com/Riteshp2001/mpvRx/releases/latest) on the Android device.
+  </Step>
+  <Step title="Choose a build">
+    Most devices should start with **Standard**. Read [Build variants](/docs/getting-started/build-variants) before choosing No Vulkan or FongMi.
+  </Step>
+  <Step title="Choose an architecture">
+    Use `arm64-v8a` for most current phones and tablets. Choose `universal` when architecture is unknown, or when the selected variant is distributed only as a universal APK.
+  </Step>
+  <Step title="Allow the installation">
+    Android may ask the browser or file manager for permission to install unknown apps. Grant it only for the installer you trust, install mpvRx, then revoke it if desired.
+  </Step>
+</Steps>
+
+## Track updates with Obtainium
+
+[Obtainium](https://github.com/ImranR98/Obtainium) can follow GitHub releases and notify you when a new stable build appears. Add this repository URL:
+
+```text
+https://github.com/Riteshp2001/mpvRx
+```
+
+Keep prereleases disabled if you want only stable updates.
+
+## Upgrade or switch builds
+
+Install a newer APK over the current app to preserve settings and library state. Build variants share the same application ID, so Android treats them as the same app. If Android rejects a switch, confirm the APK is newer and signed by the same release key.
+
+## Verify what you installed
+
+Open **Settings → About** and record the app version, commit, and variant. Include those details in bug reports.

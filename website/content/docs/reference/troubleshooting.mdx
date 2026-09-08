@@ -1,0 +1,52 @@
+---
+title: Troubleshooting
+description: Isolate common installation, playback, network, subtitle, server, script, and Cast problems.
+---
+
+Reduce the problem to the smallest reproducible setup before changing several unrelated settings.
+
+## Playback fails or shows a black screen
+
+1. Test the same source with an empty `mpv.conf` and no user scripts or shaders.
+2. Restore automatic decoder and render settings.
+3. Try a small local H.264/AAC MP4 file.
+4. Compare Standard and No Vulkan if the failure appears GPU-related.
+5. Record the codec, resolution, frame rate, bit depth, HDR type, and selected build.
+
+## Playback stutters
+
+Separate network buffering from decode/render pressure. Test locally, inspect cache and dropped-frame metrics, disable expensive processing, and confirm the device can hardware-decode the codec profile.
+
+## A network source will not connect
+
+- Verify host, port, credentials, and path outside mpvRx.
+- Confirm the phone can route to the server.
+- Check VPN, private DNS, guest Wi-Fi, client isolation, and firewall rules.
+- Use the protocol's expected port unless the server is configured differently.
+- Do not expose SMB or FTP directly to the internet.
+
+## Jellyfin or Navidrome fails
+
+State whether authentication, browsing, artwork, favorites, direct playback, or transcoding fails. Include the server software/version and whether another client can play the same item. Never attach credentials or signed URLs.
+
+## Subtitle search returns nothing
+
+Confirm title matching, season and episode, selected languages, enabled providers, and provider API keys. Try a simpler filename or use TMDB-assisted selection for ambiguous media.
+
+## A script does not run
+
+- Confirm scripting is enabled.
+- Confirm an mpv configuration folder is selected.
+- Use `.lua` or `.js` and place the file under `scripts/`.
+- Select it in the scripts panel.
+- Reopen playback after adding or disabling a script.
+- Use ES5-compatible JavaScript.
+- For native commands, use the exact lowercase property and a non-empty string value.
+
+## Cast discovers a device but cannot play
+
+The Default Media Receiver must support the source container and codecs. Test a receiver-accessible H.264/AAC MP4. For local files, confirm both devices can communicate directly on the LAN.
+
+## Prepare a useful report
+
+Include the app version/commit, build variant, device and Android version, exact reproduction steps, expected and actual behavior, relevant settings, and sanitized logs or screenshots. See [Support and contributing](/docs/reference/support-and-contributing).

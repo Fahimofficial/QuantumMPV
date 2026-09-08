@@ -1,0 +1,36 @@
+---
+title: Online media and torrents
+description: Open direct streams, supported online sources, magnet links, and torrent files responsibly.
+---
+
+The unified media hub can save and play direct HTTP/HTTPS streams, HLS playlists, supported online video URLs, magnet links, and `.torrent` files.
+
+:::warning[Use media you are allowed to access]
+Torrent and online-source support is transport functionality. You are responsible for the legality of the content and for complying with the source's terms.
+:::
+
+## Direct URLs
+
+Use **Open URL** for a receiver-accessible media URL such as an MP4 file or HLS playlist. Authentication cookies, expiring signatures, DRM, and browser-only playback can prevent a URL from working in a native player.
+
+## Supported online sources
+
+The yt-dlp bridge can resolve supported websites and exposes independent preferences for codec, resolution, frame rate, HDR, container, and audio bitrate. Site changes can temporarily break extraction until the bundled tooling is updated.
+
+If a source fails:
+
+1. Confirm the URL opens in a browser.
+2. Remove strict quality filters.
+3. Try a common container and codec combination.
+4. Check the newest mpvRx release notes for extractor updates.
+5. Do not post private, authenticated, or expiring URLs publicly.
+
+## Torrent playback
+
+The native torrent engine prioritizes pieces sequentially for streaming. Multi-file torrents provide episode filtering and sorting, watched indicators, and filename-based season/episode parsing.
+
+Playback startup depends on metadata availability, healthy peers, piece distribution, selected-file size, and network policy. A torrent with many listed peers can still stall when the required opening pieces are unavailable.
+
+## Saved media metadata
+
+Saved online items can use TMDB enrichment for posters, backdrops, release information, and summaries. Automated matching is best-effort; verify ambiguous titles and episode numbers before relying on generated metadata.

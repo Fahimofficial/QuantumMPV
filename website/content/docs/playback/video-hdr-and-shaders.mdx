@@ -1,0 +1,43 @@
+---
+title: Video, HDR, and shaders
+description: Configure render backends, HDR pipelines, debanding, Anime4K, filters, and thermal-aware playback.
+---
+
+Start with automatic hardware decoding and the default renderer. Advanced processing can improve difficult content, but it also increases GPU load, heat, and battery use.
+
+## Render backend
+
+mpvRx can select between OpenGL and Vulkan paths and between mpv's `gpu` and `gpu-next` output behavior. Driver quality varies by device.
+
+:::tip[Compatibility first]
+If a video fails, stutters, or shows corruption, remove custom shaders and decoder overrides before switching the entire build variant.
+:::
+
+## HDR pipelines
+
+The bundled hdr-toys collection provides 77 GLSL shaders and four high-level modes:
+
+- BT.2100 PQ for HDR10-style sources
+- BT.2100 HLG
+- BT.2020 gamut mapping
+- Linear HDR, including optional SDR-to-HDR boosting
+
+Correct output depends on the source metadata, display capability, Android composition path, and renderer. Compare against the unmodified image before keeping a pipeline enabled globally.
+
+## Anime4K
+
+Seven presets are available: Off, A, B, C, A+, B+, and C+. Device-oriented quality choices provide Fast, Balanced, and High tiers. mpvRx can disable Anime4K for high-resolution content and lower its quality under thermal pressure.
+
+Anime4K is most useful for compatible animated sources at lower resolutions. It is not a universal sharpness switch.
+
+## Debanding and filters
+
+- CPU debanding uses `gradfun`.
+- GPU debanding exposes iterations, threshold, range, and grain.
+- Video filter presets include Vivid, Cinematic, Dramatic, Ghibli Style, Neon Pop, and Deep Black.
+- Ambient GLOW and FRAME_EXTEND modes render around the video with configurable blur, color, warmth, vignette, and noise controls.
+- Automatic cropping can analyze supported videos for encoded black borders.
+
+## Watch thermal behavior
+
+The thermal monitor samples headroom during playback. Shader budgets and Anime4K choices can be reduced before sustained heat becomes dropped frames. Use the statistics page to compare FPS, dropped frames, decoder state, and power draw after each change.

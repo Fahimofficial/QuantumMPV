@@ -1,0 +1,34 @@
+---
+title: Jellyfin and Navidrome
+description: Connect media servers, browse remote libraries, and understand direct streaming and account behavior.
+---
+
+mpvRx can use Jellyfin for video and music libraries and Navidrome or another compatible Subsonic server for music.
+
+## Jellyfin
+
+The Jellyfin client provides artwork-rich library browsing, continue-watching rows, filters for movies, shows, anime, music, and box sets, season and episode selection, and server-synchronized favorites.
+
+Playback can use direct streams or server transcoding. The result depends on server configuration, exposed streams, selected audio/subtitle tracks, network bandwidth, and device decoder support.
+
+<Steps>
+  <Step title="Add the server">
+    Enter the reachable Jellyfin server URL and authenticate with your account.
+  </Step>
+  <Step title="Choose a library">
+    Browse the server's available libraries and open an item or episode.
+  </Step>
+  <Step title="Check the playback path">
+    If direct playback fails, verify the server can transcode the source and that its public URL is reachable from the device.
+  </Step>
+</Steps>
+
+## Navidrome and Subsonic
+
+Navidrome connections use the Subsonic API. mpvRx supports multiple named servers, token-and-salt authentication, music search, recently added albums, quick mixes, artists, albums, server playlists, and synchronized favorites.
+
+Some compatible Subsonic servers implement only part of the API. Missing discovery or favorite behavior may be a server capability difference rather than a playback failure.
+
+## Account safety
+
+Credentials and tokens remain sensitive even on a local network. Do not paste them into issue reports. When reporting a problem, include the server product/version, whether the same item works in another client, and whether the problem affects browsing, authentication, artwork, direct playback, or transcoding.

@@ -1,0 +1,44 @@
+---
+title: Local and network libraries
+description: Browse local storage and connect SMB, FTP, SFTP, or WebDAV media sources.
+---
+
+The main browser supports local folders and saved network connections. Album view emphasizes media collections; Tree view follows the underlying folder hierarchy.
+
+## Local library
+
+Grant video and audio access for broad library scanning, or use Android's document picker for individual files and folders. The browser can show recursive counts, durations, and sizes, pin frequently used folders, flatten single-child folders, and return to the last-played item.
+
+## Network protocols
+
+| Protocol | Default port | Typical use |
+| --- | ---: | --- |
+| SMB | `445` | Windows, Samba, NAS, and home network shares. |
+| FTP | `21` | Traditional file servers. Prefer a trusted network because plain FTP is not encrypted. |
+| SFTP | `22` | SSH-backed encrypted file access. |
+| WebDAV | `80` | HTTP-based storage. Enable HTTPS and use the server's TLS port when available. |
+
+A connection can include a display name, host, port, base path, username, and password. Available fields depend on the selected protocol.
+
+<Steps>
+  <Step title="Verify the server outside mpvRx">
+    Confirm its host, port, account, and media path are reachable from the Android device.
+  </Step>
+  <Step title="Add the connection">
+    Open the Network destination, select the protocol, and enter the server details. Use a hostname or IP address without copying a browser page URL into the host field.
+  </Step>
+  <Step title="Browse and pin">
+    Open the connection, navigate to a media folder, and bookmark frequently used folders for faster access.
+  </Step>
+</Steps>
+
+## Connection safety
+
+- Prefer SFTP or HTTPS WebDAV over unencrypted FTP on untrusted networks.
+- Do not expose SMB or FTP directly to the public internet.
+- Use a dedicated, least-privilege media account where the server supports it.
+- Never include credentials or private server addresses in public issue reports.
+
+## Troubleshooting
+
+Check that the phone and server can route to each other, the selected port is open, the account can list the requested path, and VPN/private DNS settings are not intercepting local traffic. For WebDAV filenames with spaces or reserved characters, use the in-app browser rather than manually constructing URLs.

@@ -1,0 +1,94 @@
+---
+title: Custom command bridge
+description: Call native mpvRx UI, seek, keyboard, and HTTP actions from Lua or JavaScript.
+---
+
+Scripts call native mpvRx actions by writing non-empty strings to `user-data/mpvrx/*`. Command names and enumerated values are case-sensitive.
+
+## Commands
+
+| Property | Value |
+| --- | --- |
+| `show_text` | Any non-empty overlay text. |
+| `toggle_ui` | `show`, `hide`, or `toggle`. |
+| `show_panel` | A supported panel ID from the table below. |
+| `seek_to` | Absolute integer seconds. |
+| `seek_by` | Signed relative integer seconds. |
+| `seek_to_with_text` | `seconds|message`. |
+| `seek_by_with_text` | `seconds|message`. |
+| `software_keyboard` | `show`, `hide`, or `toggle`. |
+| `curl_request` | JSON request encoded as a string. |
+
+`curl_response` is a read-only output property shared by all scripts.
+
+## Panel IDs
+
+| ID | Opens |
+| --- | --- |
+| `frame_navigation` | Frame navigation sheet |
+| `subtitle_settings` | Subtitle style settings |
+| `subtitle_delay` | Subtitle delay controls |
+| `audio_delay` | Audio delay controls |
+| `video_filters` | Video filter controls |
+| `lua_scripts` | Scripts panel |
+| `hdr_screen_output` | HDR screen-output controls |
+
+## Calling a command
+
+<Tabs>
+  <Tab title="Lua">
+
+```lua
+local function mpvrx(command, value)
+    mp.set_property("user-data/mpvrx/" .. command, tostring(value))
+end
+
+mpvrx("show_panel", "video_filters")
+mpvrx("seek_by_with_text", "30|Forward 30 seconds")
+```
+
+  </Tab>
+  <Tab title="JavaScript">
+
+```javascript
+function mpvrx(command, value) {
+    mp.set_property("user-data/mpvrx/" + command, String(value));
+}
+
+mpvrx("show_panel", "video_filters");
+mpvrx("seek_by_with_text", "30|Forward 30 seconds");
+```
+
+  </Tab>
+</Tabs>
+
+:::warning[Seek input is strict]
+Seek values are parsed as integers. Decimals, missing values, and a missing `|message` segment for the text variants are invalid.
+:::
+
+## HTTP bridge
+
+Write a JSON request to `user-data/mpvrx/curl_request`, then observe `user-data/mpvrx/curl_response`.
+
+```json
+{
+  "id": "episode-metadata-1730000000",
+  "url": "https://example.com/api/episode/1",
+  "method": "GET",
+  "headers": { "Accept": "application/json" },
+  "timeout": 15
+}
+```
+
+Supported methods are `GET`, `HEAD`, `POST`, `PUT`, `PATCH`, and `DELETE`. Only `POST`, `PUT`, and `PATCH` send bodies. The timeout defaults to 30 seconds and is clamped to 1 through 120 seconds.
+
+The response contains `id`, `status`, `body`, `headers`, and optional `error`. Use a unique request ID and ignore responses with a different ID.
+
+- Four requests may execute concurrently.
+- At most 32 requests may be pending.
+- Request headers are limited to 64 entries.
+- Response bodies are capped at 8 MiB.
+- Only HTTP and HTTPS URLs are accepted.
+- Bridge failures use status `0` and a descriptive error.
+
+For complete Lua and JavaScript request/observer examples, see the [full scripting reference on GitHub](https://github.com/Riteshp2001/mpvRx/blob/master/MPVRX_CUSTOM_COMMANDS.md).

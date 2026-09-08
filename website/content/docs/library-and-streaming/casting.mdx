@@ -1,0 +1,31 @@
+---
+title: Google Cast
+description: Send compatible local files and remote streams to Chromecast and Cast-enabled displays.
+---
+
+mpvRx uses the Google Cast framework and Google's Default Media Receiver. The Cast button exposes discovered Chromecast and Cast-enabled displays.
+
+## What transfers
+
+When a Cast session starts, mpvRx transfers the title, duration, play state, and current playback position. Notification, lock-screen, receiver-volume, and reconnect controls are provided through the Cast SDK. Ending the session can restore local playback near the receiver's latest position.
+
+## Local files
+
+For `file://` and `content://` media, mpvRx exposes a temporary tokenized HTTP endpoint on the local network. It supports byte-range requests and CORS headers so the receiver can seek.
+
+Both devices must be able to reach each other on the local network. Guest isolation, client isolation, VPN routing, or a restrictive firewall can block local casting even when discovery succeeds.
+
+## Remote streams
+
+HTTP and HTTPS URLs that the receiver can access are handed off directly. The receiver, not the phone's mpv engine, decodes the remote stream.
+
+:::note[No automatic mpv transcoding]
+Google's Default Media Receiver must support the media container, codecs, subtitles, and authentication model. A source that plays locally through mpv may still be unsupported by the Cast receiver.
+:::
+
+## Troubleshooting
+
+- No devices: confirm both devices are on the same network and Google Play services are available.
+- Connects but does not play: test a common H.264/AAC MP4 source.
+- Local file does not start: disable VPN isolation and verify local-device communication is allowed.
+- Position is wrong after returning: include the source type and exact handoff steps in a bug report.

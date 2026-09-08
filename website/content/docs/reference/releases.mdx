@@ -1,0 +1,29 @@
+---
+title: Releases and updates
+description: Understand stable and preview releases, APK naming, update paths, and release verification.
+---
+
+The authoritative distribution channel is [GitHub Releases](https://github.com/Riteshp2001/mpvRx/releases). Stable releases are suitable for normal use. Preview releases expose work in progress and may be less reliable.
+
+## Release assets
+
+A release can contain several APKs. The name identifies the native variant and, for Standard builds, the CPU architecture. Read [Build variants](/docs/getting-started/build-variants) before switching.
+
+## Update paths
+
+- Download and install a newer signed APK over the current installation.
+- Use Obtainium to follow stable GitHub releases automatically.
+- Use the in-app update feature where available in the selected build.
+- Back up critical custom configuration before testing preview releases.
+
+## Version information
+
+The About screen exposes the app version and source revision. Release pages provide notes and attached artifacts. For reproducible bug reports, include both the visible app version and the build variant.
+
+## Integrity
+
+GitHub release artifacts come from the project's release workflow. Keep Android's signature check enabled. Do not install a package that claims to be an update but is signed by an unrelated key.
+
+## Changelog
+
+Read the [repository changelog](https://github.com/Riteshp2001/mpvRx/blob/master/CHANGELOG.md) for detailed version history and the [latest release](https://github.com/Riteshp2001/mpvRx/releases/latest) for current downloads.

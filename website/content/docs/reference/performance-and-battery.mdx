@@ -1,0 +1,45 @@
+---
+title: Performance and battery
+description: Establish a low-power baseline, measure playback, and add rendering features within the device's thermal budget.
+---
+
+Video decoding, scaling, shaders, display refresh rate, screen brightness, network activity, and background services all affect power use. Tune from measurements, not from a copied option list.
+
+## Low-power baseline
+
+1. Use the default configuration or an empty `mpv.conf`.
+2. Prefer hardware decoding for supported codecs.
+3. Use the classic `gpu` output path when `gpu-next` or Vulkan offers no visible benefit.
+4. Disable Anime4K, HDR conversion, ambient effects, and custom shaders.
+5. Play a representative file at normal brightness for several minutes.
+6. Record FPS, dropped frames, decoder, battery current, and power from the statistics page.
+
+Add one feature at a time and compare it against that baseline.
+
+## High-impact settings
+
+| Setting | Typical cost |
+| --- | --- |
+| Anime4K | Multiple GPU passes; cost rises with source and display resolution. |
+| Shader chains | One or more full-frame passes for every displayed frame. |
+| SDR-to-HDR | Additional color and luminance processing. |
+| Ambient modes | Repeated blur, sampling, and composition around the video. |
+| High-quality scalers | More GPU work during resize and chroma reconstruction. |
+| Software decoding | Sustained CPU load when hardware decoding is unavailable. |
+| Volume boost | Little rendering cost, but can produce audible clipping. |
+
+## Thermal safeguards
+
+mpvRx samples thermal headroom during playback, caps ambient shader work, and can lower Anime4K quality under pressure. It also reduces some polling while controls are hidden or playback is paused.
+
+These safeguards reduce sustained load; they cannot make every shader chain appropriate for every device.
+
+## Diagnose stutter
+
+- Check whether decoding is hardware or software.
+- Remove custom shaders and filters.
+- Compare Vulkan and OpenGL behavior.
+- Test the No Vulkan build when driver behavior points to Vulkan.
+- Disable display refresh-rate switching temporarily.
+- Test a local file to separate network stalls from rendering stalls.
+- Include source resolution, frame rate, codec, bit depth, HDR type, variant, and dropped-frame data in a report.

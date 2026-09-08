@@ -1,0 +1,20 @@
+{
+  "name": "mpvrx-web",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": ">=22.19.0"
+  },
+  "scripts": {
+    "dev": "blume dev",
+    "build": "blume build",
+    "check": "blume check",
+    "validate": "blume validate",
+    "doctor": "blume doctor",
+    "preview": "blume preview"
+  },
+  "dependencies": {
+    "@lucide/astro": "1.42.0",
+    "blume": "1.6.3"
+  }
+}

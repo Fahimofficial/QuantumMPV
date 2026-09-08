@@ -1,0 +1,48 @@
+---
+title: Subtitles
+description: Select, style, search, synchronize, and generate subtitles in mpvRx.
+---
+
+mpvRx supports primary and secondary subtitle tracks, local files, embedded tracks, online search, custom fonts, and experimental speech-to-subtitle workflows.
+
+## Select and synchronize tracks
+
+Open the subtitle controls during playback to select a track or explicitly turn subtitles off. Primary and secondary tracks are positioned independently to reduce overlap. Delay controls let you correct a constant timing offset without rewriting the subtitle file.
+
+## Styling
+
+You can configure font, size, weight, italics, border, shadow, color, alignment, and scale behavior. ASS override modes decide how much embedded styling is preserved.
+
+For custom fonts:
+
+1. Choose a subtitle font directory.
+2. Reload the font catalog.
+3. Select the preferred default font.
+4. Clear the font cache if a replaced file does not appear.
+
+## Online search
+
+Three search modes are available:
+
+| Mode | Behavior |
+| --- | --- |
+| **Wyzie** | Searches the Wyzie-backed catalog. |
+| **SubtitleHub** | Searches the enabled SubtitleHub sources. Some providers require an API key. |
+| **Hybrid** | Runs both paths and combines results. |
+
+TMDB-assisted search can identify a title, season, and episode before querying providers. Verify the selected episode when filenames use unusual anime or absolute numbering.
+
+:::warning
+Do not publish provider API keys in bug reports or screenshots. Include the provider name and error behavior instead.
+:::
+
+## Speech-to-subtitle
+
+Supported cloud and offline Whisper providers can generate subtitles from the active audio. This feature is experimental. Processing time, language support, privacy, and network use depend on the selected provider.
+
+## Troubleshooting
+
+- Wrong language: review preferred subtitle languages and the selected track.
+- Overlapping dual subtitles: adjust secondary position or ASS override behavior.
+- Search returns nothing: confirm the title, season, episode, language, provider selection, and API key where required.
+- Styling seems ignored: test a plain SRT file, then review ASS override settings.

@@ -1,0 +1,44 @@
+---
+title: Privacy and permissions
+description: Understand why mpvRx requests Android permissions and how optional network, speech, update, and secure-folder features use them.
+---
+
+mpvRx is open source and does not ship ads or analytics trackers. Features that connect to a server or cloud provider transmit only the data needed for that feature, under the provider's own policy.
+
+## Android permissions
+
+| Permission or capability | Why it is used |
+| --- | --- |
+| Internet | Network streams, metadata, subtitle search, servers, casting support, updates, and configured AI providers. |
+| Video and audio access | Build and browse the local media library on current Android versions. |
+| Legacy/external storage access | File browsing and file operations on Android versions and storage layouts that require broader access. |
+| Modify audio settings | Playback volume and audio routing behavior. |
+| Foreground services | Ongoing media playback and user-started downloads. |
+| Wake lock | Keep active playback from being interrupted by device sleep. |
+| Notifications | Media controls, progress, chapters, downloads, and supported promoted notifications. |
+| Microphone | Optional speech or audio-capture workflows that require live recording. |
+| Install packages | The in-app update flow can hand an APK to Android's package installer. Android still asks for approval. |
+| Biometrics | Optional secure-folder unlock. Biometric verification is handled by Android. |
+| USB host | Optional access to compatible attached storage or devices. |
+
+Permissions are requested by feature and Android version. Denying an optional permission should limit that feature rather than normal local playback where Android provides another file-access path.
+
+## Data boundaries
+
+- Local playback does not require a mpvRx account.
+- Jellyfin, Navidrome, Subsonic, network shares, and AI providers use credentials you explicitly configure.
+- Google Cast exposes local media through a temporary tokenized LAN endpoint while casting.
+- Online subtitle, metadata, lyrics, yt-dlp, update, and AI features contact external services.
+- Torrent use exposes normal peer-to-peer network activity to the swarm and network provider.
+
+:::warning
+Never publish passwords, API keys, access tokens, authenticated stream URLs, private server addresses, or media you do not have permission to share.
+:::
+
+## Secure folder
+
+The secure folder provides a PIN-protected entry with optional Android biometrics and media move/restore operations. It is an access-control convenience inside the app, not a substitute for full-device encryption, a strong device lock, or a separate encrypted container.
+
+## Verify behavior
+
+The source code, Android manifest, release history, and build workflows are public in the [mpvRx repository](https://github.com/Riteshp2001/mpvRx).

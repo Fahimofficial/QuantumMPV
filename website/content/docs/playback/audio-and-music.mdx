@@ -1,0 +1,38 @@
+---
+title: Audio and music
+description: Use audio tracks, background playback, the music library, lyrics, playlists, and visualizers.
+---
+
+mpvRx includes an audio-focused library and now-playing experience in addition to video playback.
+
+## Audio playback
+
+Use the track selector to choose embedded audio streams. Audio delay can correct a fixed synchronization offset. Pitch correction and a configurable volume-boost ceiling are available for playback-speed and quiet-source workflows.
+
+:::warning
+Volume above 100% applies digital gain and may clip. Lower the boost when distortion appears.
+:::
+
+## Music library
+
+The Music tab can use local storage, Jellyfin, or Navidrome as its source. Local browsing includes:
+
+- Songs, albums, artists, and playlists
+- Artwork-aware grid and list layouts
+- Search and sorting
+- Folder exclusions and a minimum-track-duration filter
+- Favorites and shuffled playback
+
+The dedicated now-playing view combines artwork, metadata, transport controls, and the up-next queue.
+
+## Lyrics
+
+mpvRx can display embedded or local lyrics and fetch online lyrics from LRCLIB. When several sources are available, switch sources from the lyrics view. Availability and timing quality depend on the track metadata and provider result.
+
+## Visualizers
+
+Blob, Galaxy, Cuboid, and Particle modes are available, along with an optional audio-reactive seekbar. Visualizers use additional rendering resources, so disable them when battery life or thermal headroom is the priority.
+
+## Background playback
+
+Unified background playback keeps audio or video active while you return to browser screens. Android may require notification permission for media controls and may restrict background behavior under aggressive battery optimization.

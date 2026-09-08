@@ -1,0 +1,5 @@
+node_modules/
+.blume/
+dist/
+.vercel/
+.blume-verify/
