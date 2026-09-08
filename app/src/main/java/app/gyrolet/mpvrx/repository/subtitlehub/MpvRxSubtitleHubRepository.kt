@@ -106,7 +106,7 @@ class MpvRxSubtitleHubRepository(
       } catch (e: CancellationException) {
         throw e
       } catch (e: Exception) {
-        Log.e(TAG, "mpvRx SubtitleHub search failed", e)
+        Log.e(TAG, "QuantumMPV SubtitleHub search failed", e)
         Result.failure(e)
       }
     }
@@ -142,7 +142,7 @@ class MpvRxSubtitleHubRepository(
           Result.success(fileStore.save(response.body.bytes(), subtitle, mediaTitle))
         }
       } catch (e: Exception) {
-        Log.e(TAG, "mpvRx SubtitleHub download failed", e)
+        Log.e(TAG, "QuantumMPV SubtitleHub download failed", e)
         Result.failure(e)
       }
     }

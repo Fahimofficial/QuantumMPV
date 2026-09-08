@@ -47,7 +47,7 @@
         android:requestLegacyExternalStorage="true"
         android:roundIcon="@mipmap/ic_launcher_round"
         android:supportsRtl="true"
-        android:theme="@style/Theme.mpvrx"
+        android:theme="@style/Theme.QuantumMPV"
         android:largeHeap="true"
         android:hardwareAccelerated="true"
         android:networkSecurityConfig="@xml/network_security_config"
@@ -73,7 +73,7 @@
 
         <meta-data
             android:name="com.google.android.gms.cast.framework.OPTIONS_PROVIDER_CLASS_NAME"
-            android:value="app.gyrolet.mpvrx.ui.cast.MpvRxCastOptionsProvider" />
+            android:value="app.gyrolet.mpvrx.ui.cast.QuantumMPVCastOptionsProvider" />
 
         <receiver
             android:name="androidx.mediarouter.media.MediaTransferReceiver"
@@ -86,7 +86,7 @@
             android:configChanges="keyboard|keyboardHidden|navigation|orientation|screenLayout|uiMode|screenSize|smallestScreenSize"
             android:resizeableActivity="true"
             android:supportsPictureInPicture="true"
-            android:theme="@style/Theme.mpvrx">
+            android:theme="@style/Theme.QuantumMPV">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
 
@@ -119,8 +119,8 @@
             android:documentLaunchMode="never"
             android:resizeableActivity="true"
             android:supportsPictureInPicture="true"
-            android:theme="@style/Theme.mpvrx.Player">
-            <!-- MIME-only discovery lets external-player pickers find mpvRx before they
+            android:theme="@style/Theme.QuantumMPV.Player">
+            <!-- MIME-only discovery lets external-player pickers find QuantumMPV before they
                  attach the final stream URI. URI playback remains constrained below. -->
             <intent-filter>
                 <action android:name="android.intent.action.VIEW" />
@@ -399,7 +399,7 @@
             android:name=".ui.torrent.TorrentSelectionActivity"
             android:exported="true"
             android:grantUriPermissions="true"
-            android:theme="@style/Theme.mpvrx">
+            android:theme="@style/Theme.QuantumMPV">
             <intent-filter>
                 <action android:name="android.intent.action.VIEW" />
 
@@ -448,18 +448,18 @@
             android:name=".ui.cast.CastRemoteControllerActivity"
             android:exported="false"
             android:launchMode="singleTask"
-            android:theme="@style/Theme.mpvrx" />
+            android:theme="@style/Theme.QuantumMPV" />
         <activity
             android:name=".ui.cast.CastExpandedControlsActivity"
             android:exported="false"
             android:launchMode="singleTask"
-            android:theme="@style/Theme.mpvrx" />
+            android:theme="@style/Theme.QuantumMPV" />
         <activity android:name=".presentation.crash.CrashActivity" />
 
         <activity
             android:name=".ui.mediainfo.MediaInfoActivity"
             android:exported="true"
-            android:theme="@style/Theme.mpvrx"
+            android:theme="@style/Theme.QuantumMPV"
             android:label="@string/ui_media_info" />
 
         <activity-alias

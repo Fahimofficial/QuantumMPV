@@ -1,6 +1,6 @@
 # Code of Conduct
 
-mpvRx welcomes people with different backgrounds, experience levels, and ways of contributing. Everyone should be able to ask questions, report problems, and discuss changes without harassment or personal attacks.
+QuantumMPV welcomes people with different backgrounds, experience levels, and ways of contributing. Everyone should be able to ask questions, report problems, and discuss changes without harassment or personal attacks.
 
 ## Expected behavior
 
@@ -23,11 +23,11 @@ Disagreement and criticism are welcome when expressed constructively. A rejected
 
 ## Scope
 
-This policy applies to this repository's issues, pull requests, reviews, and other project-managed spaces. It also applies when someone is explicitly representing mpvRx in a public space.
+This policy applies to this repository's issues, pull requests, reviews, and other project-managed spaces. It also applies when someone is explicitly representing QuantumMPV in a public space.
 
 ## Reporting a concern
 
-Contact the [project maintainer](https://github.com/Riteshp2001) through a private contact method they make available. Include relevant links, a brief account of what happened, and any immediate concerns.
+Open a private report through the [QuantumMPV issue tracker](https://github.com/Fahimofficial/QuantumMPV/security/advisories/new) when available, or open an issue requesting a private reporting channel. Include relevant links, a brief account of what happened, and any immediate concerns.
 
 If no private contact method is listed, open a brief issue asking for a private reporting channel. Do not include names, sensitive evidence, or the details of the report in that public request. You can also use GitHub's built-in reporting tools for conduct on GitHub.
 

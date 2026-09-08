@@ -439,7 +439,7 @@ git push origin v1.3.1-preview.1
 
 ---
 
-## Acknowledgments
+## Credits & Third-Party Licenses
 ### QuantumMPV credits
 QuantumMPV is an independent continuation and rebrand of the mpvRx codebase. The project name, logo, repository, and current maintainership belong to **QuantumMPV**; upstream projects and community contributions remain credited below.
 

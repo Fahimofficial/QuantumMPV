@@ -19,4 +19,4 @@ Documentation-only changes can list link and formatting checks; do not claim an 
 - [ ] User-facing documentation is updated where applicable.
 - [ ] Upstream credits and license notices are preserved for adapted code or assets.
 - [ ] Logs, screenshots, and code do not expose credentials or private information.
-- [ ] I have read the [Code of Conduct](https://github.com/Riteshp2001/mpvRx/blob/master/CODE_OF_CONDUCT.md).
+- [ ] I have read the [Code of Conduct](https://github.com/Fahimofficial/QuantumMPV/blob/master/CODE_OF_CONDUCT.md).

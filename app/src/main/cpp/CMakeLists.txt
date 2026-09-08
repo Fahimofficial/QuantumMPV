@@ -2,7 +2,7 @@ cmake_minimum_required(VERSION 3.22.1)
 
 project("mpvrx_native" C CXX)
 
-# Release-only native optimization shared by MpvRx-owned JNI/helper targets.
+# Release-only native optimization shared by QuantumMPV-owned JNI/helper targets.
 # Keep this scoped to our small native targets; the prebuilt mpvlib AARs are
 # optimized separately when their mpv/FFmpeg toolchain is built.
 set(MPVRX_NATIVE_RELEASE_COMPILE_OPTIONS

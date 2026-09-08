@@ -26,7 +26,7 @@ QuantumMPV is developed independently using ideas and patterns learned from the 
 
 Third-party libraries and assets retain their own copyrights and licenses. See the sections below and the accompanying license notices for details.
 
-## Open-source acknowledgments
+## Credits & Third-Party Licenses
 
 The groups below organize the existing credits by project type; they are not an exhaustive dependency inventory or a claim that every project is bundled in the app.
 
@@ -70,4 +70,4 @@ Preserve upstream copyright and license notices when adapting code or assets. Th
 
 If a credit is missing or incorrect, [open an issue](https://github.com/Fahimofficial/QuantumMPV/issues/new) or a pull request with the relevant source link and the attribution to add or correct.
 
-[Back to the README](README.md#acknowledgments)
+[Back to the README](README.md#credits--third-party-licenses)

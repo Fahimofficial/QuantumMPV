@@ -277,8 +277,8 @@ class UpdateManager(
   }
 
   private companion object {
-    const val STABLE_RELEASE_URL = "https://api.github.com/repos/Riteshp2001/mpvRx/releases/latest"
-    const val PREVIEW_RELEASE_URL = "https://riteshp2001.github.io/mpvRx/latest.json"
+    const val STABLE_RELEASE_URL = "https://api.github.com/repos/Fahimofficial/QuantumMPV/releases/latest"
+    const val PREVIEW_RELEASE_URL = "https://fahimofficial.github.io/QuantumMPV/latest.json"
     const val LEGACY_IGNORED_VERSION_KEY = "ignored_version"
     val PREVIEW_TAG_REGEX = Regex("""(?:preview-)?r(\d+)""", RegexOption.IGNORE_CASE)
     val SUPPORTED_ARCHITECTURES = setOf("arm64-v8a", "armeabi-v7a", "x86", "x86_64")
