@@ -62,6 +62,12 @@ class AiPreferences(
   val sttProvider = preferenceStore.getEnum("ai_stt_provider", AiProvider.GROQ)
   val sttModel = preferenceStore.getString("ai_stt_model", "")
   val sttAvailableModels = preferenceStore.getString("ai_stt_available_models", "[]")
+  private val groqSttModel = preferenceStore.getString("ai_stt_model_groq", "")
+  private val openAiSttModel = preferenceStore.getString("ai_stt_model_openai", "")
+  private val openRouterSttModel = preferenceStore.getString("ai_stt_model_openrouter", "")
+  private val groqSttAvailableModels = preferenceStore.getString("ai_stt_available_models_groq", "[]")
+  private val openAiSttAvailableModels = preferenceStore.getString("ai_stt_available_models_openai", "[]")
+  private val openRouterSttAvailableModels = preferenceStore.getString("ai_stt_available_models_openrouter", "[]")
   val sttLanguage = preferenceStore.getString("ai_stt_language", "")
 
   // Auto-translate target languages (comma-separated codes: "en,es,fr")
@@ -93,6 +99,15 @@ class AiPreferences(
     if (providerModels.get() == "[]" && availableModels.get() != "[]") {
       providerModels.set(availableModels.get())
     }
+    val currentSttProvider = sttProvider.get()
+    val providerSttModel = sttModelFor(currentSttProvider)
+    if (providerSttModel.get().isBlank() && sttModel.get().isNotBlank()) {
+      providerSttModel.set(sttModel.get())
+    }
+    val providerSttModels = sttAvailableModelsFor(currentSttProvider)
+    if (providerSttModels.get() == "[]" && sttAvailableModels.get() != "[]") {
+      providerSttModels.set(sttAvailableModels.get())
+    }
   }
 
   fun selectedModelFor(provider: AiProvider): Preference<String> =
@@ -113,5 +128,21 @@ class AiPreferences(
       AiProvider.ANTHROPIC -> anthropicAvailableModels
       AiProvider.OPENROUTER -> openRouterAvailableModels
       AiProvider.TOGETHER -> togetherAvailableModels
+    }
+
+  fun sttModelFor(provider: AiProvider): Preference<String> =
+    when (provider) {
+      AiProvider.GROQ -> groqSttModel
+      AiProvider.OPENAI -> openAiSttModel
+      AiProvider.OPENROUTER -> openRouterSttModel
+      else -> sttModel
+    }
+
+  fun sttAvailableModelsFor(provider: AiProvider): Preference<String> =
+    when (provider) {
+      AiProvider.GROQ -> groqSttAvailableModels
+      AiProvider.OPENAI -> openAiSttAvailableModels
+      AiProvider.OPENROUTER -> openRouterSttAvailableModels
+      else -> sttAvailableModels
     }
 }

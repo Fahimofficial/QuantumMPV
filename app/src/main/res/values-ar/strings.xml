@@ -804,6 +804,17 @@
   <string name="pref_ai_search_summary">تنسيق عناوين الفيديو تلقائيًا للبحث عن ترجمة Wyzie/SubHub</string>
   <string name="pref_stt_section">تحويل الكلام إلى نص [تجريبي للغاية]</string>
   <string name="pref_stt_title">إنشاء ترجمة نصية في الوقت الفعلي</string>
+  <string name="realtime_subtitles_label">تسميات توضيحية مباشرة</string>
+  <string name="realtime_subtitles_processing">التسميات المباشرة %1$d/%2$d</string>
+  <string name="realtime_subtitles_translating">جارٍ ترجمة التسميات المباشرة</string>
+  <string name="realtime_subtitles_translation_fallback">الترجمة غير متاحة؛ يتم عرض النص المفرغ</string>
+  <string name="realtime_subtitles_complete">اكتملت التسميات المباشرة</string>
+  <string name="realtime_subtitles_failed">فشلت التسميات المباشرة</string>
+  <string name="realtime_subtitles_stopped">تم إيقاف التسميات المباشرة</string>
+  <string name="realtime_subtitles_media_unavailable">الوسائط الحالية غير متاحة للتسميات المباشرة</string>
+  <string name="realtime_subtitles_update_failed">تعذر تحديث التسميات المباشرة</string>
+  <string name="subtitle_generation_audio_unavailable">تعذر فتح المسار الصوتي المحدد</string>
+  <string name="subtitle_generation_duration_unknown">مدة الفيديو غير متاحة</string>
   <string name="pref_stt_summary">إنشاء ترجمة نصية من الصوت أثناء تشغيل الفيديو</string>
   <string name="pref_stt_output_format_title">تنسيق الإخراج الافتراضي</string>
   <string name="pref_stt_provider_title">مزوّد تحويل الكلام إلى نص</string>

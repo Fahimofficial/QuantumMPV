@@ -32,14 +32,17 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.navigationBarsPadding
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.wrapContentWidth
 import app.gyrolet.mpvrx.ui.utils.NavigationPager
 import androidx.compose.foundation.pager.PagerState
 import androidx.compose.foundation.pager.rememberPagerState
@@ -68,10 +71,6 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.clipToBounds
-import androidx.compose.ui.draw.drawBehind
-import androidx.compose.ui.geometry.CornerRadius
-import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
@@ -85,7 +84,6 @@ import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
-import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
 import kotlin.math.roundToInt
 import app.gyrolet.mpvrx.R
@@ -623,69 +621,106 @@ private fun ExpressivePillNavigationBar(
   val haptics = LocalHapticFeedback.current
   val initialFocusRequester = rememberTvInitialFocusRequester(visibleTabs.isNotEmpty())
 
-  BoxWithConstraints(modifier = modifier) {
-    // The dock follows the same progress as the pages, without per-frame composition or layout.
-    fun position(): Float =
-      if (pagerState != null && visibleTabs.isNotEmpty()) {
-        (pagerState.currentPage + pagerState.currentPageOffsetFraction).coerceIn(
-          0f,
-          (visibleTabs.size - 1).toFloat(),
-        )
-      } else {
-        visibleTabs.indexOf(selectedTab).coerceAtLeast(0).toFloat()
+  val position =
+    if (pagerState != null) {
+      (pagerState.currentPage + pagerState.currentPageOffsetFraction).coerceIn(
+        0f,
+        (visibleTabs.size - 1).toFloat(),
+      )
+    } else {
+      visibleTabs.indexOf(selectedTab).coerceAtLeast(0).toFloat()
+    }
+
+  fun activeTabWidth(tab: MainScreen.MainTab) =
+    when (tab) {
+      MainScreen.MainTab.HOME -> 92.dp
+      MainScreen.MainTab.MUSIC -> 92.dp
+      MainScreen.MainTab.RECENTS -> 104.dp
+      MainScreen.MainTab.PLAYLISTS -> 108.dp
+      MainScreen.MainTab.NETWORK -> 106.dp
+      MainScreen.MainTab.JELLYFIN -> 100.dp
+    }
+
+  val inactiveTabWidth = 44.dp
+  val spacing = 4.dp
+  val startPadding = 6.dp
+  val tabWidths =
+    visibleTabs.mapIndexed { index, tab ->
+      val fraction = (1f - kotlin.math.abs(position - index)).coerceIn(0f, 1f)
+      androidx.compose.ui.unit.lerp(inactiveTabWidth, activeTabWidth(tab), fraction)
+    }
+  val tabOffsets =
+    buildList {
+      var offset = startPadding
+      tabWidths.forEach { width ->
+        add(offset)
+        offset += width + spacing
       }
+    }
+  val pageFloor = position.toInt().coerceIn(visibleTabs.indices)
+  val pageCeil = (pageFloor + 1).coerceIn(visibleTabs.indices)
+  val pageFraction = (position - pageFloor).coerceIn(0f, 1f)
+  val indicatorLeft = androidx.compose.ui.unit.lerp(tabOffsets[pageFloor], tabOffsets[pageCeil], pageFraction)
+  val indicatorWidth = androidx.compose.ui.unit.lerp(tabWidths[pageFloor], tabWidths[pageCeil], pageFraction)
 
-    val startPadding = 6.dp
-    val barWidth = (64.dp * visibleTabs.size + startPadding * 2).coerceAtMost(maxWidth)
-    val indicatorColor = MaterialTheme.colorScheme.primaryContainer
-    fun tabFraction(index: Int, progress: Float): Float = (1f - kotlin.math.abs(progress - index)).coerceIn(0f, 1f)
-
-    Surface(
-      modifier = Modifier.width(barWidth),
-      shape = CircleShape,
-      color = MaterialTheme.colorScheme.surfaceContainerHigh,
-      tonalElevation = 6.dp,
-      shadowElevation = 8.dp,
-      border =
-        BorderStroke(
-          width = 1.dp,
-          color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.25f),
-        ),
+  Surface(
+    modifier = modifier,
+    shape = CircleShape,
+    color = MaterialTheme.colorScheme.surfaceContainerHigh,
+    tonalElevation = 6.dp,
+    shadowElevation = 8.dp,
+    border =
+      BorderStroke(
+        width = 1.dp,
+        color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.25f),
+      ),
+  ) {
+    Box(
+      modifier =
+        Modifier
+          .wrapContentWidth()
+          .padding(horizontal = startPadding, vertical = 6.dp),
     ) {
-      Row(
+      Box(
         modifier =
           Modifier
-            .padding(horizontal = startPadding, vertical = 6.dp)
-            .selectableGroup()
-            .drawBehind {
-              val progress = position()
-              val visualPosition = if (layoutDirection == LayoutDirection.Rtl) visibleTabs.lastIndex - progress else progress
-              val slotWidth = size.width / visibleTabs.size
-              val width = minOf(48.dp.toPx(), slotWidth - 4.dp.toPx()).coerceAtLeast(0f)
-              drawRoundRect(
-                color = indicatorColor,
-                topLeft = Offset(slotWidth * (visualPosition + 0.5f) - width / 2, 4.dp.toPx()),
-                size = Size(width, 32.dp.toPx()),
-                cornerRadius = CornerRadius(16.dp.toPx()),
-              )
-            },
+            .offset(x = indicatorLeft - startPadding)
+            .width(indicatorWidth)
+            .height(44.dp)
+            .clip(CircleShape)
+            .background(MaterialTheme.colorScheme.primaryContainer),
+      )
+
+      Row(
+        modifier = Modifier.selectableGroup(),
+        horizontalArrangement = Arrangement.spacedBy(spacing, Alignment.CenterHorizontally),
         verticalAlignment = Alignment.CenterVertically,
       ) {
         visibleTabs.forEachIndexed { index, tab ->
           key(tab) {
-            // Stable touch targets and labels: only the highlight and icon layers move.
-            Column(
+            val activeFraction = (1f - kotlin.math.abs(position - index)).coerceIn(0f, 1f)
+            val label =
+              when (tab) {
+                MainScreen.MainTab.HOME -> stringResource(R.string.ui_home)
+                MainScreen.MainTab.MUSIC -> stringResource(R.string.ui_music)
+                MainScreen.MainTab.RECENTS -> stringResource(R.string.ui_recents)
+                MainScreen.MainTab.PLAYLISTS -> stringResource(R.string.ui_playlists)
+                MainScreen.MainTab.NETWORK -> stringResource(R.string.ui_network)
+                MainScreen.MainTab.JELLYFIN -> stringResource(R.string.ui_jellyfin)
+              }
+            val contentColor =
+              androidx.compose.ui.graphics.lerp(
+                MaterialTheme.colorScheme.onSurfaceVariant,
+                MaterialTheme.colorScheme.onPrimaryContainer,
+                activeFraction,
+              )
+
+            Box(
               modifier =
                 Modifier
-                  .weight(1f)
-                  .height(60.dp)
-                  .then(
-                    if (tab == selectedTab) {
-                      Modifier.tvInitialFocus(initialFocusRequester)
-                    } else {
-                      Modifier
-                    },
-                  )
+                  .width(tabWidths[index])
+                  .height(44.dp)
+                  .then(if (tab == selectedTab) Modifier.tvInitialFocus(initialFocusRequester) else Modifier)
                   .tvFocusHighlight(CircleShape, focusedScale = 1.06f)
                   .clip(CircleShape)
                   .selectable(
@@ -696,49 +731,32 @@ private fun ExpressivePillNavigationBar(
                   ) {
                     if (tab != selectedTab) haptics.performHapticFeedback(HapticFeedbackType.SegmentTick)
                     onTabSelected(tab)
-                  }
-                  .padding(top = 4.dp),
-              horizontalAlignment = Alignment.CenterHorizontally,
-              verticalArrangement = Arrangement.Top,
+                  },
+              contentAlignment = Alignment.Center,
             ) {
-              Box(
-                modifier = Modifier.size(32.dp).graphicsLayer {
-                  val fraction = tabFraction(index, position())
-                  scaleX = 1f + 0.06f * fraction
-                  scaleY = scaleX
-                  translationY = -1.dp.toPx() * fraction
-                },
-                contentAlignment = Alignment.Center,
+              Row(
+                modifier = Modifier.padding(horizontal = 8.dp),
+                horizontalArrangement = Arrangement.Center,
+                verticalAlignment = Alignment.CenterVertically,
               ) {
-                Box(Modifier.graphicsLayer { alpha = 1f - tabFraction(index, position()) }) {
-                  MainTabIcon(tab, MaterialTheme.colorScheme.onSurfaceVariant)
-                }
-                Box(Modifier.graphicsLayer { alpha = tabFraction(index, position()) }) {
-                  MainTabIcon(tab, MaterialTheme.colorScheme.onPrimaryContainer)
+                MainTabIcon(tab, contentColor, label)
+                if (activeFraction > 0.05f) {
+                  Spacer(modifier = Modifier.width(androidx.compose.ui.unit.lerp(0.dp, 6.dp, activeFraction)))
+                  Text(
+                    text = label,
+                    style = MaterialTheme.typography.labelMedium,
+                    fontWeight = FontWeight.Bold,
+                    color = contentColor,
+                    maxLines = 1,
+                    softWrap = false,
+                    overflow = TextOverflow.Clip,
+                    modifier =
+                      Modifier.graphicsLayer {
+                        alpha = ((activeFraction - 0.25f) / 0.75f).coerceIn(0f, 1f)
+                      },
+                  )
                 }
               }
-              Text(
-                text =
-                  when (tab) {
-                    MainScreen.MainTab.HOME -> stringResource(R.string.ui_home)
-                    MainScreen.MainTab.MUSIC -> stringResource(R.string.ui_music)
-                    MainScreen.MainTab.RECENTS -> stringResource(R.string.ui_recents)
-                    MainScreen.MainTab.PLAYLISTS -> stringResource(R.string.ui_playlists)
-                    MainScreen.MainTab.NETWORK -> stringResource(R.string.ui_network)
-                    MainScreen.MainTab.JELLYFIN -> stringResource(R.string.ui_jellyfin)
-                  },
-                style = MaterialTheme.typography.labelSmall,
-                fontWeight = FontWeight.SemiBold,
-                color = MaterialTheme.colorScheme.onSurface,
-                textAlign = TextAlign.Center,
-                maxLines = 1,
-                softWrap = false,
-                overflow = TextOverflow.Ellipsis,
-                modifier =
-                  Modifier.fillMaxWidth().padding(horizontal = 2.dp).graphicsLayer {
-                    alpha = 0.65f + 0.35f * tabFraction(index, position())
-                  },
-              )
             }
           }
         }
@@ -748,7 +766,11 @@ private fun ExpressivePillNavigationBar(
 }
 
 @Composable
-private fun MainTabIcon(tab: MainScreen.MainTab, tint: Color) {
+private fun MainTabIcon(
+  tab: MainScreen.MainTab,
+  tint: Color,
+  contentDescription: String?,
+) {
   val icon = when (tab) {
     MainScreen.MainTab.HOME -> Icons.RoundedFilled.Home
     MainScreen.MainTab.MUSIC -> Icons.RoundedFilled.Audiotrack
@@ -760,14 +782,14 @@ private fun MainTabIcon(tab: MainScreen.MainTab, tint: Color) {
   if (icon == null) {
     androidx.compose.material3.Icon(
       painter = painterResource(R.drawable.ic_jellyfin),
-      contentDescription = null,
+      contentDescription = contentDescription,
       tint = tint,
       modifier = Modifier.size(22.dp),
     )
   } else {
     Icon(
       icon,
-      contentDescription = null,
+      contentDescription = contentDescription,
       tint = tint,
       modifier = Modifier.size(22.dp),
     )

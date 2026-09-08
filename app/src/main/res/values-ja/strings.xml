@@ -804,6 +804,17 @@
   <string name="pref_ai_search_summary">Wyzie/SubHub字幕検索用に動画タイトルを自動整形します</string>
   <string name="pref_stt_section">音声認識［非常に試験的］</string>
   <string name="pref_stt_title">リアルタイム字幕生成</string>
+  <string name="realtime_subtitles_label">ライブ字幕</string>
+  <string name="realtime_subtitles_processing">ライブ字幕 %1$d/%2$d</string>
+  <string name="realtime_subtitles_translating">ライブ字幕を翻訳中</string>
+  <string name="realtime_subtitles_translation_fallback">翻訳を利用できないため、文字起こしを表示しています</string>
+  <string name="realtime_subtitles_complete">ライブ字幕が完了しました</string>
+  <string name="realtime_subtitles_failed">ライブ字幕に失敗しました</string>
+  <string name="realtime_subtitles_stopped">ライブ字幕を停止しました</string>
+  <string name="realtime_subtitles_media_unavailable">現在のメディアではライブ字幕を利用できません</string>
+  <string name="realtime_subtitles_update_failed">ライブ字幕を更新できませんでした</string>
+  <string name="subtitle_generation_audio_unavailable">選択した音声トラックを開けませんでした</string>
+  <string name="subtitle_generation_duration_unknown">動画の長さを取得できません</string>
   <string name="pref_stt_summary">動画再生中に音声から字幕を生成します</string>
   <string name="pref_stt_output_format_title">デフォルト出力形式</string>
   <string name="pref_stt_provider_title">音声認識の提供元</string>

@@ -9,15 +9,18 @@
 
 package app.gyrolet.mpvrx.repository.ai
 
+import java.util.Locale
+
 internal object AiModelCapabilities {
   fun isTextGenerationModel(id: String): Boolean {
-    val value = id.lowercase()
+    val value = id.lowercase(Locale.ROOT)
     return listOf(
       "whisper",
       "transcribe",
       "tts",
       "speech",
-      "embedding",
+      "embed",
+      "rerank",
       "moderation",
       "dall-e",
       "gpt-image",
@@ -27,4 +30,20 @@ internal object AiModelCapabilities {
       "safety",
     ).none(value::contains)
   }
+
+  fun isSpeechToTextModel(id: String): Boolean {
+    val value = id.lowercase(Locale.ROOT)
+    if (listOf("tts", "text-to-speech", "speech-generation").any(value::contains)) return false
+    return listOf("whisper", "transcribe", "speech-to-text", "speech_to_text").any(value::contains)
+  }
+
+  fun normalize(models: List<AiModelInfo>): List<AiModelInfo> =
+    models
+      .asSequence()
+      .filter { it.id.isNotBlank() }
+      .distinctBy { it.id.lowercase(Locale.ROOT) }
+      .sortedWith(
+        compareBy<AiModelInfo> { it.displayName.lowercase(Locale.ROOT) }
+          .thenBy { it.id.lowercase(Locale.ROOT) },
+      ).toList()
 }

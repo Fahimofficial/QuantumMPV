@@ -804,6 +804,17 @@ Reinicia la aplicación para que se apliquen todos los cambios.</string>
   <string name="pref_ai_search_summary">Dar formato automático a títulos de vídeo para buscar subtítulos en Wyzie/SubHub</string>
   <string name="pref_stt_section">Voz a texto [muy experimental]</string>
   <string name="pref_stt_title">Generación de subtítulos en tiempo real</string>
+  <string name="realtime_subtitles_label">Subtítulos en directo</string>
+  <string name="realtime_subtitles_processing">Subtítulos en directo %1$d/%2$d</string>
+  <string name="realtime_subtitles_translating">Traduciendo subtítulos en directo</string>
+  <string name="realtime_subtitles_translation_fallback">Traducción no disponible; se muestra la transcripción</string>
+  <string name="realtime_subtitles_complete">Subtítulos en directo completados</string>
+  <string name="realtime_subtitles_failed">Error en los subtítulos en directo</string>
+  <string name="realtime_subtitles_stopped">Subtítulos en directo detenidos</string>
+  <string name="realtime_subtitles_media_unavailable">El contenido actual no está disponible para subtítulos en directo</string>
+  <string name="realtime_subtitles_update_failed">No se pudieron actualizar los subtítulos en directo</string>
+  <string name="subtitle_generation_audio_unavailable">No se pudo abrir la pista de audio seleccionada</string>
+  <string name="subtitle_generation_duration_unknown">La duración del vídeo no está disponible</string>
   <string name="pref_stt_summary">Generar subtítulos desde el audio mientras se reproduce el vídeo</string>
   <string name="pref_stt_output_format_title">Formato de salida predeterminado</string>
   <string name="pref_stt_provider_title">Proveedor de voz a texto</string>

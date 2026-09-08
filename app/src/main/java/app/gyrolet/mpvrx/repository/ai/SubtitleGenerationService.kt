@@ -10,15 +10,12 @@
 package app.gyrolet.mpvrx.repository.ai
 
 import android.content.Context
-import android.media.MediaCodec
-import android.media.MediaExtractor
-import android.media.MediaFormat
-import android.media.MediaMuxer
-import android.net.Uri
+import app.gyrolet.mpvrx.network.awaitResponse
 import app.gyrolet.mpvrx.preferences.AiPreferences
 import app.gyrolet.mpvrx.preferences.AiProvider
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.isActive
+import kotlinx.coroutines.currentCoroutineContext
+import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.json.Json
 import okhttp3.MediaType.Companion.toMediaType
@@ -27,7 +24,6 @@ import okhttp3.OkHttpClient
 import okhttp3.Request
 import okhttp3.RequestBody.Companion.asRequestBody
 import java.io.File
-import java.nio.ByteBuffer
 import java.util.Locale
 import java.util.concurrent.TimeUnit
 
@@ -68,26 +64,28 @@ class SubtitleGenerationService(
     private const val CHUNK_STEP_MS = CHUNK_DURATION_MS - CHUNK_OVERLAP_MS
   }
 
-  suspend fun generateSubtitles(
-    videoUri: Uri,
+  private val audioExtractor = RealtimeAudioChunkExtractor(context)
+
+  internal suspend fun generateSubtitles(
+    mediaInput: RealtimeMediaInput,
+    videoDurationMs: Long,
     language: String?,
     outputFormat: String,
     onProgress: (SubtitleGenerationProgress) -> Unit = {},
   ): Result<GeneratedSubtitle> =
     withContext(Dispatchers.IO) {
-      runCatching {
+      runCatchingCancellable {
+        require(videoDurationMs > 0L) { "Video duration is unavailable" }
         val normalizedFormat =
           outputFormat.lowercase(Locale.ROOT).let {
             if (it == "vtt") "vtt" else "srt"
           }
-
-        val videoDurationMs = getVideoDurationMs(videoUri)
         val totalChunks = ((videoDurationMs + CHUNK_STEP_MS - 1) / CHUNK_STEP_MS).toInt()
         val allSegments = mutableListOf<SpeechSegment>()
         var previousEndMs = 0L
 
         for (chunkIndex in 0 until totalChunks) {
-          if (!isActive) break
+          currentCoroutineContext().ensureActive()
 
           val chunkStartMs = chunkIndex * CHUNK_STEP_MS
           val chunkEndMs = (chunkStartMs + CHUNK_DURATION_MS).coerceAtMost(videoDurationMs)
@@ -100,8 +98,7 @@ class SubtitleGenerationService(
             ),
           )
 
-          val audioChunk = extractAudioChunk(videoUri, chunkStartMs, chunkEndMs)
-          if (audioChunk == null) continue
+          val audioChunk = audioExtractor.extract(mediaInput, chunkStartMs, chunkEndMs)
 
           try {
             val transcribeProgress = 0.45f + (chunkIndex.toFloat() / totalChunks) * 0.45f
@@ -112,20 +109,30 @@ class SubtitleGenerationService(
               ),
             )
 
-            val transcript = transcribe(audioChunk, language).getOrNull()
-            if (transcript == null || transcript.segments.isEmpty()) continue
+            val transcript =
+              transcribe(audioChunk, language).getOrElse { error ->
+                throw IllegalStateException(
+                  "Transcription failed for chunk ${chunkIndex + 1}/$totalChunks: ${error.message}",
+                  error,
+                )
+              }
+            val relativeSegments =
+              if (transcript.segments.isEmpty() && transcript.text.isNotBlank()) {
+                listOf(SpeechSegment(0L, chunkEndMs - chunkStartMs, transcript.text.trim()))
+              } else {
+                transcript.segments
+              }
+            if (relativeSegments.isEmpty()) continue
 
             val newSegments =
-              transcript.segments
-                .filter { segment ->
-                  segment.endMs > previousEndMs
-                }.map { segment ->
+              relativeSegments
+                .map { segment ->
                   SpeechSegment(
                     startMs = chunkStartMs + segment.startMs,
                     endMs = chunkStartMs + segment.endMs,
                     text = segment.text,
                   )
-                }
+                }.filter { segment -> segment.endMs > previousEndMs }
 
             if (newSegments.isNotEmpty()) {
               allSegments.addAll(newSegments)
@@ -138,6 +145,7 @@ class SubtitleGenerationService(
           }
         }
 
+        currentCoroutineContext().ensureActive()
         onProgress(SubtitleGenerationProgress(0.9f, "Writing subtitle"))
 
         val segments =
@@ -156,114 +164,19 @@ class SubtitleGenerationService(
       }
     }
 
-  private fun getVideoDurationMs(videoUri: Uri): Long {
-    val extractor = MediaExtractor()
-    try {
-      extractor.setDataSource(context, videoUri, null)
-      val durationUs = extractor.getTrackFormat(0).getLong(MediaFormat.KEY_DURATION)
-      return durationUs / 1000
-    } finally {
-      extractor.release()
-    }
-  }
-
-  private suspend fun extractAudioChunk(
-    videoUri: Uri,
-    startMs: Long,
-    endMs: Long,
-  ): File? =
-    withContext(Dispatchers.IO) {
-      runCatching {
-        val extractor = MediaExtractor()
-        var outputFile: File? = null
-        try {
-          extractor.setDataSource(context, videoUri, null)
-
-          var audioTrackIndex = -1
-          for (i in 0 until extractor.trackCount) {
-            val format = extractor.getTrackFormat(i)
-            val mime = format.getString(MediaFormat.KEY_MIME) ?: continue
-            if (mime.startsWith("audio/")) {
-              audioTrackIndex = i
-              break
-            }
-          }
-          if (audioTrackIndex < 0) return@runCatching null
-
-          val audioFormat = extractor.getTrackFormat(audioTrackIndex)
-          val audioMime = audioFormat.getString(MediaFormat.KEY_MIME) ?: return@runCatching null
-          val isWebm = audioMime == "audio/opus" || audioMime == "audio/vorbis"
-
-          outputFile =
-            File.createTempFile(
-              "sub_chunk_",
-              if (isWebm) ".webm" else ".m4a",
-              context.cacheDir,
-            )
-          if (!isActive) {
-            outputFile!!.delete()
-            return@runCatching null
-          }
-
-          extractor.selectTrack(audioTrackIndex)
-          extractor.seekTo(startMs * 1000, MediaExtractor.SEEK_TO_CLOSEST_SYNC)
-
-          val muxer =
-            MediaMuxer(
-              outputFile!!.absolutePath,
-              if (isWebm) {
-                MediaMuxer.OutputFormat.MUXER_OUTPUT_WEBM
-              } else {
-                MediaMuxer.OutputFormat.MUXER_OUTPUT_MPEG_4
-              },
-            )
-          try {
-            val muxerTrackIndex = muxer.addTrack(audioFormat)
-            muxer.start()
-
-            val buffer = ByteBuffer.allocate(512 * 1024)
-            val bufferInfo = MediaCodec.BufferInfo()
-
-            while (isActive) {
-              val sampleSize = extractor.readSampleData(buffer, 0)
-              if (sampleSize < 0) break
-
-              val sampleTimeUs = extractor.sampleTime
-              if (sampleTimeUs > endMs * 1000) break
-
-              bufferInfo.set(0, sampleSize, sampleTimeUs, extractor.sampleFlags)
-              muxer.writeSampleData(muxerTrackIndex, buffer, bufferInfo)
-              extractor.advance()
-            }
-
-            muxer.stop()
-          } finally {
-            muxer.release()
-          }
-        } finally {
-          extractor.release()
-        }
-
-        if (!isActive) {
-          outputFile.delete()
-          return@runCatching null
-        }
-        outputFile
-      }.getOrNull()
-    }
-
   private suspend fun transcribe(
     audioFile: File,
     language: String?,
   ): Result<SpeechTranscript> {
     val provider = preferences.sttProvider.get()
+    val sttModel = preferences.sttModelFor(provider).get()
     return when (provider) {
       AiProvider.GROQ -> {
         val key = preferences.groqApiKey.get()
         if (key.isBlank()) {
           Result.failure(Exception("Groq API key not configured."))
         } else {
-          groqSpeechClient.transcribe(key, audioFile, language, preferences.sttModel.get())
+          groqSpeechClient.transcribe(key, audioFile, language, sttModel)
         }
       }
       AiProvider.OPENAI -> {
@@ -274,7 +187,7 @@ class SubtitleGenerationService(
           transcribeOpenAiCompatible(
             "https://api.openai.com/v1/audio/transcriptions",
             key,
-            preferences.sttModel.get().takeIf { it.startsWith("whisper") || it.contains("transcribe") } ?: "whisper-1",
+            sttModel.takeIf { it.startsWith("whisper") || it.contains("transcribe") } ?: "whisper-1",
             audioFile,
             language,
           )
@@ -285,7 +198,7 @@ class SubtitleGenerationService(
         if (key.isBlank()) {
           Result.failure(Exception("OpenRouter API key not configured."))
         } else {
-          openRouterSpeechClient.transcribe(key, audioFile, language, preferences.sttModel.get())
+          openRouterSpeechClient.transcribe(key, audioFile, language, sttModel)
         }
       }
       else -> Result.failure(Exception("Only online providers (Groq, OpenAI, OpenRouter) are supported."))
@@ -300,7 +213,7 @@ class SubtitleGenerationService(
     language: String?,
   ): Result<SpeechTranscript> =
     withContext(Dispatchers.IO) {
-      runCatching {
+      runCatchingCancellable {
         val apiClient =
           okHttpClient
             .newBuilder()
@@ -314,7 +227,7 @@ class SubtitleGenerationService(
             .Builder()
             .setType(MultipartBody.FORM)
             .addFormDataPart("model", model)
-            .addFormDataPart("response_format", "verbose_json")
+            .addFormDataPart("response_format", if (model.startsWith("whisper", ignoreCase = true)) "verbose_json" else "json")
             .addFormDataPart("temperature", "0")
             .addFormDataPart("file", audioFile.name, audioFile.asRequestBody(audioMediaType(audioFile)))
 
@@ -328,26 +241,27 @@ class SubtitleGenerationService(
             .post(bodyBuilder.build())
             .build()
 
-        val response = apiClient.newCall(request).execute()
-        val responseBody = response.body.string()
-        if (!response.isSuccessful) {
-          throw Exception("STT failed: HTTP ${response.code} ${responseBody.take(240)}")
-        }
+        apiClient.newCall(request).awaitResponse().use { response ->
+          val responseBody = response.body.string()
+          if (!response.isSuccessful) {
+            throw Exception("STT failed: HTTP ${response.code} ${responseBody.take(240)}")
+          }
 
-        val parsed = json.decodeFromString(SttResponse.serializer(), responseBody)
-        SpeechTranscript(
-          text = parsed.text.orEmpty().trim(),
-          segments =
-            parsed.segments.mapNotNull { segment ->
-              val text = segment.text?.trim().orEmpty()
-              if (text.isBlank()) return@mapNotNull null
-              SpeechSegment(
-                startMs = (segment.start * 1000).toLong(),
-                endMs = (segment.end * 1000).toLong(),
-                text = text,
-              )
-            },
-        )
+          val parsed = json.decodeFromString(SttResponse.serializer(), responseBody)
+          SpeechTranscript(
+            text = parsed.text.orEmpty().trim(),
+            segments =
+              parsed.segments.mapNotNull { segment ->
+                val text = segment.text?.trim().orEmpty()
+                if (text.isBlank()) return@mapNotNull null
+                SpeechSegment(
+                  startMs = (segment.start * 1000).toLong(),
+                  endMs = (segment.end * 1000).toLong(),
+                  text = text,
+                )
+              },
+          )
+        }
       }
     }
 
@@ -403,6 +317,7 @@ class SubtitleGenerationService(
 private fun audioMediaType(file: File): okhttp3.MediaType {
   val ext = file.name.substringAfterLast('.', "").lowercase()
   return when (ext) {
+    "wav" -> "audio/wav".toMediaType()
     "webm" -> "audio/webm".toMediaType()
     else -> "audio/mp4".toMediaType()
   }

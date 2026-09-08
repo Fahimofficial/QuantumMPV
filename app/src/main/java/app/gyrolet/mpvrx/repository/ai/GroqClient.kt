@@ -9,6 +9,7 @@
 
 package app.gyrolet.mpvrx.repository.ai
 
+import app.gyrolet.mpvrx.network.awaitResponse
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.SerialName
@@ -68,7 +69,7 @@ class GroqClient(
 
   override suspend fun fetchModels(apiKey: String): Result<List<AiModelInfo>> =
     withContext(Dispatchers.IO) {
-      runCatching {
+      runCatchingCancellable {
         val request =
           Request
             .Builder()
@@ -77,18 +78,15 @@ class GroqClient(
             .get()
             .build()
 
-        val response = apiClient.newCall(request).execute()
-        val body = response.body.string()
+        apiClient.newCall(request).awaitResponse().use { response ->
+          val body = response.body.string()
+          if (!response.isSuccessful) {
+            val errorMsg = parseError(body)
+            throw Exception("Groq API error ${response.code}: $errorMsg")
+          }
 
-        if (!response.isSuccessful) {
-          val errorMsg = parseError(body)
-          throw Exception("Groq API error ${response.code}: $errorMsg")
-        }
-
-        val parsed = json.decodeFromString<GroqModelListResponse>(body)
-        parsed.data
-          .filter { AiModelCapabilities.isTextGenerationModel(it.id) }
-          .map {
+          val parsed = json.decodeFromString<GroqModelListResponse>(body)
+          parsed.data.map {
             val displayName = if (it.owned_by != null) "${it.id} (${it.owned_by})" else it.id
             AiModelInfo(
               id = it.id,
@@ -96,12 +94,13 @@ class GroqClient(
               isFree = AiModelPricing.isZeroCost(it.pricing),
             )
           }
+        }
       }
     }
 
   override suspend fun verifyKey(apiKey: String): Result<String> =
     withContext(Dispatchers.IO) {
-      runCatching {
+      runCatchingCancellable {
         val request =
           Request
             .Builder()
@@ -110,12 +109,13 @@ class GroqClient(
             .get()
             .build()
 
-        val response = apiClient.newCall(request).execute()
-        if (!response.isSuccessful) {
-          val body = response.body.string()
-          throw Exception("Invalid API key: ${response.code} $body")
+        apiClient.newCall(request).awaitResponse().use { response ->
+          if (!response.isSuccessful) {
+            val body = response.body.string()
+            throw Exception("Invalid API key: ${response.code} $body")
+          }
+          "API key verified successfully"
         }
-        "API key verified successfully"
       }
     }
 
@@ -127,7 +127,7 @@ class GroqClient(
     options: AiGenerationOptions,
   ): Result<AiGeneratedContent> =
     withContext(Dispatchers.IO) {
-      runCatching {
+      runCatchingCancellable {
         val requestBody =
           json.encodeToString(
             GroqChatRequest.serializer(),
@@ -151,15 +151,14 @@ class GroqClient(
             .post(requestBody.toRequestBody(JSON_MEDIA_TYPE))
             .build()
 
-        val response = apiClient.newCall(request).execute()
-        val body = response.body.string()
-
-        if (!response.isSuccessful) {
-          val errorMsg = parseError(body)
-          throw Exception("Groq generate error ${response.code}: $errorMsg")
+        apiClient.newCall(request).awaitResponse().use { response ->
+          val body = response.body.string()
+          if (!response.isSuccessful) {
+            val errorMsg = parseError(body)
+            throw Exception("Groq generate error ${response.code}: $errorMsg")
+          }
+          AiResponseParser.openAiCompatible(json, body, "Groq")
         }
-
-        AiResponseParser.openAiCompatible(json, body, "Groq")
       }
     }
 

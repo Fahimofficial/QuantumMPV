@@ -804,6 +804,17 @@ Reinicie o aplicativo para que todas as alterações entrem em vigor.</string>
   <string name="pref_ai_search_summary">Formatar automaticamente títulos de vídeo para pesquisa de legendas Wyzie/SubHub</string>
   <string name="pref_stt_section">Fala para texto [extremamente experimental]</string>
   <string name="pref_stt_title">Geração de legendas em tempo real</string>
+  <string name="realtime_subtitles_label">Legendas ao vivo</string>
+  <string name="realtime_subtitles_processing">Legendas ao vivo %1$d/%2$d</string>
+  <string name="realtime_subtitles_translating">Traduzindo legendas ao vivo</string>
+  <string name="realtime_subtitles_translation_fallback">Tradução indisponível; exibindo a transcrição</string>
+  <string name="realtime_subtitles_complete">Legendas ao vivo concluídas</string>
+  <string name="realtime_subtitles_failed">Falha nas legendas ao vivo</string>
+  <string name="realtime_subtitles_stopped">Legendas ao vivo interrompidas</string>
+  <string name="realtime_subtitles_media_unavailable">A mídia atual não está disponível para legendas ao vivo</string>
+  <string name="realtime_subtitles_update_failed">Não foi possível atualizar as legendas ao vivo</string>
+  <string name="subtitle_generation_audio_unavailable">Não foi possível abrir a faixa de áudio selecionada</string>
+  <string name="subtitle_generation_duration_unknown">A duração do vídeo não está disponível</string>
   <string name="pref_stt_summary">Gerar legendas a partir do áudio durante a reprodução</string>
   <string name="pref_stt_output_format_title">Formato de saída padrão</string>
   <string name="pref_stt_provider_title">Provedor de fala para texto</string>

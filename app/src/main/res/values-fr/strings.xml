@@ -804,6 +804,17 @@ Veuillez redémarrer l’application pour appliquer toutes les modifications.</s
   <string name="pref_ai_search_summary">Mettre automatiquement en forme les titres vidéo pour la recherche de sous-titres Wyzie/SubHub</string>
   <string name="pref_stt_section">Reconnaissance vocale [extrêmement expérimentale]</string>
   <string name="pref_stt_title">Génération de sous-titres en temps réel</string>
+  <string name="realtime_subtitles_label">Sous-titres en direct</string>
+  <string name="realtime_subtitles_processing">Sous-titres en direct %1$d/%2$d</string>
+  <string name="realtime_subtitles_translating">Traduction des sous-titres en direct</string>
+  <string name="realtime_subtitles_translation_fallback">Traduction indisponible ; affichage de la transcription</string>
+  <string name="realtime_subtitles_complete">Sous-titres en direct terminés</string>
+  <string name="realtime_subtitles_failed">Échec des sous-titres en direct</string>
+  <string name="realtime_subtitles_stopped">Sous-titres en direct arrêtés</string>
+  <string name="realtime_subtitles_media_unavailable">Le média actuel n’est pas disponible pour les sous-titres en direct</string>
+  <string name="realtime_subtitles_update_failed">Impossible de mettre à jour les sous-titres en direct</string>
+  <string name="subtitle_generation_audio_unavailable">Impossible d’ouvrir la piste audio sélectionnée</string>
+  <string name="subtitle_generation_duration_unknown">La durée de la vidéo n’est pas disponible</string>
   <string name="pref_stt_summary">Générer des sous-titres à partir de l’audio pendant la lecture</string>
   <string name="pref_stt_output_format_title">Format de sortie par défaut</string>
   <string name="pref_stt_provider_title">Fournisseur de reconnaissance vocale</string>

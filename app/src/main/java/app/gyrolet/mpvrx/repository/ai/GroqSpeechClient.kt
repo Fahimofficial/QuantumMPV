@@ -9,6 +9,8 @@
 
 package app.gyrolet.mpvrx.repository.ai
 
+import app.gyrolet.mpvrx.network.awaitResponse
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.Serializable
@@ -29,7 +31,6 @@ class GroqSpeechClient(
   companion object {
     private const val BASE_URL = "https://api.groq.com/openai/v1/audio/transcriptions"
     private const val MAX_FILE_BYTES = 22L * 1024 * 1024
-    private val AUDIO_MEDIA_TYPE = "audio/mp4".toMediaType()
   }
 
   private val apiClient: OkHttpClient =
@@ -47,7 +48,7 @@ class GroqSpeechClient(
     model: String?,
   ): Result<SpeechTranscript> =
     withContext(Dispatchers.IO) {
-      runCatching {
+      try {
         val fileSizeMb = audioFile.length() / (1024 * 1024)
         if (audioFile.length() > MAX_FILE_BYTES) {
           throw Exception(
@@ -64,7 +65,7 @@ class GroqSpeechClient(
               model?.takeIf { it.contains("whisper", ignoreCase = true) } ?: "whisper-large-v3-turbo",
             ).addFormDataPart("response_format", "verbose_json")
             .addFormDataPart("temperature", "0")
-            .addFormDataPart("file", audioFile.name, audioFile.asRequestBody(AUDIO_MEDIA_TYPE))
+            .addFormDataPart("file", audioFile.name, audioFile.asRequestBody(audioMediaType(audioFile)))
 
         languageCode(language)?.let { bodyBuilder.addFormDataPart("language", it) }
 
@@ -76,32 +77,50 @@ class GroqSpeechClient(
             .post(bodyBuilder.build())
             .build()
 
-        val response = apiClient.newCall(request).execute()
-        val responseBody = response.body.string()
-        if (!response.isSuccessful) {
-          throw Exception("Groq transcription failed: HTTP ${response.code} ${responseBody.take(240)}")
-        }
+        apiClient.newCall(request).awaitResponse().use { response ->
+          val responseBody = response.body.string()
+          if (!response.isSuccessful) {
+            throw Exception("Groq transcription failed: HTTP ${response.code} ${responseBody.take(240)}")
+          }
 
-        val parsed = json.decodeFromString(GroqTranscriptionResponse.serializer(), responseBody)
-        SpeechTranscript(
-          text = parsed.text.orEmpty().trim(),
-          segments =
-            parsed.segments.mapNotNull { segment ->
-              val text = segment.text?.trim().orEmpty()
-              if (text.isBlank()) return@mapNotNull null
-              SpeechSegment(
-                startMs = (segment.start * 1000).toLong(),
-                endMs = (segment.end * 1000).toLong(),
-                text = text,
-              )
-            },
-        )
+          val parsed = json.decodeFromString(GroqTranscriptionResponse.serializer(), responseBody)
+          Result.success(
+            SpeechTranscript(
+              text = parsed.text.orEmpty().trim(),
+              segments =
+                parsed.segments.mapNotNull { segment ->
+                  val text = segment.text?.trim().orEmpty()
+                  if (text.isBlank()) return@mapNotNull null
+                  SpeechSegment(
+                    startMs = (segment.start * 1000).toLong(),
+                    endMs = (segment.end * 1000).toLong(),
+                    text = text,
+                  )
+                },
+            ),
+          )
+        }
+      } catch (cancellation: CancellationException) {
+        throw cancellation
+      } catch (error: Exception) {
+        Result.failure(error)
       }
     }
 
+  private fun audioMediaType(audioFile: File) =
+    when (audioFile.extension.lowercase(Locale.ROOT)) {
+      "wav" -> "audio/wav"
+      "webm" -> "audio/webm"
+      "ogg" -> "audio/ogg"
+      "mp3" -> "audio/mpeg"
+      else -> "audio/mp4"
+    }.toMediaType()
+
   private fun languageCode(language: String?): String? {
     if (language.isNullOrBlank()) return null
-    return when (language.lowercase(Locale.ROOT)) {
+    val normalized = language.trim().lowercase(Locale.ROOT)
+    if (normalized.matches(Regex("[a-z]{2,3}"))) return normalized
+    return when (normalized) {
       "english" -> "en"
       "hindi" -> "hi"
       "spanish" -> "es"

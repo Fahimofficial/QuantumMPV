@@ -79,6 +79,7 @@ import app.gyrolet.mpvrx.ui.preferences.components.SwitchPreference
 import app.gyrolet.mpvrx.ui.utils.LocalBackStack
 import app.gyrolet.mpvrx.ui.utils.LocalShowSettingsBackArrow
 import app.gyrolet.mpvrx.ui.utils.popSafely
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
@@ -177,18 +178,29 @@ object AiIntegrationScreen : Screen {
     var showApiKey by remember { mutableStateOf(false) }
     var modelLoadError by remember { mutableStateOf<String?>(null) }
     var showSubtitleTranslationWarning by remember { mutableStateOf(false) }
+    var modelLoadRequestId by remember { mutableStateOf(0) }
 
     val json = koinInject<Json>()
+    val activeApiKey =
+      when (provider) {
+        AiProvider.OPENCODE -> openCodeKey
+        AiProvider.GROQ -> groqKey
+        AiProvider.OPENAI -> openaiKey
+        AiProvider.ANTHROPIC -> anthropicKey
+        AiProvider.OPENROUTER -> openrouterKey
+        AiProvider.TOGETHER -> togetherKey
+      }
 
     fun loadModels() {
-      if (isLoadingModels) return
       val requestedProvider = provider
+      val requestId = ++modelLoadRequestId
       scope.launch {
         isLoadingModels = true
         modelLoadError = null
         aiService
           .fetchModelsForProvider(requestedProvider)
           .onSuccess { fetchedModels ->
+            if (requestId != modelLoadRequestId) return@onSuccess
             if (provider == requestedProvider) models = fetchedModels
             preferences.availableModelsFor(requestedProvider).set(
               json.encodeToString(
@@ -196,14 +208,23 @@ object AiIntegrationScreen : Screen {
                 fetchedModels,
               ),
             )
+            val selectedPreference = preferences.selectedModelFor(requestedProvider)
+            if (fetchedModels.none { it.id == selectedPreference.get() }) {
+              selectedPreference.set(fetchedModels.first().id)
+            }
           }.onFailure { e ->
-            modelLoadError = e.message
+            if (requestId == modelLoadRequestId && provider == requestedProvider) {
+              modelLoadError = e.message
+            }
           }
-        isLoadingModels = false
+        if (requestId == modelLoadRequestId) isLoadingModels = false
       }
     }
 
-    LaunchedEffect(provider) {
+    LaunchedEffect(provider, activeApiKey) {
+      modelLoadRequestId++
+      isLoadingModels = false
+      modelLoadError = null
       models = emptyList()
       val stored = preferences.availableModelsFor(provider).get()
       if (stored.isNotBlank() && stored != "[]") {
@@ -216,7 +237,8 @@ object AiIntegrationScreen : Screen {
         } catch (_: Exception) {
         }
       }
-      if (models.isEmpty()) {
+      if (activeApiKey.isNotBlank()) {
+        delay(600L)
         loadModels()
       }
     }
@@ -809,7 +831,7 @@ val apiKeyInfo =
                 PreferenceCard {
                   val sttProviders = listOf(AiProvider.GROQ, AiProvider.OPENAI, AiProvider.OPENROUTER)
                   val sttProvider by preferences.sttProvider.collectAsState()
-                  val sttModel by preferences.sttModel.collectAsState()
+                  val sttModel by preferences.sttModelFor(sttProvider).collectAsState()
 
                   SwitchPreference(
                     value = realtimeSubsEnabled,
@@ -857,10 +879,7 @@ val apiKeyInfo =
 
                   ListPreference(
                     value = sttProvider,
-                    onValueChange = {
-                      preferences.sttProvider.set(it)
-                      preferences.sttModel.set("")
-                    },
+                    onValueChange = preferences.sttProvider::set,
                     values = sttProviders,
                     valueToText = {
                       androidx.compose.ui.text
@@ -886,7 +905,14 @@ val apiKeyInfo =
                   SttModelSelector(
                     sttProvider = sttProvider,
                     sttModel = sttModel,
-                    onSelectModel = { preferences.sttModel.set(it) },
+                    apiKey =
+                      when (sttProvider) {
+                        AiProvider.GROQ -> groqKey
+                        AiProvider.OPENAI -> openaiKey
+                        AiProvider.OPENROUTER -> openrouterKey
+                        else -> ""
+                      },
+                    onSelectModel = { preferences.sttModelFor(sttProvider).set(it) },
                   )
 
                   PreferenceDivider()
@@ -1196,48 +1222,81 @@ val apiKeyInfo =
   private fun SttModelSelector(
     sttProvider: AiProvider,
     sttModel: String,
+    apiKey: String,
     onSelectModel: (String) -> Unit,
   ) {
     val aiService = koinInject<AiService>()
+    val preferences = koinInject<AiPreferences>()
+    val json = koinInject<Json>()
     val context = LocalContext.current
     var showDialog by remember { mutableStateOf(false) }
     var sttModels by remember { mutableStateOf<List<AiModelInfo>>(emptyList()) }
     var isLoadingStt by remember { mutableStateOf(false) }
+    var requestId by remember { mutableStateOf(0) }
     val scope = rememberCoroutineScope()
 
-    val modelKey = "${sttProvider.name}_stt"
-    val cachedModels = remember(modelKey) { mutableStateOf<List<AiModelInfo>?>(null) }
+    fun cachedModels(): List<AiModelInfo> =
+      runCatching {
+        json.decodeFromString(
+          kotlinx.serialization.builtins.ListSerializer(AiModelInfo.serializer()),
+          preferences.sttAvailableModelsFor(sttProvider).get(),
+        )
+      }.getOrDefault(emptyList())
+
+    fun refreshModels(
+      openWhenReady: Boolean,
+      showError: Boolean,
+    ) {
+      val requestedProvider = sttProvider
+      val currentRequest = ++requestId
+      isLoadingStt = true
+      scope.launch {
+        aiService
+          .fetchSpeechModelsForProvider(requestedProvider)
+          .onSuccess { fetchedModels ->
+            if (currentRequest != requestId || requestedProvider != sttProvider) return@onSuccess
+            sttModels = fetchedModels
+            preferences.sttAvailableModelsFor(requestedProvider).set(
+              json.encodeToString(
+                kotlinx.serialization.builtins.ListSerializer(AiModelInfo.serializer()),
+                fetchedModels,
+              ),
+            )
+            if (fetchedModels.none { it.id == sttModel }) onSelectModel(fetchedModels.first().id)
+            if (openWhenReady) showDialog = true
+          }.onFailure { error ->
+            if (currentRequest == requestId && showError) {
+              Toast
+                .makeText(
+                  context,
+                  context.getString(
+                    R.string.toast_failed_to_load_models,
+                    error.message ?: context.getString(R.string.generic_unknown_error),
+                  ),
+                  Toast.LENGTH_SHORT,
+                ).show()
+            }
+          }
+        if (currentRequest == requestId) isLoadingStt = false
+      }
+    }
+
+    LaunchedEffect(sttProvider, apiKey) {
+      requestId++
+      isLoadingStt = false
+      sttModels = cachedModels()
+      if (apiKey.isNotBlank()) {
+        delay(600L)
+        refreshModels(openWhenReady = false, showError = false)
+      }
+    }
 
     Surface(
       onClick = {
-        if (isLoadingStt) return@Surface
-        val cached = cachedModels.value
-        if (cached != null) {
-          sttModels = cached
+        if (sttModels.isNotEmpty()) {
           showDialog = true
-        } else {
-          isLoadingStt = true
-          scope.launch {
-            aiService
-              .fetchSpeechModelsForProvider(sttProvider)
-              .onSuccess { sttOnly ->
-                cachedModels.value = sttOnly
-                sttModels = sttOnly
-                showDialog = true
-              }.onFailure { e ->
-                Toast
-                  .makeText(
-                    context,
-                    context.getString(
-                      R.string.toast_failed_to_load_models,
-                      e.message ?: context.getString(R.string.generic_unknown_error),
-                    ),
-                    Toast.LENGTH_SHORT,
-                  ).show()
-              }
-            isLoadingStt = false
-          }
         }
+        if (!isLoadingStt) refreshModels(openWhenReady = sttModels.isEmpty(), showError = true)
       },
       shape = MaterialTheme.shapes.medium,
       color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f),

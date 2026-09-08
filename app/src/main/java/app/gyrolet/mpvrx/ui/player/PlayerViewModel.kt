@@ -60,6 +60,8 @@ import app.gyrolet.mpvrx.preferences.SubtitlesPreferences
 import app.gyrolet.mpvrx.repository.IntroDbLookupOutcome
 import app.gyrolet.mpvrx.repository.IntroDbLookupRequest
 import app.gyrolet.mpvrx.repository.IntroDbRepository
+import app.gyrolet.mpvrx.repository.ai.RealtimeMediaInput
+import app.gyrolet.mpvrx.repository.ai.RealtimeSubtitleRequest
 import app.gyrolet.mpvrx.repository.ai.SubtitleGenerationService
 import app.gyrolet.mpvrx.repository.subtitle.OnlineSubtitle
 import app.gyrolet.mpvrx.repository.subtitle.OnlineSubtitleOrchestrator
@@ -126,6 +128,7 @@ import kotlinx.serialization.json.JsonPrimitive
 import org.koin.core.component.KoinComponent
 import org.koin.core.component.inject
 import java.io.File
+import java.io.FileOutputStream
 import java.security.MessageDigest
 import java.lang.ref.WeakReference
 import java.util.concurrent.atomic.AtomicLong
@@ -309,11 +312,18 @@ class PlayerViewModel : ViewModel(),
   private val _realtimeSubsProgress = MutableStateFlow(0f)
   val realtimeSubsProgress: StateFlow<Float> = _realtimeSubsProgress.asStateFlow()
 
+  private val _realtimeSubsStatus = MutableStateFlow("")
+  val realtimeSubsStatus: StateFlow<String> = _realtimeSubsStatus.asStateFlow()
+
   private val _torrentState = MutableStateFlow<TorrentStreamingState>(TorrentStreamingState.Idle)
   val torrentState: StateFlow<TorrentStreamingState> = _torrentState.asStateFlow()
 
-  private var realtimeSubsJob: Job? = null
   private var realtimeSrtFile: java.io.File? = null
+  private var realtimeSubtitleTrackId: Int? = null
+  private var realtimeTargetLanguage: String? = null
+  private var realtimeSubtitleSessionId = 0L
+  private var realtimePlaybackGeneration = -1L
+  private val realtimeSubtitleUpdateMutex = Mutex()
 
   private var playlistMetadataJob: Job? = null
   private var controlsVisibleForPolling = false
@@ -505,6 +515,23 @@ class PlayerViewModel : ViewModel(),
   private data class AutoCropSamples(
     val edges: List<AutoCropEdges>,
     val framesWereRotated: Boolean,
+  )
+
+  private sealed interface AutoCropAnalysisResult {
+    data class Detected(
+      val edges: AutoCropEdges,
+    ) : AutoCropAnalysisResult
+
+    data object NoBars : AutoCropAnalysisResult
+
+    data object Unavailable : AutoCropAnalysisResult
+  }
+
+  private data class AutoCropMetadata(
+    val width: Int,
+    val height: Int,
+    val x: Int,
+    val y: Int,
   )
 
   private fun updateMetadataCache(
@@ -1965,6 +1992,8 @@ val isBrightnessSliderShown = MutableStateFlow(false)
 
   /** Stops every ViewModel path that can read or write libmpv during native teardown. */
   fun onMpvCoreStopping() {
+    stopRealtimeSubtitles(showToastMessage = false)
+    cancelAutoCropAnalysis()
     disableAmbientShader()
     _isMpvCoreReady.value = false
     isMpvReadyForCustomButtons = false
@@ -1990,6 +2019,38 @@ val isBrightnessSliderShown = MutableStateFlow(false)
         launch { PlaybackSession.propInt["time-pos"].collect { _pos.value = it } }
         launch { PlaybackSession.propInt["duration"].collect { _duration.value = it } }
         launch { PlaybackSession.propInt["volume-max"].collect { _volumeBoostCap.value = it } }
+        launch {
+          var wasSeeking = false
+          PlaybackSession.propBoolean["seeking"].collect { seeking ->
+            when {
+              seeking == true -> {
+                wasSeeking = true
+                if (_isRealtimeSubsActive.value) realtimeSubtitleService.onSeekStarted()
+              }
+              wasSeeking -> {
+                wasSeeking = false
+                if (_isRealtimeSubsActive.value) {
+                  val positionMs = ((PlaybackSession.getPropertyDouble("time-pos") ?: _precisePosition.value.toDouble()) * 1000).toLong()
+                  realtimeSubtitleService.seekTo(positionMs)
+                }
+              }
+            }
+          }
+        }
+        launch {
+          audioTracks
+            .map { tracks -> tracks.firstOrNull(TrackNode::isSelected)?.id }
+            .distinctUntilChanged()
+            .drop(1)
+            .collect { selectedId ->
+              val targetLanguage = realtimeTargetLanguage
+              if (_isRealtimeSubsActive.value && selectedId != null) {
+                withContext(Dispatchers.Main) {
+                  startRealtimeSubtitles(targetLanguage.orEmpty())
+                }
+              }
+            }
+        }
         launch {
           PlaybackSession.queue
             .map { it.repeatMode }
@@ -2058,11 +2119,9 @@ val isBrightnessSliderShown = MutableStateFlow(false)
   }
 
   fun onVideoLoadStarted() {
+    stopRealtimeSubtitles(showToastMessage = false)
     introLookupJob?.cancel()
-    autoCropJob?.cancel()
-    autoCropJob = null
-    autoCropReadinessJob?.cancel()
-    autoCropReadinessJob = null
+    cancelAutoCropAnalysis()
     autoCropAnalyzedGeneration = -1L
     if (autoCropApplied || playerPreferences.autoCropBlackBars.get()) {
       clearAutoCropProperty()
@@ -2527,6 +2586,15 @@ val isBrightnessSliderShown = MutableStateFlow(false)
     const val AUTO_CROP_THUMBNAIL_SIZE = 640
     const val AUTO_CROP_READY_TIMEOUT_MS = 15_000L
     const val AUTO_CROP_CACHE_CAPACITY = 20
+    const val AUTO_CROP_FILTER_LABEL = "mpvrx_autocrop_detect"
+    const val AUTO_CROP_DETECT_LIMIT = "24/255"
+    const val AUTO_CROP_DETECT_ROUND = 2
+    const val AUTO_CROP_ACTIVE_DETECT_TIMEOUT_MS = 1_600L
+    const val AUTO_CROP_ACTIVE_SETTLE_MS = 1_000L
+    const val AUTO_CROP_METADATA_POLL_MS = 100L
+    const val AUTO_CROP_HWDEC_TIMEOUT_MS = 1_500L
+    const val AUTO_CROP_ACTIVE_FRAME_TIMEOUT_MS = 2_500L
+    const val AUTO_CROP_ACTIVE_FRAME_INTERVAL_MS = 300L
     const val AUTO_SHOW_SKIP_CHIP_DURATION = 10.0
     const val SEEK_COALESCE_DELAY_MS = 60L
     const val RELATIVE_SEEK_EOF_GUARD_SECONDS = 0.25
@@ -2861,6 +2929,16 @@ val isBrightnessSliderShown = MutableStateFlow(false)
       showToast("Could not find current video path")
       return
     }
+    val mediaInput = currentRealtimeMediaInput()
+    if (mediaInput == null) {
+      showToast(appContext.getString(R.string.subtitle_generation_audio_unavailable))
+      return
+    }
+    val videoDurationMs = (_preciseDuration.value * 1000f).toLong()
+    if (videoDurationMs <= 0L) {
+      showToast(appContext.getString(R.string.subtitle_generation_duration_unknown))
+      return
+    }
 
     val actualLanguage = if (language.isBlank()) aiPreferences.sttLanguage.get().ifBlank { "en" } else language
     val actualFormat = if (outputFormat.isBlank()) aiPreferences.subtitleGenerationOutputFormat.get() else outputFormat
@@ -2873,7 +2951,8 @@ val isBrightnessSliderShown = MutableStateFlow(false)
       try {
         val result =
           subtitleGenerationService.generateSubtitles(
-            videoUri = videoUri,
+            mediaInput = mediaInput,
+            videoDurationMs = videoDurationMs,
             language = actualLanguage,
             outputFormat = actualFormat,
           ) { progress ->
@@ -2915,79 +2994,217 @@ val isBrightnessSliderShown = MutableStateFlow(false)
     return if (media.startsWith("/")) File(media).toUri() else Uri.parse(media)
   }
 
-  fun startRealtimeSubtitles(language: String) {
-    val videoUri = currentVideoUriForSubtitleGeneration()
-    if (videoUri == null) {
-      showToast("Could not find current video path")
+  private fun currentRealtimeMediaInput(): RealtimeMediaInput? {
+    val item = PlaybackSession.state.value.currentItem
+    val tracks = audioTracks.value
+    val selectedAudio = tracks.firstOrNull(TrackNode::isSelected) ?: tracks.firstOrNull()
+    val selectedAudioSource =
+      selectedAudio
+        ?.externalFilename
+        ?.takeIf(String::isNotBlank)
+        ?.let { path -> mpvPathToUriMap[path] ?: path }
+    val runtimeSource =
+      PlaybackSession.getPropertyString("stream-open-filename")
+        ?.takeIf(String::isNotBlank)
+        ?: PlaybackSession.getPropertyString("path")?.takeIf(String::isNotBlank)
+    val source =
+      selectedAudioSource
+        ?: runtimeSource?.takeUnless { it.startsWith("fd://") || it.startsWith("memory://") }
+        ?: item?.originalUri?.takeIf(String::isNotBlank)
+        ?: item?.playableUri?.takeIf(String::isNotBlank)
+        ?: host.currentMediaLookupHint()?.takeIf(String::isNotBlank)
+        ?: return null
+    val audioTrackOrdinal =
+      selectedAudio
+        ?.let { selected -> tracks.indexOfFirst { it.id == selected.id } }
+        ?.coerceAtLeast(0)
+        ?: 0
+    return RealtimeMediaInput(
+      source = source,
+      headers = item?.headers.orEmpty(),
+      audioTrackIndex = selectedAudio?.ffIndex?.toInt(),
+      audioTrackOrdinal = audioTrackOrdinal,
+    )
+  }
+
+  fun startRealtimeSubtitles(targetLanguage: String = "") {
+    val mediaInput = currentRealtimeMediaInput()
+    if (mediaInput == null) {
+      showToast(appContext.getString(R.string.realtime_subtitles_media_unavailable))
       return
     }
     val videoDurationMs = (_preciseDuration.value * 1000f).toLong()
     if (videoDurationMs <= 0) {
-      showToast("Video duration unknown")
+      showToast(appContext.getString(R.string.subtitle_generation_duration_unknown))
       return
     }
 
+    stopRealtimeSubtitles(showToastMessage = false)
+    val sessionId = ++realtimeSubtitleSessionId
+    val sourceLanguage = aiPreferences.sttLanguage.get().trim().takeIf(String::isNotBlank)
+    val resolvedTargetLanguage = targetLanguage.trim().takeIf(String::isNotBlank)
+    val startPositionMs = (_precisePosition.value * 1000f).toLong().coerceIn(0L, videoDurationMs)
+    val playbackGeneration = PlaybackSession.state.value.generation
     realtimeSrtFile = java.io.File.createTempFile("realtime_subs_", ".srt", appContext.cacheDir)
+    realtimeSubtitleTrackId = null
+    realtimeTargetLanguage = resolvedTargetLanguage
+    realtimePlaybackGeneration = playbackGeneration
 
     _isRealtimeSubsActive.value = true
-    _realtimeSubsLanguage.value = language
+    _realtimeSubsLanguage.value = resolvedTargetLanguage ?: sourceLanguage ?: "Auto"
     _realtimeSubsProgress.value = 0f
 
     realtimeSubtitleService.start(
-      videoUri = videoUri,
-      videoDurationMs = videoDurationMs,
-      language = language,
+      request =
+        RealtimeSubtitleRequest(
+          mediaInput = mediaInput,
+          videoDurationMs = videoDurationMs,
+          startPositionMs = startPositionMs,
+          sourceLanguage = sourceLanguage,
+          targetLanguage = resolvedTargetLanguage,
+        ),
       scope = viewModelScope,
+      positionProvider = { (_precisePosition.value * 1000f).toLong() },
       onProgress = { progress ->
+        if (sessionId != realtimeSubtitleSessionId || playbackGeneration != PlaybackSession.state.value.generation) return@start
         _realtimeSubsProgress.value = progress.chunkIndex.toFloat() / progress.totalChunks.coerceAtLeast(1)
-        _translationStatus.value = "Chunk ${progress.chunkIndex + 1}/${progress.totalChunks}"
+        _realtimeSubsStatus.value = progress.stage
       },
       onNewContent = { srtContent ->
-        realtimeSrtFile?.writeText(srtContent)
-        val srtPath = realtimeSrtFile?.absolutePath ?: return@start
-        viewModelScope.launch(Dispatchers.Main) {
-          if (realtimeSrtFileAdded) {
-            PlaybackSession.command("sub-reload", srtPath)
-          } else {
-            PlaybackSession.command("sub-add", srtPath, "select")
-            realtimeSrtFileAdded = true
-          }
-        }
+        updateRealtimeSubtitleContent(sessionId, playbackGeneration, srtContent)
       },
       onComplete = {
+        if (sessionId != realtimeSubtitleSessionId || playbackGeneration != PlaybackSession.state.value.generation) return@start
         _isRealtimeSubsActive.value = false
-        _realtimeSubsLanguage.value = ""
         _realtimeSubsProgress.value = 0f
-        _translationStatus.value = ""
-        realtimeSrtFile = null
-        showToast("Real-time subtitles complete")
+        _realtimeSubsStatus.value = ""
+        realtimeTargetLanguage = null
+        showToast(appContext.getString(R.string.realtime_subtitles_complete))
       },
       onError = { error ->
+        if (sessionId != realtimeSubtitleSessionId || playbackGeneration != PlaybackSession.state.value.generation) return@start
         _isRealtimeSubsActive.value = false
-        _realtimeSubsLanguage.value = ""
         _realtimeSubsProgress.value = 0f
-        _translationStatus.value = ""
-        showToast("Real-time subtitles error: $error")
+        _realtimeSubsStatus.value = ""
+        realtimeTargetLanguage = null
+        Log.e(TAG, "Real-time subtitles failed: $error")
+        showToast(appContext.getString(R.string.realtime_subtitles_failed))
       },
     )
   }
 
-  fun stopRealtimeSubtitles(showToastMessage: Boolean = true) {
-    val wasActive = _isRealtimeSubsActive.value
-    realtimeSubtitleService.stop()
-    _isRealtimeSubsActive.value = false
-    _realtimeSubsLanguage.value = ""
-    _realtimeSubsProgress.value = 0f
-    _translationStatus.value = ""
-    realtimeSrtFile?.delete()
-    realtimeSrtFile = null
-    realtimeSrtFileAdded = false
-    if (showToastMessage && wasActive) {
-      showToast("Real-time subtitles stopped")
+  private fun updateRealtimeSubtitleContent(
+    sessionId: Long,
+    playbackGeneration: Long,
+    content: String,
+  ) {
+    viewModelScope.launch(Dispatchers.IO) {
+      try {
+        realtimeSubtitleUpdateMutex.withLock {
+          if (sessionId != realtimeSubtitleSessionId || playbackGeneration != PlaybackSession.state.value.generation) return@withLock
+          val file = realtimeSrtFile ?: return@withLock
+          FileOutputStream(file, false).use { output ->
+            output.write(content.toByteArray())
+            output.fd.sync()
+          }
+          if (sessionId != realtimeSubtitleSessionId || playbackGeneration != PlaybackSession.state.value.generation) return@withLock
+
+          val path = file.absolutePath
+          var trackId = realtimeSubtitleTrackId ?: findRealtimeSubtitleTrackId(path)
+          if (trackId == null) {
+            withContext(Dispatchers.Main) {
+              PlaybackSession.command("sub-add", path, "select")
+            }
+            trackId = awaitRealtimeSubtitleTrackId(path, sessionId, playbackGeneration)
+            if (sessionId != realtimeSubtitleSessionId || playbackGeneration != PlaybackSession.state.value.generation) {
+              trackId?.let { staleTrackId ->
+                withContext(Dispatchers.Main) {
+                  PlaybackSession.command("sub-remove", staleTrackId.toString())
+                }
+              }
+              return@withLock
+            }
+            if (trackId == null) throw IllegalStateException("mpv did not expose the live subtitle track")
+            realtimeSubtitleTrackId = trackId
+          } else {
+            withContext(Dispatchers.Main) {
+              PlaybackSession.command("sub-reload", trackId.toString())
+              PlaybackSession.setPropertyInt("sid", trackId)
+            }
+          }
+        }
+      } catch (cancellation: kotlinx.coroutines.CancellationException) {
+        throw cancellation
+      } catch (error: Exception) {
+        withContext(Dispatchers.Main) {
+          if (sessionId == realtimeSubtitleSessionId && playbackGeneration == PlaybackSession.state.value.generation) {
+            realtimeSubtitleService.stop()
+            _isRealtimeSubsActive.value = false
+            _realtimeSubsProgress.value = 0f
+            _realtimeSubsStatus.value = ""
+            realtimeTargetLanguage = null
+            Log.e(TAG, "Could not update live subtitles", error)
+            showToast(appContext.getString(R.string.realtime_subtitles_update_failed))
+          }
+        }
+      }
     }
   }
 
-  private var realtimeSrtFileAdded = false
+  private suspend fun awaitRealtimeSubtitleTrackId(
+    path: String,
+    sessionId: Long,
+    playbackGeneration: Long,
+  ): Int? =
+    withTimeoutOrNull(5_000L) {
+      var pollDelayMs = 50L
+      while (
+        currentCoroutineContext().isActive &&
+        sessionId == realtimeSubtitleSessionId &&
+        playbackGeneration == PlaybackSession.state.value.generation
+      ) {
+        findRealtimeSubtitleTrackId(path)?.let { return@withTimeoutOrNull it }
+        delay(pollDelayMs)
+        pollDelayMs = (pollDelayMs * 2).coerceAtMost(200L)
+      }
+      null
+    }
+
+  private fun findRealtimeSubtitleTrackId(path: String): Int? {
+    val count = PlaybackSession.getPropertyInt("track-list/count")
+    if (count != null) {
+      for (index in 0 until count) {
+        if (PlaybackSession.getPropertyString("track-list/$index/type") != "sub") continue
+        if (PlaybackSession.getPropertyString("track-list/$index/external-filename") != path) continue
+        return PlaybackSession.getPropertyInt("track-list/$index/id")
+      }
+    }
+    return subtitleTracks.value.firstOrNull { it.externalFilename == path }?.id
+  }
+
+  fun stopRealtimeSubtitles(showToastMessage: Boolean = true) {
+    val wasActive = _isRealtimeSubsActive.value
+    val subtitlePath = realtimeSrtFile?.absolutePath
+    realtimeSubtitleSessionId++
+    realtimeSubtitleService.stop()
+    if (realtimePlaybackGeneration == PlaybackSession.state.value.generation) {
+      (realtimeSubtitleTrackId ?: subtitlePath?.let(::findRealtimeSubtitleTrackId))?.let { trackId ->
+        runCatching { PlaybackSession.command("sub-remove", trackId.toString()) }
+      }
+    }
+    _isRealtimeSubsActive.value = false
+    _realtimeSubsLanguage.value = ""
+    _realtimeSubsProgress.value = 0f
+    _realtimeSubsStatus.value = ""
+    realtimeTargetLanguage = null
+    realtimePlaybackGeneration = -1L
+    realtimeSrtFile?.delete()
+    realtimeSrtFile = null
+    realtimeSubtitleTrackId = null
+    if (showToastMessage && wasActive) {
+      showToast(appContext.getString(R.string.realtime_subtitles_stopped))
+    }
+  }
 
   private fun saveTranslatedSubtitle(
     originalUri: Uri,
@@ -4587,10 +4804,7 @@ val isBrightnessSliderShown = MutableStateFlow(false)
 
   fun setAutoCropBlackBars(enabled: Boolean) {
     playerPreferences.autoCropBlackBars.set(enabled)
-    autoCropJob?.cancel()
-    autoCropJob = null
-    autoCropReadinessJob?.cancel()
-    autoCropReadinessJob = null
+    cancelAutoCropAnalysis()
     autoCropAnalyzedGeneration = -1L
     if (!enabled) {
       clearAutoCropProperty()
@@ -4652,7 +4866,7 @@ val isBrightnessSliderShown = MutableStateFlow(false)
     val sourceWidth = PlaybackSession.getPropertyInt("video-params/w") ?: 0
     val sourceHeight = PlaybackSession.getPropertyInt("video-params/h") ?: 0
     val rotation = (PlaybackSession.getPropertyInt("video-params/rotate") ?: 0).mod(360)
-    if (source == null || durationSeconds <= 0.0 || sourceWidth <= 0 || sourceHeight <= 0) {
+    if (sourceWidth <= 0 || sourceHeight <= 0) {
       autoCropAnalyzedGeneration = generation
       _autoCropState.value = AutoCropState.UNSUPPORTED
       return
@@ -4661,42 +4875,60 @@ val isBrightnessSliderShown = MutableStateFlow(false)
     autoCropAnalyzedGeneration = generation
     autoCropJob?.cancel()
     _autoCropState.value = AutoCropState.ANALYZING
-    val cacheKey = "$source|$sourceWidth|$sourceHeight|${durationSeconds.toLong()}"
+    val sourceIdentity = source ?: session.currentItem?.stableId ?: "generation:$generation"
+    val cacheKey = "$sourceIdentity|$sourceWidth|$sourceHeight|${durationSeconds.toLong()}"
     autoCropJob =
       viewModelScope.launch(Dispatchers.IO) {
-        Log.i(TAG, "Auto-crop analyzing generation=$generation source=$source")
-        val combined =
-          autoCropResultCache.get(cacheKey)?.let { cached ->
-            AutoCropSamples(listOf(cached, cached, cached), framesWereRotated = false)
-          } ?: run {
-            val positions = autoCropSamplePositions(source, durationSeconds)
-            extractAutoCropSamples(source, positions)
+        Log.i(TAG, "Auto-crop analyzing generation=$generation source=$sourceIdentity")
+        val result =
+          try {
+            val cached = autoCropResultCache.get(cacheKey)
+            if (cached != null) {
+              AutoCropAnalysisResult.Detected(cached)
+            } else if (source != null && durationSeconds > 0.0 && isAndroidReadableMediaSource(source)) {
+              val positions = autoCropSamplePositions(source, durationSeconds)
+              val combined = extractAutoCropSamples(source, positions)
+              when {
+                combined == null -> detectAutoCropFromActivePlayback(generation, sourceWidth, sourceHeight)
+                else -> {
+                  val detected = AutoCropAnalyzer.combine(combined.edges)
+                  if (detected == null) {
+                    AutoCropAnalysisResult.NoBars
+                  } else {
+                    val sourceEdges =
+                      if (combined.framesWereRotated) mapRotatedEdgesToSource(detected, rotation) else detected
+                    AutoCropAnalysisResult.Detected(sourceEdges)
+                  }
+                }
+              }
+            } else {
+              detectAutoCropFromActivePlayback(generation, sourceWidth, sourceHeight)
+            }
+          } catch (cancellation: kotlinx.coroutines.CancellationException) {
+            throw cancellation
+          } catch (error: Exception) {
+            Log.w(TAG, "Auto-crop analysis failed for generation=$generation", error)
+            AutoCropAnalysisResult.Unavailable
           }
-        val detected = combined?.let { AutoCropAnalyzer.combine(it.edges) }
 
         withContext(Dispatchers.Main) {
           if (!PlaybackSession.isCurrentGeneration(generation) || !playerPreferences.autoCropBlackBars.get()) {
             return@withContext
           }
-          if (combined == null) {
-            Log.w(TAG, "Auto-crop could not decode enough frames for generation=$generation")
+          if (result == AutoCropAnalysisResult.Unavailable) {
+            Log.w(TAG, "Auto-crop could not inspect active video frames for generation=$generation")
             clearAutoCropProperty()
             _autoCropState.value = AutoCropState.ERROR
             return@withContext
           }
-          if (detected == null) {
+          if (result == AutoCropAnalysisResult.NoBars) {
             Log.i(TAG, "Auto-crop found no persistent black bars for generation=$generation")
             clearAutoCropProperty()
             _autoCropState.value = AutoCropState.NO_BARS
             return@withContext
           }
 
-          val sourceEdges =
-            if (combined.framesWereRotated) {
-              mapRotatedEdgesToSource(detected, rotation)
-            } else {
-              detected
-            }
+          val sourceEdges = (result as AutoCropAnalysisResult.Detected).edges
           val cropValue = buildAutoCropValue(sourceEdges, sourceWidth, sourceHeight)
           if (cropValue == null) {
             Log.i(TAG, "Auto-crop result was too small or unsafe for generation=$generation edges=$sourceEdges")
@@ -4712,6 +4944,126 @@ val isBrightnessSliderShown = MutableStateFlow(false)
           _autoCropState.value = AutoCropState.APPLIED
         }
       }
+  }
+
+  private suspend fun detectAutoCropFromActivePlayback(
+    generation: Long,
+    sourceWidth: Int,
+    sourceHeight: Int,
+  ): AutoCropAnalysisResult {
+    if (MpvConfigOverridePolicy.isOwnedByMpvConf("vf")) return detectAutoCropFromCurrentFrames(generation)
+    if (PlaybackSession.getPropertyBoolean("current-tracks/video/image") == true) {
+      return AutoCropAnalysisResult.Unavailable
+    }
+
+    var hwdecBackup: String? = null
+    try {
+      PlaybackSession.command("vf", "remove", "@$AUTO_CROP_FILTER_LABEL")
+      val activeHwdec = PlaybackSession.getPropertyString("hwdec-current").orEmpty()
+      val needsSoftwareFrames =
+        activeHwdec.isNotBlank() &&
+          activeHwdec != "no" &&
+          !activeHwdec.endsWith("-copy") &&
+          activeHwdec !in setOf("crystalhd", "rkmpp")
+      if (needsSoftwareFrames) {
+        if (MpvConfigOverridePolicy.isOwnedByMpvConf("hwdec")) {
+          return detectAutoCropFromCurrentFrames(generation)
+        }
+        hwdecBackup = PlaybackSession.getPropertyString("hwdec")?.takeIf(String::isNotBlank)
+        PlaybackSession.setPropertyString("hwdec", "no")
+        withTimeoutOrNull(AUTO_CROP_HWDEC_TIMEOUT_MS) {
+          while (currentCoroutineContext().isActive && PlaybackSession.isCurrentGeneration(generation)) {
+            if (PlaybackSession.getPropertyString("hwdec-current").orEmpty() in setOf("", "no")) return@withTimeoutOrNull
+            delay(AUTO_CROP_METADATA_POLL_MS)
+          }
+        }
+      }
+
+      if (!PlaybackSession.isCurrentGeneration(generation)) return AutoCropAnalysisResult.Unavailable
+      PlaybackSession.command(
+        "vf",
+        "pre",
+        "@$AUTO_CROP_FILTER_LABEL:cropdetect=limit=$AUTO_CROP_DETECT_LIMIT:round=$AUTO_CROP_DETECT_ROUND:reset=0",
+      )
+
+      val startedAt = SystemClock.elapsedRealtime()
+      val deadline = startedAt + AUTO_CROP_ACTIVE_DETECT_TIMEOUT_MS
+      var metadata: AutoCropMetadata? = null
+      while (
+        currentCoroutineContext().isActive &&
+        PlaybackSession.isCurrentGeneration(generation) &&
+        SystemClock.elapsedRealtime() < deadline
+      ) {
+        delay(AUTO_CROP_METADATA_POLL_MS)
+        metadata = readAutoCropMetadata()
+        if (metadata != null && SystemClock.elapsedRealtime() - startedAt >= AUTO_CROP_ACTIVE_SETTLE_MS) break
+      }
+
+      if (!PlaybackSession.isCurrentGeneration(generation)) return AutoCropAnalysisResult.Unavailable
+      return metadata?.toAutoCropResult(sourceWidth, sourceHeight) ?: detectAutoCropFromCurrentFrames(generation)
+    } finally {
+      PlaybackSession.command("vf", "remove", "@$AUTO_CROP_FILTER_LABEL")
+      val backup = hwdecBackup
+      if (backup != null && PlaybackSession.getPropertyString("hwdec") == "no") {
+        PlaybackSession.setPropertyString("hwdec", backup)
+      }
+    }
+  }
+
+  private suspend fun detectAutoCropFromCurrentFrames(generation: Long): AutoCropAnalysisResult {
+    val samples = mutableListOf<AutoCropEdges>()
+    val deadline = SystemClock.elapsedRealtime() + AUTO_CROP_ACTIVE_FRAME_TIMEOUT_MS
+    while (
+      samples.size < AUTO_CROP_MIN_VALID_SAMPLES &&
+      currentCoroutineContext().isActive &&
+      PlaybackSession.isCurrentGeneration(generation) &&
+      SystemClock.elapsedRealtime() < deadline
+    ) {
+      PlaybackSession.grabThumbnail(AUTO_CROP_THUMBNAIL_SIZE)?.analyzeAndRecycle()?.let(samples::add)
+      if (samples.size < AUTO_CROP_MIN_VALID_SAMPLES) delay(AUTO_CROP_ACTIVE_FRAME_INTERVAL_MS)
+    }
+    if (!PlaybackSession.isCurrentGeneration(generation)) return AutoCropAnalysisResult.Unavailable
+    if (samples.size < AUTO_CROP_MIN_VALID_SAMPLES) return AutoCropAnalysisResult.Unavailable
+    return AutoCropAnalyzer.combine(samples)
+      ?.let(AutoCropAnalysisResult::Detected)
+      ?: AutoCropAnalysisResult.NoBars
+  }
+
+  private fun readAutoCropMetadata(): AutoCropMetadata? {
+    fun value(key: String): Int? =
+      PlaybackSession
+        .getPropertyString("vf-metadata/$AUTO_CROP_FILTER_LABEL/lavfi.cropdetect.$key")
+        ?.toIntOrNull()
+
+    return AutoCropMetadata(
+      width = value("w") ?: return null,
+      height = value("h") ?: return null,
+      x = value("x") ?: return null,
+      y = value("y") ?: return null,
+    )
+  }
+
+  private fun AutoCropMetadata.toAutoCropResult(
+    sourceWidth: Int,
+    sourceHeight: Int,
+  ): AutoCropAnalysisResult {
+    if (width <= 0 || height <= 0 || x < 0 || y < 0) return AutoCropAnalysisResult.Unavailable
+    if (x + width > sourceWidth + AUTO_CROP_DETECT_ROUND || y + height > sourceHeight + AUTO_CROP_DETECT_ROUND) {
+      return AutoCropAnalysisResult.Unavailable
+    }
+    if (width < sourceWidth / 2 || height < sourceHeight / 2) return AutoCropAnalysisResult.NoBars
+
+    val right = (sourceWidth - width - x).coerceAtLeast(0)
+    val bottom = (sourceHeight - height - y).coerceAtLeast(0)
+    if (x < 2 && y < 2 && right < 2 && bottom < 2) return AutoCropAnalysisResult.NoBars
+    return AutoCropAnalysisResult.Detected(
+      AutoCropEdges(
+        left = x.toFloat() / sourceWidth,
+        top = y.toFloat() / sourceHeight,
+        right = right.toFloat() / sourceWidth,
+        bottom = bottom.toFloat() / sourceHeight,
+      ),
+    )
   }
 
   private fun autoCropSamplePositions(
@@ -4836,8 +5188,17 @@ val isBrightnessSliderShown = MutableStateFlow(false)
   }
 
   private fun clearAutoCropProperty() {
+    PlaybackSession.command("vf", "remove", "@$AUTO_CROP_FILTER_LABEL")
     PlaybackSession.setPropertyString("video-crop", "")
     autoCropApplied = false
+  }
+
+  private fun cancelAutoCropAnalysis() {
+    autoCropJob?.cancel()
+    autoCropJob = null
+    autoCropReadinessJob?.cancel()
+    autoCropReadinessJob = null
+    PlaybackSession.command("vf", "remove", "@$AUTO_CROP_FILTER_LABEL")
   }
 
   private fun refreshStretchAspectAfterCropChange() {
@@ -6468,6 +6829,7 @@ val isBrightnessSliderShown = MutableStateFlow(false)
     // Without this the file lingers in cacheDir until the system reclaims
     // it, and the service may keep an active session open.
     runCatching { stopRealtimeSubtitles(showToastMessage = false) }
+    runCatching { cancelAutoCropAnalysis() }
 
 
     // The metadataCache (Pair<String, String> entries) is small and

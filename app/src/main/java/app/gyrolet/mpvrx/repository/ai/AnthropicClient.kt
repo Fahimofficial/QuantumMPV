@@ -9,6 +9,7 @@
 
 package app.gyrolet.mpvrx.repository.ai
 
+import app.gyrolet.mpvrx.network.awaitResponse
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.SerialName
@@ -32,6 +33,8 @@ private data class AnthropicModel(
 @Serializable
 private data class AnthropicModelListResponse(
   val data: List<AnthropicModel> = emptyList(),
+  @SerialName("has_more") val hasMore: Boolean = false,
+  @SerialName("last_id") val lastId: String? = null,
 )
 
 @Serializable
@@ -73,6 +76,8 @@ class AnthropicClient(
     private const val BASE_URL = "https://api.anthropic.com/v1"
     private val JSON_MEDIA_TYPE = "application/json".toMediaType()
     private const val ANTHROPIC_VERSION = "2023-06-01"
+    private const val MODEL_PAGE_SIZE = 1_000
+    private const val MAX_MODEL_PAGES = 20
   }
 
   private val apiClient: OkHttpClient =
@@ -85,23 +90,45 @@ class AnthropicClient(
 
   override suspend fun fetchModels(apiKey: String): Result<List<AiModelInfo>> =
     withContext(Dispatchers.IO) {
-      runCatching {
-        val request =
-          Request
-            .Builder()
-            .url("$BASE_URL/models")
-            .header("x-api-key", apiKey)
-            .header("anthropic-version", ANTHROPIC_VERSION)
-            .get()
-            .build()
+      runCatchingCancellable {
+        val models = mutableListOf<AnthropicModel>()
+        var afterId: String? = null
+        var page = 0
+        while (page < MAX_MODEL_PAGES) {
+          val url =
+            okhttp3.HttpUrl
+              .Builder()
+              .scheme("https")
+              .host("api.anthropic.com")
+              .addPathSegments("v1/models")
+              .addQueryParameter("limit", MODEL_PAGE_SIZE.toString())
+              .apply { afterId?.let { addQueryParameter("after_id", it) } }
+              .build()
+          val request =
+            Request
+              .Builder()
+              .url(url)
+              .header("x-api-key", apiKey)
+              .header("anthropic-version", ANTHROPIC_VERSION)
+              .get()
+              .build()
 
-        val response = apiClient.newCall(request).execute()
-        val body = response.body.string()
+          val parsed =
+            apiClient.newCall(request).awaitResponse().use { response ->
+              val body = response.body.string()
+              if (!response.isSuccessful) throw Exception("Anthropic API error ${response.code}: ${parseError(body)}")
+              json.decodeFromString<AnthropicModelListResponse>(body)
+            }
+          models += parsed.data
+          if (!parsed.hasMore) break
+          val nextAfterId = parsed.lastId?.takeIf { it.isNotBlank() && it != afterId }
+            ?: throw IllegalStateException("Anthropic returned an invalid model pagination cursor")
+          afterId = nextAfterId
+          page++
+        }
+        if (page >= MAX_MODEL_PAGES) throw IllegalStateException("Anthropic model catalog exceeded $MAX_MODEL_PAGES pages")
 
-        if (!response.isSuccessful) throw Exception("Anthropic API error ${response.code}: ${parseError(body)}")
-
-        val parsed = json.decodeFromString<AnthropicModelListResponse>(body)
-        parsed.data.map { model ->
+        models.map { model ->
           AiModelInfo(
             id = model.id,
             displayName = model.display_name ?: model.id,
@@ -113,7 +140,7 @@ class AnthropicClient(
 
   override suspend fun verifyKey(apiKey: String): Result<String> =
     withContext(Dispatchers.IO) {
-      runCatching {
+      runCatchingCancellable {
         val request =
           Request
             .Builder()
@@ -123,9 +150,10 @@ class AnthropicClient(
             .get()
             .build()
 
-        val response = apiClient.newCall(request).execute()
-        if (!response.isSuccessful) throw Exception("Invalid API key: ${response.code}")
-        "API key verified successfully"
+        apiClient.newCall(request).awaitResponse().use { response ->
+          if (!response.isSuccessful) throw Exception("Invalid API key: ${response.code}")
+          "API key verified successfully"
+        }
       }
     }
 
@@ -137,7 +165,7 @@ class AnthropicClient(
     options: AiGenerationOptions,
   ): Result<AiGeneratedContent> =
     withContext(Dispatchers.IO) {
-      runCatching {
+      runCatchingCancellable {
         val requestBody =
           json.encodeToString(
             AnthropicMessagesRequest.serializer(),
@@ -163,12 +191,11 @@ class AnthropicClient(
             .post(requestBody.toRequestBody(JSON_MEDIA_TYPE))
             .build()
 
-        val response = apiClient.newCall(request).execute()
-        val body = response.body.string()
-
-        if (!response.isSuccessful) throw Exception("Anthropic generate error ${response.code}: ${parseError(body)}")
-
-        AiResponseParser.anthropic(json, body, "Anthropic")
+        apiClient.newCall(request).awaitResponse().use { response ->
+          val body = response.body.string()
+          if (!response.isSuccessful) throw Exception("Anthropic generate error ${response.code}: ${parseError(body)}")
+          AiResponseParser.anthropic(json, body, "Anthropic")
+        }
       }
     }
 

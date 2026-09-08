@@ -9,6 +9,8 @@
 
 package app.gyrolet.mpvrx.repository.ai
 
+import kotlinx.coroutines.CancellationException
+
 data class AiGenerationOptions(
   val maxTokens: Int = 200,
   val temperature: Double = 0.3,
@@ -38,3 +40,12 @@ interface AiClient {
     options: AiGenerationOptions = AiGenerationOptions(),
   ): Result<AiGeneratedContent>
 }
+
+internal suspend inline fun <T> runCatchingCancellable(crossinline block: suspend () -> T): Result<T> =
+  try {
+    Result.success(block())
+  } catch (cancellation: CancellationException) {
+    throw cancellation
+  } catch (error: Exception) {
+    Result.failure(error)
+  }

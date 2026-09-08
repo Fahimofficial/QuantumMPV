@@ -9,6 +9,7 @@
 
 package app.gyrolet.mpvrx.repository.ai
 
+import app.gyrolet.mpvrx.network.awaitResponse
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.SerialName
@@ -83,7 +84,7 @@ class OpenRouterClient(
 
   override suspend fun fetchModels(apiKey: String): Result<List<AiModelInfo>> =
     withContext(Dispatchers.IO) {
-      runCatching {
+      runCatchingCancellable {
         val request =
           Request
             .Builder()
@@ -92,32 +93,32 @@ class OpenRouterClient(
             .get()
             .build()
 
-        val response = apiClient.newCall(request).execute()
-        val body = response.body.string()
+        apiClient.newCall(request).awaitResponse().use { response ->
+          val body = response.body.string()
+          if (!response.isSuccessful) throw Exception("OpenRouter API error ${response.code}: ${parseError(body)}")
 
-        if (!response.isSuccessful) throw Exception("OpenRouter API error ${response.code}: ${parseError(body)}")
-
-        val parsed = json.decodeFromString<OrModelListResponse>(body)
-        parsed.data.filter { AiModelCapabilities.isTextGenerationModel(it.id) }.map { model ->
-          val isFree =
-            model.pricing?.let { p ->
-              p.prompt.toDoubleOrNull() == 0.0 &&
-                p.completion.toDoubleOrNull() == 0.0 &&
-                p.image.toDoubleOrNull() == 0.0 &&
-                p.request.toDoubleOrNull() == 0.0
-            } ?: false
-          AiModelInfo(
-            id = model.id,
-            displayName = model.name ?: model.id,
-            isFree = isFree,
-          )
+          val parsed = json.decodeFromString<OrModelListResponse>(body)
+          parsed.data.map { model ->
+            val isFree =
+              model.pricing?.let { p ->
+                p.prompt.toDoubleOrNull() == 0.0 &&
+                  p.completion.toDoubleOrNull() == 0.0 &&
+                  p.image.toDoubleOrNull() == 0.0 &&
+                  p.request.toDoubleOrNull() == 0.0
+              } ?: false
+            AiModelInfo(
+              id = model.id,
+              displayName = model.name ?: model.id,
+              isFree = isFree,
+            )
+          }
         }
       }
     }
 
   override suspend fun verifyKey(apiKey: String): Result<String> =
     withContext(Dispatchers.IO) {
-      runCatching {
+      runCatchingCancellable {
         val request =
           Request
             .Builder()
@@ -126,9 +127,10 @@ class OpenRouterClient(
             .get()
             .build()
 
-        val response = apiClient.newCall(request).execute()
-        if (!response.isSuccessful) throw Exception("Invalid API key: ${response.code}")
-        "API key verified successfully"
+        apiClient.newCall(request).awaitResponse().use { response ->
+          if (!response.isSuccessful) throw Exception("Invalid API key: ${response.code}")
+          "API key verified successfully"
+        }
       }
     }
 
@@ -140,7 +142,7 @@ class OpenRouterClient(
     options: AiGenerationOptions,
   ): Result<AiGeneratedContent> =
     withContext(Dispatchers.IO) {
-      runCatching {
+      runCatchingCancellable {
         val requestBody =
           json.encodeToString(
             OrChatRequest.serializer(),
@@ -166,12 +168,11 @@ class OpenRouterClient(
             .post(requestBody.toRequestBody(JSON_MEDIA_TYPE))
             .build()
 
-        val response = apiClient.newCall(request).execute()
-        val body = response.body.string()
-
-        if (!response.isSuccessful) throw Exception("OpenRouter generate error ${response.code}: ${parseError(body)}")
-
-        AiResponseParser.openAiCompatible(json, body, "OpenRouter")
+        apiClient.newCall(request).awaitResponse().use { response ->
+          val body = response.body.string()
+          if (!response.isSuccessful) throw Exception("OpenRouter generate error ${response.code}: ${parseError(body)}")
+          AiResponseParser.openAiCompatible(json, body, "OpenRouter")
+        }
       }
     }
 

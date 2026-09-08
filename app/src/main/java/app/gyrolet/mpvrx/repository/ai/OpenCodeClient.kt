@@ -9,6 +9,7 @@
 
 package app.gyrolet.mpvrx.repository.ai
 
+import app.gyrolet.mpvrx.network.awaitResponse
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.json.Json
@@ -46,8 +47,8 @@ class OpenCodeClient(
 
   override suspend fun fetchModels(apiKey: String): Result<List<AiModelInfo>> =
     withContext(Dispatchers.IO) {
-      runCatching {
-        val response =
+      runCatchingCancellable {
+        val call =
           apiClient
             .newCall(
               Request
@@ -56,21 +57,22 @@ class OpenCodeClient(
                 .header("Authorization", "Bearer $apiKey")
                 .get()
                 .build(),
-            ).execute()
-        val body = response.body.string()
-        if (!response.isSuccessful) {
-          throw IllegalStateException("OpenCode API error ${response.code}: ${AiResponseParser.error(json, body)}")
-        }
-        AiResponseParser.modelArray(json, body, "OpenCode").mapNotNull { model ->
-          val id = model.string("id") ?: return@mapNotNull null
-          if (!AiModelCapabilities.isTextGenerationModel(id)) return@mapNotNull null
-          val displayName = model.string("name") ?: model.string("display_name") ?: id
-          val pricing = model["pricing"] as? JsonObject
-          AiModelInfo(
-            id = id,
-            displayName = displayName,
-            isFree = AiModelPricing.isZeroCost(pricing) || id.endsWith("-free", ignoreCase = true),
-          )
+            )
+        call.awaitResponse().use { response ->
+          val body = response.body.string()
+          if (!response.isSuccessful) {
+            throw IllegalStateException("OpenCode API error ${response.code}: ${AiResponseParser.error(json, body)}")
+          }
+          AiResponseParser.modelArray(json, body, "OpenCode").mapNotNull { model ->
+            val id = model.string("id") ?: return@mapNotNull null
+            val displayName = model.string("name") ?: model.string("display_name") ?: id
+            val pricing = model["pricing"] as? JsonObject
+            AiModelInfo(
+              id = id,
+              displayName = displayName,
+              isFree = AiModelPricing.isZeroCost(pricing) || id.endsWith("-free", ignoreCase = true),
+            )
+          }
         }
       }
     }
@@ -88,7 +90,7 @@ class OpenCodeClient(
     options: AiGenerationOptions,
   ): Result<AiGeneratedContent> =
     withContext(Dispatchers.IO) {
-      runCatching {
+      runCatchingCancellable {
         val apiModel = model.removePrefix("opencode/")
         val protocol = protocolFor(apiModel)
         val payload =
@@ -119,16 +121,17 @@ class OpenCodeClient(
               if (protocol == Protocol.GOOGLE) header("x-goog-api-key", apiKey)
             }.post(payload.toString().toRequestBody(JSON_MEDIA_TYPE))
             .build()
-        val response = apiClient.newCall(request).execute()
-        val body = response.body.string()
-        if (!response.isSuccessful) {
-          throw IllegalStateException("OpenCode generate error ${response.code}: ${AiResponseParser.error(json, body)}")
-        }
-        when (protocol) {
-          Protocol.RESPONSES -> AiResponseParser.openAiResponses(json, body, "OpenCode")
-          Protocol.ANTHROPIC -> AiResponseParser.anthropic(json, body, "OpenCode")
-          Protocol.GOOGLE -> AiResponseParser.google(json, body, "OpenCode")
-          Protocol.CHAT_COMPLETIONS -> AiResponseParser.openAiCompatible(json, body, "OpenCode")
+        apiClient.newCall(request).awaitResponse().use { response ->
+          val body = response.body.string()
+          if (!response.isSuccessful) {
+            throw IllegalStateException("OpenCode generate error ${response.code}: ${AiResponseParser.error(json, body)}")
+          }
+          when (protocol) {
+            Protocol.RESPONSES -> AiResponseParser.openAiResponses(json, body, "OpenCode")
+            Protocol.ANTHROPIC -> AiResponseParser.anthropic(json, body, "OpenCode")
+            Protocol.GOOGLE -> AiResponseParser.google(json, body, "OpenCode")
+            Protocol.CHAT_COMPLETIONS -> AiResponseParser.openAiCompatible(json, body, "OpenCode")
+          }
         }
       }
     }

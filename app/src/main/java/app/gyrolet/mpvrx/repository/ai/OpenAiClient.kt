@@ -9,6 +9,7 @@
 
 package app.gyrolet.mpvrx.repository.ai
 
+import app.gyrolet.mpvrx.network.awaitResponse
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.SerialName
@@ -75,7 +76,7 @@ class OpenAiClient(
 
   override suspend fun fetchModels(apiKey: String): Result<List<AiModelInfo>> =
     withContext(Dispatchers.IO) {
-      runCatching {
+      runCatchingCancellable {
         val request =
           Request
             .Builder()
@@ -84,25 +85,25 @@ class OpenAiClient(
             .get()
             .build()
 
-        val response = apiClient.newCall(request).execute()
-        val body = response.body.string()
+        apiClient.newCall(request).awaitResponse().use { response ->
+          val body = response.body.string()
+          if (!response.isSuccessful) throw Exception("OpenAI API error ${response.code}: ${parseError(body)}")
 
-        if (!response.isSuccessful) throw Exception("OpenAI API error ${response.code}: ${parseError(body)}")
-
-        val parsed = json.decodeFromString<OpenAiModelListResponse>(body)
-        parsed.data.filter { AiModelCapabilities.isTextGenerationModel(it.id) }.map { model ->
-          AiModelInfo(
-            id = model.id,
-            displayName = model.id,
-            isFree = AiModelPricing.isZeroCost(model.pricing),
-          )
+          val parsed = json.decodeFromString<OpenAiModelListResponse>(body)
+          parsed.data.map { model ->
+            AiModelInfo(
+              id = model.id,
+              displayName = model.id,
+              isFree = AiModelPricing.isZeroCost(model.pricing),
+            )
+          }
         }
       }
     }
 
   override suspend fun verifyKey(apiKey: String): Result<String> =
     withContext(Dispatchers.IO) {
-      runCatching {
+      runCatchingCancellable {
         val request =
           Request
             .Builder()
@@ -111,9 +112,10 @@ class OpenAiClient(
             .get()
             .build()
 
-        val response = apiClient.newCall(request).execute()
-        if (!response.isSuccessful) throw Exception("Invalid API key: ${response.code}")
-        "API key verified successfully"
+        apiClient.newCall(request).awaitResponse().use { response ->
+          if (!response.isSuccessful) throw Exception("Invalid API key: ${response.code}")
+          "API key verified successfully"
+        }
       }
     }
 
@@ -125,7 +127,7 @@ class OpenAiClient(
     options: AiGenerationOptions,
   ): Result<AiGeneratedContent> =
     withContext(Dispatchers.IO) {
-      runCatching {
+      runCatchingCancellable {
         val requestBody =
           json.encodeToString(
             OpenAiChatRequest.serializer(),
@@ -149,12 +151,11 @@ class OpenAiClient(
             .post(requestBody.toRequestBody(JSON_MEDIA_TYPE))
             .build()
 
-        val response = apiClient.newCall(request).execute()
-        val body = response.body.string()
-
-        if (!response.isSuccessful) throw Exception("OpenAI generate error ${response.code}: ${parseError(body)}")
-
-        AiResponseParser.openAiCompatible(json, body, "OpenAI")
+        apiClient.newCall(request).awaitResponse().use { response ->
+          val body = response.body.string()
+          if (!response.isSuccessful) throw Exception("OpenAI generate error ${response.code}: ${parseError(body)}")
+          AiResponseParser.openAiCompatible(json, body, "OpenAI")
+        }
       }
     }
 
@@ -168,10 +169,9 @@ class OpenAiClient(
 
   private fun isReasoningModel(model: String): Boolean {
     val id = model.substringAfterLast('/').lowercase()
-    return id.startsWith("o1") ||
-      id.startsWith("o3") ||
-      id.startsWith("o4") ||
-      id.startsWith("gpt-5") ||
+    return id.matches(Regex("^o\\d.*")) ||
+      id.matches(Regex("^gpt-[5-9].*")) ||
+      id.contains("reasoning") ||
       id.contains("codex")
   }
 }

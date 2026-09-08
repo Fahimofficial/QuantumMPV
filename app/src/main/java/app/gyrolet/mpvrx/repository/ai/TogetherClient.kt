@@ -9,6 +9,7 @@
 
 package app.gyrolet.mpvrx.repository.ai
 
+import app.gyrolet.mpvrx.network.awaitResponse
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.SerialName
@@ -73,7 +74,7 @@ class TogetherClient(
 
   override suspend fun fetchModels(apiKey: String): Result<List<AiModelInfo>> =
     withContext(Dispatchers.IO) {
-      runCatching {
+      runCatchingCancellable {
         val request =
           Request
             .Builder()
@@ -82,29 +83,29 @@ class TogetherClient(
             .get()
             .build()
 
-        val response = apiClient.newCall(request).execute()
-        val body = response.body.string()
+        apiClient.newCall(request).awaitResponse().use { response ->
+          val body = response.body.string()
+          if (!response.isSuccessful) throw Exception("Together API error ${response.code}: ${parseError(body)}")
 
-        if (!response.isSuccessful) throw Exception("Together API error ${response.code}: ${parseError(body)}")
-
-        AiResponseParser
-          .modelArray(json, body, "Together")
-          .mapNotNull { element ->
-            runCatching { json.decodeFromJsonElement(TogModel.serializer(), element) }.getOrNull()
-          }.filter { it.type == null || it.type == "chat" || it.type == "language" }
-          .map { model ->
-            AiModelInfo(
-              id = model.id,
-              displayName = model.displayName ?: model.display_name ?: model.id,
-              isFree = AiModelPricing.isZeroCost(model.pricing),
-            )
-          }
+          AiResponseParser
+            .modelArray(json, body, "Together")
+            .mapNotNull { element ->
+              runCatching { json.decodeFromJsonElement(TogModel.serializer(), element) }.getOrNull()
+            }.filter { it.type == null || it.type == "chat" || it.type == "language" }
+            .map { model ->
+              AiModelInfo(
+                id = model.id,
+                displayName = model.displayName ?: model.display_name ?: model.id,
+                isFree = AiModelPricing.isZeroCost(model.pricing),
+              )
+            }
+        }
       }
     }
 
   override suspend fun verifyKey(apiKey: String): Result<String> =
     withContext(Dispatchers.IO) {
-      runCatching {
+      runCatchingCancellable {
         val request =
           Request
             .Builder()
@@ -113,9 +114,10 @@ class TogetherClient(
             .get()
             .build()
 
-        val response = apiClient.newCall(request).execute()
-        if (!response.isSuccessful) throw Exception("Invalid API key: ${response.code}")
-        "API key verified successfully"
+        apiClient.newCall(request).awaitResponse().use { response ->
+          if (!response.isSuccessful) throw Exception("Invalid API key: ${response.code}")
+          "API key verified successfully"
+        }
       }
     }
 
@@ -127,7 +129,7 @@ class TogetherClient(
     options: AiGenerationOptions,
   ): Result<AiGeneratedContent> =
     withContext(Dispatchers.IO) {
-      runCatching {
+      runCatchingCancellable {
         val requestBody =
           json.encodeToString(
             TogChatRequest.serializer(),
@@ -151,12 +153,11 @@ class TogetherClient(
             .post(requestBody.toRequestBody(JSON_MEDIA_TYPE))
             .build()
 
-        val response = apiClient.newCall(request).execute()
-        val body = response.body.string()
-
-        if (!response.isSuccessful) throw Exception("Together generate error ${response.code}: ${parseError(body)}")
-
-        AiResponseParser.openAiCompatible(json, body, "Together")
+        apiClient.newCall(request).awaitResponse().use { response ->
+          val body = response.body.string()
+          if (!response.isSuccessful) throw Exception("Together generate error ${response.code}: ${parseError(body)}")
+          AiResponseParser.openAiCompatible(json, body, "Together")
+        }
       }
     }
 

@@ -10,6 +10,8 @@
 package app.gyrolet.mpvrx.repository.ai
 
 import android.util.Base64
+import app.gyrolet.mpvrx.network.awaitResponse
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.json.Json
@@ -50,7 +52,7 @@ class OpenRouterSpeechClient(
     model: String?,
   ): Result<SpeechTranscript> =
     withContext(Dispatchers.IO) {
-      runCatching {
+      try {
         val encoded = Base64.encodeToString(audioFile.readBytes(), Base64.NO_WRAP)
         val format =
           audioFile.extension.lowercase(Locale.ROOT).let {
@@ -72,7 +74,7 @@ class OpenRouterSpeechClient(
             if (!language.isNullOrBlank()) put("language", language)
             put("temperature", 0)
           }
-        val response =
+        val request =
           apiClient
             .newCall(
               Request
@@ -83,32 +85,29 @@ class OpenRouterSpeechClient(
                 .header("X-OpenRouter-Title", "mpvRx")
                 .post(payload.toString().toRequestBody(JSON_MEDIA_TYPE))
                 .build(),
-            ).execute()
-        val body = response.body.string()
-        if (!response.isSuccessful) {
-          throw IllegalStateException(
-            "OpenRouter transcription failed ${response.code}: ${AiResponseParser.error(json, body)}",
-          )
+            )
+        request.awaitResponse().use { response ->
+          val body = response.body.string()
+          if (!response.isSuccessful) {
+            throw IllegalStateException(
+              "OpenRouter transcription failed ${response.code}: ${AiResponseParser.error(json, body)}",
+            )
+          }
+          val root = json.parseToJsonElement(body).jsonObject
+          val text =
+            root["text"]
+              ?.jsonPrimitive
+              ?.contentOrNull
+              .orEmpty()
+              .trim()
+          if (text.isBlank()) throw IllegalStateException("OpenRouter returned an empty transcription")
+              Result.success(SpeechTranscript(text))
         }
-        val root = json.parseToJsonElement(body).jsonObject
-        val text =
-          root["text"]
-            ?.jsonPrimitive
-            ?.contentOrNull
-            .orEmpty()
-            .trim()
-        if (text.isBlank()) throw IllegalStateException("OpenRouter returned an empty transcription")
-        SpeechTranscript(text, createHeuristicSegments(text))
+      } catch (cancellation: CancellationException) {
+        throw cancellation
+      } catch (error: Exception) {
+        Result.failure(error)
       }
     }
 
-  private fun createHeuristicSegments(text: String): List<SpeechSegment> =
-    text
-      .split(Regex("\\s+"))
-      .filter { it.isNotBlank() }
-      .chunked(9)
-      .mapIndexed { index, words ->
-        val startMs = index * 3_500L
-        SpeechSegment(startMs, startMs + 3_200L, words.joinToString(" "))
-      }
 }

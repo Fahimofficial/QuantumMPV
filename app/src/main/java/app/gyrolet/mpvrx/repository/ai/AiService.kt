@@ -78,32 +78,50 @@ class AiService(
       }
 
       val client = clients[provider] ?: return@withContext Result.failure(Exception("Unknown provider: $provider"))
-      client.fetchModels(apiKey)
+      client.fetchModels(apiKey).mapCatching { fetched ->
+        AiModelCapabilities
+          .normalize(fetched.filter { model -> AiModelCapabilities.isTextGenerationModel(model.id) })
+          .also { models -> check(models.isNotEmpty()) { "$provider returned no compatible text-generation models" } }
+      }
     }
 
-  fun fetchSpeechModelsForProvider(provider: AiProvider): Result<List<AiModelInfo>> =
+  suspend fun fetchSpeechModelsForProvider(provider: AiProvider): Result<List<AiModelInfo>> =
+    withContext(Dispatchers.IO) {
+      if (provider !in setOf(AiProvider.GROQ, AiProvider.OPENAI, AiProvider.OPENROUTER)) {
+        return@withContext Result.failure(IllegalArgumentException("$provider does not provide speech-to-text in mpvRx"))
+      }
+      val apiKey = getApiKey(provider)
+      if (apiKey.isBlank()) {
+        return@withContext Result.failure(Exception("API key not configured for $provider"))
+      }
+      val client = clients[provider] ?: return@withContext Result.failure(Exception("Unknown provider: $provider"))
+      client.fetchModels(apiKey).mapCatching { fetched ->
+        val liveModels = fetched.filter { model -> AiModelCapabilities.isSpeechToTextModel(model.id) }
+        AiModelCapabilities
+          .normalize(liveModels.ifEmpty { fallbackSpeechModels(provider) })
+          .also { models -> check(models.isNotEmpty()) { "$provider returned no speech-to-text models" } }
+      }
+    }
+
+  private fun fallbackSpeechModels(provider: AiProvider): List<AiModelInfo> =
     when (provider) {
       AiProvider.GROQ ->
-        Result.success(
-          listOf(
-            AiModelInfo("whisper-large-v3-turbo", "Whisper Large V3 Turbo"),
-            AiModelInfo("whisper-large-v3", "Whisper Large V3"),
-          ),
+        listOf(
+          AiModelInfo("whisper-large-v3-turbo", "Whisper Large V3 Turbo"),
+          AiModelInfo("whisper-large-v3", "Whisper Large V3"),
         )
       AiProvider.OPENAI ->
-        Result.success(
-          listOf(
-            AiModelInfo("whisper-1", "Whisper"),
-          ),
+        listOf(
+          AiModelInfo("gpt-4o-mini-transcribe", "GPT-4o Mini Transcribe"),
+          AiModelInfo("gpt-4o-transcribe", "GPT-4o Transcribe"),
+          AiModelInfo("whisper-1", "Whisper"),
         )
       AiProvider.OPENROUTER ->
-        Result.success(
-          listOf(
-            AiModelInfo("openai/whisper-large-v3-turbo", "Whisper Large V3 Turbo"),
-            AiModelInfo("openai/whisper-large-v3", "Whisper Large V3"),
-          ),
+        listOf(
+          AiModelInfo("openai/whisper-large-v3-turbo", "Whisper Large V3 Turbo"),
+          AiModelInfo("openai/whisper-large-v3", "Whisper Large V3"),
         )
-      else -> Result.failure(IllegalArgumentException("$provider does not provide speech-to-text in mpvRx"))
+      else -> emptyList()
     }
 
   suspend fun verifyKey(): Result<String> =
@@ -164,6 +182,42 @@ class AiService(
       val options = generationOptionsFor(task)
 
       client.generateContent(apiKey, model, instruction, userInput, options).map { it.text }
+    }
+
+  suspend fun translateRealtimeCues(
+    texts: List<String>,
+    targetLanguage: String,
+  ): Result<List<String>> =
+    withContext(Dispatchers.IO) {
+      if (texts.isEmpty()) return@withContext Result.success(emptyList())
+      if (targetLanguage.isBlank()) return@withContext Result.success(texts)
+
+      val input =
+        texts.mapIndexed { index, text ->
+          "[CUE_$index] ${text.replace(Regex("\\s+"), " ").trim()}"
+        }.joinToString("\n")
+      val instruction =
+        "TARGET LANGUAGE: $targetLanguage\n" +
+          "Translate each cue independently. Return exactly one line per cue using the unchanged " +
+          "[CUE_n] marker followed by its translation. Preserve cue order and do not add commentary."
+
+      generateWithAi(input, AiTask.TRANSLATE, instruction).mapCatching { response ->
+        val cleaned = response.replace(Regex("<think>.*?</think>", RegexOption.DOT_MATCHES_ALL), "").trim()
+        val marker = Regex("^\\s*\\[CUE_(\\d+)]\\s*(.+?)\\s*$")
+        val translated = MutableList<String?>(texts.size) { null }
+        cleaned.lineSequence().forEach { line ->
+          val match = marker.matchEntire(line) ?: return@forEach
+          val index = match.groupValues[1].toIntOrNull() ?: return@forEach
+          val value = match.groupValues[2].trim()
+          if (index in translated.indices && value.isNotBlank()) translated[index] = value
+        }
+
+        if (texts.size == 1 && translated[0] == null && cleaned.isNotBlank() && !cleaned.contains("[CUE_")) {
+          translated[0] = cleaned
+        }
+        check(translated.all { !it.isNullOrBlank() }) { "AI returned an incomplete real-time subtitle translation" }
+        translated.map { requireNotNull(it) }
+      }
     }
 
   private fun generationOptionsFor(task: AiTask): AiGenerationOptions =

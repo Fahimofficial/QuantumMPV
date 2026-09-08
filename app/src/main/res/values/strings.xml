@@ -943,6 +943,17 @@
   <string name="pref_ai_search_summary">Auto-format video titles for Wyzie/SubHub subtitle search</string>
   <string name="pref_stt_section">Speech-to-Text [Extreme Experimental]</string>
   <string name="pref_stt_title">Real-time Subtitle Generation</string>
+  <string name="realtime_subtitles_label">Live captions</string>
+  <string name="realtime_subtitles_processing">Live captions %1$d/%2$d</string>
+  <string name="realtime_subtitles_translating">Translating live captions</string>
+  <string name="realtime_subtitles_translation_fallback">Translation unavailable; showing transcript</string>
+  <string name="realtime_subtitles_complete">Live captions complete</string>
+  <string name="realtime_subtitles_failed">Live captions failed</string>
+  <string name="realtime_subtitles_stopped">Live captions stopped</string>
+  <string name="realtime_subtitles_media_unavailable">Current media is unavailable for live captions</string>
+  <string name="realtime_subtitles_update_failed">Could not update live captions</string>
+  <string name="subtitle_generation_audio_unavailable">Could not open the selected audio track</string>
+  <string name="subtitle_generation_duration_unknown">Video duration is unavailable</string>
   <string name="pref_stt_summary">Generate subtitles from audio while playing video</string>
   <string name="pref_stt_output_format_title">Default Output Format</string>
   <string name="pref_stt_provider_title">Speech-to-Text Provider</string>
