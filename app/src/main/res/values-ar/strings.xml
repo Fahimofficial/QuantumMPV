@@ -17,7 +17,7 @@
   <string name="pref_appearance_amoled_mode_title">وضع الأسود AMOLED</string>
   <string name="pref_appearance_amoled_mode_summary">استخدام خلفية سوداء خالصة للسمات الداكنة</string>
   <string name="pref_appearance_system_font_title">استخدام خط النظام</string>
-  <string name="pref_appearance_system_font_summary">استخدام محرف نظام Android في mpvRx بدلًا من Google Sans Flex</string>
+  <string name="pref_appearance_system_font_summary">استخدام محرف نظام Android في QuantumMPV بدلًا من Google Sans Flex</string>
   <string name="pref_appearance_material_you_title">Material You</string>
   <string name="pref_appearance_material_you_summary">تفعيل الألوان الديناميكية</string>
   <string name="pref_appearance_material_you_summary_disabled">متاح فقط على Android 12 والإصدارات الأحدث</string>
@@ -314,7 +314,7 @@
   <string name="pref_app_language_title">اللغة</string>
   <string name="pref_app_language_system_default">إعداد النظام الافتراضي</string>
   <string name="pref_app_language_restart_title">إعادة التشغيل مطلوبة</string>
-  <string name="pref_app_language_restart_message">أعد تشغيل mpvRx لتطبيق اللغة الجديدة.</string>
+  <string name="pref_app_language_restart_message">أعد تشغيل QuantumMPV لتطبيق اللغة الجديدة.</string>
   <string name="pref_app_language_restart_now">إعادة التشغيل الآن</string>
   <string name="pref_advanced_mpv_conf_storage_location">اختيار موقع تخزين الإعدادات</string>
   <string name="pref_advanced_mpv_conf">تحرير mpv.conf</string>
@@ -527,7 +527,7 @@
   <string name="notification_repeat_all">تكرار الكل</string>
   <string name="notification_chapter_counter">الفصل %1$d من %2$d</string>
   <string name="notification_permission_denied">يلزم إذن الإشعارات لعناصر تحكم التشغيل في الخلفية.</string>
-  <string name="notification_permission_disabled">الإشعارات معطّلة لـ mpvRx. فعّلها لإظهار عناصر تحكم التشغيل.</string>
+  <string name="notification_permission_disabled">الإشعارات معطّلة لـ QuantumMPV. فعّلها لإظهار عناصر تحكم التشغيل.</string>
   <string name="notification_disabled_in_advanced_settings">قم بتمكين الإشعارات من الإعدادات المتقدمة لاستخدام التشغيل في الخلفية.</string>
   <string name="pref_advanced_notification_style">نمط الإشعار</string>
   <!-- Media Info Activity -->
@@ -1303,15 +1303,15 @@
   <string name="ui_allow_access">السماح بالوصول</string>
   <string name="ui_why_do_i_see_this">لماذا أرى هذا؟</string>
   <string name="ui_why_this_permission_is_needed">لماذا يلزم هذا الإذن</string>
-  <string name="ui_mpvrx_needs_access_to_your_video_files_to_provide_its_core_funct">يحتاج mpvRx إلى الوصول إلى ملفات الفيديو لتوفير وظائفه الأساسية كمشغّل وسائط.</string>
+  <string name="ui_mpvrx_needs_access_to_your_video_files_to_provide_its_core_funct">يحتاج QuantumMPV إلى الوصول إلى ملفات الفيديو لتوفير وظائفه الأساسية كمشغّل وسائط.</string>
   <string name="ui_the_permission_is_used_exclusively_for">يُستخدم الإذن حصريًا من أجل:</string>
   <string name="ui_discovering_and_displaying_your_video_files_n_playing_media_cont">• اكتشاف ملفات الفيديو وعرضها
 • تشغيل محتوى الوسائط
 • تحميل ملفات الترجمة</string>
-  <string name="ui_mpvrx_has_always_required_storage_access_permission_as_it_s_esse">لطالما احتاج mpvRx إلى إذن الوصول إلى وحدة التخزين لأنه ضروري للعثور على جميع ملفات الوسائط والترجمة على جهازك، بما فيها الملفات التي لا يدعمها النظام.</string>
+  <string name="ui_mpvrx_has_always_required_storage_access_permission_as_it_s_esse">لطالما احتاج QuantumMPV إلى إذن الوصول إلى وحدة التخزين لأنه ضروري للعثور على جميع ملفات الوسائط والترجمة على جهازك، بما فيها الملفات التي لا يدعمها النظام.</string>
   <string name="ui_however_due_to_a_change_in_security_policy_apps_built_for_androi">لكن بسبب تغيير في سياسة الأمان، تتطلب التطبيقات المصممة لنظام Android 11 والإصدارات الأحدث إذنًا إضافيًا لمواصلة الوصول نفسه.</string>
   <string name="ui_please_know_that_this_permission_is_only_used_for_the_auto_disco">يُرجى العلم أن هذا الإذن لا يُستخدم إلا للاكتشاف التلقائي لملفات الوسائط والترجمة على جهازك، ولا يتيح لنا بأي شكل الوصول إلى ملفات البيانات الخاصة التي تخزّنها التطبيقات الأخرى.</string>
-  <string name="ui_mpvrx_is_an_open_source_project_you_can_review_the_source_code_a">mpvRx مشروع مفتوح المصدر. يمكنك مراجعة الشفرة المصدرية والتحقق من كيفية استخدام الأذونات بزيارة مستودع GitHub الخاص بنا على:</string>
+  <string name="ui_mpvrx_is_an_open_source_project_you_can_review_the_source_code_a">QuantumMPV مشروع مفتوح المصدر. يمكنك مراجعة الشفرة المصدرية والتحقق من كيفية استخدام الأذونات بزيارة مستودع GitHub الخاص بنا على:</string>
   <string name="ui_be_rest_assured_your_privacy_is_our_utmost_priority_and_we_neith">اطمئن، خصوصيتك هي أولويتنا القصوى. لا نصل إلى ملفاتك لأغراض أخرى ولا ننقلها أو نخزّنها على خوادمنا؛ بل تبقى آمنة على جهازك.</string>
   <string name="ui_app_permissions">أذونات التطبيق</string>
   <string name="ui_permissions_setup_subtitle">قم بتكوين الأذونات لتمكين الميزات الأساسية وتشغيل الوسائط.</string>
@@ -1405,14 +1405,14 @@
   <string name="ui_github">GitHub</string>
   <string name="ui_device_info">معلومات الجهاز</string>
   <string name="ui_buy_me_a_coffee">ادعمني بقهوة</string>
-  <string name="ui_if_you_enjoy_mpvrx_consider_supporting_its_development_every_bit">إذا أعجبك mpvRx، فكّر في دعم تطويره. كل مساهمة تساعد!</string>
+  <string name="ui_if_you_enjoy_mpvrx_consider_supporting_its_development_every_bit">إذا أعجبك QuantumMPV، فكّر في دعم تطويره. كل مساهمة تساعد!</string>
   <string name="ui_upi_id">معرّف UPI</string>
   <string name="ui_panditritesh2001_okhdfcbank">panditritesh2001@okhdfcbank</string>
   <string name="ui_send_love">أرسل دعمك</string>
   <string name="ui_auto_check_for_updates">البحث التلقائي عن التحديثات</string>
   <string name="ui_check_on_startup">التحقق عند بدء التشغيل</string>
   <string name="ui_check_for_updates_now">البحث عن تحديثات الآن</string>
-  <string name="ui_core_open_source_dependencies_used_by_mpvrx">التبعيات الأساسية مفتوحة المصدر التي يستخدمها mpvRx.</string>
+  <string name="ui_core_open_source_dependencies_used_by_mpvrx">التبعيات الأساسية مفتوحة المصدر التي يستخدمها QuantumMPV.</string>
   <string name="ui_copy_upi_id">نسخ معرّف UPI</string>
   <string name="ui_already_using_latest_version">أنت تستخدم أحدث إصدار بالفعل</string>
   <string name="ui_upi_id_copied">تم نسخ معرّف UPI!</string>
@@ -1618,8 +1618,8 @@
   <string name="syncplay_connecting">جارٍ الاتصال…</string>
   <string name="syncplay_player_status">Syncplay: %1$s (%2$d مستخدمين)</string>
   <!-- Additional synchronized strings -->
-  <string name="app_name">mpvRx</string>
-  <string name="github_repo_url">https://github.com/Riteshp2001/mpvRx</string>
+  <string name="app_name">QuantumMPV</string>
+  <string name="github_repo_url">https://github.com/Fahimofficial/QuantumMPV</string>
   <string name="hdr_mode_bt2020">BT.2020</string>
   <string name="hdr_mode_bt2100_hlg">BT.2100 HLG</string>
   <string name="hdr_mode_bt2100_pq">BT.2100 PQ</string>
@@ -1961,7 +1961,7 @@
   <string name="seerr_approve">موافقة</string>
   <string name="seerr_decline">رفض</string>
   <string name="seerr_delete">حذف</string>
-  <string name="seerr_play_in_jellyfin">تشغيل في mpvRx</string>
+  <string name="seerr_play_in_jellyfin">تشغيل في QuantumMPV</string>
   <string name="seerr_open_in_jellyfin">فتح في Jellyfin</string>
   <string name="seerr_available_on_jellyfin">متاح في المكتبة</string>
   <string name="seerr_search_placeholder">البحث عن أفلام ومسلسلات في Seerr…</string>
@@ -1996,7 +1996,7 @@
   <string name="ui_update_channel">قناة التحديث</string>
   <string name="ui_stable_releases">مستقر</string>
   <string name="ui_preview_builds">معاينة (ليلي)</string>
-  <string name="ui_preview_builds_summary">إصدارات المعاينة هي نسخ اختبار موقّعة تُنشر من أحدث تغييرات mpvRx وقد تكون غير مستقرة.</string>
+  <string name="ui_preview_builds_summary">إصدارات المعاينة هي نسخ اختبار موقّعة تُنشر من أحدث تغييرات QuantumMPV وقد تكون غير مستقرة.</string>
   <string name="update_whats_new">ما الجديد</string>
   <string name="update_no_release_notes">لا توجد ملاحظات إصدار.</string>
   <string name="update_ready_to_install">جاهز للتثبيت</string>
@@ -2035,7 +2035,7 @@
   <string name="storage_permission_needed_desc">امنح إذن التخزين لتصفح وتشغيل الوسائط.</string>
   <string name="storage_permission_grant">منح الإذن</string>
   <string name="pref_player_web_stream_links_title">فتح روابط مواقع البث</string>
-  <string name="pref_player_web_stream_links_summary">عرض mpvRx لروابط YouTube وVimeo وTwitch وOdysee وBilibili. أوقف الخيار لتركها لتطبيقاتها الأصلية.</string>
+  <string name="pref_player_web_stream_links_summary">عرض QuantumMPV لروابط YouTube وVimeo وTwitch وOdysee وBilibili. أوقف الخيار لتركها لتطبيقاتها الأصلية.</string>
 
   <string name="btn_label_scopes">النطاقات</string>
   <string name="scopes_title">النطاقات</string>

@@ -1,12 +1,12 @@
 <p align="center">
-  <img src="fastlane/metadata/android/en-US/images/icon.png" width="250" height="250" alt="mpvRx app icon" />
+  <img src="fastlane/metadata/android/en-US/images/icon.png" width="250" height="250" alt="QuantumMPV app icon" />
 </p>
 
-<h1 align="center">mpvRx</h1>
+<h1 align="center">QuantumMPV</h1>
 
 <p align="center">
-  <a href="https://apps.obtainium.imranr.dev/redirect?r=obtainium://app/%7B%22id%22%3A%22app.gyrolet.mpvrx%22%2C%22url%22%3A%22https%3A%2F%2Fgithub.com%2FRiteshp2001%2FmpvRx%22%2C%22author%22%3A%22Riteshp2001%22%2C%22name%22%3A%22mpvRx%22%2C%22preferredApkIndex%22%3A0%2C%22additionalSettings%22%3A%22%7B%5C%22includePrereleases%5C%22%3Afalse%2C%5C%22fallbackToOlderReleases%5C%22%3Atrue%2C%5C%22filterReleaseTitlesByRegEx%5C%22%3A%5C%22%5C%22%2C%5C%22filterReleaseNotesByRegEx%5C%22%3A%5C%22%5C%22%2C%5C%22verifyLatestTag%5C%22%3Afalse%2C%5C%22sortMethodChoice%5C%22%3A%5C%22date%5C%22%2C%5C%22useLatestAssetDateAsReleaseDate%5C%22%3Afalse%2C%5C%22releaseTitleAsVersion%5C%22%3Afalse%2C%5C%22trackOnly%5C%22%3Afalse%2C%5C%22versionExtractionRegEx%5C%22%3A%5C%22%5C%22%2C%5C%22matchGroupToUse%5C%22%3A%5C%22%5C%22%2C%5C%22versionDetection%5C%22%3Atrue%2C%5C%22releaseDateAsVersion%5C%22%3Afalse%2C%5C%22useVersionCodeAsOSVersion%5C%22%3Afalse%2C%5C%22apkFilterRegEx%5C%22%3A%5C%22%5C%22%2C%5C%22invertAPKFilter%5C%22%3Afalse%2C%5C%22autoApkFilterByArch%5C%22%3Atrue%2C%5C%22minimumUpdateAgeDays%5C%22%3A%5C%22%5C%22%2C%5C%22appName%5C%22%3A%5C%22%5C%22%2C%5C%22appAuthor%5C%22%3A%5C%22%5C%22%2C%5C%22shizukuPretendToBeGooglePlay%5C%22%3Afalse%2C%5C%22allowInsecure%5C%22%3Afalse%2C%5C%22exemptFromBackgroundUpdates%5C%22%3Afalse%2C%5C%22skipUpdateNotifications%5C%22%3Afalse%2C%5C%22about%5C%22%3A%5C%22%5C%22%2C%5C%22refreshBeforeDownload%5C%22%3Afalse%2C%5C%22includeZips%5C%22%3Afalse%2C%5C%22zippedApkFilterRegEx%5C%22%3A%5C%22%5C%22%2C%5C%22includeTarballs%5C%22%3Afalse%2C%5C%22tarballedApkFilterRegEx%5C%22%3A%5C%22%5C%22%7D%22%2C%22overrideSource%22%3Anull%7D">
-    <img src="https://raw.githubusercontent.com/ImranR98/Obtainium/main/assets/graphics/badge_obtainium.png" alt="Get it on Obtainium" height="80" />
+  <a href="https://github.com/Fahimofficial/QuantumMPV/releases">
+    <img src="https://img.shields.io/badge/Download-Releases-blue?style=for-the-badge&logo=github" alt="Download QuantumMPV releases" height="40" />
   </a>
 </p>
 
@@ -23,8 +23,8 @@
 <p align="center">
   <img src="https://img.shields.io/badge/Platform-Android-brightgreen.svg" />
   <img src="https://img.shields.io/badge/License-AGPL_v3-blue.svg" />
-  <img src="https://img.shields.io/github/v/release/Riteshp2001/mpvRx.svg?logo=github&label=Release&cacheSeconds=3600" />
-  <img src="https://img.shields.io/github/downloads/Riteshp2001/mpvRx/total?logo=github&cacheSeconds=3600" />
+  <img src="https://img.shields.io/github/v/release/Fahimofficial/QuantumMPV.svg?logo=github&label=Release&cacheSeconds=3600" />
+  <img src="https://img.shields.io/github/downloads/Fahimofficial/QuantumMPV/total?logo=github&cacheSeconds=3600" />
 </p>
 
 ---
@@ -54,7 +54,7 @@
 
 ## Features
 
-mpvRx pushes the mpv-android experience further with deep customization, thermal-aware performance, and unique quality-of-life features. Here's what sets it apart:
+QuantumMPV pushes the mpv-android experience further with deep customization, thermal-aware performance, and unique quality-of-life features. Here's what sets it apart:
 
 <details close>
 <summary><b>🎨 Theme & Visual System</b></summary>
@@ -345,21 +345,21 @@ First Pro Tip Keep Mpv Conf empty if you are newbie
 
 - **Use `gpu` not `gpu-next`** — gpu-next is a Vulkan-based renderer that keeps the GPU awake for no reason when playing normal video. The classic `gpu` backend is lighter and uses the OpenGL driver stack, which on most Android devices has better power characteristics.
 - **Disable Vulkan entirely.** Vulkan is great for Video Playback but also Heavy.
-- **Use the `fast` mpv profile.** It's literally built into mpvRx use that Mpv Profiles and Set it to Default  or in _mpv.conf_ `profile=fast`
+- **Use the `fast` mpv profile.** It's literally built into QuantumMPV use that Mpv Profiles and Set it to Default  or in _mpv.conf_ `profile=fast`
 - **Don't use shaders.** That Anime4K preset you using that's what's eating your battery. Shaders run on the GPU every single frame. If you're watching 24fps content and you have a shader pipeline running, congratulations — you're doing 24 unnecessary GPU compute passes per second for a Minute amount of visible benefit on a phone screen .
 - **Don't use AI-generated configs.** That means you, the person who copied a Reddit config with 200 lines of `scale=ewa_lanczossharp` and `dscale=mitchell` and `cscale=sinc` and a dozen `glsl-shaders` entries. Most  of You have no idea what any of those do. You just made your phone render video like it's preparing for a 4K cinema projection. On a 6-inch screen. Grow some Brains Its your android Phone not some Fuckin.. 4k Television
 
 **My POV:** mpv's default config with `profile=fast` and the `gpu` backend plays video with negligible battery impact — often **less** than OEM players because mpv doesn't have a billion proprietary DRM modules, analytics SDKs, and ad frameworks burning CPU in the background. The next time your battery drops more than 20-25% watching a 2-hour movie, don't blame mpv. Blame the 14 shaders you blindly copy-pasted.
 
-_Just a Pro tip if your battery consumption stays within 200 mAh and belwo 0.9W ( See Page 6 of mpvRx - video player More Settings -> Page6) useage than ur Mpv Conf are Proper for Video watching thats what i have experimented and telling rest all i don't know About in detail technicality's if anyone wanna tell me In depth guide then keep it to yourself i dont wanna listen_
+_Just a Pro tip if your battery consumption stays within 200 mAh and belwo 0.9W ( See Page 6 of QuantumMPV - video player More Settings -> Page6) useage than ur Mpv Conf are Proper for Video watching thats what i have experimented and telling rest all i don't know About in detail technicality's if anyone wanna tell me In depth guide then keep it to yourself i dont wanna listen_
 
 ---
 
 <div align="center">
-  <a href="https://github.com/Riteshp2001/mpvRx/releases">
+  <a href="https://github.com/Fahimofficial/QuantumMPV/releases">
     <img src="https://img.shields.io/badge/Download-Stable_Release-blue?style=for-the-badge&logo=github" alt="Stable Release">
   </a>
-  <!-- <a href="https://riteshp2001.github.io/mpvRx/">
+  <!-- <a href="https://fahimofficial.github.io/QuantumMPV/">
     <img src="https://img.shields.io/badge/Download-Preview_Build-orange?style=for-the-badge&logo=github" alt="Preview Build">
   </a> -->
 </div>
@@ -368,7 +368,7 @@ _Just a Pro tip if your battery consumption stays within 200 mAh and belwo 0.9W 
   <i>Note: Previews may be unstable and are intended for testing purposes only.</i>
 </div> -->
 
-For help, reproducible bug reports, or feature suggestions, start with the [support guide](SUPPORT.md) and [existing issues](https://github.com/Riteshp2001/mpvRx/issues).
+For help, reproducible bug reports, or feature suggestions, start with the [support guide](SUPPORT.md) and [existing issues](https://github.com/Fahimofficial/QuantumMPV/issues).
 
 ---
 
@@ -408,27 +408,7 @@ For help, reproducible bug reports, or feature suggestions, start with the [supp
 
 ## Support
 
-If you find mpvRx useful and would like to support its development, consider buying me a coffee! Your support keeps the project alive and helps push new features.
-
-<div align="center">
-
-### ☕ Buy Me a Coffee
-
-<a href="https://www.buymeacoffee.com/riteshp2001">
-  <img src="https://img.shields.io/badge/Buy_Me_A_Coffee-FFDD00?style=for-the-badge&logo=buy-me-a-coffee&logoColor=black" alt="Buy Me a Coffee">
-</a>
-
-### UPI
-
-`panditritesh2001@okhdfcbank`
-
-<a href="upi://pay?pa=panditritesh2001@okhdfcbank&pn=Ritesh%20Pandit&cu=INR">
-  <img src="fastlane/metadata/android/en-US/images/upiqr-code.svg" width="250" height="250" alt="UPI QR Code">
-</a>
-
-Scan with any UPI app (Google Pay, PhonePe, Paytm, BHIM)
-
-</div>
+Use the [issue tracker](https://github.com/Fahimofficial/QuantumMPV/issues) for reproducible bug reports and feature requests. Contributions, testing, documentation, and translations are welcome through pull requests.
 
 ---
 
@@ -463,7 +443,7 @@ git push origin v1.3.1-preview.1
 
 ### Built with open source
 
-Thank you to the player projects, music apps, libraries, and individual contributors whose work makes projects like mpvRx possible.
+Thank you to the player projects, music apps, libraries, and individual contributors whose work makes projects like QuantumMPV possible.
 
 | Explore the credits | Includes |
 |---|---|
@@ -473,13 +453,13 @@ Thank you to the player projects, music apps, libraries, and individual contribu
 
 > Special thanks to [SunnyVishnu3](https://github.com/SunnyVishnu3) for the `yt-dlp` native integration and SDK 29+ bypass logic.
 
-[Full acknowledgments & citation information](CITATION.md) · [All contributors](https://github.com/Riteshp2001/mpvRx/graphs/contributors)
+[Full acknowledgments & citation information](CITATION.md) · [All contributors](https://github.com/Fahimofficial/QuantumMPV/graphs/contributors)
 
 ---
 
 ## Community
 
-[Get help](SUPPORT.md) · [Report a bug](https://github.com/Riteshp2001/mpvRx/issues/new?template=bug_report.md) · [Suggest a feature](https://github.com/Riteshp2001/mpvRx/issues/new?template=feature_request.md) · [Code of conduct](CODE_OF_CONDUCT.md)
+[Get help](SUPPORT.md) · [Report a bug](https://github.com/Fahimofficial/QuantumMPV/issues/new?template=bug_report.md) · [Suggest a feature](https://github.com/Fahimofficial/QuantumMPV/issues/new?template=feature_request.md) · [Code of conduct](CODE_OF_CONDUCT.md)
 
 ---
 
@@ -491,10 +471,10 @@ Distributed under **GNU Affero General Public License v3.0 (AGPL-3.0-or-later)**
 
 ## Star History
 
-<a href="https://www.star-history.com/#Riteshp2001/mpvRx&type=date&legend=top-left">
+<a href="https://www.star-history.com/#Fahimofficial/QuantumMPV&type=date&legend=top-left">
  <picture>
-   <source media="(prefers-color-scheme: dark)" srcset="https://api.star-history.com/svg?repos=Riteshp2001/mpvRx&type=date&theme=dark&legend=top-left" />
-   <source media="(prefers-color-scheme: light)" srcset="https://api.star-history.com/svg?repos=Riteshp2001/mpvRx&type=date&legend=top-left" />
-   <img alt="Star History Chart" src="https://api.star-history.com/svg?repos=Riteshp2001/mpvRx&type=date&legend=top-left" />
+   <source media="(prefers-color-scheme: dark)" srcset="https://api.star-history.com/svg?repos=Fahimofficial/QuantumMPV&type=date&theme=dark&legend=top-left" />
+   <source media="(prefers-color-scheme: light)" srcset="https://api.star-history.com/svg?repos=Fahimofficial/QuantumMPV&type=date&legend=top-left" />
+   <img alt="Star History Chart" src="https://api.star-history.com/svg?repos=Fahimofficial/QuantumMPV&type=date&legend=top-left" />
  </picture>
 </a>

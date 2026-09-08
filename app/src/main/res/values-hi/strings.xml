@@ -1,5 +1,5 @@
 <resources>
-  <string name="app_name">mpvRx</string>
+  <string name="app_name">QuantumMPV</string>
   <string name="generic_reset">रीसेट करें</string>
   <string name="generic_share">शेयर करें</string>
   <string name="generic_confirm">पुष्टि करें</string>
@@ -17,7 +17,7 @@
   <string name="pref_appearance_amoled_mode_title">AMOLED ब्लैक मोड</string>
   <string name="pref_appearance_amoled_mode_summary">डार्क थीम के लिए शुद्ध काला बैकग्राउंड इस्तेमाल करें</string>
   <string name="pref_appearance_system_font_title">सिस्टम फॉन्ट इस्तेमाल करें</string>
-  <string name="pref_appearance_system_font_summary">Google Sans Flex की जगह mpvRx में Android सिस्टम टाइपफेस इस्तेमाल करें</string>
+  <string name="pref_appearance_system_font_summary">Google Sans Flex की जगह QuantumMPV में Android सिस्टम टाइपफेस इस्तेमाल करें</string>
   <string name="pref_appearance_material_you_title">Material You</string>
   <string name="pref_appearance_material_you_summary">डायनामिक कलर्स सक्षम करें</string>
   <string name="pref_appearance_material_you_summary_disabled">सिर्फ Android 12 और उससे ऊपर पर उपलब्ध</string>
@@ -305,7 +305,7 @@
   <string name="pref_app_language_title">भाषा</string>
   <string name="pref_app_language_system_default">सिस्टम डिफ़ॉल्ट</string>
   <string name="pref_app_language_restart_title">रीस्टार्ट ज़रूरी है</string>
-  <string name="pref_app_language_restart_message">नई भाषा लागू करने के लिए mpvRx को रीस्टार्ट करें।</string>
+  <string name="pref_app_language_restart_message">नई भाषा लागू करने के लिए QuantumMPV को रीस्टार्ट करें।</string>
   <string name="pref_app_language_restart_now">अभी रीस्टार्ट करें</string>
   <string name="pref_advanced_mpv_conf_storage_location">कॉन्फ़िगरेशन स्टोरेज लोकेशन चुनें</string>
   <string name="pref_advanced_mpv_conf">mpv.conf एडिट करें</string>
@@ -464,7 +464,7 @@
   <string name="timer_remaining">%s बचा है</string>
   <string name="toast_sleep_timer_ended">स्लीप टाइमर खत्म हो गया</string>
   <string name="volume_slider_absolute_value">%d</string>
-  <string name="github_repo_url">https://github.com/Riteshp2001/mpvRx</string>
+  <string name="github_repo_url">https://github.com/Fahimofficial/QuantumMPV</string>
   <string name="swap_the_volume_and_brightness_slider">वॉल्यूम और ब्राइटनेस स्लाइडर बदलें</string>
   <string name="pref_player_display_reduce_player_animation">प्लेयर एनिमेशन कम करें</string>
   <string name="pref_anim_section">एनिमेशन</string>
@@ -525,7 +525,7 @@
   <string name="notification_repeat_all">सभी दोहराएँ</string>
   <string name="notification_chapter_counter">चैप्टर %1$d, कुल %2$d में से</string>
   <string name="notification_permission_denied">बैकग्राउंड प्लेबैक कंट्रोल्स के लिए नोटिफिकेशन परमिशन ज़रूरी है।</string>
-  <string name="notification_permission_disabled">mpvRx के लिए नोटिफिकेशन बंद हैं। प्लेबैक कंट्रोल्स दिखाने के लिए इन्हें सक्षम करें।</string>
+  <string name="notification_permission_disabled">QuantumMPV के लिए नोटिफिकेशन बंद हैं। प्लेबैक कंट्रोल्स दिखाने के लिए इन्हें सक्षम करें।</string>
   <string name="notification_disabled_in_advanced_settings">बैकग्राउंड प्लेबैक इस्तेमाल करने के लिए एडवांस्ड सेटिंग्स में नोटिफिकेशन सक्षम करें।</string>
   <string name="pref_advanced_notification_style">नोटिफिकेशन स्टाइल</string>
   <string name="pref_player_use_precise_seeking">सटीक सीकिंग इस्तेमाल करें</string>
@@ -1241,13 +1241,13 @@
   <string name="ui_allow_access">एक्सेस दें</string>
   <string name="ui_why_do_i_see_this">यह मुझे क्यों दिख रहा है?</string>
   <string name="ui_why_this_permission_is_needed">यह परमिशन क्यों ज़रूरी है</string>
-  <string name="ui_mpvrx_needs_access_to_your_video_files_to_provide_its_core_funct">mpvRx को अपनी मुख्य कार्यक्षमता एक मीडिया प्लेयर के रूप में देने के लिए आपकी वीडियो फाइलों तक एक्सेस चाहिए।</string>
+  <string name="ui_mpvrx_needs_access_to_your_video_files_to_provide_its_core_funct">QuantumMPV को अपनी मुख्य कार्यक्षमता एक मीडिया प्लेयर के रूप में देने के लिए आपकी वीडियो फाइलों तक एक्सेस चाहिए।</string>
   <string name="ui_the_permission_is_used_exclusively_for">यह परमिशन सिर्फ इनके लिए इस्तेमाल होती है:</string>
   <string name="ui_discovering_and_displaying_your_video_files_n_playing_media_cont">• आपकी वीडियो फाइलें ढूंढना और दिखाना\n• मीडिया कंटेंट चलाना\n• सबटाइटल फाइलें लोड करना</string>
-  <string name="ui_mpvrx_has_always_required_storage_access_permission_as_it_s_esse">mpvRx को हमेशा स्टोरेज एक्सेस परमिशन की ज़रूरत रही है क्योंकि ऐप के लिए आपके डिवाइस पर सभी मीडिया और सबटाइटल फाइलें ढूंढना ज़रूरी है, जिनमें वे भी शामिल हैं जो सिस्टम द्वारा समर्थित नहीं हैं।</string>
+  <string name="ui_mpvrx_has_always_required_storage_access_permission_as_it_s_esse">QuantumMPV को हमेशा स्टोरेज एक्सेस परमिशन की ज़रूरत रही है क्योंकि ऐप के लिए आपके डिवाइस पर सभी मीडिया और सबटाइटल फाइलें ढूंढना ज़रूरी है, जिनमें वे भी शामिल हैं जो सिस्टम द्वारा समर्थित नहीं हैं।</string>
   <string name="ui_however_due_to_a_change_in_security_policy_apps_built_for_androi">हालांकि, सिक्योरिटी पॉलिसी में बदलाव के कारण, Android 11 और उससे ऊपर के लिए बने ऐप्स को अब यही एक्सेस जारी रखने के लिए अतिरिक्त परमिशन चाहिए।</string>
   <string name="ui_please_know_that_this_permission_is_only_used_for_the_auto_disco">कृपया जान लें कि यह परमिशन सिर्फ आपके डिवाइस पर मीडिया/सबटाइटल फाइलों की ऑटो-डिस्कवरी के लिए इस्तेमाल होती है और हमें किसी भी तरह से दूसरे ऐप्स की निजी डेटा फाइलों तक पहुंचने नहीं देगी।</string>
-  <string name="ui_mpvrx_is_an_open_source_project_you_can_review_the_source_code_a">mpvRx एक ओपन सोर्स प्रोजेक्ट है। आप हमारी GitHub रिपॉज़िटरी पर जाकर सोर्स कोड देख सकते हैं और परमिशन कैसे इस्तेमाल होती है, यह जांच सकते हैं:</string>
+  <string name="ui_mpvrx_is_an_open_source_project_you_can_review_the_source_code_a">QuantumMPV एक ओपन सोर्स प्रोजेक्ट है। आप हमारी GitHub रिपॉज़िटरी पर जाकर सोर्स कोड देख सकते हैं और परमिशन कैसे इस्तेमाल होती है, यह जांच सकते हैं:</string>
   <string name="ui_be_rest_assured_your_privacy_is_our_utmost_priority_and_we_neith">बेफ़िक्र रहें, आपकी प्राइवेसी हमारी सबसे बड़ी प्राथमिकता है, और हम न तो किसी और मकसद के लिए आपकी फाइलें एक्सेस करते हैं और न ही उन्हें अपने सर्वर पर भेजते या स्टोर करते हैं। वे आपके डिवाइस पर ही सुरक्षित रहती हैं।</string>
   <string name="ui_app_permissions">ऐप परमिशन</string>
   <string name="ui_permissions_setup_subtitle">मुख्य फीचर और मीडिया प्लेबैक सक्षम करने के लिए परमिशन कॉन्फ़िगर करें।</string>
@@ -1341,14 +1341,14 @@
   <string name="ui_github">GitHub</string>
   <string name="ui_device_info">डिवाइस जानकारी</string>
   <string name="ui_buy_me_a_coffee">मुझे कॉफ़ी पिलाएँ</string>
-  <string name="ui_if_you_enjoy_mpvrx_consider_supporting_its_development_every_bit">अगर आपको mpvRx पसंद है, तो इसके डेवलपमेंट को सपोर्ट करने पर विचार करें। हर छोटी मदद मायने रखती है!</string>
+  <string name="ui_if_you_enjoy_mpvrx_consider_supporting_its_development_every_bit">अगर आपको QuantumMPV पसंद है, तो इसके डेवलपमेंट को सपोर्ट करने पर विचार करें। हर छोटी मदद मायने रखती है!</string>
   <string name="ui_upi_id">UPI ID</string>
   <string name="ui_panditritesh2001_okhdfcbank">panditritesh2001@okhdfcbank</string>
   <string name="ui_send_love">प्यार भेजें</string>
   <string name="ui_auto_check_for_updates">अपडेट के लिए ऑटो जांच करें</string>
   <string name="ui_check_on_startup">शुरू होने पर जांचें</string>
   <string name="ui_check_for_updates_now">अभी अपडेट जांचें</string>
-  <string name="ui_core_open_source_dependencies_used_by_mpvrx">mpvRx द्वारा इस्तेमाल की जाने वाली मुख्य ओपन सोर्स डिपेंडेंसी।</string>
+  <string name="ui_core_open_source_dependencies_used_by_mpvrx">QuantumMPV द्वारा इस्तेमाल की जाने वाली मुख्य ओपन सोर्स डिपेंडेंसी।</string>
   <string name="ui_copy_upi_id">UPI ID कॉपी करें</string>
   <string name="ui_already_using_latest_version">पहले से ही नवीनतम वर्जन इस्तेमाल हो रहा है</string>
   <string name="ui_upi_id_copied">UPI ID कॉपी हुई!</string>
@@ -1863,7 +1863,7 @@
   <string name="seerr_approve">स्वीकार करें</string>
   <string name="seerr_decline">अस्वीकार करें</string>
   <string name="seerr_delete">हटाएँ</string>
-  <string name="seerr_play_in_jellyfin">mpvRx में चलाएँ</string>
+  <string name="seerr_play_in_jellyfin">QuantumMPV में चलाएँ</string>
   <string name="seerr_open_in_jellyfin">Jellyfin में खोलें</string>
   <string name="seerr_available_on_jellyfin">लाइब्रेरी में उपलब्ध</string>
   <string name="seerr_search_placeholder">Seerr पर फ़िल्में और शो खोजें…</string>
@@ -1898,7 +1898,7 @@
   <string name="ui_update_channel">अपडेट चैनल</string>
   <string name="ui_stable_releases">स्थिर</string>
   <string name="ui_preview_builds">पूर्वावलोकन (Nightly)</string>
-  <string name="ui_preview_builds_summary">पूर्वावलोकन बिल्ड नवीनतम mpvRx बदलावों से प्रकाशित हस्ताक्षरित परीक्षण संस्करण हैं और अस्थिर हो सकते हैं।</string>
+  <string name="ui_preview_builds_summary">पूर्वावलोकन बिल्ड नवीनतम QuantumMPV बदलावों से प्रकाशित हस्ताक्षरित परीक्षण संस्करण हैं और अस्थिर हो सकते हैं।</string>
   <string name="update_whats_new">नया क्या है</string>
   <string name="update_no_release_notes">कोई रिलीज़ नोट उपलब्ध नहीं है।</string>
   <string name="update_ready_to_install">इंस्टॉल करने के लिए तैयार</string>
@@ -1937,7 +1937,7 @@
   <string name="storage_permission_needed_desc">मीडिया ब्राउज़ और प्ले करने के लिए स्टोरेज एक्सेस दें।</string>
   <string name="storage_permission_grant">एक्सेस दें</string>
   <string name="pref_player_web_stream_links_title">स्ट्रीमिंग साइट लिंक खोलें</string>
-  <string name="pref_player_web_stream_links_summary">YouTube, Vimeo, Twitch, Odysee और Bilibili लिंक के लिए mpvRx दिखाएं। बंद करने पर उनके अपने ऐप उन्हें खोलेंगे।</string>
+  <string name="pref_player_web_stream_links_summary">YouTube, Vimeo, Twitch, Odysee और Bilibili लिंक के लिए QuantumMPV दिखाएं। बंद करने पर उनके अपने ऐप उन्हें खोलेंगे।</string>
 
   <string name="btn_label_scopes">स्कोप</string>
   <string name="scopes_title">स्कोप</string>

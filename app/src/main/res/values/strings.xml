@@ -1,5 +1,5 @@
 <resources>
-  <string name="app_name" translatable="false">mpvRx</string>
+  <string name="app_name" translatable="false">QuantumMPV</string>
   <string name="generic_reset">Reset</string>
   <string name="generic_share">Share</string>
   <string name="generic_confirm">Confirm</string>
@@ -19,7 +19,7 @@
   <string name="pref_appearance_amoled_mode_title">AMOLED Black Mode</string>
   <string name="pref_appearance_amoled_mode_summary">Use pure black background for dark themes</string>
   <string name="pref_appearance_system_font_title">Use system font</string>
-  <string name="pref_appearance_system_font_summary">Use the Android system typeface across mpvRx instead of Google Sans Flex</string>
+  <string name="pref_appearance_system_font_summary">Use the Android system typeface across QuantumMPV instead of Google Sans Flex</string>
   <string name="pref_appearance_material_you_title">Material You</string>
   <string name="pref_appearance_material_you_summary">Enable dynamic colors</string>
   <string name="pref_appearance_material_you_summary_disabled">Only available on Android 12 and above</string>
@@ -346,7 +346,7 @@
   <string name="pref_app_language_title">Language</string>
   <string name="pref_app_language_system_default">System default</string>
   <string name="pref_app_language_restart_title">Restart required</string>
-  <string name="pref_app_language_restart_message">Restart mpvRx to apply the new language.</string>
+  <string name="pref_app_language_restart_message">Restart QuantumMPV to apply the new language.</string>
   <string name="pref_app_language_restart_now">Restart now</string>
   <string name="pref_advanced_mpv_conf_storage_location">Pick configuration storage location</string>
   <string name="pref_advanced_mpv_conf">Edit mpv.conf</string>
@@ -546,7 +546,7 @@
   <string name="timer_remaining">%s remaining</string>
   <string name="toast_sleep_timer_ended">Sleep timer ended</string>
   <string name="volume_slider_absolute_value" translatable="false">%d</string>
-  <string name="github_repo_url" translatable="false">https://github.com/Riteshp2001/mpvRx</string>
+  <string name="github_repo_url" translatable="false">https://github.com/Fahimofficial/QuantumMPV</string>
   <string name="swap_the_volume_and_brightness_slider">Swap volume and brightness slider</string>
   <string name="pref_player_display_reduce_player_animation">Reduce player animation</string>
   <!-- Animation settings -->
@@ -613,7 +613,7 @@
   <string name="notification_repeat_all">Repeat all</string>
   <string name="notification_chapter_counter">Chapter %1$d of %2$d</string>
   <string name="notification_permission_denied">Notification permission is required for background playback controls.</string>
-  <string name="notification_permission_disabled">Notifications are disabled for mpvRx. Enable them to show playback controls.</string>
+  <string name="notification_permission_disabled">Notifications are disabled for QuantumMPV. Enable them to show playback controls.</string>
   <string name="notification_disabled_in_advanced_settings">Enable notifications in Advanced Settings to use background playback.</string>
   <string name="pref_advanced_notification_style">Notification style</string>
   <!-- Media Info Activity -->
@@ -1333,7 +1333,7 @@
   <string name="storage_permission_needed_desc">Grant storage access to browse and play your media.</string>
   <string name="storage_permission_grant">Grant access</string>
   <string name="pref_player_web_stream_links_title">Open streaming site links</string>
-  <string name="pref_player_web_stream_links_summary">Offer mpvRx for YouTube, Vimeo, Twitch, Odysee, and Bilibili links. Turn off to let their own apps handle them.</string>
+  <string name="pref_player_web_stream_links_summary">Offer QuantumMPV for YouTube, Vimeo, Twitch, Odysee, and Bilibili links. Turn off to let their own apps handle them.</string>
   <string name="player_unknown_video">Unknown Video</string>
   <string name="ui_logcat">Logcat:</string>
   <string name="ui_home">Home</string>
@@ -1504,13 +1504,13 @@
   <string name="ui_allow_access">ALLOW ACCESS</string>
   <string name="ui_why_do_i_see_this">Why do I see this?</string>
   <string name="ui_why_this_permission_is_needed">Why this permission is needed</string>
-  <string name="ui_mpvrx_needs_access_to_your_video_files_to_provide_its_core_funct">mpvRx needs access to your video files to provide its core functionality as a media player.</string>
+  <string name="ui_mpvrx_needs_access_to_your_video_files_to_provide_its_core_funct">QuantumMPV needs access to your video files to provide its core functionality as a media player.</string>
   <string name="ui_the_permission_is_used_exclusively_for">The permission is used exclusively for:</string>
   <string name="ui_discovering_and_displaying_your_video_files_n_playing_media_cont">• Discovering and displaying your video files\n• Playing media content\n• Loading subtitle files</string>
-  <string name="ui_mpvrx_has_always_required_storage_access_permission_as_it_s_esse">mpvRx has always required storage access permission as it\'s essential for the app to find all media and subtitle files on your device, including the ones that are not supported by the system.</string>
+  <string name="ui_mpvrx_has_always_required_storage_access_permission_as_it_s_esse">QuantumMPV has always required storage access permission as it\'s essential for the app to find all media and subtitle files on your device, including the ones that are not supported by the system.</string>
   <string name="ui_however_due_to_a_change_in_security_policy_apps_built_for_androi">However, due to a change in security policy, apps built for Android 11 and above now require additional permission to continue accessing the same.</string>
   <string name="ui_please_know_that_this_permission_is_only_used_for_the_auto_disco">Please know that this permission is only used for the auto-discovery of media/subtitle files on your device and will not allow us to access the private data files stored by other apps in any way.</string>
-  <string name="ui_mpvrx_is_an_open_source_project_you_can_review_the_source_code_a">mpvRx is an open source project. You can review the source code and verify how permissions are used by visiting our GitHub repository at:</string>
+  <string name="ui_mpvrx_is_an_open_source_project_you_can_review_the_source_code_a">QuantumMPV is an open source project. You can review the source code and verify how permissions are used by visiting our GitHub repository at:</string>
   <string name="ui_be_rest_assured_your_privacy_is_our_utmost_priority_and_we_neith">Be rest assured, your privacy is our utmost priority, and we neither access your files for other purposes nor transfer or store them to our servers. They remain safe on your device.</string>
   <string name="ui_app_permissions">App Permissions</string>
   <string name="ui_permissions_setup_subtitle">Configure permissions to enable core features and media playback.</string>
@@ -1606,7 +1606,7 @@
   <string name="ui_github">GitHub</string>
   <string name="ui_device_info">Device Info</string>
   <string name="ui_buy_me_a_coffee">Buy Me a Coffee</string>
-  <string name="ui_if_you_enjoy_mpvrx_consider_supporting_its_development_every_bit">If you enjoy mpvRx, consider supporting its development. Every bit helps!</string>
+  <string name="ui_if_you_enjoy_mpvrx_consider_supporting_its_development_every_bit">If you enjoy QuantumMPV, consider supporting its development. Every bit helps!</string>
   <string name="ui_upi_id">UPI ID</string>
   <string name="ui_panditritesh2001_okhdfcbank">panditritesh2001@okhdfcbank</string>
   <string name="ui_send_love">Send Love</string>
@@ -1616,7 +1616,7 @@
   <string name="ui_update_channel">Update Channel</string>
   <string name="ui_stable_releases">Stable</string>
   <string name="ui_preview_builds">Preview (Nightly)</string>
-  <string name="ui_preview_builds_summary">Preview builds are signed test versions published from the latest mpvRx changes and may be unstable.</string>
+  <string name="ui_preview_builds_summary">Preview builds are signed test versions published from the latest QuantumMPV changes and may be unstable.</string>
   <string name="update_whats_new">What’s New</string>
   <string name="update_no_release_notes">No release notes provided.</string>
   <string name="update_ready_to_install">Ready to Install</string>
@@ -1627,7 +1627,7 @@
   <string name="update_unknown_size">Unknown size</string>
   <string name="update_beta_build_format">Beta r%1$d</string>
   <string name="ui_beta_badge_suffix">\u0020(Beta)</string>
-  <string name="ui_core_open_source_dependencies_used_by_mpvrx">Core open source dependencies used by mpvRx.</string>
+  <string name="ui_core_open_source_dependencies_used_by_mpvrx">Core open source dependencies used by QuantumMPV.</string>
   <string name="ui_copy_upi_id">Copy UPI ID</string>
   <string name="ui_already_using_latest_version">Already using latest version</string>
   <string name="ui_upi_id_copied">UPI ID copied!</string>
@@ -2083,7 +2083,7 @@
   <string name="seerr_approve">Approve</string>
   <string name="seerr_decline">Decline</string>
   <string name="seerr_delete">Delete</string>
-  <string name="seerr_play_in_jellyfin">Play in mpvRx</string>
+  <string name="seerr_play_in_jellyfin">Play in QuantumMPV</string>
   <string name="seerr_open_in_jellyfin">Open in Jellyfin</string>
   <string name="seerr_available_on_jellyfin">Available in Library</string>
   <string name="seerr_search_placeholder">Search Seerr for movies, shows…</string>
