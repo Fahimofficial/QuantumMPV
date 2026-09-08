@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-labelledby="title desc">
+  <title id="title">QuantumMPV logo</title>
+  <desc id="desc">A cyan Q surrounding a white play triangle with a magenta quantum tail on a deep navy background.</desc>
+  <rect width="512" height="512" rx="96" fill="#0A1023"/>
+  <path d="M362 374a157 157 0 1 1 22-31" fill="none" stroke="#31DCE2" stroke-width="48" stroke-linecap="round"/>
+  <path d="m348 359 75 75" fill="none" stroke="#EC4899" stroke-width="44" stroke-linecap="square"/>
+  <path d="M210 177v158l128-79z" fill="#fff"/>
+</svg>

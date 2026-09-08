@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="fastlane/metadata/android/en-US/images/icon.png" width="250" height="250" alt="QuantumMPV app icon" />
+  <img src="docs/quantummpv-logo.svg" width="250" height="250" alt="QuantumMPV logo" />
 </p>
 
 <h1 align="center">QuantumMPV</h1>
@@ -440,20 +440,22 @@ git push origin v1.3.1-preview.1
 ---
 
 ## Acknowledgments
+### QuantumMPV credits
+QuantumMPV is an independent continuation and rebrand of the mpvRx codebase. The project name, logo, repository, and current maintainership belong to **QuantumMPV**; upstream projects and community contributions remain credited below.
 
 ### Built with open source
-
-Thank you to the player projects, music apps, libraries, and individual contributors whose work makes projects like QuantumMPV possible.
+Thank you to the player projects, music apps, libraries, and individual contributors whose work makes QuantumMPV possible.
 
 | Explore the credits | Includes |
 |---|---|
 | [Playback & player projects](CITATION.md#playback--player-projects) | mpv-android, mpvExtended, mpvKt, MpvRex, Next Player |
 | [Music & media apps](CITATION.md#music--media-apps) | PixelPlayer, Gramophone, AFinity, Chora |
 | [Video processing & streaming](CITATION.md#video-processing--streaming) | hdr-toys, anacrolix/torrent |
-
 > Special thanks to [SunnyVishnu3](https://github.com/SunnyVishnu3) for the `yt-dlp` native integration and SDK 29+ bypass logic.
 
-[Full acknowledgments & citation information](CITATION.md) · [All contributors](https://github.com/Fahimofficial/QuantumMPV/graphs/contributors)
+See the complete [credits and citation information](CITATION.md), including the upstream [mpvRx project](https://github.com/Riteshp2001/mpvRx), inspiration projects, third-party libraries, and individual contributors.
+
+[All QuantumMPV contributors](https://github.com/Fahimofficial/QuantumMPV/graphs/contributors)
 
 ---
 

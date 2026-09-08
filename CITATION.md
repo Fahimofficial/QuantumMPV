@@ -1,6 +1,6 @@
 # Credits and citation information
 
-QuantumMPV is part of an open-source media ecosystem. This page preserves the project's acknowledgments and links to the people and projects being credited.
+QuantumMPV is an independent continuation and rebrand of the mpvRx codebase. This page preserves QuantumMPV's acknowledgments and links to the people and projects being credited. The QuantumMPV name and logo identify this repository; they do not replace or claim ownership of upstream projects.
 
 ## Citing QuantumMPV
 
@@ -20,7 +20,7 @@ QuantumMPV is developed independently using ideas and patterns learned from the 
 
 | Project | Role in the inspiration set |
 |---|---|
-| [mpvRx](https://github.com/Riteshp2001/mpvRx) | Android libmpv player architecture, playback features, and customization ideas |
+| [mpvRx](https://github.com/Riteshp2001/mpvRx) | Upstream Android libmpv player codebase, playback features, and customization ideas |
 | [Mpv-infinity](https://github.com/ZHINFINITY/Mpv-infinity) | Android mpv player UI and feature ideas |
 | [VLC for Android](https://code.videolan.org/videolan/vlc-android) | Media-library, playback UX, and Android player conventions |
 
