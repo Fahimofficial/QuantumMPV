@@ -19,6 +19,23 @@ dependencyResolutionManagement {
   repositories {
     google()
     mavenCentral()
+    exclusiveContent {
+      forRepository {
+        ivy {
+          name = "mpvlibGitHubReleases"
+          url = uri("https://github.com/Riteshp2001/mpvlibAndroid/releases/download")
+          patternLayout {
+            artifact("v[revision]/[artifact]-[revision].[ext]")
+          }
+          metadataSources {
+            artifact()
+          }
+        }
+      }
+      filter {
+        includeGroup("app.gyrolet.mpvlib")
+      }
+    }
     maven(url = "https://www.jitpack.io") {
       content {
         // Only use JitPack for specific dependencies to avoid unnecessary checks

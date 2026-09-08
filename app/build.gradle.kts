@@ -294,9 +294,9 @@ dependencies {
   implementation(libs.androidx.profileinstaller)
   implementation(libs.google.cast.framework)
 
-  "standardImplementation"(files("libs/mpvlib.aar"))
-  "noVulkanImplementation"(files("libs/mpvlib-no-vulkun.aar"))
-  "fongmiImplementation"(files("libs/mpvlib-fongmi.aar"))
+  "standardImplementation"(variantOf(libs.mpvlib.standard) { artifactType("aar") })
+  "noVulkanImplementation"(variantOf(libs.mpvlib.no.vulkan) { artifactType("aar") })
+  "fongmiImplementation"(variantOf(libs.mpvlib.fongmi) { artifactType("aar") })
 
   // Network protocol libraries
   implementation(libs.smbj)
