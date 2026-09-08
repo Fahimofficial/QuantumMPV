@@ -37,7 +37,7 @@ jobs:
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
         with:
           # BuildConfig.GIT_COUNT and preview build identities rely on the real repository history.
           fetch-depth: 0
