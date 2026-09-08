@@ -1158,7 +1158,7 @@ private val OPEN_SOURCE_LIBRARIES =
     ),
     OpenSourceLibrary(
       name = "mpvlib Android",
-      artifact = "mpvlib.aar / mpvlib-no-vulkun.aar / mpvlib-fongmi.aar",
+      artifact = "app.gyrolet.mpvlib: mpvlib / mpvlib-no-vulkan / mpvlib-fongmi",
       descriptionRes = R.string.oss_mpvlib_android_description,
       license = "MIT",
       url = "https://github.com/Riteshp2001/mpvlibAndroid",
