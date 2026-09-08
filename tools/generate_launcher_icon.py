@@ -33,4 +33,8 @@ for density, size in DENSITIES.items():
     draw_mark(size, transparent=False, legacy=True).save(folder / "ic_launcher.webp", "WEBP", lossless=True, quality=100)
     draw_mark(size, transparent=False, legacy=True).save(folder / "ic_launcher_round.webp", "WEBP", lossless=True, quality=100)
 
+store_icon = Path(__file__).resolve().parents[1] / "fastlane/metadata/android/en-US/images/icon.png"
+store_icon.parent.mkdir(parents=True, exist_ok=True)
+draw_mark(324, transparent=False, legacy=True).save(store_icon, "PNG", optimize=True)
+
 print("Generated QuantumMPV launcher icons for", ", ".join(DENSITIES))
