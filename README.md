@@ -475,6 +475,16 @@ Thank you to the player projects, music apps, libraries, and individual contribu
 
 [Full acknowledgments & citation information](CITATION.md) · [All contributors](https://github.com/Riteshp2001/mpvRx/graphs/contributors)
 
+### Contributors
+
+Thank you to everyone who helps build and improve mpvRx.
+
+<div align="center">
+  <a href="https://github.com/Riteshp2001/mpvRx/graphs/contributors">
+    <img src="https://contrib.rocks/image?repo=Riteshp2001/mpvRx" alt="mpvRx contributors" width="800" />
+  </a>
+</div>
+
 ---
 
 ## Community
