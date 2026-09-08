@@ -2,56 +2,134 @@
 import {
   ArrowRight,
   BookOpen,
+  Check,
   Code2,
+  Cpu,
   Download,
+  ExternalLink,
+  Film,
+  Folder,
   Gauge,
   Layers3,
   Music2,
   Play,
+  Radio,
   ShieldCheck,
+  Sliders,
+  Sparkles,
   Subtitles,
+  Terminal,
+  Tv,
   Wifi,
+  Zap,
 } from "@lucide/astro";
 
 const releaseUrl = "https://github.com/Riteshp2001/mpvRx/releases/latest";
+const repoUrl = "https://github.com/Riteshp2001/mpvRx";
 
 const capabilities = [
   {
     icon: Gauge,
+    tag: "Core Engine",
     title: "A playback engine you can tune",
-    body: "libmpv at the core, with hardware decoding, frame stepping, A-B loops, speed controls, refresh-rate matching, and a live diagnostics page.",
+    body: "libmpv at the core with hardware decoding, frame-stepping, A-B repeat, variable speed (0.5x–4.0x), refresh-rate auto-matching, and live diagnostics.",
+    accent: "#5fd4c7",
   },
   {
     icon: Layers3,
+    tag: "Shaders & HDR",
     title: "HDR and shaders, under control",
-    body: "HDR-toys pipelines, Anime4K tiers, GPU debanding, ambient modes, and thermal-aware safeguards for demanding devices.",
+    body: "77+ bundled shaders, HDR-toys tone-mapping pipelines, Anime4K upscaling tiers, GPU debanding, and thermal-aware safeguards for sustained performance.",
+    accent: "#66d9cc",
   },
   {
     icon: Subtitles,
+    tag: "Subtitles",
     title: "Subtitles without compromise",
-    body: "Dual tracks, deep styling, online search, TMDB episode selection, font management, and speech-to-subtitle workflows.",
+    body: "Dual simultaneous tracks, ASS/SSA styling, online search with SubDL/OpenSubtitles, TMDB episode matching, custom font loader, and speech-to-sub.",
+    accent: "#5fd4c7",
   },
   {
     icon: Wifi,
+    tag: "Network & Cloud",
     title: "Local, network, and online media",
-    body: "Browse device storage, SMB, FTP, SFTP, WebDAV, Jellyfin, Navidrome, direct streams, playlists, and torrents from one app.",
+    body: "Seamlessly browse device storage, SMB, FTP, SFTP, WebDAV, Jellyfin, Navidrome, direct HLS/DASH streams, M3U playlists, and torrent streaming.",
+    accent: "#66d9cc",
   },
   {
     icon: Music2,
-    title: "A real music mode",
-    body: "Songs, albums, artists, playlists, lyrics, favorites, artwork, an up-next queue, and four audio visualizers.",
+    tag: "Audio Suite",
+    title: "A dedicated music experience",
+    body: "Hi-Res FLAC/Opus playback, album artist grouping, synchronized LRC lyrics, cover art grid, persistent queue, and four real-time audio visualizers.",
+    accent: "#5fd4c7",
   },
   {
-    icon: Code2,
-    title: "Your player, scriptable",
-    body: "Edit mpv.conf, input.conf, Lua, and JavaScript in-app. Add custom controls and call native mpvRx actions through a documented bridge.",
+    icon: Terminal,
+    tag: "Extensible",
+    title: "Your player, fully scriptable",
+    body: "In-app editing for mpv.conf, input.conf, Lua, and JavaScript. Register custom buttons and trigger native actions through the bidirectional bridge.",
+    accent: "#f16445",
   },
 ];
 
 const builds = [
-  ["Standard", "Recommended", "Full Vulkan-capable release with per-ABI and universal APKs."],
-  ["No Vulkan", "Compatibility", "Universal build for devices or drivers that work better without Vulkan."],
-  ["FongMi", "Alternate native", "Universal build with the alternate MediaCodec and Vulkan integration."],
+  {
+    name: "Standard",
+    badge: "Recommended",
+    badgeType: "primary",
+    description: "Full Vulkan-capable release with dedicated per-ABI builds (arm64-v8a, armeabi-v7a, x86_64) and a universal APK.",
+    features: ["Vulkan & OpenGL ES backends", "Per-ABI optimized APKs", "Highest shader performance", "Regular automatic updates"],
+    tag: "Best for 99% of Android devices",
+  },
+  {
+    name: "No Vulkan",
+    badge: "Compatibility",
+    badgeType: "neutral",
+    description: "Universal build designed for older hardware, budget chipsets, or custom ROMs with incomplete Vulkan driver support.",
+    features: ["OpenGL ES rendering fallback", "Universal single APK", "Broadest device compatibility", "Reduced driver crash surface"],
+    tag: "For older devices & custom ROMs",
+  },
+  {
+    name: "FongMi",
+    badge: "Alternate Native",
+    badgeType: "accent",
+    description: "Universal build featuring the alternate MediaCodec and Vulkan integration tuned for TV boxes and specific SoC decoders.",
+    features: ["Alternate MediaCodec pipeline", "Universal single APK", "Optimized for Android TV & boxes", "Dedicated decoder path"],
+    tag: "For Android TV & specialized SoCs",
+  },
+];
+
+const gallery = [
+  {
+    image: "/images/player.png",
+    title: "Touch-First Playback Surface",
+    caption: "Clean, responsive gesture controls with hold-for-speed, dynamic seek, zoom, and dual subtitle sync.",
+    span: "col-span-2",
+  },
+  {
+    image: "/images/folderscreen.png",
+    title: "Folder & Storage Explorer",
+    caption: "Organize, pin, and navigate local storage, SD cards, OTG drives, and network shares.",
+    span: "col-span-1",
+  },
+  {
+    image: "/images/videoscreen.png",
+    title: "Instant Video Library",
+    caption: "Grid and list browsing with instant metadata, thumbnail caching, and resume progress indicators.",
+    span: "col-span-1",
+  },
+  {
+    image: "/images/playlist-grid.png",
+    title: "Visual Queue & Playlist Grid",
+    caption: "Manage multi-episode queues, background music tracks, and continuous playback with visual cues.",
+    span: "col-span-1",
+  },
+  {
+    image: "/images/frame-navigation.png",
+    title: "Frame-Level Precision",
+    caption: "Frame-stepping controls, exact timestamp jumping, and A-B loop points for technical analysis.",
+    span: "col-span-1",
+  },
 ];
 ---
 
@@ -59,14 +137,14 @@ const builds = [
 <html lang="en">
   <head>
     <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta
       name="description"
-      content="mpvRx is a focused Android media player powered by mpv, with expressive controls, advanced rendering, libraries, streaming, and scripting."
+      content="mpvRx is a focused Android media player powered by mpv, with expressive touch controls, HDR tone mapping, Anime4K shaders, network streaming, and Lua/JS scripting."
     />
-    <meta name="theme-color" content="#111314" />
+    <meta name="theme-color" content="#0c0e0f" />
     <meta property="og:title" content="mpvRx - Android media, without the noise" />
-    <meta property="og:description" content="Serious playback, expressive controls, and your media on your terms." />
+    <meta property="og:description" content="libmpv precision, touch-first gesture controls, HDR shaders, network streaming, and open-source freedom on Android." />
     <meta property="og:image" content="/images/player.png" />
     <title>mpvRx | Android media, without the noise</title>
     <link rel="icon" type="image/png" href="/images/icon.png" />
@@ -78,271 +156,1611 @@ const builds = [
     />
   </head>
   <body>
+    <!-- Site Header -->
     <header class="site-header">
-      <a class="brand" href="/" aria-label="mpvRx home">
-        <img src="/images/icon.png" alt="" width="42" height="42" />
-        <span>mpvRx</span>
-      </a>
-      <nav aria-label="Primary navigation">
-        <a href="#experience">Experience</a>
-        <a href="#builds">Builds</a>
-        <a href="/docs">Docs</a>
-        <a class="icon-link" href="https://github.com/Riteshp2001/mpvRx" aria-label="mpvRx on GitHub">
-          <Code2 size={20} strokeWidth={1.8} />
+      <div class="header-inner">
+        <a class="brand" href="/" aria-label="mpvRx home">
+          <div class="brand-icon-wrap">
+            <img src="/images/icon.png" alt="mpvRx icon" width="34" height="34" class="brand-img" />
+          </div>
+          <span class="brand-text">mpvRx</span>
+          <span class="version-badge">v2.5.0</span>
         </a>
-      </nav>
+
+        <nav class="nav-links" aria-label="Primary navigation">
+          <a href="#features">Features</a>
+          <a href="#showcase">Showcase</a>
+          <a href="#builds">Builds</a>
+          <a href="/docs">Docs</a>
+        </nav>
+
+        <div class="header-actions">
+          <a class="nav-icon-btn" href={repoUrl} target="_blank" rel="noopener noreferrer" aria-label="mpvRx on GitHub">
+            <Code2 size={18} strokeWidth={1.8} />
+            <span class="github-label">GitHub</span>
+          </a>
+          <a class="header-cta" href={releaseUrl} target="_blank" rel="noopener noreferrer">
+            <Download size={16} strokeWidth={2.2} />
+            <span>Download</span>
+          </a>
+        </div>
+      </div>
     </header>
 
     <main>
-      <section class="hero" aria-labelledby="hero-title">
-        <img class="hero-media" src="/images/player.png" alt="mpvRx player controls over a landscape video" />
-        <div class="hero-shade"></div>
-        <div class="hero-content">
-          <p class="eyebrow"><span></span> Open source · Android 8.0+</p>
-          <h1 id="hero-title">mpvRx</h1>
-          <p class="hero-lede">Android media,<br />without the noise.</p>
-          <p class="hero-copy">
-            The precision of mpv with an interface built for touch. No ads. No trackers. Deep controls when you want them.
-          </p>
-          <div class="hero-actions">
-            <a class="button button-primary" href={releaseUrl}>
-              <Download size={19} strokeWidth={2} />
-              Download latest
-            </a>
-            <a class="button button-secondary" href="/docs">
-              <BookOpen size={19} strokeWidth={2} />
-              Read the docs
-            </a>
+      <!-- Hero Section -->
+      <section class="hero-section" aria-labelledby="hero-title">
+        <div class="hero-glow"></div>
+        <div class="hero-glow-secondary"></div>
+
+        <div class="container hero-container">
+          <div class="hero-content">
+            <div class="hero-pill-badge">
+              <span class="pulse-dot"></span>
+              <span>Open Source · Android 8.0+ · libmpv Core</span>
+            </div>
+
+            <h1 id="hero-title" class="hero-headline">
+              Android media,<br />
+              <span class="gradient-text">without the noise.</span>
+            </h1>
+
+            <p class="hero-description">
+              The precision of <code class="inline-code">mpv</code> paired with a modern touch-first interface.
+              Zero ads, zero telemetry, deep playback controls, 77+ bundled shaders, and full scripting freedom.
+            </p>
+
+            <div class="hero-btn-row">
+              <a class="btn btn-primary" href={releaseUrl} target="_blank" rel="noopener noreferrer">
+                <Download size={19} strokeWidth={2.2} />
+                <span>Download Latest APK</span>
+              </a>
+              <a class="btn btn-secondary" href="/docs">
+                <BookOpen size={19} strokeWidth={2} />
+                <span>Documentation</span>
+              </a>
+              <a class="btn btn-ghost" href={repoUrl} target="_blank" rel="noopener noreferrer">
+                <Code2 size={18} strokeWidth={1.8} />
+                <span>Source Code</span>
+              </a>
+            </div>
+
+            <div class="hero-tags-row">
+              <span class="feature-tag"><Check size={14} /> Hardware Accelerated</span>
+              <span class="feature-tag"><Check size={14} /> HDR Tone Mapping</span>
+              <span class="feature-tag"><Check size={14} /> Dual Subtitles</span>
+              <span class="feature-tag"><Check size={14} /> 100% Free & Open Source</span>
+            </div>
+          </div>
+
+          <!-- Hero Media Showcase Mockup -->
+          <div class="hero-media-wrapper">
+            <div class="mockup-frame">
+              <div class="mockup-bar">
+                <div class="mockup-dots">
+                  <span></span><span></span><span></span>
+                </div>
+                <span class="mockup-title">mpvRx Player View</span>
+                <span class="mockup-chip">4K HDR · 60fps</span>
+              </div>
+              <div class="mockup-image-container">
+                <img
+                  src="/images/player.png"
+                  alt="mpvRx modern player interface showing playback controls over a high-resolution video"
+                  class="mockup-image"
+                  width="1200"
+                  height="675"
+                />
+                <div class="mockup-overlay-badge left-badge">
+                  <Sliders size={15} />
+                  <span>Hold-for-Speed & Gesture Engine</span>
+                </div>
+                <div class="mockup-overlay-badge right-badge">
+                  <Sparkles size={15} />
+                  <span>Anime4K & HDR-toys Active</span>
+                </div>
+              </div>
+            </div>
           </div>
         </div>
-        <a class="hero-cue" href="#experience">
-          Explore the player <ArrowRight size={17} />
-        </a>
       </section>
 
-      <section class="signal-strip" aria-label="mpvRx highlights">
-        <div><strong>77</strong><span>bundled HDR shaders</span></div>
-        <div><strong>3</strong><span>native build variants</span></div>
-        <div><strong>4</strong><span>network protocols</span></div>
-        <div><strong>2</strong><span>scripting languages</span></div>
-      </section>
-
-      <section class="experience section" id="experience">
-        <div class="section-heading">
-          <p class="eyebrow dark"><span></span> The playback surface</p>
-          <h2>Power where it matters.<br />Quiet everywhere else.</h2>
-          <p>
-            mpvRx keeps the video central and lets controls, diagnostics, and processing depth appear only when you ask for them.
-          </p>
-        </div>
-        <div class="feature-grid">
-          {capabilities.map(({ icon: Icon, title, body }, index) => (
-            <article class="feature" style={`--index:${index}`}>
-              <Icon size={24} strokeWidth={1.7} />
-              <h3>{title}</h3>
-              <p>{body}</p>
-            </article>
-          ))}
-        </div>
-      </section>
-
-      <section class="showcase section" aria-labelledby="showcase-title">
-        <div class="section-heading compact">
-          <p class="eyebrow"><span></span> Built for the whole library</p>
-          <h2 id="showcase-title">From a folder to the final frame.</h2>
-        </div>
-        <div class="showcase-grid">
-          <figure class="phone-shot">
-            <img src="/images/folderscreen.png" alt="mpvRx folder browser" loading="lazy" />
-            <figcaption>Scan, pin, sort, and move through local or network folders.</figcaption>
-          </figure>
-          <div class="landscape-stack">
-            <figure>
-              <img src="/images/playlist-grid.png" alt="mpvRx visual playback queue" loading="lazy" />
-              <figcaption>A visual queue that stays close to playback.</figcaption>
-            </figure>
-            <figure>
-              <img src="/images/frame-navigation.png" alt="mpvRx frame navigation controls" loading="lazy" />
-              <figcaption>Frame-level navigation for the moments that need precision.</figcaption>
-            </figure>
+      <!-- Signal Stat Strip -->
+      <section class="stat-strip" aria-label="mpvRx key metrics">
+        <div class="container stat-grid">
+          <div class="stat-item">
+            <div class="stat-icon-wrap"><Layers3 size={20} /></div>
+            <div class="stat-data">
+              <strong>77+</strong>
+              <span>Bundled Shaders & Tone Maps</span>
+            </div>
+          </div>
+          <div class="stat-item">
+            <div class="stat-icon-wrap"><Cpu size={20} /></div>
+            <div class="stat-data">
+              <strong>3</strong>
+              <span>Native Build Flavors</span>
+            </div>
+          </div>
+          <div class="stat-item">
+            <div class="stat-icon-wrap"><Wifi size={20} /></div>
+            <div class="stat-data">
+              <strong>5+</strong>
+              <span>Network Streaming Protocols</span>
+            </div>
+          </div>
+          <div class="stat-item">
+            <div class="stat-icon-wrap"><ShieldCheck size={20} /></div>
+            <div class="stat-data">
+              <strong>0</strong>
+              <span>Trackers, Ads, or Telemetry</span>
+            </div>
           </div>
         </div>
       </section>
 
-      <section class="principles section">
-        <div class="principle-copy">
-          <ShieldCheck size={30} strokeWidth={1.6} />
-          <p class="eyebrow dark">Built in the open</p>
-          <h2>Your files are not the product.</h2>
-          <p>
-            mpvRx is AGPL-licensed and publishes its source, release history, and build variants on GitHub. It does not ship ads or analytics trackers.
+      <!-- Capabilities / Bento Feature Grid -->
+      <section class="section features-section" id="features" aria-labelledby="features-title">
+        <div class="container">
+          <div class="section-header">
+            <p class="section-eyebrow">
+              <span class="eyebrow-line"></span> Deep Engine Capabilities
+            </p>
+            <h2 id="features-title" class="section-title">
+              Power where it matters.<br />
+              <span class="gradient-text">Quiet everywhere else.</span>
+            </h2>
+            <p class="section-subtitle">
+              mpvRx keeps video content front and center. Advanced diagnostics, post-processing shaders,
+              and subtitle controls appear instantly when requested and disappear when you watch.
+            </p>
+          </div>
+
+          <div class="bento-grid">
+            {capabilities.map(({ icon: Icon, tag, title, body, accent }, index) => (
+              <article class="bento-card" style={`--accent-color:${accent}; --index:${index}`}>
+                <div class="card-glow"></div>
+                <div class="card-top">
+                  <div class="card-icon-box">
+                    <Icon size={22} strokeWidth={2} />
+                  </div>
+                  <span class="card-tag">{tag}</span>
+                </div>
+                <h3 class="card-title">{title}</h3>
+                <p class="card-body">{body}</p>
+              </article>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      <!-- App Screenshot Gallery Showcase -->
+      <section class="section showcase-section" id="showcase" aria-labelledby="showcase-title">
+        <div class="container">
+          <div class="section-header">
+            <p class="section-eyebrow">
+              <span class="eyebrow-line"></span> Complete Media Surface
+            </p>
+            <h2 id="showcase-title" class="section-title">
+              From your file system<br />
+              <span class="gradient-text">to the exact target frame.</span>
+            </h2>
+            <p class="section-subtitle">
+              Every screen is engineered for fast navigation, intuitive touch gestures, and deep media control.
+            </p>
+          </div>
+
+          <div class="gallery-grid">
+            {gallery.map(({ image, title, caption, span }) => (
+              <figure class:list={["gallery-item", span]}>
+                <div class="gallery-img-wrap">
+                  <img src={image} alt={title} loading="lazy" class="gallery-img" />
+                  <div class="gallery-glass-banner">
+                    <h4>{title}</h4>
+                    <figcaption>{caption}</figcaption>
+                  </div>
+                </div>
+              </figure>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      <!-- Principles & Philosophy (Built in the Open) -->
+      <section class="section philosophy-section" aria-labelledby="philosophy-title">
+        <div class="container">
+          <div class="philosophy-card">
+            <div class="philosophy-grid">
+              <div class="philosophy-main">
+                <div class="philosophy-badge">
+                  <ShieldCheck size={20} />
+                  <span>AGPL-3.0 Licensed Open Source</span>
+                </div>
+                <h2 id="philosophy-title" class="philosophy-headline">
+                  Your files are never the product.
+                </h2>
+                <p class="philosophy-text">
+                  mpvRx is fully open source. It publishes every line of code, complete commit histories,
+                  and verifiable build variants on GitHub. No analytics SDKs, no ad banners, no subscription gates.
+                </p>
+                <div class="philosophy-links">
+                  <a class="link-btn" href="/docs/reference/privacy-and-permissions">
+                    <span>Privacy & Permissions Guide</span>
+                    <ArrowRight size={16} />
+                  </a>
+                  <a class="link-btn-subtle" href={repoUrl} target="_blank" rel="noopener noreferrer">
+                    <span>Inspect Source on GitHub</span>
+                    <ExternalLink size={15} />
+                  </a>
+                </div>
+              </div>
+
+              <div class="philosophy-pillars">
+                <div class="pillar-box">
+                  <span class="pillar-num">01</span>
+                  <div>
+                    <h4>Local First Architecture</h4>
+                    <p>Your local device storage and offline media are always the primary citizen.</p>
+                  </div>
+                </div>
+                <div class="pillar-box">
+                  <span class="pillar-num">02</span>
+                  <div>
+                    <h4>Explicit Network Access</h4>
+                    <p>Connections to SMB, SFTP, WebDAV, or Jellyfin only open when you explicitly initiate them.</p>
+                  </div>
+                </div>
+                <div class="pillar-box">
+                  <span class="pillar-num">03</span>
+                  <div>
+                    <h4>Transparent Builds</h4>
+                    <p>Deterministic builds and open reproducible pipelines guarantee privacy integrity.</p>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- Native Build Variants Section -->
+      <section class="section builds-section" id="builds" aria-labelledby="builds-title">
+        <div class="container">
+          <div class="section-header">
+            <p class="section-eyebrow">
+              <span class="eyebrow-line"></span> Targeted Binaries
+            </p>
+            <h2 id="builds-title" class="section-title">
+              One player.<br />
+              <span class="gradient-text">Three native build variants.</span>
+            </h2>
+            <p class="section-subtitle">
+              Start with Standard for modern devices. Choose specialized variants when your chipset or display setup requires a specific decoding stack.
+            </p>
+          </div>
+
+          <div class="builds-grid">
+            {builds.map((build, index) => (
+              <article class:list={["build-card", { "build-featured": index === 0 }]}>
+                {index === 0 && <div class="featured-ribbon">Most Popular</div>}
+                <div class="build-card-header">
+                  <div>
+                    <span class="build-variant-index">Flavor 0{index + 1}</span>
+                    <h3 class="build-name">{build.name}</h3>
+                  </div>
+                  <span class:list={["build-chip", `chip-${build.badgeType}`]}>{build.badge}</span>
+                </div>
+
+                <p class="build-desc">{build.description}</p>
+
+                <div class="build-feature-list">
+                  {build.features.map((feat) => (
+                    <div class="build-feature-row">
+                      <Check size={16} class="check-icon" />
+                      <span>{feat}</span>
+                    </div>
+                  ))}
+                </div>
+
+                <div class="build-footer">
+                  <span class="build-tag-text">{build.tag}</span>
+                  <a class="build-link-btn" href="/docs/getting-started/build-variants">
+                    <span>Compare specs</span>
+                    <ArrowRight size={15} />
+                  </a>
+                </div>
+              </article>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      <!-- Final Call to Action -->
+      <section class="final-cta-section">
+        <div class="final-cta-bg">
+          <img src="/images/chapters.png" alt="" class="final-cta-bg-img" loading="lazy" />
+          <div class="final-cta-overlay"></div>
+        </div>
+
+        <div class="container final-cta-container">
+          <div class="final-cta-icon-box">
+            <Play size={28} fill="currentColor" />
+          </div>
+          <h2 class="final-cta-title">Make playback truly yours.</h2>
+          <p class="final-cta-subtitle">
+            Get mpvRx on your Android phone, tablet, or TV. Built for enthusiasts who care about video quality, audio precision, and uncompromising control.
           </p>
-          <a class="text-link" href="/docs/reference/privacy-and-permissions">
-            Read the privacy and permissions guide <ArrowRight size={17} />
-          </a>
-        </div>
-        <div class="principle-list">
-          <div><span>01</span><p><strong>Local first</strong>Your device library remains the default path.</p></div>
-          <div><span>02</span><p><strong>Explicit connections</strong>You choose the servers and services to connect.</p></div>
-          <div><span>03</span><p><strong>Inspect the source</strong>Behavior and release artifacts remain public.</p></div>
-        </div>
-      </section>
 
-      <section class="builds section" id="builds">
-        <div class="section-heading compact">
-          <p class="eyebrow dark"><span></span> Choose deliberately</p>
-          <h2>One player. Three native builds.</h2>
-          <p>Start with Standard. Switch only when your hardware or playback pipeline benefits from a different native stack.</p>
-        </div>
-        <div class="build-grid">
-          {builds.map(([name, badge, description], index) => (
-            <article class:list={["build", { recommended: index === 0 }]}>
-              <div><span class="build-index">0{index + 1}</span><span class="build-badge">{badge}</span></div>
-              <h3>{name}</h3>
-              <p>{description}</p>
-              <a href="/docs/getting-started/build-variants">Compare builds <ArrowRight size={16} /></a>
-            </article>
-          ))}
-        </div>
-      </section>
-
-      <section class="final-cta">
-        <img src="/images/chapters.png" alt="mpvRx chapter navigation" loading="lazy" />
-        <div class="final-shade"></div>
-        <div class="final-content">
-          <Play size={34} fill="currentColor" />
-          <h2>Make playback yours.</h2>
-          <p>Install the latest release, then use the docs to tune only what your device and library need.</p>
-          <div class="hero-actions">
-            <a class="button button-primary" href={releaseUrl}><Download size={19} /> Download</a>
-            <a class="button button-secondary" href="/docs/getting-started/first-playback"><BookOpen size={19} /> Start here</a>
+          <div class="final-cta-actions">
+            <a class="btn btn-primary btn-large" href={releaseUrl} target="_blank" rel="noopener noreferrer">
+              <Download size={20} strokeWidth={2.2} />
+              <span>Download mpvRx APK</span>
+            </a>
+            <a class="btn btn-secondary btn-large" href="/docs/getting-started/first-playback">
+              <BookOpen size={20} strokeWidth={2} />
+              <span>Getting Started Guide</span>
+            </a>
           </div>
         </div>
       </section>
     </main>
 
-    <footer>
-      <a class="brand" href="/"><img src="/images/icon.png" alt="" width="36" height="36" /><span>mpvRx</span></a>
-      <p>Built on mpv. Open source under AGPL-3.0-or-later.</p>
-      <div><a href="/docs">Docs</a><a href="https://github.com/Riteshp2001/mpvRx/issues">Support</a><a href="https://github.com/Riteshp2001/mpvRx">Source</a></div>
+    <!-- Site Footer -->
+    <footer class="site-footer">
+      <div class="container footer-container">
+        <div class="footer-brand-col">
+          <a class="brand" href="/" aria-label="mpvRx home">
+            <img src="/images/icon.png" alt="mpvRx logo" width="30" height="30" class="brand-img" />
+            <span class="brand-text">mpvRx</span>
+          </a>
+          <p class="footer-tagline">
+            Focused Android media playback powered by libmpv. Open source under AGPL-3.0-or-later.
+          </p>
+        </div>
+
+        <div class="footer-links-grid">
+          <div class="footer-link-group">
+            <h5>Product</h5>
+            <a href="#features">Features</a>
+            <a href="#showcase">Screenshots</a>
+            <a href="#builds">Build Variants</a>
+            <a href={releaseUrl} target="_blank" rel="noopener noreferrer">Releases</a>
+          </div>
+          <div class="footer-link-group">
+            <h5>Documentation</h5>
+            <a href="/docs/getting-started/installation">Installation</a>
+            <a href="/docs/playback/controls-and-gestures">Gestures & Controls</a>
+            <a href="/docs/playback/video-hdr-and-shaders">Shaders & HDR</a>
+            <a href="/docs/customization/custom-commands">Scripting Bridge</a>
+          </div>
+          <div class="footer-link-group">
+            <h5>Community</h5>
+            <a href={repoUrl} target="_blank" rel="noopener noreferrer">GitHub Repository</a>
+            <a href={`${repoUrl}/issues`} target="_blank" rel="noopener noreferrer">Issue Tracker</a>
+            <a href="/docs/reference/support-and-contributing">Contributing</a>
+            <a href="/docs/reference/privacy-and-permissions">Privacy Notice</a>
+          </div>
+        </div>
+      </div>
+
+      <div class="container footer-bottom">
+        <p>© {new Date().getFullYear()} mpvRx contributors. Free software under AGPL-3.0.</p>
+        <div class="footer-bottom-links">
+          <a href={repoUrl} target="_blank" rel="noopener noreferrer">GitHub</a>
+          <span class="footer-dot">·</span>
+          <a href="/docs">Docs</a>
+          <span class="footer-dot">·</span>
+          <a href="https://mpv.io" target="_blank" rel="noopener noreferrer">mpv.io</a>
+        </div>
+      </div>
     </footer>
   </body>
 </html>
 
 <style is:global>
-  :root { color-scheme: dark; font-family: "IBM Plex Sans", sans-serif; background: #111314; color: #f4f5ef; }
-  * { box-sizing: border-box; }
-  html { scroll-behavior: smooth; }
-  body { margin: 0; background: #111314; color: #f4f5ef; }
-  a { color: inherit; text-decoration: none; }
-  img { display: block; max-width: 100%; }
-  .site-header { position: absolute; z-index: 10; top: 0; left: 0; width: 100%; display: flex; align-items: center; justify-content: space-between; padding: 18px clamp(20px, 4vw, 68px); border-bottom: 1px solid rgba(255,255,255,.16); background: rgba(17,19,20,.66); backdrop-filter: blur(18px); }
-  .brand { display: inline-flex; align-items: center; gap: 10px; font: 700 1.1rem "Space Grotesk", sans-serif; }
-  .brand img { border-radius: 8px; }
-  nav { display: flex; align-items: center; gap: clamp(18px, 3vw, 38px); font-weight: 600; font-size: .92rem; }
-  nav a { color: #e7e9e4; }
-  nav a:hover, footer a:hover { color: #66d9cc; }
-  .icon-link { display: grid; width: 38px; height: 38px; place-items: center; border: 1px solid rgba(255,255,255,.26); border-radius: 50%; }
-  .hero { position: relative; min-height: min(820px, 88vh); overflow: hidden; display: flex; align-items: flex-end; padding: 120px clamp(22px, 7vw, 110px) 96px; border-bottom: 1px solid #303538; }
-  .hero-media { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; object-position: center; }
-  .hero-shade { position: absolute; inset: 0; background: rgba(7,9,10,.68); }
-  .hero-content { position: relative; width: min(710px, 100%); z-index: 1; animation: reveal .7s ease-out both; }
-  .eyebrow { display: flex; align-items: center; gap: 10px; margin: 0 0 16px; color: #c8d0cc; text-transform: uppercase; font-size: .76rem; font-weight: 700; }
-  .eyebrow span { width: 28px; height: 2px; background: #66d9cc; }
-  .eyebrow.dark { color: #58615e; }
-  h1, h2, h3 { margin: 0; font-family: "Space Grotesk", sans-serif; letter-spacing: 0; }
-  h1 { font-size: clamp(4.5rem, 13vw, 10rem); line-height: .82; }
-  .hero-lede { margin: 28px 0 16px; font: 600 clamp(2rem, 4vw, 4rem)/1.02 "Space Grotesk", sans-serif; }
-  .hero-copy { max-width: 620px; margin: 0; color: #d0d5d2; font-size: clamp(1rem, 1.6vw, 1.25rem); line-height: 1.6; }
-  .hero-actions { display: flex; flex-wrap: wrap; gap: 12px; margin-top: 30px; }
-  .button { min-height: 48px; display: inline-flex; align-items: center; gap: 10px; padding: 0 20px; border: 1px solid rgba(255,255,255,.28); border-radius: 6px; font-weight: 700; }
-  .button-primary { border-color: #f16445; background: #f16445; color: #111314; }
-  .button-secondary { background: rgba(17,19,20,.64); color: #fff; backdrop-filter: blur(10px); }
-  .button:hover { transform: translateY(-2px); }
-  .hero-cue { position: absolute; z-index: 2; right: clamp(22px, 5vw, 72px); bottom: 30px; display: flex; align-items: center; gap: 8px; color: #d8ddda; font-size: .9rem; }
-  .signal-strip { display: grid; grid-template-columns: repeat(4, 1fr); border-bottom: 1px solid #303538; background: #171a1b; }
-  .signal-strip div { min-height: 112px; padding: 24px clamp(18px, 3vw, 42px); border-right: 1px solid #303538; display: flex; flex-direction: column; justify-content: center; }
-  .signal-strip div:last-child { border-right: 0; }
-  .signal-strip strong { color: #66d9cc; font: 700 2rem "Space Grotesk", sans-serif; }
-  .signal-strip span { color: #aeb5b2; font-size: .84rem; }
-  .section { padding: clamp(72px, 9vw, 128px) clamp(22px, 7vw, 110px); }
-  .experience { color: #171a1b; background-color: #f1f2ec; background-image: radial-gradient(#c8cfca 1px, transparent 1px); background-size: 22px 22px; }
-  .section-heading { display: grid; grid-template-columns: 1.2fr .8fr; column-gap: 8vw; align-items: end; margin-bottom: 58px; }
-  .section-heading .eyebrow { grid-column: 1 / -1; }
-  .section-heading h2 { font-size: clamp(2.4rem, 5vw, 5.2rem); line-height: 1; }
-  .section-heading > p:last-child { max-width: 560px; margin: 0; color: #58615e; font-size: 1.05rem; line-height: 1.65; }
-  .section-heading.compact { display: block; max-width: 900px; }
-  .section-heading.compact p:last-child { margin-top: 22px; }
-  .feature-grid { display: grid; grid-template-columns: repeat(3, 1fr); border-top: 1px solid #c7cdca; border-left: 1px solid #c7cdca; }
-  .feature { min-height: 260px; padding: 30px; border-right: 1px solid #c7cdca; border-bottom: 1px solid #c7cdca; background: rgba(241,242,236,.88); animation: reveal .55s ease-out both; animation-delay: calc(var(--index) * 70ms); }
-  .feature svg { color: #087f75; }
-  .feature h3 { margin-top: 42px; font-size: 1.25rem; }
-  .feature p { margin: 12px 0 0; color: #58615e; line-height: 1.55; }
-  .showcase { background: #111314; }
-  .showcase .section-heading h2 { color: #f4f5ef; }
-  .showcase-grid { display: grid; grid-template-columns: minmax(240px, .42fr) 1fr; gap: clamp(28px, 5vw, 70px); align-items: center; }
-  figure { margin: 0; }
-  figure img { width: 100%; border: 1px solid #343a3c; border-radius: 8px; background: #090a0b; }
-  figcaption { margin-top: 13px; color: #9fa7a3; font-size: .9rem; }
-  .phone-shot { max-width: 360px; justify-self: center; }
-  .landscape-stack { display: grid; gap: 32px; }
-  .principles { display: grid; grid-template-columns: .95fr 1.05fr; gap: 9vw; background: #66d9cc; color: #111314; }
-  .principle-copy > svg { margin-bottom: 34px; }
-  .principle-copy h2 { font-size: clamp(2.5rem, 5vw, 5rem); line-height: 1; }
-  .principle-copy > p:not(.eyebrow) { max-width: 620px; font-size: 1.08rem; line-height: 1.65; }
-  .text-link { display: inline-flex; align-items: center; gap: 8px; margin-top: 18px; border-bottom: 1px solid currentColor; font-weight: 700; }
-  .principle-list { border-top: 1px solid rgba(17,19,20,.35); }
-  .principle-list > div { display: grid; grid-template-columns: 50px 1fr; gap: 22px; padding: 28px 0; border-bottom: 1px solid rgba(17,19,20,.35); }
-  .principle-list span { font-family: "Space Grotesk", sans-serif; color: #315b57; }
-  .principle-list p { margin: 0; color: #31514e; }
-  .principle-list strong { display: block; margin-bottom: 5px; color: #111314; font: 600 1.16rem "Space Grotesk", sans-serif; }
-  .builds { color: #171a1b; background: #f1f2ec; }
-  .build-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; }
-  .build { min-height: 260px; padding: 28px; border: 1px solid #c7cdca; border-radius: 8px; background: #f8f8f4; }
-  .build.recommended { border-top: 4px solid #f16445; }
-  .build > div { display: flex; justify-content: space-between; align-items: center; }
-  .build-index { color: #78817d; font-family: "Space Grotesk", sans-serif; }
-  .build-badge { padding: 5px 8px; border: 1px solid #c7cdca; border-radius: 4px; color: #58615e; font-size: .72rem; font-weight: 700; text-transform: uppercase; }
-  .build h3 { margin-top: 48px; font-size: 1.45rem; }
-  .build p { min-height: 72px; color: #58615e; line-height: 1.55; }
-  .build a { display: inline-flex; align-items: center; gap: 7px; color: #087f75; font-weight: 700; }
-  .final-cta { position: relative; min-height: 500px; display: flex; align-items: center; justify-content: center; overflow: hidden; padding: 70px 22px; text-align: center; }
-  .final-cta > img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
-  .final-shade { position: absolute; inset: 0; background: rgba(7,9,10,.78); }
-  .final-content { position: relative; z-index: 1; max-width: 700px; }
-  .final-content > svg { color: #f16445; }
-  .final-content h2 { margin-top: 20px; font-size: clamp(2.6rem, 6vw, 5.4rem); }
-  .final-content p { color: #c4cbc7; font-size: 1.08rem; line-height: 1.6; }
-  .final-content .hero-actions { justify-content: center; }
-  footer { min-height: 130px; display: grid; grid-template-columns: 1fr auto 1fr; align-items: center; gap: 24px; padding: 28px clamp(22px, 5vw, 72px); border-top: 1px solid #303538; color: #9fa7a3; }
-  footer > p { margin: 0; text-align: center; font-size: .85rem; }
-  footer > div { display: flex; justify-content: flex-end; gap: 22px; font-size: .88rem; }
-  @keyframes reveal { from { opacity: 0; transform: translateY(18px); } to { opacity: 1; transform: translateY(0); } }
-  @media (prefers-reduced-motion: reduce) { * { scroll-behavior: auto !important; animation: none !important; transition: none !important; } }
-  @media (max-width: 820px) {
-    .site-header nav a:not(.icon-link):not(:last-of-type) { display: none; }
-    .hero { min-height: 84vh; padding-bottom: 82px; }
-    .hero-media { object-position: 58% center; }
-    .hero-cue { left: 22px; right: auto; }
-    .signal-strip { grid-template-columns: repeat(2, 1fr); }
-    .signal-strip div:nth-child(2) { border-right: 0; }
-    .signal-strip div:nth-child(-n+2) { border-bottom: 1px solid #303538; }
-    .section-heading, .principles { grid-template-columns: 1fr; gap: 34px; }
-    .section-heading > p:last-child { margin-top: 22px; }
-    .feature-grid, .build-grid { grid-template-columns: 1fr; }
-    .showcase-grid { grid-template-columns: 1fr; }
-    .phone-shot { max-width: 290px; }
-    footer { grid-template-columns: 1fr; justify-items: start; }
-    footer > p { text-align: left; }
-    footer > div { justify-content: flex-start; flex-wrap: wrap; }
+  :root {
+    --bg-base: #0c0e0f;
+    --bg-surface: #141719;
+    --bg-surface-elevated: #1a1e20;
+    --bg-surface-hover: #22272a;
+    --border-subtle: rgba(255, 255, 255, 0.08);
+    --border-medium: rgba(255, 255, 255, 0.14);
+    --border-hover: rgba(95, 212, 199, 0.4);
+    --text-primary: #f4f5ef;
+    --text-secondary: #b8c0bc;
+    --text-muted: #78827e;
+    --accent-teal: #5fd4c7;
+    --accent-teal-bright: #66d9cc;
+    --accent-teal-soft: rgba(95, 212, 199, 0.12);
+    --accent-orange: #f16445;
+    --accent-orange-soft: rgba(241, 100, 69, 0.15);
+    color-scheme: dark;
+    font-family: "IBM Plex Sans", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    background: var(--bg-base);
+    color: var(--text-primary);
   }
+
+  * {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+  }
+
+  html {
+    scroll-behavior: smooth;
+  }
+
+  body {
+    background-color: var(--bg-base);
+    color: var(--text-primary);
+    line-height: 1.6;
+    overflow-x: hidden;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  a {
+    color: inherit;
+    text-decoration: none;
+    transition: all 0.2s ease;
+  }
+
+  img {
+    display: block;
+    max-width: 100%;
+    height: auto;
+  }
+
+  .container {
+    width: 100%;
+    max-width: 1240px;
+    margin: 0 auto;
+    padding: 0 24px;
+  }
+
+  /* Typography Utilities */
+  h1, h2, h3, h4, h5, h6 {
+    font-family: "Space Grotesk", sans-serif;
+    letter-spacing: -0.02em;
+    font-weight: 700;
+  }
+
+  .gradient-text {
+    background: linear-gradient(135deg, var(--accent-teal-bright) 0%, #a2f5ec 100%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+  }
+
+  .inline-code {
+    font-family: "IBM Plex Mono", monospace;
+    font-size: 0.9em;
+    padding: 2px 7px;
+    border-radius: 4px;
+    background: rgba(255, 255, 255, 0.08);
+    color: var(--accent-teal-bright);
+    border: 1px solid var(--border-subtle);
+  }
+
+  /* Site Header */
+  .site-header {
+    position: sticky;
+    top: 0;
+    z-index: 100;
+    width: 100%;
+    background: rgba(12, 14, 15, 0.82);
+    backdrop-filter: blur(20px);
+    border-bottom: 1px solid var(--border-subtle);
+  }
+
+  .header-inner {
+    max-width: 1240px;
+    margin: 0 auto;
+    padding: 14px 24px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+
+  .brand {
+    display: inline-flex;
+    align-items: center;
+    gap: 10px;
+  }
+
+  .brand-icon-wrap {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 8px;
+    overflow: hidden;
+    box-shadow: 0 0 16px rgba(95, 212, 199, 0.2);
+  }
+
+  .brand-img {
+    border-radius: 8px;
+  }
+
+  .brand-text {
+    font-family: "Space Grotesk", sans-serif;
+    font-size: 1.25rem;
+    font-weight: 700;
+    color: var(--text-primary);
+  }
+
+  .version-badge {
+    padding: 2px 8px;
+    border-radius: 12px;
+    font-size: 0.72rem;
+    font-weight: 600;
+    background: var(--accent-teal-soft);
+    color: var(--accent-teal-bright);
+    border: 1px solid rgba(95, 212, 199, 0.25);
+  }
+
+  .nav-links {
+    display: flex;
+    align-items: center;
+    gap: 28px;
+    font-size: 0.92rem;
+    font-weight: 500;
+    color: var(--text-secondary);
+  }
+
+  .nav-links a:hover {
+    color: var(--accent-teal-bright);
+  }
+
+  .header-actions {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+
+  .nav-icon-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 7px 14px;
+    border-radius: 6px;
+    font-size: 0.88rem;
+    font-weight: 600;
+    color: var(--text-secondary);
+    border: 1px solid var(--border-subtle);
+    background: rgba(255, 255, 255, 0.03);
+  }
+
+  .nav-icon-btn:hover {
+    color: var(--text-primary);
+    border-color: var(--border-medium);
+    background: rgba(255, 255, 255, 0.07);
+  }
+
+  .header-cta {
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    padding: 7px 16px;
+    border-radius: 6px;
+    font-size: 0.88rem;
+    font-weight: 700;
+    background: var(--accent-teal-bright);
+    color: #0c0e0f;
+  }
+
+  .header-cta:hover {
+    background: #7ef0e4;
+    transform: translateY(-1px);
+    box-shadow: 0 4px 16px rgba(95, 212, 199, 0.3);
+  }
+
+  /* Buttons */
+  .btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 9px;
+    min-height: 48px;
+    padding: 0 22px;
+    border-radius: 8px;
+    font-size: 0.95rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s ease;
+  }
+
+  .btn-large {
+    min-height: 52px;
+    padding: 0 28px;
+    font-size: 1.02rem;
+  }
+
+  .btn-primary {
+    background: var(--accent-orange);
+    color: #0c0e0f;
+    border: 1px solid rgba(241, 100, 69, 0.8);
+    box-shadow: 0 4px 20px rgba(241, 100, 69, 0.3);
+  }
+
+  .btn-primary:hover {
+    background: #fa7457;
+    transform: translateY(-2px);
+    box-shadow: 0 6px 24px rgba(241, 100, 69, 0.45);
+  }
+
+  .btn-secondary {
+    background: rgba(255, 255, 255, 0.06);
+    color: var(--text-primary);
+    border: 1px solid var(--border-medium);
+    backdrop-filter: blur(12px);
+  }
+
+  .btn-secondary:hover {
+    background: rgba(255, 255, 255, 0.12);
+    border-color: rgba(255, 255, 255, 0.25);
+    transform: translateY(-2px);
+  }
+
+  .btn-ghost {
+    background: transparent;
+    color: var(--text-secondary);
+    border: 1px solid var(--border-subtle);
+  }
+
+  .btn-ghost:hover {
+    color: var(--text-primary);
+    border-color: var(--border-medium);
+    background: rgba(255, 255, 255, 0.04);
+  }
+
+  /* Hero Section */
+  .hero-section {
+    position: relative;
+    padding: 60px 0 80px;
+    overflow: hidden;
+  }
+
+  .hero-glow {
+    position: absolute;
+    top: -120px;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 900px;
+    height: 480px;
+    background: radial-gradient(ellipse at center, rgba(95, 212, 199, 0.15) 0%, rgba(95, 212, 199, 0) 70%);
+    pointer-events: none;
+    z-index: 0;
+  }
+
+  .hero-glow-secondary {
+    position: absolute;
+    top: 200px;
+    right: -100px;
+    width: 600px;
+    height: 600px;
+    background: radial-gradient(ellipse at center, rgba(241, 100, 69, 0.08) 0%, transparent 70%);
+    pointer-events: none;
+    z-index: 0;
+  }
+
+  .hero-container {
+    position: relative;
+    z-index: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    text-align: center;
+  }
+
+  .hero-content {
+    max-width: 820px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+  }
+
+  .hero-pill-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 6px 16px;
+    border-radius: 100px;
+    background: rgba(95, 212, 199, 0.08);
+    border: 1px solid rgba(95, 212, 199, 0.25);
+    color: var(--accent-teal-bright);
+    font-size: 0.82rem;
+    font-weight: 600;
+    letter-spacing: 0.02em;
+    margin-bottom: 24px;
+  }
+
+  .pulse-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: var(--accent-teal-bright);
+    box-shadow: 0 0 10px var(--accent-teal-bright);
+    animation: pulse 2s infinite;
+  }
+
+  @keyframes pulse {
+    0%, 100% { transform: scale(1); opacity: 1; }
+    50% { transform: scale(1.3); opacity: 0.7; }
+  }
+
+  .hero-headline {
+    font-size: clamp(2.8rem, 7vw, 5.2rem);
+    line-height: 1.04;
+    color: var(--text-primary);
+    margin-bottom: 20px;
+  }
+
+  .hero-description {
+    font-size: clamp(1.05rem, 2vw, 1.25rem);
+    color: var(--text-secondary);
+    line-height: 1.65;
+    max-width: 680px;
+    margin-bottom: 36px;
+  }
+
+  .hero-btn-row {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: center;
+    gap: 14px;
+    margin-bottom: 30px;
+  }
+
+  .hero-tags-row {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 16px;
+    color: var(--text-muted);
+    font-size: 0.86rem;
+    font-weight: 500;
+  }
+
+  .feature-tag {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+  }
+
+  .feature-tag svg {
+    color: var(--accent-teal-bright);
+  }
+
+  /* Mockup Frame */
+  .hero-media-wrapper {
+    margin-top: 56px;
+    width: 100%;
+    max-width: 1060px;
+  }
+
+  .mockup-frame {
+    border-radius: 16px;
+    background: var(--bg-surface);
+    border: 1px solid var(--border-medium);
+    box-shadow: 0 24px 64px -12px rgba(0, 0, 0, 0.85), 0 0 40px rgba(95, 212, 199, 0.12);
+    overflow: hidden;
+    transition: transform 0.3s ease, border-color 0.3s ease;
+  }
+
+  .mockup-frame:hover {
+    border-color: rgba(95, 212, 199, 0.35);
+  }
+
+  .mockup-bar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 10px 18px;
+    background: rgba(12, 14, 15, 0.65);
+    border-bottom: 1px solid var(--border-subtle);
+  }
+
+  .mockup-dots {
+    display: flex;
+    gap: 6px;
+  }
+
+  .mockup-dots span {
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    background: rgba(255, 255, 255, 0.16);
+  }
+
+  .mockup-dots span:first-child { background: #ff5f56; }
+  .mockup-dots span:nth-child(2) { background: #ffbd2e; }
+  .mockup-dots span:nth-child(3) { background: #27c93f; }
+
+  .mockup-title {
+    font-size: 0.78rem;
+    color: var(--text-muted);
+    font-weight: 500;
+  }
+
+  .mockup-chip {
+    padding: 2px 8px;
+    border-radius: 4px;
+    font-size: 0.72rem;
+    font-weight: 600;
+    background: rgba(95, 212, 199, 0.1);
+    color: var(--accent-teal-bright);
+    border: 1px solid rgba(95, 212, 199, 0.2);
+  }
+
+  .mockup-image-container {
+    position: relative;
+    background: #000;
+    overflow: hidden;
+  }
+
+  .mockup-image {
+    width: 100%;
+    height: auto;
+    object-fit: cover;
+  }
+
+  .mockup-overlay-badge {
+    position: absolute;
+    bottom: 20px;
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 16px;
+    border-radius: 100px;
+    background: rgba(12, 14, 15, 0.85);
+    backdrop-filter: blur(14px);
+    border: 1px solid var(--border-medium);
+    font-size: 0.82rem;
+    font-weight: 600;
+    color: var(--text-primary);
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.6);
+  }
+
+  .mockup-overlay-badge svg {
+    color: var(--accent-teal-bright);
+  }
+
+  .left-badge { left: 24px; }
+  .right-badge { right: 24px; }
+
+  /* Stat Strip */
+  .stat-strip {
+    border-top: 1px solid var(--border-subtle);
+    border-bottom: 1px solid var(--border-subtle);
+    background: var(--bg-surface);
+    padding: 28px 0;
+  }
+
+  .stat-grid {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 24px;
+  }
+
+  .stat-item {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    padding: 8px 12px;
+  }
+
+  .stat-icon-wrap {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 44px;
+    height: 44px;
+    border-radius: 10px;
+    background: var(--accent-teal-soft);
+    color: var(--accent-teal-bright);
+    border: 1px solid rgba(95, 212, 199, 0.2);
+    flex-shrink: 0;
+  }
+
+  .stat-data strong {
+    display: block;
+    font-family: "Space Grotesk", sans-serif;
+    font-size: 1.7rem;
+    line-height: 1.1;
+    color: var(--text-primary);
+  }
+
+  .stat-data span {
+    font-size: 0.82rem;
+    color: var(--text-muted);
+  }
+
+  /* Section Common */
+  .section {
+    padding: 100px 0;
+    position: relative;
+  }
+
+  .section-header {
+    max-width: 760px;
+    margin-bottom: 56px;
+  }
+
+  .section-eyebrow {
+    display: inline-flex;
+    align-items: center;
+    gap: 10px;
+    font-size: 0.8rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: var(--accent-teal-bright);
+    margin-bottom: 14px;
+  }
+
+  .eyebrow-line {
+    width: 22px;
+    height: 2px;
+    background: var(--accent-teal-bright);
+  }
+
+  .section-title {
+    font-size: clamp(2.2rem, 5vw, 3.6rem);
+    line-height: 1.08;
+    color: var(--text-primary);
+    margin-bottom: 16px;
+  }
+
+  .section-subtitle {
+    font-size: 1.08rem;
+    color: var(--text-secondary);
+    line-height: 1.6;
+  }
+
+  /* Bento Grid */
+  .bento-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 20px;
+  }
+
+  .bento-card {
+    position: relative;
+    border-radius: 14px;
+    background: var(--bg-surface);
+    border: 1px solid var(--border-subtle);
+    padding: 32px 28px;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    transition: all 0.25s ease;
+  }
+
+  .bento-card:hover {
+    transform: translateY(-4px);
+    border-color: var(--border-hover);
+    background: var(--bg-surface-elevated);
+    box-shadow: 0 16px 36px -8px rgba(0, 0, 0, 0.6);
+  }
+
+  .card-glow {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 2px;
+    background: linear-gradient(90deg, transparent, var(--accent-color), transparent);
+    opacity: 0;
+    transition: opacity 0.3s ease;
+  }
+
+  .bento-card:hover .card-glow {
+    opacity: 1;
+  }
+
+  .card-top {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 24px;
+  }
+
+  .card-icon-box {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 44px;
+    height: 44px;
+    border-radius: 10px;
+    background: rgba(255, 255, 255, 0.04);
+    border: 1px solid var(--border-medium);
+    color: var(--accent-teal-bright);
+  }
+
+  .card-tag {
+    font-size: 0.72rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    padding: 3px 10px;
+    border-radius: 100px;
+    background: rgba(255, 255, 255, 0.04);
+    color: var(--text-muted);
+    border: 1px solid var(--border-subtle);
+  }
+
+  .card-title {
+    font-size: 1.25rem;
+    color: var(--text-primary);
+    margin-bottom: 12px;
+    line-height: 1.25;
+  }
+
+  .card-body {
+    font-size: 0.94rem;
+    color: var(--text-secondary);
+    line-height: 1.6;
+  }
+
+  /* Screenshot Showcase Gallery */
+  .gallery-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 24px;
+  }
+
+  .col-span-2 { grid-column: span 2; }
+  .col-span-1 { grid-column: span 1; }
+
+  .gallery-item {
+    border-radius: 14px;
+    overflow: hidden;
+    background: var(--bg-surface);
+    border: 1px solid var(--border-subtle);
+    transition: transform 0.25s ease, border-color 0.25s ease;
+  }
+
+  .gallery-item:hover {
+    transform: translateY(-4px);
+    border-color: var(--border-hover);
+    box-shadow: 0 20px 40px -10px rgba(0, 0, 0, 0.7);
+  }
+
+  .gallery-img-wrap {
+    position: relative;
+    width: 100%;
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+  }
+
+  .gallery-img {
+    width: 100%;
+    height: auto;
+    object-fit: cover;
+    background: #000;
+  }
+
+  .gallery-glass-banner {
+    padding: 18px 20px;
+    background: rgba(20, 23, 25, 0.95);
+    border-top: 1px solid var(--border-subtle);
+  }
+
+  .gallery-glass-banner h4 {
+    font-size: 1.05rem;
+    color: var(--text-primary);
+    margin-bottom: 4px;
+  }
+
+  .gallery-glass-banner figcaption {
+    font-size: 0.86rem;
+    color: var(--text-secondary);
+    line-height: 1.5;
+  }
+
+  /* Philosophy & Privacy */
+  .philosophy-card {
+    border-radius: 20px;
+    background: linear-gradient(135deg, rgba(20, 23, 25, 0.9) 0%, rgba(12, 14, 15, 0.95) 100%);
+    border: 1px solid var(--border-medium);
+    padding: clamp(36px, 6vw, 64px);
+    box-shadow: 0 24px 64px rgba(0, 0, 0, 0.6);
+  }
+
+  .philosophy-grid {
+    display: grid;
+    grid-template-columns: 1.1fr 0.9fr;
+    gap: 48px;
+    align-items: center;
+  }
+
+  .philosophy-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 6px 14px;
+    border-radius: 100px;
+    background: var(--accent-teal-soft);
+    color: var(--accent-teal-bright);
+    font-size: 0.8rem;
+    font-weight: 600;
+    border: 1px solid rgba(95, 212, 199, 0.25);
+    margin-bottom: 20px;
+  }
+
+  .philosophy-headline {
+    font-size: clamp(2.2rem, 4.5vw, 3.4rem);
+    line-height: 1.08;
+    color: var(--text-primary);
+    margin-bottom: 18px;
+  }
+
+  .philosophy-text {
+    font-size: 1.05rem;
+    color: var(--text-secondary);
+    line-height: 1.65;
+    margin-bottom: 28px;
+  }
+
+  .philosophy-links {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 16px;
+  }
+
+  .link-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 10px 18px;
+    border-radius: 6px;
+    background: var(--accent-teal-bright);
+    color: #0c0e0f;
+    font-weight: 700;
+    font-size: 0.92rem;
+  }
+
+  .link-btn:hover {
+    background: #7ef0e4;
+    transform: translateY(-1px);
+  }
+
+  .link-btn-subtle {
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    padding: 10px 16px;
+    color: var(--text-secondary);
+    font-weight: 600;
+    font-size: 0.92rem;
+  }
+
+  .link-btn-subtle:hover {
+    color: var(--text-primary);
+  }
+
+  .philosophy-pillars {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+  }
+
+  .pillar-box {
+    display: flex;
+    gap: 18px;
+    padding: 20px;
+    border-radius: 12px;
+    background: rgba(255, 255, 255, 0.03);
+    border: 1px solid var(--border-subtle);
+    transition: all 0.2s ease;
+  }
+
+  .pillar-box:hover {
+    background: rgba(255, 255, 255, 0.06);
+    border-color: var(--border-medium);
+  }
+
+  .pillar-num {
+    font-family: "Space Grotesk", sans-serif;
+    font-weight: 700;
+    font-size: 1.2rem;
+    color: var(--accent-teal-bright);
+  }
+
+  .pillar-box h4 {
+    font-size: 1.05rem;
+    color: var(--text-primary);
+    margin-bottom: 4px;
+  }
+
+  .pillar-box p {
+    font-size: 0.88rem;
+    color: var(--text-secondary);
+    line-height: 1.5;
+  }
+
+  /* Builds Section */
+  .builds-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 24px;
+  }
+
+  .build-card {
+    position: relative;
+    border-radius: 16px;
+    background: var(--bg-surface);
+    border: 1px solid var(--border-subtle);
+    padding: 32px 28px;
+    display: flex;
+    flex-direction: column;
+    transition: all 0.25s ease;
+  }
+
+  .build-card:hover {
+    transform: translateY(-4px);
+    border-color: var(--border-hover);
+    box-shadow: 0 20px 48px -12px rgba(0, 0, 0, 0.7);
+  }
+
+  .build-featured {
+    border-color: rgba(241, 100, 69, 0.4);
+    background: linear-gradient(180deg, rgba(241, 100, 69, 0.05) 0%, var(--bg-surface) 35%);
+  }
+
+  .featured-ribbon {
+    position: absolute;
+    top: 14px;
+    right: 18px;
+    padding: 3px 10px;
+    border-radius: 100px;
+    font-size: 0.72rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    background: var(--accent-orange);
+    color: #0c0e0f;
+  }
+
+  .build-card-header {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    margin-bottom: 16px;
+  }
+
+  .build-variant-index {
+    font-family: "Space Grotesk", sans-serif;
+    font-size: 0.82rem;
+    color: var(--text-muted);
+    font-weight: 600;
+  }
+
+  .build-name {
+    font-size: 1.6rem;
+    color: var(--text-primary);
+    margin-top: 2px;
+  }
+
+  .build-chip {
+    padding: 4px 10px;
+    border-radius: 6px;
+    font-size: 0.74rem;
+    font-weight: 700;
+    text-transform: uppercase;
+  }
+
+  .chip-primary {
+    background: var(--accent-orange-soft);
+    color: var(--accent-orange);
+    border: 1px solid rgba(241, 100, 69, 0.3);
+  }
+
+  .chip-neutral {
+    background: rgba(255, 255, 255, 0.05);
+    color: var(--text-secondary);
+    border: 1px solid var(--border-medium);
+  }
+
+  .chip-accent {
+    background: var(--accent-teal-soft);
+    color: var(--accent-teal-bright);
+    border: 1px solid rgba(95, 212, 199, 0.25);
+  }
+
+  .build-desc {
+    font-size: 0.92rem;
+    color: var(--text-secondary);
+    line-height: 1.55;
+    margin-bottom: 24px;
+    min-height: 66px;
+  }
+
+  .build-feature-list {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    padding: 20px 0;
+    border-top: 1px solid var(--border-subtle);
+    border-bottom: 1px solid var(--border-subtle);
+    margin-bottom: 24px;
+    flex-grow: 1;
+  }
+
+  .build-feature-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-size: 0.88rem;
+    color: var(--text-secondary);
+  }
+
+  .check-icon {
+    color: var(--accent-teal-bright);
+    flex-shrink: 0;
+  }
+
+  .build-footer {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+
+  .build-tag-text {
+    font-size: 0.78rem;
+    color: var(--text-muted);
+  }
+
+  .build-link-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 0.88rem;
+    font-weight: 600;
+    color: var(--accent-teal-bright);
+  }
+
+  .build-link-btn:hover {
+    gap: 9px;
+  }
+
+  /* Final CTA Section */
+  .final-cta-section {
+    position: relative;
+    padding: 120px 0;
+    overflow: hidden;
+    text-align: center;
+  }
+
+  .final-cta-bg {
+    position: absolute;
+    inset: 0;
+    z-index: 0;
+  }
+
+  .final-cta-bg-img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    filter: blur(8px) brightness(0.25);
+    transform: scale(1.05);
+  }
+
+  .final-cta-overlay {
+    position: absolute;
+    inset: 0;
+    background: radial-gradient(circle at center, rgba(12, 14, 15, 0.7) 0%, rgba(12, 14, 15, 0.95) 100%);
+  }
+
+  .final-cta-container {
+    position: relative;
+    z-index: 1;
+    max-width: 740px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+  }
+
+  .final-cta-icon-box {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 64px;
+    height: 64px;
+    border-radius: 50%;
+    background: var(--accent-orange);
+    color: #0c0e0f;
+    box-shadow: 0 0 32px rgba(241, 100, 69, 0.5);
+    margin-bottom: 28px;
+  }
+
+  .final-cta-title {
+    font-size: clamp(2.4rem, 5.5vw, 4.2rem);
+    line-height: 1.06;
+    color: var(--text-primary);
+    margin-bottom: 16px;
+  }
+
+  .final-cta-subtitle {
+    font-size: 1.15rem;
+    color: var(--text-secondary);
+    line-height: 1.6;
+    margin-bottom: 36px;
+  }
+
+  .final-cta-actions {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 16px;
+  }
+
+  /* Footer */
+  .site-footer {
+    border-top: 1px solid var(--border-subtle);
+    background: var(--bg-surface);
+    padding: 72px 0 36px;
+  }
+
+  .footer-container {
+    display: grid;
+    grid-template-columns: 1.3fr 2fr;
+    gap: 64px;
+    margin-bottom: 56px;
+  }
+
+  .footer-brand-col {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+  }
+
+  .footer-tagline {
+    font-size: 0.92rem;
+    color: var(--text-muted);
+    max-width: 340px;
+    line-height: 1.6;
+  }
+
+  .footer-links-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 32px;
+  }
+
+  .footer-link-group {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+  }
+
+  .footer-link-group h5 {
+    font-size: 0.85rem;
+    font-weight: 700;
+    color: var(--text-primary);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    margin-bottom: 4px;
+  }
+
+  .footer-link-group a {
+    font-size: 0.9rem;
+    color: var(--text-secondary);
+  }
+
+  .footer-link-group a:hover {
+    color: var(--accent-teal-bright);
+  }
+
+  .footer-bottom {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding-top: 28px;
+    border-top: 1px solid var(--border-subtle);
+    font-size: 0.84rem;
+    color: var(--text-muted);
+  }
+
+  .footer-bottom-links {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+
+  .footer-bottom-links a:hover {
+    color: var(--text-secondary);
+  }
+
+  .footer-dot {
+    opacity: 0.4;
+  }
+
+  /* Responsive Design */
+  @media (max-width: 980px) {
+    .bento-grid {
+      grid-template-columns: repeat(2, 1fr);
+    }
+
+    .gallery-grid {
+      grid-template-columns: repeat(2, 1fr);
+    }
+
+    .col-span-2 {
+      grid-column: span 2;
+    }
+
+    .stat-grid {
+      grid-template-columns: repeat(2, 1fr);
+    }
+
+    .philosophy-grid {
+      grid-template-columns: 1fr;
+    }
+
+    .builds-grid {
+      grid-template-columns: 1fr;
+    }
+
+    .footer-container {
+      grid-template-columns: 1fr;
+      gap: 40px;
+    }
+  }
+
+  @media (max-width: 768px) {
+    .nav-links {
+      display: none;
+    }
+
+    .github-label {
+      display: none;
+    }
+
+    .bento-grid {
+      grid-template-columns: 1fr;
+    }
+
+    .gallery-grid {
+      grid-template-columns: 1fr;
+    }
+
+    .col-span-2, .col-span-1 {
+      grid-column: span 1;
+    }
+
+    .mockup-overlay-badge {
+      display: none;
+    }
+
+    .stat-grid {
+      grid-template-columns: 1fr;
+    }
+
+    .footer-links-grid {
+      grid-template-columns: 1fr;
+      gap: 28px;
+    }
+
+    .footer-bottom {
+      flex-direction: column;
+      gap: 14px;
+      text-align: center;
+    }
+  }
+
   @media (max-width: 480px) {
-    .site-header { padding: 14px 16px; }
-    .site-header nav { gap: 12px; }
-    .hero { min-height: 760px; padding-left: 18px; padding-right: 18px; }
-    .hero-actions { display: grid; }
-    .button { justify-content: center; }
-    .section { padding-left: 18px; padding-right: 18px; }
-    .signal-strip div { min-height: 96px; }
+    .hero-btn-row {
+      flex-direction: column;
+      width: 100%;
+    }
+
+    .btn {
+      width: 100%;
+    }
+
+    .final-cta-actions {
+      flex-direction: column;
+      width: 100%;
+    }
   }
 </style>
