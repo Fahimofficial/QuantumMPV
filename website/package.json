@@ -1,9 +1,9 @@
 {
-  "name": "mpvrx-web",
+  "name": "mpvrxweb",
   "private": true,
   "type": "module",
   "engines": {
-    "node": ">=22.19.0"
+    "node": "22.x"
   },
   "scripts": {
     "dev": "blume dev",

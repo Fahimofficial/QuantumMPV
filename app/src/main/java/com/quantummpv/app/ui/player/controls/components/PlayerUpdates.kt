@@ -30,6 +30,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -61,7 +62,7 @@ import com.quantummpv.app.ui.player.PlayerActivity
 import com.quantummpv.app.ui.player.PlayerViewModel
 
 private val tabularFigures = "tnum"
-private val compactSpeedIndicatorWidth = 44.dp
+private val compactSpeedIndicatorWidth = 32.dp
 
 @Composable
 private fun rememberPlayerUpdateOffset(): androidx.compose.ui.unit.Dp {
@@ -191,16 +192,22 @@ fun CompactSpeedIndicator(
       },
       label = "SpeedJumpAnimation",
     ) { targetSpeed ->
-      Row(verticalAlignment = Alignment.CenterVertically) {
+      Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.Center,
+        verticalAlignment = Alignment.CenterVertically,
+      ) {
         Text(
           text = targetSpeed,
           fontWeight = FontWeight.ExtraBold,
+          textAlign = TextAlign.Center,
           style = MaterialTheme.typography.bodyMedium.copy(fontFeatureSettings = tabularFigures),
           color = MaterialTheme.colorScheme.onSurface,
         )
         Text(
           text = "x",
           fontWeight = FontWeight.Bold,
+          textAlign = TextAlign.Center,
           modifier = Modifier.padding(start = 1.dp),
           style = MaterialTheme.typography.labelMedium.copy(fontFeatureSettings = tabularFigures),
           color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f),

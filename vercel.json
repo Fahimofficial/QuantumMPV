@@ -1,6 +1,6 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
-  "installCommand": "npm --prefix website ci",
+  "installCommand": "test -f website/package-lock.json || { echo 'Vercel Root Directory must be the repository root (.), not website.' >&2; exit 1; }; npm --prefix website ci",
   "buildCommand": "npm --prefix website run build",
   "outputDirectory": "website/dist",
   "framework": null

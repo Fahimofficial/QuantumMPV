@@ -32,6 +32,9 @@ Blume, and publishes `website/dist` automatically.
 
 Do not set Vercel's Root Directory to `website` while using the root
 `vercel.json`; its paths are intentionally relative to the repository root.
+If a deployment says `npm --prefix website ci` cannot find a lockfile, clear
+the Root Directory setting and remove any dashboard command or output-directory
+overrides before redeploying.
 
 The production build includes `/docs`, `/api/docs/pages.json`,
 `/api/docs/navigation.json`, `/openapi.json`, `/llms.txt`, and
