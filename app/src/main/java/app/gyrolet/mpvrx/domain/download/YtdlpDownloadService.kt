@@ -84,13 +84,14 @@ class YtdlpDownloadService : Service() {
   private fun buildNotification(job: YtdlpDownloadEngine.Job?): android.app.Notification {
     val queued = engine.jobs.value.count { it.state == YtdlpDownloadEngine.JobState.QUEUED }
     val title = job?.title ?: getString(R.string.downloads_notification_channel)
-    val running = job?.state == YtdlpDownloadEngine.JobState.RUNNING
-    val progress = job?.progressPercent?.toInt() ?: 0
+    val runningJob = job?.takeIf { it.state == YtdlpDownloadEngine.JobState.RUNNING }
+    val running = runningJob != null
+    val progress = runningJob?.progressPercent?.toInt() ?: 0
     val text =
       when {
-        running && job != null -> {
+        runningJob != null -> {
           val queueSuffix = if (queued > 0) " (+$queued)" else ""
-          "$progress% ${job.detail}$queueSuffix".trim()
+          "$progress% ${runningJob.detail}$queueSuffix".trim()
         }
         else -> getString(R.string.downloads_preparing)
       }
