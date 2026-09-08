@@ -72,6 +72,7 @@ import app.gyrolet.mpvrx.ui.browser.states.EmptyState
 import app.gyrolet.mpvrx.ui.icons.Icon
 import app.gyrolet.mpvrx.ui.icons.Icons
 import app.gyrolet.mpvrx.ui.utils.LocalBackStack
+import app.gyrolet.mpvrx.ui.utils.navigateTo
 import app.gyrolet.mpvrx.ui.utils.popSafely
 import app.gyrolet.mpvrx.utils.media.MediaInfoOps
 import app.gyrolet.mpvrx.utils.media.MediaUtils
@@ -364,7 +365,7 @@ data object SecureFolderScreen : Screen {
       floatingActionButton = {
         if (!isInSelectionMode) {
           ExtendedFloatingActionButton(
-            onClick = { backstack.add(SecureFolderAddFilesScreen) },
+            onClick = { backstack.navigateTo(SecureFolderAddFilesScreen) },
             icon = { Icon(Icons.RoundedFilled.Add, contentDescription = null) },
             text = { Text(stringResource(R.string.secure_folder_add_files)) },
           )
@@ -677,7 +678,6 @@ private fun formatResolutionWithFps(
 
   return "$baseResolution@${fps.toInt()}"
 }
-
 
 
 

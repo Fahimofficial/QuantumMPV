@@ -9,7 +9,7 @@ import android.graphics.BitmapFactory
 import android.net.Uri
 import android.text.format.DateUtils
 import app.gyrolet.mpvrx.ui.browser.jellyfin.JellyfinViewModel
-import androidx.activity.compose.BackHandler
+import app.gyrolet.mpvrx.ui.utils.NavigationBackHandler as BackHandler
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
@@ -43,7 +43,7 @@ import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.lazy.grid.rememberLazyGridState
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
-import androidx.compose.foundation.pager.HorizontalPager
+import app.gyrolet.mpvrx.ui.utils.NavigationPager
 import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -84,7 +84,6 @@ import androidx.compose.material3.rememberTooltipState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
@@ -131,7 +130,6 @@ import app.gyrolet.mpvrx.preferences.preference.collectAsState
 import app.gyrolet.mpvrx.ui.preferences.PreferencesScreen
 import app.gyrolet.mpvrx.ui.browser.LocalNavigationBarHeight
 import app.gyrolet.mpvrx.ui.browser.MainScreen
-import app.gyrolet.mpvrx.ui.browser.NavigationBarState
 import app.gyrolet.mpvrx.ui.browser.cards.PlaylistCard
 import app.gyrolet.mpvrx.ui.browser.components.BrowserBottomBar
 import app.gyrolet.mpvrx.ui.browser.components.BrowserTopBar
@@ -152,6 +150,8 @@ import app.gyrolet.mpvrx.ui.icons.Icon
 import app.gyrolet.mpvrx.ui.icons.Icons
 import app.gyrolet.mpvrx.ui.theme.AppShapeScale
 import app.gyrolet.mpvrx.ui.utils.LocalBackStack
+import app.gyrolet.mpvrx.ui.utils.navigateTo
+import app.gyrolet.mpvrx.ui.utils.rememberTabNavigation
 import app.gyrolet.mpvrx.utils.media.MediaUtils
 import app.gyrolet.mpvrx.utils.permission.PermissionUtils
 import androidx.lifecycle.Lifecycle
@@ -238,7 +238,6 @@ fun MusicLibraryContent(
   var isSearchActive by remember { mutableStateOf(false) }
   var isSortMenuExpanded by remember { mutableStateOf(false) }
   var showCreatePlaylistDialog by remember { mutableStateOf(false) }
-  var selectedPlaylistForDetail by remember { mutableStateOf<PlaylistEntity?>(null) }
 
   var selectedSongForOptions by remember { mutableStateOf<MusicSong?>(null) }
   var selectedAlbumForOptions by remember { mutableStateOf<MusicAlbum?>(null) }
@@ -327,6 +326,7 @@ fun MusicLibraryContent(
     visibleTabs.indexOf(selectedTab).coerceAtLeast(0)
   }
   val pagerState = rememberPagerState(initialPage = initialPageIndex) { visibleTabs.size }
+  val navigateTab = rememberTabNavigation(pagerState)
 
   val lifecycleOwner = androidx.lifecycle.compose.LocalLifecycleOwner.current
 
@@ -359,22 +359,20 @@ fun MusicLibraryContent(
     }
   }
 
-  LaunchedEffect(visibleTabs) {
-    if (selectedTab !in visibleTabs) {
-      visibleTabs.firstOrNull()?.let { musicViewModel.setTab(it) }
-    }
+  LaunchedEffect(pagerState, visibleTabs) {
+    if (visibleTabs.isEmpty()) return@LaunchedEffect
+    // Restore by tab identity before publishing page indices after tabs are hidden/reordered.
+    pagerState.scrollToPage(visibleTabs.indexOf(selectedTab).coerceAtLeast(0))
+    snapshotFlow { pagerState.settledPage to pagerState.isScrollInProgress }
+      .collect { (page, scrolling) ->
+        if (!scrolling) visibleTabs.getOrNull(page)?.let(musicViewModel::setTab)
+      }
   }
 
-  LaunchedEffect(pagerState.settledPage, visibleTabs) {
-    visibleTabs.getOrNull(pagerState.settledPage)?.let { tab ->
-      musicViewModel.setTab(tab)
-    }
-  }
-
-  LaunchedEffect(selectedTab, visibleTabs) {
+  LaunchedEffect(selectedTab) {
     val targetIndex = visibleTabs.indexOf(selectedTab)
-    if (targetIndex >= 0 && pagerState.currentPage != targetIndex) {
-      pagerState.animateScrollToPage(targetIndex)
+    if (targetIndex >= 0) {
+      navigateTab(targetIndex)
     }
     songSelectionManager.clear()
     albumSelectionManager.clear()
@@ -426,19 +424,10 @@ fun MusicLibraryContent(
       }
   }
 
-  val navBarState = NavigationBarState
-  SideEffect {
-    navBarState.updateSelectionState(
-      inSelectionMode = activeSelectionManager.isInSelectionMode,
-      onlyVideos = false,
-    )
-  }
-
-  DisposableEffect(Unit) {
-    onDispose {
-      navBarState.updateSelectionState(inSelectionMode = false)
-    }
-  }
+  app.gyrolet.mpvrx.ui.browser.NavigationBarSelectionEffect(
+    inSelectionMode = activeSelectionManager.isInSelectionMode,
+    onlyVideos = false,
+  )
 
   BackHandler(enabled = isSearchActive || activeSelectionManager.isInSelectionMode || (isFabExpanded.value && !quickPlayFabDirect)) {
     when {
@@ -449,13 +438,6 @@ fun MusicLibraryContent(
       }
       activeSelectionManager.isInSelectionMode -> activeSelectionManager.clear()
     }
-  }
-
-  // Playlist detail overlay when a playlist is opened
-  selectedPlaylistForDetail?.let { playlist ->
-    BackHandler { selectedPlaylistForDetail = null }
-    PlaylistDetailScreen(playlistId = playlist.id).Content()
-    return
   }
 
   val totalCount = when (selectedTab) {
@@ -515,7 +497,7 @@ fun MusicLibraryContent(
               onSortClick = { isSortMenuExpanded = true },
               onSearchClick = { isSearchActive = true },
               onSettingsClick = {
-                backStack.add(PreferencesScreen)
+                backStack.navigateTo(PreferencesScreen)
               },
               onSelectAll = { activeSelectionManager.selectAll() },
               onInvertSelection = { activeSelectionManager.invertSelection() },
@@ -744,7 +726,7 @@ fun MusicLibraryContent(
                         },
                         onClick = {
                           isSourceDropdownOpen = false
-                          backStack.add(app.gyrolet.mpvrx.ui.preferences.MediaServersPreferencesScreen)
+                          backStack.navigateTo(app.gyrolet.mpvrx.ui.preferences.MediaServersPreferencesScreen)
                         },
                       )
                     }
@@ -788,12 +770,7 @@ fun MusicLibraryContent(
           visibleTabs.forEachIndexed { index, tab ->
             Tab(
               selected = pagerState.currentPage == index,
-              onClick = {
-                scope.launch {
-                  musicViewModel.setTab(tab)
-                  pagerState.animateScrollToPage(index)
-                }
-              },
+              onClick = { musicViewModel.setTab(tab) },
               text = {
                 Text(
                   text = tab.title,
@@ -921,8 +898,9 @@ fun MusicLibraryContent(
             CircularProgressIndicator()
           }
         } else {
-          HorizontalPager(
+          NavigationPager(
             state = pagerState,
+            key = { page -> visibleTabs[page].name },
             modifier = Modifier.fillMaxSize(),
             beyondViewportPageCount = 1,
           ) { page ->
@@ -1000,7 +978,7 @@ fun MusicLibraryContent(
                   if (playlistSelectionManager.isInSelectionMode) {
                     playlistSelectionManager.toggle(playlist)
                   } else {
-                    selectedPlaylistForDetail = playlist
+                    backStack.navigateTo(PlaylistDetailScreen(playlistId = playlist.id))
                   }
                 },
                 onPlaylistLongClick = { playlist ->
@@ -1364,7 +1342,7 @@ fun MusicLibraryContent(
                 modifier = Modifier.clickable {
                   val target = playlist
                   selectedPlaylistForOptions = null
-                  selectedPlaylistForDetail = target
+                  backStack.navigateTo(PlaylistDetailScreen(playlistId = target.id))
                 }
               )
               if (!playlist.name.equals(PlaylistRepository.FAVORITES_PLAYLIST_NAME, ignoreCase = true)) {

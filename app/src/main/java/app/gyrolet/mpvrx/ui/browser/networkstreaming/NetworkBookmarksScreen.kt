@@ -45,6 +45,7 @@ import app.gyrolet.mpvrx.ui.browser.states.EmptyState
 import app.gyrolet.mpvrx.ui.icons.Icon
 import app.gyrolet.mpvrx.ui.icons.Icons
 import app.gyrolet.mpvrx.ui.utils.LocalBackStack
+import app.gyrolet.mpvrx.ui.utils.navigateTo
 import app.gyrolet.mpvrx.ui.utils.popSafely
 import kotlinx.serialization.Serializable
 import org.koin.compose.koinInject
@@ -201,7 +202,7 @@ object NetworkBookmarksScreen : Screen {
             BookmarkManageCard(
               bookmark = bookmark,
               onOpen = {
-                backstack.add(
+                backstack.navigateTo(
                   NetworkBrowserScreen(
                     connectionId = bookmark.connection.id,
                     connectionName = bookmark.connection.name,

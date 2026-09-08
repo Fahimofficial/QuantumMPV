@@ -716,8 +716,8 @@
   <string name="pref_anim_video_open_summary">Select the transition when starting playback</string>
   <string name="pref_anim_tab_nav_style_title">Tab navigation style</string>
   <string name="pref_anim_tab_nav_style_summary">Transition effect between bottom tabs</string>
-  <string name="pref_anim_screen_nav_style_title">Screen navigation style</string>
-  <string name="pref_anim_screen_nav_style_summary">Transition effect between settings screens</string>
+  <string name="pref_anim_screen_nav_style_title">Screen transition style</string>
+  <string name="pref_anim_screen_nav_style_summary">Screens use the selected effect; tabs slide with your finger. None also disables tab-tap animations.</string>
   <string name="pref_anim_speed_title">Animation speed</string>
   <string name="pref_anim_speed_very_fast">Very fast (%.1f×)</string>
   <string name="pref_anim_speed_fast">Fast (%.1f×)</string>

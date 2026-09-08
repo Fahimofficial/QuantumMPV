@@ -12,7 +12,7 @@ package app.gyrolet.mpvrx.ui.browser.filesystem
 import android.content.Context
 import android.content.Intent
 import android.util.Log
-import androidx.activity.compose.BackHandler
+import app.gyrolet.mpvrx.ui.utils.NavigationBackHandler as BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedVisibility
@@ -118,6 +118,7 @@ import app.gyrolet.mpvrx.ui.icons.Icon
 import app.gyrolet.mpvrx.ui.icons.Icons
 import app.gyrolet.mpvrx.ui.theme.AppMotion
 import app.gyrolet.mpvrx.ui.utils.LocalBackStack
+import app.gyrolet.mpvrx.ui.utils.navigateTo
 import app.gyrolet.mpvrx.ui.utils.calculateResponsiveGridSpans
 import app.gyrolet.mpvrx.ui.utils.popSafely
 import app.gyrolet.mpvrx.utils.media.CopyPasteOps
@@ -331,25 +332,15 @@ fun FileSystemBrowserScreen(path: String? = null) {
     )
   }
 
-  // Combined MainScreen updates for better performance and responsiveness
-  LaunchedEffect(
-    showBottomNavigation,
-    isInSelectionMode,
-    onlyVideosSelected,
-    permissionState.status,
-    isPermissionSetupCompleted,
-  ) {
-    if (isAtRoot) {
+  app.gyrolet.mpvrx.ui.browser.NavigationBarSelectionEffect(isInSelectionMode)
+  val isActiveRoot = isAtRoot && app.gyrolet.mpvrx.ui.utils.LocalNavigationPageActive.current
+  androidx.lifecycle.compose.LifecycleResumeEffect(isActiveRoot, showBottomNavigation, isPermissionSetupCompleted) {
+    if (isActiveRoot) {
       try {
         val mainScreenObj = app.gyrolet.mpvrx.ui.browser.MainScreen
 
         // Update all MainScreen states in one call to reduce overhead
         mainScreenObj.updateBottomBarVisibility(showBottomNavigation)
-        mainScreenObj.updateSelectionState(
-          isInSelectionMode = isInSelectionMode,
-          isOnlyVideosSelected = true,
-          selectionManager = if (onlyVideosSelected) selectionManager else null,
-        )
         mainScreenObj.updatePermissionState(
           isDenied = !isPermissionSetupCompleted,
         )
@@ -357,21 +348,7 @@ fun FileSystemBrowserScreen(path: String? = null) {
         Log.e("FileSystemBrowserScreen", "Failed to update MainScreen state", e)
       }
     }
-  }
-
-  // Cleanup: Restore bottom navigation bar when leaving the screen
-  DisposableEffect(Unit) {
-    onDispose {
-      if (isAtRoot) {
-        try {
-          val mainScreenObj = app.gyrolet.mpvrx.ui.browser.MainScreen
-          // Restore bottom navigation when leaving the screen
-          mainScreenObj.updateBottomBarVisibility(true)
-        } catch (e: Exception) {
-          Log.e("FileSystemBrowserScreen", "Failed to restore MainScreen bottom bar visibility", e)
-        }
-      }
-    }
+    onPauseOrDispose { }
   }
 
   // File picker
@@ -581,7 +558,7 @@ fun FileSystemBrowserScreen(path: String? = null) {
               isSearching = !isSearching
             },
             onSettingsClick = {
-              backstack.add(app.gyrolet.mpvrx.ui.preferences.PreferencesScreen)
+              backstack.navigateTo(app.gyrolet.mpvrx.ui.preferences.PreferencesScreen)
             },
             isSingleSelection = selectionManager.isSingleSelection,
             onInfoClick =
@@ -790,7 +767,7 @@ fun FileSystemBrowserScreen(path: String? = null) {
                   MediaUtils.playFile(video, context, "search")
                 },
                 onFolderClick = { folder ->
-                  backstack.add(FileSystemDirectoryScreen(folder.path))
+                  backstack.navigateTo(FileSystemDirectoryScreen(folder.path))
                   isSearching = false
                   searchQuery = ""
                 },
@@ -818,7 +795,7 @@ fun FileSystemBrowserScreen(path: String? = null) {
                   if (isInSelectionMode) {
                     selectionManager.toggle(folder)
                   } else {
-                    backstack.add(FileSystemDirectoryScreen(folder.path))
+                    backstack.navigateTo(FileSystemDirectoryScreen(folder.path))
                   }
                 },
                 onFolderLongClick = { folder ->
@@ -857,7 +834,7 @@ fun FileSystemBrowserScreen(path: String? = null) {
                 onBreadcrumbClick = { component ->
                   // Navigate to the breadcrumb by popping until we reach it
                   // or pushing if it's a new path
-                  backstack.add(FileSystemDirectoryScreen(component.fullPath))
+                  backstack.navigateTo(FileSystemDirectoryScreen(component.fullPath))
                 },
                 selectionManager = selectionManager,
                 modifier = Modifier,

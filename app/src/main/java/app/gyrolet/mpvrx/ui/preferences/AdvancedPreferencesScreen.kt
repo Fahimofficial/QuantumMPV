@@ -66,6 +66,7 @@ import app.gyrolet.mpvrx.ui.icons.Icon
 import app.gyrolet.mpvrx.ui.icons.Icons
 import app.gyrolet.mpvrx.ui.preferences.components.SwitchPreference
 import app.gyrolet.mpvrx.ui.utils.LocalBackStack
+import app.gyrolet.mpvrx.ui.utils.navigateTo
 import app.gyrolet.mpvrx.ui.utils.LocalShowSettingsBackArrow
 import app.gyrolet.mpvrx.ui.utils.popSafely
 import app.gyrolet.mpvrx.utils.clipboard.SafeClipboard
@@ -549,7 +550,7 @@ object AdvancedPreferencesScreen : Screen {
                   }
                 },
                 onClick = {
-                  backStack.add(ConfigEditorScreen(ConfigEditorScreen.ConfigType.MPV_CONF))
+                  backStack.navigateTo(ConfigEditorScreen(ConfigEditorScreen.ConfigType.MPV_CONF))
                 },
               )
 
@@ -574,7 +575,7 @@ object AdvancedPreferencesScreen : Screen {
                   }
                 },
                 onClick = {
-                  backStack.add(ConfigEditorScreen(ConfigEditorScreen.ConfigType.INPUT_CONF))
+                  backStack.navigateTo(ConfigEditorScreen(ConfigEditorScreen.ConfigType.INPUT_CONF))
                 },
               )
             }
@@ -672,7 +673,7 @@ object AdvancedPreferencesScreen : Screen {
                   }
                 },
                 onClick = {
-                  backStack.add(LuaScriptsScreen)
+                  backStack.navigateTo(LuaScriptsScreen)
                 },
                 enabled = mpvConfStorageLocation.isNotBlank() && enableLuaScripts,
               )
@@ -688,7 +689,7 @@ object AdvancedPreferencesScreen : Screen {
                   )
                 },
                 onClick = {
-                  backStack.add(app.gyrolet.mpvrx.ui.preferences.CustomButtonScreen)
+                  backStack.navigateTo(app.gyrolet.mpvrx.ui.preferences.CustomButtonScreen)
                 },
               )
             }
@@ -723,7 +724,7 @@ object AdvancedPreferencesScreen : Screen {
                   )
                 },
                 onClick = {
-                  backStack.add(YtdlpSettingsScreen)
+                  backStack.navigateTo(YtdlpSettingsScreen)
                 },
               )
             }

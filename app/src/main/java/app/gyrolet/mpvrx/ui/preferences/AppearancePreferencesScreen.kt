@@ -738,27 +738,11 @@ object AppearancePreferencesScreen : Screen {
 
           item {
             PreferenceCard {
-              val showHomeTab by preferences.showHomeTab.collectAsState()
               val showMusicTab by preferences.showMusicTab.collectAsState()
               val showRecentsTab by preferences.showRecentsTab.collectAsState()
               val showPlaylistsTab by preferences.showPlaylistsTab.collectAsState()
               val showNetworkTab by preferences.showNetworkTab.collectAsState()
               val showJellyfinTab by preferences.showJellyfinTab.collectAsState()
-
-              SwitchPreference(
-                modifier = Modifier.settingsSearchTarget(R.string.pref_nav_home_title),
-                value = showHomeTab,
-                onValueChange = preferences.showHomeTab::set,
-                title = { Text(text = stringResource(id = R.string.pref_nav_home_title)) },
-                summary = {
-                  Text(
-                    text = stringResource(id = R.string.pref_nav_home_summary),
-                    color = MaterialTheme.colorScheme.outline,
-                  )
-                },
-              )
-
-              PreferenceDivider()
 
               SwitchPreference(
                 modifier = Modifier.settingsSearchTarget(R.string.pref_nav_music_title),
@@ -919,7 +903,12 @@ object AppearancePreferencesScreen : Screen {
                 values = NavigationAnimStyle.entries,
                 valueToText = { AnnotatedString(it.displayName) },
                 title = { Text(stringResource(R.string.pref_anim_screen_nav_style_title)) },
-                summary = { Text(appNavStyle.displayName, color = MaterialTheme.colorScheme.outline) },
+                summary = {
+                  Text(
+                    "${appNavStyle.displayName}\n${stringResource(R.string.pref_anim_screen_nav_style_summary)}",
+                    color = MaterialTheme.colorScheme.outline,
+                  )
+                },
               )
 
               PreferenceDivider()

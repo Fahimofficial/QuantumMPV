@@ -62,6 +62,7 @@ import app.gyrolet.mpvrx.ui.player.controls.components.SeekbarStyleLivePreview
 import app.gyrolet.mpvrx.ui.preferences.components.PlayerButtonChip
 import app.gyrolet.mpvrx.ui.preferences.components.SwitchPreference
 import app.gyrolet.mpvrx.ui.utils.LocalBackStack
+import app.gyrolet.mpvrx.ui.utils.navigateTo
 import app.gyrolet.mpvrx.ui.utils.LocalShowSettingsBackArrow
 import app.gyrolet.mpvrx.ui.utils.popSafely
 import kotlinx.serialization.Serializable
@@ -163,7 +164,7 @@ object PlayerControlsPreferencesScreen : Screen {
                 modifier = Modifier.settingsSearchTarget(R.string.pref_layout_top_right_controls),
                 title = stringResource(id = R.string.pref_layout_top_right_controls),
                 onClick = {
-                  backstack.add(ControlLayoutEditorScreen(ControlRegion.TOP_RIGHT))
+                  backstack.navigateTo(ControlLayoutEditorScreen(ControlRegion.TOP_RIGHT))
                 },
               )
               PreferenceIconSummary(buttons = topRightButtons)
@@ -174,7 +175,7 @@ object PlayerControlsPreferencesScreen : Screen {
                 modifier = Modifier.settingsSearchTarget(R.string.pref_layout_bottom_right_controls),
                 title = stringResource(id = R.string.pref_layout_bottom_right_controls),
                 onClick = {
-                  backstack.add(ControlLayoutEditorScreen(ControlRegion.BOTTOM_RIGHT))
+                  backstack.navigateTo(ControlLayoutEditorScreen(ControlRegion.BOTTOM_RIGHT))
                 },
               )
               PreferenceIconSummary(buttons = bottomRightButtons)
@@ -185,7 +186,7 @@ object PlayerControlsPreferencesScreen : Screen {
                 modifier = Modifier.settingsSearchTarget(R.string.pref_layout_bottom_left_controls),
                 title = stringResource(id = R.string.pref_layout_bottom_left_controls),
                 onClick = {
-                  backstack.add(ControlLayoutEditorScreen(ControlRegion.BOTTOM_LEFT))
+                  backstack.navigateTo(ControlLayoutEditorScreen(ControlRegion.BOTTOM_LEFT))
                 },
               )
               PreferenceIconSummary(buttons = bottomLeftButtons)
@@ -203,7 +204,7 @@ object PlayerControlsPreferencesScreen : Screen {
                 modifier = Modifier.settingsSearchTarget(R.string.pref_layout_portrait_bottom_controls),
                 title = stringResource(id = R.string.pref_layout_portrait_bottom_controls),
                 onClick = {
-                  backstack.add(ControlLayoutEditorScreen(ControlRegion.PORTRAIT_BOTTOM))
+                  backstack.navigateTo(ControlLayoutEditorScreen(ControlRegion.PORTRAIT_BOTTOM))
                 },
               )
               PreferenceIconSummary(buttons = portraitBottomButtons)

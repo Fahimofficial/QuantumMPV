@@ -79,11 +79,10 @@ data class VideoOpenAnimationState(
 enum class NavigationAnimStyle(
   val displayName: String,
 ) {
-  Default("Default"),
-  Elastic("Elastic Slide"),
+  Default("Slide"),
   Depth("Depth Zoom"),
-  FlipFade("Flip Fade"),
-  Minimal("Minimal Fade"),
+  FlipFade("Fade through"),
+  Minimal("Crossfade"),
   None("None"),
 }
 

@@ -29,7 +29,7 @@ import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.pager.HorizontalPager
+import app.gyrolet.mpvrx.ui.utils.NavigationPager
 import androidx.compose.foundation.pager.PagerState
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
@@ -84,7 +84,7 @@ fun NavidromeMusicView(
   val queueState by PlaybackSession.queue.collectAsStateWithLifecycle()
   val currentSessionItem = queueState.currentItem
 
-  HorizontalPager(
+  NavigationPager(
     state = pagerState,
     modifier = modifier
       .fillMaxSize()

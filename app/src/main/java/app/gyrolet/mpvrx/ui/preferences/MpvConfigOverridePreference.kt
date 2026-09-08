@@ -21,6 +21,7 @@ import app.gyrolet.mpvrx.preferences.AdvancedPreferences
 import app.gyrolet.mpvrx.preferences.MpvConfigOverride
 import app.gyrolet.mpvrx.preferences.preference.collectAsState
 import app.gyrolet.mpvrx.ui.utils.LocalBackStack
+import app.gyrolet.mpvrx.ui.utils.navigateTo
 import me.zhanghai.compose.preference.Preference
 
 /** Entry row in Advanced settings; the ownership choices live on [MpvConfOwnershipScreen]. */
@@ -52,6 +53,6 @@ internal fun MpvConfigOverridePreference(
         color = MaterialTheme.colorScheme.outline,
       )
     },
-    onClick = { backStack.add(MpvConfOwnershipScreen) },
+    onClick = { backStack.navigateTo(MpvConfOwnershipScreen) },
   )
 }

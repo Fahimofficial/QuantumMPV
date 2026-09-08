@@ -10,7 +10,7 @@
 package app.gyrolet.mpvrx.ui.browser.jellyfin.seerr
 
 import android.widget.Toast
-import androidx.activity.compose.BackHandler
+import app.gyrolet.mpvrx.ui.utils.NavigationBackHandler as BackHandler
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.background
 import androidx.compose.foundation.horizontalScroll

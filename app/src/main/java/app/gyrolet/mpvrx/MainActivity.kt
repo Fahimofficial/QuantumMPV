@@ -9,14 +9,11 @@
 
 package app.gyrolet.mpvrx
 
-import android.Manifest
 import android.content.Intent
-import android.content.pm.PackageManager
 import android.content.pm.ActivityInfo
 import android.content.res.Configuration
 import android.os.Build
 import android.os.Bundle
-import android.provider.Settings
 import android.util.Log
 import android.app.Activity
 import androidx.activity.ComponentActivity
@@ -26,23 +23,10 @@ import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatActivity
 import androidx.lifecycle.Lifecycle
-import androidx.compose.animation.ContentTransform
-import androidx.compose.animation.EnterTransition
-import androidx.compose.animation.ExitTransition
-import androidx.compose.animation.core.Spring
-import androidx.compose.animation.core.spring
-import androidx.compose.animation.fadeIn
-import androidx.compose.animation.fadeOut
-import androidx.compose.animation.scaleIn
-import androidx.compose.animation.scaleOut
-import androidx.compose.animation.slideInHorizontally
-import androidx.compose.animation.slideOutHorizontally
-import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -59,12 +43,9 @@ import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
-import androidx.core.content.ContextCompat
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation3.runtime.NavBackStack
-import androidx.navigation3.runtime.NavEntry
 import androidx.navigation3.runtime.rememberNavBackStack
-import androidx.navigation3.ui.NavDisplay
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.navigationBars
@@ -79,8 +60,6 @@ import app.gyrolet.mpvrx.presentation.Screen
 import app.gyrolet.mpvrx.ui.browser.MainScreen
 import app.gyrolet.mpvrx.ui.browser.NavigationBarState
 import app.gyrolet.mpvrx.ui.browser.components.MiniPlayer
-import app.gyrolet.mpvrx.ui.player.NavigationAnimStyle
-import app.gyrolet.mpvrx.ui.theme.AppMotion
 import app.gyrolet.mpvrx.ui.theme.DarkMode
 import app.gyrolet.mpvrx.ui.theme.MpvrxTheme
 import app.gyrolet.mpvrx.ui.theme.rememberThemeTransitionState
@@ -88,7 +67,6 @@ import android.view.SurfaceHolder
 import android.view.SurfaceView
 import androidx.compose.foundation.background
 import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.getValue
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.viewinterop.AndroidView
 import app.gyrolet.mpvrx.ui.player.MPVPipHelper
@@ -99,6 +77,7 @@ import app.gyrolet.mpvrx.ui.player.MediaPlaybackService
 import app.gyrolet.mpvrx.ui.player.TrackNode
 import app.gyrolet.mpvrx.ui.player.toObject
 import app.gyrolet.mpvrx.ui.utils.LocalBackStack
+import app.gyrolet.mpvrx.ui.utils.ScreenNavDisplay
 import app.gyrolet.mpvrx.ui.utils.popSafely
 import app.gyrolet.mpvrx.utils.device.VulkanCapabilities
 import app.gyrolet.mpvrx.utils.device.DeviceFormFactor
@@ -115,114 +94,6 @@ import org.koin.android.ext.android.inject
 
 private const val RENDERER_NOTICE_PREFERENCES = "renderer_build_notice"
 private const val NON_VULKAN_NOTICE_SHOWN = "non_vulkan_notice_shown"
-
-private fun screenNavTransition(
-  forward: Boolean,
-  style: NavigationAnimStyle,
-  speed: Float = 1f,
-): ContentTransform {
-  val dir = if (forward) 1 else -1
-
-  return when (style) {
-    NavigationAnimStyle.None ->
-      EnterTransition.None togetherWith ExitTransition.None
-
-    NavigationAnimStyle.Minimal ->
-      fadeIn(
-        spring(
-          dampingRatio = AppMotion.Spatial.Standard.dampingRatio,
-          stiffness = AppMotion.Spatial.Standard.stiffness,
-        ),
-      ) togetherWith
-        fadeOut(spring(stiffness = AppMotion.Spatial.Standard.stiffness))
-
-    NavigationAnimStyle.FlipFade ->
-      (
-        scaleIn(
-          spring(
-            dampingRatio = AppMotion.Spatial.Expressive.dampingRatio,
-            stiffness = AppMotion.Spatial.Expressive.stiffness,
-          ),
-          initialScale = 0.94f,
-        ) +
-          fadeIn(
-            spring(
-              dampingRatio = AppMotion.Spatial.Expressive.dampingRatio,
-              stiffness = AppMotion.Spatial.Expressive.stiffness,
-            ),
-          )
-      ) togetherWith
-        (
-          scaleOut(spring(stiffness = AppMotion.Spatial.Standard.stiffness), targetScale = 1.06f) +
-            fadeOut(spring(stiffness = AppMotion.Spatial.Standard.stiffness))
-        )
-
-    NavigationAnimStyle.Depth ->
-      (
-        slideInHorizontally(
-          spring(
-            dampingRatio = AppMotion.Spatial.Standard.dampingRatio,
-            stiffness = AppMotion.Spatial.Standard.stiffness,
-          ),
-        ) {
-          it * dir
-        } +
-          fadeIn(
-            spring(
-              dampingRatio = AppMotion.Spatial.Standard.dampingRatio,
-              stiffness = AppMotion.Spatial.Standard.stiffness,
-            ),
-          )
-      ) togetherWith
-        (
-          slideOutHorizontally(
-            spring(stiffness = AppMotion.Spatial.Standard.stiffness),
-          ) { (-it * 0.25f * dir).toInt() } +
-            scaleOut(spring(stiffness = AppMotion.Spatial.Standard.stiffness), targetScale = 0.92f) +
-            fadeOut(spring(stiffness = AppMotion.Spatial.Standard.stiffness))
-        )
-
-    NavigationAnimStyle.Elastic ->
-      (
-        slideInHorizontally(
-          spring(dampingRatio = Spring.DampingRatioMediumBouncy, stiffness = 380f),
-        ) { it * dir } + fadeIn(spring(stiffness = AppMotion.Spatial.Snappy.stiffness))
-      ) togetherWith
-        (
-          slideOutHorizontally(spring(stiffness = AppMotion.Spatial.Standard.stiffness)) { (-it / 3 * dir) } +
-            fadeOut(spring(stiffness = AppMotion.Spatial.Standard.stiffness))
-        )
-
-    NavigationAnimStyle.Default ->
-      if (forward) {
-        slideInHorizontally(
-          spring(
-            dampingRatio = AppMotion.Spatial.Expressive.dampingRatio,
-            stiffness = AppMotion.Spatial.Expressive.stiffness,
-          ),
-        ) { it } togetherWith
-          slideOutHorizontally(
-            spring(
-              dampingRatio = AppMotion.Spatial.Standard.dampingRatio,
-              stiffness = AppMotion.Spatial.Standard.stiffness,
-            ),
-          ) { -it / 8 }
-      } else {
-        slideInHorizontally(
-          spring(
-            dampingRatio = AppMotion.Spatial.Expressive.dampingRatio,
-            stiffness = AppMotion.Spatial.Expressive.stiffness,
-          ),
-        ) { -it / 5 } togetherWith
-          slideOutHorizontally(
-            spring(
-              dampingRatio = AppMotion.Spatial.Standard.dampingRatio,
-              stiffness = AppMotion.Spatial.Standard.stiffness,
-            ),
-          ) { it }
-      }
-  }
-}
 
 /**
  * Main entry point for the application
@@ -615,9 +486,6 @@ class MainActivity : AppCompatActivity() {
     @Suppress("UNCHECKED_CAST")
     val typedBackstack = backstack as NavBackStack<Screen>
 
-    val appNavStyle by playerPreferences.appNavStyle.collectAsState()
-    val animSpeed by playerPreferences.animationSpeed.collectAsState()
-
     val context = LocalContext.current
     val currentVersion =
       if (BuildConfig.IS_PREVIEW_BUILD) {
@@ -658,29 +526,13 @@ class MainActivity : AppCompatActivity() {
 
       if (hasNavEntries) {
         Box(modifier = Modifier.fillMaxSize()) {
-          NavDisplay(
+          ScreenNavDisplay(
             modifier = Modifier.fillMaxSize(),
             backStack = typedBackstack,
             onBack = {
               if (typedBackstack.size <= 1 || !typedBackstack.popSafely()) {
                 this@MainActivity.finish()
               }
-            },
-            entryProvider = { route ->
-              NavEntry(route) {
-                Surface(
-                  modifier = Modifier.fillMaxSize(),
-                  color = MaterialTheme.colorScheme.background,
-                ) {
-                  route.Content()
-                }
-              }
-            },
-            sizeTransform = null,
-            transitionSpec = { screenNavTransition(forward = true, style = appNavStyle, speed = animSpeed) },
-            popTransitionSpec = { screenNavTransition(forward = false, style = appNavStyle, speed = animSpeed) },
-            predictivePopTransitionSpec = { _: Int ->
-              screenNavTransition(forward = false, style = appNavStyle, speed = animSpeed)
             },
           )
 

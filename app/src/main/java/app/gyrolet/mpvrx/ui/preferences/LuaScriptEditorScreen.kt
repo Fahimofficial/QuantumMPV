@@ -54,6 +54,7 @@ import app.gyrolet.mpvrx.ui.icons.Icon
 import app.gyrolet.mpvrx.ui.icons.Icons
 import app.gyrolet.mpvrx.ui.player.PlaybackSession
 import app.gyrolet.mpvrx.ui.utils.LocalBackStack
+import app.gyrolet.mpvrx.ui.utils.navigateTo
 import app.gyrolet.mpvrx.ui.utils.popSafely
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -445,7 +446,7 @@ data class LuaScriptEditorScreen(
         actions = {
           // Help button
           IconButton(
-            onClick = { backStack.add(MpvHelpScreen()) },
+            onClick = { backStack.navigateTo(MpvHelpScreen()) },
             modifier = Modifier.padding(end = 4.dp).size(40.dp),
             colors =
               IconButtonDefaults.iconButtonColors(

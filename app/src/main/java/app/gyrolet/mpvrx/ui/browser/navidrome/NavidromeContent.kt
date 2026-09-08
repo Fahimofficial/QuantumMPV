@@ -9,7 +9,7 @@
 
 package app.gyrolet.mpvrx.ui.browser.navidrome
 
-import androidx.activity.compose.BackHandler
+import app.gyrolet.mpvrx.ui.utils.NavigationBackHandler as BackHandler
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -51,7 +51,6 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -81,10 +80,11 @@ import app.gyrolet.mpvrx.ui.browser.music.SharedMusicTrackListItem
 import app.gyrolet.mpvrx.ui.icons.Icon
 import app.gyrolet.mpvrx.ui.icons.Icons
 import app.gyrolet.mpvrx.ui.utils.LocalBackStack
+import app.gyrolet.mpvrx.ui.utils.navigateTo
+import app.gyrolet.mpvrx.ui.utils.rememberTabNavigation
 import app.gyrolet.mpvrx.ui.browser.dialogs.MusicSortDialog
 import app.gyrolet.mpvrx.ui.browser.music.MusicSortField
 import app.gyrolet.mpvrx.ui.browser.LocalNavigationBarHeight
-import kotlinx.coroutines.launch
 import org.koin.compose.koinInject
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -97,7 +97,6 @@ fun NavidromeContent(
   val uiState by viewModel.uiState.collectAsStateWithLifecycle()
   val context = LocalContext.current
   val backstack = LocalBackStack.current
-  val scope = rememberCoroutineScope()
 
   val mediaServerPreferences = koinInject<MediaServerPreferences>()
   val currentMusicSource by mediaServerPreferences.musicSourceProvider.collectAsState()
@@ -124,10 +123,13 @@ fun NavidromeContent(
     initialPage = 0,
     pageCount = { musicTabs.size },
   )
+  val navigateMusicTab = rememberTabNavigation(musicPagerState)
 
-  LaunchedEffect(musicPagerState.settledPage) {
-    musicTabs.getOrNull(musicPagerState.settledPage)?.let { tab ->
-      viewModel.setMusicTab(tab)
+  LaunchedEffect(musicPagerState.settledPage, musicPagerState.isScrollInProgress) {
+    if (!musicPagerState.isScrollInProgress) {
+      musicTabs.getOrNull(musicPagerState.settledPage)?.let { tab ->
+        viewModel.setMusicTab(tab)
+      }
     }
   }
 
@@ -227,7 +229,7 @@ fun NavidromeContent(
           } else null,
           onSearchClick = { isSearching = true },
           onSettingsClick = {
-            backstack.add(app.gyrolet.mpvrx.ui.preferences.PreferencesScreen)
+            backstack.navigateTo(app.gyrolet.mpvrx.ui.preferences.PreferencesScreen)
           },
           preSearchActions = {
             if (isMusicOnlyMode) {
@@ -376,7 +378,7 @@ fun NavidromeContent(
                     },
                     onClick = {
                       isSourceDropdownOpen = false
-                      backstack.add(app.gyrolet.mpvrx.ui.preferences.MediaServersPreferencesScreen)
+                      backstack.navigateTo(app.gyrolet.mpvrx.ui.preferences.MediaServersPreferencesScreen)
                     },
                   )
                 }
@@ -385,7 +387,7 @@ fun NavidromeContent(
           },
           postSearchActions = {
             IconButton(
-              onClick = { backstack.add(app.gyrolet.mpvrx.ui.downloads.DownloadsScreen) },
+              onClick = { backstack.navigateTo(app.gyrolet.mpvrx.ui.downloads.DownloadsScreen) },
               modifier = Modifier.padding(horizontal = 2.dp),
             ) {
               Icon(
@@ -411,12 +413,7 @@ fun NavidromeContent(
           musicTabs.forEachIndexed { index, tab ->
             Tab(
               selected = selectedTabIndex == index,
-              onClick = {
-                scope.launch {
-                  viewModel.setMusicTab(tab)
-                  musicPagerState.animateScrollToPage(index)
-                }
-              },
+              onClick = { navigateMusicTab(index) },
               text = {
                 Text(
                   text = tab.title,
@@ -560,13 +557,7 @@ fun NavidromeContent(
           pagerState = musicPagerState,
           visibleTabs = musicTabs,
           onTabSelected = { tab ->
-            scope.launch {
-              viewModel.setMusicTab(tab)
-              val targetIndex = musicTabs.indexOf(tab)
-              if (targetIndex >= 0) {
-                musicPagerState.animateScrollToPage(targetIndex)
-              }
-            }
+            navigateMusicTab(musicTabs.indexOf(tab))
           },
           onSongClick = { song -> viewModel.playSong(context, song) },
           onAlbumClick = { album -> viewModel.openAlbumDetail(album) },

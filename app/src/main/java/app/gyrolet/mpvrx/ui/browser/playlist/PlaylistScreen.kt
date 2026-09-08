@@ -9,7 +9,7 @@
 
 package app.gyrolet.mpvrx.ui.browser.playlist
 
-import androidx.activity.compose.BackHandler
+import app.gyrolet.mpvrx.ui.utils.NavigationBackHandler as BackHandler
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
@@ -36,7 +36,6 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -72,6 +71,7 @@ import app.gyrolet.mpvrx.ui.components.InlineSearchBar
 import app.gyrolet.mpvrx.ui.icons.Icon
 import app.gyrolet.mpvrx.ui.icons.Icons
 import app.gyrolet.mpvrx.ui.utils.LocalBackStack
+import app.gyrolet.mpvrx.ui.utils.navigateTo
 import kotlinx.coroutines.launch
 import kotlinx.serialization.Serializable
 import org.koin.compose.koinInject
@@ -161,12 +161,7 @@ object PlaylistScreen : Screen {
     }
 
     // Synchronize NavigationBarState when selection mode changes
-    SideEffect {
-      app.gyrolet.mpvrx.ui.browser.NavigationBarState.updateSelectionState(
-        inSelectionMode = selectionManager.isInSelectionMode,
-        onlyVideos = true,
-      )
-    }
+    app.gyrolet.mpvrx.ui.browser.NavigationBarSelectionEffect(selectionManager.isInSelectionMode)
 
     // Track scroll for FAB visibility
     val mediaLayoutMode by browserPreferences.mediaLayoutMode.collectAsState()
@@ -236,7 +231,7 @@ object PlaylistScreen : Screen {
             isSingleSelection = selectionManager.isSingleSelection,
             onSearchClick = { isSearching = true },
             onSettingsClick = {
-              backStack.add(app.gyrolet.mpvrx.ui.preferences.PreferencesScreen)
+              backStack.navigateTo(app.gyrolet.mpvrx.ui.preferences.PreferencesScreen)
             },
             onRenameClick =
               if (selectionManager.isSingleSelection && !hasProtectedSelection) {
@@ -314,7 +309,7 @@ object PlaylistScreen : Screen {
             if (selectionManager.isInSelectionMode) {
               selectionManager.toggle(playlistWithCount)
             } else {
-              backStack.add(PlaylistDetailScreen(playlistWithCount.playlist.id))
+              backStack.navigateTo(PlaylistDetailScreen(playlistWithCount.playlist.id))
             }
           },
           onPlaylistLongClick = { playlistWithCount ->

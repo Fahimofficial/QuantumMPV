@@ -11,7 +11,7 @@ package app.gyrolet.mpvrx.ui.browser.networkstreaming
 
 import android.content.Context
 import android.content.SharedPreferences
-import androidx.activity.compose.BackHandler
+import app.gyrolet.mpvrx.ui.utils.NavigationBackHandler as BackHandler
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.animateContentSize
 import androidx.compose.animation.expandVertically
@@ -36,7 +36,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.pager.HorizontalPager
+import app.gyrolet.mpvrx.ui.utils.NavigationPager
 import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardActions
@@ -119,6 +119,8 @@ import app.gyrolet.mpvrx.ui.torrent.TorrentSelectionInput
 import app.gyrolet.mpvrx.ui.torrent.TorrentSelectionScreen
 import app.gyrolet.mpvrx.ui.torrent.TorrentSelectionViewModel
 import app.gyrolet.mpvrx.ui.utils.LocalBackStack
+import app.gyrolet.mpvrx.ui.utils.navigateTo
+import app.gyrolet.mpvrx.ui.utils.rememberTabNavigation
 import app.gyrolet.mpvrx.utils.media.SharedUrlExtractor
 import app.gyrolet.mpvrx.utils.media.MediaUtils
 import kotlinx.coroutines.Dispatchers
@@ -360,7 +362,7 @@ object NetworkStreamingScreen : Screen {
                 onSortClick = null,
                 onSearchClick = null,
                 onSettingsClick = {
-                  backstack.add(app.gyrolet.mpvrx.ui.preferences.PreferencesScreen)
+                  backstack.navigateTo(app.gyrolet.mpvrx.ui.preferences.PreferencesScreen)
                 },
                 onDeleteClick = null,
                 onRenameClick = null,
@@ -373,7 +375,7 @@ object NetworkStreamingScreen : Screen {
                 onDeselectAll = null,
                 additionalActions = {
                   IconButton(
-                    onClick = { backstack.add(app.gyrolet.mpvrx.ui.downloads.DownloadsScreen) },
+                    onClick = { backstack.navigateTo(app.gyrolet.mpvrx.ui.downloads.DownloadsScreen) },
                     modifier = Modifier.padding(horizontal = 2.dp),
                   ) {
                     Icon(
@@ -395,11 +397,12 @@ object NetworkStreamingScreen : Screen {
             contentColor = MaterialTheme.colorScheme.primary,
             divider = {},
           ) {
+            val navigateTab = rememberTabNavigation(pagerState)
             NetworkTab.entries.forEachIndexed { index, tab ->
               Tab(
                 selected = pagerState.currentPage == index,
                 onClick = {
-                  coroutineScope.launch { pagerState.animateScrollToPage(index) }
+                  navigateTab(index)
                 },
                 text = {
                   Text(
@@ -448,7 +451,7 @@ object NetworkStreamingScreen : Screen {
             .fillMaxSize()
             .padding(padding),
       ) {
-        HorizontalPager(
+        NavigationPager(
           state = pagerState,
           modifier =
             Modifier
@@ -510,7 +513,7 @@ object NetworkStreamingScreen : Screen {
                 onDelete = { viewModel.deleteConnection(it) },
                 onBrowse = { conn, status ->
                   if (status?.isConnected == true) {
-                    backstack.add(
+                    backstack.navigateTo(
                       NetworkBrowserScreen(
                         connectionId = conn.id,
                         connectionName = conn.name,
@@ -523,7 +526,7 @@ object NetworkStreamingScreen : Screen {
                   viewModel.updateConnection(conn.copy(autoConnect = autoConnect))
                 },
                 onOpenBookmark = { item ->
-                  backstack.add(
+                  backstack.navigateTo(
                     NetworkBrowserScreen(
                       connectionId = item.connection.id,
                       connectionName = item.connection.name,
@@ -531,7 +534,7 @@ object NetworkStreamingScreen : Screen {
                     ),
                   )
                 },
-                onManageBookmarks = { backstack.add(NetworkBookmarksScreen) },
+                onManageBookmarks = { backstack.navigateTo(NetworkBookmarksScreen) },
               )
             }
             NetworkTab.MEDIA -> {
@@ -607,7 +610,7 @@ object NetworkStreamingScreen : Screen {
         onConfigure = {
           showYtdlpInstallPrompt = false
           pendingYtdlpUrl = null
-          backstack.add(YtdlpSettingsScreen)
+          backstack.navigateTo(YtdlpSettingsScreen)
         },
         onDismiss = {
           showYtdlpInstallPrompt = false

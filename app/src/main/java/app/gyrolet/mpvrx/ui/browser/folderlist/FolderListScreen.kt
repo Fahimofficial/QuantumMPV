@@ -64,7 +64,6 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
@@ -128,6 +127,7 @@ import app.gyrolet.mpvrx.ui.icons.Icon
 import app.gyrolet.mpvrx.ui.icons.Icons
 import app.gyrolet.mpvrx.ui.securefolder.SecureFolderGateScreen
 import app.gyrolet.mpvrx.ui.utils.LocalBackStack
+import app.gyrolet.mpvrx.ui.utils.navigateTo
 import app.gyrolet.mpvrx.ui.utils.calculateResponsiveGridSpans
 import app.gyrolet.mpvrx.utils.history.RecentlyPlayedOps
 import app.gyrolet.mpvrx.utils.media.CopyPasteOps
@@ -495,17 +495,15 @@ object FolderListScreen : Screen {
     }
 
     // Update NavigationBarState synchronously when selection mode changes
-    SideEffect {
-      navBarState.updateSelectionState(
-        inSelectionMode = selectionManager.isInSelectionMode,
-        onlyVideos = true,
-      )
-    }
+    app.gyrolet.mpvrx.ui.browser.NavigationBarSelectionEffect(selectionManager.isInSelectionMode)
 
-    DisposableEffect(isDualPaneActive, selectedFolderBucketId) {
-      navBarState.isDualPaneFolderSelected = isDualPaneActive && selectedFolderBucketId != null
-      onDispose {
-        navBarState.isDualPaneFolderSelected = false
+    val isNavigationPageActive = app.gyrolet.mpvrx.ui.utils.LocalNavigationPageActive.current
+    androidx.lifecycle.compose.LifecycleResumeEffect(isDualPaneActive, selectedFolderBucketId, isNavigationPageActive) {
+      if (isNavigationPageActive) {
+        navBarState.isDualPaneFolderSelected = isDualPaneActive && selectedFolderBucketId != null
+      }
+      onPauseOrDispose {
+        if (isNavigationPageActive) navBarState.isDualPaneFolderSelected = false
       }
     }
 
@@ -527,7 +525,7 @@ object FolderListScreen : Screen {
         (!embedded && internalIsSearching) ||
         isFabExpanded.value ||
         (isDualPaneActive && selectedFolderBucketId != null)
-    androidx.activity.compose.BackHandler(enabled = shouldHandleBack) {
+    app.gyrolet.mpvrx.ui.utils.NavigationBackHandler(enabled = shouldHandleBack) {
       when {
         isFabExpanded.value -> isFabExpanded.value = false
         selectionManager.isInSelectionMode -> selectionManager.clear()
@@ -616,10 +614,10 @@ object FolderListScreen : Screen {
                 if (!internalIsSearching) internalSearchQuery = ""
               },
               onSettingsClick = {
-                backstack.add(app.gyrolet.mpvrx.ui.preferences.PreferencesScreen)
+                backstack.navigateTo(app.gyrolet.mpvrx.ui.preferences.PreferencesScreen)
               },
-              onTitleDoubleTap = { backstack.add(SecureFolderGateScreen) },
-              onTitleLongPress = { backstack.add(SecureFolderGateScreen) },
+              onTitleDoubleTap = { backstack.navigateTo(SecureFolderGateScreen) },
+              onTitleLongPress = { backstack.navigateTo(SecureFolderGateScreen) },
               showBetaBadge = BuildConfig.IS_PREVIEW_BUILD,
               onRenameClick = null,
               isSingleSelection = selectionManager.isSingleSelection,
@@ -690,7 +688,7 @@ object FolderListScreen : Screen {
               onDeselectAll = { selectionManager.clear() },
               onMoveToSecureClick = {
                 if (!secureFolderPreferences.isPinSet()) {
-                  backstack.add(SecureFolderGateScreen)
+                  backstack.navigateTo(SecureFolderGateScreen)
                 } else if (secureFolderPreferences.dontAskBeforeMove.get()) {
                   moveSelectedFoldersToSecureFolder()
                 } else {
@@ -866,7 +864,7 @@ object FolderListScreen : Screen {
                             internalSearchQuery = ""
                           }
                         } else {
-                          backstack.add(
+                          backstack.navigateTo(
                             app.gyrolet.mpvrx.ui.browser.videolist
                               .VideoListScreen(folder.bucketId, folder.name, isAudio = audioOnly),
                           )
@@ -905,7 +903,7 @@ object FolderListScreen : Screen {
                         selectedFolderBucketId = folder.bucketId
                         selectedFolderName = folder.name
                       } else {
-                        backstack.add(
+                        backstack.navigateTo(
                           app.gyrolet.mpvrx.ui.browser.videolist
                             .VideoListScreen(folder.bucketId, folder.name, isAudio = audioOnly),
                         )

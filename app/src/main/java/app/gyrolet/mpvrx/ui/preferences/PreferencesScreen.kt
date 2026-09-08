@@ -39,10 +39,8 @@ import androidx.compose.material3.VerticalDivider
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.key
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.snapshots.Snapshot
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -68,7 +66,9 @@ import app.gyrolet.mpvrx.ui.player.controls.components.tvInitialFocus
 import app.gyrolet.mpvrx.ui.securefolder.SecureFolderGateScreen
 import app.gyrolet.mpvrx.ui.theme.LocalEmphasizedTypography
 import app.gyrolet.mpvrx.ui.utils.LocalBackStack
+import app.gyrolet.mpvrx.ui.utils.navigateTo
 import app.gyrolet.mpvrx.ui.utils.LocalShowSettingsBackArrow
+import app.gyrolet.mpvrx.ui.utils.ScreenNavDisplay
 import app.gyrolet.mpvrx.ui.utils.popSafely
 import kotlinx.serialization.Serializable
 import org.koin.compose.koinInject
@@ -98,15 +98,24 @@ object PreferencesScreen : Screen {
     val configuration = LocalConfiguration.current
     val isTablet = configuration.smallestScreenWidthDp >= 600
 
-    var selectedScreen by remember { mutableStateOf<Screen>(AppearancePreferencesScreen) }
-
     if (isTablet) {
+      @Suppress("UNCHECKED_CAST")
+      val detailBackstack = rememberNavBackStack(AppearancePreferencesScreen) as NavBackStack<Screen>
+      val selectedScreen = detailBackstack.first()
       Row(modifier = Modifier.fillMaxSize()) {
         Box(modifier = Modifier.weight(0.4f).tvFocusGroup()) {
           SettingsPane(
             sections = sections,
             selectedScreen = selectedScreen,
-            onScreenSelected = { selectedScreen = it },
+            onScreenSelected = { screen ->
+              if (screen != selectedScreen) {
+                // Replace the category atomically without ever exposing an empty stack.
+                Snapshot.withMutableSnapshot {
+                  detailBackstack[0] = screen
+                  while (detailBackstack.size > 1) detailBackstack.removeAt(detailBackstack.lastIndex)
+                }
+              }
+            },
           )
         }
         VerticalDivider(
@@ -115,16 +124,10 @@ object PreferencesScreen : Screen {
           thickness = 1.dp,
         )
         Box(modifier = Modifier.weight(0.6f).tvFocusGroup()) {
-          key(selectedScreen) {
-            @Suppress("UNCHECKED_CAST")
-            val detailBackstack = rememberNavBackStack(selectedScreen) as NavBackStack<Screen>
-            CompositionLocalProvider(
-              LocalBackStack provides detailBackstack,
-              LocalShowSettingsBackArrow provides (detailBackstack.size > 1),
-            ) {
-              val activeScreen = detailBackstack.lastOrNull() ?: selectedScreen
-              key(activeScreen) {
-                activeScreen.Content()
+          CompositionLocalProvider(LocalBackStack provides detailBackstack) {
+            ScreenNavDisplay(backStack = detailBackstack, modifier = Modifier.fillMaxSize()) { screen ->
+              CompositionLocalProvider(LocalShowSettingsBackArrow provides (screen != selectedScreen)) {
+                screen.Content()
               }
             }
           }
@@ -134,7 +137,7 @@ object PreferencesScreen : Screen {
       SettingsPane(
         sections = sections,
         selectedScreen = null,
-        onScreenSelected = { backstack.add(it) },
+        onScreenSelected = { backstack.navigateTo(it) },
       )
     }
   }
@@ -183,7 +186,7 @@ object PreferencesScreen : Screen {
       ) {
         item {
           SettingsSearchEntry(
-            onClick = { backstack.add(SettingsSearchScreen) },
+            onClick = { backstack.navigateTo(SettingsSearchScreen) },
             modifier =
               Modifier
                 .padding(start = 16.dp, end = 16.dp, top = 8.dp, bottom = 18.dp)

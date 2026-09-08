@@ -9,7 +9,7 @@
 
 package app.gyrolet.mpvrx.ui.browser.jellyfin
 
-import androidx.activity.compose.BackHandler
+import app.gyrolet.mpvrx.ui.utils.NavigationBackHandler as BackHandler
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.animateFloatAsState
@@ -70,9 +70,7 @@ import androidx.compose.material3.ToggleFloatingActionButton
 import androidx.compose.material3.ToggleFloatingActionButtonDefaults.animateIcon
 import androidx.compose.material3.animateFloatingActionButton
 import androidx.compose.foundation.pager.rememberPagerState
-import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.derivedStateOf
@@ -103,13 +101,11 @@ import app.gyrolet.mpvrx.domain.jellyfin.JellyfinServer
 import app.gyrolet.mpvrx.preferences.AppearancePreferences
 import app.gyrolet.mpvrx.preferences.MediaServerPreferences
 import app.gyrolet.mpvrx.preferences.MusicSourceProvider
-import kotlinx.coroutines.launch
 import app.gyrolet.mpvrx.preferences.BrowserPreferences
 import app.gyrolet.mpvrx.preferences.MediaLayoutMode
 import app.gyrolet.mpvrx.preferences.preference.collectAsState
 import app.gyrolet.mpvrx.presentation.components.pullrefresh.PullRefreshBox
 import app.gyrolet.mpvrx.ui.browser.LocalNavigationBarHeight
-import app.gyrolet.mpvrx.ui.browser.NavigationBarState
 import app.gyrolet.mpvrx.ui.browser.components.BrowserTopBar
 import app.gyrolet.mpvrx.ui.browser.components.ExpressiveScrollBar
 import app.gyrolet.mpvrx.ui.browser.components.fastScrollGlyph
@@ -122,6 +118,8 @@ import app.gyrolet.mpvrx.ui.components.InlineSearchBar
 import app.gyrolet.mpvrx.ui.icons.Icon
 import app.gyrolet.mpvrx.ui.icons.Icons
 import app.gyrolet.mpvrx.ui.utils.LocalBackStack
+import app.gyrolet.mpvrx.ui.utils.navigateTo
+import app.gyrolet.mpvrx.ui.utils.rememberTabNavigation
 import org.koin.compose.koinInject
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -163,7 +161,6 @@ fun JellyfinContent(
   var isFabExpanded by remember { mutableStateOf(false) }
   val isFabVisible = remember { mutableStateOf(true) }
   val searchFocusRequester = remember { FocusRequester() }
-  val scope = rememberCoroutineScope()
 
   val seerrViewModel: app.gyrolet.mpvrx.ui.browser.jellyfin.seerr.SeerrViewModel =
     androidx.lifecycle.viewmodel.compose.viewModel(
@@ -186,19 +183,22 @@ fun JellyfinContent(
     initialPage = musicTabs.indexOf(uiState.musicActiveTab).coerceAtLeast(0),
     pageCount = { musicTabs.size },
   )
+  val navigateMusicTab = rememberTabNavigation(musicPagerState)
 
-  LaunchedEffect(musicPagerState.settledPage, musicTabs) {
-    musicTabs.getOrNull(musicPagerState.settledPage)?.let { tab ->
-      if (uiState.musicActiveTab != tab) {
-        viewModel.setMusicTab(tab)
+  LaunchedEffect(musicPagerState.settledPage, musicPagerState.isScrollInProgress, musicTabs) {
+    if (!musicPagerState.isScrollInProgress) {
+      musicTabs.getOrNull(musicPagerState.settledPage)?.let { tab ->
+        if (uiState.musicActiveTab != tab) {
+          viewModel.setMusicTab(tab)
+        }
       }
     }
   }
 
   LaunchedEffect(uiState.musicActiveTab, musicTabs) {
     val targetIndex = musicTabs.indexOf(uiState.musicActiveTab)
-    if (targetIndex >= 0 && musicPagerState.currentPage != targetIndex) {
-      musicPagerState.animateScrollToPage(targetIndex)
+    if (targetIndex >= 0) {
+      navigateMusicTab(targetIndex)
     }
   }
 
@@ -248,15 +248,7 @@ fun JellyfinContent(
     }
   }
 
-  DisposableEffect(selectionManager.isInSelectionMode) {
-    NavigationBarState.updateSelectionState(
-      inSelectionMode = selectionManager.isInSelectionMode,
-      onlyVideos = true,
-    )
-    onDispose {
-      NavigationBarState.updateSelectionState(inSelectionMode = false)
-    }
-  }
+  app.gyrolet.mpvrx.ui.browser.NavigationBarSelectionEffect(selectionManager.isInSelectionMode)
 
   // Intercept back button if searching, selecting, requests open, details open, or browsing inside a folder
   val isBackEnabled =
@@ -435,7 +427,7 @@ fun JellyfinContent(
             null
           },
           onSettingsClick = {
-            backstack.add(app.gyrolet.mpvrx.ui.preferences.PreferencesScreen)
+            backstack.navigateTo(app.gyrolet.mpvrx.ui.preferences.PreferencesScreen)
           },
           preSearchActions = {
             if (!selectionManager.isInSelectionMode) {
@@ -609,7 +601,7 @@ fun JellyfinContent(
                       },
                       onClick = {
                         isSourceDropdownOpen = false
-                        backstack.add(app.gyrolet.mpvrx.ui.preferences.MediaServersPreferencesScreen)
+                        backstack.navigateTo(app.gyrolet.mpvrx.ui.preferences.MediaServersPreferencesScreen)
                       },
                     )
                   }
@@ -620,7 +612,7 @@ fun JellyfinContent(
           postSearchActions = {
             if (!selectionManager.isInSelectionMode) {
               IconButton(
-                onClick = { backstack.add(app.gyrolet.mpvrx.ui.downloads.DownloadsScreen) },
+                onClick = { backstack.navigateTo(app.gyrolet.mpvrx.ui.downloads.DownloadsScreen) },
                 modifier = Modifier.padding(horizontal = 2.dp),
               ) {
                 Icon(
@@ -656,12 +648,7 @@ fun JellyfinContent(
           musicTabs.forEachIndexed { index, tab ->
             Tab(
               selected = selectedTabIndex == index,
-              onClick = {
-                scope.launch {
-                  viewModel.setMusicTab(tab)
-                  musicPagerState.animateScrollToPage(index)
-                }
-              },
+              onClick = { viewModel.setMusicTab(tab) },
               text = {
                 Text(
                   text = tab.title,
@@ -925,15 +912,7 @@ fun JellyfinContent(
                   server = uiState.activeServer!!,
                   pagerState = musicPagerState,
                   visibleTabs = musicTabs,
-                  onTabSelected = { tab ->
-                    scope.launch {
-                      viewModel.setMusicTab(tab)
-                      val targetIndex = musicTabs.indexOf(tab)
-                      if (targetIndex >= 0) {
-                        musicPagerState.animateScrollToPage(targetIndex)
-                      }
-                    }
-                  },
+                  onTabSelected = viewModel::setMusicTab,
                   onItemClick = { item ->
                     if (selectionManager.isInSelectionMode) {
                       selectionManager.toggle(item)

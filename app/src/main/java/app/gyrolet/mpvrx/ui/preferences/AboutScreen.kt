@@ -85,6 +85,7 @@ import app.gyrolet.mpvrx.presentation.crash.CrashActivity.Companion.collectDevic
 import app.gyrolet.mpvrx.ui.icons.Icon
 import app.gyrolet.mpvrx.ui.icons.Icons
 import app.gyrolet.mpvrx.ui.utils.LocalBackStack
+import app.gyrolet.mpvrx.ui.utils.navigateTo
 import app.gyrolet.mpvrx.ui.utils.LocalShowSettingsBackArrow
 import app.gyrolet.mpvrx.ui.utils.popSafely
 import app.gyrolet.mpvrx.utils.clipboard.SafeClipboard
@@ -274,7 +275,7 @@ object AboutScreen : Screen {
                 val btnContainer = cs.primary
                 val btnContent = cs.onPrimary
                 Button(
-                  onClick = { backstack.add(LibrariesScreen) },
+                  onClick = { backstack.navigateTo(LibrariesScreen) },
                   modifier =
                     Modifier
                       .weight(1f)

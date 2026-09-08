@@ -65,6 +65,7 @@ import app.gyrolet.mpvrx.ui.icons.Icon
 import app.gyrolet.mpvrx.ui.icons.Icons
 import app.gyrolet.mpvrx.ui.theme.LocalEmphasizedTypography
 import app.gyrolet.mpvrx.ui.utils.LocalBackStack
+import app.gyrolet.mpvrx.ui.utils.navigateTo
 import app.gyrolet.mpvrx.ui.utils.popSafely
 import kotlinx.serialization.Serializable
 
@@ -370,7 +371,7 @@ object SettingsSearchScreen : Screen {
                     searchHistoryPref.set(currentHistory.joinToString("|"))
                   }
                   SettingsSearchNavigation.open(result.preference)
-                  backstack.add(result.preference.screen)
+                  backstack.navigateTo(result.preference.screen)
                 },
               )
             }

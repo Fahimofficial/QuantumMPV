@@ -66,7 +66,7 @@ import app.gyrolet.mpvrx.ui.icons.AppIcon
 import app.gyrolet.mpvrx.ui.icons.Icon
 import app.gyrolet.mpvrx.ui.icons.Icons
 
-import androidx.compose.foundation.pager.HorizontalPager
+import app.gyrolet.mpvrx.ui.utils.NavigationPager
 import androidx.compose.foundation.pager.PagerState
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import app.gyrolet.mpvrx.ui.browser.music.MusicSortField
@@ -97,7 +97,7 @@ fun JellyfinMusicView(
   val queueState by PlaybackSession.queue.collectAsStateWithLifecycle()
   val currentSessionItem = queueState.currentItem
 
-  HorizontalPager(
+  NavigationPager(
     state = pagerState,
     modifier = modifier
       .fillMaxSize()
@@ -725,4 +725,3 @@ fun JellyfinMusicCard(
     modifier = modifier,
   )
 }
-

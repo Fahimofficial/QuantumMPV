@@ -11,7 +11,7 @@ package app.gyrolet.mpvrx.ui.browser.recentlyplayed
 
 import android.content.Intent
 import android.widget.Toast
-import androidx.activity.compose.BackHandler
+import app.gyrolet.mpvrx.ui.utils.NavigationBackHandler as BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedVisibility
@@ -36,7 +36,7 @@ import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.GridItemSpan
 import androidx.compose.foundation.lazy.grid.LazyGridState
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
-import androidx.compose.foundation.pager.HorizontalPager
+import app.gyrolet.mpvrx.ui.utils.NavigationPager
 import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -59,7 +59,6 @@ import androidx.compose.material3.animateFloatingActionButton
 import androidx.compose.material3.rememberTooltipState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
@@ -105,6 +104,8 @@ import app.gyrolet.mpvrx.ui.browser.states.EmptyState
 import app.gyrolet.mpvrx.ui.icons.Icon
 import app.gyrolet.mpvrx.ui.icons.Icons
 import app.gyrolet.mpvrx.ui.utils.LocalBackStack
+import app.gyrolet.mpvrx.ui.utils.navigateTo
+import app.gyrolet.mpvrx.ui.utils.rememberTabNavigation
 import app.gyrolet.mpvrx.ui.utils.calculateResponsiveGridSpans
 import app.gyrolet.mpvrx.utils.media.MediaUtils
 import kotlinx.coroutines.launch
@@ -189,12 +190,7 @@ object RecentlyPlayedScreen : Screen {
 
     // Handle back button during selection mode or FAB menu expanded
     // Synchronize NavigationBarState when selection mode changes
-    SideEffect {
-      app.gyrolet.mpvrx.ui.browser.NavigationBarState.updateSelectionState(
-        inSelectionMode = selectionManager.isInSelectionMode,
-        onlyVideos = true,
-      )
-    }
+    app.gyrolet.mpvrx.ui.browser.NavigationBarSelectionEffect(selectionManager.isInSelectionMode)
 
     BackHandler(enabled = selectionManager.isInSelectionMode || isFabExpanded.value) {
       when {
@@ -239,19 +235,19 @@ object RecentlyPlayedScreen : Screen {
 
     // Swipe between the Video/Audio tabs, kept in sync with the segmented buttons.
     val pagerState = rememberPagerState(initialPage = recentlyPlayedFilter.ordinal) { MediaLibraryType.entries.size }
-    LaunchedEffect(pagerState.currentPage) {
-      MediaLibraryType.entries.getOrNull(pagerState.currentPage)?.let { type ->
-        if (recentlyPlayedFilter != type) {
-          selectionManager.clear()
-          recentlyPlayedFilter = type
+    val navigateTab = rememberTabNavigation(pagerState)
+    LaunchedEffect(pagerState.settledPage, pagerState.isScrollInProgress) {
+      if (!pagerState.isScrollInProgress) {
+        MediaLibraryType.entries.getOrNull(pagerState.settledPage)?.let { type ->
+          if (recentlyPlayedFilter != type) {
+            selectionManager.clear()
+            recentlyPlayedFilter = type
+          }
         }
       }
     }
     LaunchedEffect(recentlyPlayedFilter) {
-      val targetPage = recentlyPlayedFilter.ordinal
-      if (pagerState.currentPage != targetPage) {
-        pagerState.animateScrollToPage(targetPage)
-      }
+      navigateTab(recentlyPlayedFilter.ordinal)
     }
 
     Scaffold(
@@ -265,7 +261,7 @@ object RecentlyPlayedScreen : Screen {
           onCancelSelection = { selectionManager.clear() },
           onSortClick = null, // No sorting in recently played
           onSettingsClick = {
-            backStack.add(app.gyrolet.mpvrx.ui.preferences.PreferencesScreen)
+            backStack.navigateTo(app.gyrolet.mpvrx.ui.preferences.PreferencesScreen)
           },
           isSingleSelection = selectionManager.isSingleSelection,
           onInfoClick = null, // No info in recently played
@@ -488,7 +484,7 @@ object RecentlyPlayedScreen : Screen {
         }
 
         else -> {
-          HorizontalPager(
+          NavigationPager(
             state = pagerState,
             modifier = Modifier.fillMaxSize(),
           ) { page ->
@@ -536,7 +532,7 @@ object RecentlyPlayedScreen : Screen {
                 },
                 onPlaylistClick = { playlistItem ->
                   // Navigate to playlist detail screen
-                  backStack.add(PlaylistDetailScreen(playlistItem.playlist.id))
+                  backStack.navigateTo(PlaylistDetailScreen(playlistItem.playlist.id))
                 },
                 modifier = Modifier,
                 isInSelectionMode = selectionManager.isInSelectionMode,

@@ -16,6 +16,8 @@ import app.gyrolet.mpvrx.ui.player.PlaybackSession
 import app.gyrolet.mpvrx.ui.player.PreparedPlaybackLaunchStore
 import app.gyrolet.mpvrx.ui.player.PlayerActivity
 import app.gyrolet.mpvrx.utils.history.RecentlyPlayedOps
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -23,9 +25,13 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
+import kotlinx.coroutines.withContext
 import org.koin.core.component.KoinComponent
 import org.koin.core.component.inject
 
@@ -53,6 +59,7 @@ class MusicLibraryViewModel : ViewModel(), KoinComponent {
   // Keep the unfiltered MediaStore result so changing the minimum-duration preference can update
   // Songs, Albums and Artists immediately without rescanning storage on every slider movement.
   private val _allSongs = MutableStateFlow<List<MusicSong>>(emptyList())
+  private val filterMutex = Mutex()
 
   private val _songs = MutableStateFlow<List<MusicSong>>(emptyList())
   val songs: StateFlow<List<MusicSong>> = _songs.asStateFlow()
@@ -109,7 +116,7 @@ class MusicLibraryViewModel : ViewModel(), KoinComponent {
         Pair(minimumSeconds, blacklist)
       }
         .distinctUntilChanged()
-        .collect { (minimumSeconds, blacklist) -> applyFilters(minimumSeconds, blacklist) }
+        .collect { applyFilters() }
     }
     viewModelScope.launch {
       MediaLibraryEvents.changes.collectLatest {
@@ -142,7 +149,8 @@ class MusicLibraryViewModel : ViewModel(), KoinComponent {
       MusicSortField.TRACK_COUNT, MusicSortField.YEAR -> result.sortedBy { it.year }
     }
     if (order == MusicSortOrder.DESCENDING) sorted.reversed() else sorted
-  }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+  }.flowOn(Dispatchers.Default)
+    .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
   val filteredAlbums: StateFlow<List<MusicAlbum>> = combine(
     _albums, _searchQuery, sortField, sortOrder
@@ -162,7 +170,8 @@ class MusicLibraryViewModel : ViewModel(), KoinComponent {
       else -> result.sortedBy { it.title.lowercase() }
     }
     if (order == MusicSortOrder.DESCENDING) sorted.reversed() else sorted
-  }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+  }.flowOn(Dispatchers.Default)
+    .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
   val filteredArtists: StateFlow<List<MusicArtist>> = combine(
     _artists, _searchQuery, sortField, sortOrder
@@ -177,16 +186,16 @@ class MusicLibraryViewModel : ViewModel(), KoinComponent {
       else -> result.sortedBy { it.name.lowercase() }
     }
     if (order == MusicSortOrder.DESCENDING) sorted.reversed() else sorted
-  }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+  }.flowOn(Dispatchers.Default)
+    .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
   suspend fun refreshLibrary(context: Context) {
     _isLoading.value = true
     try {
       _allSongs.value = MusicLibraryScanner.scanSongs(context)
-      applyFilters(
-        browserPreferences.minimumAudioDurationSeconds.get(),
-        foldersPreferences.blacklistedAudioFolders.get()
-      )
+      applyFilters()
+    } catch (e: CancellationException) {
+      throw e
     } catch (e: Exception) {
       e.printStackTrace()
     } finally {
@@ -199,20 +208,28 @@ class MusicLibraryViewModel : ViewModel(), KoinComponent {
    * selects 30 seconds, every 30s, 3min, 30min, or multi-hour audio file remains in the library.
    * Also filters out songs whose path starts with any blacklisted audio folder path.
    */
-  private fun applyFilters(minimumSeconds: Int, blacklist: Set<String>) {
-    val minimumMs = minimumSeconds.coerceAtLeast(0).toLong() * 1000L
-    val visibleSongs = _allSongs.value.filter { song ->
-      val meetsDuration = (minimumMs == 0L || song.durationMs >= minimumMs)
-      val isNotBlacklisted = blacklist.none { folderPath ->
-        song.path.equals(folderPath, ignoreCase = true) ||
-          song.path.startsWith(if (folderPath.endsWith("/")) folderPath else "$folderPath/", ignoreCase = true)
+  private suspend fun applyFilters() = filterMutex.withLock {
+    // A scan and a preference change can arrive together. Serialize publication and take the
+    // latest inputs inside the lock so an older background calculation cannot win the race.
+    val allSongs = _allSongs.value
+    val minimumSeconds = browserPreferences.minimumAudioDurationSeconds.get()
+    val blacklist = foldersPreferences.blacklistedAudioFolders.get()
+    val (visibleSongs, albums, artists) = withContext(Dispatchers.Default) {
+      val minimumMs = minimumSeconds.coerceAtLeast(0).toLong() * 1000L
+      val visible = allSongs.filter { song ->
+        val meetsDuration = (minimumMs == 0L || song.durationMs >= minimumMs)
+        val isNotBlacklisted = blacklist.none { folderPath ->
+          song.path.equals(folderPath, ignoreCase = true) ||
+            song.path.startsWith(if (folderPath.endsWith("/")) folderPath else "$folderPath/", ignoreCase = true)
+        }
+        meetsDuration && isNotBlacklisted
       }
-      meetsDuration && isNotBlacklisted
+      Triple(visible, buildAlbums(visible), buildArtists(visible))
     }
 
     _songs.value = visibleSongs
-    _albums.value = buildAlbums(visibleSongs)
-    _artists.value = buildArtists(visibleSongs)
+    _albums.value = albums
+    _artists.value = artists
 
     // Never leave the detail screen pointing at an album/artist that was completely filtered out.
     _selectedAlbum.value = _selectedAlbum.value?.takeIf { selected -> _albums.value.any { it.id == selected.id } }

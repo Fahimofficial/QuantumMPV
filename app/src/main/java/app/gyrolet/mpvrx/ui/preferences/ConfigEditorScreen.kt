@@ -45,6 +45,7 @@ import app.gyrolet.mpvrx.ui.editor.MpvScriptEditor
 import app.gyrolet.mpvrx.ui.icons.Icon
 import app.gyrolet.mpvrx.ui.icons.Icons
 import app.gyrolet.mpvrx.ui.utils.LocalBackStack
+import app.gyrolet.mpvrx.ui.utils.navigateTo
 import app.gyrolet.mpvrx.ui.utils.popSafely
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -213,7 +214,7 @@ data class ConfigEditorScreen(
         actions = {
           IconButton(
             onClick = {
-              backStack.add(MpvHelpScreen())
+              backStack.navigateTo(MpvHelpScreen())
             },
             modifier = Modifier.padding(end = 4.dp).size(40.dp),
             colors =
