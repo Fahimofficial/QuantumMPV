@@ -9,14 +9,28 @@ Scripts talk to mpvRx by writing string values to properties under:
 user-data/mpvrx/*
 ```
 
-mpvRx observes those properties, performs the native player action, and clears
-the command property after handling it. The only exception is the curl bridge:
-`curl_request` and `curl_response` are kept long enough for async HTTP handling.
+mpvRx observes those properties and performs the corresponding player action.
+Writable command properties are cleared after dispatch, except `curl_request`,
+which remains available while its asynchronous request is handled.
+`curl_response` is a read-only output property and is not cleared automatically.
 
 The examples below use public no-auth API endpoints from:
 
 - JSONPlaceholder: https://jsonplaceholder.typicode.com/
 - httpbin: https://httpbin.org/
+
+## Contents
+
+- [Quick Start](#quick-start)
+- [Command Contract](#command-contract)
+- [Command Index](#command-index)
+- [Full Working Lua Example](#full-working-lua-example)
+- [Full Working JavaScript Example](#full-working-javascript-example)
+- [Command Reference](#command-reference)
+- [Curl Bridge](#curl-bridge)
+- [Custom Buttons](#custom-buttons)
+- [Android Telemetry Properties](#android-telemetry-properties)
+- [Troubleshooting](#troubleshooting)
 
 ## Quick Start
 
@@ -29,18 +43,24 @@ The examples below use public no-auth API endpoints from:
 
 mpvRx also syncs `script-opts/` from the selected mpv config folder.
 
-## Important Rules
+## Command Contract
 
-- Every mpvRx command property is handled as a string.
-- Seek values must be integer seconds. Do not send decimals.
-- `seek_to_with_text` and `seek_by_with_text` use the format `seconds|message`.
-- `curl_request` is async. Always observe `curl_response`.
-- Always give curl requests a unique `id` and ignore responses with a different
-  `id`.
+- Every writable command value must be a non-empty string.
+- Command names and enumerated values are case-sensitive and use lowercase.
+- Seek values must be base-10 integer seconds. Decimals and missing values are
+    invalid.
+- `seek_to_with_text` and `seek_by_with_text` require `seconds|message`. The
+    message may contain additional `|` characters.
+- `curl_request` is asynchronous and `curl_response` is shared by all scripts.
+    Give every request a unique `id` and ignore responses with a different `id`.
+- Unknown enum values do nothing. Reserved observer properties are cleared but
+    have no public behavior.
 - JavaScript runs through mpv's JavaScript runtime. Use ES5-compatible syntax:
   `var` and `function` are safest.
 
-## Supported Commands
+## Command Index
+
+### Writable Commands
 
 | Property | Value | What it does |
 | --- | --- | --- |
@@ -52,10 +72,15 @@ mpvRx also syncs `script-opts/` from the selected mpv config folder.
 | `user-data/mpvrx/seek_to_with_text` | `seconds|message` | Absolute seek with overlay text. |
 | `user-data/mpvrx/seek_by_with_text` | `seconds|message` | Relative seek with overlay text. |
 | `user-data/mpvrx/software_keyboard` | `show`, `hide`, `toggle` | Controls the Android software keyboard. |
-| `user-data/mpvrx/curl_request` | JSON string | Runs an async HTTP request through native curl. |
-| `user-data/mpvrx/curl_response` | JSON string | Response written by mpvRx. Scripts should observe it. |
+| `user-data/mpvrx/curl_request` | JSON object encoded as a string | Runs an async HTTP request through the mpvRx HTTP bridge. |
 
-Supported panel ids:
+### Read-only Output
+
+| Property | Value | What it does |
+| --- | --- | --- |
+| `user-data/mpvrx/curl_response` | JSON string | Receives the latest completed curl response. Observe it; do not write to it. |
+
+### Supported Panel IDs
 
 | Panel id | Result |
 | --- | --- |
@@ -67,11 +92,13 @@ Supported panel ids:
 | `lua_scripts` | Opens the scripts panel. |
 | `hdr_screen_output` | Opens HDR screen output controls. |
 
-Observed but not public commands:
+### Reserved Observer Properties
 
 `set_button_title`, `reset_button_title`, and `toggle_button` are currently
-observed by the mpv property observer, but the player command dispatcher does
-not implement public behavior for them. Treat them as reserved.
+observed, but the command dispatcher does not implement behavior for them. Do
+not use them as commands. Properties named `custombuttons_*_loaded` and
+`custombuttons_*_version` are internal coordination state for generated custom
+button scripts, not public commands.
 
 ## Full Working Lua Example
 
@@ -85,7 +112,8 @@ key bindings for common mpvRx commands.
 
 local utils = require("mp.utils")
 
-local REQUEST_ID = "mpvrx-demo-lua-post"
+local request_sequence = 0
+local pending_request_id = nil
 
 local function mpvrx(command, value)
     mp.set_property("user-data/mpvrx/" .. command, tostring(value))
@@ -95,11 +123,17 @@ local function show(message)
     mpvrx("show_text", message)
 end
 
+local function next_request_id()
+    request_sequence = request_sequence + 1
+    return "mpvrx-demo-lua-post-" .. tostring(os.time()) .. "-" .. tostring(request_sequence)
+end
+
 local function fetch_post()
+    pending_request_id = next_request_id()
     show("Fetching JSONPlaceholder post...")
 
     mpvrx("curl_request", utils.format_json({
-        id = REQUEST_ID,
+        id = pending_request_id,
         url = "https://jsonplaceholder.typicode.com/posts/1",
         method = "GET",
         headers = {
@@ -113,7 +147,8 @@ mp.observe_property("user-data/mpvrx/curl_response", "string", function(_, value
     if value == nil or value == "" then return end
 
     local res = utils.parse_json(value)
-    if res == nil or res.id ~= REQUEST_ID then return end
+    if res == nil or res.id ~= pending_request_id then return end
+    pending_request_id = nil
 
     if res.error ~= nil then
         show("Curl failed: " .. tostring(res.error))
@@ -162,7 +197,8 @@ public test API.
 ```javascript
 // mpvrx_demo.js
 
-var REQUEST_ID = "mpvrx-demo-js-create-post";
+var requestSequence = 0;
+var pendingRequestId = null;
 
 function mpvrx(command, value) {
     mp.set_property("user-data/mpvrx/" + command, String(value));
@@ -172,6 +208,11 @@ function show(message) {
     mpvrx("show_text", message);
 }
 
+function nextRequestId() {
+    requestSequence += 1;
+    return "mpvrx-demo-js-create-post-" + String(new Date().getTime()) + "-" + String(requestSequence);
+}
+
 function createPost() {
     var payload = {
         title: "mpvRx JavaScript curl test",
@@ -179,10 +220,11 @@ function createPost() {
         userId: 1
     };
 
+    pendingRequestId = nextRequestId();
     show("Posting to JSONPlaceholder...");
 
     mpvrx("curl_request", JSON.stringify({
-        id: REQUEST_ID,
+        id: pendingRequestId,
         url: "https://jsonplaceholder.typicode.com/posts",
         method: "POST",
         headers: {
@@ -205,7 +247,8 @@ mp.observe_property("user-data/mpvrx/curl_response", "string", function(name, va
         return;
     }
 
-    if (!res || res.id !== REQUEST_ID) return;
+    if (!res || res.id !== pendingRequestId) return;
+    pendingRequestId = null;
 
     if (res.error) {
         show("Curl failed: " + res.error);
@@ -268,6 +311,8 @@ Accepted values:
 - `hide`
 - `toggle`
 
+Other values have no effect.
+
 Lua:
 
 ```lua
@@ -283,6 +328,9 @@ mp.set_property("user-data/mpvrx/toggle_ui", "toggle");
 ### `show_panel`
 
 Opens a native mpvRx sheet or panel.
+
+Use one of the IDs in [Supported Panel IDs](#supported-panel-ids). An unknown
+ID resolves to no panel and may close the currently displayed panel.
 
 Lua:
 
@@ -300,19 +348,34 @@ mp.set_property("user-data/mpvrx/show_panel", "hdr_screen_output");
 
 ### `seek_to`
 
-Seeks to an absolute timestamp in integer seconds.
+Seeks to an absolute timestamp in integer seconds. The value must parse as an
+integer; do not append units or use a decimal.
 
 ```lua
 mp.set_property("user-data/mpvrx/seek_to", "600")
 ```
 
+JavaScript:
+
+```javascript
+mp.set_property("user-data/mpvrx/seek_to", "600");
+```
+
 ### `seek_by`
 
-Seeks relative to the current timestamp in integer seconds.
+Seeks relative to the current timestamp in integer seconds. Positive values
+seek forward and negative values seek backward.
 
 ```lua
 mp.set_property("user-data/mpvrx/seek_by", "30")
 mp.set_property("user-data/mpvrx/seek_by", "-10")
+```
+
+JavaScript:
+
+```javascript
+mp.set_property("user-data/mpvrx/seek_by", "30");
+mp.set_property("user-data/mpvrx/seek_by", "-10");
 ```
 
 ### `seek_to_with_text`
@@ -324,6 +387,9 @@ Value format:
 ```text
 seconds|message
 ```
+
+The first `|` separates the integer timestamp from the message. Additional
+`|` characters remain part of the message.
 
 Lua:
 
@@ -364,6 +430,8 @@ Accepted values:
 - `hide`
 - `toggle`
 
+Other values have no effect.
+
 Lua:
 
 ```lua
@@ -378,8 +446,8 @@ mp.set_property("user-data/mpvrx/software_keyboard", "hide");
 
 ## Curl Bridge
 
-The curl bridge lets Lua and JavaScript scripts make HTTP requests through the
-native libcurl bridge. Scripts write a JSON request to:
+The curl bridge lets Lua and JavaScript scripts make HTTP requests through
+mpvRx's Android HTTP client. Scripts write a JSON request to:
 
 ```text
 user-data/mpvrx/curl_request
@@ -399,10 +467,10 @@ Requests are async. Playback continues while the request runs.
 | --- | --- | --- | --- | --- |
 | `id` | string | No | UUID generated by mpvRx | Use your own id so scripts can match responses. |
 | `url` | string | Yes | none | Must not be blank. Use `http://` or `https://`. |
-| `method` | string | No | `GET` | Supported: `GET`, `HEAD`, `POST`, `PUT`, `PATCH`, `DELETE`. |
+| `method` | string | No | `GET` | Case-insensitive. Supported: `GET`, `HEAD`, `POST`, `PUT`, `PATCH`, `DELETE`. |
 | `headers` | object | No | `{}` | String key/value request headers. Maximum 64 headers. |
-| `body` | string | No | null | Sent for `POST`, `PUT`, and `PATCH`. |
-| `content_type` | string | No | `text/plain; charset=utf-8` | Sent as `Content-Type` when not blank. |
+| `body` | string | No | null | Used only for `POST`, `PUT`, and `PATCH`. Other methods send no body. |
+| `content_type` | string | No | `text/plain; charset=utf-8` | Body media type for `POST`, `PUT`, and `PATCH`; blank omits it. |
 | `timeout` | integer | No | `30` | Clamped to 1 through 120 seconds. |
 
 Lua request:
@@ -441,9 +509,9 @@ mp.set_property("user-data/mpvrx/curl_request", JSON.stringify({
 | --- | --- | --- |
 | `id` | string | Echoes the request id, or generated id if omitted. |
 | `status` | integer | HTTP status code. `0` means bridge/network/native error. |
-| `body` | string | UTF-8 response body. Capped at 2 MB. |
-| `headers` | object | Response headers as string key/value pairs. |
-| `error` | string or null | Missing/null on success. String message on failure. |
+| `body` | string | UTF-8 response body. Capped at 8 MiB. |
+| `headers` | object | Response headers as string key/value pairs. Repeated values are comma-separated. |
+| `error` | string or null | Omitted on success. String message on failure. |
 
 Lua observer:
 
@@ -491,14 +559,22 @@ mp.observe_property("user-data/mpvrx/curl_response", "string", function(name, va
 
 ### Curl Limits and Behavior
 
-- Body capture is capped at 2 MB.
-- Header capture is capped at 256 KB.
+- At most four requests execute concurrently and at most 32 may be pending.
+- Response body capture is capped at 8 MiB. There is no separate truncation
+    flag; `body` contains at most the first 8 MiB.
 - Request headers are capped at 64 entries.
-- Redirects are followed for HTTP and HTTPS.
 - Only HTTP and HTTPS URLs are allowed.
-- Timeout applies to connect and total request time.
-- `DELETE` requests do not send a body in the native bridge.
-- `curl_response` is not cleared automatically. Always check `id`.
+- Timeout is clamped to 1 through 120 seconds and applies to connection, read,
+  and total call time.
+- Only `POST`, `PUT`, and `PATCH` send request bodies. `GET`, `HEAD`, and
+  `DELETE` do not.
+- Invalid request JSON produces `id: "unknown"`, `status: 0`, an empty body and
+  headers, and a descriptive `error`.
+- Network errors and rejected requests use `status: 0` with a descriptive
+  `error`.
+- Unknown JSON fields are ignored.
+- `curl_request` and `curl_response` are not cleared automatically. Since
+    `curl_response` is shared, observers must filter by their current request ID.
 
 ## Custom Buttons
 
@@ -559,12 +635,13 @@ files. They exist only inside generated custom button scripts.
 
 ## Android Telemetry Properties
 
-mpvRx writes Android device state into mpv `user-data/android/*` properties.
-Scripts can read or observe these values.
+mpvRx writes Android device state into mpv `user-data/android/*` properties at
+playback startup and refreshes them every 30 seconds. Scripts can read or
+observe these values.
 
 | Property | Type | Meaning |
 | --- | --- | --- |
-| `user-data/android/battery-level` | integer | Battery level from 0 to 100. |
+| `user-data/android/battery-level` | integer | Battery level from 0 to 100, or `-1` when unavailable. |
 | `user-data/android/battery-charging` | boolean | `true` when charging. |
 | `user-data/android/battery-plugged` | boolean | `true` when plugged into power. |
 
