@@ -11,6 +11,7 @@ package com.quantummpv.app.domain.download
 
 import android.net.Uri
 import com.quantummpv.app.ui.player.ytdlp.YtdlpManager
+import com.quantummpv.app.utils.media.HttpUtils
 
 /**
  * Routes a link download to the right engine: plain HTTP(S) files go through the
@@ -60,13 +61,24 @@ class LinkDownloadCoordinator(
             ),
         )
       }
-      Route.YTDLP -> ytdlpEngine.enqueue(url = url, title = displayTitle, directory = directory)
+      Route.YTDLP -> {
+        val isYouTube = runCatching { HttpUtils.isYouTubeUrl(Uri.parse(url)) }.getOrDefault(false)
+        ytdlpEngine.enqueue(
+          url = url,
+          title = displayTitle,
+          directory = directory,
+          formatSelector = YOUTUBE_DOWNLOAD_FORMAT.takeIf { isYouTube },
+          mergeSeparateStreams = isYouTube,
+        )
+      }
       Route.UNSUPPORTED -> {}
     }
     return route
   }
 
   companion object {
+    private const val YOUTUBE_DOWNLOAD_FORMAT =
+      "bestvideo[vcodec^=avc1]/bestvideo,bestaudio[ext=m4a]/bestaudio"
     private val MEDIA_EXTENSION_REGEX = Regex("""\.[a-z0-9]{2,5}$""", RegexOption.IGNORE_CASE)
 
     fun fileNameFromUrl(url: String): String {

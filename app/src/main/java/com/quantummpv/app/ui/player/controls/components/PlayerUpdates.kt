@@ -33,6 +33,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -60,6 +61,7 @@ import com.quantummpv.app.ui.player.PlayerActivity
 import com.quantummpv.app.ui.player.PlayerViewModel
 
 private val tabularFigures = "tnum"
+private val compactSpeedIndicatorWidth = 44.dp
 
 @Composable
 private fun rememberPlayerUpdateOffset(): androidx.compose.ui.unit.Dp {
@@ -162,6 +164,8 @@ fun CompactSpeedIndicator(
   PlayerUpdate(modifier) {
     AnimatedContent(
       targetState = speedString,
+      modifier = Modifier.width(compactSpeedIndicatorWidth),
+      contentAlignment = Alignment.Center,
       transitionSpec = {
         (fadeIn(animationSpec = tween(100)) +
           scaleIn(

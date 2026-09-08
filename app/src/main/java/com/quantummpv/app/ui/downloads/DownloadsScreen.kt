@@ -199,8 +199,7 @@ object DownloadsScreen : Screen {
                 }
               },
               onDelete = {
-                job.outputFile?.let { path -> runCatching { File(path).delete() } }
-                ytdlpEngine.remove(job.id)
+                ytdlpEngine.remove(job.id, deleteFiles = true)
               },
             )
           }

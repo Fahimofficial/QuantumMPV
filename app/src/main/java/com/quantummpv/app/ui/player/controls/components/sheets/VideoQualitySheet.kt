@@ -13,6 +13,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Text
@@ -32,6 +33,7 @@ import com.quantummpv.app.ui.player.TrackNode
 fun VideoQualitySheet(
   tracks: List<TrackNode>,
   onSelect: (TrackNode) -> Unit,
+  onDownload: ((TrackNode) -> Unit)? = null,
   onDismissRequest: () -> Unit,
 ) {
   PlayerSheet(onDismissRequest) {
@@ -67,31 +69,45 @@ fun VideoQualitySheet(
             modifier =
               Modifier
                 .fillMaxWidth()
-                .clickable {
-                  onSelect(track)
-                  onDismissRequest()
-                }.padding(horizontal = 16.dp, vertical = 10.dp),
+                .padding(horizontal = 16.dp, vertical = 4.dp),
             verticalAlignment = Alignment.CenterVertically,
           ) {
-            RadioButton(
-              selected = track.isSelected,
-              onClick = {
-                onSelect(track)
-                onDismissRequest()
-              },
-            )
-            Spacer(Modifier.width(12.dp))
-            Column(modifier = Modifier.weight(1f)) {
-              Text(
-                text = qualityLabel(track),
-                style = MaterialTheme.typography.bodyLarge,
-                fontWeight = if (track.isSelected) FontWeight.Bold else FontWeight.Medium,
+            Row(
+              modifier =
+                Modifier
+                  .weight(1f)
+                  .clickable {
+                    onSelect(track)
+                    onDismissRequest()
+                  }.padding(vertical = 6.dp),
+              verticalAlignment = Alignment.CenterVertically,
+            ) {
+              RadioButton(
+                selected = track.isSelected,
+                onClick = null,
               )
-              qualityDetails(track)?.let { details ->
+              Spacer(Modifier.width(12.dp))
+              Column(modifier = Modifier.weight(1f)) {
                 Text(
-                  text = details,
-                  style = MaterialTheme.typography.bodySmall,
-                  color = MaterialTheme.colorScheme.onSurfaceVariant,
+                  text = qualityLabel(track),
+                  style = MaterialTheme.typography.bodyLarge,
+                  fontWeight = if (track.isSelected) FontWeight.Bold else FontWeight.Medium,
+                )
+                qualityDetails(track)?.let { details ->
+                  Text(
+                    text = details,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                  )
+                }
+              }
+            }
+            if (onDownload != null) {
+              IconButton(onClick = { onDownload(track) }) {
+                Icon(
+                  imageVector = Icons.RoundedFilled.Download,
+                  contentDescription = stringResource(R.string.downloads_download),
+                  tint = MaterialTheme.colorScheme.primary,
                 )
               }
             }

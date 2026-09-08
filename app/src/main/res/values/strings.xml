@@ -1178,7 +1178,7 @@
   <string name="pref_section_system">System</string>
   <string name="pref_section_contributors">Contributors</string>
   <string name="contributors_loading">Loading contributors...</string>
-  <string name="contributors_load_error">Couldn&apos;t load contributors</string>
+  <string name="contributors_load_error">Couldn\'t load contributors</string>
   <string name="contributors_empty">No contributors found.</string>
   <string name="contributors_retry">Retry</string>
   <string name="contributors_view_all">View all contributors</string>

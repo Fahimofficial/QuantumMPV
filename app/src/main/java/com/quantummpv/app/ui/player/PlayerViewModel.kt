@@ -85,6 +85,7 @@ import com.quantummpv.app.ui.preferences.CustomButton
 import com.quantummpv.app.ui.preferences.CustomButtonScriptLanguage
 import com.quantummpv.app.utils.media.AudioEqualizerManager
 import com.quantummpv.app.utils.media.ChecksumUtils
+import com.quantummpv.app.utils.media.HttpUtils
 import com.quantummpv.app.utils.media.MediaInfoParser
 import com.quantummpv.app.utils.media.ParsedMediaInfo
 import com.quantummpv.app.utils.media.SubtitleHashUtils
@@ -131,6 +132,7 @@ import java.io.File
 import java.io.FileOutputStream
 import java.security.MessageDigest
 import java.lang.ref.WeakReference
+import java.util.Locale
 import java.util.concurrent.atomic.AtomicLong
 import kotlin.math.abs
 import kotlin.math.roundToInt
@@ -688,6 +690,42 @@ class PlayerViewModel : ViewModel(),
       isYtdlpPage || qualityTracks.size > 1
     }.stateIn(viewModelScope, SharingStarted.Eagerly, false)
 
+  data class QualityDownloadRequest(
+    val sourceUrl: String,
+    val title: String,
+    val formatSelector: String,
+    val mergeSeparateStreams: Boolean,
+  )
+
+  fun canDownloadCurrentVideoQuality(): Boolean = currentYouTubeSource() != null
+
+  fun qualityDownloadRequest(track: TrackNode): QualityDownloadRequest? {
+    val sourceUrl = currentYouTubeSource() ?: return null
+    val selectedAudio =
+      pairedYtdlTrack(track, TrackNode::isAudio)
+        ?: allTracks.value.firstOrNull { candidate -> candidate.isAudio && candidate.isSelected }
+    val downloadSelection = buildYtdlDownloadSelection(videoTrack = track, audioTrack = selectedAudio) ?: return null
+    val itemTitle = PlaybackSession.state.value.currentItem?.title?.trim()?.takeIf(String::isNotBlank)
+    val fallbackTitle =
+      runCatching { HttpUtils.extractYouTubeVideoId(Uri.parse(sourceUrl)) }
+        .getOrNull()
+        ?.takeIf(String::isNotBlank)
+        ?: "YouTube"
+    val qualityLabel =
+      buildList {
+        videoQualityDimension(track).takeIf { it > 0L }?.let { dimension -> add("${dimension}p") }
+        track.demuxFps?.takeIf { it > 0.0 }?.toInt()?.let { fps -> add("${fps}fps") }
+        track.codec?.trim()?.takeIf(String::isNotBlank)?.uppercase(Locale.ROOT)?.let(::add)
+      }.joinToString(" ")
+    val baseTitle = itemTitle ?: fallbackTitle
+    return QualityDownloadRequest(
+      sourceUrl = sourceUrl,
+      title = if (qualityLabel.isBlank()) baseTitle else "$qualityLabel - $baseTitle",
+      formatSelector = downloadSelection.formatSelector,
+      mergeSeparateStreams = downloadSelection.mergeSeparateStreams,
+    )
+  }
+
   fun selectVideoQuality(track: TrackNode) {
     if (currentItemRequiresYtdlp() && !MpvConfigOverridePolicy.isOwnedByMpvConf("ytdl-format")) {
       val selectedAudio = pairedYtdlTrack(track, TrackNode::isAudio)
@@ -735,6 +773,16 @@ class PlayerViewModel : ViewModel(),
       .any(YtdlpManager::requiresYtdlp)
   }
 
+  private fun currentYouTubeSource(): String? {
+    val item = PlaybackSession.state.value.currentItem ?: return null
+    return sequenceOf(item.originalUri, item.playableUri)
+      .map(String::trim)
+      .filter(String::isNotBlank)
+      .firstOrNull { source ->
+        runCatching { HttpUtils.isYouTubeUrl(Uri.parse(source)) }.getOrDefault(false)
+      }
+  }
+
   private fun pairedYtdlTrack(
     track: TrackNode,
     matchesType: (TrackNode) -> Boolean,
@@ -772,6 +820,29 @@ class PlayerViewModel : ViewModel(),
     }
   }
 
+  private fun buildYtdlDownloadSelection(
+    videoTrack: TrackNode,
+    audioTrack: TrackNode?,
+  ): YtdlDownloadSelection? {
+    val videoFormatId = ytdlFormatId(videoTrack)
+    val audioFormatId = audioTrack?.let(::ytdlFormatId)
+    val videoSelector =
+      videoFormatId
+        ?: videoQualityDimension(videoTrack)
+          .takeIf { it > 0L }
+          ?.let { dimension -> "bestvideo[height<=?$dimension]" }
+        ?: return null
+    val isMuxedFormat = videoFormatId != null && videoFormatId == audioFormatId
+    return if (isMuxedFormat) {
+      YtdlDownloadSelection(formatSelector = "$videoSelector/best", mergeSeparateStreams = false)
+    } else {
+      YtdlDownloadSelection(
+        formatSelector = "$videoSelector,${audioFormatId ?: "bestaudio"}",
+        mergeSeparateStreams = true,
+      )
+    }
+  }
+
   private fun ytdlFormatId(track: TrackNode): String? = track.ytdlFormatId
 
   private fun videoQualityDimension(track: TrackNode): Long {
@@ -787,6 +858,11 @@ class PlayerViewModel : ViewModel(),
 
   private fun videoPixelCount(track: TrackNode): Long =
     (track.demuxW ?: 0L).coerceAtLeast(0L) * (track.demuxH ?: 0L).coerceAtLeast(0L)
+
+  private data class YtdlDownloadSelection(
+    val formatSelector: String,
+    val mergeSeparateStreams: Boolean,
+  )
 
   val isAudioOnly: StateFlow<Boolean> =
     combine(
