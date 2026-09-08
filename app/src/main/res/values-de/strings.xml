@@ -804,6 +804,17 @@ Bitte starten Sie die App neu, damit alle Änderungen wirksam werden.</string>
   <string name="pref_ai_search_summary">Videotitel automatisch für die Wyzie/SubHub-Untertitelsuche formatieren</string>
   <string name="pref_stt_section">Sprache-zu-Text [extrem experimentell]</string>
   <string name="pref_stt_title">Untertitelerstellung in Echtzeit</string>
+  <string name="realtime_subtitles_label">Live-Untertitel</string>
+  <string name="realtime_subtitles_processing">Live-Untertitel %1$d/%2$d</string>
+  <string name="realtime_subtitles_translating">Live-Untertitel werden übersetzt</string>
+  <string name="realtime_subtitles_translation_fallback">Übersetzung nicht verfügbar; Transkript wird angezeigt</string>
+  <string name="realtime_subtitles_complete">Live-Untertitel abgeschlossen</string>
+  <string name="realtime_subtitles_failed">Live-Untertitel fehlgeschlagen</string>
+  <string name="realtime_subtitles_stopped">Live-Untertitel gestoppt</string>
+  <string name="realtime_subtitles_media_unavailable">Das aktuelle Medium ist für Live-Untertitel nicht verfügbar</string>
+  <string name="realtime_subtitles_update_failed">Live-Untertitel konnten nicht aktualisiert werden</string>
+  <string name="subtitle_generation_audio_unavailable">Die ausgewählte Audiospur konnte nicht geöffnet werden</string>
+  <string name="subtitle_generation_duration_unknown">Die Videodauer ist nicht verfügbar</string>
   <string name="pref_stt_summary">Während der Videowiedergabe Untertitel aus Audio erzeugen</string>
   <string name="pref_stt_output_format_title">Standard-Ausgabeformat</string>
   <string name="pref_stt_provider_title">Sprache-zu-Text-Anbieter</string>

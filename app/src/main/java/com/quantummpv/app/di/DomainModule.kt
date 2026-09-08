@@ -73,7 +73,7 @@ val domainModule =
     single<AiClient>(named("openrouter")) { OpenRouterClient(get(), get()) }
     single<AiClient>(named("together")) { TogetherClient(get(), get()) }
     single { SubtitleGenerationService(androidContext(), get(), get(), get(), get(), get()) }
-    single { RealtimeSubtitleService(androidContext(), get(), get(), get(), get(), get()) }
+    single { RealtimeSubtitleService(androidContext(), get(), get(), get(), get(), get(), get()) }
     single {
       AiService(
         androidContext(),

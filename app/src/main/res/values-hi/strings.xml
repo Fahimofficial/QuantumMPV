@@ -756,6 +756,17 @@
   <string name="pref_ai_search_summary">Wyzie/SubHub सबटाइटल खोज के लिए वीडियो टाइटल अपने आप फॉर्मेट करें</string>
   <string name="pref_stt_section">स्पीच-टू-टेक्स्ट [अत्यंत प्रायोगिक]</string>
   <string name="pref_stt_title">रीयल-टाइम सबटाइटल जनरेशन</string>
+  <string name="realtime_subtitles_label">लाइव कैप्शन</string>
+  <string name="realtime_subtitles_processing">लाइव कैप्शन %1$d/%2$d</string>
+  <string name="realtime_subtitles_translating">लाइव कैप्शन का अनुवाद हो रहा है</string>
+  <string name="realtime_subtitles_translation_fallback">अनुवाद उपलब्ध नहीं है; ट्रांसक्रिप्ट दिखाई जा रही है</string>
+  <string name="realtime_subtitles_complete">लाइव कैप्शन पूरे हुए</string>
+  <string name="realtime_subtitles_failed">लाइव कैप्शन विफल रहे</string>
+  <string name="realtime_subtitles_stopped">लाइव कैप्शन रोक दिए गए</string>
+  <string name="realtime_subtitles_media_unavailable">वर्तमान मीडिया लाइव कैप्शन के लिए उपलब्ध नहीं है</string>
+  <string name="realtime_subtitles_update_failed">लाइव कैप्शन अपडेट नहीं किए जा सके</string>
+  <string name="subtitle_generation_audio_unavailable">चुना गया ऑडियो ट्रैक खोला नहीं जा सका</string>
+  <string name="subtitle_generation_duration_unknown">वीडियो की अवधि उपलब्ध नहीं है</string>
   <string name="pref_stt_summary">वीडियो चलाते समय ऑडियो से सबटाइटल जनरेट करें</string>
   <string name="pref_stt_output_format_title">डिफ़ॉल्ट आउटपुट फॉर्मेट</string>
   <string name="pref_stt_provider_title">स्पीच-टू-टेक्स्ट प्रोवाइडर</string>

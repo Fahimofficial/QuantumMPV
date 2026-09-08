@@ -804,6 +804,17 @@
   <string name="pref_ai_search_summary">Автоматически форматировать названия видео для поиска субтитров Wyzie/SubHub</string>
   <string name="pref_stt_section">Речь в текст [крайне экспериментально]</string>
   <string name="pref_stt_title">Создание субтитров в реальном времени</string>
+  <string name="realtime_subtitles_label">Живые субтитры</string>
+  <string name="realtime_subtitles_processing">Живые субтитры %1$d/%2$d</string>
+  <string name="realtime_subtitles_translating">Перевод живых субтитров</string>
+  <string name="realtime_subtitles_translation_fallback">Перевод недоступен; показана расшифровка</string>
+  <string name="realtime_subtitles_complete">Живые субтитры готовы</string>
+  <string name="realtime_subtitles_failed">Не удалось создать живые субтитры</string>
+  <string name="realtime_subtitles_stopped">Живые субтитры остановлены</string>
+  <string name="realtime_subtitles_media_unavailable">Текущее медиа недоступно для живых субтитров</string>
+  <string name="realtime_subtitles_update_failed">Не удалось обновить живые субтитры</string>
+  <string name="subtitle_generation_audio_unavailable">Не удалось открыть выбранную звуковую дорожку</string>
+  <string name="subtitle_generation_duration_unknown">Длительность видео недоступна</string>
   <string name="pref_stt_summary">Создавать субтитры из аудио во время воспроизведения</string>
   <string name="pref_stt_output_format_title">Формат вывода по умолчанию</string>
   <string name="pref_stt_provider_title">Поставщик распознавания речи</string>

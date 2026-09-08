@@ -806,6 +806,17 @@
   <string name="pref_ai_search_summary">自动格式化视频标题，以便进行 Wyzie/SubHub 字幕搜索</string>
   <string name="pref_stt_section">语音转文字［极度实验性］</string>
   <string name="pref_stt_title">实时字幕生成</string>
+  <string name="realtime_subtitles_label">实时字幕</string>
+  <string name="realtime_subtitles_processing">实时字幕 %1$d/%2$d</string>
+  <string name="realtime_subtitles_translating">正在翻译实时字幕</string>
+  <string name="realtime_subtitles_translation_fallback">翻译不可用；正在显示转录文本</string>
+  <string name="realtime_subtitles_complete">实时字幕已完成</string>
+  <string name="realtime_subtitles_failed">实时字幕失败</string>
+  <string name="realtime_subtitles_stopped">实时字幕已停止</string>
+  <string name="realtime_subtitles_media_unavailable">当前媒体无法用于实时字幕</string>
+  <string name="realtime_subtitles_update_failed">无法更新实时字幕</string>
+  <string name="subtitle_generation_audio_unavailable">无法打开所选音轨</string>
+  <string name="subtitle_generation_duration_unknown">无法获取视频时长</string>
   <string name="pref_stt_summary">播放视频时从音频生成字幕</string>
   <string name="pref_stt_output_format_title">默认输出格式</string>
   <string name="pref_stt_provider_title">语音转文字提供商</string>

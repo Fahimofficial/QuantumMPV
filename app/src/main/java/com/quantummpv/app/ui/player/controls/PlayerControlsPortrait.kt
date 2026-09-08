@@ -63,6 +63,7 @@ fun TopPlayerControlsPortrait(
   isTranslatingSub: Boolean = false,
   isRealtimeSubsActive: Boolean = false,
   realtimeSubsLanguage: String = "",
+  realtimeSubsStatus: String = "",
   translationStatus: String = "",
   translatingTrackName: String = "",
 ) {
@@ -163,7 +164,7 @@ fun TopPlayerControlsPortrait(
           Text(
             text =
               if (isRealtimeSubsActive) {
-                "Real-time subs: ${realtimeSubsLanguage.ifBlank { "?" }} ${translationStatus.ifBlank { "" }}"
+                "${stringResource(R.string.realtime_subtitles_label)}: ${realtimeSubsLanguage.ifBlank { "?" }} ${realtimeSubsStatus.ifBlank { "" }}"
               } else {
                 "Translating ${translatingTrackName.ifBlank { "subs" }} ${translationStatus.ifBlank { "" }}"
               },

@@ -783,6 +783,7 @@ fun PlayerControls(
           val translatingTrackName by viewModel.translatingTrackName.collectAsState()
           val isRealtimeSubsActive by viewModel.isRealtimeSubsActive.collectAsState()
           val realtimeSubsLanguage by viewModel.realtimeSubsLanguage.collectAsState()
+          val realtimeSubsStatus by viewModel.realtimeSubsStatus.collectAsState()
           val isGeneratingSubtitles by viewModel.isGeneratingSubtitles.collectAsState()
           val subtitleGenerationProgress by viewModel.subtitleGenerationProgress.collectAsState()
           val subtitleGenerationStatus by viewModel.subtitleGenerationStatus.collectAsState()
@@ -1784,6 +1785,7 @@ is PlayerUpdates.FrameInfo -> {
                 isTranslatingSub = showAiIndicators && isTranslatingSub,
                 isRealtimeSubsActive = showRealtimeSubs && isRealtimeSubsActive,
                 realtimeSubsLanguage = realtimeSubsLanguage,
+                realtimeSubsStatus = realtimeSubsStatus,
                 translationStatus = translationStatus,
                 translatingTrackName = translatingTrackName,
               )
@@ -1797,6 +1799,7 @@ is PlayerUpdates.FrameInfo -> {
                 isTranslatingSub = showAiIndicators && isTranslatingSub,
                 isRealtimeSubsActive = showRealtimeSubs && isRealtimeSubsActive,
                 realtimeSubsLanguage = realtimeSubsLanguage,
+                realtimeSubsStatus = realtimeSubsStatus,
                 translationStatus = translationStatus,
                 translatingTrackName = translatingTrackName,
               )

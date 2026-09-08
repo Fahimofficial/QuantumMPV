@@ -86,12 +86,17 @@ fun SubtitlesSheet(
   onDismissRequest: () -> Unit,
   onTranslateSubtitle: (TrackNode, String) -> Unit,
   onGenerateSubtitle: () -> Unit,
+  onStartRealtimeSubtitle: (String) -> Unit,
+  onStopRealtimeSubtitle: () -> Unit,
   onCancelTranslation: () -> Unit,
   isTranslating: Boolean,
   translationProgress: Float,
   translationStatus: String,
+  realtimeSubsStatus: String,
   translationEnabled: Boolean,
   isGeneratingSubtitles: Boolean,
+  isRealtimeSubsActive: Boolean,
+  realtimeSubsProgress: Float,
   subtitleGenerationProgress: Float,
   subtitleGenerationStatus: String,
   translatingTrackId: Int? = null,
@@ -239,8 +244,9 @@ fun SubtitlesSheet(
 
   var langSearch by remember { mutableStateOf("") }
   var showLanguagePicker by remember { androidx.compose.runtime.mutableStateOf<TrackNode?>(null) }
+  var showRealtimeLanguagePicker by remember { mutableStateOf(false) }
 
-  if (showLanguagePicker != null) {
+  if (showLanguagePicker != null || showRealtimeLanguagePicker) {
     val languagesToShow =
       remember(configuredLanguages, langSearch) {
         val source =
@@ -258,6 +264,7 @@ fun SubtitlesSheet(
     androidx.compose.material3.AlertDialog(
       onDismissRequest = {
         showLanguagePicker = null
+        showRealtimeLanguagePicker = false
         langSearch = ""
       },
       title = {
@@ -289,8 +296,13 @@ fun SubtitlesSheet(
                   Modifier
                     .fillMaxWidth()
                     .clickable {
-                      onTranslateSubtitle(showLanguagePicker!!, lang)
+                      if (showRealtimeLanguagePicker) {
+                        onStartRealtimeSubtitle(lang)
+                      } else {
+                        showLanguagePicker?.let { track -> onTranslateSubtitle(track, lang) }
+                      }
                       showLanguagePicker = null
+                      showRealtimeLanguagePicker = false
                       langSearch = ""
                     }.padding(MaterialTheme.spacing.medium),
               )
@@ -311,6 +323,7 @@ fun SubtitlesSheet(
       confirmButton = {
         androidx.compose.material3.TextButton(onClick = {
           showLanguagePicker = null
+          showRealtimeLanguagePicker = false
           langSearch = ""
         }) {
           Text(
@@ -332,8 +345,26 @@ fun SubtitlesSheet(
             Icon(Icons.RoundedFilled.Search, null)
           }
           if (aiEnabled && realtimeSubsEnabled) {
+            IconButton(
+              onClick = {
+                if (isRealtimeSubsActive) {
+                  onStopRealtimeSubtitle()
+                } else if (configuredLanguages.isEmpty()) {
+                  onStartRealtimeSubtitle("")
+                } else if (configuredLanguages.size == 1) {
+                  onStartRealtimeSubtitle(codeToName[configuredLanguages.first()] ?: configuredLanguages.first())
+                } else {
+                  showRealtimeLanguagePicker = true
+                }
+              },
+            ) {
+              Icon(
+                if (isRealtimeSubsActive) Icons.RoundedFilled.Close else Icons.RoundedFilled.Translate,
+                stringResource(R.string.pref_stt_title),
+              )
+            }
             IconButton(onClick = onGenerateSubtitle) {
-              Icon(Icons.RoundedFilled.Subtitles, "Generate subtitles")
+              Icon(Icons.RoundedFilled.Subtitles, stringResource(R.string.ui_include_auto_generated_subtitles))
             }
           }
           IconButton(onClick = onOpenSubtitleSettings) {
@@ -389,7 +420,7 @@ fun SubtitlesSheet(
             }
           }
           LinearProgressIndicator(
-            progress = { translationProgress },
+            progress = { realtimeSubsProgress },
             modifier = Modifier.fillMaxWidth(),
           )
         }
@@ -409,6 +440,25 @@ fun SubtitlesSheet(
           )
           LinearProgressIndicator(
             progress = { subtitleGenerationProgress },
+            modifier = Modifier.fillMaxWidth(),
+          )
+        }
+      }
+
+      if (aiEnabled && isRealtimeSubsActive) {
+        Column(
+          modifier = Modifier.padding(MaterialTheme.spacing.medium),
+          verticalArrangement = Arrangement.spacedBy(MaterialTheme.spacing.extraSmall),
+        ) {
+          Text(
+            realtimeSubsStatus.ifBlank { stringResource(R.string.pref_stt_title) },
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.primary,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+          )
+          LinearProgressIndicator(
+            progress = { translationProgress },
             modifier = Modifier.fillMaxWidth(),
           )
         }
