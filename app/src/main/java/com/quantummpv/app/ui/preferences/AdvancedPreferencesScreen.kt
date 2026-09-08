@@ -47,7 +47,6 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
-import androidx.compose.ui.util.fastJoinToString
 import androidx.core.net.toUri
 import androidx.core.os.LocaleListCompat
 import androidx.documentfile.provider.DocumentFile
@@ -64,6 +63,7 @@ import com.quantummpv.app.presentation.components.ConfirmDialog
 import com.quantummpv.app.presentation.crash.CrashActivity
 import com.quantummpv.app.ui.icons.Icon
 import com.quantummpv.app.ui.icons.Icons
+import com.quantummpv.app.ui.player.MpvConfigCache
 import com.quantummpv.app.ui.preferences.components.SwitchPreference
 import com.quantummpv.app.ui.utils.LocalBackStack
 import com.quantummpv.app.ui.utils.navigateTo
@@ -82,9 +82,6 @@ import me.zhanghai.compose.preference.ProvidePreferenceLocals
 import org.koin.compose.koinInject
 import java.io.File
 import java.util.Locale
-import kotlin.io.path.deleteIfExists
-import kotlin.io.path.outputStream
-import kotlin.io.path.readLines
 
 private enum class AppLanguage(
   val languageTag: String,
@@ -129,6 +126,7 @@ object AdvancedPreferencesScreen : Screen {
     val context = LocalContext.current
     val backStack = LocalBackStack.current
     val preferences = koinInject<AdvancedPreferences>()
+    val mpvConfigCache = koinInject<MpvConfigCache>()
     val settingsManager = koinInject<SettingsManager>()
     val foldersPreferences = koinInject<FoldersPreferences>()
     val subtitlesPreferences = koinInject<SubtitlesPreferences>()
@@ -503,38 +501,28 @@ object AdvancedPreferencesScreen : Screen {
               LaunchedEffect(mpvConfStorageLocation) {
                 if (mpvConfStorageLocation.isBlank()) return@LaunchedEffect
                 withContext(Dispatchers.IO) {
-                  val tempFile = kotlin.io.path.createTempFile()
-                  runCatching {
-                    val tree = DocumentFile.fromTreeUri(context, mpvConfStorageLocation.toUri())
-                    val mpvConfFile = tree?.findFile("mpv.conf")
-                    if (mpvConfFile != null && mpvConfFile.exists()) {
-                      context.contentResolver.openInputStream(mpvConfFile.uri)?.copyTo(tempFile.outputStream())
-                      val content = tempFile.readLines().fastJoinToString("\n")
-                      preferences.mpvConf.set(content)
-                      File(context.filesDir, "mpv.conf").writeText(content)
-                      withContext(Dispatchers.Main) { mpvConf = content }
-                    }
-                  }
-                  tempFile.deleteIfExists()
-                }
-              }
+                  val tree = runCatching { DocumentFile.fromTreeUri(context, mpvConfStorageLocation.toUri()) }.getOrNull()
+                    ?: return@withContext
+                  fun readConfig(fileName: String): String? =
+                    runCatching {
+                      tree.findFile(fileName)?.takeIf { it.exists() }?.let { configFile ->
+                        context.contentResolver.openInputStream(configFile.uri)?.bufferedReader()?.use { reader ->
+                          reader.readText()
+                        }
+                      }
+                    }.getOrNull()
 
-              LaunchedEffect(mpvConfStorageLocation) {
-                if (mpvConfStorageLocation.isBlank()) return@LaunchedEffect
-                withContext(Dispatchers.IO) {
-                  val tempFile = kotlin.io.path.createTempFile()
-                  runCatching {
-                    val tree = DocumentFile.fromTreeUri(context, mpvConfStorageLocation.toUri())
-                    val inputConfFile = tree?.findFile("input.conf")
-                    if (inputConfFile != null && inputConfFile.exists()) {
-                      context.contentResolver.openInputStream(inputConfFile.uri)?.copyTo(tempFile.outputStream())
-                      val content = tempFile.readLines().fastJoinToString("\n")
-                      preferences.inputConf.set(content)
-                      File(context.filesDir, "input.conf").writeText(content)
-                      withContext(Dispatchers.Main) { inputConf = content }
-                    }
+                  val loadedMpvConf = readConfig("mpv.conf")
+                  val loadedInputConf = readConfig("input.conf")
+                  loadedMpvConf?.let(mpvConfigCache::update)
+                  loadedInputConf?.let { content ->
+                    preferences.inputConf.set(content)
+                    File(context.filesDir, "input.conf").writeText(content)
                   }
-                  tempFile.deleteIfExists()
+                  withContext(Dispatchers.Main) {
+                    if (loadedMpvConf != null) mpvConf = loadedMpvConf
+                    if (loadedInputConf != null) inputConf = loadedInputConf
+                  }
                 }
               }
 
