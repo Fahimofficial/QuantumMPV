@@ -21,6 +21,7 @@ import com.quantummpv.app.preferences.AdvancedPreferences
 import com.quantummpv.app.preferences.MpvConfigOverride
 import com.quantummpv.app.preferences.preference.collectAsState
 import com.quantummpv.app.ui.utils.LocalBackStack
+import com.quantummpv.app.ui.utils.navigateTo
 import me.zhanghai.compose.preference.Preference
 
 /** Entry row in Advanced settings; the ownership choices live on [MpvConfOwnershipScreen]. */
@@ -52,6 +53,6 @@ internal fun MpvConfigOverridePreference(
         color = MaterialTheme.colorScheme.outline,
       )
     },
-    onClick = { backStack.add(MpvConfOwnershipScreen) },
+    onClick = { backStack.navigateTo(MpvConfOwnershipScreen) },
   )
 }

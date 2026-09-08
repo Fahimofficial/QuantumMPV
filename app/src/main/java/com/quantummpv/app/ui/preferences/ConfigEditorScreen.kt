@@ -45,6 +45,7 @@ import com.quantummpv.app.ui.editor.MpvScriptEditor
 import com.quantummpv.app.ui.icons.Icon
 import com.quantummpv.app.ui.icons.Icons
 import com.quantummpv.app.ui.utils.LocalBackStack
+import com.quantummpv.app.ui.utils.navigateTo
 import com.quantummpv.app.ui.utils.popSafely
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -213,7 +214,7 @@ data class ConfigEditorScreen(
         actions = {
           IconButton(
             onClick = {
-              backStack.add(MpvHelpScreen())
+              backStack.navigateTo(MpvHelpScreen())
             },
             modifier = Modifier.padding(end = 4.dp).size(40.dp),
             colors =

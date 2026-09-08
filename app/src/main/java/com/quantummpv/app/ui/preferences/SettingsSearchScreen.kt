@@ -65,6 +65,7 @@ import com.quantummpv.app.ui.icons.Icon
 import com.quantummpv.app.ui.icons.Icons
 import com.quantummpv.app.ui.theme.LocalEmphasizedTypography
 import com.quantummpv.app.ui.utils.LocalBackStack
+import com.quantummpv.app.ui.utils.navigateTo
 import com.quantummpv.app.ui.utils.popSafely
 import kotlinx.serialization.Serializable
 
@@ -370,7 +371,7 @@ object SettingsSearchScreen : Screen {
                     searchHistoryPref.set(currentHistory.joinToString("|"))
                   }
                   SettingsSearchNavigation.open(result.preference)
-                  backstack.add(result.preference.screen)
+                  backstack.navigateTo(result.preference.screen)
                 },
               )
             }

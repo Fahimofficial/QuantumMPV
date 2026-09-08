@@ -72,6 +72,7 @@ import com.quantummpv.app.ui.browser.states.EmptyState
 import com.quantummpv.app.ui.icons.Icon
 import com.quantummpv.app.ui.icons.Icons
 import com.quantummpv.app.ui.utils.LocalBackStack
+import com.quantummpv.app.ui.utils.navigateTo
 import com.quantummpv.app.ui.utils.popSafely
 import com.quantummpv.app.utils.media.MediaInfoOps
 import com.quantummpv.app.utils.media.MediaUtils
@@ -364,7 +365,7 @@ data object SecureFolderScreen : Screen {
       floatingActionButton = {
         if (!isInSelectionMode) {
           ExtendedFloatingActionButton(
-            onClick = { backstack.add(SecureFolderAddFilesScreen) },
+            onClick = { backstack.navigateTo(SecureFolderAddFilesScreen) },
             icon = { Icon(Icons.RoundedFilled.Add, contentDescription = null) },
             text = { Text(stringResource(R.string.secure_folder_add_files)) },
           )
@@ -677,7 +678,6 @@ private fun formatResolutionWithFps(
 
   return "$baseResolution@${fps.toInt()}"
 }
-
 
 
 

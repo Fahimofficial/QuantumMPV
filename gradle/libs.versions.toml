@@ -12,6 +12,7 @@ lazycolumnscrollbar = "2.2.0"
 nanohttpd = "2.3.1"
 room = "2.8.4"
 navigation3 = "1.1.7"
+lifecycle = "2.10.0"
 kotlinx-serialization = "1.11.0"
 kotlinx-collections-immutable = "0.5.2"
 profileinstaller = "1.4.1"
@@ -73,6 +74,7 @@ androidx-compose-animation-graphics = { group = "androidx.compose.animation", na
 mediasession = { group = "androidx.media", name = "media", version.ref = "androidxMedia" }
 androidx-navigation3-runtime = { module = "androidx.navigation3:navigation3-runtime", version.ref = "navigation3" }
 androidx-navigation3-ui = { module = "androidx.navigation3:navigation3-ui", version.ref = "navigation3" }
+androidx-lifecycle-runtime-compose = { module = "androidx.lifecycle:lifecycle-runtime-compose", version.ref = "lifecycle" }
 androidx-documentfile = { group = "androidx.documentfile", name = "documentfile", version.ref = "androidxDocumentfile" }
 androidx-palette = { group = "androidx.palette", name = "palette-ktx", version.ref = "androidxPalette" }
 seeker = { module = "com.github.abdallahmehiz:seeker", version.ref = "seeker" }
@@ -127,7 +129,7 @@ libarchive-android = { module = "me.zhanghai.android.libarchive:library", versio
 
 [bundles]
 koin = ["koin-core", "koin-android", "koin-compose", "koin-viewmodel"]
-compose-navigation3 = ["androidx-navigation3-runtime", "androidx-navigation3-ui"]
+compose-navigation3 = ["androidx-navigation3-runtime", "androidx-navigation3-ui", "androidx-lifecycle-runtime-compose"]
 
 [plugins]
 ktlint = { id = "org.jlleitschuh.gradle.ktlint", version.ref = "ktlint" }

@@ -45,6 +45,7 @@ import com.quantummpv.app.ui.browser.states.EmptyState
 import com.quantummpv.app.ui.icons.Icon
 import com.quantummpv.app.ui.icons.Icons
 import com.quantummpv.app.ui.utils.LocalBackStack
+import com.quantummpv.app.ui.utils.navigateTo
 import com.quantummpv.app.ui.utils.popSafely
 import kotlinx.serialization.Serializable
 import org.koin.compose.koinInject
@@ -201,7 +202,7 @@ object NetworkBookmarksScreen : Screen {
             BookmarkManageCard(
               bookmark = bookmark,
               onOpen = {
-                backstack.add(
+                backstack.navigateTo(
                   NetworkBrowserScreen(
                     connectionId = bookmark.connection.id,
                     connectionName = bookmark.connection.name,

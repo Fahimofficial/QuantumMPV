@@ -85,6 +85,7 @@ import com.quantummpv.app.presentation.crash.CrashActivity.Companion.collectDevi
 import com.quantummpv.app.ui.icons.Icon
 import com.quantummpv.app.ui.icons.Icons
 import com.quantummpv.app.ui.utils.LocalBackStack
+import com.quantummpv.app.ui.utils.navigateTo
 import com.quantummpv.app.ui.utils.LocalShowSettingsBackArrow
 import com.quantummpv.app.ui.utils.popSafely
 import com.quantummpv.app.utils.clipboard.SafeClipboard
@@ -274,7 +275,7 @@ object AboutScreen : Screen {
                 val btnContainer = cs.primary
                 val btnContent = cs.onPrimary
                 Button(
-                  onClick = { backstack.add(LibrariesScreen) },
+                  onClick = { backstack.navigateTo(LibrariesScreen) },
                   modifier =
                     Modifier
                       .weight(1f)

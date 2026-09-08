@@ -1296,7 +1296,6 @@ object SearchablePreferences {
         category = "Appearance",
         screen = AppearancePreferencesScreen,
         anchorItemIndex = 7,
-        SearchEntrySpec(R.string.pref_nav_home_title, listOf("home", "tab", "navigation", "show", "hide")),
         SearchEntrySpec(R.string.pref_nav_music_title, listOf("music", "audio", "tab", "navigation")),
         SearchEntrySpec(R.string.pref_nav_recents_title, listOf("recent", "history", "tab", "navigation")),
         SearchEntrySpec(R.string.pref_nav_playlists_title, listOf("playlist", "tab", "navigation")),

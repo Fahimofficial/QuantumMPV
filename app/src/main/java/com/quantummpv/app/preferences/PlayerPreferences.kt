@@ -191,9 +191,9 @@ class PlayerPreferences(
   /** Animation played when a video first opens. Default = no overlay. */
   val videoOpenAnimation = preferenceStore.getEnum("video_open_animation", VideoOpenAnimation.Default)
 
-  /** Screen-level (app-wide) navigation transition style. */
+  /** Screen/pane transition style. None also disables programmatic tab animations. */
   val appNavStyle = preferenceStore.getEnum("app_nav_style", NavigationAnimStyle.Default)
 
-  /** Global animation speed multiplier (0.5 = half speed, 2.0 = double speed). */
+  /** Animation duration multiplier (0.5 = twice as fast, 2.0 = twice as slow). */
   val animationSpeed = preferenceStore.getFloat("animation_speed", 1.0f)
 }

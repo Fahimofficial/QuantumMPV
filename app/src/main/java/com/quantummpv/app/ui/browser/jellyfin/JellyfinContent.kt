@@ -9,7 +9,7 @@
 
 package com.quantummpv.app.ui.browser.jellyfin
 
-import androidx.activity.compose.BackHandler
+import com.quantummpv.app.ui.utils.NavigationBackHandler as BackHandler
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.animateFloatAsState
@@ -70,9 +70,7 @@ import androidx.compose.material3.ToggleFloatingActionButton
 import androidx.compose.material3.ToggleFloatingActionButtonDefaults.animateIcon
 import androidx.compose.material3.animateFloatingActionButton
 import androidx.compose.foundation.pager.rememberPagerState
-import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.derivedStateOf
@@ -103,13 +101,11 @@ import com.quantummpv.app.domain.jellyfin.JellyfinServer
 import com.quantummpv.app.preferences.AppearancePreferences
 import com.quantummpv.app.preferences.MediaServerPreferences
 import com.quantummpv.app.preferences.MusicSourceProvider
-import kotlinx.coroutines.launch
 import com.quantummpv.app.preferences.BrowserPreferences
 import com.quantummpv.app.preferences.MediaLayoutMode
 import com.quantummpv.app.preferences.preference.collectAsState
 import com.quantummpv.app.presentation.components.pullrefresh.PullRefreshBox
 import com.quantummpv.app.ui.browser.LocalNavigationBarHeight
-import com.quantummpv.app.ui.browser.NavigationBarState
 import com.quantummpv.app.ui.browser.components.BrowserTopBar
 import com.quantummpv.app.ui.browser.components.ExpressiveScrollBar
 import com.quantummpv.app.ui.browser.components.fastScrollGlyph
@@ -122,6 +118,8 @@ import com.quantummpv.app.ui.components.InlineSearchBar
 import com.quantummpv.app.ui.icons.Icon
 import com.quantummpv.app.ui.icons.Icons
 import com.quantummpv.app.ui.utils.LocalBackStack
+import com.quantummpv.app.ui.utils.navigateTo
+import com.quantummpv.app.ui.utils.rememberTabNavigation
 import org.koin.compose.koinInject
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -163,7 +161,6 @@ fun JellyfinContent(
   var isFabExpanded by remember { mutableStateOf(false) }
   val isFabVisible = remember { mutableStateOf(true) }
   val searchFocusRequester = remember { FocusRequester() }
-  val scope = rememberCoroutineScope()
 
   val seerrViewModel: com.quantummpv.app.ui.browser.jellyfin.seerr.SeerrViewModel =
     androidx.lifecycle.viewmodel.compose.viewModel(
@@ -186,19 +183,22 @@ fun JellyfinContent(
     initialPage = musicTabs.indexOf(uiState.musicActiveTab).coerceAtLeast(0),
     pageCount = { musicTabs.size },
   )
+  val navigateMusicTab = rememberTabNavigation(musicPagerState)
 
-  LaunchedEffect(musicPagerState.settledPage, musicTabs) {
-    musicTabs.getOrNull(musicPagerState.settledPage)?.let { tab ->
-      if (uiState.musicActiveTab != tab) {
-        viewModel.setMusicTab(tab)
+  LaunchedEffect(musicPagerState.settledPage, musicPagerState.isScrollInProgress, musicTabs) {
+    if (!musicPagerState.isScrollInProgress) {
+      musicTabs.getOrNull(musicPagerState.settledPage)?.let { tab ->
+        if (uiState.musicActiveTab != tab) {
+          viewModel.setMusicTab(tab)
+        }
       }
     }
   }
 
   LaunchedEffect(uiState.musicActiveTab, musicTabs) {
     val targetIndex = musicTabs.indexOf(uiState.musicActiveTab)
-    if (targetIndex >= 0 && musicPagerState.currentPage != targetIndex) {
-      musicPagerState.animateScrollToPage(targetIndex)
+    if (targetIndex >= 0) {
+      navigateMusicTab(targetIndex)
     }
   }
 
@@ -248,15 +248,7 @@ fun JellyfinContent(
     }
   }
 
-  DisposableEffect(selectionManager.isInSelectionMode) {
-    NavigationBarState.updateSelectionState(
-      inSelectionMode = selectionManager.isInSelectionMode,
-      onlyVideos = true,
-    )
-    onDispose {
-      NavigationBarState.updateSelectionState(inSelectionMode = false)
-    }
-  }
+  com.quantummpv.app.ui.browser.NavigationBarSelectionEffect(selectionManager.isInSelectionMode)
 
   // Intercept back button if searching, selecting, requests open, details open, or browsing inside a folder
   val isBackEnabled =
@@ -435,7 +427,7 @@ fun JellyfinContent(
             null
           },
           onSettingsClick = {
-            backstack.add(com.quantummpv.app.ui.preferences.PreferencesScreen)
+            backstack.navigateTo(com.quantummpv.app.ui.preferences.PreferencesScreen)
           },
           preSearchActions = {
             if (!selectionManager.isInSelectionMode) {
@@ -609,7 +601,7 @@ fun JellyfinContent(
                       },
                       onClick = {
                         isSourceDropdownOpen = false
-                        backstack.add(com.quantummpv.app.ui.preferences.MediaServersPreferencesScreen)
+                        backstack.navigateTo(com.quantummpv.app.ui.preferences.MediaServersPreferencesScreen)
                       },
                     )
                   }
@@ -620,7 +612,7 @@ fun JellyfinContent(
           postSearchActions = {
             if (!selectionManager.isInSelectionMode) {
               IconButton(
-                onClick = { backstack.add(com.quantummpv.app.ui.downloads.DownloadsScreen) },
+                onClick = { backstack.navigateTo(com.quantummpv.app.ui.downloads.DownloadsScreen) },
                 modifier = Modifier.padding(horizontal = 2.dp),
               ) {
                 Icon(
@@ -656,12 +648,7 @@ fun JellyfinContent(
           musicTabs.forEachIndexed { index, tab ->
             Tab(
               selected = selectedTabIndex == index,
-              onClick = {
-                scope.launch {
-                  viewModel.setMusicTab(tab)
-                  musicPagerState.animateScrollToPage(index)
-                }
-              },
+              onClick = { viewModel.setMusicTab(tab) },
               text = {
                 Text(
                   text = tab.title,
@@ -925,15 +912,7 @@ fun JellyfinContent(
                   server = uiState.activeServer!!,
                   pagerState = musicPagerState,
                   visibleTabs = musicTabs,
-                  onTabSelected = { tab ->
-                    scope.launch {
-                      viewModel.setMusicTab(tab)
-                      val targetIndex = musicTabs.indexOf(tab)
-                      if (targetIndex >= 0) {
-                        musicPagerState.animateScrollToPage(targetIndex)
-                      }
-                    }
-                  },
+                  onTabSelected = viewModel::setMusicTab,
                   onItemClick = { item ->
                     if (selectionManager.isInSelectionMode) {
                       selectionManager.toggle(item)

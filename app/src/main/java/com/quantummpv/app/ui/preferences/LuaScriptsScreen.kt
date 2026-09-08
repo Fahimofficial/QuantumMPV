@@ -49,6 +49,7 @@ import com.quantummpv.app.ui.lua.LuaSelectionFootnote
 import com.quantummpv.app.ui.lua.rememberLuaScriptsCatalog
 import com.quantummpv.app.ui.theme.spacing
 import com.quantummpv.app.ui.utils.LocalBackStack
+import com.quantummpv.app.ui.utils.navigateTo
 import com.quantummpv.app.ui.utils.popSafely
 import kotlinx.serialization.Serializable
 import org.koin.compose.koinInject
@@ -186,7 +187,7 @@ object LuaScriptsScreen : Screen {
       },
       floatingActionButton = {
         FloatingActionButton(
-          onClick = { backStack.add(LuaScriptEditorScreen(scriptName = null)) },
+          onClick = { backStack.navigateTo(LuaScriptEditorScreen(scriptName = null)) },
           containerColor = MaterialTheme.colorScheme.primary,
         ) {
           Icon(
@@ -265,7 +266,7 @@ object LuaScriptsScreen : Screen {
                       tint = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
                   }
-                  IconButton(onClick = { backStack.add(LuaScriptEditorScreen(scriptName = scriptName)) }) {
+                  IconButton(onClick = { backStack.navigateTo(LuaScriptEditorScreen(scriptName = scriptName)) }) {
                     Icon(
                       imageVector = Icons.RoundedFilled.Edit,
                       contentDescription =

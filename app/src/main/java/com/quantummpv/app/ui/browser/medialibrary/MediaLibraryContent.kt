@@ -12,7 +12,7 @@ package com.quantummpv.app.ui.browser.medialibrary
 import android.content.Intent
 import android.os.Environment
 import android.widget.Toast
-import androidx.activity.compose.BackHandler
+import com.quantummpv.app.ui.utils.NavigationBackHandler as BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedVisibility
@@ -111,6 +111,7 @@ import com.quantummpv.app.ui.player.PreparedPlaybackLaunchStore
 import com.quantummpv.app.ui.player.PlayerActivity
 import com.quantummpv.app.ui.securefolder.SecureFolderGateScreen
 import com.quantummpv.app.ui.utils.LocalBackStack
+import com.quantummpv.app.ui.utils.navigateTo
 import com.quantummpv.app.utils.history.RecentlyPlayedOps
 import com.quantummpv.app.utils.media.CopyPasteOps
 import com.quantummpv.app.utils.media.MediaUtils
@@ -315,11 +316,11 @@ fun MediaLibraryContent(forceAudio: Boolean = false) {
 
   LaunchedEffect(selectionManager.isInSelectionMode, mediaType) {
     showFloatingBottomBar = selectionManager.isInSelectionMode
-    NavigationBarState.updateSelectionState(
-      inSelectionMode = selectionManager.isInSelectionMode,
-      onlyVideos = mediaType == MediaLibraryType.Video,
-    )
   }
+  com.quantummpv.app.ui.browser.NavigationBarSelectionEffect(
+    inSelectionMode = selectionManager.isInSelectionMode,
+    onlyVideos = mediaType == MediaLibraryType.Video,
+  )
 
   fun playFromMediaLibrary(video: Video) {
     if (!playlistMode || mediaTypeVideosWithInfo.size <= 1) {
@@ -455,10 +456,10 @@ fun MediaLibraryContent(forceAudio: Boolean = false) {
           onSortClick = { sortDialogOpen.value = true },
           onSearchClick = { isSearching = true },
           onSettingsClick = {
-            backstack.add(com.quantummpv.app.ui.preferences.PreferencesScreen)
+            backstack.navigateTo(com.quantummpv.app.ui.preferences.PreferencesScreen)
           },
-          onTitleDoubleTap = { backstack.add(SecureFolderGateScreen) },
-          onTitleLongPress = { backstack.add(SecureFolderGateScreen) },
+          onTitleDoubleTap = { backstack.navigateTo(SecureFolderGateScreen) },
+          onTitleLongPress = { backstack.navigateTo(SecureFolderGateScreen) },
           isSingleSelection = selectionManager.isSingleSelection,
           onInfoClick = {
             if (selectionManager.isSingleSelection) {
@@ -479,7 +480,7 @@ fun MediaLibraryContent(forceAudio: Boolean = false) {
           onDeselectAll = { selectionManager.clear() },
           onMoveToSecureClick = {
             if (!secureFolderPreferences.isPinSet()) {
-              backstack.add(SecureFolderGateScreen)
+              backstack.navigateTo(SecureFolderGateScreen)
             } else if (secureFolderPreferences.dontAskBeforeMove.get()) {
               moveSelectedToSecureFolder()
             } else {

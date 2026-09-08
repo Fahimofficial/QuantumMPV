@@ -9,7 +9,7 @@
 
 package com.quantummpv.app.ui.browser.networkstreaming
 
-import androidx.activity.compose.BackHandler
+import com.quantummpv.app.ui.utils.NavigationBackHandler as BackHandler
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.PaddingValues
@@ -77,6 +77,7 @@ import com.quantummpv.app.ui.icons.Icon
 import com.quantummpv.app.ui.icons.Icons
 import com.quantummpv.app.ui.preferences.PreferencesScreen
 import com.quantummpv.app.ui.utils.LocalBackStack
+import com.quantummpv.app.ui.utils.navigateTo
 import com.quantummpv.app.ui.utils.popSafely
 import kotlinx.serialization.Serializable
 import org.koin.compose.koinInject
@@ -140,7 +141,7 @@ data class NetworkBrowserScreen(
 
     LaunchedEffect(viewModel) {
       viewModel.importedPlaylistId.collect { playlistId ->
-        backstack.add(PlaylistDetailScreen(playlistId))
+        backstack.navigateTo(PlaylistDetailScreen(playlistId))
       }
     }
 
@@ -201,7 +202,7 @@ data class NetworkBrowserScreen(
             onSortClick = { sortDialogOpen.value = true },
             onSearchClick = { isSearching = true },
             onSettingsClick = {
-              backstack.add(PreferencesScreen)
+              backstack.navigateTo(PreferencesScreen)
             },
             onDeleteClick = null,
             onRenameClick = null,
@@ -265,7 +266,7 @@ data class NetworkBrowserScreen(
         searchQuery = searchQuery,
         onRefresh = { viewModel.loadFiles() },
         onFolderClick = { folder ->
-          backstack.add(
+          backstack.navigateTo(
             NetworkBrowserScreen(
               connectionId = connectionId,
               connectionName = connectionName,

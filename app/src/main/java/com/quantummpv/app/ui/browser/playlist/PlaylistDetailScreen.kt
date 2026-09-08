@@ -12,7 +12,7 @@ package com.quantummpv.app.ui.browser.playlist
 import android.content.Intent
 import android.net.Uri
 import android.widget.Toast
-import androidx.activity.compose.BackHandler
+import com.quantummpv.app.ui.utils.NavigationBackHandler as BackHandler
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -83,6 +83,7 @@ import com.quantummpv.app.ui.icons.Icon
 import com.quantummpv.app.ui.icons.Icons
 import com.quantummpv.app.ui.player.PlayerActivity
 import com.quantummpv.app.ui.utils.LocalBackStack
+import com.quantummpv.app.ui.utils.navigateTo
 import com.quantummpv.app.ui.utils.popSafely
 import com.quantummpv.app.utils.clipboard.SafeClipboard
 import com.quantummpv.app.utils.media.MediaInfoOps
@@ -483,7 +484,7 @@ data class PlaylistDetailScreen(
           ExtendedFloatingActionButton(
             modifier =
               Modifier.padding(bottom = com.quantummpv.app.ui.browser.NavigationBarState.miniPlayerClearance),
-            onClick = { backStack.add(PlaylistAddVideosScreen(playlistId, isAudio = isAudioPlaylist)) },
+            onClick = { backStack.navigateTo(PlaylistAddVideosScreen(playlistId, isAudio = isAudioPlaylist)) },
             icon = { Icon(Icons.RoundedFilled.Add, contentDescription = null) },
             text = { Text(if (isAudioPlaylist) "Add Songs" else stringResource(R.string.playlist_add_videos)) },
           )

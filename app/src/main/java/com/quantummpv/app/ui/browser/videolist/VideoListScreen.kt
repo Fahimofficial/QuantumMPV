@@ -12,7 +12,7 @@ package com.quantummpv.app.ui.browser.videolist
 import android.content.Intent
 import android.os.Environment
 import android.widget.Toast
-import androidx.activity.compose.BackHandler
+import com.quantummpv.app.ui.utils.NavigationBackHandler as BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.spring
@@ -49,7 +49,6 @@ import androidx.compose.material3.rememberTooltipState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
@@ -114,6 +113,7 @@ import com.quantummpv.app.ui.securefolder.SecureFolderGateScreen
 import com.quantummpv.app.ui.securefolder.SecureFolderProgressDialog
 import com.quantummpv.app.ui.theme.AppMotion
 import com.quantummpv.app.ui.utils.LocalBackStack
+import com.quantummpv.app.ui.utils.navigateTo
 import com.quantummpv.app.ui.utils.popSafely
 import com.quantummpv.app.utils.history.RecentlyPlayedOps
 import com.quantummpv.app.utils.media.CopyPasteOps
@@ -151,7 +151,6 @@ data class VideoListScreen(
     val playerPreferences = koinInject<PlayerPreferences>()
     val lifecycleOwner = androidx.lifecycle.compose.LocalLifecycleOwner.current
     val navigationBarHeight = com.quantummpv.app.ui.browser.LocalNavigationBarHeight.current
-    val navBarState = com.quantummpv.app.ui.browser.NavigationBarState
 
     // ViewModel
     val viewModel: VideoListViewModel =
@@ -324,12 +323,7 @@ data class VideoListScreen(
     }
 
     // Update NavigationBarState synchronously when selection mode changes
-    SideEffect {
-      navBarState.updateSelectionState(
-        inSelectionMode = selectionManager.isInSelectionMode,
-        onlyVideos = true,
-      )
-    }
+    com.quantummpv.app.ui.browser.NavigationBarSelectionEffect(selectionManager.isInSelectionMode)
 
     // Predictive back: Only intercept when in selection mode
     BackHandler(enabled = selectionManager.isInSelectionMode) {
@@ -400,10 +394,10 @@ data class VideoListScreen(
             if (isDualPane) {
               null
             } else {
-              { backstack.add(com.quantummpv.app.ui.preferences.PreferencesScreen) }
+              { backstack.navigateTo(com.quantummpv.app.ui.preferences.PreferencesScreen) }
             },
-          onTitleDoubleTap = { backstack.add(SecureFolderGateScreen) },
-          onTitleLongPress = { backstack.add(SecureFolderGateScreen) },
+          onTitleDoubleTap = { backstack.navigateTo(SecureFolderGateScreen) },
+          onTitleLongPress = { backstack.navigateTo(SecureFolderGateScreen) },
           isSingleSelection = selectionManager.isSingleSelection,
           onInfoClick = {
             if (selectionManager.isSingleSelection) {
@@ -424,7 +418,7 @@ data class VideoListScreen(
           onDeselectAll = { selectionManager.clear() },
           onMoveToSecureClick = {
             if (!secureFolderPreferences.isPinSet()) {
-              backstack.add(SecureFolderGateScreen)
+              backstack.navigateTo(SecureFolderGateScreen)
             } else if (secureFolderPreferences.dontAskBeforeMove.get()) {
               moveSelectedToSecureFolder()
             } else {

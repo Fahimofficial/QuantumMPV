@@ -11,7 +11,7 @@ package com.quantummpv.app.ui.browser.playlist
 
 import android.app.Application
 import android.widget.Toast
-import androidx.activity.compose.BackHandler
+import com.quantummpv.app.ui.utils.NavigationBackHandler as BackHandler
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn

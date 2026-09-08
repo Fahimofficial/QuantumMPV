@@ -24,6 +24,20 @@ import androidx.compose.ui.unit.dp
  * Uses Compose state so screens recompose only when values actually change.
  */
 object NavigationBarState {
+  private var selectionOwner: Any? = null
+
+  internal fun claimSelection(owner: Any, inSelectionMode: Boolean, onlyVideos: Boolean) {
+    selectionOwner = owner
+    updateSelectionState(inSelectionMode, onlyVideos)
+  }
+
+  internal fun releaseSelection(owner: Any) {
+    if (selectionOwner == owner) {
+      selectionOwner = null
+      updateSelectionState(inSelectionMode = false)
+    }
+  }
+
   var isInSelectionMode: Boolean by mutableStateOf(false)
     private set
 

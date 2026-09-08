@@ -64,7 +64,6 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
@@ -128,6 +127,7 @@ import com.quantummpv.app.ui.icons.Icon
 import com.quantummpv.app.ui.icons.Icons
 import com.quantummpv.app.ui.securefolder.SecureFolderGateScreen
 import com.quantummpv.app.ui.utils.LocalBackStack
+import com.quantummpv.app.ui.utils.navigateTo
 import com.quantummpv.app.ui.utils.calculateResponsiveGridSpans
 import com.quantummpv.app.utils.history.RecentlyPlayedOps
 import com.quantummpv.app.utils.media.CopyPasteOps
@@ -495,17 +495,15 @@ object FolderListScreen : Screen {
     }
 
     // Update NavigationBarState synchronously when selection mode changes
-    SideEffect {
-      navBarState.updateSelectionState(
-        inSelectionMode = selectionManager.isInSelectionMode,
-        onlyVideos = true,
-      )
-    }
+    com.quantummpv.app.ui.browser.NavigationBarSelectionEffect(selectionManager.isInSelectionMode)
 
-    DisposableEffect(isDualPaneActive, selectedFolderBucketId) {
-      navBarState.isDualPaneFolderSelected = isDualPaneActive && selectedFolderBucketId != null
-      onDispose {
-        navBarState.isDualPaneFolderSelected = false
+    val isNavigationPageActive = com.quantummpv.app.ui.utils.LocalNavigationPageActive.current
+    androidx.lifecycle.compose.LifecycleResumeEffect(isDualPaneActive, selectedFolderBucketId, isNavigationPageActive) {
+      if (isNavigationPageActive) {
+        navBarState.isDualPaneFolderSelected = isDualPaneActive && selectedFolderBucketId != null
+      }
+      onPauseOrDispose {
+        if (isNavigationPageActive) navBarState.isDualPaneFolderSelected = false
       }
     }
 
@@ -527,7 +525,7 @@ object FolderListScreen : Screen {
         (!embedded && internalIsSearching) ||
         isFabExpanded.value ||
         (isDualPaneActive && selectedFolderBucketId != null)
-    androidx.activity.compose.BackHandler(enabled = shouldHandleBack) {
+    com.quantummpv.app.ui.utils.NavigationBackHandler(enabled = shouldHandleBack) {
       when {
         isFabExpanded.value -> isFabExpanded.value = false
         selectionManager.isInSelectionMode -> selectionManager.clear()
@@ -616,10 +614,10 @@ object FolderListScreen : Screen {
                 if (!internalIsSearching) internalSearchQuery = ""
               },
               onSettingsClick = {
-                backstack.add(com.quantummpv.app.ui.preferences.PreferencesScreen)
+                backstack.navigateTo(com.quantummpv.app.ui.preferences.PreferencesScreen)
               },
-              onTitleDoubleTap = { backstack.add(SecureFolderGateScreen) },
-              onTitleLongPress = { backstack.add(SecureFolderGateScreen) },
+              onTitleDoubleTap = { backstack.navigateTo(SecureFolderGateScreen) },
+              onTitleLongPress = { backstack.navigateTo(SecureFolderGateScreen) },
               showBetaBadge = BuildConfig.IS_PREVIEW_BUILD,
               onRenameClick = null,
               isSingleSelection = selectionManager.isSingleSelection,
@@ -690,7 +688,7 @@ object FolderListScreen : Screen {
               onDeselectAll = { selectionManager.clear() },
               onMoveToSecureClick = {
                 if (!secureFolderPreferences.isPinSet()) {
-                  backstack.add(SecureFolderGateScreen)
+                  backstack.navigateTo(SecureFolderGateScreen)
                 } else if (secureFolderPreferences.dontAskBeforeMove.get()) {
                   moveSelectedFoldersToSecureFolder()
                 } else {
@@ -866,7 +864,7 @@ object FolderListScreen : Screen {
                             internalSearchQuery = ""
                           }
                         } else {
-                          backstack.add(
+                          backstack.navigateTo(
                             com.quantummpv.app.ui.browser.videolist
                               .VideoListScreen(folder.bucketId, folder.name, isAudio = audioOnly),
                           )
@@ -905,7 +903,7 @@ object FolderListScreen : Screen {
                         selectedFolderBucketId = folder.bucketId
                         selectedFolderName = folder.name
                       } else {
-                        backstack.add(
+                        backstack.navigateTo(
                           com.quantummpv.app.ui.browser.videolist
                             .VideoListScreen(folder.bucketId, folder.name, isAudio = audioOnly),
                         )
