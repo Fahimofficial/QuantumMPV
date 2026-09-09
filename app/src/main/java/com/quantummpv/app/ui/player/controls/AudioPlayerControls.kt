@@ -779,7 +779,14 @@ fun AudioPlayerControls(
   }
 
    val isPlaying = paused == false
-   val currentDurSec = if (preciseDuration > 0f) preciseDuration else duration?.toFloat() ?: 0f
+   val currentDurSec =
+     if (preciseDuration > 0f) {
+       preciseDuration
+     } else if ((duration ?: 0) > 0) {
+       duration!!.toFloat()
+     } else {
+       currentItem?.durationSeconds?.takeIf { it > 0 }?.toFloat() ?: 0f
+     }
    val currentVolumePercent by viewModel.currentVolumePercent.collectAsState()
    val volumeScale = currentVolumePercent / 100f
    val visualizerFeatures = rememberAudioVisualizerFeatures(isPlaying, volumeScale)
@@ -1610,12 +1617,15 @@ fun AudioPlayerControls(
       val precisePosition by viewModel.precisePosition.collectAsStateWithLifecycle()
       val currentPosSec = if (precisePosition > 0f) precisePosition else position?.toFloat() ?: 0f
       val isPaused = paused ?: false
+      val effectiveRemaining =
+        (remaining ?: 0f).takeIf { it > 0f }
+          ?: (currentDurSec - currentPosSec).coerceAtLeast(0f)
 
       SeekbarWithTimers(
         position = currentPosSec,
         committedPosition = currentPosSec,
         duration = currentDurSec.coerceAtLeast(1f),
-        remaining = remaining ?: 0f,
+        remaining = effectiveRemaining,
         onValueChange = { value -> viewModel.seekPreviewTo(value) },
         onValueChangeFinished = { targetPosition -> viewModel.seekTo(targetPosition.toInt(), fast = false) },
         timersInverted = Pair(false, invertDuration),
@@ -2055,7 +2065,7 @@ fun AudioPlayerControls(
             displayName = displayTitle,
             path = mediaPath,
             uri = Uri.parse(mediaPath),
-            duration = duration?.toLong() ?: 0L,
+            duration = duration?.toLong() ?: currentItem?.durationSeconds?.toLong() ?: 0L,
             durationFormatted = "",
             size = 0L,
             sizeFormatted = "",

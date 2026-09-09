@@ -230,9 +230,17 @@ fun PlayerControls(
   val preciseDuration by viewModel.preciseDuration.collectAsState()
   val scopeAudioTracks by viewModel.audioTracks.collectAsState(persistentListOf())
   val mediaScopesState by viewModel.mediaScopesUiState.collectAsState()
+  val currentQueueItem = playbackSessionState.currentItem ?: playbackQueue.currentItem
   val demuxerCacheTime by PlaybackSession.propDouble["demuxer-cache-time"].collectAsState()
   val playbackSpeed by PlaybackSession.propFloat["speed"].collectAsState()
-  val seekbarDuration = if (preciseDuration > 0) preciseDuration else duration?.toFloat() ?: 0f
+  val seekbarDuration =
+    if (preciseDuration > 0) {
+      preciseDuration
+    } else if ((duration ?: 0) > 0) {
+      duration!!.toFloat()
+    } else {
+      currentQueueItem?.durationSeconds?.takeIf { it > 0 }?.toFloat() ?: 0f
+    }
   val seekState by viewModel.seekState.collectAsState()
   val brightness by viewModel.currentBrightness.collectAsState()
   val doubleTapSeekAmount = seekState.amount
@@ -1704,11 +1712,15 @@ is PlayerUpdates.FrameInfo -> {
               }
             val skipSegmentsImmutable = remember(skipSegments) { skipSegments.toImmutableList() }
 
+            val effectiveRemaining =
+              (remaining ?: 0f).takeIf { it > 0f }
+                ?: (seekbarDuration - displayedSeekbarPosition).coerceAtLeast(0f)
+
             SeekbarWithTimers(
               position = displayedSeekbarPosition,
               committedPosition = precisePosition,
-              duration = if (preciseDuration > 0) preciseDuration else duration?.toFloat() ?: 0f,
-              remaining = remaining ?: 0f,
+              duration = seekbarDuration,
+              remaining = effectiveRemaining,
               onValueChange = {
                 isSeeking = true
                 resetControlsTimestamp = System.currentTimeMillis()

@@ -1792,6 +1792,7 @@ class JellyfinViewModel(
       val externalSubs = subsDeferred.await()
 
       var playlistArtists: List<String> = emptyList()
+      var playlistDurations: List<Int> = emptyList()
       val playlistData =
         if (isAudio) {
           val audioSource =
@@ -1833,6 +1834,7 @@ class JellyfinViewModel(
             val titles = ArrayList<String>(audioSource.size)
             val artworks = ArrayList<String>(audioSource.size)
             playlistArtists = audioSource.map { track -> track.seriesName ?: targetItem.seriesName ?: "" }
+            playlistDurations = audioSource.map { it.durationSeconds.toInt() }
             var targetIdx = 0
             audioSource.forEachIndexed { idx, track ->
               if (track.id == targetItem.id) targetIdx = idx
@@ -1855,6 +1857,7 @@ class JellyfinViewModel(
           if (episodesSource.size > 1) {
             val uris = ArrayList<Uri>(episodesSource.size)
             val titles = ArrayList<String>(episodesSource.size)
+            playlistDurations = episodesSource.map { it.durationSeconds.toInt() }
             var targetIdx = 0
             episodesSource.forEachIndexed { index, ep ->
               if (ep.id == targetItem.id) targetIdx = index
@@ -1877,6 +1880,10 @@ class JellyfinViewModel(
 
       val (playlistUris, playlistTitles, playlistIndex) = playlistData.first
       val playlistArtworkUrls = playlistData.second
+
+      if (playlistDurations.isEmpty()) {
+        playlistDurations = listOf(targetItem.durationSeconds.toInt())
+      }
 
       val headers =
         mapOf(
@@ -1901,6 +1908,7 @@ class JellyfinViewModel(
           playlistArtists = playlistArtists,
           playlistArtworkUrls = playlistArtworkUrls,
           isAudio = isAudio,
+          playlistDurationsSeconds = playlistDurations,
         )
       }
     }
@@ -2005,6 +2013,7 @@ class JellyfinViewModel(
           playlistArtists = if (isAudio) playable.map { it.seriesName.orEmpty() } else emptyList(),
           playlistArtworkUrls = playlistArtworks,
           isAudio = isAudio,
+          playlistDurationsSeconds = playable.map { it.durationSeconds.toInt() },
         )
       }
     }

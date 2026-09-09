@@ -86,6 +86,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import android.content.Intent
 import android.net.Uri
+import android.text.format.DateUtils
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import com.quantummpv.app.R
@@ -162,7 +163,11 @@ fun JellyfinDetailSheet(
         }
         val isArtist = item.type == "MusicArtist" || item.type == "Artist" || item.type == "AlbumArtist"
         val subtitle = if (isArtist) null else (item.seriesName ?: item.overview)?.takeIf { it.isNotBlank() }
-        val itemCountText = if (isArtist) null else "${episodes.size} ${if (item.type == "Playlist") "Items" else "Tracks"}"
+        val totalSec = item.durationSeconds.takeIf { it > 0 }
+          ?: episodes.sumOf { it.durationSeconds }.takeIf { it > 0 }
+        val durationFormatted = totalSec?.let { DateUtils.formatElapsedTime(it) }
+        val countText = if (isArtist) null else "${episodes.size} ${if (item.type == "Playlist") "Items" else "Tracks"}"
+        val itemCountText = listOfNotNull(countText, durationFormatted).joinToString(" • ").takeIf { it.isNotBlank() }
 
         SharedMusicDetailHeader(
           title = item.name,

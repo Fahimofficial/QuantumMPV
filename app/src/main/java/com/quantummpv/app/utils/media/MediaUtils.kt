@@ -80,6 +80,7 @@ object MediaUtils {
           stableId = video.path.takeIf(String::isNotBlank)?.let(PlaybackIdentity::forLocalPath),
           title = video.displayName,
           mimeType = video.mimeType,
+          durationSeconds = (video.duration / 1000L).toInt().takeIf { it > 0 },
         )
       }
     val launchToken =
@@ -211,7 +212,9 @@ object MediaUtils {
             playlistArtists = playlistArtists,
             playlistArtworkUrls = playlistArtworkUrls,
             isAudio = isAudio,
-            playlistDurationsSeconds = playlistDurationsSeconds,
+            playlistDurationsSeconds = playlistDurationsSeconds.ifEmpty {
+              listOf((source.duration / 1000L).toInt().takeIf { it > 0 } ?: 0)
+            },
           )
           PlaybackPerformanceTrace.mark("OPEN_REQUEST", "source=${launchSource ?: "library"} kind=video")
           context.startActivity(intent)
@@ -397,6 +400,10 @@ object MediaUtils {
       intent.putExtra(PlayerActivity.EXTRA_PREPARED_PLAYBACK_TOKEN, launchToken)
       intent.putExtra("playlistIndex", selectedIndex)
       intent.putExtra("playlist_index", selectedIndex)
+    }
+    val selectedDuration = playlistDurationsSeconds.getOrNull(if (playlist.isNotEmpty()) playlistIndex else 0)?.takeIf { it > 0 }
+    if (selectedDuration != null) {
+      intent.putExtra("duration", selectedDuration)
     }
     launchSource?.let { intent.putExtra("launch_source", it) }
     title?.let {

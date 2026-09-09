@@ -330,7 +330,7 @@ fun NavidromeMusicView(
                 items(sortedPlaylists, key = { it.id }) { playlist ->
                   SharedMusicGridCard(
                     title = playlist.name,
-                    subtitle = "${playlist.songCount} tracks",
+                    subtitle = formatNavidromePlaylistSubtitle(playlist),
                     artworkUrl = navidromeRepository.getCoverArtUrl(server, playlist.coverArtId),
                     fallbackIcon = if (playlist.id == "virtual_favorites_playlist" || playlist.id == "favorites") Icons.RoundedFilled.Favorite else Icons.RoundedFilled.QueueMusic,
                     onClick = { onPlaylistClick(playlist) },
@@ -345,8 +345,8 @@ fun NavidromeMusicView(
                 items(sortedPlaylists, key = { it.id }) { playlist ->
                   SharedMusicTrackListItem(
                     title = playlist.name,
-                    subtitle = "${playlist.songCount} tracks",
-                    durationSeconds = playlist.durationSeconds.toLong(),
+                    subtitle = if (playlist.songCount == 1) "1 track" else "${playlist.songCount} tracks",
+                    durationSeconds = playlist.durationSeconds.takeIf { it > 0 }?.toLong(),
                     artworkUrl = navidromeRepository.getCoverArtUrl(server, playlist.coverArtId),
                     fallbackIcon = if (playlist.id == "virtual_favorites_playlist" || playlist.id == "favorites") Icons.RoundedFilled.Favorite else Icons.RoundedFilled.QueueMusic,
                     coverArtSizeDp = coverArtSizeDp,
@@ -403,7 +403,7 @@ private fun NavidromeHomeContent(
           items = uiState.playlists,
           getId = { it.id },
           getTitle = { it.name },
-          getSubtitle = { "${it.songCount} tracks" },
+          getSubtitle = { formatNavidromePlaylistSubtitle(it) },
           getArtworkUrl = { navidromeRepository.getCoverArtUrl(server, it.coverArtId) },
           fallbackIcon = Icons.RoundedFilled.QueueMusic,
           getFallbackIcon = { if (it.id == "virtual_favorites_playlist" || it.id == "favorites") Icons.RoundedFilled.Favorite else Icons.RoundedFilled.QueueMusic },
@@ -450,4 +450,10 @@ private fun NavidromeHomeContent(
       }
     }
   }
+}
+
+private fun formatNavidromePlaylistSubtitle(playlist: NavidromePlaylist): String {
+  val countStr = if (playlist.songCount == 1) "1 track" else "${playlist.songCount} tracks"
+  val durationStr = playlist.durationSeconds.takeIf { it > 0 }?.let { DateUtils.formatElapsedTime(it.toLong()) }
+  return listOfNotNull(countStr, durationStr).joinToString(" • ")
 }

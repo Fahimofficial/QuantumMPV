@@ -338,6 +338,7 @@ fun MediaLibraryContent(forceAudio: Boolean = false) {
         stableId = PlaybackIdentity.forLocalPath(item.path),
         title = item.displayName,
         mimeType = item.mimeType,
+        durationSeconds = (item.duration / 1000L).toInt().takeIf { it > 0 },
       )
     }
     val launchToken = PreparedPlaybackLaunchStore.stage(

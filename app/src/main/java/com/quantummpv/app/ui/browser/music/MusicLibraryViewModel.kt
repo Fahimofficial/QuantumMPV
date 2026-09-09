@@ -325,6 +325,7 @@ class MusicLibraryViewModel : ViewModel(), KoinComponent {
         artist = item.artist,
         mimeType = "audio/*",
         artworkUri = item.albumArtUri?.toString(),
+        durationSeconds = (item.durationMs / 1000L).toInt().takeIf { it > 0 },
       )
     }
     val launchToken = PreparedPlaybackLaunchStore.stage(
@@ -360,6 +361,7 @@ class MusicLibraryViewModel : ViewModel(), KoinComponent {
         artist = item.artist,
         mimeType = "audio/*",
         artworkUri = item.albumArtUri?.toString(),
+        durationSeconds = (item.durationMs / 1000L).toInt().takeIf { it > 0 },
       )
     }
     val launchToken = PreparedPlaybackLaunchStore.stage(

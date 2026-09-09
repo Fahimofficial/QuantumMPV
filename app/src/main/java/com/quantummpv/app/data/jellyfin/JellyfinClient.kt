@@ -520,7 +520,7 @@ class JellyfinClient(
         val base = normalizeUrl(serverUrl)
         val urlBuilder =
           StringBuilder(
-            "$base/Users/$userId/Items?Fields=Overview,PrimaryImageAspectRatio,UserData,ChildCount,MediaSources,MediaStreams,ProductionYear,CommunityRating,CriticRating,Genres,OfficialRating,Taglines,SeriesName,SeriesId,SeriesPrimaryImageTag,SeasonName,IndexNumber,ParentIndexNumber,PremiereDate,Status,RemoteTrailers&StartIndex=$startIndex&Limit=$limit&SortBy=${sortBy.apiValue}&SortOrder=${sortOrder.apiValue}",
+            "$base/Users/$userId/Items?Fields=Overview,PrimaryImageAspectRatio,UserData,ChildCount,CumulativeRunTimeTicks,MediaSources,MediaStreams,ProductionYear,CommunityRating,CriticRating,Genres,OfficialRating,Taglines,SeriesName,SeriesId,SeriesPrimaryImageTag,SeasonName,IndexNumber,ParentIndexNumber,PremiereDate,Status,RemoteTrailers&StartIndex=$startIndex&Limit=$limit&SortBy=${sortBy.apiValue}&SortOrder=${sortOrder.apiValue}",
           )
 
         if (!parentId.isNullOrBlank()) {
@@ -953,7 +953,7 @@ class JellyfinClient(
     val type = obj["Type"]?.jsonPrimitive?.content ?: obj["CollectionType"]?.jsonPrimitive?.content ?: "Folder"
     val collectionType = obj["CollectionType"]?.jsonPrimitive?.content
     val overview = obj["Overview"]?.jsonPrimitive?.content
-    val runTimeTicks = obj["RunTimeTicks"]?.jsonPrimitive?.longOrNull
+    val runTimeTicks = obj["RunTimeTicks"]?.jsonPrimitive?.longOrNull ?: obj["CumulativeRunTimeTicks"]?.jsonPrimitive?.longOrNull
     val isFolder = obj["IsFolder"]?.jsonPrimitive?.booleanOrNull ?: (type == "CollectionFolder" || type == "Folder" || type == "Series" || type == "Season")
     val productionYear = obj["ProductionYear"]?.jsonPrimitive?.intOrNull
     val communityRating = obj["CommunityRating"]?.jsonPrimitive?.content?.toDoubleOrNull()
