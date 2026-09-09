@@ -15,7 +15,11 @@ concurrency:
   cancel-in-progress: true
 
 env:
-  GRADLE_OPTS: -Dorg.gradle.daemon=false -Dorg.gradle.parallel=false
+  GRADLE_OPTS: >-
+    -Dorg.gradle.daemon=false
+    -Dorg.gradle.parallel=false
+    -Dorg.gradle.workers.max=1
+    -Dkotlin.daemon.jvm.options=-Xmx4g
 
 jobs:
   validate:
@@ -51,7 +55,7 @@ jobs:
         uses: gradle/actions/wrapper-validation@v4
 
       - name: Run lint, unit tests, and debug build
-        run: ./gradlew :app:lintStandardDebug :app:testStandardDebugUnitTest assembleDebug --stacktrace --no-daemon --max-workers=2
+        run: ./gradlew :app:lintStandardDebug :app:testStandardDebugUnitTest assembleDebug --stacktrace --no-daemon --max-workers=1
 
       - name: Upload debug APK
         uses: actions/upload-artifact@v4
