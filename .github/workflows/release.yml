@@ -173,7 +173,7 @@ jobs:
           variant_guide = """
           ### APK variants
 
-          All variants contain the same QuantumMPV app version and features, with their native backends built from [mpvlib Android](https://github.com/Riteshp2001/mpvlibAndroid). Choose the package that best matches your device:
+          All variants contain the same QuantumMPV app version and features, with bundled native mpv backends. See [CITATION.md](https://github.com/Fahimofficial/QuantumMPV/blob/master/CITATION.md) for upstream and library credits. Choose the package that best matches your device:
 
           - **Standard** (`QuantumMPV-<architecture>-<version>.apk`): Recommended for most devices. Available as Universal and architecture-specific APKs with the standard Vulkan-capable playback backend.
           - **FongMi** (`QuantumMPV-fongmi-<version>.apk`): Universal package using the FongMi native profile for Vulkan, direct MediaCodec, and Dolby Vision playback.
