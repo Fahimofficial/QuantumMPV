@@ -487,6 +487,8 @@ Weiter: NEXT</string>
   <string name="background_playback_title">Hintergrundwiedergabe</string>
   <string name="pref_audio_background_playback_title">Hintergrundwiedergabe (Audio-Player)</string>
   <string name="pref_audio_background_playback_summary">Audio beim Verlassen des Audio-Players oder Ausschalten des Bildschirms weiterspielen</string>
+  <string name="pref_audio_mini_player_track_switching_title">Titel im Mini-Player wechseln</string>
+  <string name="pref_audio_mini_player_track_switching_summary">Wenn der Mini-Player oder die Hintergrundwiedergabe aktiv ist, wechselt die Titelauswahl das Lied im Mini-Player, ohne den Vollbild-Player zu öffnen</string>
   <string name="pref_video_background_playback_title">Hintergrundwiedergabe (Video-Player)</string>
   <string name="pref_video_background_playback_summary">Video-Audio beim Verlassen des Video-Players oder Ausschalten des Bildschirms weiterspielen</string>
   <string name="deselect_all">Auswahl aufheben</string>

@@ -486,6 +486,8 @@
   <string name="background_playback_title">बैकग्राउंड प्लेबैक</string>
   <string name="pref_audio_background_playback_title">ऑडियो प्लेयर बैकग्राउंड प्लेबैक</string>
   <string name="pref_audio_background_playback_summary">ऑडियो प्लेयर से बाहर जाने या स्क्रीन बंद करने पर ऑडियो चलता रखें</string>
+  <string name="pref_audio_mini_player_track_switching_title">मिनी प्लेयर में गाने बदलें</string>
+  <string name="pref_audio_mini_player_track_switching_summary">जब मिनी प्लेयर या बैकग्राउंड प्लेबैक सक्रिय हो, तो दूसरा गाना चुनने पर पूरा प्लेयर खोले बिना मिनी प्लेयर में गाना बदल जाता है</string>
   <string name="pref_video_background_playback_title">वीडियो प्लेयर बैकग्राउंड प्लेबैक</string>
   <string name="pref_video_background_playback_summary">वीडियो प्लेयर से बाहर जाने या स्क्रीन बंद करने पर वीडियो का ऑडियो चलता रखें</string>
   <string name="deselect_all">सभी अनसिलेक्ट करें</string>

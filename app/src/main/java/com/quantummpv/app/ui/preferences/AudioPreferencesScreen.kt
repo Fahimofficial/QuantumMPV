@@ -520,6 +520,21 @@ object AudioPreferencesScreen : Screen {
               )
 
               PreferenceDivider()
+              val miniPlayerTrackSwitching by preferences.miniPlayerTrackSwitching.collectAsState()
+              SwitchPreference(
+                modifier = Modifier.settingsSearchTarget(R.string.pref_audio_mini_player_track_switching_title),
+                value = miniPlayerTrackSwitching,
+                onValueChange = preferences.miniPlayerTrackSwitching::set,
+                title = { Text(stringResource(R.string.pref_audio_mini_player_track_switching_title)) },
+                summary = {
+                  Text(
+                    stringResource(R.string.pref_audio_mini_player_track_switching_summary),
+                    color = MaterialTheme.colorScheme.outline,
+                  )
+                },
+              )
+
+              PreferenceDivider()
               val autoplayNextAudio by playerPreferences.autoplayNextAudio.collectAsState()
               SwitchPreference(
                 modifier = Modifier.settingsSearchTarget(R.string.pref_autoplay_next_audio_title),

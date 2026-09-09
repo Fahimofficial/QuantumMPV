@@ -487,6 +487,8 @@ Suivant : NEXT</string>
   <string name="background_playback_title">Lecture en arrière-plan</string>
   <string name="pref_audio_background_playback_title">Lecture en arrière-plan (Lecteur Audio)</string>
   <string name="pref_audio_background_playback_summary">Continuer la lecture audio en quittant le lecteur audio ou en éteignant l\’écran</string>
+  <string name="pref_audio_mini_player_track_switching_title">Changer de morceau dans le mini-lecteur</string>
+  <string name="pref_audio_mini_player_track_switching_summary">Lorsque le mini-lecteur ou la lecture en arrière-plan est active, sélectionner un autre morceau met à jour le mini-lecteur sans ouvrir le lecteur complet</string>
   <string name="pref_video_background_playback_title">Lecture en arrière-plan (Lecteur Vidéo)</string>
   <string name="pref_video_background_playback_summary">Continuer la lecture du son de la vidéo en quittant le lecteur vidéo ou en éteignant l\’écran</string>
   <string name="deselect_all">Tout désélectionner</string>

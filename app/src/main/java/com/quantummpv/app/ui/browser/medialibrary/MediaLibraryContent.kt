@@ -341,6 +341,12 @@ fun MediaLibraryContent(forceAudio: Boolean = false) {
         durationSeconds = (item.duration / 1000L).toInt().takeIf { it > 0 },
       )
     }
+    val isAudio = mediaType == MediaLibraryType.Audio || video.isAudio
+    if (MediaUtils.shouldPlayInMiniPlayerOnly(isAudio)) {
+      MediaUtils.playInMiniPlayer(context, queueItems, index)
+      return
+    }
+
     val launchToken = PreparedPlaybackLaunchStore.stage(
       items = queueItems,
       currentIndex = index,

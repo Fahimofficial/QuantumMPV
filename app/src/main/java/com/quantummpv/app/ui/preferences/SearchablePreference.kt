@@ -945,6 +945,15 @@ object SearchablePreferences {
       )
       add(
         SearchablePreference(
+          titleRes = R.string.pref_audio_mini_player_track_switching_title,
+          summaryRes = R.string.pref_audio_mini_player_track_switching_summary,
+          keywords = listOf("mini player", "background", "switch", "song", "audio", "music", "change"),
+          category = "Audio",
+          screen = AudioPreferencesScreen,
+        ),
+      )
+      add(
+        SearchablePreference(
           titleRes = R.string.pref_autoplay_next_audio_title,
           summaryRes = R.string.pref_autoplay_next_audio_summary,
           keywords = listOf("autoplay", "next", "audio", "music", "advance", "continuous"),

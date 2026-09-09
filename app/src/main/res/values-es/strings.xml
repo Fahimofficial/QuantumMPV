@@ -487,6 +487,8 @@ Siguiente: NEXT</string>
   <string name="background_playback_title">Reproducción en segundo plano</string>
   <string name="pref_audio_background_playback_title">Reproducción en segundo plano (Reproductor de Audio)</string>
   <string name="pref_audio_background_playback_summary">Mantener la reproducción al salir del reproductor de audio o apagar la pantalla</string>
+  <string name="pref_audio_mini_player_track_switching_title">Cambiar canciones en el mini reproductor</string>
+  <string name="pref_audio_mini_player_track_switching_summary">Cuando el mini reproductor o la reproducción en segundo plano estén activos, seleccionar otra canción actualiza el mini reproductor sin abrir el reproductor completo</string>
   <string name="pref_video_background_playback_title">Reproducción en segundo plano (Reproductor de Video)</string>
   <string name="pref_video_background_playback_summary">Mantener el audio del video al salir del reproductor de video o apagar la pantalla</string>
   <string name="deselect_all">Deseleccionar todo</string>

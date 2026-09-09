@@ -487,6 +487,8 @@
   <string name="background_playback_title">التشغيل في الخلفية</string>
   <string name="pref_audio_background_playback_title">التشغيل في الخلفية (مشغل الصوت)</string>
   <string name="pref_audio_background_playback_summary">مواصلة تشغيل الصوت عند مغادرة مشغل الصوت أو إيقاف الشاشة</string>
+  <string name="pref_audio_mini_player_track_switching_title">تغيير الأغاني في المشغل المصغر</string>
+  <string name="pref_audio_mini_player_track_switching_summary">عندما يكون المشغل المصغر أو التشغيل في الخلفية نشطًا، يؤدي اختيار أغنية أخرى إلى تحديث المشغل المصغر دون فتح المشغل الكامل</string>
   <string name="pref_video_background_playback_title">التشغيل في الخلفية (مشغل الفيديو)</string>
   <string name="pref_video_background_playback_summary">مواصلة تشغيل صوت الفيديو عند مغادرة مشغل الفيديو أو إيقاف الشاشة</string>
   <string name="deselect_all">إلغاء تحديد الكل</string>

@@ -487,6 +487,8 @@
   <string name="background_playback_title">バックグラウンド再生</string>
   <string name="pref_audio_background_playback_title">バックグラウンド再生（オーディオプレイヤー）</string>
   <string name="pref_audio_background_playback_summary">オーディオプレイヤーを離れたり画面をオフにしても音声を再生し続ける</string>
+  <string name="pref_audio_mini_player_track_switching_title">ミニプレイヤーで曲を切り替える</string>
+  <string name="pref_audio_mini_player_track_switching_summary">ミニプレイヤーまたはバックグラウンド再生が有効な場合、別の曲を選択しても全画面プレイヤーを開かずにミニプレイヤーで切り替えます</string>
   <string name="pref_video_background_playback_title">バックグラウンド再生（ビデオプレイヤー）</string>
   <string name="pref_video_background_playback_summary">ビデオプレイヤーを離れたり画面をオフにしても動画の音声を再生し続ける</string>
   <string name="deselect_all">すべて選択解除</string>
