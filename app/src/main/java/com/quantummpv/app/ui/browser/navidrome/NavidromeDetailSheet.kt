@@ -9,6 +9,7 @@
 
 package com.quantummpv.app.ui.browser.navidrome
 
+import android.text.format.DateUtils
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -180,10 +181,16 @@ fun NavidromeDetailSheet(
               .fillMaxWidth()
               .padding(horizontal = 16.dp, vertical = 8.dp),
           ) {
+            val playlistDuration = playlist.durationSeconds.takeIf { it > 0 }
+              ?: playlist.songs.sumOf { it.durationSeconds }.takeIf { it > 0 }
+            val playlistDurationFormatted = playlistDuration?.let { DateUtils.formatElapsedTime(it.toLong()) }
+            val countText = if (playlist.songCount == 1) "1 track" else "${playlist.songCount.coerceAtLeast(playlist.songs.size)} tracks"
+            val itemCountText = listOfNotNull(countText, playlistDurationFormatted).joinToString(" • ")
+
             SharedMusicDetailHeader(
               title = playlist.name,
               subtitle = null,
-              itemCountText = "${playlist.songCount} tracks",
+              itemCountText = itemCountText,
               artworkUrl = navidromeRepository.getCoverArtUrl(server, playlist.coverArtId, size = 300),
               fallbackIcon = if (playlist.id == "virtual_favorites_playlist" || playlist.id == "favorites") Icons.RoundedFilled.Favorite else Icons.RoundedFilled.QueueMusic,
               onPlayAll = { viewModel.playAll(context, playlist.songs, 0) },

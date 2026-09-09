@@ -945,6 +945,24 @@ object SearchablePreferences {
       )
       add(
         SearchablePreference(
+          titleRes = R.string.pref_audio_mini_player_track_switching_title,
+          summaryRes = R.string.pref_audio_mini_player_track_switching_summary,
+          keywords = listOf("mini player", "background", "switch", "song", "audio", "music", "change"),
+          category = "Audio",
+          screen = AudioPreferencesScreen,
+        ),
+      )
+      add(
+        SearchablePreference(
+          titleRes = R.string.pref_autoplay_next_audio_title,
+          summaryRes = R.string.pref_autoplay_next_audio_summary,
+          keywords = listOf("autoplay", "next", "audio", "music", "advance", "continuous"),
+          category = "Audio",
+          screen = AudioPreferencesScreen,
+        ),
+      )
+      add(
+        SearchablePreference(
           titleRes = R.string.pref_video_background_playback_title,
           summaryRes = R.string.pref_video_background_playback_summary,
           keywords = listOf("background", "playback", "video", "service", "media"),
@@ -1332,7 +1350,6 @@ object SearchablePreferences {
         category = "Player",
         screen = PlayerPreferencesScreen,
         anchorItemIndex = 1,
-        SearchEntrySpec(R.string.pref_autoplay_next_audio_title, listOf("autoplay", "next", "audio", "music")),
         SearchEntrySpec(R.string.pref_playlist_mode_title, listOf("playlist", "next", "previous", "navigation", "queue")),
         SearchEntrySpec(R.string.pref_enable_video_mini_player_title, listOf("mini player", "video", "background", "continue")),
         SearchEntrySpec(R.string.ui_show_media_info_in_chooser, listOf("media info", "chooser", "open with", "system")),
@@ -1442,6 +1459,7 @@ object SearchablePreferences {
         category = "Audio",
         screen = AudioPreferencesScreen,
         anchorItemIndex = 5,
+        SearchEntrySpec(R.string.pref_autoplay_next_audio_title, listOf("autoplay", "next", "audio", "music")),
         SearchEntrySpec(R.string.pref_audio_drc_title, listOf("audio", "dynamic range", "compression", "drc", "loudness")),
         SearchEntrySpec(R.string.pref_lyrics_auto_translate, listOf("lyrics", "translation", "automatic", "language")),
         SearchEntrySpec(R.string.pref_lyrics_target_language, listOf("lyrics", "translation", "target", "language")),

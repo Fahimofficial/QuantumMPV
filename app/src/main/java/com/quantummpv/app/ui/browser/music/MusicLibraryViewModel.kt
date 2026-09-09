@@ -36,6 +36,7 @@ import org.koin.core.component.KoinComponent
 import org.koin.core.component.inject
 
 import com.quantummpv.app.utils.media.MediaLibraryEvents
+import com.quantummpv.app.utils.media.MediaUtils
 import kotlinx.coroutines.flow.collectLatest
 
 class MusicLibraryViewModel : ViewModel(), KoinComponent {
@@ -325,8 +326,14 @@ class MusicLibraryViewModel : ViewModel(), KoinComponent {
         artist = item.artist,
         mimeType = "audio/*",
         artworkUri = item.albumArtUri?.toString(),
+        durationSeconds = (item.durationMs / 1000L).toInt().takeIf { it > 0 },
       )
     }
+    if (MediaUtils.shouldPlayInMiniPlayerOnly(isAudio = true)) {
+      MediaUtils.playInMiniPlayer(context, queueItems, index)
+      return
+    }
+
     val launchToken = PreparedPlaybackLaunchStore.stage(
       items = queueItems,
       currentIndex = index,
@@ -360,8 +367,14 @@ class MusicLibraryViewModel : ViewModel(), KoinComponent {
         artist = item.artist,
         mimeType = "audio/*",
         artworkUri = item.albumArtUri?.toString(),
+        durationSeconds = (item.durationMs / 1000L).toInt().takeIf { it > 0 },
       )
     }
+    if (MediaUtils.shouldPlayInMiniPlayerOnly(isAudio = true)) {
+      MediaUtils.playInMiniPlayer(context, queueItems, 0)
+      return
+    }
+
     val launchToken = PreparedPlaybackLaunchStore.stage(
       items = queueItems,
       currentIndex = 0,

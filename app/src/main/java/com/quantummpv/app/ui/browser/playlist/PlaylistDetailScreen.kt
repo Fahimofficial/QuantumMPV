@@ -81,6 +81,8 @@ import com.quantummpv.app.ui.browser.selection.rememberSelectionManager
 import com.quantummpv.app.ui.components.InlineSearchBar
 import com.quantummpv.app.ui.icons.Icon
 import com.quantummpv.app.ui.icons.Icons
+import com.quantummpv.app.ui.player.PlaybackIdentity
+import com.quantummpv.app.ui.player.PlaybackItem
 import com.quantummpv.app.ui.player.PlayerActivity
 import com.quantummpv.app.ui.utils.LocalBackStack
 import com.quantummpv.app.ui.utils.navigateTo
@@ -247,6 +249,30 @@ data class PlaylistDetailScreen(
       item: PlaylistVideoItem,
       startIndex: Int,
     ) {
+      val isAudio = item.video.isAudio || (playlist?.isAudio == true)
+      if (MediaUtils.shouldPlayInMiniPlayerOnly(isAudio)) {
+        val queueItems =
+          filteredVideoItems.map { playlistEntry ->
+            val fallback = Uri.parse(playlistEntry.video.path)
+            val uri =
+              playlistEntry.video.uri.takeIf { it != Uri.EMPTY && it.toString().isNotBlank() }
+                ?: fallback.takeIf { !it.scheme.isNullOrBlank() }
+                ?: Uri.fromFile(java.io.File(playlistEntry.video.path))
+            val headerExtra = buildM3UHeadersExtra(playlist, playlistEntry.playlistItem)
+            val headersMap = headerExtra?.let { mapOf(it[0] to it[1]) }.orEmpty()
+            PlaybackItem.fromUri(
+              uri = uri.toString(),
+              stableId = playlistEntry.video.path.takeIf(String::isNotBlank)?.let(PlaybackIdentity::forLocalPath),
+              title = playlistEntry.playlistItem.fileName,
+              mimeType = if (isAudio) "audio/*" else playlistEntry.video.mimeType,
+              headers = headersMap,
+              durationSeconds = (playlistEntry.video.duration / 1000L).toInt().takeIf { it > 0 },
+            )
+          }
+        MediaUtils.playInMiniPlayer(context, queueItems, startIndex)
+        return
+      }
+
       val fallbackUri = Uri.parse(item.video.path)
       val playUri =
         item.video.uri.takeIf { it != Uri.EMPTY && it.toString().isNotBlank() }

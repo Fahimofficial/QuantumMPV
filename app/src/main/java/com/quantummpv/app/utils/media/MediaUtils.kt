@@ -14,13 +14,18 @@ import android.content.Context
 import android.content.Intent
 import android.net.Uri
 import android.provider.MediaStore
+import androidx.core.content.ContextCompat
 import androidx.core.content.FileProvider
 import androidx.core.net.toUri
 import com.quantummpv.app.domain.media.model.Video
 import com.quantummpv.app.domain.torrent.isTorrentSource
+import com.quantummpv.app.ui.browser.NavigationBarState
+import com.quantummpv.app.ui.player.MediaPlaybackService
 import com.quantummpv.app.ui.player.PlaybackIdentity
 import com.quantummpv.app.ui.player.PlaybackItem
 import com.quantummpv.app.ui.player.PlaybackPerformanceTrace
+import com.quantummpv.app.ui.player.PlaybackPhase
+import com.quantummpv.app.ui.player.PlaybackSession
 import com.quantummpv.app.ui.player.PlayerActivity
 import com.quantummpv.app.ui.player.PlayerLookupHints
 import com.quantummpv.app.ui.player.PreparedPlaybackLaunchStore
@@ -60,6 +65,48 @@ data class PlaybackSubtitleTrack(
  * bypassing MediaUtils.
  */
 object MediaUtils {
+  fun shouldPlayInMiniPlayerOnly(isAudio: Boolean): Boolean {
+    if (!isAudio) return false
+    val audioPreferences =
+      runCatching { org.koin.core.context.GlobalContext.get().get<com.quantummpv.app.preferences.AudioPreferences>() }.getOrNull()
+    if (audioPreferences?.miniPlayerTrackSwitching?.get() != true) return false
+    val sessionState = PlaybackSession.state.value
+    val isServiceActive = MediaPlaybackService.isForegroundActive()
+    val isMiniPlayerVisible = NavigationBarState.isMiniPlayerVisible
+    val isSessionActive =
+      sessionState.phase == PlaybackPhase.READY ||
+        sessionState.phase == PlaybackPhase.BACKGROUND
+    return isServiceActive || isMiniPlayerVisible || isSessionActive
+  }
+
+  fun playInMiniPlayer(
+    context: Context,
+    queueItems: List<PlaybackItem>,
+    startIndex: Int = 0,
+  ) {
+    if (queueItems.isEmpty()) return
+    val selectedIndex = startIndex.coerceIn(queueItems.indices)
+    PlaybackSession.replaceQueue(queueItems, selectedIndex, isExplicitQueue = true)
+    val item = queueItems[selectedIndex]
+    PlaybackSession.load(item)
+    PlaybackSession.setPropertyBoolean("pause", false)
+    PlaybackSession.markBackground()
+    NavigationBarState.isMiniPlayerVisible = true
+
+    val serviceIntent =
+      Intent(context, MediaPlaybackService::class.java).apply {
+        putExtra("media_title", item.title)
+        putExtra("media_artist", item.artist)
+        putExtra("media_uri", item.originalUri)
+        putExtra("media_identifier", item.stableId)
+        putExtra("audio_background_playback", true)
+        putExtra("is_audio", true)
+      }
+    runCatching {
+      ContextCompat.startForegroundService(context, serviceIntent)
+    }
+  }
+
   fun playFiles(
     videos: List<Video>,
     context: Context,
@@ -73,22 +120,31 @@ object MediaUtils {
       return
     }
 
+    val selected = videos[selectedIndex]
+    val isAudioMedia = selected.isAudio || videos.all { it.isAudio }
+
     val queueItems =
       videos.map { video ->
         PlaybackItem.fromUri(
           uri = video.uri.toString(),
           stableId = video.path.takeIf(String::isNotBlank)?.let(PlaybackIdentity::forLocalPath),
           title = video.displayName,
-          mimeType = video.mimeType,
+          mimeType = if (video.isAudio) "audio/*" else video.mimeType,
+          durationSeconds = (video.duration / 1000L).toInt().takeIf { it > 0 },
         )
       }
+
+    if (shouldPlayInMiniPlayerOnly(isAudioMedia)) {
+      playInMiniPlayer(context, queueItems, selectedIndex)
+      return
+    }
+
     val launchToken =
       PreparedPlaybackLaunchStore.stage(
         items = queueItems,
         currentIndex = selectedIndex,
         isExplicitQueue = true,
       )
-    val selected = videos[selectedIndex]
     val intent =
       Intent(Intent.ACTION_VIEW, selected.uri).apply {
         setClass(context, PlayerActivity::class.java)
@@ -142,133 +198,95 @@ object MediaUtils {
     isAudio: Boolean = false,
     playlistDurationsSeconds: List<Int> = emptyList(),
   ) {
-    val uri =
-      when (source) {
-        is Video -> {
-          // Video.path is already MediaStore/library metadata. Avoid a synchronous filesystem
-          // stat on the UI click path before startActivity(); stale media will fail at the same
-          // playback/open stage where the content URI itself is validated.
-          val localPath = source.path.takeIf(String::isNotBlank)
-          // Recents stores a durable filesystem path, while normal library playback is usually
-          // launched with a MediaStore content:// URI. Playback state is keyed from the launch
-          // URI, so reopening the same file as file:// created a different key and restarted at 0.
-          // Resolve the path back to its MediaStore URI for history/quick-play launches only when
-          // the Video does not already carry a content URI.
-          val playbackUri =
-            if (launchSource.isHistoryResumeLaunch() &&
-              localPath != null &&
-              !source.uri.scheme.equals("content", ignoreCase = true)
-            ) {
-              resolveMediaStoreUri(context, localPath, source.isAudio) ?: source.uri
-            } else {
-              source.uri
-            }
-          val intent = Intent(Intent.ACTION_VIEW, playbackUri)
-          val torrentSource = playbackUri.toString().takeIf { isTorrentSource(it, source.mimeType) }
-          intent.setClass(
-            context,
-            if (torrentSource != null && torrentFileIndex == null && torrentPreparationId == null) {
-              TorrentSelectionActivity::class.java
-            } else {
-              PlayerActivity::class.java
-            },
-          )
-          intent.addFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP)
-          intent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
-          intent.putExtra("internal_launch", true) // Enables subtitle autoload
-          localPath?.let { intent.putExtra("local_media_path", it) }
-          intent.putExtra("is_audio", source.isAudio)
-          intent.putExtra(PlayerActivity.EXTRA_VIDEO_WIDTH, source.width)
-          intent.putExtra(PlayerActivity.EXTRA_VIDEO_HEIGHT, source.height)
-          applyPlaybackExtras(
-            intent = intent,
-            launchSource = launchSource,
-            title =
-              title
-                ?: source.title.takeIf { shouldForwardVideoTitle(source) && it.isNotBlank() }
-                ?: source.displayName.takeIf { shouldForwardVideoTitle(source) && it.isNotBlank() }
-                ?: if (launchSource != null &&
-                  (launchSource.contains("playlist") || launchSource == "m3u_playlist")
-                ) {
-                  source.displayName
-                } else {
-                  null
-                },
-            headers = headers,
-            subtitles = subtitles,
-            enabledSubtitles = enabledSubtitles,
-            subtitleTracks = subtitleTracks,
-            lookupHints = lookupHints,
-            torrentFileIndex = torrentFileIndex,
-            torrentPreparationId = torrentPreparationId,
-            torrentSource = torrentSource,
-            mediaDescription = mediaDescription,
-            posterUrl = posterUrl,
-            backdropUrl = backdropUrl,
-            playlist = playlist,
-            playlistIndex = playlistIndex,
-            playlistTitles = playlistTitles,
-            playlistArtists = playlistArtists,
-            playlistArtworkUrls = playlistArtworkUrls,
-            isAudio = isAudio,
-            playlistDurationsSeconds = playlistDurationsSeconds,
-          )
-          PlaybackPerformanceTrace.mark("OPEN_REQUEST", "source=${launchSource ?: "library"} kind=video")
-          context.startActivity(intent)
-          return
-        }
+    val videoSource = source as? Video
+    val localPath =
+      when {
+        videoSource != null -> videoSource.path.takeIf(String::isNotBlank)
+        source is String && source.startsWith("file://", ignoreCase = true) -> source.removePrefix("file://")
+        source is String && source.startsWith("/") -> source
+        source is Uri && source.scheme.equals("file", ignoreCase = true) -> source.path
+        else -> null
+      }?.takeIf(String::isNotBlank)
 
-        is String -> {
-          if (source.isBlank()) return
-          // Handle file paths with # characters properly
-          if (source.startsWith("/") || source.startsWith("file://")) {
-            // It's a local file path - create URI safely
-            val filePath =
-              if (source.startsWith("file://")) {
-                source.removePrefix("file://")
-              } else {
-                source
-              }
-            Uri.fromFile(java.io.File(filePath))
+    val playbackUri: Uri =
+      when {
+        videoSource != null -> {
+          if (launchSource.isHistoryResumeLaunch() &&
+            localPath != null &&
+            !videoSource.uri.scheme.equals("content", ignoreCase = true)
+          ) {
+            resolveMediaStoreUri(context, localPath, videoSource.isAudio) ?: videoSource.uri
           } else {
-            // It's likely a network URI - parse normally
+            videoSource.uri
+          }
+        }
+        source is String -> {
+          if (source.isBlank()) return
+          if (source.startsWith("/") || source.startsWith("file://")) {
+            val filePath = if (source.startsWith("file://")) source.removePrefix("file://") else source
+            Uri.fromFile(File(filePath))
+          } else {
             val parsedUri = source.toUri()
             parsedUri.scheme?.let { parsedUri } ?: "file://$source".toUri()
           }
         }
-
-        is android.net.Uri -> source
+        source is Uri -> source
         else -> {
           android.util.Log.e("MediaUtils", "Unsupported source type: ${source::class.java}")
           return
         }
       }
 
-    // Keep the path handoff syntactic here. File existence is validated by the actual media open;
-    // probing storage before startActivity() adds avoidable main-thread I/O to every local launch.
-    val localPath =
-      when {
-        source is String && source.startsWith("file://", ignoreCase = true) -> source.removePrefix("file://")
-        source is String && source.startsWith("/") -> source
-        uri.scheme.equals("file", ignoreCase = true) -> uri.path
-        else -> null
-      }?.takeIf(String::isNotBlank)
+    val isAudioMedia =
+      isAudio ||
+        videoSource?.isAudio == true ||
+        (localPath?.let { File(it).extension.lowercase() in FileTypeUtils.AUDIO_EXTENSIONS } ?: false)
 
-    val playbackUri =
-      if (launchSource.isHistoryResumeLaunch() && localPath != null) {
-        val isAudio = File(localPath).extension.lowercase() in FileTypeUtils.AUDIO_EXTENSIONS
-        resolveMediaStoreUri(context, localPath, isAudio) ?: uri
-      } else {
-        uri
-      }
+    if (shouldPlayInMiniPlayerOnly(isAudioMedia)) {
+      val queueItems =
+        if (playlist.isNotEmpty()) {
+          val selIndex = playlistIndex.coerceIn(playlist.indices)
+          playlist.mapIndexed { idx, pUri ->
+            PlaybackItem.fromUri(
+              uri = pUri.toString(),
+              title = playlistTitles.getOrNull(idx) ?: title,
+              artist = playlistArtists.getOrNull(idx),
+              mimeType = "audio/*",
+              headers = headers.orEmpty(),
+              artworkUri =
+                playlistArtworkUrls.getOrNull(idx)?.takeIf(String::isNotBlank)
+                  ?: posterUrl?.takeIf { idx == selIndex },
+              durationSeconds = playlistDurationsSeconds.getOrNull(idx)?.takeIf { it > 0 },
+            )
+          }
+        } else {
+          val durSec =
+            playlistDurationsSeconds.firstOrNull()?.takeIf { it > 0 }
+              ?: videoSource?.let { (it.duration / 1000L).toInt().takeIf { d -> d > 0 } }
+          listOf(
+            PlaybackItem.fromUri(
+              uri = playbackUri.toString(),
+              stableId = localPath?.let(PlaybackIdentity::forLocalPath),
+              title = title ?: videoSource?.displayName,
+              artist = playlistArtists.firstOrNull(),
+              mimeType = "audio/*",
+              headers = headers.orEmpty(),
+              artworkUri = posterUrl ?: playlistArtworkUrls.firstOrNull(),
+              durationSeconds = durSec,
+            ),
+          )
+        }
+      playInMiniPlayer(context, queueItems, playlistIndex)
+      return
+    }
 
     val intent = Intent(Intent.ACTION_VIEW, playbackUri)
     val torrentSource =
       when (source) {
         is String -> source.trim()
         is Uri -> source.toString()
-        else -> playbackUri.toString()
-      }.takeIf { isTorrentSource(it) }
+        else -> playbackUri.toString().takeIf { videoSource != null && isTorrentSource(it, videoSource.mimeType) }
+      }?.takeIf { isTorrentSource(it) }
     intent.setClass(
       context,
       if (torrentSource != null && torrentFileIndex == null && torrentPreparationId == null) {
@@ -279,11 +297,27 @@ object MediaUtils {
     )
     intent.addFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP)
     intent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+    intent.putExtra("internal_launch", true)
     localPath?.let { intent.putExtra("local_media_path", it) }
+    if (videoSource != null) {
+      intent.putExtra("is_audio", videoSource.isAudio)
+      intent.putExtra(PlayerActivity.EXTRA_VIDEO_WIDTH, videoSource.width)
+      intent.putExtra(PlayerActivity.EXTRA_VIDEO_HEIGHT, videoSource.height)
+    }
     applyPlaybackExtras(
       intent = intent,
       launchSource = launchSource,
-      title = title,
+      title =
+        title
+          ?: videoSource?.title?.takeIf { shouldForwardVideoTitle(videoSource) && it.isNotBlank() }
+          ?: videoSource?.displayName?.takeIf { shouldForwardVideoTitle(videoSource) && it.isNotBlank() }
+          ?: if (launchSource != null &&
+            (launchSource.contains("playlist") || launchSource == "m3u_playlist")
+          ) {
+            videoSource?.displayName
+          } else {
+            null
+          },
       headers = headers,
       subtitles = subtitles,
       enabledSubtitles = enabledSubtitles,
@@ -300,10 +334,15 @@ object MediaUtils {
       playlistTitles = playlistTitles,
       playlistArtists = playlistArtists,
       playlistArtworkUrls = playlistArtworkUrls,
-      isAudio = isAudio,
-      playlistDurationsSeconds = playlistDurationsSeconds,
+      isAudio = isAudioMedia,
+      playlistDurationsSeconds = playlistDurationsSeconds.ifEmpty {
+        videoSource?.let { listOf((it.duration / 1000L).toInt().takeIf { d -> d > 0 } ?: 0) } ?: emptyList()
+      },
     )
-    PlaybackPerformanceTrace.mark("OPEN_REQUEST", "source=${launchSource ?: "direct"} kind=${uri.scheme ?: "path"}")
+    PlaybackPerformanceTrace.mark(
+      "OPEN_REQUEST",
+      "source=${launchSource ?: (if (videoSource != null) "library" else "direct")} kind=${if (videoSource != null) "video" else (playbackUri.scheme ?: "path")}",
+    )
     context.startActivity(intent)
   }
 
@@ -397,6 +436,10 @@ object MediaUtils {
       intent.putExtra(PlayerActivity.EXTRA_PREPARED_PLAYBACK_TOKEN, launchToken)
       intent.putExtra("playlistIndex", selectedIndex)
       intent.putExtra("playlist_index", selectedIndex)
+    }
+    val selectedDuration = playlistDurationsSeconds.getOrNull(if (playlist.isNotEmpty()) playlistIndex else 0)?.takeIf { it > 0 }
+    if (selectedDuration != null) {
+      intent.putExtra("duration", selectedDuration)
     }
     launchSource?.let { intent.putExtra("launch_source", it) }
     title?.let {

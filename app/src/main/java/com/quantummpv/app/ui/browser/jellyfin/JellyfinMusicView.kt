@@ -438,7 +438,7 @@ fun JellyfinMusicView(
                   }
                   SharedMusicGridCard(
                     title = playlist.name,
-                    subtitle = playlist.childCount?.let { if (it == 1) "1 track" else "$it tracks" } ?: "",
+                    subtitle = formatJellyfinPlaylistSubtitle(playlist),
                     artworkUrl = imageUrl,
                     fallbackIcon = if (playlist.id == "virtual_favorites_playlist" || playlist.id == "favorites") Icons.RoundedFilled.Favorite else Icons.RoundedFilled.QueueMusic,
                     onClick = { onItemClick(playlist) },
@@ -466,6 +466,7 @@ fun JellyfinMusicView(
                   SharedMusicTrackListItem(
                     title = playlist.name,
                     subtitle = playlist.childCount?.let { if (it == 1) "1 track" else "$it tracks" },
+                    durationSeconds = playlist.durationSeconds.takeIf { it > 0 },
                     artworkUrl = imageUrl,
                     fallbackIcon = if (playlist.id == "virtual_favorites_playlist" || playlist.id == "favorites") Icons.RoundedFilled.Favorite else Icons.RoundedFilled.QueueMusic,
                     coverArtSizeDp = coverArtSizeDp,
@@ -596,7 +597,7 @@ fun JellyfinPlaylistsRowSection(
     items = playlists,
     getId = { it.id },
     getTitle = { it.name },
-    getSubtitle = { it.seriesName ?: it.overview ?: "" },
+    getSubtitle = { formatJellyfinPlaylistSubtitle(it) },
     getArtworkUrl = { playlist ->
       if (!playlist.primaryImageTag.isNullOrBlank()) {
         JellyfinClient.getImageUrl(
@@ -706,7 +707,11 @@ fun JellyfinMusicCard(
     )
   }
   val isArtist = item.type == "MusicArtist" || item.type == "Artist" || item.type == "AlbumArtist"
-  val subtitle = if (isArtist) "" else (item.seriesName ?: item.overview ?: "")
+  val subtitle = when {
+    isArtist -> ""
+    item.type == "Playlist" -> formatJellyfinPlaylistSubtitle(item)
+    else -> item.seriesName ?: item.overview ?: ""
+  }
 
   SharedMusicGridCard(
     title = item.name,
@@ -725,3 +730,11 @@ fun JellyfinMusicCard(
     modifier = modifier,
   )
 }
+
+private fun formatJellyfinPlaylistSubtitle(playlist: JellyfinItem): String {
+  val countStr = playlist.childCount?.let { if (it == 1) "1 track" else "$it tracks" }
+  val durationStr = playlist.durationSeconds.takeIf { it > 0 }?.let { DateUtils.formatElapsedTime(it) }
+  val parts = listOfNotNull(countStr, durationStr)
+  return if (parts.isNotEmpty()) parts.joinToString(" • ") else (playlist.seriesName ?: playlist.overview ?: "")
+}
+

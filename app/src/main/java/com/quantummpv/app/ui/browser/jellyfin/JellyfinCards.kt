@@ -1340,8 +1340,6 @@ fun JellyfinLibraryCard(
     modifier =
       modifier
         .width(cardWidth)
-        .tvFocusHighlight(RoundedCornerShape(10.dp), focusedScale = 1.03f)
-        .clip(RoundedCornerShape(10.dp))
         .clickable(onClick = onClick),
   ) {
     Card(
@@ -1349,6 +1347,7 @@ fun JellyfinLibraryCard(
         Modifier
           .fillMaxWidth()
           .aspectRatio(16f / 9f)
+          .tvFocusHighlight(RoundedCornerShape(10.dp), focusedScale = 1.03f)
           .clip(RoundedCornerShape(10.dp)),
       shape = RoundedCornerShape(10.dp),
       colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerHighest),

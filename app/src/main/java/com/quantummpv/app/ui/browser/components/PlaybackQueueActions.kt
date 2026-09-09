@@ -39,6 +39,7 @@ fun addVideosToPlaybackQueue(
             ?.let(PlaybackIdentity::forLocalPath),
         title = video.displayName.ifBlank { video.title },
         mimeType = video.mimeType,
+        durationSeconds = (video.duration / 1000L).toInt().takeIf { it > 0 },
       )
     }
   val added =

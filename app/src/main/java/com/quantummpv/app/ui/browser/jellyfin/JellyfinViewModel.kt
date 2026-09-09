@@ -47,7 +47,9 @@ import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
+import com.quantummpv.app.utils.media.PlaybackStateEvents
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.firstOrNull
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
@@ -169,6 +171,51 @@ class JellyfinViewModel(
 
   init {
     loadServers()
+    viewModelScope.launch(Dispatchers.IO) {
+      PlaybackStateEvents.changes.collectLatest {
+        refreshPlaybackStateSilently()
+      }
+    }
+  }
+
+  fun refreshPlaybackStateSilently() {
+    val server = _uiState.value.activeServer ?: return
+    viewModelScope.launch(Dispatchers.IO) {
+      delay(400) // Brief delay to ensure Jellyfin server has committed the stop/progress session data
+      val resumeResult = jellyfinRepository.getResumeItems(server, limit = 16).getOrNull()
+      if (resumeResult != null) {
+        _uiState.update { it.copy(resumeItems = resumeResult) }
+      }
+
+      val detail = _uiState.value.detailItem
+      if (detail != null) {
+        val updatedDetail = jellyfinRepository.getItem(server, detail.id).getOrNull()
+        if (updatedDetail != null) {
+          _uiState.update { it.copy(detailItem = updatedDetail) }
+        }
+        val seasonId = _uiState.value.selectedDetailSeasonId
+        if (seasonId != null) {
+          val episodes = jellyfinRepository.getEpisodes(server, detail.id, seasonId).getOrNull()
+          if (episodes != null) {
+            _uiState.update { it.copy(detailEpisodes = episodes) }
+          }
+        }
+      }
+
+      val openLib = _uiState.value.openLibrary
+      if (openLib != null && _uiState.value.currentItems.isNotEmpty()) {
+        val updatedItems = jellyfinRepository.getItems(
+          server = server,
+          parentId = openLib.id,
+          limit = _uiState.value.currentItems.size.coerceAtLeast(50),
+          sortBy = _uiState.value.sortBy,
+          sortOrder = _uiState.value.sortOrder,
+        ).getOrNull()
+        if (updatedItems != null && updatedItems.items.isNotEmpty()) {
+          _uiState.update { it.copy(currentItems = updatedItems.items) }
+        }
+      }
+    }
   }
 
   fun loadServers() {
@@ -293,9 +340,10 @@ class JellyfinViewModel(
         val topRatedRaw = topRatedResult.getOrNull()?.items ?: emptyList()
         val musicRaw = musicResult.getOrNull()?.items ?: emptyList()
 
-        // Helper filter to exclude music and folders from general video home sections
+        // Helper filter to exclude music and pure folders from general video home sections
         fun isVideoMedia(item: JellyfinItem): Boolean {
-          if (item.isAudio || item.isFolder || item.type == "Folder" || item.type == "MusicAlbum" || item.type == "Audio" || item.type == "MusicArtist" || item.type == "CollectionFolder") return false
+          if (item.isAudio || item.type == "Folder" || item.type == "MusicAlbum" || item.type == "Audio" || item.type == "MusicArtist" || item.type == "CollectionFolder") return false
+          if (item.isFolder && !item.isSeries && !item.isSeason && item.type != "Series" && item.type != "Season") return false
           return true
         }
 
@@ -312,8 +360,21 @@ class JellyfinViewModel(
               limit = 16,
               groupItems = true,
             )
-            val rawItems = latestItemsResult.getOrDefault(emptyList()).filter { isVideoMedia(it) }
-            val containsShows = rawItems.any { it.isSeries || it.type == "Episode" || it.seriesName != null }
+            var rawItems = latestItemsResult.getOrDefault(emptyList()).filter { isVideoMedia(it) }
+
+            // Fallback: If getLatestMedia with ParentId returned empty, fetch latest items sorted by DateCreated
+            if (rawItems.isEmpty()) {
+              val fallbackItemsResult = jellyfinRepository.getItems(
+                server = server,
+                parentId = lib.id,
+                sortBy = JellyfinSortBy.DATE_ADDED,
+                sortOrder = JellyfinSortOrder.DESCENDING,
+                limit = 16,
+              )
+              rawItems = fallbackItemsResult.getOrNull()?.items.orEmpty().filter { isVideoMedia(it) }
+            }
+
+            val containsShows = rawItems.any { it.isSeries || it.type == "Series" || it.type == "Episode" || it.seriesName != null }
             val isShows = isShowLib || containsShows
 
             val processedItems = if (isShows) {
@@ -560,13 +621,27 @@ class JellyfinViewModel(
     }
   }
 
-  fun ensureMusicLibraryOpened() {
+  fun getMusicLibraryView(): JellyfinLibraryView? {
+    val musicItem = _uiState.value.libraries.firstOrNull { isMusicLibrary(it) } ?: return null
+    return JellyfinLibraryView(
+      id = musicItem.id,
+      title = musicItem.name,
+      itemTypes = "Audio",
+      collectionType = musicItem.collectionType,
+      isMusic = true,
+    )
+  }
+
+  fun ensureMusicDataLoaded() {
     val active = _uiState.value.activeServer ?: return
-    if (_uiState.value.openLibrary?.isMusic == true) return
-    val musicLib = _uiState.value.libraries.firstOrNull { isMusicLibrary(it) }
-    if (musicLib != null) {
-      navigateToItem(musicLib)
+    val musicLib = getMusicLibraryView() ?: return
+    if (loadedMusicHomeLibraryId != musicLib.id) {
+      loadMusicHomeDashboard(active, musicLib)
     }
+  }
+
+  fun ensureMusicLibraryOpened() {
+    ensureMusicDataLoaded()
   }
 
   fun setGenreFilter(genre: String?) {
@@ -740,7 +815,7 @@ class JellyfinViewModel(
     if (_uiState.value.musicActiveTab == tab) return
     _uiState.update { it.copy(musicActiveTab = tab) }
     val active = _uiState.value.activeServer ?: return
-    val library = _uiState.value.openLibrary ?: return
+    val library = _uiState.value.openLibrary ?: getMusicLibraryView() ?: return
 
     if (tab == JellyfinMusicTab.HOME) {
       if (loadedMusicHomeLibraryId != library.id) loadMusicHomeDashboard(active, library)
@@ -1731,6 +1806,7 @@ class JellyfinViewModel(
       val externalSubs = subsDeferred.await()
 
       var playlistArtists: List<String> = emptyList()
+      var playlistDurations: List<Int> = emptyList()
       val playlistData =
         if (isAudio) {
           val audioSource =
@@ -1772,6 +1848,7 @@ class JellyfinViewModel(
             val titles = ArrayList<String>(audioSource.size)
             val artworks = ArrayList<String>(audioSource.size)
             playlistArtists = audioSource.map { track -> track.seriesName ?: targetItem.seriesName ?: "" }
+            playlistDurations = audioSource.map { it.durationSeconds.toInt() }
             var targetIdx = 0
             audioSource.forEachIndexed { idx, track ->
               if (track.id == targetItem.id) targetIdx = idx
@@ -1794,6 +1871,7 @@ class JellyfinViewModel(
           if (episodesSource.size > 1) {
             val uris = ArrayList<Uri>(episodesSource.size)
             val titles = ArrayList<String>(episodesSource.size)
+            playlistDurations = episodesSource.map { it.durationSeconds.toInt() }
             var targetIdx = 0
             episodesSource.forEachIndexed { index, ep ->
               if (ep.id == targetItem.id) targetIdx = index
@@ -1816,6 +1894,10 @@ class JellyfinViewModel(
 
       val (playlistUris, playlistTitles, playlistIndex) = playlistData.first
       val playlistArtworkUrls = playlistData.second
+
+      if (playlistDurations.isEmpty()) {
+        playlistDurations = listOf(targetItem.durationSeconds.toInt())
+      }
 
       val headers =
         mapOf(
@@ -1840,6 +1922,7 @@ class JellyfinViewModel(
           playlistArtists = playlistArtists,
           playlistArtworkUrls = playlistArtworkUrls,
           isAudio = isAudio,
+          playlistDurationsSeconds = playlistDurations,
         )
       }
     }
@@ -1944,6 +2027,7 @@ class JellyfinViewModel(
           playlistArtists = if (isAudio) playable.map { it.seriesName.orEmpty() } else emptyList(),
           playlistArtworkUrls = playlistArtworks,
           isAudio = isAudio,
+          playlistDurationsSeconds = playable.map { it.durationSeconds.toInt() },
         )
       }
     }

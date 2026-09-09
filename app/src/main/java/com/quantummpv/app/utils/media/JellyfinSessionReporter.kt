@@ -11,12 +11,16 @@ package com.quantummpv.app.utils.media
 
 import android.net.Uri
 import android.util.Log
+import com.quantummpv.app.data.jellyfin.JellyfinClient
+import com.quantummpv.app.data.jellyfin.JellyfinClient.Companion.addJellyfinHeaders
 import com.quantummpv.app.network.SharedHttpClient
 import com.quantummpv.app.network.awaitResponse
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.launch
+import kotlinx.serialization.ExperimentalSerializationApi
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
@@ -24,23 +28,34 @@ import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import okhttp3.RequestBody.Companion.toRequestBody
+import java.util.UUID
 import java.util.concurrent.TimeUnit
 
 class JellyfinSessionReporter(
   private val baseUrl: String,
   private val itemId: String,
   private val apiKey: String,
-  private val playSessionId: String?,
-  private val mediaSourceId: String?,
-  private val coroutineScope: CoroutineScope,
+  private val playSessionId: String,
+  private val mediaSourceId: String,
   private val httpClient: OkHttpClient = defaultHttpClient,
 ) {
+  private val reporterScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+
   companion object {
     private const val TAG = "JellyfinSessionReporter"
 
     // Ticks per millisecond in Jellyfin (1 tick = 100 nanoseconds = 10,000 ticks per millisecond)
     private const val TICKS_PER_MILLISECOND = 10000L
     private val JSON_MEDIA_TYPE = "application/json; charset=utf-8".toMediaType()
+
+    @OptIn(ExperimentalSerializationApi::class)
+    private val json =
+      Json {
+        ignoreUnknownKeys = true
+        isLenient = true
+        encodeDefaults = true
+        explicitNulls = false
+      }
 
     private val defaultHttpClient by lazy {
       SharedHttpClient.derive {
@@ -51,8 +66,8 @@ class JellyfinSessionReporter(
 
     fun create(
       url: String,
-      coroutineScope: CoroutineScope,
       httpClient: OkHttpClient? = null,
+      fallbackToken: String? = null,
     ): JellyfinSessionReporter? {
       try {
         val uri = Uri.parse(url)
@@ -66,9 +81,16 @@ class JellyfinSessionReporter(
           return null
         }
         val itemId = pathSegments[mediaIndex + 1]
-        val apiKey = uri.getQueryParameter("api_key") ?: uri.getQueryParameter("ApiKey") ?: return null
-        val playSessionId = uri.getQueryParameter("playSessionId") ?: uri.getQueryParameter("PlaySessionId")
-        val mediaSourceId = uri.getQueryParameter("mediaSourceId") ?: uri.getQueryParameter("MediaSourceId")
+        val apiKey = uri.getQueryParameter("api_key")
+          ?: uri.getQueryParameter("ApiKey")
+          ?: fallbackToken
+          ?: return null
+        val playSessionId = uri.getQueryParameter("playSessionId")
+          ?: uri.getQueryParameter("PlaySessionId")
+          ?: UUID.randomUUID().toString().replace("-", "")
+        val mediaSourceId = uri.getQueryParameter("mediaSourceId")
+          ?: uri.getQueryParameter("MediaSourceId")
+          ?: itemId
 
         val scheme = uri.scheme ?: "http"
         val authority = uri.encodedAuthority ?: return null
@@ -90,7 +112,6 @@ class JellyfinSessionReporter(
           apiKey = apiKey,
           playSessionId = playSessionId,
           mediaSourceId = mediaSourceId,
-          coroutineScope = coroutineScope,
           httpClient = httpClient ?: defaultHttpClient,
         )
       } catch (e: Exception) {
@@ -109,6 +130,7 @@ class JellyfinSessionReporter(
     val CanSeek: Boolean = true,
     val IsPaused: Boolean = false,
     val IsMuted: Boolean = false,
+    val PlayMethod: String = "DirectPlay",
   )
 
   @Serializable
@@ -120,6 +142,8 @@ class JellyfinSessionReporter(
     val CanSeek: Boolean = true,
     val IsPaused: Boolean = false,
     val IsMuted: Boolean = false,
+    val PlayMethod: String = "DirectPlay",
+    val EventName: String? = null,
   )
 
   @Serializable
@@ -131,16 +155,17 @@ class JellyfinSessionReporter(
   )
 
   fun reportPlaybackStart(positionMs: Long) {
-    coroutineScope.launch(Dispatchers.IO) {
+    reporterScope.launch {
       val urlString = "$baseUrl/Sessions/Playing?api_key=$apiKey"
       val info =
         PlaybackStartInfo(
           ItemId = itemId,
           PlaySessionId = playSessionId,
           MediaSourceId = mediaSourceId,
-          PositionTicks = positionMs * TICKS_PER_MILLISECOND,
+          PositionTicks = (positionMs.coerceAtLeast(0L)) * TICKS_PER_MILLISECOND,
+          PlayMethod = "DirectPlay",
         )
-      val jsonBody = Json.encodeToString(info)
+      val jsonBody = json.encodeToString(info)
       sendPostRequest(urlString, jsonBody)
     }
   }
@@ -148,33 +173,36 @@ class JellyfinSessionReporter(
   fun reportPlaybackProgress(
     positionMs: Long,
     isPaused: Boolean,
+    eventName: String? = null,
   ) {
-    coroutineScope.launch(Dispatchers.IO) {
+    reporterScope.launch {
       val urlString = "$baseUrl/Sessions/Playing/Progress?api_key=$apiKey"
       val info =
         PlaybackProgressInfo(
           ItemId = itemId,
           PlaySessionId = playSessionId,
           MediaSourceId = mediaSourceId,
-          PositionTicks = positionMs * TICKS_PER_MILLISECOND,
+          PositionTicks = (positionMs.coerceAtLeast(0L)) * TICKS_PER_MILLISECOND,
           IsPaused = isPaused,
+          PlayMethod = "DirectPlay",
+          EventName = eventName,
         )
-      val jsonBody = Json.encodeToString(info)
+      val jsonBody = json.encodeToString(info)
       sendPostRequest(urlString, jsonBody)
     }
   }
 
   fun reportPlaybackStop(positionMs: Long) {
-    coroutineScope.launch(Dispatchers.IO) {
+    reporterScope.launch {
       val urlString = "$baseUrl/Sessions/Playing/Stopped?api_key=$apiKey"
       val info =
         PlaybackStopInfo(
           ItemId = itemId,
           PlaySessionId = playSessionId,
           MediaSourceId = mediaSourceId,
-          PositionTicks = positionMs * TICKS_PER_MILLISECOND,
+          PositionTicks = (positionMs.coerceAtLeast(0L)) * TICKS_PER_MILLISECOND,
         )
-      val jsonBody = Json.encodeToString(info)
+      val jsonBody = json.encodeToString(info)
       sendPostRequest(urlString, jsonBody)
     }
   }
@@ -187,17 +215,17 @@ class JellyfinSessionReporter(
       val request =
         Request.Builder()
           .url(urlString)
+          .addJellyfinHeaders(apiKey)
           .header("Content-Type", "application/json")
-          .header("X-Emby-Token", apiKey)
-          .header("User-Agent", "mpvRx/1.0")
+          .header("User-Agent", "mpvRx/${JellyfinClient.VERSION}")
           .post(jsonBody.toRequestBody(JSON_MEDIA_TYPE))
           .build()
 
       httpClient.newCall(request).awaitResponse().use { response ->
         if (response.isSuccessful) {
-          Log.d(TAG, "Successfully reported status to Jellyfin: $urlString")
+          Log.d(TAG, "Successfully reported status to Jellyfin ($urlString): ${response.code}")
         } else {
-          Log.e(TAG, "Failed to report status to Jellyfin: $urlString, response code: ${response.code}")
+          Log.e(TAG, "Failed to report status to Jellyfin ($urlString): ${response.code} ${response.message}")
         }
       }
     } catch (cancellation: CancellationException) {
@@ -207,3 +235,4 @@ class JellyfinSessionReporter(
     }
   }
 }
+

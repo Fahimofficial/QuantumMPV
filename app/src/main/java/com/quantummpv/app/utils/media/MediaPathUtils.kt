@@ -24,11 +24,16 @@ import com.quantummpv.app.ui.player.PlaybackSession
  * "content://media/123".fileExtension() == ""
  * ```
  */
-fun String.fileExtension(): String =
-  substringBefore('?')
-    .substringBefore('#')
-    .substringAfterLast('.', "")
-    .lowercase()
+fun String.fileExtension(): String {
+  val cleanPath = substringBefore('?').substringBefore('#')
+  val lastSlash = cleanPath.lastIndexOf('/')
+  val lastDot = cleanPath.lastIndexOf('.')
+  return if (lastDot > lastSlash && lastDot != -1 && lastDot < cleanPath.length - 1) {
+    cleanPath.substring(lastDot + 1).lowercase()
+  } else {
+    ""
+  }
+}
 
 /**
  * Returns the MPV seek mode string based on the user's precise-seeking preference

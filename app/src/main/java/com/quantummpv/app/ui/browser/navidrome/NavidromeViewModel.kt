@@ -322,6 +322,7 @@ class NavidromeViewModel(
       playlistArtists = playlistArtists,
       playlistArtworkUrls = playlistArtworkUrls,
       isAudio = true,
+      playlistDurationsSeconds = songs.map { it.durationSeconds },
     )
   }
 

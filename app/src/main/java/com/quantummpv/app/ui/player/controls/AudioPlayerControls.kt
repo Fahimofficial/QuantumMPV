@@ -614,12 +614,40 @@ fun AudioPlayerControls(
   val audioFormat by PlaybackSession.propString["audio-params/format"].collectAsState()
   val bitsPerSample by PlaybackSession.propString["metadata/by-key/BITS_PER_SAMPLE"].collectAsState()
   val bitsPerSampleAlt by PlaybackSession.propString["metadata/by-key/bits_per_sample"].collectAsState()
+  val audioBitrateProp by PlaybackSession.propInt["audio-bitrate"].collectAsState()
+  val generalBitrateProp by PlaybackSession.propInt["bitrate"].collectAsState()
   val playbackSpeed by PlaybackSession.propFloat["speed"].collectAsState()
+
+  val cleanCodecName =
+    remember(audioCodec, mediaPath) {
+      val codec = audioCodec?.lowercase().orEmpty()
+      val rawExt = mediaPath?.fileExtension().orEmpty().lowercase()
+      val ext = if (rawExt in com.quantummpv.app.utils.storage.FileTypeUtils.AUDIO_EXTENSIONS) rawExt.uppercase() else ""
+      when {
+        codec.contains("flac") -> "FLAC"
+        codec.contains("alac") -> "ALAC"
+        codec.contains("mp3") -> "MP3"
+        codec.contains("aac") -> "AAC"
+        codec.contains("opus") -> "OPUS"
+        codec.contains("vorbis") -> "VORBIS"
+        codec.contains("wavpack") -> "WAVPACK"
+        codec.contains("ape") -> "APE"
+        codec.contains("dsd") -> "DSD"
+        codec.contains("pcm") -> if (ext in setOf("WAV", "AIFF", "AIF")) ext else "PCM"
+        codec.contains("wma") -> "WMA"
+        codec.isNotBlank() && codec.length <= 10 && !codec.contains("/") && !codec.contains(":") -> {
+          codec.replace("float", "").replace("_latm", "").uppercase().trim()
+        }
+        ext.isNotBlank() -> ext
+        else -> ""
+      }
+    }
 
   val isLosslessCodecOrExt =
     remember(audioCodec, mediaPath) {
       val codec = audioCodec?.lowercase().orEmpty()
-      val ext = mediaPath?.fileExtension().orEmpty()
+      val rawExt = mediaPath?.fileExtension().orEmpty().lowercase()
+      val ext = if (rawExt in com.quantummpv.app.utils.storage.FileTypeUtils.AUDIO_EXTENSIONS) rawExt else ""
       codec.contains("flac") ||
         codec.contains("alac") ||
         codec.contains("pcm") ||
@@ -641,9 +669,28 @@ fun AudioPlayerControls(
     showLosslessDetails = false
   }
 
+  val collapsedAudioBadgeLabel =
+    remember(isHiRes, isLosslessCodecOrExt, cleanCodecName) {
+      when {
+        isHiRes -> "HI-RES LOSSLESS"
+        isLosslessCodecOrExt -> "LOSSLESS"
+        cleanCodecName.isNotBlank() -> cleanCodecName
+        else -> ""
+      }
+    }
+
   val fullLosslessDetailString =
-    remember(isHiRes, sampleRate, audioFormat, bitsPerSample, bitsPerSampleAlt, audioCodec, isLosslessCodecOrExt) {
-      val baseLabel = if (isHiRes) "HI-RES LOSSLESS" else "LOSSLESS"
+    remember(
+      isHiRes,
+      isLosslessCodecOrExt,
+      sampleRate,
+      audioFormat,
+      bitsPerSample,
+      bitsPerSampleAlt,
+      audioBitrateProp,
+      generalBitrateProp,
+      cleanCodecName,
+    ) {
       val sr = sampleRate ?: 0
       val khzStr =
         if (sr > 0) {
@@ -652,6 +699,9 @@ fun AudioPlayerControls(
         } else {
           ""
         }
+
+      val bitrateInt = (audioBitrateProp?.takeIf { it > 0 } ?: generalBitrateProp?.takeIf { it > 0 } ?: 0)
+      val kbpsStr = if (bitrateInt > 0) "${bitrateInt / 1000} kbps" else ""
 
       val bps = bitsPerSample?.takeIf { it.isNotBlank() } ?: bitsPerSampleAlt?.takeIf { it.isNotBlank() }
       val bitStr =
@@ -666,22 +716,37 @@ fun AudioPlayerControls(
           else -> ""
         }
 
-      val specsStr =
-        when {
-          bitStr.isNotBlank() && khzStr.isNotBlank() -> "$bitStr/$khzStr"
-          khzStr.isNotBlank() -> khzStr
-          bitStr.isNotBlank() -> bitStr
-          else -> ""
+      if (isLosslessCodecOrExt) {
+        val baseLabel = if (isHiRes) "HI-RES LOSSLESS" else "LOSSLESS"
+        val specsCore =
+          when {
+            bitStr.isNotBlank() && khzStr.isNotBlank() -> "$bitStr/$khzStr"
+            khzStr.isNotBlank() -> khzStr
+            bitStr.isNotBlank() -> bitStr
+            else -> ""
+          }
+        buildString {
+          append(baseLabel)
+          if (specsCore.isNotBlank()) {
+            append(" - ").append(specsCore)
+          }
+          if (cleanCodecName.isNotBlank()) {
+            append(" ").append(cleanCodecName)
+          }
         }
-
-      val codecName = audioCodec?.uppercase().orEmpty()
-      buildString {
-        append(baseLabel)
-        if (specsStr.isNotBlank()) {
-          append(" - ").append(specsStr)
-        }
-        if (codecName.isNotBlank()) {
-          append(" ").append(codecName)
+      } else {
+        val baseLabel = cleanCodecName.ifBlank { "AUDIO" }
+        val specs =
+          when {
+            kbpsStr.isNotBlank() && khzStr.isNotBlank() -> "$kbpsStr/$khzStr"
+            kbpsStr.isNotBlank() -> kbpsStr
+            khzStr.isNotBlank() -> khzStr
+            else -> ""
+          }
+        if (specs.isNotBlank()) {
+          "$baseLabel - $specs"
+        } else {
+          baseLabel
         }
       }
     }
@@ -779,7 +844,14 @@ fun AudioPlayerControls(
   }
 
    val isPlaying = paused == false
-   val currentDurSec = if (preciseDuration > 0f) preciseDuration else duration?.toFloat() ?: 0f
+   val currentDurSec =
+     if (preciseDuration > 0f) {
+       preciseDuration
+     } else if ((duration ?: 0) > 0) {
+       duration!!.toFloat()
+     } else {
+       currentItem?.durationSeconds?.takeIf { it > 0 }?.toFloat() ?: 0f
+     }
    val currentVolumePercent by viewModel.currentVolumePercent.collectAsState()
    val volumeScale = currentVolumePercent / 100f
    val visualizerFeatures = rememberAudioVisualizerFeatures(isPlaying, volumeScale)
@@ -1103,7 +1175,7 @@ fun AudioPlayerControls(
     }
 
     val losslessBadge = @Composable {
-      if (isLosslessCodecOrExt) {
+      if (collapsedAudioBadgeLabel.isNotBlank()) {
         Surface(
           shape = RoundedCornerShape(4.dp),
           color = MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.6f),
@@ -1121,7 +1193,7 @@ fun AudioPlayerControls(
               if (showLosslessDetails && fullLosslessDetailString.isNotBlank()) {
                 fullLosslessDetailString
               } else {
-                if (isHiRes) "HI-RES LOSSLESS" else "LOSSLESS"
+                collapsedAudioBadgeLabel
               },
             style =
               MaterialTheme.typography.labelSmall.copy(
@@ -1610,12 +1682,15 @@ fun AudioPlayerControls(
       val precisePosition by viewModel.precisePosition.collectAsStateWithLifecycle()
       val currentPosSec = if (precisePosition > 0f) precisePosition else position?.toFloat() ?: 0f
       val isPaused = paused ?: false
+      val effectiveRemaining =
+        (remaining ?: 0f).takeIf { it > 0f }
+          ?: (currentDurSec - currentPosSec).coerceAtLeast(0f)
 
       SeekbarWithTimers(
         position = currentPosSec,
         committedPosition = currentPosSec,
         duration = currentDurSec.coerceAtLeast(1f),
-        remaining = remaining ?: 0f,
+        remaining = effectiveRemaining,
         onValueChange = { value -> viewModel.seekPreviewTo(value) },
         onValueChangeFinished = { targetPosition -> viewModel.seekTo(targetPosition.toInt(), fast = false) },
         timersInverted = Pair(false, invertDuration),
@@ -2055,7 +2130,7 @@ fun AudioPlayerControls(
             displayName = displayTitle,
             path = mediaPath,
             uri = Uri.parse(mediaPath),
-            duration = duration?.toLong() ?: 0L,
+            duration = duration?.toLong() ?: currentItem?.durationSeconds?.toLong() ?: 0L,
             durationFormatted = "",
             size = 0L,
             sizeFormatted = "",

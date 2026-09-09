@@ -338,8 +338,15 @@ fun MediaLibraryContent(forceAudio: Boolean = false) {
         stableId = PlaybackIdentity.forLocalPath(item.path),
         title = item.displayName,
         mimeType = item.mimeType,
+        durationSeconds = (item.duration / 1000L).toInt().takeIf { it > 0 },
       )
     }
+    val isAudio = mediaType == MediaLibraryType.Audio || video.isAudio
+    if (MediaUtils.shouldPlayInMiniPlayerOnly(isAudio)) {
+      MediaUtils.playInMiniPlayer(context, queueItems, index)
+      return
+    }
+
     val launchToken = PreparedPlaybackLaunchStore.stage(
       items = queueItems,
       currentIndex = index,
