@@ -340,9 +340,10 @@ class JellyfinViewModel(
         val topRatedRaw = topRatedResult.getOrNull()?.items ?: emptyList()
         val musicRaw = musicResult.getOrNull()?.items ?: emptyList()
 
-        // Helper filter to exclude music and folders from general video home sections
+        // Helper filter to exclude music and pure folders from general video home sections
         fun isVideoMedia(item: JellyfinItem): Boolean {
-          if (item.isAudio || item.isFolder || item.type == "Folder" || item.type == "MusicAlbum" || item.type == "Audio" || item.type == "MusicArtist" || item.type == "CollectionFolder") return false
+          if (item.isAudio || item.type == "Folder" || item.type == "MusicAlbum" || item.type == "Audio" || item.type == "MusicArtist" || item.type == "CollectionFolder") return false
+          if (item.isFolder && !item.isSeries && !item.isSeason && item.type != "Series" && item.type != "Season") return false
           return true
         }
 
@@ -359,8 +360,21 @@ class JellyfinViewModel(
               limit = 16,
               groupItems = true,
             )
-            val rawItems = latestItemsResult.getOrDefault(emptyList()).filter { isVideoMedia(it) }
-            val containsShows = rawItems.any { it.isSeries || it.type == "Episode" || it.seriesName != null }
+            var rawItems = latestItemsResult.getOrDefault(emptyList()).filter { isVideoMedia(it) }
+
+            // Fallback: If getLatestMedia with ParentId returned empty, fetch latest items sorted by DateCreated
+            if (rawItems.isEmpty()) {
+              val fallbackItemsResult = jellyfinRepository.getItems(
+                server = server,
+                parentId = lib.id,
+                sortBy = JellyfinSortBy.DATE_ADDED,
+                sortOrder = JellyfinSortOrder.DESCENDING,
+                limit = 16,
+              )
+              rawItems = fallbackItemsResult.getOrNull()?.items.orEmpty().filter { isVideoMedia(it) }
+            }
+
+            val containsShows = rawItems.any { it.isSeries || it.type == "Series" || it.type == "Episode" || it.seriesName != null }
             val isShows = isShowLib || containsShows
 
             val processedItems = if (isShows) {
