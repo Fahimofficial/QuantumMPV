@@ -4524,27 +4524,29 @@ val isBrightnessSliderShown = MutableStateFlow(false)
           val targetPosition =
             durationSeconds?.let { duration ->
               val guardedEndPosition = (duration - RELATIVE_SEEK_EOF_GUARD_SECONDS).coerceAtLeast(0.0)
-              val nonPreciseForwardOvershoot =
-                !preciseSeeking &&
-                  toApply > 0 &&
+              val forwardOvershoot =
+                toApply > 0 &&
                   requestedTarget >= duration - SEEK_TARGET_TOLERANCE_SECONDS
-              val nonPreciseEndPosition =
-                if (nonPreciseForwardOvershoot) {
+              val endPosition =
+                if (preciseSeeking && forwardOvershoot) {
+                  duration
+                } else if (forwardOvershoot) {
                   val seekInterval =
                     minOf(kotlin.math.abs(toApply), doubleTapToSeekDuration)
                       .toDouble()
                       .coerceAtLeast(RELATIVE_SEEK_EOF_GUARD_SECONDS)
-                  (duration - seekInterval).coerceAtLeast(0.0)
+                  val lastFullSeekIntervalPosition = (duration - seekInterval).coerceAtLeast(0.0)
+                  if (lastFullSeekIntervalPosition > currentPosition) {
+                    lastFullSeekIntervalPosition
+                  } else {
+                    guardedEndPosition
+                  }
                 } else {
                   guardedEndPosition
                 }
-              // Precise seeking retains its explicit EOF behavior. Non-precise seeking stops at
-              // the last complete seek interval instead of issuing a command into keep-open EOF.
-              val allowExplicitEof =
-                preciseSeeking &&
-                toApply > 0 &&
-                  currentPosition >= guardedEndPosition - SEEK_TARGET_TOLERANCE_SECONDS
-              requestedTarget.coerceAtMost(if (allowExplicitEof) duration else nonPreciseEndPosition)
+              // Precise overshoots finish at EOF. Non-precise seeking stops at the last complete
+              // interval when possible, then advances to the guard instead of entering EOF.
+              requestedTarget.coerceAtMost(endPosition)
             }
 
           if (toApply > 0 && targetPosition != null && targetPosition <= currentPosition) {
