@@ -772,10 +772,17 @@
       document.getElementById("panel-release").classList.toggle("active", which === "release");
       document.getElementById("panel-preview").classList.toggle("active", which === "preview");
     }
-    document.getElementById("tab-btn-release").addEventListener("click", () => setActiveTab("release"));
-    document.getElementById("tab-btn-preview").addEventListener("click", () => setActiveTab("preview"));
+    document.getElementById("tab-btn-release").addEventListener("click", () => {
+      history.replaceState(null, "", "#release");
+      setActiveTab("release");
+    });
+    document.getElementById("tab-btn-preview").addEventListener("click", () => {
+      history.replaceState(null, "", "#preview");
+      setActiveTab("preview");
+    });
     document.getElementById("nav-release-link").addEventListener("click", event => {
       event.preventDefault();
+      history.replaceState(null, "", "#release");
       setActiveTab("release");
       document.querySelector(".hero-head")?.scrollIntoView({ behavior: "smooth", block: "start" });
     });
@@ -795,7 +802,9 @@
       if (tabRevealed) return;
       tabRevealed = true;
 
-      if (location.hash === "#release") {
+      if (location.hash === "#preview" && previewPublished) {
+        setActiveTab("preview");
+      } else if (location.hash === "#release") {
         setActiveTab("release");
       } else if (releasePublished && previewPublished) {
         setActiveTab(new Date(previewPublished) > new Date(releasePublished) ? "preview" : "release");
@@ -910,14 +919,6 @@
     fetch("./latest.json", { cache: "no-store" })
       .then(r => { if (!r.ok) throw new Error("no manifest"); return r.json(); })
       .then(manifest => {
-        if (manifest.website_visible === false) {
-          document.getElementById("tab-btn-preview").hidden = true;
-          document.getElementById("panel-preview").hidden = true;
-          previewPublished = null;
-          previewSettled = true;
-          decideDefaultTab();
-          return;
-        }
         previewPublished = manifest.published_at;
         const build = document.getElementById("pre-build");
         build.textContent = `r${manifest.commit_count}`;

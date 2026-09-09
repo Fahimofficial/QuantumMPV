@@ -3,7 +3,6 @@ import {
   ArrowRight,
   BookOpen,
   Check,
-  Code2,
   Cpu,
   Download,
   ExternalLink,
@@ -18,14 +17,18 @@ import {
   Sliders,
   Sparkles,
   Subtitles,
+  Sun,
   Terminal,
   Tv,
   Wifi,
   Zap,
+  Moon,
 } from "@lucide/astro";
+import GitHubIcon from "../components/GitHubIcon.astro";
 
 const releaseUrl = "https://github.com/Riteshp2001/mpvRx/releases/latest";
 const repoUrl = "https://github.com/Riteshp2001/mpvRx";
+const previewUrl = "https://riteshp2001.github.io/mpvRx/#preview";
 
 const capabilities = [
   {
@@ -33,42 +36,42 @@ const capabilities = [
     tag: "Core Engine",
     title: "A playback engine you can tune",
     body: "libmpv at the core with hardware decoding, frame-stepping, A-B repeat, variable speed (0.5x–4.0x), refresh-rate auto-matching, and live diagnostics.",
-    accent: "#5fd4c7",
+    accent: "#8b6cff",
   },
   {
     icon: Layers3,
     tag: "Shaders & HDR",
     title: "HDR and shaders, under control",
     body: "77+ bundled shaders, HDR-toys tone-mapping pipelines, Anime4K upscaling tiers, GPU debanding, and thermal-aware safeguards for sustained performance.",
-    accent: "#66d9cc",
+    accent: "#9b82ff",
   },
   {
     icon: Subtitles,
     tag: "Subtitles",
     title: "Subtitles without compromise",
-    body: "Dual simultaneous tracks, ASS/SSA styling, online search with SubDL/OpenSubtitles, TMDB episode matching, custom font loader, and speech-to-sub.",
-    accent: "#5fd4c7",
+    body: "Dual simultaneous tracks, ASS/SSA styling, Wyzie and SubtitleHub search, TMDB episode matching, custom font loading, and speech-to-subtitle tools.",
+    accent: "#8b6cff",
   },
   {
     icon: Wifi,
     tag: "Network & Cloud",
     title: "Local, network, and online media",
     body: "Seamlessly browse device storage, SMB, FTP, SFTP, WebDAV, Jellyfin, Navidrome, direct HLS/DASH streams, M3U playlists, and torrent streaming.",
-    accent: "#66d9cc",
+    accent: "#9b82ff",
   },
   {
     icon: Music2,
     tag: "Audio Suite",
     title: "A dedicated music experience",
     body: "Hi-Res FLAC/Opus playback, album artist grouping, synchronized LRC lyrics, cover art grid, persistent queue, and four real-time audio visualizers.",
-    accent: "#5fd4c7",
+    accent: "#8b6cff",
   },
   {
     icon: Terminal,
     tag: "Extensible",
     title: "Your player, fully scriptable",
     body: "In-app editing for mpv.conf, input.conf, Lua, and JavaScript. Register custom buttons and trigger native actions through the bidirectional bridge.",
-    accent: "#f16445",
+    accent: "#bd9bff",
   },
 ];
 
@@ -77,7 +80,7 @@ const builds = [
     name: "Standard",
     badge: "Recommended",
     badgeType: "primary",
-    description: "Full Vulkan-capable release with dedicated per-ABI builds (arm64-v8a, armeabi-v7a, x86_64) and a universal APK.",
+    description: "Full Vulkan-capable release with dedicated arm64-v8a, armeabi-v7a, x86, and x86_64 builds plus a universal APK.",
     features: ["Vulkan & OpenGL ES backends", "Per-ABI optimized APKs", "Highest shader performance", "Regular automatic updates"],
     tag: "Best for 99% of Android devices",
   },
@@ -99,36 +102,34 @@ const builds = [
   },
 ];
 
-const gallery = [
+const landscapeGallery = [
   {
     image: "/images/player.png",
     title: "Touch-First Playback Surface",
     caption: "Clean, responsive gesture controls with hold-for-speed, dynamic seek, zoom, and dual subtitle sync.",
-    span: "col-span-2",
-  },
-  {
-    image: "/images/folderscreen.png",
-    title: "Folder & Storage Explorer",
-    caption: "Organize, pin, and navigate local storage, SD cards, OTG drives, and network shares.",
-    span: "col-span-1",
-  },
-  {
-    image: "/images/videoscreen.png",
-    title: "Instant Video Library",
-    caption: "Grid and list browsing with instant metadata, thumbnail caching, and resume progress indicators.",
-    span: "col-span-1",
   },
   {
     image: "/images/playlist-grid.png",
     title: "Visual Queue & Playlist Grid",
     caption: "Manage multi-episode queues, background music tracks, and continuous playback with visual cues.",
-    span: "col-span-1",
   },
   {
     image: "/images/frame-navigation.png",
     title: "Frame-Level Precision",
     caption: "Frame-stepping controls, exact timestamp jumping, and A-B loop points for technical analysis.",
-    span: "col-span-1",
+  },
+];
+
+const portraitGallery = [
+  {
+    image: "/images/folderscreen.png",
+    title: "Folder & Storage Explorer",
+    caption: "Organize, pin, and navigate local storage, SD cards, OTG drives, and network shares.",
+  },
+  {
+    image: "/images/videoscreen.png",
+    title: "Instant Video Library",
+    caption: "Grid and list browsing with metadata, thumbnail caching, and resume progress indicators.",
   },
 ];
 ---
@@ -142,12 +143,23 @@ const gallery = [
       name="description"
       content="mpvRx is a focused Android media player powered by mpv, with expressive touch controls, HDR tone mapping, Anime4K shaders, network streaming, and Lua/JS scripting."
     />
-    <meta name="theme-color" content="#0c0e0f" />
+    <meta name="theme-color" content="#0c0a14" />
     <meta property="og:title" content="mpvRx - Android media, without the noise" />
     <meta property="og:description" content="libmpv precision, touch-first gesture controls, HDR shaders, network streaming, and open-source freedom on Android." />
     <meta property="og:image" content="/images/player.png" />
     <title>mpvRx | Android media, without the noise</title>
     <link rel="icon" type="image/png" href="/images/icon.png" />
+    <script is:inline>
+      (() => {
+        try {
+          const savedTheme = localStorage.getItem("mpvrx-theme");
+          const systemTheme = matchMedia("(prefers-color-scheme: light)").matches ? "light" : "dark";
+          document.documentElement.dataset.theme = savedTheme === "light" || savedTheme === "dark" ? savedTheme : systemTheme;
+        } catch {
+          document.documentElement.dataset.theme = "dark";
+        }
+      })();
+    </script>
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link
@@ -175,8 +187,12 @@ const gallery = [
         </nav>
 
         <div class="header-actions">
+          <button class="theme-toggle" type="button" data-theme-toggle aria-label="Switch color theme" title="Switch color theme">
+            <Sun class="theme-icon theme-icon-sun" size={18} strokeWidth={1.9} />
+            <Moon class="theme-icon theme-icon-moon" size={18} strokeWidth={1.9} />
+          </button>
           <a class="nav-icon-btn" href={repoUrl} target="_blank" rel="noopener noreferrer" aria-label="mpvRx on GitHub">
-            <Code2 size={18} strokeWidth={1.8} />
+            <GitHubIcon size={18} />
             <span class="github-label">GitHub</span>
           </a>
           <a class="header-cta" href={releaseUrl} target="_blank" rel="noopener noreferrer">
@@ -207,7 +223,7 @@ const gallery = [
 
             <p class="hero-description">
               The precision of <code class="inline-code">mpv</code> paired with a modern touch-first interface.
-              Zero ads, zero telemetry, deep playback controls, 77+ bundled shaders, and full scripting freedom.
+              Zero ads, no analytics tracking, deep playback controls, 77+ bundled shaders, and full scripting freedom.
             </p>
 
             <div class="hero-btn-row">
@@ -220,7 +236,7 @@ const gallery = [
                 <span>Documentation</span>
               </a>
               <a class="btn btn-ghost" href={repoUrl} target="_blank" rel="noopener noreferrer">
-                <Code2 size={18} strokeWidth={1.8} />
+                <GitHubIcon size={18} />
                 <span>Source Code</span>
               </a>
             </div>
@@ -285,8 +301,8 @@ const gallery = [
           <div class="stat-item">
             <div class="stat-icon-wrap"><Wifi size={20} /></div>
             <div class="stat-data">
-              <strong>5+</strong>
-              <span>Network Streaming Protocols</span>
+              <strong>4</strong>
+              <span>Network Share Protocols</span>
             </div>
           </div>
           <div class="stat-item">
@@ -351,17 +367,40 @@ const gallery = [
           </div>
 
           <div class="gallery-grid">
-            {gallery.map(({ image, title, caption, span }) => (
-              <figure class:list={["gallery-item", span]}>
-                <div class="gallery-img-wrap">
-                  <img src={image} alt={title} loading="lazy" class="gallery-img" />
-                  <div class="gallery-glass-banner">
-                    <h4>{title}</h4>
-                    <figcaption>{caption}</figcaption>
+            <div class="gallery-column gallery-landscape-column">
+              {landscapeGallery.map(({ image, title, caption }, index) => (
+                <figure class="gallery-item gallery-landscape-item">
+                  <div class="gallery-img-wrap">
+                    <img
+                      src={image}
+                      alt={title}
+                      loading={index === 0 ? "eager" : "lazy"}
+                      fetchpriority={index === 0 ? "high" : "auto"}
+                      class="gallery-img"
+                      width="1600"
+                      height="720"
+                    />
+                    <div class="gallery-glass-banner">
+                      <h4>{title}</h4>
+                      <figcaption>{caption}</figcaption>
+                    </div>
                   </div>
-                </div>
-              </figure>
-            ))}
+                </figure>
+              ))}
+            </div>
+            <div class="gallery-column gallery-portrait-column">
+              {portraitGallery.map(({ image, title, caption }) => (
+                <figure class="gallery-item gallery-portrait-item">
+                  <div class="gallery-img-wrap">
+                    <img src={image} alt={title} loading="lazy" class="gallery-img" width="720" height="1600" />
+                    <div class="gallery-glass-banner">
+                      <h4>{title}</h4>
+                      <figcaption>{caption}</figcaption>
+                    </div>
+                  </div>
+                </figure>
+              ))}
+            </div>
           </div>
         </div>
       </section>
@@ -414,7 +453,7 @@ const gallery = [
                   <span class="pillar-num">03</span>
                   <div>
                     <h4>Transparent Builds</h4>
-                    <p>Deterministic builds and open reproducible pipelines guarantee privacy integrity.</p>
+                    <p>Public source, release workflows, and checksummed artifacts keep every distribution path inspectable.</p>
                   </div>
                 </div>
               </div>
@@ -503,6 +542,32 @@ const gallery = [
           </div>
         </div>
       </section>
+
+      <section class="preview-channel" aria-labelledby="preview-title">
+        <div class="container preview-channel-inner">
+          <div class="preview-copy">
+            <p class="preview-kicker"><Radio size={17} /> Preview channel</p>
+            <h2 id="preview-title">Try the next mpvRx build early.</h2>
+            <p>
+              Preview builds are signed and published from the latest selected source for testers who want new fixes and features before the next stable release.
+            </p>
+            <div class="preview-tags" aria-label="Available preview variants">
+              <span>Standard</span>
+              <span>FongMi</span>
+              <span>No Vulkan</span>
+              <span>Checksummed</span>
+            </div>
+          </div>
+          <div class="preview-actions">
+            <a class="btn btn-primary btn-large" href={previewUrl} target="_blank" rel="noopener noreferrer">
+              <Radio size={20} />
+              <span>Open preview builds</span>
+              <ExternalLink size={16} />
+            </a>
+            <p>Preview builds may contain regressions. Keep the stable APK available and include the preview revision in issue reports.</p>
+          </div>
+        </div>
+      </section>
     </main>
 
     <!-- Site Footer -->
@@ -525,6 +590,7 @@ const gallery = [
             <a href="#showcase">Screenshots</a>
             <a href="#builds">Build Variants</a>
             <a href={releaseUrl} target="_blank" rel="noopener noreferrer">Releases</a>
+            <a href={previewUrl} target="_blank" rel="noopener noreferrer">Preview Builds</a>
           </div>
           <div class="footer-link-group">
             <h5>Documentation</h5>
@@ -554,30 +620,113 @@ const gallery = [
         </div>
       </div>
     </footer>
+    <script>
+      const root = document.documentElement;
+      const toggle = document.querySelector("[data-theme-toggle]");
+      const themeColor = document.querySelector('meta[name="theme-color"]');
+
+      const updateThemeControl = (theme) => {
+        const nextTheme = theme === "dark" ? "light" : "dark";
+        toggle?.setAttribute("aria-label", `Switch to ${nextTheme} theme`);
+        toggle?.setAttribute("title", `Switch to ${nextTheme} theme`);
+        themeColor?.setAttribute("content", theme === "dark" ? "#0c0a14" : "#f7f5ff");
+      };
+
+      const applyTheme = (theme) => {
+        root.dataset.theme = theme;
+        localStorage.setItem("mpvrx-theme", theme);
+        updateThemeControl(theme);
+      };
+
+      updateThemeControl(root.dataset.theme === "light" ? "light" : "dark");
+
+      toggle?.addEventListener("click", async (event) => {
+        const nextTheme = root.dataset.theme === "light" ? "dark" : "light";
+        const reduceMotion = matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+        if (!("startViewTransition" in document) || reduceMotion) {
+          applyTheme(nextTheme);
+          return;
+        }
+
+        const bounds = toggle.getBoundingClientRect();
+        const pointerEvent = event;
+        const x = pointerEvent.clientX || bounds.left + bounds.width / 2;
+        const y = pointerEvent.clientY || bounds.top + bounds.height / 2;
+        const radius = Math.hypot(Math.max(x, innerWidth - x), Math.max(y, innerHeight - y));
+        const transition = document.startViewTransition(() => applyTheme(nextTheme));
+
+        await transition.ready;
+        root.animate(
+          {
+            clipPath: [`circle(0 at ${x}px ${y}px)`, `circle(${radius}px at ${x}px ${y}px)`],
+            filter: ["blur(18px)", "blur(0)"],
+          },
+          {
+            duration: 650,
+            easing: "cubic-bezier(0.22, 1, 0.36, 1)",
+            pseudoElement: "::view-transition-new(root)",
+          },
+        );
+      });
+    </script>
   </body>
 </html>
 
 <style is:global>
   :root {
-    --bg-base: #0c0e0f;
-    --bg-surface: #141719;
-    --bg-surface-elevated: #1a1e20;
-    --bg-surface-hover: #22272a;
+    --bg-base: #0c0a14;
+    --bg-surface: #151121;
+    --bg-surface-elevated: #1c162b;
+    --bg-surface-hover: #261e38;
     --border-subtle: rgba(255, 255, 255, 0.08);
     --border-medium: rgba(255, 255, 255, 0.14);
-    --border-hover: rgba(95, 212, 199, 0.4);
-    --text-primary: #f4f5ef;
-    --text-secondary: #b8c0bc;
-    --text-muted: #78827e;
-    --accent-teal: #5fd4c7;
-    --accent-teal-bright: #66d9cc;
-    --accent-teal-soft: rgba(95, 212, 199, 0.12);
-    --accent-orange: #f16445;
-    --accent-orange-soft: rgba(241, 100, 69, 0.15);
+    --border-hover: rgba(139, 108, 255, 0.48);
+    --text-primary: #f7f4ff;
+    --text-secondary: #c1b9d3;
+    --text-muted: #8d849f;
+    --accent-teal: #8b6cff;
+    --accent-teal-bright: #9b82ff;
+    --accent-teal-soft: rgba(139, 108, 255, 0.14);
+    --accent-orange: #bd9bff;
+    --accent-orange-soft: rgba(189, 155, 255, 0.16);
     color-scheme: dark;
     font-family: "IBM Plex Sans", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
     background: var(--bg-base);
     color: var(--text-primary);
+  }
+
+  :root[data-theme="light"] {
+    --bg-base: #f7f5ff;
+    --bg-surface: #ffffff;
+    --bg-surface-elevated: #f0ecff;
+    --bg-surface-hover: #e8e1ff;
+    --border-subtle: rgba(54, 38, 92, 0.12);
+    --border-medium: rgba(54, 38, 92, 0.2);
+    --border-hover: rgba(101, 71, 215, 0.46);
+    --text-primary: #181225;
+    --text-secondary: #4f465f;
+    --text-muted: #756b85;
+    --accent-teal: #7456df;
+    --accent-teal-bright: #6547d7;
+    --accent-teal-soft: rgba(101, 71, 215, 0.1);
+    --accent-orange: #8b6cff;
+    --accent-orange-soft: rgba(139, 108, 255, 0.12);
+    color-scheme: light;
+  }
+
+  ::view-transition-old(root),
+  ::view-transition-new(root) {
+    animation: none;
+    mix-blend-mode: normal;
+  }
+
+  ::view-transition-old(root) {
+    z-index: 1;
+  }
+
+  ::view-transition-new(root) {
+    z-index: 9999;
   }
 
   * {
@@ -625,7 +774,7 @@ const gallery = [
   }
 
   .gradient-text {
-    background: linear-gradient(135deg, var(--accent-teal-bright) 0%, #a2f5ec 100%);
+    background: linear-gradient(135deg, #a78bfa 0%, #7657e8 55%, #c4b5fd 100%);
     -webkit-background-clip: text;
     -webkit-text-fill-color: transparent;
   }
@@ -646,7 +795,7 @@ const gallery = [
     top: 0;
     z-index: 100;
     width: 100%;
-    background: rgba(12, 14, 15, 0.82);
+    background: rgba(12, 10, 20, 0.84);
     backdrop-filter: blur(20px);
     border-bottom: 1px solid var(--border-subtle);
   }
@@ -672,7 +821,7 @@ const gallery = [
     justify-content: center;
     border-radius: 8px;
     overflow: hidden;
-    box-shadow: 0 0 16px rgba(95, 212, 199, 0.2);
+    box-shadow: 0 0 18px rgba(139, 108, 255, 0.3);
   }
 
   .brand-img {
@@ -693,7 +842,7 @@ const gallery = [
     font-weight: 600;
     background: var(--accent-teal-soft);
     color: var(--accent-teal-bright);
-    border: 1px solid rgba(95, 212, 199, 0.25);
+    border: 1px solid rgba(139, 108, 255, 0.28);
   }
 
   .nav-links {
@@ -713,6 +862,40 @@ const gallery = [
     display: flex;
     align-items: center;
     gap: 12px;
+  }
+
+  .theme-toggle {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 38px;
+    height: 38px;
+    padding: 0;
+    border: 1px solid var(--border-subtle);
+    border-radius: 50%;
+    background: rgba(255, 255, 255, 0.04);
+    color: var(--text-secondary);
+    cursor: pointer;
+    transition: color 0.2s ease, border-color 0.2s ease, background 0.2s ease, transform 0.2s ease;
+  }
+
+  .theme-toggle:hover {
+    color: var(--accent-teal-bright);
+    border-color: var(--border-hover);
+    background: var(--accent-teal-soft);
+    transform: translateY(-1px);
+  }
+
+  .theme-icon-sun {
+    display: none;
+  }
+
+  :root[data-theme="dark"] .theme-icon-sun {
+    display: block;
+  }
+
+  :root[data-theme="dark"] .theme-icon-moon {
+    display: none;
   }
 
   .nav-icon-btn {
@@ -747,9 +930,9 @@ const gallery = [
   }
 
   .header-cta:hover {
-    background: #7ef0e4;
+    background: #b6a2ff;
     transform: translateY(-1px);
-    box-shadow: 0 4px 16px rgba(95, 212, 199, 0.3);
+    box-shadow: 0 4px 18px rgba(139, 108, 255, 0.36);
   }
 
   /* Buttons */
@@ -776,14 +959,14 @@ const gallery = [
   .btn-primary {
     background: var(--accent-orange);
     color: #0c0e0f;
-    border: 1px solid rgba(241, 100, 69, 0.8);
-    box-shadow: 0 4px 20px rgba(241, 100, 69, 0.3);
+    border: 1px solid rgba(189, 155, 255, 0.82);
+    box-shadow: 0 4px 20px rgba(139, 108, 255, 0.34);
   }
 
   .btn-primary:hover {
-    background: #fa7457;
+    background: #cbb9ff;
     transform: translateY(-2px);
-    box-shadow: 0 6px 24px rgba(241, 100, 69, 0.45);
+    box-shadow: 0 6px 26px rgba(139, 108, 255, 0.48);
   }
 
   .btn-secondary {
@@ -825,7 +1008,7 @@ const gallery = [
     transform: translateX(-50%);
     width: 900px;
     height: 480px;
-    background: radial-gradient(ellipse at center, rgba(95, 212, 199, 0.15) 0%, rgba(95, 212, 199, 0) 70%);
+    background: radial-gradient(ellipse at center, rgba(139, 108, 255, 0.22) 0%, rgba(139, 108, 255, 0) 70%);
     pointer-events: none;
     z-index: 0;
   }
@@ -836,7 +1019,7 @@ const gallery = [
     right: -100px;
     width: 600px;
     height: 600px;
-    background: radial-gradient(ellipse at center, rgba(241, 100, 69, 0.08) 0%, transparent 70%);
+    background: radial-gradient(ellipse at center, rgba(189, 155, 255, 0.12) 0%, transparent 70%);
     pointer-events: none;
     z-index: 0;
   }
@@ -863,8 +1046,8 @@ const gallery = [
     gap: 8px;
     padding: 6px 16px;
     border-radius: 100px;
-    background: rgba(95, 212, 199, 0.08);
-    border: 1px solid rgba(95, 212, 199, 0.25);
+    background: rgba(139, 108, 255, 0.1);
+    border: 1px solid rgba(139, 108, 255, 0.28);
     color: var(--accent-teal-bright);
     font-size: 0.82rem;
     font-weight: 600;
@@ -941,13 +1124,13 @@ const gallery = [
     border-radius: 16px;
     background: var(--bg-surface);
     border: 1px solid var(--border-medium);
-    box-shadow: 0 24px 64px -12px rgba(0, 0, 0, 0.85), 0 0 40px rgba(95, 212, 199, 0.12);
+    box-shadow: 0 24px 64px -12px rgba(0, 0, 0, 0.85), 0 0 42px rgba(139, 108, 255, 0.18);
     overflow: hidden;
     transition: transform 0.3s ease, border-color 0.3s ease;
   }
 
   .mockup-frame:hover {
-    border-color: rgba(95, 212, 199, 0.35);
+    border-color: rgba(139, 108, 255, 0.42);
   }
 
   .mockup-bar {
@@ -986,9 +1169,9 @@ const gallery = [
     border-radius: 4px;
     font-size: 0.72rem;
     font-weight: 600;
-    background: rgba(95, 212, 199, 0.1);
+    background: rgba(139, 108, 255, 0.12);
     color: var(--accent-teal-bright);
-    border: 1px solid rgba(95, 212, 199, 0.2);
+    border: 1px solid rgba(139, 108, 255, 0.24);
   }
 
   .mockup-image-container {
@@ -1057,7 +1240,7 @@ const gallery = [
     border-radius: 10px;
     background: var(--accent-teal-soft);
     color: var(--accent-teal-bright);
-    border: 1px solid rgba(95, 212, 199, 0.2);
+    border: 1px solid rgba(139, 108, 255, 0.24);
     flex-shrink: 0;
   }
 
@@ -1203,14 +1386,20 @@ const gallery = [
   /* Screenshot Showcase Gallery */
   .gallery-grid {
     display: grid;
-    grid-template-columns: repeat(3, 1fr);
+    grid-template-columns: minmax(0, 2fr) minmax(280px, 1fr);
     gap: 24px;
+    align-items: start;
   }
 
-  .col-span-2 { grid-column: span 2; }
-  .col-span-1 { grid-column: span 1; }
+  .gallery-column {
+    display: grid;
+    min-width: 0;
+    gap: 24px;
+    align-content: start;
+  }
 
   .gallery-item {
+    align-self: start;
     border-radius: 14px;
     overflow: hidden;
     background: var(--bg-surface);
@@ -1227,7 +1416,6 @@ const gallery = [
   .gallery-img-wrap {
     position: relative;
     width: 100%;
-    height: 100%;
     display: flex;
     flex-direction: column;
   }
@@ -1237,6 +1425,14 @@ const gallery = [
     height: auto;
     object-fit: cover;
     background: #000;
+  }
+
+  .gallery-landscape-item .gallery-img {
+    aspect-ratio: 20 / 9;
+  }
+
+  .gallery-portrait-item .gallery-img {
+    aspect-ratio: 9 / 20;
   }
 
   .gallery-glass-banner {
@@ -1283,7 +1479,7 @@ const gallery = [
     color: var(--accent-teal-bright);
     font-size: 0.8rem;
     font-weight: 600;
-    border: 1px solid rgba(95, 212, 199, 0.25);
+    border: 1px solid rgba(139, 108, 255, 0.28);
     margin-bottom: 20px;
   }
 
@@ -1321,7 +1517,7 @@ const gallery = [
   }
 
   .link-btn:hover {
-    background: #7ef0e4;
+    background: #b6a2ff;
     transform: translateY(-1px);
   }
 
@@ -1404,8 +1600,8 @@ const gallery = [
   }
 
   .build-featured {
-    border-color: rgba(241, 100, 69, 0.4);
-    background: linear-gradient(180deg, rgba(241, 100, 69, 0.05) 0%, var(--bg-surface) 35%);
+    border-color: rgba(139, 108, 255, 0.45);
+    background: linear-gradient(180deg, rgba(139, 108, 255, 0.08) 0%, var(--bg-surface) 35%);
   }
 
   .featured-ribbon {
@@ -1452,7 +1648,7 @@ const gallery = [
   .chip-primary {
     background: var(--accent-orange-soft);
     color: var(--accent-orange);
-    border: 1px solid rgba(241, 100, 69, 0.3);
+    border: 1px solid rgba(189, 155, 255, 0.34);
   }
 
   .chip-neutral {
@@ -1464,7 +1660,7 @@ const gallery = [
   .chip-accent {
     background: var(--accent-teal-soft);
     color: var(--accent-teal-bright);
-    border: 1px solid rgba(95, 212, 199, 0.25);
+    border: 1px solid rgba(139, 108, 255, 0.28);
   }
 
   .build-desc {
@@ -1569,7 +1765,7 @@ const gallery = [
     border-radius: 50%;
     background: var(--accent-orange);
     color: #0c0e0f;
-    box-shadow: 0 0 32px rgba(241, 100, 69, 0.5);
+    box-shadow: 0 0 34px rgba(139, 108, 255, 0.52);
     margin-bottom: 28px;
   }
 
@@ -1592,6 +1788,78 @@ const gallery = [
     flex-wrap: wrap;
     justify-content: center;
     gap: 16px;
+  }
+
+  .preview-channel {
+    padding: 72px 0;
+    border-top: 1px solid var(--border-subtle);
+    background:
+      radial-gradient(circle at 15% 20%, rgba(139, 108, 255, 0.18), transparent 38%),
+      linear-gradient(135deg, var(--bg-surface-elevated), var(--bg-surface));
+  }
+
+  .preview-channel-inner {
+    display: grid;
+    grid-template-columns: minmax(0, 1.25fr) minmax(280px, 0.75fr);
+    gap: clamp(40px, 8vw, 96px);
+    align-items: center;
+  }
+
+  .preview-kicker {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 14px;
+    color: var(--accent-teal-bright);
+    font-size: 0.8rem;
+    font-weight: 700;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+  }
+
+  .preview-copy h2 {
+    max-width: 720px;
+    margin-bottom: 14px;
+    color: var(--text-primary);
+    font-size: clamp(2rem, 4vw, 3.25rem);
+    line-height: 1.08;
+  }
+
+  .preview-copy > p:not(.preview-kicker) {
+    max-width: 720px;
+    color: var(--text-secondary);
+    font-size: 1rem;
+  }
+
+  .preview-tags {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-top: 22px;
+  }
+
+  .preview-tags span {
+    padding: 5px 10px;
+    border: 1px solid var(--border-medium);
+    border-radius: 100px;
+    background: var(--accent-teal-soft);
+    color: var(--text-secondary);
+    font-size: 0.76rem;
+    font-weight: 600;
+  }
+
+  .preview-actions {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 14px;
+  }
+
+  .preview-actions p {
+    max-width: 440px;
+    color: var(--text-muted);
+    font-size: 0.84rem;
+    line-height: 1.55;
   }
 
   /* Footer */
@@ -1675,6 +1943,74 @@ const gallery = [
     opacity: 0.4;
   }
 
+  :root[data-theme="light"] .site-header {
+    background: rgba(247, 245, 255, 0.88);
+    box-shadow: 0 1px 24px rgba(54, 38, 92, 0.08);
+  }
+
+  :root[data-theme="light"] .inline-code,
+  :root[data-theme="light"] .nav-icon-btn,
+  :root[data-theme="light"] .theme-toggle,
+  :root[data-theme="light"] .btn-secondary,
+  :root[data-theme="light"] .card-icon-box,
+  :root[data-theme="light"] .card-tag,
+  :root[data-theme="light"] .chip-neutral {
+    background: rgba(101, 71, 215, 0.07);
+  }
+
+  :root[data-theme="light"] .nav-icon-btn:hover,
+  :root[data-theme="light"] .btn-secondary:hover,
+  :root[data-theme="light"] .btn-ghost:hover,
+  :root[data-theme="light"] .pillar-box:hover {
+    background: rgba(101, 71, 215, 0.12);
+  }
+
+  :root[data-theme="light"] .mockup-frame,
+  :root[data-theme="light"] .gallery-item,
+  :root[data-theme="light"] .bento-card,
+  :root[data-theme="light"] .build-card {
+    box-shadow: 0 18px 44px -16px rgba(54, 38, 92, 0.22);
+  }
+
+  :root[data-theme="light"] .mockup-bar {
+    background: rgba(247, 245, 255, 0.92);
+  }
+
+  :root[data-theme="light"] .mockup-dots span {
+    box-shadow: inset 0 0 0 1px rgba(24, 18, 37, 0.1);
+  }
+
+  :root[data-theme="light"] .gallery-glass-banner {
+    background: rgba(255, 255, 255, 0.96);
+  }
+
+  :root[data-theme="light"] .philosophy-card {
+    background: linear-gradient(135deg, #ffffff 0%, #eee9ff 100%);
+    box-shadow: 0 24px 60px rgba(54, 38, 92, 0.15);
+  }
+
+  :root[data-theme="light"] .pillar-box {
+    background: rgba(101, 71, 215, 0.05);
+  }
+
+  :root[data-theme="light"] .final-cta-title {
+    color: #f7f4ff;
+  }
+
+  :root[data-theme="light"] .final-cta-subtitle {
+    color: #c9c1d8;
+  }
+
+  :root[data-theme="light"] .final-cta-section .btn-secondary {
+    background: rgba(255, 255, 255, 0.1);
+    color: #f7f4ff;
+    border-color: rgba(255, 255, 255, 0.22);
+  }
+
+  :root[data-theme="light"] .final-cta-section .btn-secondary:hover {
+    background: rgba(255, 255, 255, 0.16);
+  }
+
   /* Responsive Design */
   @media (max-width: 980px) {
     .bento-grid {
@@ -1683,10 +2019,6 @@ const gallery = [
 
     .gallery-grid {
       grid-template-columns: repeat(2, 1fr);
-    }
-
-    .col-span-2 {
-      grid-column: span 2;
     }
 
     .stat-grid {
@@ -1705,6 +2037,11 @@ const gallery = [
       grid-template-columns: 1fr;
       gap: 40px;
     }
+
+    .preview-channel-inner {
+      grid-template-columns: 1fr;
+      gap: 30px;
+    }
   }
 
   @media (max-width: 768px) {
@@ -1716,6 +2053,25 @@ const gallery = [
       display: none;
     }
 
+    .version-badge {
+      display: none;
+    }
+
+    .header-inner {
+      padding-inline: 16px;
+    }
+
+    .header-cta {
+      width: 38px;
+      height: 38px;
+      padding: 0;
+      justify-content: center;
+    }
+
+    .header-cta span {
+      display: none;
+    }
+
     .bento-grid {
       grid-template-columns: 1fr;
     }
@@ -1724,8 +2080,8 @@ const gallery = [
       grid-template-columns: 1fr;
     }
 
-    .col-span-2, .col-span-1 {
-      grid-column: span 1;
+    .gallery-portrait-column {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
     }
 
     .mockup-overlay-badge {
@@ -1749,6 +2105,10 @@ const gallery = [
   }
 
   @media (max-width: 480px) {
+    .gallery-portrait-column {
+      grid-template-columns: 1fr;
+    }
+
     .hero-btn-row {
       flex-direction: column;
       width: 100%;

@@ -59,11 +59,11 @@ export default defineConfig({
     og: {
       logo: false,
       palette: {
-        accent: "#5fd4c7",
-        background: "#111314",
-        border: "#303538",
-        foreground: "#f4f5ef",
-        muted: "#aeb5b2",
+        accent: "#8b6cff",
+        background: "#0c0a14",
+        border: "#30264a",
+        foreground: "#f7f4ff",
+        muted: "#b8afd0",
       },
       titles: {
         "/": "mpvRx - Android media, without the noise",
@@ -80,15 +80,24 @@ export default defineConfig({
   },
   theme: {
     accent: {
-      dark: "#66d9cc",
-      light: "#087f75",
+      dark: "#9b82ff",
+      light: "#6547d7",
     },
-    action: "#f16445",
+    action: "#805cf5",
+    background: {
+      dark: "#0c0a14",
+      light: "#f7f5ff",
+    },
+    backgroundImage: {
+      dark: "radial-gradient(circle at 85% 0%, rgba(139, 108, 255, 0.14), transparent 34%)",
+      light: "radial-gradient(circle at 85% 0%, rgba(101, 71, 215, 0.1), transparent 36%)",
+    },
     fonts: {
       body: { name: "IBM Plex Sans", weights: [400, 500, 600, 700] },
       display: { name: "Space Grotesk", weights: [500, 600, 700] },
       mono: "ibm-plex-mono",
     },
+    mode: "system",
     radius: "sm",
   },
 });
