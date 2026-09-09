@@ -21,6 +21,7 @@ jobs:
     timeout-minutes: 60
     outputs:
       should_build: ${{ steps.activity.outputs.should_build }}
+      pages_configured: ${{ steps.pages.outcome == 'success' }}
 
     steps:
       - name: Checkout preview source
@@ -314,13 +315,19 @@ jobs:
           compression-level: 0
 
       - name: Configure GitHub Pages
+        id: pages
         if: steps.activity.outputs.should_build == 'true'
         uses: actions/configure-pages@v6
+        continue-on-error: true
         with:
           enablement: true
 
+      - name: Report Pages configuration status
+        if: steps.activity.outputs.should_build == 'true' && steps.pages.outcome != 'success'
+        run: echo "GitHub Pages could not be configured by the workflow token; preview APKs remain available as an Actions artifact."
+
       - name: Upload GitHub Pages artifact
-        if: steps.activity.outputs.should_build == 'true'
+        if: steps.activity.outputs.should_build == 'true' && steps.pages.outcome == 'success'
         uses: actions/upload-pages-artifact@v5
         with:
           path: site
@@ -328,7 +335,7 @@ jobs:
   deploy-preview:
     name: Publish preview download page
     needs: build-preview
-    if: needs.build-preview.outputs.should_build == 'true'
+    if: needs.build-preview.outputs.should_build == 'true' && needs.build-preview.outputs.pages_configured == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 15
     environment:
