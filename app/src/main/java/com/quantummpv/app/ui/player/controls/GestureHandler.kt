@@ -1265,9 +1265,6 @@ fun GestureHandler(
                         hasStartedSeeking = true
                         initialVideoPosition = position?.toFloat() ?: 0f
                         pendingSeekPosition = initialVideoPosition
-
-                        // Show seekbar and start seeking mode (same as seekbar scrubbing)
-                        viewModel.showSeekBar()
                         change.consume()
                       }
                     }
@@ -1310,9 +1307,6 @@ fun GestureHandler(
                   hasStartedSeeking = false
                   // Clean up seeking state without showing controls
                   viewModel.playerUpdate.update { PlayerUpdates.None }
-                  if (gestureType == "horizontal_seek") {
-                    viewModel.hideSeekBar()
-                  }
                 }
                 releaseGesture(GestureOwner.HORIZONTAL_SEEK)
                 releaseGesture(GestureOwner.SUBTITLE_SEEK)
@@ -1323,18 +1317,9 @@ fun GestureHandler(
             // Apply the final seek when gesture ends
             if (hasStartedSeeking) {
               pendingSeekPosition?.let { viewModel.seekTo(it.toInt()) }
-              if (gestureType == "subtitle_dialog_seek") {
-                coroutineScope.launch {
-                  delay(300)
-                  viewModel.playerUpdate.update { PlayerUpdates.None }
-                }
-              } else {
-                // Clear the horizontal seek update and hide seekbar after a short delay
-                coroutineScope.launch {
-                  delay(300)
-                  viewModel.playerUpdate.update { PlayerUpdates.None }
-                  viewModel.hideSeekBar()
-                }
+              coroutineScope.launch {
+                delay(300)
+                viewModel.playerUpdate.update { PlayerUpdates.None }
               }
             }
             releaseGesture(GestureOwner.HORIZONTAL_SEEK)
