@@ -47,7 +47,9 @@ import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
+import com.quantummpv.app.utils.media.PlaybackStateEvents
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.firstOrNull
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
@@ -169,6 +171,51 @@ class JellyfinViewModel(
 
   init {
     loadServers()
+    viewModelScope.launch(Dispatchers.IO) {
+      PlaybackStateEvents.changes.collectLatest {
+        refreshPlaybackStateSilently()
+      }
+    }
+  }
+
+  fun refreshPlaybackStateSilently() {
+    val server = _uiState.value.activeServer ?: return
+    viewModelScope.launch(Dispatchers.IO) {
+      delay(400) // Brief delay to ensure Jellyfin server has committed the stop/progress session data
+      val resumeResult = jellyfinRepository.getResumeItems(server, limit = 16).getOrNull()
+      if (resumeResult != null) {
+        _uiState.update { it.copy(resumeItems = resumeResult) }
+      }
+
+      val detail = _uiState.value.detailItem
+      if (detail != null) {
+        val updatedDetail = jellyfinRepository.getItem(server, detail.id).getOrNull()
+        if (updatedDetail != null) {
+          _uiState.update { it.copy(detailItem = updatedDetail) }
+        }
+        val seasonId = _uiState.value.selectedDetailSeasonId
+        if (seasonId != null) {
+          val episodes = jellyfinRepository.getEpisodes(server, detail.id, seasonId).getOrNull()
+          if (episodes != null) {
+            _uiState.update { it.copy(detailEpisodes = episodes) }
+          }
+        }
+      }
+
+      val openLib = _uiState.value.openLibrary
+      if (openLib != null && _uiState.value.currentItems.isNotEmpty()) {
+        val updatedItems = jellyfinRepository.getItems(
+          server = server,
+          parentId = openLib.id,
+          limit = _uiState.value.currentItems.size.coerceAtLeast(50),
+          sortBy = _uiState.value.sortBy,
+          sortOrder = _uiState.value.sortOrder,
+        ).getOrNull()
+        if (updatedItems != null && updatedItems.items.isNotEmpty()) {
+          _uiState.update { it.copy(currentItems = updatedItems.items) }
+        }
+      }
+    }
   }
 
   fun loadServers() {

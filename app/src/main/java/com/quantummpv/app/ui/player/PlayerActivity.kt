@@ -3928,8 +3928,12 @@ class PlayerActivity :
     }.onFailure { /* Silently ignore PiP update failures */ }
 
     jellyfinSessionReporter?.let { reporter ->
-      val currentPosMs = (viewModel.pos ?: 0).toLong() * 1000L
-      reporter.reportPlaybackProgress(currentPosMs, isPaused)
+      val currentPosMs = readMpvIntSeconds("time-pos", viewModel.pos ?: 0).toLong() * 1000L
+      reporter.reportPlaybackProgress(
+        positionMs = currentPosMs,
+        isPaused = isPaused,
+        eventName = if (isPaused) "Pause" else "Unpause",
+      )
     }
   }
 
@@ -4277,8 +4281,17 @@ class PlayerActivity :
 
     reportJellyfinStop()
     currentUri?.toString()?.let { url ->
-      jellyfinSessionReporter = JellyfinSessionReporter.create(url, lifecycleScope, networkHttpClient)
-      jellyfinSessionReporter?.reportPlaybackStart((viewModel.pos ?: 0).toLong() * 1000L)
+      val tokenFromHeader =
+        networkPlaylistHeaders.getOrNull(playlistIndex)?.get("X-Emby-Token")
+          ?: intent.getStringArrayExtra("headers")?.let { PlaybackHttpHeaders.fromFlatPairs(it)["X-Emby-Token"] }
+      jellyfinSessionReporter =
+        JellyfinSessionReporter.create(
+          url = url,
+          httpClient = networkHttpClient,
+          fallbackToken = tokenFromHeader,
+        )
+      val initialPosMs = readMpvIntSeconds("time-pos", viewModel.pos ?: 0).toLong() * 1000L
+      jellyfinSessionReporter?.reportPlaybackStart(initialPosMs)
       startJellyfinProgressLoop()
     }
 
@@ -4317,6 +4330,14 @@ class PlayerActivity :
         }
       } finally {
         PlaybackSession.completePositionRestore(loadGeneration)
+        val restoredPosMs = readMpvIntSeconds("time-pos", viewModel.pos ?: 0).toLong() * 1000L
+        if (restoredPosMs > 0) {
+          jellyfinSessionReporter?.reportPlaybackProgress(
+            positionMs = restoredPosMs,
+            isPaused = viewModel.paused ?: false,
+            eventName = "TimeUpdate",
+          )
+        }
       }
     }
 
@@ -4736,9 +4757,13 @@ class PlayerActivity :
         while (isActive) {
           delay(10000) // Report progress every 10 seconds
           val reporter = jellyfinSessionReporter ?: continue
-          val currentPosMs = (viewModel.pos ?: 0).toLong() * 1000L
+          val currentPosMs = readMpvIntSeconds("time-pos", viewModel.pos ?: 0).toLong() * 1000L
           val isPaused = viewModel.paused ?: false
-          reporter.reportPlaybackProgress(currentPosMs, isPaused)
+          reporter.reportPlaybackProgress(
+            positionMs = currentPosMs,
+            isPaused = isPaused,
+            eventName = "TimeUpdate",
+          )
         }
       }
   }
@@ -4747,7 +4772,7 @@ class PlayerActivity :
     jellyfinProgressJob?.cancel()
     jellyfinProgressJob = null
     jellyfinSessionReporter?.let { reporter ->
-      val currentPosMs = (viewModel.pos ?: 0).toLong() * 1000L
+      val currentPosMs = readMpvIntSeconds("time-pos", viewModel.pos ?: 0).toLong() * 1000L
       reporter.reportPlaybackStop(currentPosMs)
       jellyfinSessionReporter = null
     }
