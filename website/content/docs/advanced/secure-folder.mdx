@@ -1,0 +1,44 @@
+---
+title: Secure Folder
+description: Set up protected media, use biometric unlock, move and restore items, hide the entry point, and recover a forgotten PIN.
+---
+
+Secure Folder limits casual access to selected local media on a shared device. It is an app-level access-control feature, not a replacement for Android device encryption.
+
+## Initial setup
+
+The first visit requires:
+
+1. A four-digit PIN
+2. A non-empty recovery question
+3. A non-empty recovery answer
+
+The PIN and normalized recovery answer are stored as salted hashes. Choose an answer you can reproduce later; capitalization and surrounding spaces are normalized during verification.
+
+## Unlock and biometrics
+
+After setup, enter the PIN to unlock. Biometric authentication can be enabled when Android reports a supported enrolled method. Android handles the biometric prompt; mpvRx does not receive biometric data.
+
+## Move media into Secure Folder
+
+Select individual media or one or more folders in the local browser, then choose the Secure Folder action. Folder moves resolve all contained videos before processing.
+
+The result reports successful and failed item counts. A partial result means some files moved while others remained, commonly because their storage providers or permissions differ.
+
+## Restore or delete
+
+Inside Secure Folder, select items to restore them to normal storage or delete them. Confirmation prompts can be disabled separately for move, restore, delete, and hiding the entry point.
+
+Review the selected count before destructive actions. Deleting from Secure Folder removes the underlying media; it is not merely removed from the protected index.
+
+## Hide the entry point
+
+The Secure Folder row can be hidden from Settings after confirmation. Hidden entry does not encrypt files or remove the need for a PIN; it only reduces casual discoverability. Keep a known recovery path before hiding it.
+
+## Forgot PIN
+
+The recovery flow verifies the stored security answer before allowing a replacement PIN. The existing PIN remains valid until the new PIN is successfully saved, so abandoning recovery cannot leave the folder open for a new setup.
+
+:::warning
+If both PIN and recovery answer are lost, mpvRx cannot derive them from their hashes. Keep device backups and do not treat Secure Folder as the only copy of important media.
+:::

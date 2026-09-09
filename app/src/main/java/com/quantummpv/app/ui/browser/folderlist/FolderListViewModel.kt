@@ -277,10 +277,15 @@ class FolderListViewModel(
           val foldersWithCounts =
             folders.map { folder ->
               try {
-                // Get all videos in this folder
+                // MediaStore can lag behind files copied by other apps. Merge this known folder's
+                // direct filesystem entries so its NEW count does not require a manual refresh.
                 val videos =
                   com.quantummpv.app.repository.MediaFileRepository
-                    .getVideosInFolder(getApplication(), folder.bucketId)
+                    .getVideosInFolder(
+                      context = getApplication(),
+                      bucketId = folder.bucketId,
+                      forceFileSystemCheck = true,
+                    )
 
                 // Count new unplayed videos
                 val newCount =

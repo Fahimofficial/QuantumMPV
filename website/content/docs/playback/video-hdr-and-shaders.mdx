@@ -38,6 +38,45 @@ Anime4K is most useful for compatible animated sources at lower resolutions. It 
 - Ambient GLOW and FRAME_EXTEND modes render around the video with configurable blur, color, warmth, vignette, and noise controls.
 - Automatic cropping can analyze supported videos for encoded black borders.
 
+### Tune GPU debanding
+
+| Control | Effect |
+| --- | --- |
+| Iterations | Repeats the debanding pass; higher values increase GPU cost. |
+| Threshold | Controls how readily subtle gradients are treated as banding. |
+| Range | Expands the neighborhood sampled around each pixel. |
+| Grain | Adds controlled noise to mask remaining quantization steps. |
+
+Begin with one iteration and conservative threshold/range. Too much processing
+can erase intentional texture or add visible noise.
+
+### Ambient modes
+
+**GLOW** extends color and light beyond the picture, while **FRAME_EXTEND**
+uses the frame itself as the surrounding composition. Settings include sample
+count, blur, intensity, saturation, warmth, vignette, and dither/noise.
+
+mpvRx caches compiled shader configurations and reduces the effective sample
+budget under thermal pressure. Adjust one parameter at a time; sample count and
+blur radius usually have the largest performance impact.
+
+### Filter presets
+
+Presets are creative starting points rather than calibration profiles. Preview
+them on representative bright, dark, animated, and skin-tone scenes before
+applying one broadly. Deep Black can crush shadow detail on an already dark
+master; vivid or neon looks can clip saturated colors.
+
+## Automatic crop
+
+Auto Crop samples several frames and looks for persistent encoded borders. It
+is conservative around dark scenes, short files, rotation, and changing aspect
+ratios, then caches a successful result for repeat playback.
+
+Disable it for intentional letterboxing, rapidly changing aspect ratios, or
+content where edge darkness is part of the image. Crop, stretch, pan, zoom, and
+ambient output share the final video geometry.
+
 ## Watch thermal behavior
 
-The thermal monitor samples headroom during playback. Shader budgets and Anime4K choices can be reduced before sustained heat becomes dropped frames. Use the statistics page to compare FPS, dropped frames, decoder state, and power draw after each change.
+The thermal monitor samples headroom during playback. Shader budgets and Anime4K choices can be reduced before sustained heat becomes dropped frames. Use [Statistics and refresh rate](/docs/playback/statistics-and-refresh-rate) to compare FPS, dropped frames, decoder state, temperature, and power draw after each change.

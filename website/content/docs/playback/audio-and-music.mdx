@@ -25,13 +25,43 @@ The Music tab can use local storage, Jellyfin, or Navidrome as its source. Local
 
 The dedicated now-playing view combines artwork, metadata, transport controls, and the up-next queue.
 
+### Switch the source
+
+Choose the active source from Music settings. Local uses Android media and
+filesystem indexing; Jellyfin and Navidrome use their saved server account.
+Changing source replaces the browsed catalog but does not merge remote and local
+albums into one library.
+
+If a remote source is unavailable, switch back to Local rather than deleting
+the server. See [Jellyfin and Navidrome](/docs/library-and-streaming/jellyfin-and-navidrome)
+for connection behavior.
+
+### Playlists, favorites, and queue
+
+Create local audio playlists, add selected tracks, or save the current queue as
+a named playlist. Favorites are represented by a stable audio playlist and stay
+in sync with the active music notification.
+
+The up-next queue supports normal or shuffled playback. **Play Next** inserts
+after the active track; **Add to Queue** appends. See [Playlists, queues, and history](/docs/library-and-streaming/playlists-and-history).
+
 ## Lyrics
 
 mpvRx can display embedded or local lyrics and fetch online lyrics from LRCLIB. When several sources are available, switch sources from the lyrics view. Availability and timing quality depend on the track metadata and provider result.
 
+Timed lyrics follow playback; plain text remains readable without synchronization.
+Changing tracks cancels in-flight loading and source conversion so a slow result
+from the previous song cannot replace the current lyrics. Optional translation
+and Indic-script romanization remain best-effort transformations; keep the
+original source available for comparison.
+
 ## Visualizers
 
-Blob, Galaxy, Cuboid, and Particle modes are available, along with an optional audio-reactive seekbar. Visualizers use additional rendering resources, so disable them when battery life or thermal headroom is the priority.
+Blob, Galaxy, Cuboid, and Particle modes are available, along with an optional audio-reactive seekbar. They are presentation choices, not audio processors, and do not change the decoded signal.
+
+Galaxy and Particle emphasize many moving elements; Cuboid emphasizes geometry;
+Blob uses a continuous organic surface. All use additional rendering resources,
+so disable them when battery life, PiP, or thermal headroom is the priority.
 
 ## Background playback
 

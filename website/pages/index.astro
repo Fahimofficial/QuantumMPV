@@ -102,34 +102,54 @@ const builds = [
   },
 ];
 
-const landscapeGallery = [
+const showcaseGallery = [
   {
-    image: "/images/player.png",
-    title: "Touch-First Playback Surface",
-    caption: "Clean, responsive gesture controls with hold-for-speed, dynamic seek, zoom, and dual subtitle sync.",
+    image: "/images/showcase/player-controls.jpg",
+    alt: "mpvRx touch-first playback controls",
+    layout: "controls",
+    orientation: "landscape",
+    width: 2800,
+    height: 1260,
   },
   {
-    image: "/images/playlist-grid.png",
-    title: "Visual Queue & Playlist Grid",
-    caption: "Manage multi-episode queues, background music tracks, and continuous playback with visual cues.",
+    image: "/images/showcase/playlist-window.jpg",
+    alt: "mpvRx visual playback queue",
+    layout: "playlist",
+    orientation: "landscape",
+    width: 2800,
+    height: 1260,
   },
   {
-    image: "/images/frame-navigation.png",
-    title: "Frame-Level Precision",
-    caption: "Frame-stepping controls, exact timestamp jumping, and A-B loop points for technical analysis.",
-  },
-];
-
-const portraitGallery = [
-  {
-    image: "/images/folderscreen.png",
-    title: "Folder & Storage Explorer",
-    caption: "Organize, pin, and navigate local storage, SD cards, OTG drives, and network shares.",
+    image: "/images/showcase/chapter-navigation.jpg",
+    alt: "mpvRx chapter navigation controls",
+    layout: "chapters",
+    orientation: "landscape",
+    width: 2800,
+    height: 1260,
   },
   {
-    image: "/images/videoscreen.png",
-    title: "Instant Video Library",
-    caption: "Grid and list browsing with metadata, thumbnail caching, and resume progress indicators.",
+    image: "/images/showcase/pip.png",
+    alt: "mpvRx picture-in-picture mode",
+    layout: "pip",
+    orientation: "portrait",
+    width: 720,
+    height: 1600,
+  },
+  {
+    image: "/images/showcase/music-player.jpg",
+    alt: "mpvRx music player",
+    layout: "music",
+    orientation: "portrait",
+    width: 1080,
+    height: 2400,
+  },
+  {
+    image: "/images/showcase/about-screen.jpg",
+    alt: "mpvRx About screen",
+    layout: "about",
+    orientation: "portrait",
+    width: 1260,
+    height: 2800,
   },
 ];
 ---
@@ -146,7 +166,7 @@ const portraitGallery = [
     <meta name="theme-color" content="#0c0a14" />
     <meta property="og:title" content="mpvRx - Android media, without the noise" />
     <meta property="og:description" content="libmpv precision, touch-first gesture controls, HDR shaders, network streaming, and open-source freedom on Android." />
-    <meta property="og:image" content="/images/player.png" />
+    <meta property="og:image" content="/images/showcase/tanjiro-playback.jpg" />
     <title>mpvRx | Android media, without the noise</title>
     <link rel="icon" type="image/png" href="/images/icon.png" />
     <script is:inline>
@@ -261,11 +281,11 @@ const portraitGallery = [
               </div>
               <div class="mockup-image-container">
                 <img
-                  src="/images/player.png"
-                  alt="mpvRx modern player interface showing playback controls over a high-resolution video"
+                  src="/images/showcase/tanjiro-playback.jpg"
+                  alt="Video playback in mpvRx"
                   class="mockup-image"
-                  width="1200"
-                  height="675"
+                  width="1920"
+                  height="1080"
                 />
                 <div class="mockup-overlay-badge left-badge">
                   <Sliders size={15} />
@@ -366,41 +386,12 @@ const portraitGallery = [
             </p>
           </div>
 
-          <div class="gallery-grid">
-            <div class="gallery-column gallery-landscape-column">
-              {landscapeGallery.map(({ image, title, caption }, index) => (
-                <figure class="gallery-item gallery-landscape-item">
-                  <div class="gallery-img-wrap">
-                    <img
-                      src={image}
-                      alt={title}
-                      loading={index === 0 ? "eager" : "lazy"}
-                      fetchpriority={index === 0 ? "high" : "auto"}
-                      class="gallery-img"
-                      width="1600"
-                      height="720"
-                    />
-                    <div class="gallery-glass-banner">
-                      <h4>{title}</h4>
-                      <figcaption>{caption}</figcaption>
-                    </div>
-                  </div>
-                </figure>
-              ))}
-            </div>
-            <div class="gallery-column gallery-portrait-column">
-              {portraitGallery.map(({ image, title, caption }) => (
-                <figure class="gallery-item gallery-portrait-item">
-                  <div class="gallery-img-wrap">
-                    <img src={image} alt={title} loading="lazy" class="gallery-img" width="720" height="1600" />
-                    <div class="gallery-glass-banner">
-                      <h4>{title}</h4>
-                      <figcaption>{caption}</figcaption>
-                    </div>
-                  </div>
-                </figure>
-              ))}
-            </div>
+          <div class="showcase-bento" aria-label="mpvRx interface screenshots">
+            {showcaseGallery.map(({ image, alt, layout, orientation, width, height }) => (
+              <figure class:list={["showcase-tile", `showcase-tile--${layout}`, `showcase-tile--${orientation}`]}>
+                <img src={image} alt={alt} loading="lazy" width={width} height={height} />
+              </figure>
+            ))}
           </div>
         </div>
       </section>
@@ -517,7 +508,6 @@ const portraitGallery = [
       <!-- Final Call to Action -->
       <section class="final-cta-section">
         <div class="final-cta-bg">
-          <img src="/images/chapters.png" alt="" class="final-cta-bg-img" loading="lazy" />
           <div class="final-cta-overlay"></div>
         </div>
 
@@ -1383,74 +1373,60 @@ const portraitGallery = [
     line-height: 1.6;
   }
 
-  /* Screenshot Showcase Gallery */
-  .gallery-grid {
+  /* Screenshot Showcase */
+  .showcase-bento {
     display: grid;
-    grid-template-columns: minmax(0, 2fr) minmax(280px, 1fr);
-    gap: 24px;
-    align-items: start;
+    grid-template-columns: repeat(12, minmax(0, 1fr));
+    grid-auto-flow: dense;
+    grid-auto-rows: 72px;
+    gap: 18px;
   }
 
-  .gallery-column {
-    display: grid;
-    min-width: 0;
-    gap: 24px;
-    align-content: start;
-  }
-
-  .gallery-item {
-    align-self: start;
-    border-radius: 14px;
-    overflow: hidden;
-    background: var(--bg-surface);
-    border: 1px solid var(--border-subtle);
-    transition: transform 0.25s ease, border-color 0.25s ease;
-  }
-
-  .gallery-item:hover {
-    transform: translateY(-4px);
-    border-color: var(--border-hover);
-    box-shadow: 0 20px 40px -10px rgba(0, 0, 0, 0.7);
-  }
-
-  .gallery-img-wrap {
+  .showcase-tile {
     position: relative;
+    min-width: 0;
+    overflow: hidden;
+    border: 1px solid var(--border-subtle);
+    border-radius: 14px;
+    background: #09070e;
+    box-shadow: 0 18px 44px -18px rgba(0, 0, 0, 0.72);
+    transition: border-color 0.25s ease, box-shadow 0.25s ease;
+  }
+
+  .showcase-tile:hover {
+    border-color: var(--border-hover);
+    box-shadow: 0 22px 48px -16px rgba(0, 0, 0, 0.82);
+  }
+
+  .showcase-tile img {
+    display: block;
     width: 100%;
-    display: flex;
-    flex-direction: column;
+    height: 100%;
+    object-fit: contain;
+    transition: transform 0.35s ease;
   }
 
-  .gallery-img {
-    width: 100%;
-    height: auto;
-    object-fit: cover;
-    background: #000;
+  .showcase-tile:hover img {
+    transform: scale(1.012);
   }
 
-  .gallery-landscape-item .gallery-img {
-    aspect-ratio: 20 / 9;
+  .showcase-tile--controls {
+    grid-column: span 8;
+    grid-row: span 4;
   }
 
-  .gallery-portrait-item .gallery-img {
-    aspect-ratio: 9 / 20;
+  .showcase-tile--playlist,
+  .showcase-tile--chapters {
+    grid-column: span 4;
+    grid-row: span 2;
   }
 
-  .gallery-glass-banner {
-    padding: 18px 20px;
-    background: rgba(20, 23, 25, 0.95);
-    border-top: 1px solid var(--border-subtle);
-  }
-
-  .gallery-glass-banner h4 {
-    font-size: 1.05rem;
-    color: var(--text-primary);
-    margin-bottom: 4px;
-  }
-
-  .gallery-glass-banner figcaption {
-    font-size: 0.86rem;
-    color: var(--text-secondary);
-    line-height: 1.5;
+  .showcase-tile--portrait {
+    grid-column: span 4;
+    grid-row: span 7;
+    background:
+      radial-gradient(circle at 50% 38%, rgba(139, 108, 255, 0.12), transparent 44%),
+      #09070e;
   }
 
   /* Philosophy & Privacy */
@@ -1731,14 +1707,10 @@ const portraitGallery = [
     position: absolute;
     inset: 0;
     z-index: 0;
-  }
-
-  .final-cta-bg-img {
-    width: 100%;
-    height: 100%;
-    object-fit: cover;
-    filter: blur(8px) brightness(0.25);
-    transform: scale(1.05);
+    background:
+      linear-gradient(120deg, rgba(139, 108, 255, 0.2), transparent 42%),
+      linear-gradient(300deg, rgba(189, 155, 255, 0.14), transparent 38%),
+      #0c0a14;
   }
 
   .final-cta-overlay {
@@ -1966,7 +1938,7 @@ const portraitGallery = [
   }
 
   :root[data-theme="light"] .mockup-frame,
-  :root[data-theme="light"] .gallery-item,
+  :root[data-theme="light"] .showcase-tile,
   :root[data-theme="light"] .bento-card,
   :root[data-theme="light"] .build-card {
     box-shadow: 0 18px 44px -16px rgba(54, 38, 92, 0.22);
@@ -1978,10 +1950,6 @@ const portraitGallery = [
 
   :root[data-theme="light"] .mockup-dots span {
     box-shadow: inset 0 0 0 1px rgba(24, 18, 37, 0.1);
-  }
-
-  :root[data-theme="light"] .gallery-glass-banner {
-    background: rgba(255, 255, 255, 0.96);
   }
 
   :root[data-theme="light"] .philosophy-card {
@@ -2014,10 +1982,6 @@ const portraitGallery = [
   /* Responsive Design */
   @media (max-width: 980px) {
     .bento-grid {
-      grid-template-columns: repeat(2, 1fr);
-    }
-
-    .gallery-grid {
       grid-template-columns: repeat(2, 1fr);
     }
 
@@ -2076,12 +2040,26 @@ const portraitGallery = [
       grid-template-columns: 1fr;
     }
 
-    .gallery-grid {
-      grid-template-columns: 1fr;
+    .showcase-bento {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      grid-auto-rows: auto;
     }
 
-    .gallery-portrait-column {
-      grid-template-columns: repeat(2, minmax(0, 1fr));
+    .showcase-tile {
+      grid-column: span 1;
+      grid-row: auto;
+    }
+
+    .showcase-tile--controls {
+      grid-column: 1 / -1;
+    }
+
+    .showcase-tile--landscape {
+      aspect-ratio: 20 / 9;
+    }
+
+    .showcase-tile--portrait {
+      aspect-ratio: 9 / 20;
     }
 
     .mockup-overlay-badge {
@@ -2105,8 +2083,14 @@ const portraitGallery = [
   }
 
   @media (max-width: 480px) {
-    .gallery-portrait-column {
+    .showcase-bento {
       grid-template-columns: 1fr;
+      gap: 14px;
+    }
+
+    .showcase-tile,
+    .showcase-tile--controls {
+      grid-column: 1;
     }
 
     .hero-btn-row {

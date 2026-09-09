@@ -1,0 +1,42 @@
+---
+title: Playlists, queues, and history
+description: Create local playlists, import M3U sources, save the active queue, manage favorites, and control playback history.
+---
+
+## Manual playlists
+
+Create a named playlist from the Playlists destination or while selecting media. Audio and video playlists are kept distinct so music-focused sorting and artwork do not leak into video collections.
+
+You can add selected audio items to a playlist, mark favorites, and save the current player queue as a named playlist. Favorites use a stable playlist identity so changes remain synchronized between the app and media notification.
+
+## Queue behavior
+
+The player queue controls next/previous navigation, repeat, shuffle, and the playlist sheet. Local queues can be reordered when the source supports stable item ordering. M3U channel lists are not reordered through the normal drag handle.
+
+Use **Play Next** for a temporary insertion after the current item and **Add to Queue** for the end of an audio queue.
+
+## M3U and M3U8 playlists
+
+mpvRx can create a saved M3U playlist from:
+
+- A local `.m3u` or `.m3u8` file
+- A remote playlist URL
+- A network-share playlist opened from SMB, FTP, SFTP, or WebDAV
+
+Extended M3U metadata can provide channel names, groups, and logos. Saved channel lists support category filters and stream favorites.
+
+:::note
+A remote `.m3u8` can also be an HLS media manifest rather than a channel list. mpvRx uses the source context and playback policy to decide whether to expand it in-app or let mpv/yt-dlp handle it as a stream.
+:::
+
+## Recently played and resume state
+
+Playback progress is persisted during playback and at terminal events such as end of file. Continue-watching and recent screens use that state to show progress and restore position.
+
+Clearing playback history removes recently played/resume records. It does not delete the media files or playlists. If a row remains visible after clearing, refresh the library and verify it is not coming from a connected server's own history.
+
+## File operations
+
+Selection mode supports operations such as rename, move, and delete when the source and Android storage permission allow them. Android 10 uses legacy-compatible handling; newer Android versions can require scoped-storage confirmation or document-provider access.
+
+Always verify the selected count and destination before a batch move. A partial operation can succeed for some items and fail for others when permissions differ across folders.

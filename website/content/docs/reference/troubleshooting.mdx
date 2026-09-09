@@ -17,6 +17,10 @@ Reduce the problem to the smallest reproducible setup before changing several un
 
 Separate network buffering from decode/render pressure. Test locally, inspect cache and dropped-frame metrics, disable expensive processing, and confirm the device can hardware-decode the codec profile.
 
+Use [Statistics and refresh rate](/docs/playback/statistics-and-refresh-rate)
+to distinguish cache starvation, dropped frames, decoder inefficiency, and
+thermal throttling.
+
 ## A network source will not connect
 
 - Verify host, port, credentials, and path outside mpvRx.
@@ -42,6 +46,17 @@ Confirm title matching, season and episode, selected languages, enabled provider
 - Reopen playback after adding or disabling a script.
 - Use ES5-compatible JavaScript.
 - For native commands, use the exact lowercase property and a non-empty string value.
+
+## A download or compression job fails
+
+- Re-select the output folder if Android revoked its document-tree permission.
+- Check available storage before retrying a large file or batch.
+- Clear strict online codec/container filters when no downloadable format is found.
+- Test a supported hardware encoder and lower resolution in the compressor.
+- Preserve the compressor error log before resetting the session.
+
+See [Downloads and online quality](/docs/library-and-streaming/downloads-and-online-quality)
+and [Video compression](/docs/advanced/video-compression).
 
 ## Cast discovers a device but cannot play
 

@@ -1,0 +1,58 @@
+---
+title: Downloads and online quality
+description: Choose a download folder, manage direct and yt-dlp jobs, and configure online format preferences.
+---
+
+mpvRx separates direct-file downloads from extractor-backed downloads while presenting both in one Downloads screen.
+
+## Choose a destination
+
+The location card shows the active download folder. Use Android's folder picker to grant persistent read/write access to another directory, or reset to the app's default location.
+
+An invalid or revoked document-tree permission prevents saving. Re-select the folder after moving storage, clearing the file provider, or restoring settings onto another device.
+
+## Download routes
+
+| Source | Typical route |
+| --- | --- |
+| Direct media file | Direct download service |
+| HLS (`.m3u8`) or DASH (`.mpd`) | yt-dlp download engine |
+| Supported website URL | yt-dlp extraction and download |
+| Local/network loopback proxy | Playback only; not passed to yt-dlp |
+
+The Downloads screen separates active and completed direct downloads, plus active and completed yt-dlp jobs. Completed playable files can be opened immediately or deleted after confirmation.
+
+Android 13 and newer require notification permission for visible progress notifications. The download itself can still depend on foreground-service and vendor background restrictions.
+
+## Online quality controls
+
+Extractor-backed playback and downloads can filter formats by:
+
+- Video codec
+- Maximum or preferred resolution
+- Frame rate
+- HDR preference
+- Container
+- Audio bitrate
+
+A strict combination can eliminate every available format. Start with Automatic, then constrain one dimension at a time.
+
+| Goal | Practical starting point |
+| --- | --- |
+| Broad compatibility | H.264/AVC, SDR, MP4, automatic FPS |
+| Efficient modern video | AV1 or VP9 when the device decodes it in hardware |
+| High refresh content | Allow source FPS; do not force 60 when the source is 24/30 |
+| Audio-focused download | Prefer audio-only and set the needed bitrate |
+| Small file | Lower resolution before forcing an unusually low bitrate |
+
+## Failures and recovery
+
+- **No format found:** clear codec/container/HDR filters.
+- **Extraction broke recently:** the website may have changed; update mpvRx and retry.
+- **Download stops in background:** review notification and battery restrictions.
+- **File cannot be opened:** confirm completion, extension, and storage permission.
+- **Authenticated URL fails:** do not post the URL publicly; reproduce with a non-private source if possible.
+
+:::warning
+Only download media you are authorized to save. Website support does not override copyright, account, or service terms.
+:::

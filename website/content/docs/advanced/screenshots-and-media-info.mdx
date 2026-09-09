@@ -1,0 +1,56 @@
+---
+title: Screenshots and media information
+description: Configure screenshot formats and filename templates, capture subtitle-inclusive frames, and inspect complete media metadata.
+---
+
+## Screenshot settings
+
+mpvRx can save PNG, JPEG, and supported WebP output. Settings include lossy quality, PNG compression, WebP lossless mode, filename template, and whether rendered subtitles are included.
+
+Native mpv capture is attempted first. Compatible formats can fall back to an Android image conversion path when native output is unavailable.
+
+Screenshots are saved under the Pictures media collection in the `mpvSnaps` folder on modern Android versions.
+
+## Filename placeholders
+
+| Placeholder | Value |
+| --- | --- |
+| `%Y` | Four-digit year |
+| `%m` | Month |
+| `%d` | Day |
+| `%H` | Hour |
+| `%M` | Minute |
+| `%S` | Second |
+| `%f` | Source filename with extension |
+| `%F` | Source filename without extension |
+| `%P` | Playback position as `HH:MM:SS.mmm` |
+| `%p` | Playback position as `HH:MM:SS` |
+| `%wH` | Playback-position hours |
+| `%wM` | Playback-position minutes |
+| `%wS` | Playback-position seconds |
+| `%wT` | Playback-position milliseconds |
+
+Default template:
+
+```text
+mpv_snapshot_%Y%m%d_%H%M%S
+```
+
+Invalid filename characters are replaced, excess whitespace is normalized, and generated names are capped to a safe length.
+
+## Frame Review snapshots
+
+Frame Review can capture the exact reviewed position and independently choose subtitle inclusion. See [Precision playback tools](/docs/playback/precision-playback-tools).
+
+## Media information
+
+The media information view organizes parsed metadata by kind:
+
+- Container/general details and system path
+- Video, audio, text/subtitle, image, and other tracks
+- Programs, timecode tracks, and MKV attachments
+- Raw MediaInfo report
+
+Images and embedded cover art receive image-specific fields such as resolution, format, bit depth, color space, compression, and orientation. Tap a value to open its complete selectable text and copy it without truncation.
+
+Use the Raw tab when preparing a codec/container report, but review paths, titles, server URLs, and tags for private information before sharing it.
