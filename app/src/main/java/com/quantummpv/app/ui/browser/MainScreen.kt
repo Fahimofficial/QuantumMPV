@@ -462,7 +462,7 @@ object MainScreen : Screen {
                       }
                     } else {
                       LaunchedEffect(jellyfinUiState.libraries) {
-                        jellyfinViewModel.ensureMusicLibraryOpened()
+                        jellyfinViewModel.ensureMusicDataLoaded()
                       }
                       com.quantummpv.app.ui.browser.jellyfin.JellyfinContent(
                         viewModel = jellyfinViewModel,

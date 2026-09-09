@@ -254,7 +254,7 @@ fun JellyfinContent(
   val isBackEnabled =
     if (isMusicOnlyMode) {
       isSearching || selectionManager.isInSelectionMode || uiState.detailItem != null ||
-        (uiState.openLibrary?.isMusic == true && uiState.musicActiveTab != JellyfinMusicTab.HOME) ||
+        uiState.musicActiveTab != JellyfinMusicTab.HOME ||
         (isFabExpanded && !quickPlayFabDirect)
     } else {
       isSeerrRequestsOpen || isSearching || selectionManager.isInSelectionMode ||
@@ -711,7 +711,7 @@ fun JellyfinContent(
             }
 
             // Root / Discovery Home View (Expressive UI)
-            uiState.openLibrary == null && uiState.searchQuery.isBlank() -> {
+            !isMusicOnlyMode && uiState.openLibrary == null && uiState.searchQuery.isBlank() -> {
               val server = uiState.activeServer
 
               if (server != null) {
@@ -905,8 +905,8 @@ fun JellyfinContent(
 
             // Level / Search View: Inside a Library / Folder / Season / Search results
             else -> {
-              val openLib = uiState.openLibrary
-              if (openLib?.isMusic == true && uiState.searchQuery.isBlank() && uiState.activeServer != null) {
+              val openLib = uiState.openLibrary ?: if (isMusicOnlyMode) viewModel.getMusicLibraryView() else null
+              if ((isMusicOnlyMode || openLib?.isMusic == true) && uiState.searchQuery.isBlank() && uiState.activeServer != null) {
                 JellyfinMusicView(
                   uiState = uiState,
                   server = uiState.activeServer!!,

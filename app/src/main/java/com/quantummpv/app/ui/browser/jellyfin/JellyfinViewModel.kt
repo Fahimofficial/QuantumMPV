@@ -607,13 +607,27 @@ class JellyfinViewModel(
     }
   }
 
-  fun ensureMusicLibraryOpened() {
+  fun getMusicLibraryView(): JellyfinLibraryView? {
+    val musicItem = _uiState.value.libraries.firstOrNull { isMusicLibrary(it) } ?: return null
+    return JellyfinLibraryView(
+      id = musicItem.id,
+      title = musicItem.name,
+      itemTypes = "Audio",
+      collectionType = musicItem.collectionType,
+      isMusic = true,
+    )
+  }
+
+  fun ensureMusicDataLoaded() {
     val active = _uiState.value.activeServer ?: return
-    if (_uiState.value.openLibrary?.isMusic == true) return
-    val musicLib = _uiState.value.libraries.firstOrNull { isMusicLibrary(it) }
-    if (musicLib != null) {
-      navigateToItem(musicLib)
+    val musicLib = getMusicLibraryView() ?: return
+    if (loadedMusicHomeLibraryId != musicLib.id) {
+      loadMusicHomeDashboard(active, musicLib)
     }
+  }
+
+  fun ensureMusicLibraryOpened() {
+    ensureMusicDataLoaded()
   }
 
   fun setGenreFilter(genre: String?) {
@@ -787,7 +801,7 @@ class JellyfinViewModel(
     if (_uiState.value.musicActiveTab == tab) return
     _uiState.update { it.copy(musicActiveTab = tab) }
     val active = _uiState.value.activeServer ?: return
-    val library = _uiState.value.openLibrary ?: return
+    val library = _uiState.value.openLibrary ?: getMusicLibraryView() ?: return
 
     if (tab == JellyfinMusicTab.HOME) {
       if (loadedMusicHomeLibraryId != library.id) loadMusicHomeDashboard(active, library)
