@@ -258,6 +258,8 @@ dependencies {
   implementation(libs.composables.material.symbols.rounded.filled.cmp)
   implementation(libs.androidx.compose.animation.graphics)
   implementation(libs.mediasession)
+  implementation(libs.androidx.media3.exoplayer)
+  implementation(libs.androidx.media3.ui)
   implementation(libs.androidx.documentfile)
   implementation(libs.androidx.palette)
 
@@ -281,6 +283,7 @@ dependencies {
   implementation(libs.androidx.media3.common)
   implementation(libs.androidx.media3.effect)
   implementation(libs.androidx.media3.transformer)
+  testImplementation(libs.kotlin.test)
   implementation(platform(libs.sora.editor.bom))
   implementation(libs.sora.editor)
   implementation(libs.sora.language.textmate)
