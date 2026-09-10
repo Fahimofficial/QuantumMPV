@@ -1,6 +1,6 @@
 # Credits and citation information
 
-QuantumMPV is an independent continuation and rebrand of the mpvRx codebase. This page preserves QuantumMPV's acknowledgments and links to the people and projects being credited. The QuantumMPV name and logo identify this repository; they do not replace or claim ownership of upstream projects.
+QuantumMPV is developed and maintained by **FAHIM**. This page preserves QuantumMPV's acknowledgments and links to the people and projects being credited. The QuantumMPV name and logo identify this repository; they do not replace or claim ownership of upstream projects.
 
 ## Citing QuantumMPV
 
@@ -9,7 +9,7 @@ When mentioning, reviewing, or building on QuantumMPV, link to the [project repo
 Suggested plain-text reference:
 
 ```text
-QuantumMPV contributors. QuantumMPV — Android video and music player.
+FAHIM. QuantumMPV — Android video and music player.
 https://github.com/Fahimofficial/QuantumMPV
 Version: <release tag or commit hash>
 ```
