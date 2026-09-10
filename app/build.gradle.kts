@@ -37,16 +37,14 @@ plugins {
 }
 
 android {
-  namespace = "app.gyrolet.mpvrx"
+  namespace = "com.fahim.quantummpv"
   compileSdk = 37
   ndkVersion = "27.3.13750724"
 
   defaultConfig {
-    applicationId = "app.gyrolet.mpvrx"
+    applicationId = "com.fahim.quantummpv"
     minSdk = 26
     targetSdk = 36
-    // Stable occupies the top of its version band. Preview uses the next band's commit-count
-    // offset, so Stable -> Preview -> newer Preview -> next Stable is always an Android upgrade.
     versionCode = stableVersionCode
     versionName = "0.0.1"
 
@@ -287,7 +285,6 @@ dependencies {
   implementation(platform(libs.sora.editor.bom))
   implementation(libs.sora.editor)
   implementation(libs.sora.language.textmate)
-  // implementation(libs.sora.oniguruma.native)
 
   coreLibraryDesugaring(libs.desugar.jdk.libs)
 
@@ -314,7 +311,6 @@ dependencies {
   implementation(libs.reorderable)
   implementation(libs.androidx.biometric)
 
-  // libtorrent4j's Java API plus the native library for every enabled APK ABI.
   implementation(libs.libtorrent4j)
   implementation(libs.libtorrent4j.android.arm64)
   implementation(libs.libtorrent4j.android.arm)
@@ -323,8 +319,6 @@ dependencies {
     implementation(libs.libtorrent4j.android.x8664)
   }
 }
-
-// ---------------- Git helpers ----------------
 
 fun getCommitCount(): String = runCommand("git rev-list --count HEAD") ?: "0"
 
@@ -342,10 +336,9 @@ fun runCommand(command: String): String? =
       process.inputStream
         .bufferedReader()
         .readText()
-        .trim()
 
     process.waitFor()
-    output.ifEmpty { null }
+    output.trim().ifEmpty { null }
   } catch (e: Exception) {
     null
   }
