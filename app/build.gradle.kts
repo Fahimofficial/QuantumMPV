@@ -37,12 +37,12 @@ plugins {
 }
 
 android {
-  namespace = "com.fahim.quantummpv"
+  namespace = "com.quantummpv.app"
   compileSdk = 37
   ndkVersion = "27.3.13750724"
 
   defaultConfig {
-    applicationId = "com.fahim.quantummpv"
+    applicationId = "com.quantummpv.app"
     minSdk = 26
     targetSdk = 36
     versionCode = stableVersionCode
