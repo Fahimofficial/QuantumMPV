@@ -581,6 +581,82 @@ fun JellyfinDetailSheet(
           modifier = Modifier.fillMaxWidth(),
           verticalArrangement = Arrangement.spacedBy(10.dp),
         ) {
+          // Compute playback state for Series, Episode, or Movie
+          val inProgressEpisode = remember(episodes) {
+            episodes
+              .filter { it.progressPercent > 0.05f }
+              .maxWithOrNull(
+                compareBy<JellyfinItem> { it.lastPlayedDate ?: "" }
+                  .thenBy { it.parentIndexNumber ?: 1 }
+                  .thenBy { it.indexNumber ?: 1 },
+              )
+          }
+          val nextUnplayedEpisode = remember(episodes) { episodes.firstOrNull { !it.isPlayed } }
+          val isAllEpisodesPlayed = remember(episodes) { episodes.isNotEmpty() && episodes.all { it.isPlayed } }
+
+          val targetItem: JellyfinItem
+          val playLabel: String
+          val isResumeMode: Boolean
+          val isRestartSeriesMode: Boolean
+
+          if (item.isSeries) {
+            when {
+              inProgressEpisode != null -> {
+                targetItem = inProgressEpisode
+                val s = inProgressEpisode.parentIndexNumber ?: 1
+                val e = inProgressEpisode.indexNumber ?: 1
+                playLabel = "Resume S$s:E$e"
+                isResumeMode = true
+                isRestartSeriesMode = false
+              }
+              nextUnplayedEpisode != null -> {
+                targetItem = nextUnplayedEpisode
+                val s = nextUnplayedEpisode.parentIndexNumber ?: 1
+                val e = nextUnplayedEpisode.indexNumber ?: 1
+                playLabel = "Watch S$s:E$e"
+                isResumeMode = false
+                isRestartSeriesMode = false
+              }
+              isAllEpisodesPlayed || item.isPlayed -> {
+                targetItem = episodes.firstOrNull() ?: item
+                playLabel = "Restart Series"
+                isResumeMode = false
+                isRestartSeriesMode = true
+              }
+              else -> {
+                targetItem = episodes.firstOrNull() ?: item
+                val s = targetItem.parentIndexNumber ?: 1
+                val e = targetItem.indexNumber ?: 1
+                playLabel = "Watch S$s:E$e"
+                isResumeMode = false
+                isRestartSeriesMode = false
+              }
+            }
+          } else {
+            targetItem = item
+            isRestartSeriesMode = false
+            when {
+              item.progressPercent > 0.05f -> {
+                playLabel = "Resume"
+                isResumeMode = true
+              }
+              item.isPlayed -> {
+                playLabel = "Watch Again"
+                isResumeMode = false
+              }
+              item.type == "Episode" -> {
+                val s = item.parentIndexNumber ?: 1
+                val e = item.indexNumber ?: 1
+                playLabel = "Watch S$s:E$e"
+                isResumeMode = false
+              }
+              else -> {
+                playLabel = "Play Movie"
+                isResumeMode = false
+              }
+            }
+          }
+
           // Play / Resume Row
           Row(
             modifier = Modifier.fillMaxWidth(),
@@ -588,34 +664,29 @@ fun JellyfinDetailSheet(
             horizontalArrangement = Arrangement.spacedBy(10.dp),
           ) {
             Button(
-              onClick = { onPlay(item, false) },
+              onClick = { onPlay(targetItem, isRestartSeriesMode) },
               shape = RoundedCornerShape(14.dp),
               colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary),
               modifier = Modifier.weight(1f),
               contentPadding = PaddingValues(vertical = 12.dp),
             ) {
               Icon(
-                imageVector = Icons.RoundedFilled.PlayArrow,
+                imageVector = if (isRestartSeriesMode) Icons.RoundedFilled.Refresh else Icons.RoundedFilled.PlayArrow,
                 contentDescription = null,
                 modifier = Modifier.size(20.dp),
               )
               Spacer(modifier = Modifier.width(8.dp))
               Text(
-                text =
-                  when {
-                    item.progressPercent > 0.05f -> "Resume"
-                    item.isSeries -> "Watch S1:E1"
-                    else -> "Play Movie"
-                  },
+                text = playLabel,
                 fontWeight = FontWeight.Bold,
                 style = MaterialTheme.typography.labelLarge,
               )
             }
 
             // Play from Beginning icon button if in progress
-            if (item.progressPercent > 0.05f) {
+            if (isResumeMode) {
               FilledTonalIconButton(
-                onClick = { onPlay(item, true) },
+                onClick = { onPlay(targetItem, true) },
                 shape = RoundedCornerShape(14.dp),
                 modifier = Modifier.size(48.dp),
               ) {

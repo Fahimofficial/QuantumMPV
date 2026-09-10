@@ -1212,7 +1212,7 @@ class JellyfinViewModel(
             compareBy<JellyfinItem> { it.indexNumber ?: Int.MAX_VALUE }
               .thenBy { it.name }
           )
-          val initialSeason = seasons.firstOrNull()
+          val initialSeason = seasons.firstOrNull { !it.isPlayed } ?: seasons.firstOrNull()
 
           _uiState.update {
             it.copy(
