@@ -7,7 +7,7 @@
  * (at your option) any later version.
  */
 
-package app.gyrolet.mpvrx
+package com.fahim.quantummpv
 
 import android.app.Activity
 import android.app.Application
@@ -20,20 +20,20 @@ import android.util.Log
 import android.view.View
 import androidx.core.view.ViewCompat
 import androidx.core.view.WindowInsetsCompat
-import app.gyrolet.mpvrx.database.repository.VideoMetadataCacheRepository
-import app.gyrolet.mpvrx.di.DatabaseModule
-import app.gyrolet.mpvrx.di.FileManagerModule
-import app.gyrolet.mpvrx.di.PreferencesModule
-import app.gyrolet.mpvrx.preferences.AudioPreferences
-import app.gyrolet.mpvrx.preferences.DecoderPreferences
-import app.gyrolet.mpvrx.preferences.PlayerPreferences
-import app.gyrolet.mpvrx.presentation.crash.CrashActivity
-import app.gyrolet.mpvrx.presentation.crash.GlobalExceptionHandler
-import app.gyrolet.mpvrx.repository.NetworkRepository
-import app.gyrolet.mpvrx.ui.player.PlaybackPerformanceTrace
-import app.gyrolet.mpvrx.ui.player.PlaybackPhase
-import app.gyrolet.mpvrx.ui.player.PlaybackSession
-import app.gyrolet.mpvrx.ui.player.PlayerActivity
+import com.fahim.quantummpv.database.repository.VideoMetadataCacheRepository
+import com.fahim.quantummpv.di.DatabaseModule
+import com.fahim.quantummpv.di.FileManagerModule
+import com.fahim.quantummpv.di.PreferencesModule
+import com.fahim.quantummpv.preferences.AudioPreferences
+import com.fahim.quantummpv.preferences.DecoderPreferences
+import com.fahim.quantummpv.preferences.PlayerPreferences
+import com.fahim.quantummpv.presentation.crash.CrashActivity
+import com.fahim.quantummpv.presentation.crash.GlobalExceptionHandler
+import com.fahim.quantummpv.repository.NetworkRepository
+import com.fahim.quantummpv.ui.player.PlaybackPerformanceTrace
+import com.fahim.quantummpv.ui.player.PlaybackPhase
+import com.fahim.quantummpv.ui.player.PlaybackSession
+import com.fahim.quantummpv.ui.player.PlayerActivity
 import `is`.xyz.mpv.FastThumbnails
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
@@ -68,18 +68,16 @@ class App :
 
   override fun onCreate() {
     super.onCreate()
-
     configureDebugStrictMode()
 
-    // Initialize Koin
     startKoin {
       androidContext(this@App)
       modules(
         PreferencesModule,
         DatabaseModule,
         FileManagerModule,
-        app.gyrolet.mpvrx.di.domainModule,
-        app.gyrolet.mpvrx.di.DownloadModule,
+        com.fahim.quantummpv.di.domainModule,
+        com.fahim.quantummpv.di.DownloadModule,
       )
     }
     if (!BuildConfig.MPV_SUPPORTS_VULKAN) {
@@ -95,55 +93,29 @@ class App :
       runCatching {
         val preferences: PlayerPreferences = getKoin().get()
         val enableMediaInfo = preferences.enableMediaInfoIntent.get()
-        val componentName = ComponentName(this@App, "app.gyrolet.mpvrx.ui.mediainfo.MediaInfoActivityAlias")
+        val componentName = ComponentName(this@App, "com.fahim.quantummpv.ui.mediainfo.MediaInfoActivityAlias")
         val newState =
-          if (enableMediaInfo) {
-            PackageManager.COMPONENT_ENABLED_STATE_ENABLED
-          } else {
-            PackageManager.COMPONENT_ENABLED_STATE_DISABLED
-          }
-        packageManager.setComponentEnabledSetting(
-          componentName,
-          newState,
-          PackageManager.DONT_KILL_APP,
-        )
-      }.onFailure { error ->
-        Log.e(TAG, "Failed to initialize MediaInfoActivityAlias setting on launch", error)
-      }
+          if (enableMediaInfo) PackageManager.COMPONENT_ENABLED_STATE_ENABLED
+          else PackageManager.COMPONENT_ENABLED_STATE_DISABLED
+        packageManager.setComponentEnabledSetting(componentName, newState, PackageManager.DONT_KILL_APP)
+      }.onFailure { error -> Log.e(TAG, "Failed to initialize MediaInfoActivityAlias setting on launch", error) }
+
       runCatching {
         val preferences: PlayerPreferences = getKoin().get()
         val enableWebLinks = preferences.enableWebStreamLinkIntents.get()
-        val componentName = ComponentName(this@App, "app.gyrolet.mpvrx.ui.player.WebStreamLinksActivityAlias")
+        val componentName = ComponentName(this@App, "com.fahim.quantummpv.ui.player.WebStreamLinksActivityAlias")
         val newState =
-          if (enableWebLinks) {
-            PackageManager.COMPONENT_ENABLED_STATE_ENABLED
-          } else {
-            PackageManager.COMPONENT_ENABLED_STATE_DISABLED
-          }
-        packageManager.setComponentEnabledSetting(
-          componentName,
-          newState,
-          PackageManager.DONT_KILL_APP,
-        )
-      }.onFailure { error ->
-        Log.e(TAG, "Failed to initialize WebStreamLinksActivityAlias setting on launch", error)
-      }
+          if (enableWebLinks) PackageManager.COMPONENT_ENABLED_STATE_ENABLED
+          else PackageManager.COMPONENT_ENABLED_STATE_DISABLED
+        packageManager.setComponentEnabledSetting(componentName, newState, PackageManager.DONT_KILL_APP)
+      }.onFailure { error -> Log.e(TAG, "Failed to initialize WebStreamLinksActivityAlias setting on launch", error) }
     }
-
-    // TextMate grammar/theme assets for the script editor are initialized lazily on first use.
-    // Metadata cache maintenance and native thumbnail startup are intentionally kept out of the
-    // Application cold-start path so they cannot compete with first composition / first frame.
-
-    // MediaStore is Android's source of truth for the normal library. Do not trigger a recursive
-    // scan of the entire external-storage root from process startup: on large libraries that can
-    // wake storage for minutes and duplicate work the platform already performs when media changes.
-    // Explicit library refreshes and normal MediaStore notifications still invalidate app caches.
   }
 
   override fun onActivityStarted(activity: Activity) {
     if (activity is PlayerActivity) PlaybackPerformanceTrace.mark("PLAYER_ACTIVITY_STARTED")
     if (startedActivityCount++ == 0) {
-      getKoin().get<app.gyrolet.mpvrx.domain.syncplay.SyncplayManager>().onAppForegrounded()
+      getKoin().get<com.fahim.quantummpv.domain.syncplay.SyncplayManager>().onAppForegrounded()
       scheduleFastThumbnailWarmupOnce()
       scheduleMetadataMaintenanceOnce()
     }
@@ -154,40 +126,28 @@ class App :
     startedActivityCount = (startedActivityCount - 1).coerceAtLeast(0)
     if (startedActivityCount == 0 && !activity.isChangingConfigurations) {
       pauseVideoWhenBackgroundPlaybackDisabled(activity)
-      getKoin().get<app.gyrolet.mpvrx.domain.syncplay.SyncplayManager>().onAppBackgrounded()
+      getKoin().get<com.fahim.quantummpv.domain.syncplay.SyncplayManager>().onAppBackgrounded()
     }
   }
 
   private fun pauseVideoWhenBackgroundPlaybackDisabled(activity: Activity) {
     val playerActivity = activity as? PlayerActivity ?: return
     if (playerActivity.isCurrentMediaKnownAudio()) return
-
-    val isInPictureInPicture =
-      Build.VERSION.SDK_INT >= Build.VERSION_CODES.O && playerActivity.isInPictureInPictureMode
+    val isInPictureInPicture = Build.VERSION.SDK_INT >= Build.VERSION_CODES.O && playerActivity.isInPictureInPictureMode
     if (isInPictureInPicture) return
-
-    val videoBackgroundPlaybackEnabled = getKoin().get<AudioPreferences>().backgroundPlayback.get()
-    if (videoBackgroundPlaybackEnabled) return
-
+    if (getKoin().get<AudioPreferences>().backgroundPlayback.get()) return
     val state = PlaybackSession.state.value
     if (state.currentItem == null || state.phase == PlaybackPhase.IDLE || state.phase == PlaybackPhase.UNINITIALIZED) return
-
     PlaybackSession.setPropertyBoolean("pause", true)
     playerActivity.abandonAudioFocus()
     Log.d(TAG, "Paused video because video background playback is disabled")
   }
 
-  override fun onActivityPreCreated(
-    activity: Activity,
-    savedInstanceState: Bundle?,
-  ) {
+  override fun onActivityPreCreated(activity: Activity, savedInstanceState: Bundle?) {
     if (activity is PlayerActivity) PlaybackPerformanceTrace.mark("PLAYER_ACTIVITY_CREATE_START")
   }
 
-  override fun onActivityCreated(
-    activity: Activity,
-    savedInstanceState: Bundle?,
-  ) {
+  override fun onActivityCreated(activity: Activity, savedInstanceState: Bundle?) {
     if (activity is PlayerActivity) PlaybackPerformanceTrace.mark("PLAYER_ACTIVITY_CREATE_END")
     if (activity.javaClass.name.contains("leakcanary", ignoreCase = true)) {
       val rootView = activity.findViewById<View>(android.R.id.content)
@@ -195,12 +155,7 @@ class App :
         ViewCompat.setOnApplyWindowInsetsListener(view) { v, insets ->
           val statusBarInsets = insets.getInsets(WindowInsetsCompat.Type.statusBars())
           val navBarInsets = insets.getInsets(WindowInsetsCompat.Type.navigationBars())
-          v.setPadding(
-            v.paddingLeft,
-            statusBarInsets.top,
-            v.paddingRight,
-            navBarInsets.bottom,
-          )
+          v.setPadding(v.paddingLeft, statusBarInsets.top, v.paddingRight, navBarInsets.bottom)
           insets
         }
       }
@@ -211,15 +166,11 @@ class App :
     when (activity) {
       is PlayerActivity -> {
         PlaybackPerformanceTrace.mark("PLAYER_ACTIVITY_RESUMED")
-        activity.window.decorView.postOnAnimation {
-          PlaybackPerformanceTrace.mark("PLAYER_FIRST_FRAME")
-        }
+        activity.window.decorView.postOnAnimation { PlaybackPerformanceTrace.mark("PLAYER_FIRST_FRAME") }
       }
       is MainActivity -> {
         PlaybackPerformanceTrace.mark("MAIN_ACTIVITY_RESUMED")
-        activity.window.decorView.postOnAnimation {
-          PlaybackPerformanceTrace.mark("BROWSER_FIRST_FRAME")
-        }
+        activity.window.decorView.postOnAnimation { PlaybackPerformanceTrace.mark("BROWSER_FIRST_FRAME") }
       }
     }
   }
@@ -242,10 +193,7 @@ class App :
     if (activity is PlayerActivity) PlaybackPerformanceTrace.end("ON_STOP")
   }
 
-  override fun onActivitySaveInstanceState(
-    activity: Activity,
-    outState: Bundle,
-  ) = Unit
+  override fun onActivitySaveInstanceState(activity: Activity, outState: Bundle) = Unit
 
   override fun onActivityPreDestroyed(activity: Activity) {
     if (activity is PlayerActivity) PlaybackPerformanceTrace.begin("ON_DESTROY")
@@ -257,30 +205,14 @@ class App :
     if (activity is PlayerActivity) PlaybackPerformanceTrace.end("ON_DESTROY")
   }
 
-  /**
-   * Keep libmpv warm for quick navigation/re-entry, but do not pin its native decoder/renderer
-   * allocation forever after playback has genuinely ended. collectLatest makes this self-cancelling:
-   * any new load, surface attachment, background session, or other state change aborts the grace
-   * timer before destruction can run.
-   */
   private fun startIdleMpvCoreReaper() {
     applicationScope.launch {
       PlaybackSession.state.collectLatest { state ->
-        val isFullyIdle =
-          state.phase == PlaybackPhase.IDLE &&
-            state.currentItem == null &&
-            !state.surfaceAttached &&
-            PlaybackSession.isInitialized
+        val isFullyIdle = state.phase == PlaybackPhase.IDLE && state.currentItem == null && !state.surfaceAttached && PlaybackSession.isInitialized
         if (!isFullyIdle) return@collectLatest
-
         delay(IDLE_MPV_CORE_GRACE_MS)
-
         val latest = PlaybackSession.state.value
-        val stillFullyIdle =
-          latest.phase == PlaybackPhase.IDLE &&
-            latest.currentItem == null &&
-            !latest.surfaceAttached &&
-            PlaybackSession.isInitialized
+        val stillFullyIdle = latest.phase == PlaybackPhase.IDLE && latest.currentItem == null && !latest.surfaceAttached && PlaybackSession.isInitialized
         if (stillFullyIdle) {
           Log.d(TAG, "Destroying libmpv after idle grace period")
           PlaybackSession.destroy()
@@ -300,10 +232,7 @@ class App :
           previousPhase = state.phase
         }
         if (state.surfaceAttached != previousSurfaceAttached) {
-          PlaybackPerformanceTrace.mark(
-            if (state.surfaceAttached) "SURFACE_BOUND" else "SURFACE_UNBOUND",
-            "generation=${state.generation}",
-          )
+          PlaybackPerformanceTrace.mark(if (state.surfaceAttached) "SURFACE_BOUND" else "SURFACE_UNBOUND", "generation=${state.generation}")
           previousSurfaceAttached = state.surfaceAttached
         }
         if (state.generation != previousGeneration) {
@@ -316,19 +245,8 @@ class App :
 
   private fun configureDebugStrictMode() {
     if (!BuildConfig.DEBUG) return
-
-    StrictMode.setThreadPolicy(
-      StrictMode.ThreadPolicy.Builder()
-        .detectAll()
-        .penaltyLog()
-        .build(),
-    )
-    StrictMode.setVmPolicy(
-      StrictMode.VmPolicy.Builder()
-        .detectAll()
-        .penaltyLog()
-        .build(),
-    )
+    StrictMode.setThreadPolicy(StrictMode.ThreadPolicy.Builder().detectAll().penaltyLog().build())
+    StrictMode.setVmPolicy(StrictMode.VmPolicy.Builder().detectAll().penaltyLog().build())
   }
 
   private fun scheduleFastThumbnailWarmupOnce() {
@@ -352,8 +270,7 @@ class App :
     applicationScope.launch(Dispatchers.IO) {
       try {
         delay(POST_START_MAINTENANCE_DELAY_MS)
-        val metadataCache: VideoMetadataCacheRepository = getKoin().get()
-        metadataCache.performMaintenance()
+        getKoin().get<VideoMetadataCacheRepository>().performMaintenance()
       } catch (cancellation: CancellationException) {
         metadataMaintenanceStarted.set(false)
         throw cancellation
@@ -364,21 +281,16 @@ class App :
     }
   }
 
-  /** Starts saved-share auto-connect in process scope so Activity recreation cannot cancel it. */
   internal fun autoConnectNetworksOnce() {
     if (!networkAutoConnectStarted.compareAndSet(false, true)) return
-
     applicationScope.launch {
       try {
         delay(500)
-        val repository = getKoin().get<NetworkRepository>()
-        repository.getAutoConnectConnections().forEach { connection ->
+        getKoin().get<NetworkRepository>().getAutoConnectConnections().forEach { connection ->
           Log.d(TAG, "Auto-connecting to network share: ${connection.name}")
-          repository
-            .connect(connection)
-            .onFailure { error ->
-              Log.e(TAG, "Auto-connect failed for ${connection.name}: ${error.message}")
-            }
+          getKoin().get<NetworkRepository>().connect(connection).onFailure { error ->
+            Log.e(TAG, "Auto-connect failed for ${connection.name}: ${error.message}")
+          }
         }
       } catch (cancellation: CancellationException) {
         networkAutoConnectStarted.set(false)
@@ -390,10 +302,5 @@ class App :
     }
   }
 
-  /**
-   * Resolves [org.koin.core.Koin] from the global context. Safe to call only
-   * after [startKoin] has completed (which it has, synchronously, at the top
-   * of [onCreate]).
-   */
   private fun getKoin() = GlobalContext.get()
 }
