@@ -579,30 +579,52 @@ fun JellyfinDetailSheet(
           modifier = Modifier.fillMaxWidth(),
           verticalArrangement = Arrangement.spacedBy(10.dp),
         ) {
-          // Play / Resume Button
-          Button(
-            onClick = { onPlay(item, false) },
-            shape = RoundedCornerShape(14.dp),
-            colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary),
+          // Play / Resume Row
+          Row(
             modifier = Modifier.fillMaxWidth(),
-            contentPadding = PaddingValues(vertical = 12.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(10.dp),
           ) {
-            Icon(
-              imageVector = Icons.RoundedFilled.PlayArrow,
-              contentDescription = null,
-              modifier = Modifier.size(20.dp),
-            )
-            Spacer(modifier = Modifier.width(8.dp))
-            Text(
-              text =
-                when {
-                  item.progressPercent > 0.05f -> "Resume"
-                  item.isSeries -> "Watch S1:E1"
-                  else -> "Play Movie"
-                },
-              fontWeight = FontWeight.Bold,
-              style = MaterialTheme.typography.labelLarge,
-            )
+            Button(
+              onClick = { onPlay(item, false) },
+              shape = RoundedCornerShape(14.dp),
+              colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary),
+              modifier = Modifier.weight(1f),
+              contentPadding = PaddingValues(vertical = 12.dp),
+            ) {
+              Icon(
+                imageVector = Icons.RoundedFilled.PlayArrow,
+                contentDescription = null,
+                modifier = Modifier.size(20.dp),
+              )
+              Spacer(modifier = Modifier.width(8.dp))
+              Text(
+                text =
+                  when {
+                    item.progressPercent > 0.05f -> "Resume"
+                    item.isSeries -> "Watch S1:E1"
+                    else -> "Play Movie"
+                  },
+                fontWeight = FontWeight.Bold,
+                style = MaterialTheme.typography.labelLarge,
+              )
+            }
+
+            // Play from Beginning icon button if in progress
+            if (item.progressPercent > 0.05f) {
+              FilledTonalIconButton(
+                onClick = { onPlay(item, true) },
+                shape = RoundedCornerShape(14.dp),
+                modifier = Modifier.size(48.dp),
+              ) {
+                Icon(
+                  imageVector = Icons.RoundedFilled.Refresh,
+                  contentDescription = "Play from Beginning",
+                  tint = MaterialTheme.colorScheme.onSecondaryContainer,
+                  modifier = Modifier.size(22.dp),
+                )
+              }
+            }
           }
 
           Row(
@@ -772,23 +794,6 @@ fun JellyfinDetailSheet(
               )
             }
           }
-          }
-        }
-
-        // Restart from Beginning option if in progress
-        if (item.progressPercent > 0.05f) {
-          OutlinedButton(
-            onClick = { onPlay(item, true) },
-            shape = RoundedCornerShape(12.dp),
-            modifier = Modifier.fillMaxWidth(),
-          ) {
-            Icon(
-              imageVector = Icons.RoundedFilled.Refresh,
-              contentDescription = null,
-              modifier = Modifier.size(16.dp),
-            )
-            Spacer(modifier = Modifier.width(6.dp))
-            Text("Play from Beginning", style = MaterialTheme.typography.labelMedium)
           }
         }
 
