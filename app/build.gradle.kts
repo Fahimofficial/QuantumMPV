@@ -283,7 +283,7 @@ dependencies {
   implementation(libs.androidx.media3.common)
   implementation(libs.androidx.media3.effect)
   implementation(libs.androidx.media3.transformer)
-  testImplementation(libs.kotlin.test)
+  testImplementation(libs.junit)
   implementation(platform(libs.sora.editor.bom))
   implementation(libs.sora.editor)
   implementation(libs.sora.language.textmate)
