@@ -259,7 +259,8 @@ fun JellyfinDetailSheet(
     return
   }
 
-  var isOverviewExpanded by remember { mutableStateOf(false) }
+  var isOverviewExpanded by remember(item.id) { mutableStateOf(false) }
+  var canExpandOverview by remember(item.id) { mutableStateOf(false) }
   val context = LocalContext.current
 
   ModalBottomSheet(
@@ -805,7 +806,7 @@ fun JellyfinDetailSheet(
               Modifier
                 .fillMaxWidth()
                 .animateContentSize()
-                .clickable { isOverviewExpanded = !isOverviewExpanded },
+                .clickable(enabled = canExpandOverview) { isOverviewExpanded = !isOverviewExpanded },
             verticalArrangement = Arrangement.spacedBy(4.dp),
           ) {
             Text(
@@ -820,13 +821,20 @@ fun JellyfinDetailSheet(
               color = MaterialTheme.colorScheme.onSurfaceVariant,
               maxLines = if (isOverviewExpanded) Int.MAX_VALUE else 3,
               overflow = TextOverflow.Ellipsis,
+              onTextLayout = { textLayoutResult ->
+                if (!isOverviewExpanded) {
+                  canExpandOverview = textLayoutResult.hasVisualOverflow
+                }
+              },
             )
-            Text(
-              text = if (isOverviewExpanded) "Show less" else "Read more",
-              style = MaterialTheme.typography.labelSmall,
-              color = MaterialTheme.colorScheme.primary,
-              fontWeight = FontWeight.SemiBold,
-            )
+            if (canExpandOverview) {
+              Text(
+                text = if (isOverviewExpanded) "Show less" else "Read more",
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.primary,
+                fontWeight = FontWeight.SemiBold,
+              )
+            }
           }
         }
 
