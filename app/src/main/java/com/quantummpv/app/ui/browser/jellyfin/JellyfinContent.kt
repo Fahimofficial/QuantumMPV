@@ -313,6 +313,8 @@ fun JellyfinContent(
     }
   }
 
+  val isMusicMode = isMusicOnlyMode || uiState.openLibrary?.isMusic == true
+
   val pageTitle =
     when {
       isMusicOnlyMode -> stringResource(R.string.ui_music)
@@ -416,7 +418,7 @@ fun JellyfinContent(
           onPlayClick = { viewModel.playSelected(context, selectionManager.getSelectedItems()) },
           isSingleSelection = selectionManager.isSingleSelection,
           onBackClick = if (!isMusicOnlyMode && uiState.openLibrary != null) { { viewModel.navigateBack() } } else null,
-          onSortClick = if (uiState.openLibrary != null && !(uiState.openLibrary?.isMusic == true && uiState.musicActiveTab == JellyfinMusicTab.HOME)) {
+          onSortClick = if (if (isMusicMode) uiState.musicActiveTab != JellyfinMusicTab.HOME else uiState.openLibrary != null) {
             { isSortDialogOpen = true }
           } else null,
           onSearchClick = { isSearching = true },
@@ -627,7 +629,7 @@ fun JellyfinContent(
         )
       }
 
-      if (uiState.openLibrary != null && uiState.openLibrary?.isMusic != true && !isSearching) {
+      if (uiState.openLibrary != null && !isMusicMode && !isSearching) {
         JellyfinGenreChipRow(
           genres = uiState.availableGenres,
           selectedGenre = uiState.selectedGenreFilter,
@@ -635,7 +637,7 @@ fun JellyfinContent(
         )
       }
 
-      if (uiState.openLibrary?.isMusic == true && !isSearching) {
+      if (isMusicMode && !isSearching) {
         val selectedTabIndex = musicPagerState.currentPage.coerceIn(0, (musicTabs.size - 1).coerceAtLeast(0))
 
         PrimaryScrollableTabRow(
@@ -648,7 +650,10 @@ fun JellyfinContent(
           musicTabs.forEachIndexed { index, tab ->
             Tab(
               selected = selectedTabIndex == index,
-              onClick = { viewModel.setMusicTab(tab) },
+              onClick = {
+                viewModel.setMusicTab(tab)
+                navigateMusicTab(index)
+              },
               text = {
                 Text(
                   text = tab.title,
@@ -1374,7 +1379,7 @@ fun JellyfinContent(
     )
   }
 
-  if (uiState.openLibrary?.isMusic == true) {
+  if (isMusicMode) {
     val availableFields = remember(uiState.musicActiveTab) {
       when (uiState.musicActiveTab) {
         JellyfinMusicTab.TRACKS -> listOf(
