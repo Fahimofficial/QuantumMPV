@@ -126,6 +126,8 @@
   <string name="pref_video_mini_player_dependency_message">Der Video-Mini-Player benötigt die Hintergrundwiedergabe des Video-Players, um die Videowiedergabe fortzusetzen, nachdem Sie den Vollbild-Player verlassen haben.</string>
   <string name="pref_video_mini_player_dependency_confirm">Aktivieren und fortfahren</string>
   <string name="pref_player_keep_screen_on_when_paused_title">Bildschirm bei Pause eingeschaltet lassen</string>
+  <string name="pref_player_external_display_projection_title">Auf externes Display projizieren</string>
+  <string name="pref_player_external_display_projection_summary">Wenn ein HDMI-, USB-C- oder drahtloses Display verbunden ist, das Video dort wiedergeben und den Telefonbildschirm ausschalten lassen</string>
   <string name="pref_player_keep_screen_on_when_paused_summary">Der Bildschirm bleibt eingeschaltet, während das Video pausiert ist</string>
   <string name="pref_player_keep_screen_on_when_paused_summary_disabled">Der Bildschirm kann sich ausschalten, während das Video pausiert ist</string>
   <string name="pref_player_autoplay_after_screen_unlock_title">Automatische Wiedergabe nach Entsperren</string>

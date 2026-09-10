@@ -413,6 +413,7 @@ class PlayerActivity :
    */
   private lateinit var pipHelper: MPVPipHelper
   private lateinit var castPlaybackController: CastPlaybackController
+  private var externalDisplayManager: ExternalDisplayManager? = null
 
   private var isReady = false // Single flag: true when video loaded and ready
   private var isUserFinishing = false
@@ -650,6 +651,13 @@ class PlayerActivity :
       finish()
       return
     }
+    externalDisplayManager =
+      ExternalDisplayManager(this) { active ->
+        onExternalDisplayStateChanged(active)
+      }.also {
+        it.enabled = playerPreferences.externalDisplayProjection.get()
+        it.start()
+      }
     // Construct the Activity-scoped adapter only after the process-wide native core exists;
     // its StateFlow declarations register native properties during ViewModel initialization.
     viewModel.attachHost(this)
@@ -1501,6 +1509,8 @@ class PlayerActivity :
 
 
     runCatching {
+      externalDisplayManager?.release()
+      externalDisplayManager = null
       mediaLoadJob?.cancel()
       cancelPlaybackLoadRecovery()
       if (::castPlaybackController.isInitialized) castPlaybackController.release()
@@ -1857,7 +1867,7 @@ class PlayerActivity :
 
       if (
         PlayerLifecyclePolicy.shouldStartBackgroundPlaybackOnStop(
-          backgroundPlaybackEnabled = isBackgroundPlaybackEnabled(),
+          backgroundPlaybackEnabled = isBackgroundPlaybackEnabled() || externalDisplayManager?.isActive == true,
           backgroundPlaybackSessionActive = isBackgroundPlaybackSessionActive,
           isUserFinishing = isUserFinishing,
           isFinishing = isFinishing,
@@ -1867,7 +1877,7 @@ class PlayerActivity :
       ) {
         if (startBackgroundPlayback(allowUserPrompt = false) == BackgroundPlaybackStartResult.Started) {
           isBackgroundPlaybackSessionActive = true
-          disableVideoForBackground()
+          if (externalDisplayManager?.isActive != true) disableVideoForBackground()
         } else {
           rememberResumeAfterUnlockBeforeForcedPause()
           viewModel.pause()
@@ -1881,7 +1891,7 @@ class PlayerActivity :
       } else if (!isBackgroundPlaybackSessionActive && (isUserFinishing || isFinishing)) {
         viewModel.pause()
       } else if (isBackgroundPlaybackSessionActive && !isInBackgroundPlayback) {
-        disableVideoForBackground()
+        if (externalDisplayManager?.isActive != true) disableVideoForBackground()
       }
     }.onFailure { e ->
       Log.e(TAG, "Error during onStop", e)
@@ -2013,6 +2023,36 @@ class PlayerActivity :
     )
     window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
     window.addFlags(WindowManager.LayoutParams.FLAG_DRAWS_SYSTEM_BAR_BACKGROUNDS)
+  }
+
+  private fun onExternalDisplayStateChanged(active: Boolean) {
+    binding.externalDisplayOverlay.visibility = if (active) View.VISIBLE else View.GONE
+    if (active) {
+      window.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+      if (!MediaPlaybackService.activityForeground && isReady && !isBackgroundPlaybackSessionActive) {
+        if (startBackgroundPlayback(allowUserPrompt = false) == BackgroundPlaybackStartResult.Started) {
+          isBackgroundPlaybackSessionActive = true
+        }
+      }
+    } else {
+      if (!isFinishing && !isDestroyed) {
+        player.rebindCurrentSurface()
+        if (!isDeviceScreenOffOrLocked()) setupWindowFlags()
+      }
+      if (!MediaPlaybackService.activityForeground &&
+        isBackgroundPlaybackSessionActive &&
+        !isBackgroundPlaybackEnabled()
+      ) {
+        isBackgroundPlaybackSessionActive = false
+        viewModel.pause()
+        MediaPlaybackService.stopExternalDisplayBackground()
+      }
+    }
+    MediaPlaybackService.setExternalDisplayActive(active)
+  }
+
+  fun setExternalDisplayProjectionEnabled(enabled: Boolean) {
+    externalDisplayManager?.enabled = enabled
   }
 
   private fun setLayoutInDisplayCutoutModeIfSupported(shortEdges: Boolean) {
@@ -6672,6 +6712,10 @@ private suspend fun restorePlaybackPosition(state: PlaybackStateEntity?) {
         putExtra("media_uri", currentDurableMediaUri())
         putExtra("media_identifier", currentNotificationMediaIdentifier())
         putExtra("audio_background_playback", isCurrentPlaybackAudio())
+        putExtra(
+          MediaPlaybackService.EXTRA_EXTERNAL_DISPLAY_ACTIVE,
+          externalDisplayManager?.isActive == true,
+        )
       }
 
     try {

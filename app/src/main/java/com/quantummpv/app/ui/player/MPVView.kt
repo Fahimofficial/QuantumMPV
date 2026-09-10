@@ -107,6 +107,12 @@ class MPVView(
     }
   }
 
+  fun rebindCurrentSurface() {
+    if (!holder.surface.isValid) return
+    isSurfaceReady = false
+    surfaceCreated(holder)
+  }
+
   private data class RenderBackendSelection(
     val vo: String,
     val gpuApi: String,

@@ -126,6 +126,8 @@
   <string name="pref_video_mini_player_dependency_message">Le mini-lecteur vidéo a besoin de la lecture en arrière-plan du lecteur vidéo pour continuer à lire la vidéo après avoir quitté le lecteur complet.</string>
   <string name="pref_video_mini_player_dependency_confirm">Activer et continuer</string>
   <string name="pref_player_keep_screen_on_when_paused_title">Garder l’écran allumé en pause</string>
+  <string name="pref_player_external_display_projection_title">Projection sur écran externe</string>
+  <string name="pref_player_external_display_projection_summary">Lorsqu’un écran HDMI, USB-C ou sans fil est connecté, lire la vidéo dessus et permettre l’extinction de l’écran du téléphone</string>
   <string name="pref_player_keep_screen_on_when_paused_summary">L’écran reste allumé lorsque la vidéo est en pause</string>
   <string name="pref_player_keep_screen_on_when_paused_summary_disabled">L’écran peut s’éteindre lorsque la vidéo est en pause</string>
   <string name="pref_player_autoplay_after_screen_unlock_title">Lecture automatique après déverrouillage</string>

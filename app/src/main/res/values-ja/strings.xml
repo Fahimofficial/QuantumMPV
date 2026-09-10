@@ -126,6 +126,8 @@
   <string name="pref_video_mini_player_dependency_message">動画ミニプレーヤーは、フルプレーヤーを離れた後も動画を再生し続けるために、動画プレーヤーのバックグラウンド再生が必要です。</string>
   <string name="pref_video_mini_player_dependency_confirm">有効にして続行</string>
   <string name="pref_player_keep_screen_on_when_paused_title">一時停止中も画面をオンにする</string>
+  <string name="pref_player_external_display_projection_title">外部ディスプレイへの投影</string>
+  <string name="pref_player_external_display_projection_summary">HDMI、USB-C、またはワイヤレスディスプレイ接続時に動画をそちらで再生し、スマートフォンの画面を消灯できるようにする</string>
   <string name="pref_player_keep_screen_on_when_paused_summary">動画の一時停止中も画面を点灯したままにします</string>
   <string name="pref_player_keep_screen_on_when_paused_summary_disabled">動画の一時停止中に画面をオフにできます</string>
   <string name="pref_player_autoplay_after_screen_unlock_title">画面ロック解除後に自動再生</string>

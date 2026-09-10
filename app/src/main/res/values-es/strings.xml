@@ -126,6 +126,8 @@
   <string name="pref_video_mini_player_dependency_message">El minireproductor de vídeo necesita la reproducción de fondo del reproductor de vídeo para seguir reproduciendo después de salir del reproductor completo.</string>
   <string name="pref_video_mini_player_dependency_confirm">Activar y continuar</string>
   <string name="pref_player_keep_screen_on_when_paused_title">Mantener la pantalla encendida al pausar</string>
+  <string name="pref_player_external_display_projection_title">Proyección en pantalla externa</string>
+  <string name="pref_player_external_display_projection_summary">Cuando haya una pantalla HDMI, USB-C o inalámbrica conectada, reproducir el vídeo en ella y permitir que la pantalla del teléfono se apague</string>
   <string name="pref_player_keep_screen_on_when_paused_summary">La pantalla permanece encendida mientras el vídeo está en pausa</string>
   <string name="pref_player_keep_screen_on_when_paused_summary_disabled">La pantalla puede apagarse mientras el vídeo está en pausa</string>
   <string name="pref_player_autoplay_after_screen_unlock_title">Reproducir automáticamente al desbloquear la pantalla</string>

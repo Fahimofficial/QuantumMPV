@@ -142,6 +142,8 @@
   <string name="pref_video_mini_player_dependency_message">Video Mini Player needs Video Player Background Playback to keep the video playing after you leave the full player.</string>
   <string name="pref_video_mini_player_dependency_confirm">Enable and continue</string>
   <string name="pref_player_keep_screen_on_when_paused_title">Keep screen on when paused</string>
+  <string name="pref_player_external_display_projection_title">External display projection</string>
+  <string name="pref_player_external_display_projection_summary">When an HDMI, USB-C, or wireless display is connected, play video on it and let the phone screen turn off</string>
   <string name="pref_player_keep_screen_on_when_paused_summary">Screen stays awake while video is paused</string>
   <string name="pref_player_keep_screen_on_when_paused_summary_disabled">Screen can turn off while video is paused</string>
   <string name="pref_player_autoplay_after_screen_unlock_title">Autoplay after screen unlock</string>

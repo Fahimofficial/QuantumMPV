@@ -126,6 +126,8 @@
   <string name="pref_video_mini_player_dependency_message">O Miniplayer de vídeo precisa da Reprodução em Segundo Plano do Player de Vídeo para manter o vídeo reproduzindo após sair do player completo.</string>
   <string name="pref_video_mini_player_dependency_confirm">Ativar e continuar</string>
   <string name="pref_player_keep_screen_on_when_paused_title">Manter a tela ligada quando pausado</string>
+  <string name="pref_player_external_display_projection_title">Projeção em tela externa</string>
+  <string name="pref_player_external_display_projection_summary">Quando uma tela HDMI, USB-C ou sem fio estiver conectada, reproduzir o vídeo nela e permitir que a tela do celular se apague</string>
   <string name="pref_player_keep_screen_on_when_paused_summary">A tela permanece ligada enquanto o vídeo está pausado</string>
   <string name="pref_player_keep_screen_on_when_paused_summary_disabled">A tela pode apagar enquanto o vídeo está pausado</string>
   <string name="pref_player_autoplay_after_screen_unlock_title">Reprodução automática após desbloquear a tela</string>

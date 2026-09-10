@@ -59,6 +59,7 @@ import com.quantummpv.app.ui.player.PlayerOrientation
 import com.quantummpv.app.ui.player.ResumePlaybackMode
 import com.quantummpv.app.ui.player.screenshot.ScreenshotFormat
 import com.quantummpv.app.ui.preferences.components.SwitchPreference
+import com.quantummpv.app.ui.player.PlayerActivity
 import com.quantummpv.app.ui.utils.LocalBackStack
 import com.quantummpv.app.ui.utils.LocalShowSettingsBackArrow
 import com.quantummpv.app.ui.utils.currentMpvConfigOverrideOptions
@@ -208,6 +209,25 @@ val savePositionOnQuit by preferences.savePositionOnQuit.collectAsState()
                 summary = {
                   Text(
                     stringResource(R.string.pref_video_background_playback_summary),
+                    color = MaterialTheme.colorScheme.outline,
+                  )
+                },
+              )
+
+              PreferenceDivider()
+
+              val externalDisplayProjection by preferences.externalDisplayProjection.collectAsState()
+              SwitchPreference(
+                modifier = Modifier.settingsSearchTarget(R.string.pref_player_external_display_projection_title),
+                value = externalDisplayProjection,
+                onValueChange = { enabled ->
+                  preferences.externalDisplayProjection.set(enabled)
+                  (context as? PlayerActivity)?.setExternalDisplayProjectionEnabled(enabled)
+                },
+                title = { Text(stringResource(R.string.pref_player_external_display_projection_title)) },
+                summary = {
+                  Text(
+                    stringResource(R.string.pref_player_external_display_projection_summary),
                     color = MaterialTheme.colorScheme.outline,
                   )
                 },

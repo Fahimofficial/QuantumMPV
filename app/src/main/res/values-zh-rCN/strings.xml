@@ -126,6 +126,8 @@
   <string name="pref_video_mini_player_dependency_message">视频迷你播放器需要视频播放器后台播放功能，以便在离开完整播放器后继续播放视频。</string>
   <string name="pref_video_mini_player_dependency_confirm">启用并继续</string>
   <string name="pref_player_keep_screen_on_when_paused_title">暂停时保持屏幕常亮</string>
+  <string name="pref_player_external_display_projection_title">外接显示投影</string>
+  <string name="pref_player_external_display_projection_summary">连接 HDMI、USB-C 或无线显示器后在其上播放视频，并允许手机屏幕熄灭</string>
   <string name="pref_player_keep_screen_on_when_paused_summary">视频暂停时屏幕保持唤醒</string>
   <string name="pref_player_keep_screen_on_when_paused_summary_disabled">视频暂停时允许屏幕关闭</string>
   <string name="pref_player_autoplay_after_screen_unlock_title">解锁屏幕后自动播放</string>

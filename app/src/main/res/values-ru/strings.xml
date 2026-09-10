@@ -126,6 +126,8 @@
   <string name="pref_video_mini_player_dependency_message">Видео мини-плееру необходима функция фонового воспроизведения видео, чтобы видео продолжало воспроизводиться после выхода из полноценного проигрывателя.</string>
   <string name="pref_video_mini_player_dependency_confirm">Включить и продолжить</string>
   <string name="pref_player_keep_screen_on_when_paused_title">Не выключать экран во время паузы</string>
+  <string name="pref_player_external_display_projection_title">Проекция на внешний дисплей</string>
+  <string name="pref_player_external_display_projection_summary">При подключении HDMI-, USB-C- или беспроводного дисплея воспроизводить видео на нём и разрешить выключение экрана телефона</string>
   <string name="pref_player_keep_screen_on_when_paused_summary">Экран остаётся включённым, пока видео приостановлено</string>
   <string name="pref_player_keep_screen_on_when_paused_summary_disabled">Экран может выключаться, пока видео приостановлено</string>
   <string name="pref_player_autoplay_after_screen_unlock_title">Автовоспроизведение после разблокировки</string>

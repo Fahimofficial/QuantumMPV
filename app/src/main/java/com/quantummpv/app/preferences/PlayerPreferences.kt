@@ -136,6 +136,7 @@ class PlayerPreferences(
   val enableVideoMiniPlayer = DependentBooleanPreference(storedEnableVideoMiniPlayer, videoBackgroundPlayback)
 
   val keepScreenOnWhenPaused = preferenceStore.getBoolean("keep_screen_on_when_paused", false)
+  val externalDisplayProjection = preferenceStore.getBoolean("external_display_projection", true)
   val autoplayAfterScreenUnlock = preferenceStore.getBoolean("autoplay_after_screen_unlock", false)
   val enableMediaInfoIntent = preferenceStore.getBoolean("enable_mediainfo_intent", true)
   val enableWebStreamLinkIntents = preferenceStore.getBoolean("enable_web_stream_link_intents", true)

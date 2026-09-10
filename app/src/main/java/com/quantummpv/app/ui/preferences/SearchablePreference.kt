@@ -329,6 +329,15 @@ object SearchablePreferences {
       )
       add(
         SearchablePreference(
+          titleRes = R.string.pref_player_external_display_projection_title,
+          summaryRes = R.string.pref_player_external_display_projection_summary,
+          keywords = listOf("external display", "hdmi", "usb-c", "wireless display", "projection", "screen"),
+          category = "Player",
+          screen = PlayerPreferencesScreen,
+        ),
+      )
+      add(
+        SearchablePreference(
           titleRes = R.string.pref_player_keep_screen_on_when_paused_title,
           summaryRes = R.string.pref_player_keep_screen_on_when_paused_summary,
           keywords = listOf("keep screen on", "screen", "awake", "paused", "pause", "display", "sleep"),

@@ -29,6 +29,7 @@ import android.media.AudioManager
 import android.os.Binder
 import android.os.Build
 import android.os.IBinder
+import android.os.PowerManager
 import android.os.SystemClock
 import android.support.v4.media.MediaBrowserCompat
 import android.support.v4.media.MediaDescriptionCompat
@@ -109,6 +110,7 @@ class MediaPlaybackService :
     const val ACTION_NOTIFICATION_MEDIA_FAVORITE = "com.quantummpv.app.action.NOTIFICATION_MEDIA_FAVORITE"
     const val ACTION_NOTIFICATION_CLOSE = "com.quantummpv.app.action.NOTIFICATION_CLOSE"
     const val ACTION_NOTIFICATION_STOP = "com.quantummpv.app.action.NOTIFICATION_STOP"
+    const val EXTRA_EXTERNAL_DISPLAY_ACTIVE = "external_display_active"
 
     @Volatile
     internal var thumbnail: Bitmap? = null
@@ -167,6 +169,10 @@ class MediaPlaybackService :
 
     internal fun takeAudioOwnershipForDetachedPlayback(): Boolean = activeInstance?.takeAudioOwnership() == true
 
+    internal fun setExternalDisplayActive(active: Boolean) {
+      activeInstance?.updateExternalDisplayWakeLock(active)
+    }
+
     /**
      * Marks that playback is being handed back to a foreground Activity (e.g. reopening the
      * player from the Mini Player / playback notification). Release the service-owned focus
@@ -197,6 +203,13 @@ class MediaPlaybackService :
         service.stopPlaybackAndService(force = true)
       } else {
         PlaybackSession.stop(clearQueue = true)
+      }
+    }
+
+    internal fun stopExternalDisplayBackground() {
+      activeInstance?.let { service ->
+        service.stopForegroundNotification()
+        service.stopSelf()
       }
     }
 
@@ -267,6 +280,7 @@ class MediaPlaybackService :
   @Volatile private var mpvAccessReleased = false
   @Volatile private var isCurrentFavorite = false
   private var usesAudioBackgroundPlayback = false
+  private var externalDisplayWakeLock: PowerManager.WakeLock? = null
   private val audioManager by lazy { getSystemService(AUDIO_SERVICE) as AudioManager }
 
   // Mutated from the framework's audio-focus callback thread as well as serviceScope and the
@@ -337,6 +351,20 @@ class MediaPlaybackService :
   }
 
   fun isForegroundReady(): Boolean = foregroundReady
+
+  private fun updateExternalDisplayWakeLock(active: Boolean) {
+    if (active) {
+      if (externalDisplayWakeLock?.isHeld != true) {
+        externalDisplayWakeLock =
+          (getSystemService(POWER_SERVICE) as PowerManager)
+            .newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "$TAG:external-display")
+            .apply { acquire() }
+      }
+    } else {
+      externalDisplayWakeLock?.let { if (it.isHeld) it.release() }
+      externalDisplayWakeLock = null
+    }
+  }
 
   private fun deactivateMediaSession() {
     foregroundReady = false
@@ -474,6 +502,9 @@ class MediaPlaybackService :
       }
 
       val title = it.getStringExtra("media_title")
+      if (it.hasExtra(EXTRA_EXTERNAL_DISPLAY_ACTIVE)) {
+        updateExternalDisplayWakeLock(it.getBooleanExtra(EXTRA_EXTERNAL_DISPLAY_ACTIVE, false))
+      }
       val artist = it.getStringExtra("media_artist")
       val uri = it.getStringExtra("media_uri")
       val identifier = it.getStringExtra("media_identifier")
@@ -1917,6 +1948,7 @@ class MediaPlaybackService :
     try {
       Log.d(TAG, "Service destroyed")
 
+      updateExternalDisplayWakeLock(false)
       releaseMpvAccessBeforeShutdown()
       foregroundReady = false
       abandonAudioOwnership()

@@ -123,6 +123,8 @@
   <string name="pref_video_mini_player_dependency_message">वीडियो मिनी प्लेयर को पूर्ण प्लेयर छोड़ने के बाद भी वीडियो चलाते रहने के लिए वीडियो प्लेयर बैकग्राउंड प्लेबैक की आवश्यकता है।</string>
   <string name="pref_video_mini_player_dependency_confirm">सक्षम करें और जारी रखें</string>
   <string name="pref_player_keep_screen_on_when_paused_title">पॉज होने पर स्क्रीन ऑन रखें</string>
+  <string name="pref_player_external_display_projection_title">बाहरी डिस्प्ले प्रोजेक्शन</string>
+  <string name="pref_player_external_display_projection_summary">HDMI, USB-C या वायरलेस डिस्प्ले कनेक्ट होने पर वीडियो उस पर चलाएं और फोन की स्क्रीन बंद होने दें</string>
   <string name="pref_player_keep_screen_on_when_paused_summary">वीडियो पॉज होने पर स्क्रीन जागती रहती है</string>
   <string name="pref_player_keep_screen_on_when_paused_summary_disabled">वीडियो पॉज होने पर स्क्रीन बंद हो सकती है</string>
   <string name="pref_player_autoplay_after_screen_unlock_title">स्क्रीन अनलॉक होने पर ऑटोप्ले करें</string>
