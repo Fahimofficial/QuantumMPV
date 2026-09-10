@@ -17,6 +17,7 @@ import com.quantummpv.app.BuildConfig
 import com.quantummpv.app.data.network.ServerUrlUtils
 import com.quantummpv.app.domain.jellyfin.JellyfinAuthResult
 import com.quantummpv.app.domain.jellyfin.JellyfinItem
+import com.quantummpv.app.domain.jellyfin.JellyfinPerson
 import com.quantummpv.app.domain.jellyfin.JellyfinUser
 import com.quantummpv.app.network.awaitResponse
 import com.quantummpv.app.utils.media.PlaybackSubtitleTrack
@@ -1068,6 +1069,24 @@ class JellyfinClient(
       }
     } ?: obj["RemoteTrailerUrl"]?.jsonPrimitive?.content
 
+    val peopleList =
+      obj["People"]?.jsonArray?.mapNotNull { element ->
+        if (element is JsonObject) {
+          val personId = element["Id"]?.jsonPrimitive?.content ?: return@mapNotNull null
+          val personName = element["Name"]?.jsonPrimitive?.content ?: ""
+          val personRole = element["Role"]?.jsonPrimitive?.content
+          val personType = element["Type"]?.jsonPrimitive?.content
+          val personImageTag = element["PrimaryImageTag"]?.jsonPrimitive?.content
+          JellyfinPerson(
+            id = personId,
+            name = personName,
+            role = personRole,
+            type = personType,
+            primaryImageTag = personImageTag,
+          )
+        } else null
+      } ?: emptyList()
+
     return JellyfinItem(
       id = id,
       name = name,
@@ -1107,6 +1126,7 @@ class JellyfinClient(
       lastPlayedDate = lastPlayedDate,
       remoteTrailerUrl = remoteTrailerUrl,
       canDelete = obj["CanDelete"]?.jsonPrimitive?.booleanOrNull ?: true,
+      people = peopleList,
     )
   }
 

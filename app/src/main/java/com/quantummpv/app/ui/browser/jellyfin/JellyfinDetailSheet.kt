@@ -81,6 +81,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -834,6 +835,159 @@ fun JellyfinDetailSheet(
                 color = MaterialTheme.colorScheme.primary,
                 fontWeight = FontWeight.SemiBold,
               )
+            }
+          }
+        }
+
+        // Directors, Writers, Producers
+        val directors = remember(item.people) { item.directors }
+        val writers = remember(item.people) { item.writers }
+        val producers = remember(item.people) { item.producers }
+
+        if (directors.isNotEmpty() || writers.isNotEmpty() || producers.isNotEmpty()) {
+          Column(
+            modifier = Modifier.fillMaxWidth(),
+            verticalArrangement = Arrangement.spacedBy(4.dp),
+          ) {
+            if (directors.isNotEmpty()) {
+              Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(4.dp),
+              ) {
+                Text(
+                  text = if (directors.size > 1) "Directors: " else "Director: ",
+                  style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Bold),
+                  color = MaterialTheme.colorScheme.onSurface,
+                )
+                Text(
+                  text = directors.joinToString(", ") { it.name },
+                  style = MaterialTheme.typography.bodyMedium,
+                  color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+              }
+            }
+
+            if (writers.isNotEmpty()) {
+              Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(4.dp),
+              ) {
+                Text(
+                  text = if (writers.size > 1) "Writers: " else "Writer: ",
+                  style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Bold),
+                  color = MaterialTheme.colorScheme.onSurface,
+                )
+                Text(
+                  text = writers.joinToString(", ") { it.name },
+                  style = MaterialTheme.typography.bodyMedium,
+                  color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+              }
+            }
+
+            if (producers.isNotEmpty()) {
+              Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(4.dp),
+              ) {
+                Text(
+                  text = if (producers.size > 1) "Producers: " else "Producer: ",
+                  style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Bold),
+                  color = MaterialTheme.colorScheme.onSurface,
+                )
+                Text(
+                  text = producers.joinToString(", ") { it.name },
+                  style = MaterialTheme.typography.bodyMedium,
+                  color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+              }
+            }
+          }
+        }
+
+        // Cast Section
+        val cast = remember(item.people) { item.actors }
+        if (cast.isNotEmpty()) {
+          Column(
+            modifier = Modifier.fillMaxWidth(),
+            verticalArrangement = Arrangement.spacedBy(8.dp),
+          ) {
+            Text(
+              text = "Cast",
+              style = MaterialTheme.typography.titleMedium,
+              fontWeight = FontWeight.Bold,
+              color = MaterialTheme.colorScheme.onSurface,
+            )
+
+            LazyRow(
+              horizontalArrangement = Arrangement.spacedBy(14.dp),
+              contentPadding = PaddingValues(vertical = 4.dp),
+              modifier = Modifier.fillMaxWidth(),
+            ) {
+              items(cast, key = { "${it.id}|${it.role ?: ""}" }) { person ->
+                Column(
+                  horizontalAlignment = Alignment.CenterHorizontally,
+                  modifier = Modifier.width(72.dp),
+                  verticalArrangement = Arrangement.spacedBy(4.dp),
+                ) {
+                  val personImageUrl = remember(person.id, person.primaryImageTag, server.serverUrl, server.accessToken) {
+                    JellyfinClient.getImageUrl(
+                      serverUrl = server.serverUrl,
+                      itemId = person.id,
+                      imageTag = person.primaryImageTag,
+                      maxWidth = 200,
+                      token = server.accessToken,
+                    )
+                  }
+
+                  if (!person.primaryImageTag.isNullOrBlank()) {
+                    RemoteImage(
+                      url = personImageUrl,
+                      contentDescription = person.name,
+                      contentScale = ContentScale.Crop,
+                      modifier = Modifier
+                        .size(56.dp)
+                        .clip(CircleShape),
+                    )
+                  } else {
+                    Box(
+                      modifier = Modifier
+                        .size(56.dp)
+                        .clip(CircleShape)
+                        .background(MaterialTheme.colorScheme.surfaceContainerHighest),
+                      contentAlignment = Alignment.Center,
+                    ) {
+                      Text(
+                        text = person.name.take(1).uppercase(),
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                      )
+                    }
+                  }
+
+                  Text(
+                    text = person.name,
+                    style = MaterialTheme.typography.labelMedium,
+                    fontWeight = FontWeight.SemiBold,
+                    color = MaterialTheme.colorScheme.onSurface,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    textAlign = TextAlign.Center,
+                  )
+
+                  person.role?.takeIf { it.isNotBlank() }?.let { role ->
+                    Text(
+                      text = role,
+                      style = MaterialTheme.typography.labelSmall,
+                      color = MaterialTheme.colorScheme.onSurfaceVariant,
+                      maxLines = 1,
+                      overflow = TextOverflow.Ellipsis,
+                      textAlign = TextAlign.Center,
+                    )
+                  }
+                }
+              }
             }
           }
         }
