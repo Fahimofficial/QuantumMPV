@@ -96,6 +96,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.quantummpv.app.R
 import com.quantummpv.app.domain.jellyfin.JellyfinItem
+import com.quantummpv.app.domain.jellyfin.JellyfinPerson
 import com.quantummpv.app.domain.jellyfin.JellyfinSearchCategory
 import com.quantummpv.app.domain.jellyfin.JellyfinServer
 import com.quantummpv.app.preferences.AppearancePreferences
@@ -254,11 +255,12 @@ fun JellyfinContent(
   val isBackEnabled =
     if (isMusicOnlyMode) {
       isSearching || selectionManager.isInSelectionMode || uiState.detailItem != null ||
+        uiState.personDetail != null ||
         uiState.musicActiveTab != JellyfinMusicTab.HOME ||
         (isFabExpanded && !quickPlayFabDirect)
     } else {
       isSeerrRequestsOpen || isSearching || selectionManager.isInSelectionMode ||
-        uiState.detailItem != null || uiState.openLibrary != null || (isFabExpanded && !quickPlayFabDirect)
+        uiState.detailItem != null || uiState.personDetail != null || uiState.openLibrary != null || (isFabExpanded && !quickPlayFabDirect)
     }
 
   BackHandler(
@@ -267,6 +269,9 @@ fun JellyfinContent(
     when {
       isFabExpanded && !quickPlayFabDirect -> {
         isFabExpanded = false
+      }
+      uiState.personDetail != null -> {
+        viewModel.closePerson()
       }
       uiState.detailItem != null -> {
         viewModel.closeDetail()
@@ -1366,6 +1371,7 @@ fun JellyfinContent(
       onToggleFavorite = { item -> viewModel.toggleItemFavorite(item) },
       onTogglePlayed = { item -> viewModel.togglePlayed(item) },
       onItemClick = { item -> viewModel.openDetail(item) },
+      onPersonClick = { person -> viewModel.openPerson(person) },
       onDeleteItem = { itemToDelete ->
         viewModel.deleteItem(itemToDelete.id) {
           viewModel.closeDetail()
@@ -1376,6 +1382,18 @@ fun JellyfinContent(
       onDownloadSeries = { viewModel.downloadWholeSeries() },
       downloadedItemIds = downloadedItemIds,
       activeDownloadItemIds = activeDownloadItemIds,
+    )
+
+    JellyfinPersonSheet(
+      person = uiState.personDetail,
+      server = server,
+      overview = uiState.personOverview,
+      media = uiState.personMedia,
+      isLoading = uiState.isPersonLoading,
+      onDismiss = { viewModel.closePerson() },
+      onItemClick = { item ->
+        viewModel.openDetail(item)
+      },
     )
   }
 

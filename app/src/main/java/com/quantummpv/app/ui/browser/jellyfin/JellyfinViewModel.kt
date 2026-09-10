@@ -26,6 +26,7 @@ import com.quantummpv.app.domain.download.DownloadMetadata
 import com.quantummpv.app.domain.download.DownloadSources
 import com.quantummpv.app.domain.jellyfin.JellyfinAuthMode
 import com.quantummpv.app.domain.jellyfin.JellyfinItem
+import com.quantummpv.app.domain.jellyfin.JellyfinPerson
 import com.quantummpv.app.domain.jellyfin.JellyfinSearchCategory
 import com.quantummpv.app.domain.jellyfin.JellyfinServer
 import com.quantummpv.app.domain.jellyfin.JellyfinSortBy
@@ -136,6 +137,12 @@ data class JellyfinUiState(
   val detailSimilarItems: List<JellyfinItem> = emptyList(),
   val isDetailLoading: Boolean = false,
   val isDetailEpisodesLoading: Boolean = false,
+
+  // Person Sheet State
+  val personDetail: JellyfinPerson? = null,
+  val personOverview: String? = null,
+  val personMedia: List<JellyfinItem> = emptyList(),
+  val isPersonLoading: Boolean = false,
 ) {
   val hasMusicLibrary: Boolean
     get() = activeServer != null && libraries.any { JellyfinViewModel.isMusicLibrary(it) }
@@ -157,6 +164,7 @@ class JellyfinViewModel(
   private var searchJob: Job? = null
   private var detailJob: Job? = null
   private var seasonEpisodesJob: Job? = null
+  private var personJob: Job? = null
   private var musicLoadJob: Job? = null
   private var loadedMusicHomeLibraryId: String? = null
 
@@ -1360,6 +1368,56 @@ class JellyfinViewModel(
         detailSimilarItems = emptyList(),
         isDetailLoading = false,
         isDetailEpisodesLoading = false,
+      )
+    }
+  }
+
+  fun openPerson(person: JellyfinPerson) {
+    val active = _uiState.value.activeServer ?: return
+    personJob?.cancel()
+    _uiState.update {
+      it.copy(
+        personDetail = person,
+        personOverview = null,
+        personMedia = emptyList(),
+        isPersonLoading = true,
+      )
+    }
+
+    personJob =
+      viewModelScope.launch {
+        val bioDeferred = async { jellyfinRepository.getPerson(active, person.name) }
+        val mediaDeferred = async { jellyfinRepository.getPersonMedia(active, personId = person.id, personName = person.name) }
+
+        val bioResult = bioDeferred.await()
+        val mediaResult = mediaDeferred.await()
+
+        val bioItem = bioResult.getOrNull()
+        val media = mediaResult.getOrDefault(emptyList()).distinctBy { it.id }
+
+        _uiState.update {
+          it.copy(
+            personDetail = if (bioItem != null && !bioItem.primaryImageTag.isNullOrBlank() && person.primaryImageTag.isNullOrBlank()) {
+              person.copy(primaryImageTag = bioItem.primaryImageTag)
+            } else {
+              person
+            },
+            personOverview = bioItem?.overview?.takeIf { ov -> ov.isNotBlank() },
+            personMedia = media,
+            isPersonLoading = false,
+          )
+        }
+      }
+  }
+
+  fun closePerson() {
+    personJob?.cancel()
+    _uiState.update {
+      it.copy(
+        personDetail = null,
+        personOverview = null,
+        personMedia = emptyList(),
+        isPersonLoading = false,
       )
     }
   }
