@@ -54,8 +54,11 @@ jobs:
       - name: Validate Gradle wrapper
         uses: gradle/actions/wrapper-validation@v6
 
-      - name: Run lint, unit tests, and debug build
+      - name: Run debug lint, unit tests, and debug build
         run: ./gradlew :app:lintStandardDebug :app:testStandardDebugUnitTest assembleDebug --stacktrace --no-daemon --max-workers=1
+
+      - name: Run release lint
+        run: ./gradlew :app:lintStandardRelease --stacktrace --no-daemon --max-workers=1
 
       - name: Upload debug APK
         uses: actions/upload-artifact@v7
