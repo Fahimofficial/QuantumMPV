@@ -6,7 +6,7 @@ package com.quantummpv.app.repository.subtitle
 
 import java.io.File
 import java.io.RandomAccessFile
-import kotlin.test.Test
+import org.junit.Test
 import kotlin.test.assertEquals
 
 class SubtitleHashUtilsTest {
