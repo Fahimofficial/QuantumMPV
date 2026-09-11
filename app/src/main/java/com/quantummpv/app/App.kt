@@ -24,6 +24,7 @@ import com.quantummpv.app.database.repository.VideoMetadataCacheRepository
 import com.quantummpv.app.di.DatabaseModule
 import com.quantummpv.app.di.FileManagerModule
 import com.quantummpv.app.di.PreferencesModule
+import com.quantummpv.app.di.playbackModule
 import com.quantummpv.app.preferences.AudioPreferences
 import com.quantummpv.app.preferences.DecoderPreferences
 import com.quantummpv.app.preferences.PlayerPreferences
@@ -80,6 +81,7 @@ class App :
         FileManagerModule,
         com.quantummpv.app.di.domainModule,
         com.quantummpv.app.di.DownloadModule,
+        playbackModule,
       )
     }
     if (!BuildConfig.MPV_SUPPORTS_VULKAN) {
@@ -257,12 +259,6 @@ class App :
     if (activity is PlayerActivity) PlaybackPerformanceTrace.end("ON_DESTROY")
   }
 
-  /**
-   * Keep libmpv warm for quick navigation/re-entry, but do not pin its native decoder/renderer
-   * allocation forever after playback has genuinely ended. collectLatest makes this self-cancelling:
-   * any new load, surface attachment, background session, or other state change aborts the grace
-   * timer before destruction can run.
-   */
   private fun startIdleMpvCoreReaper() {
     applicationScope.launch {
       PlaybackSession.state.collectLatest { state ->
@@ -318,16 +314,10 @@ class App :
     if (!BuildConfig.DEBUG) return
 
     StrictMode.setThreadPolicy(
-      StrictMode.ThreadPolicy.Builder()
-        .detectAll()
-        .penaltyLog()
-        .build(),
+      StrictMode.ThreadPolicy.Builder().detectAll().penaltyLog().build(),
     )
     StrictMode.setVmPolicy(
-      StrictMode.VmPolicy.Builder()
-        .detectAll()
-        .penaltyLog()
-        .build(),
+      StrictMode.VmPolicy.Builder().detectAll().penaltyLog().build(),
     )
   }
 
@@ -364,7 +354,6 @@ class App :
     }
   }
 
-  /** Starts saved-share auto-connect in process scope so Activity recreation cannot cancel it. */
   internal fun autoConnectNetworksOnce() {
     if (!networkAutoConnectStarted.compareAndSet(false, true)) return
 
@@ -374,11 +363,9 @@ class App :
         val repository = getKoin().get<NetworkRepository>()
         repository.getAutoConnectConnections().forEach { connection ->
           Log.d(TAG, "Auto-connecting to network share: ${connection.name}")
-          repository
-            .connect(connection)
-            .onFailure { error ->
-              Log.e(TAG, "Auto-connect failed for ${connection.name}: ${error.message}")
-            }
+          repository.connect(connection).onFailure { error ->
+            Log.e(TAG, "Auto-connect failed for ${connection.name}: ${error.message}")
+          }
         }
       } catch (cancellation: CancellationException) {
         networkAutoConnectStarted.set(false)
@@ -390,10 +377,5 @@ class App :
     }
   }
 
-  /**
-   * Resolves [org.koin.core.Koin] from the global context. Safe to call only
-   * after [startKoin] has completed (which it has, synchronously, at the top
-   * of [onCreate]).
-   */
   private fun getKoin() = GlobalContext.get()
 }

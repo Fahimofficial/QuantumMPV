@@ -45,22 +45,16 @@ android {
     applicationId = "com.quantummpv.app"
     minSdk = 26
     targetSdk = 36
-    // Stable occupies the top of its version band. Preview uses the next band's commit-count
-    // offset, so Stable -> Preview -> newer Preview -> next Stable is always an Android upgrade.
     versionCode = stableVersionCode
     versionName = "0.0.1"
 
-    vectorDrawables {
-      useSupportLibrary = true
-    }
+    vectorDrawables { useSupportLibrary = true }
 
     buildConfigField("String", "GIT_SHA", "\"${getCommitSha()}\"")
     buildConfigField("int", "GIT_COUNT", getCommitCount())
 
     externalNativeBuild {
-      cmake {
-        abiFilters += activeAbis
-      }
+      cmake { abiFilters += activeAbis }
     }
   }
 
@@ -121,13 +115,8 @@ android {
       buildConfigField("boolean", "IS_PREVIEW_BUILD", "false")
       isMinifyEnabled = true
       isShrinkResources = true
-      proguardFiles(
-        getDefaultProguardFile("proguard-android-optimize.txt"),
-        "proguard-rules.pro",
-      )
-      ndk {
-        debugSymbolLevel = "none"
-      }
+      proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
+      ndk { debugSymbolLevel = "none" }
     }
 
     create("preview") {
@@ -174,9 +163,7 @@ android {
   }
 
   @Suppress("UnstableApiUsage")
-  androidResources {
-    generateLocaleConfig = true
-  }
+  androidResources { generateLocaleConfig = true }
 
   lint {
     checkReleaseBuilds = false
@@ -185,11 +172,7 @@ android {
 }
 
 androidComponents {
-  val abiCodes =
-    mutableMapOf(
-      "armeabi-v7a" to 1,
-      "arm64-v8a" to 2,
-    )
+  val abiCodes = mutableMapOf("armeabi-v7a" to 1, "arm64-v8a" to 2)
   if (enableX86) {
     abiCodes["x86"] = 3
     abiCodes["x86_64"] = 4
@@ -203,13 +186,9 @@ androidComponents {
 
     variant.outputs.forEach { output ->
       val abi =
-        output.filters
-          .find { it.filterType == FilterConfiguration.FilterType.ABI }
-          ?.identifier
+        output.filters.find { it.filterType == FilterConfiguration.FilterType.ABI }?.identifier
 
-      if (isUniversalOnly && abi != null) {
-        output.enabled.set(false)
-      }
+      if (isUniversalOnly && abi != null) output.enabled.set(false)
 
       val channelVersionCode =
         if (variant.buildType == "preview") previewVersionCode else (output.versionCode.orNull ?: stableVersionCode)
@@ -229,13 +208,9 @@ kotlin {
   }
 }
 
-composeCompiler {
-  includeSourceInformation = false
-}
+composeCompiler { includeSourceInformation = false }
 
-room {
-  schemaDirectory("$projectDir/schemas")
-}
+room { schemaDirectory("$projectDir/schemas") }
 
 dependencies {
   implementation(libs.androidx.activity.compose)
@@ -258,39 +233,39 @@ dependencies {
   implementation(libs.composables.material.symbols.rounded.filled.cmp)
   implementation(libs.androidx.compose.animation.graphics)
   implementation(libs.mediasession)
+
+  // Media3 is present as an optional second playback/transform engine. MPV remains the existing primary engine.
+  implementation(libs.androidx.media3.common)
   implementation(libs.androidx.media3.exoplayer)
+  implementation(libs.androidx.media3.exoplayer.hls)
+  implementation(libs.androidx.media3.exoplayer.dash)
   implementation(libs.androidx.media3.ui)
+  implementation(libs.androidx.media3.effect)
+  implementation(libs.androidx.media3.transformer)
+
   implementation(libs.androidx.documentfile)
   implementation(libs.androidx.palette)
 
   implementation(platform(libs.koin.bom))
   implementation(libs.bundles.koin)
-
   implementation(libs.seeker)
   implementation(libs.compose.prefs)
   implementation(libs.markdown.renderer.m3)
-
   implementation(libs.accompanist.permissions)
 
   implementation(libs.room.runtime)
   ksp(libs.room.compiler)
   implementation(libs.room.ktx)
-
   implementation(libs.kotlinx.immutable.collections)
   implementation(libs.kotlinx.serialization.json)
   implementation(libs.okhttp)
   implementation(libs.jsoup)
-  implementation(libs.androidx.media3.common)
-  implementation(libs.androidx.media3.exoplayer)
-  implementation(libs.androidx.media3.effect)
-  implementation(libs.androidx.media3.transformer)
-  testImplementation(libs.junit)
-  implementation(libs.androidx.media3.ui)
   implementation(platform(libs.sora.editor.bom))
   implementation(libs.sora.editor)
   implementation(libs.sora.language.textmate)
-  // implementation(libs.sora.oniguruma.native)
 
+  testImplementation(libs.junit)
+  testImplementation(libs.kotlin.test)
   coreLibraryDesugaring(libs.desugar.jdk.libs)
 
   implementation(libs.truetype.parser)
@@ -298,9 +273,6 @@ dependencies {
   implementation(libs.mediainfo.lib)
   implementation(libs.androidx.profileinstaller)
   implementation(libs.google.cast.framework)
-
-  testImplementation(libs.kotlin.test)
-  testImplementation(libs.junit)
 
   "standardImplementation"(files("libs/mpvlib.aar"))
   "noVulkanImplementation"(files("libs/mpvlib-no-vulkun.aar"))
@@ -310,16 +282,13 @@ dependencies {
   implementation(libs.smbj)
   implementation(libs.commons.net)
   implementation(libs.jsch)
-  implementation(libs.sardine.android) {
-    exclude(group = "xpp3", module = "xpp3")
-  }
+  implementation(libs.sardine.android) { exclude(group = "xpp3", module = "xpp3") }
   implementation(libs.libarchive.android)
   implementation(libs.nanohttpd)
   implementation(libs.lazycolumnscrollbar)
   implementation(libs.reorderable)
   implementation(libs.androidx.biometric)
 
-  // libtorrent4j's Java API plus the native library for every enabled APK ABI.
   implementation(libs.libtorrent4j)
   implementation(libs.libtorrent4j.android.arm64)
   implementation(libs.libtorrent4j.android.arm)
@@ -329,8 +298,6 @@ dependencies {
   }
 }
 
-// ---------------- Git helpers ----------------
-
 fun getCommitCount(): String = runCommand("git rev-list --count HEAD") ?: "0"
 
 fun getCommitSha(): String = runCommand("git rev-parse --short HEAD") ?: "unknown"
@@ -338,17 +305,8 @@ fun getCommitSha(): String = runCommand("git rev-parse --short HEAD") ?: "unknow
 fun runCommand(command: String): String? =
   try {
     val parts = command.split(' ')
-    val process =
-      ProcessBuilder(parts)
-        .redirectErrorStream(true)
-        .start()
-
-    val output =
-      process.inputStream
-        .bufferedReader()
-        .readText()
-        .trim()
-
+    val process = ProcessBuilder(parts).redirectErrorStream(true).start()
+    val output = process.inputStream.bufferedReader().readText().trim()
     process.waitFor()
     output.ifEmpty { null }
   } catch (e: Exception) {
