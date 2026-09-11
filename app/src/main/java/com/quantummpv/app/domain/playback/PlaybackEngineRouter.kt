@@ -4,7 +4,7 @@
 
 package com.quantummpv.app.domain.playback
 
-import android.net.Uri
+import java.net.URI
 
 /**
  * Decides which playback engine should own a media item without requiring the UI to know
@@ -33,8 +33,7 @@ class PlaybackEngineRouter {
     uriString: String,
     mimeType: String?,
   ): PlaybackEngineType {
-    val uri = runCatching { Uri.parse(uriString) }.getOrNull()
-    val path = uri?.path.orEmpty().lowercase()
+    val path = runCatching { URI(uriString).path.orEmpty() }.getOrDefault(uriString).lowercase()
     val normalizedMime = mimeType.orEmpty().lowercase()
 
     // Media3 is the Android-native path for adaptive streaming. MPV remains the default for
