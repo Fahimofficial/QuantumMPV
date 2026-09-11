@@ -61,7 +61,7 @@ class JellyfinRepository(
     client.getSuggestions(server.serverUrl, server.userId, limit, server.accessToken)
 
   suspend fun getSimilarItems(server: JellyfinServer, itemId: String, limit: Int = 12): Result<List<JellyfinItem>> =
-    client.getSimilarItems(server.serverUrl, server.userId, itemId, server.accessToken, limit)
+    client.getSimilarItems(server.serverUrl, server.userId, itemId, limit, server.accessToken)
 
   suspend fun getItem(server: JellyfinServer, itemId: String): Result<JellyfinItem> =
     client.getItem(server.serverUrl, server.userId, itemId, server.accessToken)
@@ -95,11 +95,8 @@ class JellyfinRepository(
   ): Result<com.quantummpv.app.domain.jellyfin.JellyfinQueryResult> = client.getArtists(serverUrl = server.serverUrl, userId = server.userId, parentId = parentId, sortBy = sortBy, sortOrder = sortOrder, startIndex = startIndex, limit = limit, token = server.accessToken, albumArtistsOnly = albumArtistsOnly)
 
   suspend fun getGenres(server: JellyfinServer, parentId: String): Result<List<String>> = client.getGenres(server.serverUrl, server.userId, parentId, server.accessToken)
-
   suspend fun getSeasons(server: JellyfinServer, seriesId: String): Result<List<JellyfinItem>> = client.getSeasons(server.serverUrl, server.userId, seriesId, server.accessToken)
-
   suspend fun getEpisodes(server: JellyfinServer, seriesId: String, seasonId: String): Result<List<JellyfinItem>> = client.getEpisodes(server.serverUrl, server.userId, seriesId, seasonId, server.accessToken)
-
   suspend fun getSubtitleTracks(server: JellyfinServer, itemId: String): Result<List<PlaybackSubtitleTrack>> = client.getSubtitleTracks(server.serverUrl, server.accessToken, server.userId, itemId)
 
   fun getStreamUrl(server: JellyfinServer, item: JellyfinItem): String = client.getStreamUrl(serverUrl = server.serverUrl, itemId = item.id, token = server.accessToken, isAudio = item.isAudio)
@@ -113,21 +110,13 @@ class JellyfinRepository(
   fun getBackdropUrl(server: JellyfinServer, item: JellyfinItem, maxWidth: Int = 1280): String = client.getBackdropUrl(serverUrl = server.serverUrl, itemId = item.id, imageTag = item.backdropImageTag, maxWidth = maxWidth, token = server.accessToken)
 
   suspend fun reportPlaybackStart(serverUrl: String, token: String, itemId: String, positionTicks: Long) = client.reportPlaybackStart(serverUrl, token, itemId, positionTicks)
-
   suspend fun reportPlaybackProgress(serverUrl: String, token: String, itemId: String, positionTicks: Long, isPaused: Boolean = false) = client.reportPlaybackProgress(serverUrl, token, itemId, positionTicks, isPaused)
-
   suspend fun reportPlaybackStopped(serverUrl: String, token: String, itemId: String, positionTicks: Long) = client.reportPlaybackStopped(serverUrl, token, itemId, positionTicks)
-
   suspend fun markPlayed(server: JellyfinServer, item: JellyfinItem): Result<Unit> = client.markPlayed(serverUrl = server.serverUrl, userId = server.userId, itemId = item.id, token = server.accessToken)
-
   suspend fun markUnplayed(server: JellyfinServer, item: JellyfinItem): Result<Unit> = client.markUnplayed(serverUrl = server.serverUrl, userId = server.userId, itemId = item.id, token = server.accessToken)
-
   suspend fun toggleFavorite(server: JellyfinServer, item: JellyfinItem, isFavorite: Boolean): Result<Unit> = client.toggleFavorite(serverUrl = server.serverUrl, userId = server.userId, itemId = item.id, isFavorite = isFavorite, token = server.accessToken)
-
   suspend fun toggleFavorite(server: JellyfinServer, itemId: String, isFavorite: Boolean): Result<Unit> = client.toggleFavorite(serverUrl = server.serverUrl, userId = server.userId, itemId = itemId, isFavorite = isFavorite, token = server.accessToken)
-
   suspend fun createPlaylist(server: JellyfinServer, name: String, itemIds: List<String> = emptyList()): Result<String> = client.createPlaylist(serverUrl = server.serverUrl, userId = server.userId, token = server.accessToken, name = name, itemIds = itemIds)
-
   suspend fun addToPlaylist(server: JellyfinServer, playlistId: String, itemIds: List<String>): Result<Unit> = client.addToPlaylist(serverUrl = server.serverUrl, userId = server.userId, token = server.accessToken, playlistId = playlistId, itemIds = itemIds)
 
   private suspend fun decryptAndMigrate(entity: JellyfinServerEntity): JellyfinServer {
