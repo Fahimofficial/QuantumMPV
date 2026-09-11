@@ -17,6 +17,7 @@ import com.quantummpv.app.database.converters.NetworkStreamEntryTypeConverter
 import com.quantummpv.app.database.dao.DirectoryScanDao
 import com.quantummpv.app.database.dao.DownloadItemDao
 import com.quantummpv.app.database.dao.NetworkConnectionDao
+import com.quantummpv.app.database.dao.NetworkStreamEntryDao
 import com.quantummpv.app.database.dao.PlaybackStateDao
 import com.quantummpv.app.database.dao.PlaylistDao
 import com.quantummpv.app.database.dao.RecentlyPlayedDao
@@ -24,7 +25,6 @@ import com.quantummpv.app.database.dao.SecureMediaDao
 import com.quantummpv.app.database.dao.VideoMetadataDao
 import com.quantummpv.app.database.dao.JellyfinServerDao
 import com.quantummpv.app.database.dao.NavidromeServerDao
-import com.quantummpv.app.database.dao.NetworkStreamEntryDao
 import com.quantummpv.app.database.entities.DirectoryScanEntity
 import com.quantummpv.app.database.entities.DownloadItemEntity
 import com.quantummpv.app.database.entities.JellyfinServerEntity
@@ -59,14 +59,24 @@ import com.quantummpv.app.domain.network.NetworkConnection
 @TypeConverters(NetworkProtocolConverter::class, NetworkStreamEntryTypeConverter::class)
 abstract class MpvRxDatabase : RoomDatabase() {
   abstract fun videoDataDao(): PlaybackStateDao
+
   abstract fun recentlyPlayedDao(): RecentlyPlayedDao
+
   abstract fun videoMetadataDao(): VideoMetadataDao
+
   abstract fun networkConnectionDao(): NetworkConnectionDao
+
   abstract fun networkStreamEntryDao(): NetworkStreamEntryDao
+
   abstract fun playlistDao(): PlaylistDao
+
   abstract fun directoryScanDao(): DirectoryScanDao
+
   abstract fun secureMediaDao(): SecureMediaDao
+
   abstract fun jellyfinServerDao(): JellyfinServerDao
+
   abstract fun downloadItemDao(): DownloadItemDao
+
   abstract fun navidromeServerDao(): NavidromeServerDao
 }
