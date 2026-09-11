@@ -378,7 +378,7 @@ object SettingsSearchScreen : Screen {
           }
         }
       }
-    )
+    }
   }
 }
 
