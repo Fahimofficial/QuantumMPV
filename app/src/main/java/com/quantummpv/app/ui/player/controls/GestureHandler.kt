@@ -95,7 +95,6 @@ import kotlin.math.max
 import kotlin.math.pow
 import kotlin.math.roundToInt
 import kotlin.math.sqrt
-import androidx.compose.ui.res.stringResource
 
 private val holdSpeedPresets = listOf(0.5f, 1f, 1.5f, 2f, 2.5f, 3f, 3.5f, 4f)
 private const val SPEED_HOLD_INTENT_THRESHOLD_MS = 250L
@@ -583,7 +582,7 @@ fun GestureHandler(
                       lastSubtitlePosition = originalSubtitlePosition
                       viewModel.playerUpdate.update {
                         PlayerUpdates.ShowText(
-                          stringResource(R.string.player_move_subtitles_hint),
+                          context.getString(R.string.player_move_subtitles_hint),
                         )
                       }
                     } else if (
@@ -768,7 +767,7 @@ fun GestureHandler(
                             isSpeedLocked = true
                             haptics.performHapticFeedback(HapticFeedbackType.LongPress)
                             viewModel.playerUpdate.update {
-                              PlayerUpdates.ShowText(stringResource(R.string.player_speed_gesture_locked))
+                              PlayerUpdates.ShowText(context.getString(R.string.player_speed_gesture_locked))
                             }
                           } else if (deltaY > speedLockThreshold && isSpeedLocked) {
                             isSpeedLocked = false
@@ -777,7 +776,7 @@ fun GestureHandler(
                             PlaybackSession.setPropertyFloat("speed", originalSpeed)
                             haptics.performHapticFeedback(HapticFeedbackType.LongPress)
                             viewModel.playerUpdate.update {
-                              PlayerUpdates.ShowText(stringResource(R.string.player_speed_gesture_restored))
+                              PlayerUpdates.ShowText(context.getString(R.string.player_speed_gesture_restored))
                             }
                             return@forEach
                           }
@@ -1230,7 +1229,7 @@ fun GestureHandler(
                       haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove)
                       viewModel.playerUpdate.update {
                         PlayerUpdates.ShowText(
-                          stringResource(
+                          context.getString(
                             if (isForward) R.string.player_next_dialog else R.string.player_previous_dialog,
                           ),
                         )

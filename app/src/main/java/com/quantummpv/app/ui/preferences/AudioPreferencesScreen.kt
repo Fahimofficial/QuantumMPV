@@ -277,9 +277,9 @@ object AudioPreferencesScreen : Screen {
                 valueToText = { source ->
                   AnnotatedString(
                     when (source) {
-                      MusicSourceProvider.LOCAL -> stringResource(R.string.music_source_local)
-                      MusicSourceProvider.JELLYFIN -> stringResource(R.string.music_source_jellyfin)
-                      MusicSourceProvider.NAVIDROME -> stringResource(R.string.music_source_navidrome)
+                      MusicSourceProvider.LOCAL -> context.getString(R.string.music_source_local)
+                      MusicSourceProvider.JELLYFIN -> context.getString(R.string.music_source_jellyfin)
+                      MusicSourceProvider.NAVIDROME -> context.getString(R.string.music_source_navidrome)
                     },
                   )
                 },

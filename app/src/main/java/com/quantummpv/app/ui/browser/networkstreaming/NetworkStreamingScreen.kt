@@ -603,7 +603,7 @@ object NetworkStreamingScreen : Screen {
                 pendingYtdlpUrl = null
               } else {
                 // Leave the progress dialog open so the error is visible; Cancel dismisses it.
-                ytdlpInstallError = stringResource(R.string.ytdlp_install_failed)
+                ytdlpInstallError = context.getString(R.string.ytdlp_install_failed)
               }
             }
         },

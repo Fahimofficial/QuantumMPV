@@ -163,7 +163,7 @@ fun OnlineSubtitleSearchSheet(
           Toast
             .makeText(
               context,
-              stringResource(com.quantummpv.app.R.string.ui_search_query_is_empty),
+              context.getString(com.quantummpv.app.R.string.ui_search_query_is_empty),
               Toast.LENGTH_SHORT,
             ).show()
           return
@@ -180,9 +180,9 @@ fun OnlineSubtitleSearchSheet(
               Toast
                 .makeText(
                   context,
-                  stringResource(
+                  context.getString(
                     R.string.toast_ai_format_failed,
-                    e.message ?: stringResource(R.string.generic_unknown_error),
+                    e.message ?: context.getString(R.string.generic_unknown_error),
                   ),
                   Toast.LENGTH_SHORT,
                 ).show()

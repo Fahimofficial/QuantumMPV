@@ -121,9 +121,9 @@ object SubtitlesPreferencesScreen : Screen {
             .makeText(
               context,
               if (copiedFonts > 0) {
-                stringResource(R.string.fonts_loaded, copiedFonts)
+                context.getString(R.string.fonts_loaded, copiedFonts)
               } else {
-                stringResource(R.string.pref_subtitles_font_no_custom)
+                context.getString(R.string.pref_subtitles_font_no_custom)
               },
               Toast.LENGTH_SHORT,
             ).show()
@@ -146,7 +146,7 @@ object SubtitlesPreferencesScreen : Screen {
           Toast
             .makeText(
               context,
-              stringResource(R.string.pref_subtitles_font_copy_failed, error.message ?: "Unknown error"),
+              context.getString(R.string.pref_subtitles_font_copy_failed, error.message ?: "Unknown error"),
               Toast.LENGTH_SHORT,
             ).show()
         }
@@ -470,7 +470,7 @@ object SubtitlesPreferencesScreen : Screen {
                 onValueChange = preferences.font::set,
                 values = fontValues,
                 valueToText = {
-                  AnnotatedString(it.ifBlank { stringResource(R.string.pref_subtitles_font_default) })
+                  AnnotatedString(it.ifBlank { context.getString(R.string.pref_subtitles_font_default) })
                 },
                 title = { Text(stringResource(R.string.pref_subtitles_font_title)) },
                 summary = {
@@ -1111,9 +1111,9 @@ object SubtitlesPreferencesScreen : Screen {
                               android.widget.Toast
                                 .makeText(
                                   context,
-                                  stringResource(
+                                  context.getString(
                                     R.string.pref_subtitle_search_error,
-                                    e.message ?: stringResource(R.string.generic_unknown_error),
+                                    e.message ?: context.getString(R.string.generic_unknown_error),
                                   ),
                                   android.widget.Toast.LENGTH_SHORT,
                                 ).show()

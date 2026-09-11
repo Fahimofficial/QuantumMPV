@@ -159,8 +159,8 @@ data object SecureFolderGateScreen : Screen {
       }
       val biometricPrompt = BiometricPrompt(fragmentActivity, executor, callback)
       val promptInfoBuilder = BiometricPrompt.PromptInfo.Builder()
-        .setTitle(stringResource(R.string.secure_folder_title))
-        .setSubtitle(stringResource(R.string.secure_folder_enter_pin))
+        .setTitle(context.getString(R.string.secure_folder_title))
+        .setSubtitle(context.getString(R.string.secure_folder_enter_pin))
       if (canAuthenticateBiometric) {
         promptInfoBuilder.setAllowedAuthenticators(BiometricManager.Authenticators.BIOMETRIC_STRONG or BiometricManager.Authenticators.DEVICE_CREDENTIAL)
       } else {

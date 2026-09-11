@@ -48,7 +48,6 @@ import com.quantummpv.app.ui.icons.Icon
 import com.quantummpv.app.ui.icons.Icons
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
-import androidx.compose.ui.res.stringResource
 
 data class LuaScriptsCatalogState(
   val availableScripts: List<String> = emptyList(),
@@ -110,9 +109,9 @@ fun rememberLuaScriptsCatalog(
         Toast
           .makeText(
             context,
-            stringResource(
+            context.getString(
               R.string.toast_error_loading_scripts,
-              error.message ?: stringResource(R.string.generic_unknown_error),
+              error.message ?: context.getString(R.string.generic_unknown_error),
             ),
             Toast.LENGTH_LONG,
           ).show()

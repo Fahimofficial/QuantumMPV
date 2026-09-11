@@ -156,7 +156,7 @@ data class PlaylistAddVideosScreen(
         withContext(Dispatchers.Main) {
           Toast.makeText(
             context,
-            if (isAudio) "Added ${videos.size} songs to playlist" else stringResource(R.string.playlist_add_videos_success, videos.size),
+            if (isAudio) "Added ${videos.size} songs to playlist" else context.getString(R.string.playlist_add_videos_success, videos.size),
             Toast.LENGTH_SHORT,
           ).show()
           backstack.popSafely()

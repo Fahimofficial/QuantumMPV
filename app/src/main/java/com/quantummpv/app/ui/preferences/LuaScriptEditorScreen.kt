@@ -131,7 +131,7 @@ data class LuaScriptEditorScreen(
         Toast
           .makeText(
             context,
-            stringResource(com.quantummpv.app.R.string.ui_please_enter_a_file_name),
+            context.getString(com.quantummpv.app.R.string.ui_please_enter_a_file_name),
             Toast.LENGTH_SHORT,
           ).show()
         return
@@ -146,7 +146,7 @@ data class LuaScriptEditorScreen(
               Toast
                 .makeText(
                   context,
-                  stringResource(com.quantummpv.app.R.string.ui_no_storage_location_set),
+                  context.getString(com.quantummpv.app.R.string.ui_no_storage_location_set),
                   Toast.LENGTH_LONG,
                 ).show()
             }
@@ -159,7 +159,7 @@ data class LuaScriptEditorScreen(
               Toast
                 .makeText(
                   context,
-                  stringResource(com.quantummpv.app.R.string.ui_no_storage_location_set),
+                  context.getString(com.quantummpv.app.R.string.ui_no_storage_location_set),
                   Toast.LENGTH_LONG,
                 ).show()
             }
@@ -187,7 +187,7 @@ data class LuaScriptEditorScreen(
                 Toast
                   .makeText(
                     context,
-                    stringResource(com.quantummpv.app.R.string.ui_failed_to_create_file),
+                    context.getString(com.quantummpv.app.R.string.ui_failed_to_create_file),
                     Toast.LENGTH_LONG,
                   ).show()
               }
@@ -202,7 +202,7 @@ data class LuaScriptEditorScreen(
               Toast
                 .makeText(
                   context,
-                  stringResource(com.quantummpv.app.R.string.ui_failed_to_open_output_stream),
+                  context.getString(com.quantummpv.app.R.string.ui_failed_to_open_output_stream),
                   Toast.LENGTH_LONG,
                 ).show()
             }
@@ -220,7 +220,7 @@ data class LuaScriptEditorScreen(
             Toast
               .makeText(
                 context,
-                stringResource(R.string.toast_file_saved, finalFileName),
+                context.getString(R.string.toast_file_saved, finalFileName),
                 Toast.LENGTH_SHORT,
               ).show()
             backStack.popSafely()
@@ -230,9 +230,9 @@ data class LuaScriptEditorScreen(
             Toast
               .makeText(
                 context,
-                stringResource(
+                context.getString(
                   R.string.toast_failed_to_save_reason,
-                  e.message ?: stringResource(R.string.generic_unknown_error),
+                  e.message ?: context.getString(R.string.generic_unknown_error),
                 ),
                 Toast.LENGTH_LONG,
               ).show()
@@ -246,7 +246,7 @@ data class LuaScriptEditorScreen(
         Toast
           .makeText(
             context,
-            stringResource(com.quantummpv.app.R.string.ui_save_the_script_first_before_sharing),
+            context.getString(com.quantummpv.app.R.string.ui_save_the_script_first_before_sharing),
             Toast.LENGTH_SHORT,
           ).show()
         return
@@ -336,7 +336,7 @@ data class LuaScriptEditorScreen(
                   Toast
                     .makeText(
                       context,
-                      stringResource(R.string.toast_file_deleted, scriptName),
+                      context.getString(R.string.toast_file_deleted, scriptName),
                       Toast.LENGTH_SHORT,
                     ).show()
                   backStack.popSafely()

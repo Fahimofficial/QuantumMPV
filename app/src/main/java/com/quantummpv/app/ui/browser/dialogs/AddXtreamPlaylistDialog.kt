@@ -92,12 +92,12 @@ fun AddXtreamPlaylistDialog(
         onCreateXtreamPlaylist(serverUrl.trim(), username, password)
           .onSuccess {
             Toast
-              .makeText(context, stringResource(R.string.playlist_xtream_import_success), Toast.LENGTH_SHORT)
+              .makeText(context, context.getString(R.string.playlist_xtream_import_success), Toast.LENGTH_SHORT)
               .show()
             password = ""
             onImported()
           }.onFailure { error ->
-            errorMessage = error.message ?: stringResource(R.string.generic_unknown_error)
+            errorMessage = error.message ?: context.getString(R.string.generic_unknown_error)
           }
         isLoading = false
       }

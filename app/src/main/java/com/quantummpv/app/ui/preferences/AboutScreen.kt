@@ -136,7 +136,7 @@ object AboutScreen : Screen {
         Toast
           .makeText(
             context,
-            stringResource(com.quantummpv.app.R.string.ui_already_using_latest_version),
+            context.getString(com.quantummpv.app.R.string.ui_already_using_latest_version),
             Toast.LENGTH_SHORT,
           ).show()
         updateViewModel.dismissNoUpdate()
@@ -432,7 +432,7 @@ object AboutScreen : Screen {
                       Toast
                         .makeText(
                           context,
-                          stringResource(com.quantummpv.app.R.string.ui_upi_id_copied),
+                          context.getString(com.quantummpv.app.R.string.ui_upi_id_copied),
                           Toast.LENGTH_SHORT,
                         ).show()
                     }.padding(horizontal = 16.dp, vertical = 14.dp),
@@ -483,7 +483,7 @@ object AboutScreen : Screen {
                   Toast
                     .makeText(
                       context,
-                      stringResource(com.quantummpv.app.R.string.ui_no_upi_app_found),
+                      context.getString(com.quantummpv.app.R.string.ui_no_upi_app_found),
                       Toast.LENGTH_SHORT,
                     ).show()
                 }

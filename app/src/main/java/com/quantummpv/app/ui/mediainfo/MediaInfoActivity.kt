@@ -645,7 +645,7 @@ class MediaInfoActivity : AppCompatActivity() {
           .clip(RoundedCornerShape(24.dp))
           .clickable {
             SafeClipboard.copyPlainText(context, title, value)
-            Toast.makeText(context, stringResource(R.string.toast_copied_value, value), Toast.LENGTH_SHORT).show()
+            Toast.makeText(context, context.getString(R.string.toast_copied_value, value), Toast.LENGTH_SHORT).show()
           },
       containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.20f),
     ) {
@@ -1153,7 +1153,7 @@ class MediaInfoActivity : AppCompatActivity() {
                     Toast
                       .makeText(
                         context,
-                        stringResource(com.quantummpv.app.R.string.ui_copied_specifications_to_clipboard),
+                        context.getString(com.quantummpv.app.R.string.ui_copied_specifications_to_clipboard),
                         Toast.LENGTH_SHORT,
                       ).show()
                   }
@@ -1362,7 +1362,7 @@ class MediaInfoActivity : AppCompatActivity() {
                         Toast
                           .makeText(
                             context,
-                            stringResource(R.string.toast_copied_value, timestamp),
+                            context.getString(R.string.toast_copied_value, timestamp),
                             Toast.LENGTH_SHORT,
                           ).show()
                       }
@@ -1520,7 +1520,7 @@ class MediaInfoActivity : AppCompatActivity() {
         TextButton(
           onClick = {
             SafeClipboard.copyPlainText(context, label, value)
-            Toast.makeText(context, stringResource(R.string.toast_copied_value, value), Toast.LENGTH_SHORT).show()
+            Toast.makeText(context, context.getString(R.string.toast_copied_value, value), Toast.LENGTH_SHORT).show()
             onDismiss()
           },
         ) {

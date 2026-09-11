@@ -238,16 +238,16 @@ fun FrameNavigationSheet(
               Toast
                 .makeText(
                   context,
-                  stringResource(R.string.player_sheets_frame_navigation_snapshot_saved),
+                  context.getString(R.string.player_sheets_frame_navigation_snapshot_saved),
                   Toast.LENGTH_SHORT,
                 ).show()
             }.onFailure { error ->
               Toast
                 .makeText(
                   context,
-                  stringResource(
+                  context.getString(
                     R.string.toast_failed_to_save_snapshot,
-                    error.message ?: stringResource(R.string.generic_unknown_error),
+                    error.message ?: context.getString(R.string.generic_unknown_error),
                   ),
                   Toast.LENGTH_LONG,
                 ).show()

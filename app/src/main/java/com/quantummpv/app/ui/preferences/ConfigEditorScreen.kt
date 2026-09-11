@@ -57,7 +57,6 @@ import kotlin.io.path.createTempFile
 import kotlin.io.path.deleteIfExists
 import kotlin.io.path.outputStream
 import kotlin.io.path.readLines
-import androidx.compose.ui.res.stringResource
 
 @Serializable
 data class ConfigEditorScreen(
@@ -130,7 +129,7 @@ data class ConfigEditorScreen(
                 Toast
                   .makeText(
                     context,
-                    stringResource(com.quantummpv.app.R.string.ui_no_storage_location_set),
+                    context.getString(com.quantummpv.app.R.string.ui_no_storage_location_set),
                     Toast.LENGTH_LONG,
                   ).show()
               }
@@ -144,7 +143,7 @@ data class ConfigEditorScreen(
                   Toast
                     .makeText(
                       context,
-                      stringResource(com.quantummpv.app.R.string.ui_failed_to_create_file),
+                      context.getString(com.quantummpv.app.R.string.ui_failed_to_create_file),
                       Toast.LENGTH_LONG,
                     ).show()
                 }
@@ -166,9 +165,9 @@ data class ConfigEditorScreen(
             Toast
               .makeText(
                 context,
-                stringResource(
+                context.getString(
                   R.string.toast_failed_to_save_reason,
-                  e.message ?: stringResource(R.string.generic_unknown_error),
+                  e.message ?: context.getString(R.string.generic_unknown_error),
                 ),
                 Toast.LENGTH_LONG,
               ).show()

@@ -544,16 +544,16 @@ data class PlaylistDetailScreen(
                   Toast
                     .makeText(
                       context,
-                      stringResource(com.quantummpv.app.R.string.playlist_refresh_success),
+                      context.getString(com.quantummpv.app.R.string.playlist_refresh_success),
                       Toast.LENGTH_SHORT,
                     ).show()
                 }.onFailure { error ->
                   Toast
                     .makeText(
                       context,
-                      stringResource(
+                      context.getString(
                         R.string.toast_failed_to_refresh,
-                        error.message ?: stringResource(R.string.generic_unknown_error),
+                        error.message ?: context.getString(R.string.generic_unknown_error),
                       ),
                       Toast.LENGTH_LONG,
                     ).show()
