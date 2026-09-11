@@ -4,7 +4,7 @@
 
 package com.quantummpv.app.domain.playback
 
-import kotlin.test.Test
+import org.junit.Test
 import kotlin.test.assertEquals
 
 class PlaybackEngineRouterTest {
