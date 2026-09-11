@@ -41,6 +41,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.layout.ContentScale
@@ -62,6 +63,8 @@ import com.quantummpv.app.ui.icons.Icon
 import com.quantummpv.app.ui.icons.Icons
 import com.quantummpv.app.ui.player.controls.components.tvFocusHighlight
 import com.quantummpv.app.ui.theme.AppShapeScale
+import com.quantummpv.app.ui.theme.AppTheme
+import com.quantummpv.app.ui.theme.LocalAppTheme
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.filter
 import kotlinx.coroutines.flow.flowOn
@@ -203,6 +206,27 @@ fun VideoCard(
   val showResolutionChip = overrideShowResolutionChip ?: resolvedUiConfig.showResolutionChip
 
   val cardShape = AppShapeScale.large
+  val appTheme = LocalAppTheme.current
+  val cardContainerColor =
+    if (isSelected) {
+      MaterialTheme.colorScheme.tertiaryContainer.copy(alpha = 0.88f)
+    } else {
+      MaterialTheme.colorScheme.surfaceContainerLow.copy(
+        alpha = if (appTheme == AppTheme.Aurora) 0.82f else 1f,
+      )
+    }
+  val cardBrush =
+    if (appTheme == AppTheme.Aurora && !isSelected) {
+      Brush.linearGradient(
+        listOf(
+          MaterialTheme.colorScheme.surfaceContainerLow,
+          MaterialTheme.colorScheme.primary.copy(alpha = 0.08f),
+          MaterialTheme.colorScheme.tertiary.copy(alpha = 0.06f),
+        ),
+      )
+    } else {
+      null
+    }
 
   Card(
     modifier =
@@ -216,9 +240,14 @@ fun VideoCard(
           onLongClick = onLongClick,
         ),
     shape = cardShape,
-    colors = CardDefaults.cardColors(containerColor = Color.Transparent),
+    colors = CardDefaults.cardColors(containerColor = cardContainerColor),
   ) {
-    Box(modifier = Modifier.fillMaxWidth()) {
+    Box(
+      modifier =
+        Modifier
+          .fillMaxWidth()
+          .then(cardBrush?.let { Modifier.background(it, cardShape) } ?: Modifier),
+    ) {
       if (isSelected) {
         Box(
           modifier =

@@ -142,6 +142,9 @@ val LocalThemeTransitionState = staticCompositionLocalOf<ThemeTransitionState?> 
 /** Dark counterpart of the selected app palette, even while the app itself is using light mode. */
 internal val LocalDarkAppColorScheme = staticCompositionLocalOf<ColorScheme?> { null }
 
+/** Selected palette, allowing reusable surfaces to add restrained theme-specific treatment. */
+val LocalAppTheme = staticCompositionLocalOf { AppTheme.Default }
+
 @Composable
 fun rememberThemeTransitionState(): ThemeTransitionState = remember { ThemeTransitionState() }
 
@@ -319,6 +322,7 @@ fun MpvrxTheme(
     LocalMotionPolicy provides rememberMotionPolicy(),
     LocalEmphasizedTypography provides AppEmphasizedTypography,
     LocalDarkAppColorScheme provides darkColorScheme,
+    LocalAppTheme provides appTheme,
   ) {
     ThemeTransitionContent {
       MaterialExpressiveTheme(
