@@ -55,7 +55,27 @@ jobs:
         uses: gradle/actions/wrapper-validation@v6
 
       - name: Run debug lint, unit tests, and debug build
-        run: ./gradlew :app:lintStandardDebug :app:testStandardDebugUnitTest assembleDebug --stacktrace --no-daemon --max-workers=1
+        id: debug-validation
+        shell: bash
+        run: |
+          set +e
+          ./gradlew :app:lintStandardDebug :app:testStandardDebugUnitTest assembleDebug --stacktrace --no-daemon --max-workers=1
+          status=$?
+          echo "Gradle validation exited with status $status"
+          exit "$status"
+
+      - name: Upload debug lint reports
+        if: ${{ always() }}
+        uses: actions/upload-artifact@v7
+        with:
+          name: quantummpv-debug-lint-reports-${{ github.sha }}
+          path: |
+            app/build/reports/lint-results-standardDebug.html
+            app/build/reports/lint-results-standardDebug.sarif
+            app/build/intermediates/lint_intermediate_text_report/standardDebug/lintReportStandardDebug/lint-results-standardDebug.txt
+          if-no-files-found: warn
+          retention-days: 7
+          compression-level: 6
 
       - name: Run release lint
         run: ./gradlew :app:lintStandardRelease --stacktrace --no-daemon --max-workers=1
