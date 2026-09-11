@@ -30,14 +30,11 @@ class Media3PlaybackEngine(
   override val type: PlaybackEngineType = PlaybackEngineType.MEDIA3
 
   private val appContext = context.applicationContext
+  private val httpDataSourceFactory =
+    DefaultHttpDataSource.Factory().setAllowCrossProtocolRedirects(true)
   private val player: ExoPlayer =
     ExoPlayer.Builder(appContext)
-      .setMediaSourceFactory(
-        DefaultMediaSourceFactory(
-          DefaultHttpDataSource.Factory()
-            .setAllowCrossProtocolRedirects(true),
-        ),
-      )
+      .setMediaSourceFactory(DefaultMediaSourceFactory(httpDataSourceFactory))
       .build()
 
   private var playerView: PlayerView? = null
@@ -84,6 +81,7 @@ class Media3PlaybackEngine(
   override fun prepare(request: PlaybackRequest) {
     lastError = null
     prepared = false
+    httpDataSourceFactory.setDefaultRequestProperties(request.headers)
 
     val mediaItem =
       MediaItem.Builder()
