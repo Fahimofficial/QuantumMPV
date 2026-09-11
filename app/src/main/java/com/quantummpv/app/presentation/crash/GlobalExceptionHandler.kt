@@ -16,6 +16,7 @@ import kotlin.system.exitProcess
 class GlobalExceptionHandler(
   private val context: Context,
   private val activity: Class<*>,
+  private val previousHandler: Thread.UncaughtExceptionHandler?,
 ) : Thread.UncaughtExceptionHandler {
   override fun uncaughtException(
     t: Thread,
@@ -26,6 +27,8 @@ class GlobalExceptionHandler(
     intent.addFlags(Intent.FLAG_ACTIVITY_CLEAR_TASK)
     intent.putExtra("exception", e.stackTraceToString())
     context.startActivity(intent)
+
+    previousHandler?.uncaughtException(t, e)
     exitProcess(0)
   }
 }
