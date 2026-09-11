@@ -1,0 +1,98 @@
+/*
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published
+ * by the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ */
+
+package com.quantummpv.app.ui.player.controls.components.sheets
+
+import android.net.Uri
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.RowScope
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Text
+import androidx.compose.runtime.Composable
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.unit.dp
+import com.quantummpv.app.R
+import com.quantummpv.app.ui.icons.Icon
+import com.quantummpv.app.ui.icons.Icons
+import com.quantummpv.app.ui.player.TrackNode
+import com.quantummpv.app.ui.theme.spacing
+
+@Composable
+fun AddTrackRow(
+  title: String,
+  onClick: () -> Unit,
+  modifier: Modifier = Modifier,
+  actions: @Composable RowScope.() -> Unit = {},
+) {
+  Row(
+    modifier =
+      modifier
+        .fillMaxWidth()
+        .clickable(onClick = onClick)
+        .height(56.dp)
+        .padding(horizontal = MaterialTheme.spacing.medium),
+    verticalAlignment = Alignment.CenterVertically,
+    horizontalArrangement = Arrangement.spacedBy(MaterialTheme.spacing.smaller),
+  ) {
+    Icon(
+      Icons.RoundedFilled.Add,
+      contentDescription = null,
+      modifier = Modifier.size(24.dp),
+    )
+    Text(
+      text = title,
+      style = MaterialTheme.typography.bodyLarge,
+      modifier = Modifier.weight(1f),
+    )
+    Row(
+      horizontalArrangement = Arrangement.spacedBy(MaterialTheme.spacing.extraSmall),
+      verticalAlignment = Alignment.CenterVertically,
+    ) {
+      actions()
+    }
+  }
+}
+
+@Composable
+fun getTrackTitle(track: TrackNode): String {
+  val title = track.effectiveTitle
+  val lang = track.effectiveLang
+  val hasTitle = !title.isNullOrBlank()
+  val hasLang = !lang.isNullOrBlank()
+
+  if (track.isSubtitle && track.external == true && !hasTitle && !hasLang && track.externalFilename != null) {
+    val decoded = Uri.decode(track.externalFilename)
+    val fileName = decoded.substringAfterLast("/")
+    return stringResource(R.string.player_sheets_track_title_wo_lang, track.id, fileName)
+  }
+
+  return when {
+    hasTitle && hasLang ->
+      stringResource(
+        R.string.player_sheets_track_title_w_lang,
+        track.id,
+        title,
+        lang,
+      )
+    hasTitle -> stringResource(R.string.player_sheets_track_title_wo_lang, track.id, title)
+    hasLang -> stringResource(R.string.player_sheets_track_lang_wo_title, track.id, lang)
+    !track.codecDesc.isNullOrBlank() -> stringResource(R.string.player_sheets_track_title_wo_lang, track.id, track.codecDesc)
+    track.isSubtitle -> stringResource(R.string.player_sheets_chapter_title_substitute_subtitle, track.id)
+    track.isAudio -> stringResource(R.string.player_sheets_chapter_title_substitute_audio, track.id)
+    else -> ""
+  }
+}

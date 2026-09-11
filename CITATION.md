@@ -1,6 +1,14 @@
 # Credits and citation information
 
-QuantumMPV is an independent continuation and rebrand of the mpvRx codebase. This page preserves QuantumMPV's acknowledgments and links to the people and projects being credited. The QuantumMPV name and logo identify this repository; they do not replace or claim ownership of upstream projects.
+QuantumMPV is an independent continuation and rebrand of the mpvRx codebase, maintained by **FAHIM**. This page preserves QuantumMPV's acknowledgments and links to the people and projects being credited. The QuantumMPV name and logo identify this repository; they do not replace or claim ownership of upstream projects.
+
+## Maintainer
+
+FAHIM
+
+## Maintainer
+
+FAHIM
 
 ## Citing QuantumMPV
 

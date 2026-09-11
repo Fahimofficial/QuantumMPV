@@ -73,7 +73,7 @@
 
         <meta-data
             android:name="com.google.android.gms.cast.framework.OPTIONS_PROVIDER_CLASS_NAME"
-            android:value="app.gyrolet.mpvrx.ui.cast.QuantumMPVCastOptionsProvider" />
+            android:value="com.quantummpv.app.ui.cast.QuantumMPVCastOptionsProvider" />
 
         <receiver
             android:name="androidx.mediarouter.media.MediaTransferReceiver"

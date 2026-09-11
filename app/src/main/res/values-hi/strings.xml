@@ -1337,13 +1337,13 @@
   <string name="ui_pan_zoom">पैन और ज़ूम</string>
   <string name="ui_decrease_zoom">ज़ूम घटाएं</string>
   <string name="ui_increase_zoom">ज़ूम बढ़ाएं</string>
-  <string name="ui_by_ritesh_pandit">Ritesh Pandit द्वारा</string>
+  <string name="ui_by_fahim">FAHIM द्वारा</string>
   <string name="ui_github">GitHub</string>
   <string name="ui_device_info">डिवाइस जानकारी</string>
   <string name="ui_buy_me_a_coffee">मुझे कॉफ़ी पिलाएँ</string>
   <string name="ui_if_you_enjoy_mpvrx_consider_supporting_its_development_every_bit">अगर आपको QuantumMPV पसंद है, तो इसके डेवलपमेंट को सपोर्ट करने पर विचार करें। हर छोटी मदद मायने रखती है!</string>
-  <string name="ui_upi_id">UPI ID</string>
-  <string name="ui_panditritesh2001_okhdfcbank">panditritesh2001@okhdfcbank</string>
+  <string name="ui_upi_id">Support contact</string>
+  <string name="ui_fahim_support_contact">FAHIM</string>
   <string name="ui_send_love">प्यार भेजें</string>
   <string name="ui_auto_check_for_updates">अपडेट के लिए ऑटो जांच करें</string>
   <string name="ui_check_on_startup">शुरू होने पर जांचें</string>

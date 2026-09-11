@@ -1403,13 +1403,13 @@
   <string name="ui_pan_zoom">平移与缩放</string>
   <string name="ui_decrease_zoom">缩小</string>
   <string name="ui_increase_zoom">放大</string>
-  <string name="ui_by_ritesh_pandit">作者：Ritesh Pandit</string>
+  <string name="ui_by_fahim">作者：FAHIM</string>
   <string name="ui_github">GitHub</string>
   <string name="ui_device_info">设备信息</string>
   <string name="ui_buy_me_a_coffee">请我喝咖啡</string>
   <string name="ui_if_you_enjoy_mpvrx_consider_supporting_its_development_every_bit">如果您喜欢 QuantumMPV，请考虑支持其开发。每一份支持都有帮助！</string>
-  <string name="ui_upi_id">UPI ID</string>
-  <string name="ui_panditritesh2001_okhdfcbank">panditritesh2001@okhdfcbank</string>
+  <string name="ui_upi_id">Support contact</string>
+  <string name="ui_fahim_support_contact">FAHIM</string>
   <string name="ui_send_love">送出支持</string>
   <string name="ui_auto_check_for_updates">自动检查更新</string>
   <string name="ui_check_on_startup">启动时检查</string>

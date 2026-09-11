@@ -1401,13 +1401,13 @@ Reinicia la aplicación para que se apliquen todos los cambios.</string>
   <string name="ui_pan_zoom">Desplazar y ampliar</string>
   <string name="ui_decrease_zoom">Reducir zoom</string>
   <string name="ui_increase_zoom">Aumentar zoom</string>
-  <string name="ui_by_ritesh_pandit">Por Ritesh Pandit</string>
+  <string name="ui_by_fahim">Por FAHIM</string>
   <string name="ui_github">GitHub</string>
   <string name="ui_device_info">Información del dispositivo</string>
   <string name="ui_buy_me_a_coffee">Invítame a un café</string>
   <string name="ui_if_you_enjoy_mpvrx_consider_supporting_its_development_every_bit">Si disfrutas QuantumMPV, considera apoyar su desarrollo. ¡Cada aporte ayuda!</string>
   <string name="ui_upi_id">ID de UPI</string>
-  <string name="ui_panditritesh2001_okhdfcbank">panditritesh2001@okhdfcbank</string>
+  <string name="ui_fahim_support_contact">FAHIM</string>
   <string name="ui_send_love">Enviar cariño</string>
   <string name="ui_auto_check_for_updates">Buscar actualizaciones automáticamente</string>
   <string name="ui_check_on_startup">Comprobar al iniciar</string>

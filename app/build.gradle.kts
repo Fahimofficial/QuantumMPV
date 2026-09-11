@@ -37,12 +37,12 @@ plugins {
 }
 
 android {
-  namespace = "app.gyrolet.mpvrx"
+  namespace = "com.quantummpv.app"
   compileSdk = 37
   ndkVersion = "27.3.13750724"
 
   defaultConfig {
-    applicationId = "app.gyrolet.mpvrx"
+    applicationId = "com.quantummpv.app"
     minSdk = 26
     targetSdk = 36
     // Stable occupies the top of its version band. Preview uses the next band's commit-count
@@ -281,9 +281,11 @@ dependencies {
   implementation(libs.okhttp)
   implementation(libs.jsoup)
   implementation(libs.androidx.media3.common)
+  implementation(libs.androidx.media3.exoplayer)
   implementation(libs.androidx.media3.effect)
   implementation(libs.androidx.media3.transformer)
   testImplementation(libs.junit)
+  implementation(libs.androidx.media3.ui)
   implementation(platform(libs.sora.editor.bom))
   implementation(libs.sora.editor)
   implementation(libs.sora.language.textmate)
@@ -296,6 +298,9 @@ dependencies {
   implementation(libs.mediainfo.lib)
   implementation(libs.androidx.profileinstaller)
   implementation(libs.google.cast.framework)
+
+  testImplementation(libs.kotlin.test)
+  testImplementation(libs.junit)
 
   "standardImplementation"(files("libs/mpvlib.aar"))
   "noVulkanImplementation"(files("libs/mpvlib-no-vulkun.aar"))
