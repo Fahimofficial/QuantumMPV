@@ -11,20 +11,21 @@ VERSION_RE = re.compile(r"^(?P<prefix>\s*versionName\s*=\s*\").*?(?P<suffix>\"\s
 CODE_RE = re.compile(r"^(?P<prefix>\s*val releaseVersionCode\s*=\s*)\d+(?P<suffix>\s*)$", re.MULTILINE)
 SEMVER_RE = re.compile(r"^(\d+)\.(\d+)\.(\d+)$")
 
-# Keep the decimal encoding monotonic while leaving ample room under Android's
-# maximum versionCode. Each component gets a fixed-width slot.
-MINOR_PATCH_RADIX = 1_000
-MAJOR_RADIX = 1_000_000
-MAX_ANDROID_VERSION_CODE = 2_147_483_647
+# The Gradle build reserves a 10,000-code band for each stable release code.
+# Fixed-width decimal slots keep semantic versions numerically ordered without
+# allowing a later patch/minor release to produce a smaller Android versionCode.
+MINOR_PATCH_RADIX = 100
+MAJOR_RADIX = 10_000
+MAX_RELEASE_CODE = 214_747
 
 
 def encode_version_code(major: int, minor: int, patch: int) -> int:
-    if major >= MAJOR_RADIX or minor >= MINOR_PATCH_RADIX or patch >= MINOR_PATCH_RADIX:
+    if minor >= MINOR_PATCH_RADIX or patch >= MINOR_PATCH_RADIX:
         raise SystemExit(
-            f"version components must each be below {MINOR_PATCH_RADIX}; Android versionCode would overflow",
+            f"minor and patch components must each be below {MINOR_PATCH_RADIX}",
         )
     release_code = major * MAJOR_RADIX + minor * MINOR_PATCH_RADIX + patch
-    if release_code >= MAX_ANDROID_VERSION_CODE // 10_000:
+    if release_code > MAX_RELEASE_CODE:
         raise SystemExit("semantic version is too large for the Android versionCode encoding")
     return release_code
 
