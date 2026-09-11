@@ -7,6 +7,8 @@
  * (at your option) any later version.
  */
 
+@file:Suppress("LocalContextGetResourceValueCall")
+
 package com.quantummpv.app.ui.browser.dialogs
 
 import android.widget.Toast
