@@ -103,7 +103,7 @@ private enum class AppLanguage(
   ;
 
   fun displayName(context: android.content.Context): String {
-    if (this == SystemDefault) return context.getString(R.string.pref_app_language_system_default)
+    if (this == SystemDefault) return stringResource(R.string.pref_app_language_system_default)
     val locale = Locale.forLanguageTag(languageTag)
     return locale.getDisplayName(locale)
   }
@@ -171,9 +171,9 @@ object AdvancedPreferencesScreen : Screen {
                 Toast
                   .makeText(
                     context,
-                    context.getString(
+                    stringResource(
                       R.string.pref_export_failed,
-                      error.message ?: context.getString(R.string.generic_unknown_error),
+                      error.message ?: stringResource(R.string.generic_unknown_error),
                     ),
                     Toast.LENGTH_LONG,
                   ).show()
@@ -199,9 +199,9 @@ object AdvancedPreferencesScreen : Screen {
                 Toast
                   .makeText(
                     context,
-                    context.getString(
+                    stringResource(
                       R.string.pref_import_failed,
-                      error.message ?: context.getString(R.string.generic_unknown_error),
+                      error.message ?: stringResource(R.string.generic_unknown_error),
                     ),
                     Toast.LENGTH_LONG,
                   ).show()
@@ -923,7 +923,7 @@ object AdvancedPreferencesScreen : Screen {
                         Toast
                           .makeText(
                             context,
-                            context.getString(R.string.pref_config_cache_cleared_toast),
+                            stringResource(R.string.pref_config_cache_cleared_toast),
                             Toast.LENGTH_SHORT,
                           ).show()
                       }
@@ -932,9 +932,9 @@ object AdvancedPreferencesScreen : Screen {
                         Toast
                           .makeText(
                             context,
-                            context.getString(
+                            stringResource(
                               R.string.pref_failed_to_clear,
-                              error.message ?: context.getString(R.string.generic_unknown_error),
+                              error.message ?: stringResource(R.string.generic_unknown_error),
                             ),
                             Toast.LENGTH_LONG,
                           ).show()
@@ -981,7 +981,7 @@ object AdvancedPreferencesScreen : Screen {
                           Toast
                             .makeText(
                               context,
-                              context.getString(R.string.pref_thumbnail_cache_cleared),
+                              stringResource(R.string.pref_thumbnail_cache_cleared),
                               Toast.LENGTH_SHORT,
                             ).show()
                         }
@@ -991,9 +991,9 @@ object AdvancedPreferencesScreen : Screen {
                           Toast
                             .makeText(
                               context,
-                              context.getString(
+                              stringResource(
                                 R.string.pref_failed_to_clear,
-                                error.message ?: context.getString(R.string.generic_unknown_error),
+                                error.message ?: stringResource(R.string.generic_unknown_error),
                               ),
                               Toast.LENGTH_LONG,
                             ).show()
@@ -1040,9 +1040,9 @@ object AdvancedPreferencesScreen : Screen {
                         Toast
                           .makeText(
                             context,
-                            context.getString(
+                            stringResource(
                               R.string.pref_failed_to_clear,
-                              error.message ?: context.getString(R.string.generic_unknown_error),
+                              error.message ?: stringResource(R.string.generic_unknown_error),
                             ),
                             Toast.LENGTH_LONG,
                           ).show()

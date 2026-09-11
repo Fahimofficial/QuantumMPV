@@ -424,7 +424,7 @@ object DecoderPreferencesScreen : Screen {
                           value = anime4kQuality,
                           onValueChange = { preferences.anime4kQuality.set(it) },
                           values = Anime4KManager.Quality.entries,
-                          valueToText = { AnnotatedString(context.getString(it.titleRes)) },
+                          valueToText = { AnnotatedString(stringResource(it.titleRes)) },
                           title = { Text(stringResource(R.string.pref_anime4k_quality_title)) },
                           summary = {
                             Text(

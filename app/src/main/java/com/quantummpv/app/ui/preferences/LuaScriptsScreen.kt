@@ -97,7 +97,7 @@ object LuaScriptsScreen : Screen {
         Toast
           .makeText(
             context,
-            context.getString(com.quantummpv.app.R.string.ui_no_storage_location_configured),
+            stringResource(com.quantummpv.app.R.string.ui_no_storage_location_configured),
             Toast.LENGTH_SHORT,
           ).show()
         return
@@ -144,7 +144,7 @@ object LuaScriptsScreen : Screen {
             Toast
               .makeText(
                 context,
-                context.getString(com.quantummpv.app.R.string.ui_script_file_not_found),
+                stringResource(com.quantummpv.app.R.string.ui_script_file_not_found),
                 Toast.LENGTH_SHORT,
               ).show()
           }
@@ -153,9 +153,9 @@ object LuaScriptsScreen : Screen {
         Toast
           .makeText(
             context,
-            context.getString(
+            stringResource(
               R.string.toast_error_sharing_script,
-              error.message ?: context.getString(R.string.generic_unknown_error),
+              error.message ?: stringResource(R.string.generic_unknown_error),
             ),
             Toast.LENGTH_LONG,
           ).show()

@@ -164,16 +164,16 @@ object CustomButtonScreen : Screen {
             Toast
               .makeText(
                 context,
-                context.getString(com.quantummpv.app.R.string.ui_buttons_exported_successfully),
+                stringResource(com.quantummpv.app.R.string.ui_buttons_exported_successfully),
                 Toast.LENGTH_SHORT,
               ).show()
           }.onFailure { e ->
             Toast
               .makeText(
                 context,
-                context.getString(
+                stringResource(
                   R.string.pref_export_failed_toast,
-                  e.message ?: context.getString(R.string.generic_unknown_error),
+                  e.message ?: stringResource(R.string.generic_unknown_error),
                 ),
                 Toast.LENGTH_LONG,
               ).show()
@@ -204,9 +204,9 @@ object CustomButtonScreen : Screen {
             Toast
               .makeText(
                 context,
-                context.getString(
+                stringResource(
                   R.string.toast_failed_to_read_file,
-                  e.message ?: context.getString(R.string.generic_unknown_error),
+                  e.message ?: stringResource(R.string.generic_unknown_error),
                 ),
                 Toast.LENGTH_LONG,
               ).show()
@@ -468,7 +468,7 @@ object CustomButtonScreen : Screen {
           Toast
             .makeText(
               context,
-              context.getString(R.string.toast_imported_buttons, selectedImportSlots.size),
+              stringResource(R.string.toast_imported_buttons, selectedImportSlots.size),
               Toast.LENGTH_SHORT,
             ).show()
           showImportDialog = false

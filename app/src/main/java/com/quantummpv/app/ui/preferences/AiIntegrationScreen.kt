@@ -1269,9 +1269,9 @@ val apiKeyInfo =
               Toast
                 .makeText(
                   context,
-                  context.getString(
+                  stringResource(
                     R.string.toast_failed_to_load_models,
-                    error.message ?: context.getString(R.string.generic_unknown_error),
+                    error.message ?: stringResource(R.string.generic_unknown_error),
                   ),
                   Toast.LENGTH_SHORT,
                 ).show()

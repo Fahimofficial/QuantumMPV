@@ -68,6 +68,7 @@ import com.quantummpv.app.ui.utils.LocalBackStack
 import com.quantummpv.app.ui.utils.popSafely
 import com.quantummpv.app.utils.clipboard.SafeClipboard
 import kotlinx.serialization.Serializable
+import androidx.compose.ui.res.stringResource
 
 @Serializable
 data class MpvHelpScreen(
@@ -131,7 +132,7 @@ data class MpvHelpScreen(
           HelpEntryKind.JS_API -> entry.signature.substringBefore("(") + "()"
         }
       SafeClipboard.copyPlainText(context, "mpv_help", text, showToast = false)
-      Toast.makeText(context, context.getString(R.string.toast_copied_value, text), Toast.LENGTH_SHORT).show()
+      Toast.makeText(context, stringResource(R.string.toast_copied_value, text), Toast.LENGTH_SHORT).show()
     }
 
     LaunchedEffect(Unit) {

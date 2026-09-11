@@ -524,7 +524,7 @@ object RecentlyPlayedScreen : Screen {
                       Toast
                         .makeText(
                           context,
-                          context.getString(com.quantummpv.app.R.string.ui_recent_file_no_longer_exists),
+                          stringResource(com.quantummpv.app.R.string.ui_recent_file_no_longer_exists),
                           Toast.LENGTH_SHORT,
                         ).show()
                     }

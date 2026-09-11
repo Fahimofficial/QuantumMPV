@@ -430,13 +430,13 @@ object FolderListScreen : Screen {
             .onSuccess { batch ->
               val message =
                 if (batch.failedIds.isEmpty()) {
-                  context.getString(R.string.secure_folder_moved_success, batch.succeededIds.size)
+                  stringResource(R.string.secure_folder_moved_success, batch.succeededIds.size)
                 } else {
-                  context.getString(R.string.secure_folder_moved_partial, batch.succeededIds.size, batch.failedIds.size)
+                  stringResource(R.string.secure_folder_moved_partial, batch.succeededIds.size, batch.failedIds.size)
                 }
               Toast.makeText(context, message, Toast.LENGTH_SHORT).show()
             }.onFailure {
-              Toast.makeText(context, context.getString(R.string.secure_folder_move_failed), Toast.LENGTH_SHORT).show()
+              Toast.makeText(context, stringResource(R.string.secure_folder_move_failed), Toast.LENGTH_SHORT).show()
             }
         }
         moveToSecureProgressOpen.value = false
@@ -1129,7 +1129,7 @@ object FolderListScreen : Screen {
                 android.widget.Toast
                   .makeText(
                     context,
-                    context.getString(com.quantummpv.app.R.string.ui_rename_failed),
+                    stringResource(com.quantummpv.app.R.string.ui_rename_failed),
                     android.widget.Toast.LENGTH_SHORT,
                   ).show()
               }
@@ -1167,14 +1167,14 @@ object FolderListScreen : Screen {
                 android.widget.Toast
                   .makeText(
                     context,
-                    context.getString(com.quantummpv.app.R.string.ui_deleted_successfully),
+                    stringResource(com.quantummpv.app.R.string.ui_deleted_successfully),
                     android.widget.Toast.LENGTH_SHORT,
                   ).show()
               } else if (failed > 0) {
                 android.widget.Toast
                   .makeText(
                     context,
-                    context.getString(com.quantummpv.app.R.string.ui_failed_to_delete),
+                    stringResource(com.quantummpv.app.R.string.ui_failed_to_delete),
                     android.widget.Toast.LENGTH_SHORT,
                   ).show()
               }
@@ -1182,9 +1182,9 @@ object FolderListScreen : Screen {
               android.widget.Toast
                 .makeText(
                   context,
-                  context.getString(
+                  stringResource(
                     R.string.toast_failed_to_delete_reason,
-                    it.message ?: context.getString(R.string.generic_unknown_error),
+                    it.message ?: stringResource(R.string.generic_unknown_error),
                   ),
                   android.widget.Toast.LENGTH_SHORT,
                 ).show()

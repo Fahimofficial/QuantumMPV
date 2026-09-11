@@ -254,13 +254,13 @@ fun MediaLibraryContent(forceAudio: Boolean = false) {
         .onSuccess { batch ->
           val message =
             if (batch.failedIds.isEmpty()) {
-              context.getString(R.string.secure_folder_moved_success, batch.succeededIds.size)
+              stringResource(R.string.secure_folder_moved_success, batch.succeededIds.size)
             } else {
-              context.getString(R.string.secure_folder_moved_partial, batch.succeededIds.size, batch.failedIds.size)
+              stringResource(R.string.secure_folder_moved_partial, batch.succeededIds.size, batch.failedIds.size)
             }
           Toast.makeText(context, message, Toast.LENGTH_SHORT).show()
         }.onFailure {
-          Toast.makeText(context, context.getString(R.string.secure_folder_move_failed), Toast.LENGTH_SHORT).show()
+          Toast.makeText(context, stringResource(R.string.secure_folder_move_failed), Toast.LENGTH_SHORT).show()
         }
     }
   }
