@@ -16,7 +16,7 @@ import kotlin.system.exitProcess
 class GlobalExceptionHandler(
   private val context: Context,
   private val activity: Class<*>,
-  private val previousHandler: Thread.UncaughtExceptionHandler?,
+  private val previousHandler: Thread.UncaughtExceptionHandler? = Thread.getDefaultUncaughtExceptionHandler(),
 ) : Thread.UncaughtExceptionHandler {
   override fun uncaughtException(
     t: Thread,
