@@ -1,0 +1,56 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="theme-color" content="#09090b">
+  <meta name="description" content="QuantumMPV is a feature-rich Android video player powered by libmpv. No ads. No trackers. No noise.">
+  <title>QuantumMPV | Android Video Player</title>
+  <style>
+    :root{color-scheme:dark;--bg:#09090b;--panel:#111114;--text:#f5f5f5;--muted:#a1a1aa;--line:#27272a;--accent:#8b5cf6}
+    *{box-sizing:border-box}html{scroll-behavior:smooth}body{margin:0;background:radial-gradient(circle at 50% -10%,#21163b 0,#09090b 42%);color:var(--text);font:16px/1.6 system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}
+    a{color:inherit;text-decoration:none}.wrap{width:min(1080px,92%);margin:auto}.hero{text-align:center;padding:72px 0 56px}.logo{width:112px;height:112px;object-fit:contain;margin-bottom:20px}.eyebrow{color:#c4b5fd;font-weight:700;letter-spacing:.12em;text-transform:uppercase;font-size:.78rem}.hero h1{font-size:clamp(2.8rem,8vw,5.4rem);line-height:1;margin:12px 0 18px;letter-spacing:-.06em}.hero p{max-width:700px;margin:0 auto;color:var(--muted);font-size:1.12rem}.actions{display:flex;gap:12px;justify-content:center;flex-wrap:wrap;margin:30px 0}.btn{display:inline-block;padding:12px 20px;border:1px solid var(--line);border-radius:12px;background:#18181b;font-weight:700}.btn.primary{background:var(--accent);border-color:var(--accent);color:white}.badges{display:flex;gap:8px;justify-content:center;flex-wrap:wrap}.badge{border:1px solid var(--line);border-radius:999px;padding:5px 11px;color:#d4d4d8;font-size:.85rem;background:#111114}.section{padding:54px 0}.section h2{text-align:center;font-size:2rem;margin:0 0 28px}.showcase{width:100%;border:1px solid var(--line);border-radius:18px;display:block;background:#111}.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:14px}.card{background:rgba(17,17,20,.8);border:1px solid var(--line);border-radius:16px;padding:22px}.card h3{margin:0 0 8px;font-size:1.05rem}.card p{margin:0;color:var(--muted);font-size:.94rem}.footer{border-top:1px solid var(--line);padding:28px 0 44px;color:var(--muted);text-align:center;font-size:.9rem}.footer a{color:#c4b5fd}
+    @media(max-width:600px){.hero{padding-top:48px}.logo{width:92px;height:92px}.section{padding:38px 0}.hero p{font-size:1rem}}
+  </style>
+</head>
+<body>
+  <header class="hero wrap">
+    <img class="logo" src="docs/quantummpv-logo.svg" alt="QuantumMPV logo">
+    <div class="eyebrow">Android · libmpv</div>
+    <h1>QuantumMPV</h1>
+    <p>Feature-rich, efficient and powerful Android video player. No ads. No trackers. No noise. Just a serious video player.</p>
+    <div class="actions">
+      <a class="btn primary" href="https://github.com/Fahimofficial/QuantumMPV/releases">Download</a>
+      <a class="btn" href="https://github.com/Fahimofficial/QuantumMPV">View on GitHub</a>
+    </div>
+    <div class="badges"><span class="badge">Android</span><span class="badge">libmpv</span><span class="badge">AGPL-3.0</span><span class="badge">Open Source</span></div>
+  </header>
+
+  <main class="wrap">
+    <section class="section">
+      <h2>Built for serious playback</h2>
+      <img class="showcase" src="fastlane/metadata/android/en-US/images/phoneScreenshots/player.png" alt="QuantumMPV player interface" loading="lazy">
+    </section>
+
+    <section class="section">
+      <h2>What it brings</h2>
+      <div class="grid">
+        <article class="card"><h3>🎨 Deep customization</h3><p>25+ themes, AMOLED variants, Material 3 UI and configurable player controls.</p></article>
+        <article class="card"><h3>🖐️ Powerful gestures</h3><p>Tap seeking, swipe seeking, dynamic speed, subtitle controls, zoom and volume boost.</p></article>
+        <article class="card"><h3>📺 HDR & shaders</h3><p>Advanced HDR pipelines, GPU debanding, smart render backend selection and shader support.</p></article>
+        <article class="card"><h3>🔥 Thermal aware</h3><p>Adaptive shader budgets and playback optimizations designed to reduce unnecessary device load.</p></article>
+        <article class="card"><h3>📝 Subtitle tools</h3><p>Flexible subtitle controls with hashing and OpenSubtitles-compatible support.</p></article>
+        <article class="card"><h3>⚡ Hybrid playback</h3><p>Native Android Media3 integration alongside the libmpv playback engine.</p></article>
+      </div>
+    </section>
+
+    <section class="section" style="text-align:center">
+      <h2>Open source. Yours to inspect.</h2>
+      <p style="color:var(--muted);max-width:680px;margin:0 auto 24px">Read the code, follow development, report bugs and grab the latest builds from GitHub.</p>
+      <div class="actions"><a class="btn primary" href="https://github.com/Fahimofficial/QuantumMPV/releases">Latest releases</a><a class="btn" href="https://github.com/Fahimofficial/QuantumMPV/issues">Report an issue</a></div>
+    </section>
+  </main>
+
+  <footer class="footer">QuantumMPV · Open-source Android video player · <a href="https://github.com/Fahimofficial/QuantumMPV">GitHub</a></footer>
+</body>
+</html>
