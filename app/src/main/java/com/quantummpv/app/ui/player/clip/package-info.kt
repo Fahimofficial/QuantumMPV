@@ -1,4 +1,5 @@
-@OptIn(UnstableApi::class)
+@file:OptIn(UnstableApi::class)
+
 package com.quantummpv.app.ui.player.clip
 
 import androidx.annotation.OptIn
