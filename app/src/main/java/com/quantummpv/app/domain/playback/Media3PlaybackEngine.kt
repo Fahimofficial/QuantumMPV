@@ -12,6 +12,7 @@ import androidx.media3.common.MediaMetadata
 import androidx.media3.common.PlaybackException
 import androidx.media3.common.Player
 import androidx.media3.common.util.UnstableApi
+import androidx.media3.datasource.DefaultHttpDataSource
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.exoplayer.source.DefaultMediaSourceFactory
 import androidx.media3.ui.PlayerView
@@ -28,9 +29,15 @@ class Media3PlaybackEngine(
 ) : PlaybackEngine {
   override val type: PlaybackEngineType = PlaybackEngineType.MEDIA3
 
+  private val appContext = context.applicationContext
   private val player: ExoPlayer =
-    ExoPlayer.Builder(context.applicationContext)
-      .setMediaSourceFactory(DefaultMediaSourceFactory(context.applicationContext))
+    ExoPlayer.Builder(appContext)
+      .setMediaSourceFactory(
+        DefaultMediaSourceFactory(
+          DefaultHttpDataSource.Factory()
+            .setAllowCrossProtocolRedirects(true),
+        ),
+      )
       .build()
 
   private var playerView: PlayerView? = null
@@ -61,7 +68,9 @@ class Media3PlaybackEngine(
     playerView =
       PlayerView(container.context).apply {
         player = this@Media3PlaybackEngine.player
-        useController = false
+        useController = true
+        controllerShowTimeoutMs = 3_000
+        controllerAutoShow = true
         layoutParams =
           ViewGroup.LayoutParams(
             ViewGroup.LayoutParams.MATCH_PARENT,
