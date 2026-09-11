@@ -1,5 +1,7 @@
 name: QuantumMPV Android
 
+# Fresh verification run baseline.
+
 on:
   push:
     branches:
@@ -134,19 +136,13 @@ jobs:
         run: |
           set -euo pipefail
           case "$SELECTED_FLAVOR" in
-            standard|dual|all)
-              ./gradlew assembleStandardRelease --stacktrace --no-daemon --max-workers=1
-              ;;
+            standard|dual|all) ./gradlew assembleStandardRelease --stacktrace --no-daemon --max-workers=1 ;;
           esac
           case "$SELECTED_FLAVOR" in
-            fongmi|dual|all)
-              ./gradlew assembleFongmiRelease --stacktrace --no-daemon --max-workers=1
-              ;;
+            fongmi|dual|all) ./gradlew assembleFongmiRelease --stacktrace --no-daemon --max-workers=1 ;;
           esac
           case "$SELECTED_FLAVOR" in
-            no_vulkan|all)
-              ./gradlew assembleNoVulkanRelease --stacktrace --no-daemon --max-workers=1
-              ;;
+            no_vulkan|all) ./gradlew assembleNoVulkanRelease --stacktrace --no-daemon --max-workers=1 ;;
           esac
 
       - name: Sign APKs when signing secrets are available
@@ -161,44 +157,26 @@ jobs:
             echo "Signing keystore exists but required signing secrets are incomplete."
             exit 1
           fi
-
           build_tools="$(find "$ANDROID_HOME/build-tools" -mindepth 1 -maxdepth 1 -type d -printf '%f\n' | sort -V | tail -1)"
           apksigner="$ANDROID_HOME/build-tools/$build_tools/apksigner"
           test -x "$apksigner"
-
           printf '%s' "${{ secrets.SIGNING_KEYSTORE }}" | base64 --decode > release.keystore
           trap 'rm -f release.keystore' EXIT
-
           sign_apk() {
-            local unsigned="$1"
-            local signed="$2"
-            if [[ ! -f "$unsigned" ]]; then
-              echo "Missing expected APK: $unsigned"
-              find app/build/outputs/apk -type f -name '*.apk' -print || true
-              exit 1
-            fi
-            "$apksigner" sign \
-              --ks release.keystore \
-              --ks-key-alias "${{ secrets.SIGNING_KEY_ALIAS }}" \
-              --ks-pass "pass:${{ secrets.SIGNING_STORE_PASSWORD }}" \
-              --key-pass "pass:${{ secrets.KEY_PASSWORD }}" \
-              --out "$signed" "$unsigned"
+            local unsigned="$1" signed="$2"
+            [[ -f "$unsigned" ]] || { echo "Missing expected APK: $unsigned"; find app/build/outputs/apk -type f -name '*.apk' -print || true; exit 1; }
+            "$apksigner" sign --ks release.keystore --ks-key-alias "${{ secrets.SIGNING_KEY_ALIAS }}" --ks-pass "pass:${{ secrets.SIGNING_STORE_PASSWORD }}" --key-pass "pass:${{ secrets.KEY_PASSWORD }}" --out "$signed" "$unsigned"
             "$apksigner" verify --verbose "$signed"
             rm -f "$unsigned"
           }
-
           if [[ "$SELECTED_FLAVOR" == "standard" || "$SELECTED_FLAVOR" == "dual" || "$SELECTED_FLAVOR" == "all" ]]; then
             dir="app/build/outputs/apk/standard/release"
-            for abi in universal arm64-v8a armeabi-v7a x86 x86_64; do
-              sign_apk "$dir/app-standard-${abi}-release-unsigned.apk" "$dir/app-standard-${abi}-release.apk"
-            done
+            for abi in universal arm64-v8a armeabi-v7a x86 x86_64; do sign_apk "$dir/app-standard-${abi}-release-unsigned.apk" "$dir/app-standard-${abi}-release.apk"; done
           fi
-
           if [[ "$SELECTED_FLAVOR" == "fongmi" || "$SELECTED_FLAVOR" == "dual" || "$SELECTED_FLAVOR" == "all" ]]; then
             dir="app/build/outputs/apk/fongmi/release"
             sign_apk "$dir/app-fongmi-universal-release-unsigned.apk" "$dir/app-fongmi-universal-release.apk"
           fi
-
           if [[ "$SELECTED_FLAVOR" == "no_vulkan" || "$SELECTED_FLAVOR" == "all" ]]; then
             dir="app/build/outputs/apk/noVulkan/release"
             sign_apk "$dir/app-noVulkan-universal-release-unsigned.apk" "$dir/app-noVulkan-universal-release.apk"
@@ -211,19 +189,10 @@ jobs:
           found=0
           if [[ "$SELECTED_FLAVOR" == "standard" || "$SELECTED_FLAVOR" == "dual" || "$SELECTED_FLAVOR" == "all" ]]; then
             dir="app/build/outputs/apk/standard/release"
-            for abi in universal arm64-v8a armeabi-v7a x86 x86_64; do
-              compgen -G "$dir/app-standard-${abi}-release*.apk" >/dev/null || { echo "Missing standard $abi APK"; exit 1; }
-              found=1
-            done
+            for abi in universal arm64-v8a armeabi-v7a x86 x86_64; do compgen -G "$dir/app-standard-${abi}-release*.apk" >/dev/null || { echo "Missing standard $abi APK"; exit 1; }; found=1; done
           fi
-          if [[ "$SELECTED_FLAVOR" == "fongmi" || "$SELECTED_FLAVOR" == "dual" || "$SELECTED_FLAVOR" == "all" ]]; then
-            compgen -G "app/build/outputs/apk/fongmi/release/app-fongmi-universal-release*.apk" >/dev/null || { echo "Missing Fongmi APK"; exit 1; }
-            found=1
-          fi
-          if [[ "$SELECTED_FLAVOR" == "no_vulkan" || "$SELECTED_FLAVOR" == "all" ]]; then
-            compgen -G "app/build/outputs/apk/noVulkan/release/app-noVulkan-universal-release*.apk" >/dev/null || { echo "Missing non-Vulkan APK"; exit 1; }
-            found=1
-          fi
+          if [[ "$SELECTED_FLAVOR" == "fongmi" || "$SELECTED_FLAVOR" == "dual" || "$SELECTED_FLAVOR" == "all" ]]; then compgen -G "app/build/outputs/apk/fongmi/release/app-fongmi-universal-release*.apk" >/dev/null || { echo "Missing Fongmi APK"; exit 1; }; found=1; fi
+          if [[ "$SELECTED_FLAVOR" == "no_vulkan" || "$SELECTED_FLAVOR" == "all" ]]; then compgen -G "app/build/outputs/apk/noVulkan/release/app-noVulkan-universal-release*.apk" >/dev/null || { echo "Missing non-Vulkan APK"; exit 1; }; found=1; fi
           test "$found" -eq 1
 
       - name: Upload release APK bundle
@@ -256,7 +225,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          shopt -s nullglob
+          shopt -s nullglob globstar
           assets=(release-assets/**/*.apk release-assets/*.apk)
           test "${#assets[@]}" -gt 0
           gh release upload "${{ github.event.release.tag_name }}" "${assets[@]}" --clobber
