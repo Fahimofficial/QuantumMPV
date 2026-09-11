@@ -191,7 +191,8 @@ class CrashActivity : AppCompatActivity() {
       }
 
       withContext(NonCancellable) {
-        val file = File(activity.cacheDir, "mpvrx_logs.txt")
+        val exportDirectory = File(activity.cacheDir, "crash_logs").apply { mkdirs() }
+        val file = File(exportDirectory, "mpvrx_logs.txt")
         if (file.exists()) file.delete()
         file.createNewFile()
         file.appendText(concatLogs(deviceInfo, exceptionString, logcat))
