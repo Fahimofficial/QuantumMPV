@@ -11,6 +11,7 @@ import androidx.media3.common.MediaItem
 import androidx.media3.common.MediaMetadata
 import androidx.media3.common.PlaybackException
 import androidx.media3.common.Player
+import androidx.media3.common.util.UnstableApi
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.exoplayer.source.DefaultMediaSourceFactory
 import androidx.media3.ui.PlayerView
@@ -21,6 +22,7 @@ import androidx.media3.ui.PlayerView
  * This engine is intentionally independent of PlayerActivity. It owns an ExoPlayer instance and
  * can be mounted into a supplied container when a caller decides Media3 should handle playback.
  */
+@OptIn(UnstableApi::class)
 class Media3PlaybackEngine(
   context: Context,
 ) : PlaybackEngine {
@@ -46,7 +48,7 @@ class Media3PlaybackEngine(
   }
 
   override val isInitialized: Boolean
-    get() = !prepared || player.playbackState != Player.STATE_IDLE
+    get() = prepared && player.playbackState != Player.STATE_IDLE
 
   override fun attach(container: ViewGroup) {
     val existing = playerView
