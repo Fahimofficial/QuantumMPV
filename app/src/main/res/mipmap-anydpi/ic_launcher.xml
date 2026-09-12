@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
 <layer-list xmlns:android="http://schemas.android.com/apk/res/android">
     <item android:drawable="@color/ic_launcher_background" />
-    <item android:drawable="@drawable/quantummpv_logo_vector" />
+    <item android:drawable="@drawable/quantummpv_logo" />
 </layer-list>
