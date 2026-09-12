@@ -512,6 +512,22 @@
     .download-card:hover { border-color: rgba(168, 85, 247, .55); box-shadow: 0 14px 42px rgba(168, 85, 247, .14); }
     .download-link { border-radius: 999px; background: rgba(168, 85, 247, .16); color: var(--violet-deep); }
     footer { border-top-color: var(--line); color: var(--ink-soft); }
+    .developer-section { margin: 72px 0 84px; }
+    .developer-section > h2 { margin: 0 0 10px; font-size: clamp(30px, 5vw, 44px); letter-spacing: -.06em; }
+    .developer-intro { max-width: 650px; margin: 0 0 24px; color: var(--ink-soft); font-size: 17px; }
+    .developer-card { display: grid; grid-template-columns: 132px 1fr; gap: 26px; align-items: center; padding: 28px; border: 1px solid var(--line); border-radius: 26px; background: linear-gradient(135deg, rgba(35, 19, 52, .9), rgba(15, 10, 23, .82)); box-shadow: 0 18px 55px rgba(0, 0, 0, .24); }
+    .developer-avatar { width: 124px; height: 124px; padding: 4px; border-radius: 50%; background: conic-gradient(from 0deg, #22d3ee, #a855f7, #ec4899, #22d3ee); box-shadow: 0 0 28px rgba(168, 85, 247, .42); }
+    .developer-avatar img { display: block; width: 100%; height: 100%; border-radius: 50%; object-fit: cover; background: #130b20; }
+    .developer-card h3 { margin: 0; font-size: 30px; letter-spacing: -.05em; }
+    .developer-role { margin: 2px 0 9px; color: var(--violet-deep); font-weight: 800; }
+    .developer-card p { margin: 0; color: var(--ink-soft); }
+    .social-links { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 18px; }
+    .social-link { display: inline-flex; align-items: center; min-height: 40px; padding: 0 14px; border: 1px solid var(--line); border-radius: 999px; background: rgba(8, 5, 18, .5); font-size: 13px; font-weight: 800; text-decoration: none; transition: transform 180ms ease, border-color 180ms ease, box-shadow 180ms ease; }
+    .social-link:hover { transform: translateY(-2px); border-color: rgba(168, 85, 247, .65); box-shadow: 0 8px 24px rgba(168, 85, 247, .16); }
+    .closing-cta { padding: 20px 0 72px; text-align: center; }
+    .closing-cta h2 { margin: 0 0 8px; font-size: clamp(28px, 5vw, 42px); letter-spacing: -.06em; }
+    .closing-cta p { margin: 0 auto 20px; max-width: 600px; color: var(--ink-soft); }
+    @media (max-width: 640px) { .developer-card { grid-template-columns: 1fr; text-align: center; } .developer-avatar { margin: 0 auto; } .social-links { justify-content: center; } }
   </style>
 </head>
 
@@ -671,10 +687,34 @@
       </div>
     </main>
 
+    <section class="developer-section" aria-labelledby="developer-heading">
+      <h2 id="developer-heading">The developer</h2>
+      <p class="developer-intro">Built and maintained independently by FAHIM, with a focus on playback quality, customization, performance, and a clean open-source experience.</p>
+      <div class="developer-card">
+        <div class="developer-avatar"><img src="https://github.com/Fahimofficial.png" alt="FAHIM, developer of QuantumMPV" width="124" height="124" loading="lazy"></div>
+        <div>
+          <h3>FAHIM</h3>
+          <div class="developer-role">Developer · QuantumMPV</div>
+          <p>Found a problem, have an idea, or want to follow the project? Pick the right door.</p>
+          <div class="social-links" aria-label="FAHIM social links">
+            <a class="social-link" href="https://github.com/Fahimofficial" target="_blank" rel="me noopener noreferrer">GitHub ↗</a>
+            <a class="social-link" href="https://instagram.com/SimplyFahimofficial" target="_blank" rel="me noopener noreferrer">Instagram · @SimplyFahimofficial ↗</a>
+            <a class="social-link" href="mailto:SimplyFahim@astermail.com">Mail · SimplyFahim@astermail.com</a>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="closing-cta" aria-labelledby="open-source-heading">
+      <h2 id="open-source-heading">Open source. Yours to inspect.</h2>
+      <p>Read the code, follow development, report bugs, or grab the latest build directly from GitHub.</p>
+      <a class="button primary" href="https://github.com/Fahimofficial/QuantumMPV" target="_blank" rel="noreferrer">Open the repository ↗</a>
+    </section>
+
     <footer>
       <div class="footer-row">
-        <span><strong>QuantumMPV</strong> · Feature-rich Android media player powered by libmpv.</span>
-        <span>AGPL-3.0 · No ads · No trackers</span>
+        <span><strong>QuantumMPV</strong> · Feature-rich Android media player powered by libmpv · Developed by <a href="https://github.com/Fahimofficial" target="_blank" rel="me noopener noreferrer">FAHIM</a>.</span>
+        <span><a href="https://instagram.com/SimplyFahimofficial" target="_blank" rel="me noopener noreferrer">Instagram</a> · <a href="mailto:SimplyFahim@astermail.com">Mail</a> · AGPL-3.0 · No ads · No trackers</span>
       </div>
     </footer>
   </div>
