@@ -427,8 +427,8 @@ object AboutScreen : Screen {
                     .clickable {
                       SafeClipboard.copyPlainText(
                         context = context,
-                        label = "mpvrx_upi_id",
-                        text = "FAHIM",
+                        label = "quantummpv_upi_id",
+                        text = "simplyfahim@axl",
                         showToast = false,
                       )
                       Toast
@@ -478,7 +478,7 @@ object AboutScreen : Screen {
                   val upiIntent =
                     Intent(
                       Intent.ACTION_VIEW,
-                      "https://github.com/Fahimofficial/QuantumMPV".toUri(),
+                      "upi://pay?pa=simplyfahim@axl&pn=FAHIM&cu=INR".toUri(),
                     )
                   context.startActivity(upiIntent)
                 } catch (_: Exception) {

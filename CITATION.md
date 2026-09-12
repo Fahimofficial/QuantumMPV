@@ -6,10 +6,6 @@ QuantumMPV is an independent continuation and rebrand of the mpvRx codebase, mai
 
 FAHIM
 
-## Maintainer
-
-FAHIM
-
 ## Citing QuantumMPV
 
 When mentioning, reviewing, or building on QuantumMPV, link to the [project repository](https://github.com/Fahimofficial/QuantumMPV). Include the release tag or commit you used so others can identify the same version.
@@ -56,6 +52,29 @@ The groups below organize the existing credits by project type; they are not an 
 | Gramophone | [FoedusProgramme/Gramophone](https://github.com/FoedusProgramme/Gramophone) |
 | AFinity | [MakD/AFinity](https://github.com/MakD/AFinity) |
 | Chora | [CraftWorksMC/Chora](https://github.com/CraftWorksMC/Chora) |
+
+### Android and application foundations
+
+| Project | Role | Source |
+|---|---|---|
+| Android Jetpack / AndroidX | Android lifecycle, activity, storage, Media3, Room, biometric, profile installer, and core platform integrations | [AndroidX](https://developer.android.com/jetpack/androidx) |
+| Jetpack Compose | Declarative UI and Material 3 interface components | [Compose](https://developer.android.com/jetpack/compose) |
+| Kotlin Coroutines | Structured concurrency and asynchronous work | [kotlinx.coroutines](https://github.com/Kotlin/kotlinx.coroutines) |
+| Koin | Dependency injection | [Koin](https://insert-koin.io/) |
+| Coil | Image loading and caching | [Coil](https://github.com/coil-kt/coil) |
+| Accompanist | Supplementary Compose integrations | [Accompanist](https://github.com/google/accompanist) |
+
+### Media, network, and utility libraries
+
+| Project | Role | Source |
+|---|---|---|
+| yt-dlp | Website media extraction and download support | [yt-dlp](https://github.com/yt-dlp/yt-dlp) |
+| FFmpeg | Media probing and video compression workflows | [FFmpeg](https://ffmpeg.org/) |
+| MediaInfo | Detailed container, video, audio, subtitle, and image metadata | [MediaInfo](https://mediaarea.net/MediaInfo) |
+| OkHttp | HTTP networking and streaming support | [OkHttp](https://github.com/square/okhttp) |
+| JSch | SFTP connectivity | [mwiede/jsch](https://github.com/mwiede/jsch) |
+| Google Cast | Cast discovery and remote playback controls | [Cast SDK](https://developers.google.com/cast) |
+| Material Symbols | Interface iconography | [Material Symbols](https://github.com/google/material-design-icons) |
 
 ### Video processing & streaming
 
