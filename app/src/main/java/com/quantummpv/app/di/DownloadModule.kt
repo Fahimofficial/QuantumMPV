@@ -20,6 +20,6 @@ val DownloadModule =
   module {
     single { DownloadLocations(androidContext(), get()) }
     single { AppDownloadManager(androidContext(), get<com.quantummpv.app.database.MpvRxDatabase>().downloadItemDao(), get()) }
-    single { YtdlpDownloadEngine(androidContext(), get()) }
+    single { YtdlpDownloadEngine(androidContext(), get(), get()) }
     single { LinkDownloadCoordinator(get(), get()) }
   }

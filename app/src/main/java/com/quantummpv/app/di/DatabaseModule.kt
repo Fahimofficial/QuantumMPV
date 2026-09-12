@@ -826,6 +826,27 @@ val MIGRATION_19_21 =
     }
   }
 
+val MIGRATION_21_22 =
+  object : Migration(21, 22) {
+    override fun migrate(db: SupportSQLiteDatabase) {
+      db.execSQL(
+        "CREATE TABLE IF NOT EXISTS `ytdlp_download_jobs` (" +
+          "`id` INTEGER NOT NULL, " +
+          "`url` TEXT NOT NULL, " +
+          "`title` TEXT NOT NULL, " +
+          "`directory` TEXT NOT NULL, " +
+          "`state` TEXT NOT NULL, " +
+          "`progressPercent` REAL NOT NULL, " +
+          "`detail` TEXT NOT NULL, " +
+          "`error` TEXT, " +
+          "`outputFile` TEXT, " +
+          "`createdAt` INTEGER NOT NULL, " +
+          "`updatedAt` INTEGER NOT NULL, " +
+          "PRIMARY KEY(`id`)" +
+          ")",
+      )
+    }
+  }
 val DatabaseModule =
   module {
     single<Json> {
@@ -862,6 +883,7 @@ val DatabaseModule =
           MIGRATION_19_20,
           MIGRATION_20_21,
           MIGRATION_19_21,
+          MIGRATION_21_22,
         ).build()
     }
 

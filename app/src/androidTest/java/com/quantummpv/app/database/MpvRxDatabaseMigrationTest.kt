@@ -7,6 +7,7 @@ import androidx.test.platform.app.InstrumentationRegistry
 import com.quantummpv.app.di.MIGRATION_19_20
 import com.quantummpv.app.di.MIGRATION_19_21
 import com.quantummpv.app.di.MIGRATION_20_21
+import com.quantummpv.app.di.MIGRATION_21_22
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Rule
@@ -42,6 +43,22 @@ class MpvRxDatabaseMigrationTest {
   }
 
   @Test
+  fun migration21To22CreatesDurableYtdlpQueueTable() {
+    val database = helper.createDatabase(TEST_DATABASE_YTDLP, 21)
+    MIGRATION_21_22.migrate(database)
+    database.execSQL(
+      "INSERT INTO ytdlp_download_jobs (id, url, title, directory, state, progressPercent, detail, createdAt, updatedAt) " +
+        "VALUES (7, 'https://example.com/video', 'Example', '/downloads', 'QUEUED', 0.0, '', 1, 1)",
+    )
+    database.query("SELECT state, url FROM ytdlp_download_jobs WHERE id = 7").use { cursor ->
+      assertTrue(cursor.moveToFirst())
+      assertEquals("QUEUED", cursor.getString(cursor.getColumnIndexOrThrow("state")))
+      assertEquals("https://example.com/video", cursor.getString(cursor.getColumnIndexOrThrow("url")))
+    }
+    database.close()
+  }
+
+  @Test
   fun sequentialMigrationCreatesNavidromeDefaultsAndPreservesCredentials() {
     val database = helper.createDatabase(TEST_DATABASE_DEFAULTS, 19)
     MIGRATION_19_20.migrate(database)
@@ -69,5 +86,6 @@ class MpvRxDatabaseMigrationTest {
     private const val TEST_DATABASE = "migration-sequential.db"
     private const val TEST_DATABASE_DIRECT = "migration-direct.db"
     private const val TEST_DATABASE_DEFAULTS = "migration-defaults.db"
+    private const val TEST_DATABASE_YTDLP = "migration-ytdlp.db"
   }
 }

@@ -11,10 +11,16 @@ package com.quantummpv.app.domain.download
 
 import android.content.Context
 import android.util.Log
+import com.quantummpv.app.database.dao.YtdlpDownloadJobDao
+import com.quantummpv.app.database.entities.YtdlpDownloadJobEntity
 import com.quantummpv.app.network.AndroidCookieJar
 import com.quantummpv.app.preferences.YtdlPreferences
 import com.quantummpv.app.ui.player.ytdlp.YtdlpManager
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -35,6 +41,7 @@ import java.util.concurrent.atomic.AtomicInteger
 class YtdlpDownloadEngine(
   private val context: Context,
   private val preferences: YtdlPreferences,
+  private val jobDao: YtdlpDownloadJobDao,
 ) {
   enum class JobState { QUEUED, RUNNING, SUCCESS, FAILED, CANCELLED }
 
@@ -55,6 +62,21 @@ class YtdlpDownloadEngine(
   private val nextId = AtomicInteger(1)
   private val _jobs = MutableStateFlow<List<Job>>(emptyList())
   val jobs: StateFlow<List<Job>> = _jobs.asStateFlow()
+  private val persistenceScope = CoroutineScope(SupervisorJob() + Dispatchers.IO.limitedParallelism(1))
+  private val ready = CompletableDeferred<Unit>()
+
+  init {
+    persistenceScope.launch {
+      runCatching {
+        jobDao.requeueInterrupted()
+        val restored = jobDao.getAll().map(::fromEntity)
+        val current = _jobs.value
+        _jobs.value = (restored + current).distinctBy { it.id }
+        _jobs.value.maxOfOrNull { it.id }?.let { nextId.set(it + 1) }
+      }.onFailure { error -> Log.e(TAG, "Failed to restore yt-dlp download queue", error) }
+      ready.complete(Unit)
+    }
+  }
 
   @Volatile
   private var activeProcess: Process? = null
@@ -72,9 +94,9 @@ class YtdlpDownloadEngine(
   ): Int {
     val id = nextId.getAndIncrement()
     if (!directory.exists()) directory.mkdirs()
-    _jobs.update { current ->
-      current + Job(id = id, url = url, title = title, directory = directory.absolutePath)
-    }
+    val job = Job(id = id, url = url, title = title, directory = directory.absolutePath)
+    _jobs.update { current -> current + job }
+    persistenceScope.launch { jobDao.upsert(toEntity(job)) }
     YtdlpDownloadService.start(context)
     return id
   }
@@ -85,6 +107,7 @@ class YtdlpDownloadEngine(
         if (job.id == id && job.state == JobState.QUEUED) job.copy(state = JobState.CANCELLED) else job
       }
     }
+    currentJob(id)?.let { job -> persistenceScope.launch { jobDao.upsert(toEntity(job)) } }
     if (activeJobId == id) {
       cancelRequested = true
       activeProcess?.destroyForcibly()
@@ -101,6 +124,7 @@ class YtdlpDownloadEngine(
         }
       }
     }
+    currentJob(id)?.let { job -> persistenceScope.launch { jobDao.upsert(toEntity(job)) } }
     YtdlpDownloadService.start(context)
   }
 
@@ -108,14 +132,17 @@ class YtdlpDownloadEngine(
     val job = _jobs.value.firstOrNull { it.id == id } ?: return
     if (job.isActive) cancel(id)
     _jobs.update { current -> current.filterNot { it.id == id } }
+    persistenceScope.launch { jobDao.delete(id) }
   }
 
   fun hasQueuedWork(): Boolean = _jobs.value.any { it.state == JobState.QUEUED }
 
   /** Runs queued jobs sequentially until the queue drains. Called from the service. */
   suspend fun drainQueue(onJobUpdate: (Job) -> Unit) {
+    ready.await()
     while (true) {
       val job = _jobs.value.firstOrNull { it.state == JobState.QUEUED } ?: return
+      if (jobDao.claimQueued(job.id) == 0) continue
       updateJob(job.id) { it.copy(state = JobState.RUNNING) }
       currentJob(job.id)?.let(onJobUpdate)
       runJob(job.id, onJobUpdate)
@@ -278,7 +305,34 @@ class YtdlpDownloadEngine(
     transform: (Job) -> Job,
   ) {
     _jobs.update { current -> current.map { if (it.id == id) transform(it) else it } }
+    currentJob(id)?.let { job -> persistenceScope.launch { jobDao.upsert(toEntity(job)) } }
   }
+
+  private fun toEntity(job: Job): YtdlpDownloadJobEntity =
+    YtdlpDownloadJobEntity(
+      id = job.id,
+      url = job.url,
+      title = job.title,
+      directory = job.directory,
+      state = job.state.name,
+      progressPercent = job.progressPercent,
+      detail = job.detail,
+      error = job.error,
+      outputFile = job.outputFile,
+    )
+
+  private fun fromEntity(entity: YtdlpDownloadJobEntity): Job =
+    Job(
+      id = entity.id,
+      url = entity.url,
+      title = entity.title,
+      directory = entity.directory,
+      state = runCatching { JobState.valueOf(entity.state) }.getOrDefault(JobState.FAILED),
+      progressPercent = entity.progressPercent,
+      detail = entity.detail,
+      error = entity.error,
+      outputFile = entity.outputFile,
+    )
 
   companion object {
     private const val TAG = "YtdlpDownloadEngine"
