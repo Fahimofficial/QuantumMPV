@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<lint>
+    <!--
+        Localized resources intentionally fall back to the base locale while translations
+        are being completed. Keep these checks visible as warnings instead of failing CI.
+    -->
+    <issue id="MissingTranslation" severity="warning" />
+    <issue id="MissingQuantity" severity="warning" />
+
+    <!-- MainScreen intentionally owns its own edge-to-edge navigation/inset layout. -->
+    <issue id="UnusedMaterial3ScaffoldPaddingParameter" severity="warning" />
+</lint>
