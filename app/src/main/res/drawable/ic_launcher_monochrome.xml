@@ -11,7 +11,9 @@
         android:translateY="11.88">
         <path
             android:fillColor="#FFFFFFFF"
-            android:fillType="evenOdd"
-            android:pathData="M54,13A41,41 0,1 0,81.5 84.5L91,94L85.5,99.5L76,90A41,41 0,1 0,54 95A41,41 0,0 0,54 13M54,21A33,33 0,1 1,54 87A33,33 0,0 1,54 21M45,38L45,70L71,54Z" />
+            android:pathData="M32,27 L60,27 C69.9,27 78,35.1 78,45 C78,54.9 69.9,63 60,63 L48,63 L48,81 L40,81 L40,55 L60,55 C65.5,55 70,50.5 70,45 C70,39.5 65.5,35 60,35 L32,35 Z" />
+        <path
+            android:fillColor="#FFFFFFFF"
+            android:pathData="M60,44 L76,54 L60,64 Z" />
     </group>
 </vector>

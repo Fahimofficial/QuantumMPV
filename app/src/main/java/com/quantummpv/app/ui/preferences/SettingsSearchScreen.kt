@@ -366,7 +366,7 @@ object SettingsSearchScreen : Screen {
                     currentHistory.remove(currentQuery)
                     currentHistory.add(0, currentQuery)
                     if (currentHistory.size > 10) {
-                      currentHistory.removeLast()
+                      currentHistory.removeAt(currentHistory.lastIndex)
                     }
                     searchHistoryPref.set(currentHistory.joinToString("|"))
                   }

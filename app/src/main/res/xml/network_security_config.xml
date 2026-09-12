@@ -1,13 +1,17 @@
 <?xml version="1.0" encoding="utf-8"?>
 <network-security-config>
-    <!-- Allow cleartext (HTTP) traffic for all domains -->
-    <!-- This is necessary for WebDAV, FTP, SMB, and other network protocols that may use HTTP -->
-    <base-config cleartextTrafficPermitted="true">
+    <!-- Release defaults to encrypted traffic. Protocol-specific components may opt into
+         cleartext only where the protocol genuinely requires it. -->
+    <base-config cleartextTrafficPermitted="false">
         <trust-anchors>
-            <!-- Trust system certificates -->
             <certificates src="system" />
-            <!-- Trust user-added certificates (for corporate/self-signed certs) -->
-            <certificates src="user" />
         </trust-anchors>
     </base-config>
+
+    <!-- Developer-installed CAs are available only to debug builds. -->
+    <debug-overrides>
+        <trust-anchors>
+            <certificates src="user" />
+        </trust-anchors>
+    </debug-overrides>
 </network-security-config>

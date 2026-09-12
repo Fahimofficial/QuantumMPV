@@ -431,6 +431,7 @@
 
                 <data android:scheme="http" />
                 <data android:scheme="https" />
+                <data android:host="*" />
                 <data android:pathPattern=".*\\.torrent" />
                 <data android:pathPattern=".*\\..*\\.torrent" />
             </intent-filter>
@@ -548,4 +549,3 @@
         </provider>
     </application>
 </manifest>
-

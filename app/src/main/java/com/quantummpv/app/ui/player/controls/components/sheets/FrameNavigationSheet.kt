@@ -126,7 +126,8 @@ fun FrameNavigationSheet(
 
   // Use the same logic as PlayerControls for pause state
   val paused by PlaybackSession.propBoolean["pause"].collectAsState()
-  val isPaused = paused ?: PlaybackSession.state.value.paused
+  val playbackState by PlaybackSession.state.collectAsState()
+  val isPaused = paused ?: playbackState.paused
 
   // Remember the initial pause state when the sheet opens
   val wasPausedInitially = remember { isPaused }

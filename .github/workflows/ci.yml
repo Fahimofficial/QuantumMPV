@@ -41,24 +41,47 @@ jobs:
           cache: gradle
 
       - name: Set up Android SDK
-        uses: android-actions/setup-android@v3
+        uses: android-actions/setup-android@v4
 
       - name: Install Android build toolchain
         run: |
           yes | sdkmanager --licenses >/dev/null || true
-          sdkmanager --install "platforms;android-36" "build-tools;35.0.0" "cmake;3.22.1" "ndk;27.3.13750724"
+          sdkmanager --install "platforms;android-37.0" "build-tools;37.0.0" "cmake;3.22.1" "ndk;27.3.13750724"
 
       - name: Make Gradle wrapper executable
         run: chmod +x ./gradlew
 
       - name: Validate Gradle wrapper
-        uses: gradle/actions/wrapper-validation@v4
+        uses: gradle/actions/wrapper-validation@v6
 
-      - name: Run lint, unit tests, and debug build
-        run: ./gradlew :app:lintStandardDebug :app:testStandardDebugUnitTest assembleDebug --stacktrace --no-daemon --max-workers=1
+      - name: Run debug lint, unit tests, and debug build
+        id: debug-validation
+        shell: bash
+        run: |
+          set +e
+          ./gradlew :app:lintStandardDebug :app:testStandardDebugUnitTest assembleDebug --stacktrace --no-daemon --max-workers=1
+          status=$?
+          echo "Gradle validation exited with status $status"
+          exit "$status"
+
+      - name: Upload debug lint reports
+        if: ${{ always() }}
+        uses: actions/upload-artifact@v7
+        with:
+          name: quantummpv-debug-lint-reports-${{ github.sha }}
+          path: |
+            app/build/reports/lint-results-standardDebug.html
+            app/build/reports/lint-results-standardDebug.sarif
+            app/build/intermediates/lint_intermediate_text_report/standardDebug/lintReportStandardDebug/lint-results-standardDebug.txt
+          if-no-files-found: warn
+          retention-days: 7
+          compression-level: 6
+
+      - name: Run release lint
+        run: ./gradlew :app:lintStandardRelease --stacktrace --no-daemon --max-workers=1
 
       - name: Upload debug APK
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: quantummpv-debug-apk-${{ github.sha }}
           path: app/build/outputs/apk/standard/debug/*.apk
