@@ -331,7 +331,7 @@ object MainScreen : Screen {
     // Scaffold with bottom navigation bar
     Scaffold(
       modifier = Modifier.fillMaxSize(),
-    ) { paddingValues ->
+    ) { _ ->
       Box(modifier = Modifier.fillMaxSize()) {
         if (visibleTabs.isEmpty()) {
           CompositionLocalProvider(
