@@ -89,7 +89,8 @@
             android:configChanges="keyboard|keyboardHidden|navigation|orientation|screenLayout|uiMode|screenSize|smallestScreenSize"
             android:resizeableActivity="true"
             android:supportsPictureInPicture="true"
-            android:theme="@style/Theme.QuantumMPV">
+            android:theme="@style/Theme.QuantumMPV"
+            android:label="@string/app_name">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
 
@@ -102,7 +103,8 @@
             android:targetActivity=".MainActivity"
             android:banner="@drawable/tv_banner"
             android:exported="true"
-            android:icon="@mipmap/ic_launcher">
+            android:icon="@mipmap/ic_launcher"
+            android:label="@string/app_name">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LEANBACK_LAUNCHER" />
@@ -122,7 +124,8 @@
             android:documentLaunchMode="never"
             android:resizeableActivity="true"
             android:supportsPictureInPicture="true"
-            android:theme="@style/Theme.QuantumMPV.Player">
+            android:theme="@style/Theme.QuantumMPV.Player"
+            android:label="@string/app_name">
             <!-- MIME-only discovery lets external-player pickers find QuantumMPV before they
                  attach the final stream URI. URI playback remains constrained below. -->
             <intent-filter>
@@ -296,7 +299,8 @@
             android:name=".ui.player.WebStreamLinksActivityAlias"
             android:targetActivity=".ui.player.PlayerActivity"
             android:exported="true"
-            android:enabled="true">
+            android:enabled="true"
+            android:label="@string/app_name">
             <!-- various URL intent filters for popular youtube-dl extractors -->
             <intent-filter>
                 <action android:name="android.intent.action.VIEW" />
@@ -398,7 +402,8 @@
             android:name=".ui.torrent.TorrentSelectionActivity"
             android:exported="true"
             android:grantUriPermissions="true"
-            android:theme="@style/Theme.QuantumMPV">
+            android:theme="@style/Theme.QuantumMPV"
+            android:label="@string/app_name">
             <intent-filter>
                 <action android:name="android.intent.action.VIEW" />
                 <category android:name="android.intent.category.DEFAULT" />
