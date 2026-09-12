@@ -40,7 +40,6 @@
 <div align="center">
   <img src="fastlane/metadata/android/en-US/images/phoneScreenshots/videoscreen.png" width="31%">
   <img src="fastlane/metadata/android/en-US/images/phoneScreenshots/pip.png" width="31%">
-  <img src="fastlane/metadata/android/en-US/images/phoneScreenshots/about.jpg" width="31%">
 </div>
 
 <br>
