@@ -459,6 +459,59 @@
       html { scroll-behavior: auto; }
       *, *::before, *::after { animation-duration: .01ms !important; animation-iteration-count: 1 !important; transition-duration: .01ms !important; }
     }
+
+    /* Shared QuantumMPV product language: the release dashboard and homepage
+       should feel like one product, not two unrelated destinations. */
+    :root {
+      --paper: #080512;
+      --paper-raised: rgba(20, 14, 32, .72);
+      --ink: #f8f7ff;
+      --ink-soft: #aaa5bb;
+      --violet: #a855f7;
+      --violet-deep: #d8b4fe;
+      --violet-soft: rgba(168, 85, 247, .16);
+      --acid: #22d3ee;
+      --line: rgba(190, 150, 255, .18);
+      --shadow: 0 22px 60px rgba(0, 0, 0, .24);
+    }
+    body {
+      background:
+        radial-gradient(ellipse 55% 40% at 0% 0%, rgba(124, 58, 237, .28), transparent 72%),
+        radial-gradient(ellipse 50% 45% at 100% 72%, rgba(236, 72, 153, .18), transparent 68%),
+        var(--paper);
+      color: var(--ink);
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    }
+    h1, h2, h3 { font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
+    .topbar { border-bottom-color: var(--line); }
+    .brand-mark { border-radius: 16px; background: #130b20; box-shadow: 0 0 24px rgba(168, 85, 247, .28); }
+    .brand-name { letter-spacing: -.05em; }
+    .brand-name small { color: var(--violet-deep); }
+    .navlink, .tabs, .stat-card, .notes, .prev-item, .choice-guide, .provenance {
+      border-color: var(--line); background: var(--paper-raised); box-shadow: 0 14px 45px rgba(0, 0, 0, .14);
+    }
+    .navlink:hover { border-color: rgba(168, 85, 247, .6); }
+    .hero-head { padding-top: clamp(64px, 10vw, 104px); }
+    .kicker { color: var(--violet-deep); }
+    .live-dot { background: #22c55e; box-shadow: 0 0 0 6px rgba(34, 197, 94, .12), 0 0 14px rgba(34, 197, 94, .5); }
+    h1 { font-size: clamp(54px, 9vw, 104px); line-height: .9; letter-spacing: -.08em; text-shadow: 0 0 36px rgba(168, 85, 247, .2); }
+    h1 em { color: var(--violet-deep); }
+    .lead { max-width: 700px; font-size: clamp(16px, 2vw, 19px); }
+    .tabs { border-radius: 999px; padding: 5px; }
+    .tab-btn { border-radius: 999px; }
+    .tab-btn[aria-selected="true"] { background: linear-gradient(110deg, #6d28d9, #a855f7 55%, #ec4899); }
+    .ticket { border-radius: 24px; background: linear-gradient(135deg, #160d25, #0f0b16 62%); box-shadow: 0 20px 70px rgba(0, 0, 0, .32), 0 0 0 1px rgba(190, 150, 255, .16); }
+    .ticket::after { color: rgba(168, 85, 247, .2); }
+    .ticket-meta div { border-color: rgba(190, 150, 255, .14); background: rgba(8, 5, 18, .6); border-radius: 12px; }
+    .button { border-radius: 999px; border-color: var(--line); }
+    .button:hover { box-shadow: 0 10px 30px rgba(168, 85, 247, .18); }
+    .button.primary { border-color: rgba(255, 255, 255, .24); background: linear-gradient(110deg, #6d28d9, #a855f7 42%, #ec4899); }
+    .block { border-top-color: var(--line); }
+    .section-index { color: var(--violet-deep); }
+    .download-card { border-color: var(--line); border-radius: 20px; background: var(--paper-raised); }
+    .download-card:hover { border-color: rgba(168, 85, 247, .55); box-shadow: 0 14px 42px rgba(168, 85, 247, .14); }
+    .download-link { border-radius: 999px; background: rgba(168, 85, 247, .16); color: var(--violet-deep); }
+    footer { border-top-color: var(--line); color: var(--ink-soft); }
   </style>
 </head>
 
@@ -477,9 +530,9 @@
 
     <main>
       <section class="hero-head">
-        <div class="kicker reveal delay-1"><span class="live-dot" aria-hidden="true"></span>Live from GitHub</div>
-        <h1 class="reveal delay-2">Every build,<br><em>right here.</em></h1>
-        <p class="lead reveal delay-3">Preview and stable APKs for QuantumMPV — signed, checksummed, and published straight from GitHub Actions and Releases.</p>
+        <div class="kicker reveal delay-1"><span class="live-dot" aria-hidden="true"></span>Android · libmpv · Open Source</div>
+        <h1 class="reveal delay-2">Quantum<em>MPV</em></h1>
+        <p class="lead reveal delay-3">A powerful Android media player built around libmpv. No ads. No trackers. No noise. Just serious playback.</p>
 
         <div class="tabs reveal delay-3" role="tablist" aria-label="Release channel">
           <button class="tab-btn" id="tab-btn-preview" role="tab" type="button" aria-selected="false" aria-controls="panel-preview">Preview build</button>
