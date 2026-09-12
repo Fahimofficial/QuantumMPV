@@ -1,21 +1,11 @@
-# yt-dlp Download Persistence Design
+# yt-dlp Download Persistence Audit
 
-## Current risk
+The current QuantumMPV source contains `YtdlpDownloadEngine` and `YtdlpDownloadService`. The engine keeps `Job` objects in an in-memory `MutableStateFlow`, assigns IDs from an in-memory counter, and the service returns `START_NOT_STICKY`. Consequently, queued, running, and completed yt-dlp jobs can be lost when the Android process is killed. This is a real reliability gap.
 
-`YtdlpDownloadEngine` keeps its queue in an in-memory `StateFlow`, and `YtdlpDownloadService` returns `START_NOT_STICKY`. Android process death can therefore discard queued or active jobs without a durable record.
+## Recommended implementation
 
-## Proposed model
+Introduce a dedicated Room `YtdlpDownloadJobEntity` and DAO rather than reusing `DownloadItemEntity`. Persist `sourceUrl`, title, destination directory, state, progress, detail, output path, error, and timestamps. Keep cookies and credentials out of the database. Change enqueue/retry/cancel/update operations to update the repository, use an atomic compare-and-set claim for the next queued job, and reload persisted jobs when the engine is constructed. On startup, recover jobs left in `RUNNING` according to an explicit policy, normally returning them to `QUEUED` if their partial output can safely be resumed or marking them `FAILED` otherwise. Change the foreground service to redeliver the start intent only after the queue is repository-backed and idempotent.
 
-Introduce a dedicated Room `YtdlpDownloadJobEntity` rather than overloading `DownloadItemEntity`, because yt-dlp jobs have subprocess-specific state, command arguments, output discovery, and retry semantics. Suggested fields are `id`, `sourceUrl`, `title`, `directory`, `requestedFormat`, `status`, `progressPercent`, `detail`, `outputPath`, `failureReason`, `createdAt`, `updatedAt`, `startedAt`, `finishedAt`, and a cancellation marker. Persist only non-sensitive metadata; cookies and credentials must remain in the existing protected/runtime paths.
+## Current status
 
-The engine should become a worker over the repository: claim one queued job, transition it to `RUNNING`, update progress transactionally, and finish it as `COMPLETED`, `FAILED`, or `CANCELLED`. On startup, jobs left in `RUNNING` should be moved to `QUEUED` or `FAILED` according to an explicit recovery policy. The foreground service should drain the repository rather than an in-memory list and should use `START_REDELIVER_INTENT` only after idempotent job claiming is implemented.
-
-## Required implementation sequence
-
-1. Add the entity, DAO, schema migration, and migration tests.
-2. Add repository transitions with compare-and-set semantics so two workers cannot claim the same job.
-3. Adapt `YtdlpDownloadEngine` behind the repository while preserving its current subprocess and output-discovery logic.
-4. Recover interrupted jobs on application/service startup.
-5. Add process-death, retry, cancellation, and duplicate-claim instrumentation tests.
-
-This document is intentionally design-only. No yt-dlp runtime behavior is changed by this stabilization batch.
+This batch does not implement the Room-backed yt-dlp queue because it requires a new schema version, engine API changes, process-recovery behavior, and dedicated tests. The migration and CI improvements are implemented separately. The next focused batch should implement this design end-to-end rather than introducing a partial persistence layer that could duplicate or lose downloads.

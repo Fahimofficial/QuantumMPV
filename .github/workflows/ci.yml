@@ -73,9 +73,8 @@ jobs:
         with:
           name: quantummpv-debug-lint-reports-${{ github.sha }}
           path: |
-            app/build/reports/lint-results-standardDebug.html
-            app/build/reports/lint-results-standardDebug.sarif
-            app/build/intermediates/lint_intermediate_text_report/standardDebug/lintReportStandardDebug/lint-results-standardDebug.txt
+            app/build/reports/**
+            app/build/intermediates/lint_intermediate_text_report/**
           if-no-files-found: warn
           retention-days: 7
           compression-level: 6

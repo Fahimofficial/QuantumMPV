@@ -7,6 +7,8 @@ import androidx.test.platform.app.InstrumentationRegistry
 import com.quantummpv.app.di.MIGRATION_19_20
 import com.quantummpv.app.di.MIGRATION_19_21
 import com.quantummpv.app.di.MIGRATION_20_21
+import org.junit.Assert.assertEquals
+import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -39,8 +41,33 @@ class MpvRxDatabaseMigrationTest {
     helper.runMigrationsAndValidate(TEST_DATABASE_DIRECT, 21, true, MIGRATION_19_21)
   }
 
+  @Test
+  fun sequentialMigrationCreatesNavidromeDefaultsAndPreservesCredentials() {
+    val database = helper.createDatabase(TEST_DATABASE_DEFAULTS, 19)
+    MIGRATION_19_20.migrate(database)
+    database.execSQL(
+      "INSERT INTO navidrome_servers (name, serverUrl, username, password, lastConnected) " +
+        "VALUES ('Legacy', 'https://music.example', 'alice', 'secret', 123)",
+    )
+    MIGRATION_20_21.migrate(database)
+
+    database.query(
+      "SELECT token, authMode, username, password, lastConnected " +
+        "FROM navidrome_servers WHERE name = 'Legacy'",
+    ).use { cursor ->
+      assertTrue(cursor.moveToFirst())
+      assertEquals("", cursor.getString(cursor.getColumnIndexOrThrow("token")))
+      assertEquals("CREDENTIALS", cursor.getString(cursor.getColumnIndexOrThrow("authMode")))
+      assertEquals("alice", cursor.getString(cursor.getColumnIndexOrThrow("username")))
+      assertEquals("secret", cursor.getString(cursor.getColumnIndexOrThrow("password")))
+      assertEquals(123L, cursor.getLong(cursor.getColumnIndexOrThrow("lastConnected")))
+    }
+    database.close()
+  }
+
   companion object {
     private const val TEST_DATABASE = "migration-sequential.db"
     private const val TEST_DATABASE_DIRECT = "migration-direct.db"
+    private const val TEST_DATABASE_DEFAULTS = "migration-defaults.db"
   }
 }
