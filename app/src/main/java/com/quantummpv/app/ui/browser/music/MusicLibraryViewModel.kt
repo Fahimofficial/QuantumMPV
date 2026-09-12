@@ -7,6 +7,7 @@ package com.quantummpv.app.ui.browser.music
 import android.content.Context
 import android.content.Intent
 import android.net.Uri
+import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.quantummpv.app.database.entities.PlaylistEntity
@@ -39,6 +40,9 @@ import com.quantummpv.app.utils.media.MediaLibraryEvents
 import kotlinx.coroutines.flow.collectLatest
 
 class MusicLibraryViewModel : ViewModel(), KoinComponent {
+  private companion object {
+    const val TAG = "MusicLibraryViewModel"
+  }
 
   private val context: Context by inject()
   private val playlistRepository: PlaylistRepository by inject()
@@ -197,7 +201,7 @@ class MusicLibraryViewModel : ViewModel(), KoinComponent {
     } catch (e: CancellationException) {
       throw e
     } catch (e: Exception) {
-      e.printStackTrace()
+      Log.e(TAG, "Failed to refresh music library", e)
     } finally {
       _isLoading.value = false
     }

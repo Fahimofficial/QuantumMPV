@@ -47,6 +47,9 @@ jobs:
         run: |
           yes | sdkmanager --licenses >/dev/null || true
           sdkmanager --install "platforms;android-37.0" "build-tools;37.0.0" "cmake;3.22.1" "ndk;27.3.13750724"
+          test -x "$ANDROID_HOME/build-tools/37.0.0/apksigner"
+          test -d "$ANDROID_HOME/platforms/android-37"
+          test -d "$ANDROID_HOME/ndk/27.3.13750724"
 
       - name: Make Gradle wrapper executable
         run: chmod +x ./gradlew
@@ -59,7 +62,7 @@ jobs:
         shell: bash
         run: |
           set +e
-          ./gradlew :app:lintStandardDebug :app:testStandardDebugUnitTest assembleDebug --stacktrace --no-daemon --max-workers=1
+          ./gradlew :app:lintStandardDebug :app:testStandardDebugUnitTest :app:assembleStandardDebugAndroidTest assembleDebug --stacktrace --no-daemon --max-workers=1
           status=$?
           echo "Gradle validation exited with status $status"
           exit "$status"

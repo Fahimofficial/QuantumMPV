@@ -89,7 +89,6 @@ fun PlayerButtonChip(
               text =
                 androidx.compose.ui.res
                   .stringResource(com.quantummpv.app.R.string.ui_video_title),
-              // TODO: strings
               fontSize = 15.sp, // Increased font size
               textAlign = TextAlign.Center,
               lineHeight = 14.sp,
@@ -109,7 +108,6 @@ fun PlayerButtonChip(
                 text =
                   androidx.compose.ui.res
                     .stringResource(com.quantummpv.app.R.string.ui_1_06_chapter_1),
-                // TODO: strings
                 fontSize = 15.sp,
                 textAlign = TextAlign.Center,
                 lineHeight = 14.sp,

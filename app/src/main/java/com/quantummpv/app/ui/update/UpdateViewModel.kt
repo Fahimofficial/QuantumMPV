@@ -11,6 +11,7 @@ package com.quantummpv.app.ui.update
 
 import android.app.Application
 import android.content.Context
+import android.util.Log
 import android.content.Intent
 import androidx.core.content.FileProvider
 import androidx.lifecycle.AndroidViewModel
@@ -30,6 +31,9 @@ import kotlinx.coroutines.launch
 class UpdateViewModel(
   application: Application,
 ) : AndroidViewModel(application) {
+  private companion object {
+    const val TAG = "UpdateViewModel"
+  }
   private val updateManager = UpdateManager(application)
 
   private val _updateState = MutableStateFlow<UpdateState>(UpdateState.Idle)
@@ -157,7 +161,7 @@ class UpdateViewModel(
       } catch (cancellation: CancellationException) {
         throw cancellation
       } catch (e: Exception) {
-        e.printStackTrace()
+        Log.e(TAG, "Failed to check for updates", e)
         if (manual) {
           _updateState.value = UpdateState.Error
         } else {
@@ -182,7 +186,7 @@ class UpdateViewModel(
         _isDownloading.value = false
         _updateState.value = UpdateState.ReadyToInstall(release)
       } catch (e: Exception) {
-        e.printStackTrace()
+        Log.e(TAG, "Failed to download update", e)
         _isDownloading.value = false
         _updateState.value = UpdateState.Error
       }

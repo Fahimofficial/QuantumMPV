@@ -298,6 +298,9 @@ dependencies {
 
   testImplementation(libs.kotlin.test)
   testImplementation(libs.junit)
+  androidTestImplementation("androidx.test.ext:junit:1.2.1")
+  androidTestImplementation("androidx.test:runner:1.6.2")
+  androidTestImplementation("androidx.room:room-testing:2.8.4")
 
   "standardImplementation"(files("libs/mpvlib.aar"))
   "noVulkanImplementation"(files("libs/mpvlib-no-vulkun.aar"))

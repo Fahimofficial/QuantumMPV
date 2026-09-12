@@ -22,6 +22,7 @@ import android.media.MediaScannerConnection
 import android.media.metrics.LogSessionId
 import android.net.Uri
 import android.os.Build
+import android.util.Log
 import android.os.Environment
 import android.provider.MediaStore
 import androidx.annotation.OptIn
@@ -1550,7 +1551,7 @@ class VideoCompressorViewModel(
         }
       }
     } catch (error: Exception) {
-      error.printStackTrace()
+      Log.e(TAG, "Failed to inspect video track", error)
     } finally {
       extractor.release()
     }
@@ -1757,7 +1758,7 @@ class VideoCompressorViewModel(
         }
       }
     } catch (error: Exception) {
-      error.printStackTrace()
+      Log.e(TAG, "Failed to inspect encoder capabilities", error)
     }
     return false
   }
@@ -2078,6 +2079,8 @@ class VideoCompressorViewModel(
   }
 
   companion object {
+    private const val TAG = "VideoCompressorViewModel"
+
     fun factory(application: Application): ViewModelProvider.Factory =
       object : ViewModelProvider.Factory {
         @Suppress("UNCHECKED_CAST")

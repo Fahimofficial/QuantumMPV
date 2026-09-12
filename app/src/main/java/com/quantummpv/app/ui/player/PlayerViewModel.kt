@@ -2278,7 +2278,7 @@ val isBrightnessSliderShown = MutableStateFlow(false)
                   )
                 }
               } catch (e2: Exception) {
-                e2.printStackTrace()
+                Log.e(TAG, "Failed to decode custom player buttons", e2)
               }
             }
           }

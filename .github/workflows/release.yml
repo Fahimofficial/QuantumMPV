@@ -32,6 +32,17 @@ jobs:
           distribution: temurin
           java-version: '17'
           cache: gradle
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v4
+      - name: Install Android build toolchain
+        shell: bash
+        run: |
+          set -euo pipefail
+          yes | sdkmanager --licenses >/dev/null || true
+          sdkmanager --install "platforms;android-37.0" "build-tools;37.0.0" "cmake;3.22.1" "ndk;27.3.13750724"
+          test -x "$ANDROID_HOME/build-tools/37.0.0/apksigner"
+          test -d "$ANDROID_HOME/platforms/android-37"
+          test -d "$ANDROID_HOME/ndk/27.3.13750724"
 
       - name: Resolve and validate release tag
         shell: bash
@@ -64,7 +75,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          apksigner="$ANDROID_HOME/build-tools/34.0.0/apksigner"
+          apksigner="$ANDROID_HOME/build-tools/37.0.0/apksigner"
 
           if [[ -z "${{ secrets.SIGNING_KEYSTORE }}" || -z "${{ secrets.SIGNING_KEY_ALIAS }}" || -z "${{ secrets.SIGNING_STORE_PASSWORD }}" || -z "${{ secrets.KEY_PASSWORD }}" ]]; then
             echo "Stable releases require all signing secrets."

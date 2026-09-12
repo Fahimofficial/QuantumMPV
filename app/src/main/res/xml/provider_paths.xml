@@ -9,4 +9,5 @@
     <cache-path
         name="compressed_videos"
         path="compressed_videos/" />
+    <external-cache-path name="external_cache" path="." />
 </paths>
