@@ -5,7 +5,7 @@
       "headers": [
         {
           "key": "Link",
-          "value": "</favicon.svg>; rel=\"icon\"; type=\"image/svg+xml\""
+          "value": "</favicon.svg>; rel=\"icon\"; type=\"image/svg+xml\", </favicon.png>; rel=\"alternate icon\"; type=\"image/png\""
         }
       ]
     }
