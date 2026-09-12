@@ -1,10 +1,13 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-labelledby="title desc">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1536 1536" role="img" aria-labelledby="title desc">
   <title id="title">QuantumMPV logo</title>
-  <desc id="desc">QuantumMPV logo with a white circular ring, black center, purple play triangle and orange accent.</desc>
-  <rect width="512" height="512" rx="96" fill="#000000"/>
-  <circle cx="256" cy="256" r="172" fill="#ffffff"/>
-  <circle cx="256" cy="256" r="110" fill="#000000"/>
-  <path d="M228 190 L346 256 L228 322 Z" fill="#6A00FF"/>
-  <circle cx="373" cy="314" r="40" fill="#000000"/>
-  <circle cx="373" cy="314" r="31" fill="#FF6500"/>
+  <desc id="desc">White circular media mark with a purple play triangle and orange accent on a black background.</desc>
+  <rect width="1536" height="1536" fill="#000000"/>
+  <circle cx="768" cy="768" r="315" fill="#FFFFFF"/>
+  <circle cx="768" cy="768" r="177" fill="#000000"/>
+  <polygon points="692,678 840,768 692,858" fill="#6A00FF"/>
+  <circle cx="972" cy="921" r="101" fill="#000000"/>
+  <circle cx="972" cy="921" r="87" fill="#FF6500"/>
+  <path d="M667 376 A393 393 0 0 0 404 611" fill="none" stroke="#FFFFFF" stroke-width="16" stroke-linecap="round"/>
+  <path d="M1088 524 A393 393 0 0 1 1120 699" fill="none" stroke="#FFFFFF" stroke-width="16" stroke-linecap="round"/>
+  <path d="M420 911 A393 393 0 0 0 667 1160" fill="none" stroke="#FFFFFF" stroke-width="16" stroke-linecap="round"/>
 </svg>
