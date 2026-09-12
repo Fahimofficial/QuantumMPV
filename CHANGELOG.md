@@ -2,6 +2,20 @@
 
 These notes are written in plain English and focus on what changed for real use.
 
+## 2.5.1 - Stability, Branding & Durable Downloads
+
+This patch release prepares the current QuantumMPV codebase for stable distribution after the 2.5.0 feature release.
+
+### Reliability & Release Safety
+- **Durable yt-dlp Downloads**: yt-dlp download jobs are persisted in Room, restored after process recreation, and interrupted running jobs are requeued safely.
+- **Atomic Download Queue Claims**: Only one worker can claim a queued yt-dlp job, preventing duplicate execution after service restart.
+- **Foreground Download Recovery**: The download service requests intent redelivery so Android can restart the queue after process termination.
+- **Database Migration Coverage**: The new database version and yt-dlp queue migration are covered by instrumentation tests.
+- **CI Diagnostics**: Lint report collection and release APK artifact validation are more reliable.
+
+### Branding
+- **QuantumMPV Logo**: The supplied logo is applied across launcher assets, raster fallbacks, landing-page branding, favicon metadata, and repository presentation assets.
+
 ## 2.5.0 - Frame Review, Auto Crop & Library Performance
 
 > [!IMPORTANT]
