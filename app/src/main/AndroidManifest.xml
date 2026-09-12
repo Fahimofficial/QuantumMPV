@@ -23,18 +23,15 @@
     <uses-permission android:name="android.permission.WAKE_LOCK" />
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
     <uses-permission android:name="android.permission.RECORD_AUDIO" />
-    <uses-permission android:name="android.permission.POST_PROMOTED_NOTIFICATIONS" />
+    <uses-permission android:name="android.permission.POST_PROMOTED_NOTIFICATION" />
     <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
     <uses-permission android:name="android.permission.USE_BIOMETRIC" />
-
+    
     <uses-feature
         android:name="android.hardware.usb.host"
         android:required="false" />
     <uses-feature
         android:name="android.hardware.touchscreen"
-        android:required="false" />
-    <uses-feature
-        android:name="android.hardware.microphone"
         android:required="false" />
     <uses-feature
         android:name="android.software.leanback"
@@ -220,7 +217,7 @@
                 <data android:pathPattern=".*\\..*\\..*\\.mp4" />
                 <data android:pathPattern=".*\\..*\\..*\\..*\\.mp4" />
                 <data android:pathPattern=".*\\..*\\..*\\..*\\..*\\.mp4" />
-                <data android:pathPattern=".*\\..*\\..*\\..*\\..*\\..*\\.mp4" />
+                <data android:pathPattern=".*\\..*\\..*\\..*\\..*\\.mp4" />
                 <data android:pathPattern=".*\\..*\\..*\\..*\\..*\\..*\\..*\\.mp4" />
 
                 <data android:pathPattern=".*\\.webm" />
@@ -311,8 +308,7 @@
                 <data android:host="www.youtube.com" />
                 <data android:host="studio.youtube.com" />
             </intent-filter>
-
-            <intent-filter>
+            <intent-filter> <!-- FIXME: all following patterns are suboptimal because they also match the homepages -->
                 <action android:name="android.intent.action.VIEW" />
                 <category android:name="android.intent.category.DEFAULT" />
                 <category android:name="android.intent.category.BROWSABLE" />
@@ -330,7 +326,6 @@
                 <data android:host="vimeo.com" />
                 <data android:pathPattern=".*" />
             </intent-filter>
-
             <intent-filter>
                 <action android:name="android.intent.action.VIEW" />
                 <category android:name="android.intent.category.DEFAULT" />
@@ -358,7 +353,6 @@
                 <data android:host="clips.twitch.tv" />
                 <data android:pathPattern=".*" />
             </intent-filter>
-
             <intent-filter>
                 <action android:name="android.intent.action.VIEW" />
                 <category android:name="android.intent.category.DEFAULT" />
@@ -368,7 +362,6 @@
                 <data android:host="odysee.com" />
                 <data android:pathPattern="/@.*" />
             </intent-filter>
-
             <intent-filter>
                 <action android:name="android.intent.action.VIEW" />
                 <category android:name="android.intent.category.DEFAULT" />
