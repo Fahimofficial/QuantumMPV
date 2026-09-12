@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="docs/quantummpv-logo.png" width="140" height="140" alt="QuantumMPV logo" />
+  <img src="docs/quantummpv-logo-rounded.png" width="140" height="140" alt="QuantumMPV logo" />
 </p>
 
 <h1 align="center">QuantumMPV</h1>
