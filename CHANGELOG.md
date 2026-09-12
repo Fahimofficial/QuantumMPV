@@ -2,9 +2,9 @@
 
 These notes are written in plain English and focus on what changed for real use.
 
-## 2.5.1 - Stability, Branding & Durable Downloads
+## 1.0.0 - Initial Release
 
-This patch release prepares the current QuantumMPV codebase for stable distribution after the 2.5.0 feature release.
+The first stable QuantumMPV release, bringing the current playback, library, streaming, download, customization, and branding work together in one public build.
 
 ### Reliability & Release Safety
 - **Durable yt-dlp Downloads**: yt-dlp download jobs are persisted in Room, restored after process recreation, and interrupted running jobs are requeued safely.

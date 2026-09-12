@@ -24,7 +24,7 @@ QuantumMPV is developed independently using ideas and patterns learned from the 
 
 | Project | Role in the inspiration set |
 |---|---|
-| [mpvRx](https://github.com/Riteshp2001/mpvRx) | Upstream Android libmpv player codebase, playback features, and customization ideas |
+| [MpvRx](https://github.com/Riteshp2001/mpvRx) | Upstream Android libmpv player codebase, playback features, and customization ideas |
 | [Mpv-infinity](https://github.com/ZHINFINITY/Mpv-infinity) | Android mpv player UI and feature ideas |
 | [VLC for Android](https://code.videolan.org/videolan/vlc-android) | Media-library, playback UX, and Android player conventions |
 
@@ -38,8 +38,8 @@ The groups below organize the existing credits by project type; they are not an 
 
 | Project | Source |
 |---|---|
-| mpv-android | [mpv-android on GitHub](https://github.com/mpv-android) |
-| mpvExtended | [marlboro-advance/mpvEx](https://github.com/marlboro-advance/mpvEx) |
+| mpv-android | [mpv-android repository](https://github.com/mpv-android/mpv-android) |
+| MpvEx | [marlboro-advance/mpvEx repository](https://github.com/marlboro-advance/mpvEx) |
 | mpvKt | [abdallahmehiz/mpvKt](https://github.com/abdallahmehiz/mpvKt) |
 | MpvRex | [sfsakhawat999/mpvRex](https://github.com/sfsakhawat999/mpvRex) |
 | Next Player | [anilbeesetti/nextplayer](https://github.com/anilbeesetti/nextplayer) |
