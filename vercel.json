@@ -1,0 +1,13 @@
+{
+  "headers": [
+    {
+      "source": "/(.*)",
+      "headers": [
+        {
+          "key": "Link",
+          "value": "</favicon.svg>; rel=\"icon\"; type=\"image/svg+xml\""
+        }
+      ]
+    }
+  ]
+}
