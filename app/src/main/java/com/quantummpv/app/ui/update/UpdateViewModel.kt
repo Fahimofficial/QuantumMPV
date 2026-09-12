@@ -31,9 +31,6 @@ import kotlinx.coroutines.launch
 class UpdateViewModel(
   application: Application,
 ) : AndroidViewModel(application) {
-  private companion object {
-    const val TAG = "UpdateViewModel"
-  }
   private val updateManager = UpdateManager(application)
 
   private val _updateState = MutableStateFlow<UpdateState>(UpdateState.Idle)
@@ -101,6 +98,8 @@ class UpdateViewModel(
   }
 
   private companion object {
+    private const val TAG = "UpdateViewModel"
+
     /**
      * Delay before the auto-update network check fires after the
      * UpdateViewModel is constructed. Long enough to let the first frame
