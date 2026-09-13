@@ -1,8 +1,8 @@
 <?xml version="1.0" encoding="utf-8"?>
 <network-security-config>
-    <!-- Release defaults to encrypted traffic. Protocol-specific components may opt into
-         cleartext only where the protocol genuinely requires it. -->
-    <base-config cleartextTrafficPermitted="false">
+    <!-- Jellyfin LAN HTTP is opt-in and is enforced by JellyfinClient. Android's network
+         security config cannot be changed dynamically for a user-selected private host. -->
+    <base-config cleartextTrafficPermitted="true">
         <trust-anchors>
             <certificates src="system" />
         </trust-anchors>

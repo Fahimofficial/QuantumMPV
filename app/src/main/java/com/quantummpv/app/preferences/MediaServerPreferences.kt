@@ -26,6 +26,9 @@ enum class MusicSourceProvider(val id: String) {
 class MediaServerPreferences(
   preferenceStore: PreferenceStore,
 ) {
+  val allowJellyfinHttp =
+    preferenceStore.getBoolean("media_server_allow_jellyfin_http", false)
+
   val musicSourceProvider =
     preferenceStore.getEnum("media_server_music_source_provider", MusicSourceProvider.LOCAL)
 }

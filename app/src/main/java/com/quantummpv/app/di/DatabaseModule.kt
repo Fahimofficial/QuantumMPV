@@ -24,6 +24,7 @@ import com.quantummpv.app.database.repository.RecentlyPlayedRepositoryImpl
 import com.quantummpv.app.domain.playbackstate.repository.PlaybackStateRepository
 import com.quantummpv.app.domain.recentlyplayed.repository.RecentlyPlayedRepository
 import com.quantummpv.app.domain.thumbnail.ThumbnailRepository
+import com.quantummpv.app.preferences.MediaServerPreferences
 import kotlinx.serialization.json.Json
 import org.koin.android.ext.koin.androidContext
 import org.koin.core.module.dsl.singleOf
@@ -961,8 +962,9 @@ val DatabaseModule =
 
     single {
       com.quantummpv.app.data.jellyfin.JellyfinClient(
-        httpClient = get(),
+        baseHttpClient = get(),
         json = get(),
+        allowCleartext = get<MediaServerPreferences>().allowJellyfinHttp,
       )
     }
 

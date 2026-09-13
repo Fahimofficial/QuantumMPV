@@ -19,6 +19,7 @@ import com.quantummpv.app.domain.jellyfin.JellyfinAuthResult
 import com.quantummpv.app.domain.jellyfin.JellyfinItem
 import com.quantummpv.app.domain.jellyfin.JellyfinUser
 import com.quantummpv.app.network.awaitResponse
+import com.quantummpv.app.preferences.preference.Preference
 import com.quantummpv.app.utils.media.PlaybackSubtitleTrack
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
@@ -40,9 +41,21 @@ import java.io.IOException
 import java.util.UUID
 
 class JellyfinClient(
-  private val httpClient: OkHttpClient,
+  baseHttpClient: OkHttpClient,
   private val json: Json,
+  allowCleartext: Preference<Boolean>,
 ) {
+  private val httpClient =
+    baseHttpClient
+      .newBuilder()
+      .addInterceptor { chain ->
+        val request = chain.request()
+        if (!request.url.isHttps && !allowCleartext.get()) {
+          throw IOException("Plaintext Jellyfin connections are disabled in Jellyfin settings")
+        }
+        chain.proceed(request)
+      }
+      .build()
   companion object {
     const val TICKS_PER_SECOND = 10_000_000L
     private const val TAG = "JellyfinClient"

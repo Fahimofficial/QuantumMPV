@@ -22,6 +22,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -31,6 +32,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -53,6 +55,8 @@ import com.quantummpv.app.R
 import com.quantummpv.app.domain.jellyfin.JellyfinServer
 import com.quantummpv.app.domain.navidrome.NavidromeServer
 import com.quantummpv.app.domain.seerr.JellyseerrUser
+import com.quantummpv.app.preferences.MediaServerPreferences
+import com.quantummpv.app.preferences.preference.collectAsState
 import com.quantummpv.app.presentation.Screen
 import com.quantummpv.app.presentation.components.RemoteImage
 import com.quantummpv.app.ui.browser.jellyfin.AddJellyfinServerDialog
@@ -66,9 +70,11 @@ import com.quantummpv.app.ui.icons.Icons
 import com.quantummpv.app.ui.utils.LocalBackStack
 import com.quantummpv.app.ui.utils.LocalShowSettingsBackArrow
 import com.quantummpv.app.ui.utils.popSafely
+import com.quantummpv.app.ui.preferences.components.SwitchPreference
 import kotlinx.serialization.Serializable
 import me.zhanghai.compose.preference.Preference
 import me.zhanghai.compose.preference.ProvidePreferenceLocals
+import org.koin.compose.koinInject
 
 @Serializable
 object MediaServersPreferencesScreen : Screen {
@@ -78,6 +84,8 @@ object MediaServersPreferencesScreen : Screen {
   override fun Content() {
     val context = LocalContext.current
     val backStack = LocalBackStack.current
+    val mediaServerPreferences = koinInject<MediaServerPreferences>()
+    val allowJellyfinHttp by mediaServerPreferences.allowJellyfinHttp.collectAsState()
 
     val jellyfinViewModel: JellyfinViewModel =
       viewModel(factory = JellyfinViewModel.factory(context.applicationContext as Application))
@@ -96,6 +104,7 @@ object MediaServersPreferencesScreen : Screen {
     var isSeerrConnectionDialogOpen by remember { mutableStateOf(false) }
     var isAddNavidromeServerOpen by remember { mutableStateOf(false) }
     var navidromeServerToEdit by remember { mutableStateOf<NavidromeServer?>(null) }
+    var showJellyfinHttpWarning by remember { mutableStateOf(false) }
 
     Scaffold(
       topBar = {
@@ -140,6 +149,32 @@ object MediaServersPreferencesScreen : Screen {
               title = stringResource(R.string.pref_jellyfin_title),
               modifier = Modifier.settingsSearchTarget(R.string.pref_media_servers_title),
             )
+          }
+
+          item {
+            PreferenceCard {
+              SwitchPreference(
+                modifier = Modifier.settingsSearchTarget(R.string.pref_jellyfin_allow_http),
+                value = allowJellyfinHttp,
+                onValueChange = { enabled ->
+                  if (enabled) {
+                    showJellyfinHttpWarning = true
+                  } else {
+                    mediaServerPreferences.allowJellyfinHttp.set(false)
+                  }
+                },
+                title = { Text(stringResource(R.string.pref_jellyfin_allow_http)) },
+                summary = { Text(stringResource(R.string.pref_jellyfin_allow_http_desc)) },
+                icon = {
+                  Icon(
+                    imageVector = Icons.RoundedFilled.Warning,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.error,
+                    modifier = Modifier.size(24.dp),
+                  )
+                },
+              )
+            }
           }
 
           item {
@@ -626,6 +661,29 @@ object MediaServersPreferencesScreen : Screen {
           }
         }
       }
+    }
+
+    if (showJellyfinHttpWarning) {
+      AlertDialog(
+        onDismissRequest = { showJellyfinHttpWarning = false },
+        title = { Text(stringResource(R.string.pref_jellyfin_http_warning_title)) },
+        text = { Text(stringResource(R.string.pref_jellyfin_http_warning_message)) },
+        confirmButton = {
+          TextButton(
+            onClick = {
+              mediaServerPreferences.allowJellyfinHttp.set(true)
+              showJellyfinHttpWarning = false
+            },
+          ) {
+            Text(stringResource(R.string.pref_jellyfin_http_warning_enable))
+          }
+        },
+        dismissButton = {
+          TextButton(onClick = { showJellyfinHttpWarning = false }) {
+            Text(stringResource(R.string.cancel))
+          }
+        },
+      )
     }
 
     // Add / Re-authenticate Jellyfin Server Dialog

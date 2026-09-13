@@ -2136,6 +2136,11 @@
   <string name="pref_jellyfin_title">Jellyfin</string>
   <string name="pref_jellyfin_server_management">Server Management</string>
   <string name="pref_jellyfin_server_management_desc">Manage connected servers and active instance</string>
+  <string name="pref_jellyfin_allow_http">Allow HTTP connections</string>
+  <string name="pref_jellyfin_allow_http_desc">Allow unencrypted HTTP for Jellyfin servers on trusted LANs. HTTPS remains preferred.</string>
+  <string name="pref_jellyfin_http_warning_title">Allow unencrypted Jellyfin connections?</string>
+  <string name="pref_jellyfin_http_warning_message">HTTP sends your Jellyfin password, access token, media details, and playback requests without encryption. Enable this only for a trusted local network where HTTPS is unavailable.</string>
+  <string name="pref_jellyfin_http_warning_enable">Enable HTTP</string>
   <string name="pref_music_player_switch_title">Switch Music Player</string>
   <string name="pref_music_player_switch_desc">Choose default audio source for the Music tab</string>
   <string name="music_source_local">Local Device</string>
