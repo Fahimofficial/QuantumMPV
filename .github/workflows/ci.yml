@@ -57,6 +57,9 @@ jobs:
       - name: Validate Gradle wrapper
         uses: gradle/actions/wrapper-validation@v6
 
+      - name: Validate QuantumMPV identity and protected behavior
+        run: python3 tools/validate_quantummpv_identity.py
+
       - name: Run debug lint, unit tests, and debug build
         id: debug-validation
         shell: bash

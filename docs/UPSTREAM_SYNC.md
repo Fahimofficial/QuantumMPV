@@ -14,9 +14,28 @@ An upstream release such as `mpvRx v2.6.0` may be synchronized into QuantumMPV, 
 
 ## Safe synchronization flow
 
-When the upstream-release checker opens an issue, review the upstream release notes and create a branch such as `sync/upstream-v2.6.0`. Merge or cherry-pick only the desired changes, resolve conflicts manually, and verify that QuantumMPV branding, updater endpoints, `QuantumMPV-` APK naming, database migrations, signing configuration, and version-code logic remain intact.
+When the upstream-release checker finds a new upstream release, it creates a review branch and pull request such as `sync/upstream-v2.6.0`. A clean merge is prepared automatically, while merge conflicts produce a review issue instead. The workflow never merges the branch into `master`.
 
-The synchronization workflow does not merge code, create tags, publish releases, or upload APKs. Those actions remain an explicit maintainer decision after CI passes.
+Review or cherry-pick only the desired changes, resolve conflicts manually, and verify that QuantumMPV branding, updater endpoints, `QuantumMPV-` APK naming, database migrations, signing configuration, and version-code logic remain intact.
+
+## Protected QuantumMPV files
+
+These files require deliberate review after every upstream synchronization:
+
+```text
+app/build.gradle.kts
+app/src/main/AndroidManifest.xml
+app/src/main/java/com/quantummpv/app/domain/update/UpdateManager.kt
+app/src/main/java/com/quantummpv/app/data/jellyfin/JellyfinClient.kt
+app/src/main/java/com/quantummpv/app/preferences/MediaServerPreferences.kt
+app/src/main/res/xml/network_security_config.xml
+.github/workflows/
+CHANGELOG.md
+README.md
+CITATION.md
+```
+
+The synchronization workflow does not merge into `master`, create tags, publish releases, or upload APKs. It may push a review branch and open a pull request. Merging the PR and releasing remain explicit maintainer decisions after CI passes.
 
 ## Attribution
 

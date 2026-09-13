@@ -6,8 +6,9 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: read
+  contents: write
   issues: write
+  pull-requests: write
 
 concurrency:
   group: upstream-release-check
@@ -15,11 +16,18 @@ concurrency:
 
 jobs:
   check:
-    name: Detect upstream release
+    name: Prepare upstream review PR
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 15
 
     steps:
+      - name: Check out QuantumMPV master
+        uses: actions/checkout@v6
+        with:
+          ref: master
+          fetch-depth: 0
+          fetch-tags: true
+
       - name: Find latest upstream release
         id: upstream
         env:
@@ -34,10 +42,46 @@ jobs:
             echo 'Upstream latest release did not contain a tag or URL.' >&2
             exit 1
           fi
+          safe_tag="$(printf '%s' "$tag" | tr '/ ' '--')"
           echo "tag=$tag" >> "$GITHUB_OUTPUT"
           echo "url=$url" >> "$GITHUB_OUTPUT"
+          echo "safe_tag=$safe_tag" >> "$GITHUB_OUTPUT"
 
-      - name: Open a synchronization review issue
+      - name: Configure upstream remote
+        run: git remote add upstream https://github.com/Riteshp2001/mpvRx.git
+
+      - name: Create review branch and merge upstream tag
+        id: merge
+        env:
+          UPSTREAM_TAG: ${{ steps.upstream.outputs.tag }}
+          SAFE_TAG: ${{ steps.upstream.outputs.safe_tag }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          branch="sync/upstream-${SAFE_TAG}"
+          git fetch upstream "refs/tags/${UPSTREAM_TAG}:refs/remotes/upstream/release-${SAFE_TAG}"
+          if git show-ref --verify --quiet "refs/remotes/upstream/release-${SAFE_TAG}"; then
+            git switch --create "$branch"
+            if git merge-base --is-ancestor "refs/remotes/upstream/release-${SAFE_TAG}" HEAD; then
+              echo 'already-current=true' >> "$GITHUB_OUTPUT"
+              echo "Upstream release $UPSTREAM_TAG is already an ancestor of master."
+              exit 0
+            fi
+            if ! git merge --no-ff --no-edit "refs/remotes/upstream/release-${SAFE_TAG}"; then
+              git merge --abort || true
+              echo 'conflict=true' >> "$GITHUB_OUTPUT"
+              echo "branch=$branch" >> "$GITHUB_OUTPUT"
+              exit 0
+            fi
+            echo "branch=$branch" >> "$GITHUB_OUTPUT"
+            echo 'merged=true' >> "$GITHUB_OUTPUT"
+          else
+            echo 'conflict=true' >> "$GITHUB_OUTPUT"
+            echo "branch=$branch" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Open conflict review issue
+        if: steps.merge.outputs.conflict == 'true'
         env:
           GH_TOKEN: ${{ github.token }}
           UPSTREAM_TAG: ${{ steps.upstream.outputs.tag }}
@@ -45,25 +89,35 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          title="Upstream synchronization review: ${UPSTREAM_TAG}"
+          title="Manual upstream sync required: ${UPSTREAM_TAG}"
           if gh issue list --repo "$GITHUB_REPOSITORY" --state open --search "$title in:title" --json title --jq '.[].title' | grep -Fxq "$title"; then
-            echo "An open review issue already exists for $UPSTREAM_TAG."
             exit 0
           fi
-          body=$(cat <<EOF
-          An upstream mpvRx release is available for maintainer review.
+          gh issue create --repo "$GITHUB_REPOSITORY" --title "$title" --body "The upstream release [$UPSTREAM_TAG]($UPSTREAM_URL) could not be merged automatically. Resolve it manually on a sync branch. No code was merged and no release was created."
 
-          **Upstream release:** [$UPSTREAM_TAG]($UPSTREAM_URL)
-          **QuantumMPV release line:** 1.x
+      - name: Push review branch
+        if: steps.merge.outputs.merged == 'true'
+        env:
+          BRANCH: ${{ steps.merge.outputs.branch }}
+        run: git push --force-with-lease origin "HEAD:refs/heads/${BRANCH}"
 
-          This issue is review-only. Do not merge automatically. If changes are selected, use a branch such as sync/${UPSTREAM_TAG}, resolve conflicts manually, run CI, and choose the next QuantumMPV version separately.
-
-          - [ ] Review upstream release notes and commits
-          - [ ] Select changes for QuantumMPV
-          - [ ] Check branding and updater asset prefix (\`QuantumMPV-\`)
-          - [ ] Check migrations, signing, and version-code logic
-          - [ ] Add a QuantumMPV changelog section
-          - [ ] Run CI before any release decision
-          EOF
-          )
-          gh issue create --repo "$GITHUB_REPOSITORY" --title "$title" --body "$body"
+      - name: Open synchronization pull request
+        if: steps.merge.outputs.merged == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          BRANCH: ${{ steps.merge.outputs.branch }}
+          UPSTREAM_TAG: ${{ steps.upstream.outputs.tag }}
+          UPSTREAM_URL: ${{ steps.upstream.outputs.url }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          if gh pr list --repo "$GITHUB_REPOSITORY" --head "$BRANCH" --state open --json number --jq 'length' | grep -q '^1$'; then
+            echo "A review PR already exists for $BRANCH."
+            exit 0
+          fi
+          gh pr create \
+            --repo "$GITHUB_REPOSITORY" \
+            --base master \
+            --head "$BRANCH" \
+            --title "Review upstream ${UPSTREAM_TAG} for QuantumMPV" \
+            --body "## Review-only upstream synchronization\n\nSource: [$UPSTREAM_TAG]($UPSTREAM_URL)\n\nThis PR does not publish a release automatically. Review conflicts and preserve QuantumMPV branding, updater asset names, the 1.x release line, Jellyfin HTTP safeguards, migrations, and release workflows before merging.\n\nAfter review, choose the next QuantumMPV version separately."
