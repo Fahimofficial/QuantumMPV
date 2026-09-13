@@ -58,6 +58,10 @@ jobs:
             echo "Invalid stable release tag: $version_tag"
             exit 1
           fi
+          if [[ "$version_tag" != v1.* ]]; then
+            echo "QuantumMPV currently uses the v1.x release line: $version_tag"
+            exit 1
+          fi
           build_version="$(sed -n 's/^[[:space:]]*versionName = "\([^"]*\)".*/\1/p' app/build.gradle.kts | head -n 1)"
           expected_version="${version_tag#v}"
           if [[ "$build_version" != "$expected_version" ]]; then

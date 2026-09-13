@@ -10,6 +10,7 @@ BUILD_FILE = Path("app/build.gradle.kts")
 VERSION_RE = re.compile(r"^(?P<prefix>\s*versionName\s*=\s*\").*?(?P<suffix>\"\s*)$", re.MULTILINE)
 CODE_RE = re.compile(r"^(?P<prefix>\s*val releaseVersionCode\s*=\s*)\d+(?P<suffix>\s*)$", re.MULTILINE)
 SEMVER_RE = re.compile(r"^(\d+)\.(\d+)\.(\d+)$")
+QUANTUMMPV_MAJOR_VERSION = 1
 
 # The Gradle build reserves a 10,000-code band for each stable release code.
 # Fixed-width decimal slots keep semantic versions numerically ordered without
@@ -32,13 +33,17 @@ def encode_version_code(major: int, minor: int, patch: int) -> int:
 
 def main() -> None:
     parser = argparse.ArgumentParser()
-    parser.add_argument("version", help="stable semantic version, for example 2.5.1")
+    parser.add_argument("version", help="QuantumMPV semantic version, for example 1.1.0")
     args = parser.parse_args()
     match = SEMVER_RE.fullmatch(args.version)
     if not match:
-        raise SystemExit("version must have the form MAJOR.MINOR.PATCH, for example 2.5.1")
+        raise SystemExit("version must have the form MAJOR.MINOR.PATCH, for example 1.1.0")
 
     major, minor, patch = map(int, match.groups())
+    if major != QUANTUMMPV_MAJOR_VERSION:
+        raise SystemExit(
+            f"QuantumMPV currently uses the 1.x release line; received {args.version!r}",
+        )
     release_code = encode_version_code(major, minor, patch)
     text = BUILD_FILE.read_text(encoding="utf-8")
     updated, version_count = VERSION_RE.subn(rf"\g<prefix>{args.version}\g<suffix>", text, count=1)

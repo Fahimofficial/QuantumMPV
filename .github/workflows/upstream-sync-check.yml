@@ -1,0 +1,69 @@
+name: Check upstream release
+
+on:
+  schedule:
+    - cron: '17 4 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  issues: write
+
+concurrency:
+  group: upstream-release-check
+  cancel-in-progress: true
+
+jobs:
+  check:
+    name: Detect upstream release
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Find latest upstream release
+        id: upstream
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          release_json="$(gh api repos/Riteshp2001/mpvRx/releases/latest)"
+          tag="$(jq -r '.tag_name // empty' <<<"$release_json")"
+          url="$(jq -r '.html_url // empty' <<<"$release_json")"
+          if [[ -z "$tag" || -z "$url" ]]; then
+            echo 'Upstream latest release did not contain a tag or URL.' >&2
+            exit 1
+          fi
+          echo "tag=$tag" >> "$GITHUB_OUTPUT"
+          echo "url=$url" >> "$GITHUB_OUTPUT"
+
+      - name: Open a synchronization review issue
+        env:
+          GH_TOKEN: ${{ github.token }}
+          UPSTREAM_TAG: ${{ steps.upstream.outputs.tag }}
+          UPSTREAM_URL: ${{ steps.upstream.outputs.url }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          title="Upstream synchronization review: ${UPSTREAM_TAG}"
+          if gh issue list --repo "$GITHUB_REPOSITORY" --state open --search "$title in:title" --json title --jq '.[].title' | grep -Fxq "$title"; then
+            echo "An open review issue already exists for $UPSTREAM_TAG."
+            exit 0
+          fi
+          body=$(cat <<EOF
+          An upstream mpvRx release is available for maintainer review.
+
+          **Upstream release:** [$UPSTREAM_TAG]($UPSTREAM_URL)
+          **QuantumMPV release line:** 1.x
+
+          This issue is review-only. Do not merge automatically. If changes are selected, use a branch such as sync/${UPSTREAM_TAG}, resolve conflicts manually, run CI, and choose the next QuantumMPV version separately.
+
+          - [ ] Review upstream release notes and commits
+          - [ ] Select changes for QuantumMPV
+          - [ ] Check branding and updater asset prefix (\`QuantumMPV-\`)
+          - [ ] Check migrations, signing, and version-code logic
+          - [ ] Add a QuantumMPV changelog section
+          - [ ] Run CI before any release decision
+          EOF
+          )
+          gh issue create --repo "$GITHUB_REPOSITORY" --title "$title" --body "$body"
