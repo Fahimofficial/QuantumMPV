@@ -56,7 +56,7 @@ import com.quantummpv.app.domain.network.NetworkConnection
     NavidromeServerEntity::class,
     YtdlpDownloadJobEntity::class,
   ],
-  version = 22,
+  version = 23,
   exportSchema = true,
 )
 @TypeConverters(NetworkProtocolConverter::class, NetworkStreamEntryTypeConverter::class)

@@ -193,9 +193,12 @@ jobs:
               raise SystemExit('Could not find latest changelog section')
           expected_heading = f"## {__import__('os').environ['VERSION_TAG'][1:]}"
           first_heading = next((line for line in section if line.startswith('## ')), '')
-          if not first_heading.startswith(expected_heading):
+          accepted_headings = {expected_heading}
+          if expected_heading == '## 1.0.0':
+              accepted_headings.add('## Initial release 1.0.0')
+          if first_heading not in accepted_headings:
               raise SystemExit(
-                  f'Latest CHANGELOG.md section must start with {expected_heading!r}; '
+                  f'Latest CHANGELOG.md section must start with one of {sorted(accepted_headings)!r}; '
                   f'found {first_heading!r}'
               )
           variant_guide = """

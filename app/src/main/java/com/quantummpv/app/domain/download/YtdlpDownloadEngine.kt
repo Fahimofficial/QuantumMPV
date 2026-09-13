@@ -50,6 +50,7 @@ class YtdlpDownloadEngine(
     val url: String,
     val title: String,
     val directory: String,
+    val formatSelector: String = "bestvideo*+bestaudio/best",
     val state: JobState = JobState.QUEUED,
     val progressPercent: Float = 0f,
     val detail: String = "",
@@ -91,10 +92,17 @@ class YtdlpDownloadEngine(
     url: String,
     title: String,
     directory: File,
+    formatSelector: String = "bestvideo*+bestaudio/best",
   ): Int {
     val id = nextId.getAndIncrement()
     if (!directory.exists()) directory.mkdirs()
-    val job = Job(id = id, url = url, title = title, directory = directory.absolutePath)
+    val job = Job(
+      id = id,
+      url = url,
+      title = title,
+      directory = directory.absolutePath,
+      formatSelector = formatSelector,
+    )
     _jobs.update { current -> current + job }
     persistenceScope.launch { jobDao.upsert(toEntity(job)) }
     YtdlpDownloadService.start(context)
@@ -165,7 +173,7 @@ class YtdlpDownloadEngine(
     }
 
     val outputTemplate = "${job.directory}/${DownloadLocations.sanitizeName(job.title)}.%(ext)s"
-    val command = buildCommand(job.url, outputTemplate)
+    val command = buildCommand(job.url, outputTemplate, job.formatSelector)
 
     val result =
       withContext(Dispatchers.IO) {
@@ -217,6 +225,7 @@ class YtdlpDownloadEngine(
   private fun buildCommand(
     url: String,
     outputTemplate: String,
+    formatSelector: String,
   ): List<String> =
     buildList {
       add(YtdlpManager.getExecutablePath(context))
@@ -225,6 +234,8 @@ class YtdlpDownloadEngine(
       add("--no-playlist")
       add("--newline")
       add("--no-warnings")
+      add("-f")
+      add(formatSelector)
       add("--retries")
       add("5")
       add("--fragment-retries")
@@ -314,6 +325,7 @@ class YtdlpDownloadEngine(
       url = job.url,
       title = job.title,
       directory = job.directory,
+      formatSelector = job.formatSelector,
       state = job.state.name,
       progressPercent = job.progressPercent,
       detail = job.detail,
@@ -327,6 +339,7 @@ class YtdlpDownloadEngine(
       url = entity.url,
       title = entity.title,
       directory = entity.directory,
+      formatSelector = entity.formatSelector,
       state = runCatching { JobState.valueOf(entity.state) }.getOrDefault(JobState.FAILED),
       progressPercent = entity.progressPercent,
       detail = entity.detail,

@@ -2179,4 +2179,15 @@
   <string name="navidrome_connect">Connect</string>
   <string name="navidrome_connecting">Connecting…</string>
   <string name="navidrome_connect_failed">Failed to connect to Navidrome server</string>
+  <string name="quick_download_title">Quick download</string>
+  <string name="pref_library_insights_title">Library insights</string>
+  <string name="pref_library_insights_summary">Watch history, library health and playback diagnostics</string>
+  <string name="library_insights_heading">Library insights</string>
+  <string name="library_insights_intro">Optional, on-device diagnostics based on your existing playback history. Nothing is uploaded.</string>
+  <string name="library_insights_history_count">History entries</string>
+  <string name="library_insights_unique_count">Unique items</string>
+  <string name="library_insights_recent_count">Played in the last 7 days</string>
+  <string name="library_insights_missing_count">Missing local files</string>
+  <string name="library_insights_network_count">Network items</string>
+  <string name="library_insights_refresh">Refresh</string>
 </resources>

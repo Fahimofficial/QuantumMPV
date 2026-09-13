@@ -291,6 +291,12 @@ object PreferencesScreen : Screen {
               icon = Icons.RoundedFilled.Folder,
               screen = FoldersPreferencesScreen,
             ),
+            SettingsDestination(
+              title = stringResource(R.string.pref_library_insights_title),
+              summary = stringResource(R.string.pref_library_insights_summary),
+              icon = Icons.RoundedFilled.Info,
+              screen = LibraryInsightsScreen,
+            ),
             if (!isSecureFolderEntryHidden) {
               SettingsDestination(
                 title = stringResource(R.string.secure_folder_title),

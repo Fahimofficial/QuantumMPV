@@ -9,6 +9,7 @@ data class YtdlpDownloadJobEntity(
   val url: String,
   val title: String,
   val directory: String,
+  val formatSelector: String = "bestvideo*+bestaudio/best",
   val state: String = "QUEUED",
   val progressPercent: Float = 0f,
   val detail: String = "",

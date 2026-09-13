@@ -848,6 +848,15 @@ val MIGRATION_21_22 =
       )
     }
   }
+
+val MIGRATION_22_23 =
+  object : Migration(22, 23) {
+    override fun migrate(db: SupportSQLiteDatabase) {
+      db.execSQL(
+        "ALTER TABLE `ytdlp_download_jobs` ADD COLUMN `formatSelector` TEXT NOT NULL DEFAULT 'bestvideo*+bestaudio/best'",
+      )
+    }
+  }
 val DatabaseModule =
   module {
     single<Json> {
@@ -885,6 +894,7 @@ val DatabaseModule =
           MIGRATION_20_21,
           MIGRATION_19_21,
           MIGRATION_21_22,
+          MIGRATION_22_23,
         ).build()
     }
 

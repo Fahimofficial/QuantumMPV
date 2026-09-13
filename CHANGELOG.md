@@ -2,9 +2,20 @@
 
 These notes are written in plain English and focus on what changed for real use.
 
-## 1.0.0 - Initial Release
+## Initial release 1.0.0
 
 The first stable QuantumMPV release, bringing the current playback, library, streaming, download, customization, and branding work together in one public build.
+
+### New features
+- **Share-to-Quick-Download**: Send a supported web link to QuantumMPV from another Android app and choose Best available, up to 1080p, up to 720p, up to 480p, or Audio only before adding it to the persistent yt-dlp queue.
+- **Library Insights**: Added an on-device diagnostics screen showing history entries, unique items, recent activity, missing local files, and network items without uploading playback data.
+- **Download Quality Persistence**: The selected quick-download format is stored with the queue job and survives app restarts through the Room migration.
+- **Support via UPI**: Added a clickable UPI support destination for `SimplyFahim@sbi` in the project documentation and websites.
+
+### Fixes and release safety
+- **Safe queue integration**: Quick downloads reuse the existing foreground yt-dlp service and durable queue rather than creating a second downloader.
+- **Room migration**: Added a backward-compatible database migration for persisted download format selectors.
+- **Website clarity**: Expanded the release site gallery and documented the new library and download workflows without replacing existing project details.
 
 ### Reliability & Release Safety
 - **Durable yt-dlp Downloads**: yt-dlp download jobs are persisted in Room, restored after process recreation, and interrupted running jobs are requeued safely.

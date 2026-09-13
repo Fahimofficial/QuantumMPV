@@ -411,6 +411,11 @@ Use the [issue tracker](https://github.com/Fahimofficial/QuantumMPV/issues) for 
 
 ---
 
+### UPI support
+If QuantumMPV is useful to you, you can support its development through UPI. [Open SimplyFahim@sbi in a UPI app](upi://pay?pa=SimplyFahim%40sbi&pn=SimplyFahim&cu=INR).
+
+> Use your UPI app to confirm the recipient before sending.
+
 ## Release Notes For Maintainers
 
 To cut a signed GitHub release through Actions, configure these repository secrets:
