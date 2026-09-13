@@ -29,6 +29,8 @@ import androidx.compose.ui.unit.dp
 import com.quantummpv.app.R
 import com.quantummpv.app.database.MpvRxDatabase
 import com.quantummpv.app.presentation.Screen
+import com.quantummpv.app.ui.icons.Icon
+import com.quantummpv.app.ui.icons.Icons
 import com.quantummpv.app.ui.utils.LocalBackStack
 import com.quantummpv.app.ui.utils.popSafely
 import kotlinx.coroutines.Dispatchers
@@ -73,8 +75,8 @@ object LibraryInsightsScreen : Screen {
         TopAppBar(
           title = { Text("Library insights") },
           navigationIcon = { androidx.compose.material3.IconButton(onClick = { backStack.popSafely() }) {
-            androidx.compose.material3.Icon(
-              com.quantummpv.app.ui.icons.Icons.RoundedFilled.ArrowBack,
+            Icon(
+              Icons.RoundedFilled.ArrowBack,
               contentDescription = null,
             )
           } },
