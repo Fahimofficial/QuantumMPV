@@ -58,6 +58,12 @@ jobs:
             echo "Invalid stable release tag: $version_tag"
             exit 1
           fi
+          build_version="$(sed -n 's/^[[:space:]]*versionName = "\([^"]*\)".*/\1/p' app/build.gradle.kts | head -n 1)"
+          expected_version="${version_tag#v}"
+          if [[ "$build_version" != "$expected_version" ]]; then
+            echo "Release tag $version_tag does not match app versionName $build_version"
+            exit 1
+          fi
           echo "VERSION_TAG=$version_tag" >> "$GITHUB_ENV"
 
       - name: Make Gradle wrapper executable
@@ -201,8 +207,8 @@ jobs:
       - name: Create GitHub release
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: ${{ github.ref_name }}
-          name: QuantumMPV ${{ github.ref_name }}
+          tag_name: ${{ env.VERSION_TAG }}
+          name: QuantumMPV ${{ env.VERSION_TAG }}
           body_path: release-notes.md
           generate_release_notes: true
           draft: false

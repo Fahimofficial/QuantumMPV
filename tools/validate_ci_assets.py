@@ -1,11 +1,23 @@
 from pathlib import Path
+
 from PIL import Image
 
-workflow = Path('.github/workflows/ci.yml').read_text()
-for required in ('name: Android CI', 'on:', 'jobs:', 'validate:', 'actions/checkout@v4',
-                 'actions/setup-java@v4', ':app:lintStandardDebug',
-                 ':app:testStandardDebugUnitTest', ':app:assembleStandardDebug',
-                 'actions/upload-artifact@v4'):
+workflow = Path('.github/workflows/ci.yml').read_text(encoding='utf-8')
+for required in (
+    'name: Android CI',
+    'on:',
+    'jobs:',
+    'validate:',
+    'actions/checkout@v6',
+    'actions/setup-java@v5',
+    'android-actions/setup-android@v4',
+    ':app:lintStandardDebug',
+    ':app:testStandardDebugUnitTest',
+    ':app:assembleStandardDebugAndroidTest',
+    'assembleDebug',
+    ':app:lintStandardRelease',
+    'actions/upload-artifact@v7',
+):
     assert required in workflow, f'missing workflow entry: {required}'
 
 for path in sorted(Path('app/src/main/res').glob('mipmap-*/*.webp')):

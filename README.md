@@ -17,7 +17,7 @@
 </p>
 
 > [!IMPORTANT]
-> **Well Development is now Resumed**
+> **Active development has resumed**
 
 
 <p align="center">
