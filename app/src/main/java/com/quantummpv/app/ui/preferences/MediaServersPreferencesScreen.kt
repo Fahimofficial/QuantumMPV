@@ -680,7 +680,7 @@ object MediaServersPreferencesScreen : Screen {
         },
         dismissButton = {
           TextButton(onClick = { showJellyfinHttpWarning = false }) {
-            Text(stringResource(R.string.cancel))
+            Text(stringResource(R.string.generic_cancel))
           }
         },
       )
