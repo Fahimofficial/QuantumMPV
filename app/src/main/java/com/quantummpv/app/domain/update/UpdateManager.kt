@@ -148,7 +148,7 @@ class UpdateManager(
     val deviceArch = getDeviceArchitecture()
     val compatibleAssets =
       assets.filter { asset ->
-        asset.name.startsWith("mpvRx-", ignoreCase = true) &&
+        asset.name.startsWith("QuantumMPV-", ignoreCase = true) &&
           asset.name.endsWith(".apk", ignoreCase = true) &&
           asset.name.matchesApkVariant(BuildConfig.UPDATE_APK_VARIANT)
       }

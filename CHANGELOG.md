@@ -16,10 +16,14 @@ The first stable QuantumMPV release, bringing the current playback, library, str
 ### Branding
 - **QuantumMPV Logo**: The supplied logo is applied across launcher assets, raster fallbacks, landing-page branding, favicon metadata, and repository presentation assets.
 
-## 2.5.0 - Frame Review, Auto Crop & Library Performance
+## Historical upstream release notes
+
+The section below preserves the original mpvRx upstream history for reference. It is not part of the QuantumMPV version sequence. QuantumMPV releases use their own version line beginning at **1.0.0**.
+
+### mpvRx 2.5.0 - Frame Review, Auto Crop & Library Performance
 
 > [!IMPORTANT]
-> **Project hiatus:** Following version 2.5.0, mpvRx development will be paused until further notice.
+> **Historical upstream note:** This hiatus statement applied to the original mpvRx project and does not describe current QuantumMPV development.
 
 ### 🎬 Frame Review, Seeking & Playback
 - **Frame-Level Review**: Added a full-player Frame Review mode with horizontal frame swipes, previous/next-frame controls, precise frame and millisecond readouts, snapshots with optional subtitles, and a transparent responsive layout.

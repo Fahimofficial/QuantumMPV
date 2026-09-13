@@ -187,6 +187,13 @@ jobs:
           latest = '\n'.join(section).strip()
           if not latest:
               raise SystemExit('Could not find latest changelog section')
+          expected_heading = f"## {__import__('os').environ['VERSION_TAG'][1:]}"
+          first_heading = next((line for line in section if line.startswith('## ')), '')
+          if not first_heading.startswith(expected_heading):
+              raise SystemExit(
+                  f'Latest CHANGELOG.md section must start with {expected_heading!r}; '
+                  f'found {first_heading!r}'
+              )
           variant_guide = """
           ### APK variants
 

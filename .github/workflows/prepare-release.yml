@@ -4,7 +4,7 @@ on:
   workflow_dispatch:
     inputs:
       version:
-        description: Stable version, for example 2.5.1
+        description: QuantumMPV version, for example 1.1.0 (do not use upstream mpvRx versions)
         required: true
         type: string
       prerelease:
@@ -22,7 +22,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Check out master
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
         with:
           ref: master
           fetch-depth: 0
