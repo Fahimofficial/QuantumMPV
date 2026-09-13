@@ -126,6 +126,8 @@
     .navlink:hover { transform: translateY(-2px); border-color: var(--violet); background: var(--paper-raised); }
     .navlink.current { border-color: var(--violet); background: var(--violet-soft); color: var(--violet-deep); }
 
+    .navlink.stable { border-color: var(--violet); background: var(--violet); color: #fffaff; }
+
     h1, h2, h3 { font-family: Charter, "Bitstream Charter", "Iowan Old Style", serif; font-weight: 700; }
 
     .hero-head { padding: clamp(48px, 8vw, 80px) 0 clamp(28px, 5vw, 44px); }
@@ -527,6 +529,20 @@
     .closing-cta { padding: 20px 0 72px; text-align: center; }
     .closing-cta h2 { margin: 0 0 8px; font-size: clamp(28px, 5vw, 42px); letter-spacing: -.06em; }
     .closing-cta p { margin: 0 auto 20px; max-width: 600px; color: var(--ink-soft); }
+    .guide-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }
+    .guide-card { padding: 20px; border: 1px solid var(--line); border-radius: 14px 4px 14px 4px; background: var(--paper-raised); }
+    .guide-card .step { color: var(--violet-deep); font-size: 11px; font-weight: 900; letter-spacing: .1em; text-transform: uppercase; }
+    .guide-card h3 { margin: 10px 0 7px; font-size: 21px; letter-spacing: -.03em; }
+    .guide-card p { margin: 0; color: var(--ink-soft); font-size: 13px; line-height: 1.6; }
+    .guide-card a { color: var(--violet-deep); font-weight: 800; text-underline-offset: 3px; }
+    .site-note { margin-top: 14px; padding: 14px 16px; border-left: 3px solid var(--violet); background: color-mix(in srgb, var(--violet-soft) 55%, var(--paper-raised)); color: var(--ink-soft); font-size: 12px; line-height: 1.6; }
+    .site-note strong { color: var(--ink); }
+    .screenshots { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; }
+    .screenshot-card { margin: 0; overflow: hidden; border: 1px solid var(--line); border-radius: 18px 4px 18px 4px; background: var(--paper-raised); }
+    .screenshot-card img { display: block; width: 100%; aspect-ratio: 9 / 16; object-fit: cover; object-position: top; background: var(--ink); }
+    .screenshot-card figcaption { padding: 10px 12px 12px; color: var(--ink-soft); font-size: 11px; font-weight: 750; }
+    @media (max-width: 900px) { .screenshots { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+    @media (max-width: 800px) { .guide-grid { grid-template-columns: 1fr; } }
     @media (max-width: 640px) { .developer-card { grid-template-columns: 1fr; text-align: center; } .developer-avatar { margin: 0 auto; } .social-links { justify-content: center; } }
   </style>
 </head>
@@ -539,7 +555,9 @@
         <span class="brand-name">QuantumMPV<small>Android preview builds</small></span>
       </a>
       <nav class="navlinks" aria-label="Site and external links">
+        <a class="navlink stable" href="https://github.com/Fahimofficial/QuantumMPV/releases/latest" target="_blank" rel="noreferrer">Get stable ↗</a>
         <a class="navlink" href="#release" id="nav-release-link">Releases</a>
+        <a class="navlink nav-secondary" href="#install">Install</a>
         <a class="navlink nav-secondary" href="https://github.com/Fahimofficial/QuantumMPV" target="_blank" rel="noreferrer">GitHub ↗</a>
       </nav>
     </header>
@@ -686,6 +704,50 @@
         </section>
       </div>
     </main>
+
+    <section class="block" id="install" aria-labelledby="install-heading">
+      <div class="section-head">
+        <div>
+          <span class="section-index">Start here</span>
+          <h2 id="install-heading">Install with confidence.</h2>
+        </div>
+        <p>Use the stable channel for everyday playback. Preview builds are for testing new changes before they become a stable release.</p>
+      </div>
+      <div class="guide-grid">
+        <article class="guide-card">
+          <span class="step">01 · Choose a channel</span>
+          <h3>Stable or preview?</h3>
+          <p><strong>Stable</strong> is recommended for most devices. Choose <strong>Preview</strong> only when you want to test the newest build and can tolerate bugs.</p>
+        </article>
+        <article class="guide-card">
+          <span class="step">02 · Pick an APK</span>
+          <h3>Most phones use ARM64.</h3>
+          <p>Choose <strong>ARM 64-bit</strong> for most modern Android phones. Choose <strong>Universal</strong> if you are unsure, or use the device-specific build recommended by your maintainer.</p>
+        </article>
+        <article class="guide-card">
+          <span class="step">03 · Install safely</span>
+          <h3>Verify, then install.</h3>
+          <p>Download the APK, compare its displayed SHA-256 checksum if needed, then allow installation from your browser or file manager when Android asks.</p>
+        </article>
+      </div>
+      <div class="site-note"><strong>Need help?</strong> Read the <a href="https://github.com/Fahimofficial/QuantumMPV/blob/master/SUPPORT.md" target="_blank" rel="noreferrer">support guide</a>, check the <a href="https://github.com/Fahimofficial/QuantumMPV/blob/master/CHANGELOG.md" target="_blank" rel="noreferrer">changelog</a>, or <a href="https://github.com/Fahimofficial/QuantumMPV/issues" target="_blank" rel="noreferrer">report an issue</a> with your device model, Android version, APK variant, and reproduction steps.</div>
+    </section>
+
+    <section class="block" aria-labelledby="screenshots-heading">
+      <div class="section-head">
+        <div>
+          <span class="section-index">In the app</span>
+          <h2 id="screenshots-heading">Built for serious playback.</h2>
+        </div>
+        <p>Explore a few real screens from QuantumMPV before installing. The gallery uses the project’s maintained store screenshots.</p>
+      </div>
+      <div class="screenshots">
+        <figure class="screenshot-card"><img src="screenshots/player.png" alt="QuantumMPV video player screen" loading="lazy"><figcaption>Focused video playback</figcaption></figure>
+        <figure class="screenshot-card"><img src="screenshots/videoscreen.png" alt="QuantumMPV video browser screen" loading="lazy"><figcaption>Organized video library</figcaption></figure>
+        <figure class="screenshot-card"><img src="screenshots/playlistwindow-grid.png" alt="QuantumMPV playlist grid" loading="lazy"><figcaption>Flexible playlist views</figcaption></figure>
+        <figure class="screenshot-card"><img src="screenshots/pip.png" alt="QuantumMPV picture-in-picture playback" loading="lazy"><figcaption>Picture-in-picture playback</figcaption></figure>
+      </div>
+    </section>
 
     <section class="developer-section" aria-labelledby="developer-heading">
       <h2 id="developer-heading">The developer</h2>
