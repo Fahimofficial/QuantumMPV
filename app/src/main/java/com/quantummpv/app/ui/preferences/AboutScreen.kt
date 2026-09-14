@@ -73,6 +73,7 @@ import androidx.compose.ui.draw.drawWithCache
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
@@ -98,6 +99,33 @@ import com.quantummpv.app.ui.update.UpdateViewModel
 import java.util.Locale
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.serialization.Serializable
+
+private fun Modifier.aboutLiquidShimmer(
+  fraction: Float,
+  highlight: Color,
+): Modifier =
+  drawWithCache {
+    val travel = size.width * 1.9f
+    val startX = -size.width * 0.75f + travel * fraction
+    val shimmer =
+      Brush.linearGradient(
+        colors =
+          listOf(
+            Color.Transparent,
+            highlight.copy(alpha = 0.045f),
+            Color.Transparent,
+          ),
+        start = Offset(startX, 0f),
+        end = Offset(startX + size.width * 0.7f, size.height),
+      )
+    onDrawWithContent {
+      drawContent()
+      drawRoundRect(
+        brush = shimmer,
+        cornerRadius = CornerRadius(28.dp.toPx(), 28.dp.toPx()),
+      )
+    }
+  }
 
 @Serializable
 object AboutScreen : Screen {
@@ -246,7 +274,7 @@ object AboutScreen : Screen {
                         .stringResource(com.quantummpv.app.R.string.app_name),
                     style = MaterialTheme.typography.headlineMedium,
                     fontWeight = FontWeight.Bold,
-                    color = cs.onPrimaryContainer,
+                    color = Color.White,
                   )
                   Spacer(Modifier.height(4.dp))
                   Text(
@@ -266,7 +294,7 @@ object AboutScreen : Screen {
                       modifier = Modifier.padding(horizontal = 12.dp, vertical = 4.dp),
                       style = MaterialTheme.typography.titleSmall,
                       fontWeight = FontWeight.SemiBold,
-                      color = cs.onPrimaryContainer,
+                      color = Color.White,
                     )
                   }
                 }
@@ -390,7 +418,13 @@ object AboutScreen : Screen {
 
         // Support / Donation Section
         PreferenceSectionHeader(title = stringResource(R.string.pref_section_support))
-        PreferenceCard {
+        PreferenceCard(
+          modifier =
+            Modifier.aboutLiquidShimmer(
+              fraction = fraction,
+              highlight = cs.tertiary,
+            ),
+        ) {
           Column(modifier = Modifier.padding(16.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
               Icon(
