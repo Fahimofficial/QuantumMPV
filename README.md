@@ -12,7 +12,7 @@
 
 > [!TIP]
 > **Support QuantumMPV**
-> **If QuantumMPV is useful to you, please consider supporting continued development through [UPI: SimplyFahim@Sbi](upi://pay?pa=SimplyFahim%40Sbi&pn=SimplyFahim&cu=INR).**
+> **If QuantumMPV is useful to you, please consider supporting continued development through [UPI: SimplyFahim@Sbi](https://quantum-mpv.vercel.app/#support).**
 >
 > Use your UPI app to confirm the recipient before sending.
 
@@ -487,7 +487,7 @@ Distributed under **GNU Affero General Public License v3.0 (AGPL-3.0-or-later)**
 
 ---
 <div align="center">
-  <a href="upi://pay?pa=SimplyFahim%40Sbi&pn=SimplyFahim&cu=INR">
+  <a href="https://quantum-mpv.vercel.app/#support">
     <img src="https://img.shields.io/badge/Support-SimplyFahim%40Sbi-2ea44f?style=for-the-badge" alt="Support QuantumMPV via UPI" />
   </a>
 </div>
