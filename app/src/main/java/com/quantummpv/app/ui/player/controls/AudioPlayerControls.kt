@@ -1084,8 +1084,8 @@ fun AudioPlayerControls(
     }
   }
 
-  val targetTopColor = if (ambientModeEnabled && (!showVisualizer || showInPlaceLyrics)) (ambientColors?.first ?: Color.Transparent) else Color.Transparent
-  val targetBottomColor = if (ambientModeEnabled && (!showVisualizer || showInPlaceLyrics)) (ambientColors?.second ?: Color.Transparent) else Color.Transparent
+  val targetTopColor = if (ambientModeEnabled) (ambientColors?.first ?: Color.Transparent) else Color.Transparent
+  val targetBottomColor = if (ambientModeEnabled) (ambientColors?.second ?: Color.Transparent) else Color.Transparent
 
   val animatedAmbientTop: Color by animateColorAsState(
     targetValue = targetTopColor,
@@ -1104,7 +1104,7 @@ fun AudioPlayerControls(
         .fillMaxSize()
         .background(MaterialTheme.colorScheme.surface)
         .drawWithCache {
-          if (ambientModeEnabled && (!showVisualizer || showInPlaceLyrics) && (animatedAmbientTop != Color.Transparent || animatedAmbientBottom != Color.Transparent)) {
+          if (ambientModeEnabled && (animatedAmbientTop != Color.Transparent || animatedAmbientBottom != Color.Transparent)) {
             val topColor = animatedAmbientTop
             val bottomColor = animatedAmbientBottom
             val radialGradient = Brush.radialGradient(
