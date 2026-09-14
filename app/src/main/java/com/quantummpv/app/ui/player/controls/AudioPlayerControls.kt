@@ -1288,7 +1288,7 @@ fun AudioPlayerControls(
               contentTransform.using(SizeTransform(clip = false))
             },
             label = "visualizer_toggle",
-            modifier = Modifier.fillMaxHeight().fillMaxWidth(if (isTabletPortrait) 0.65f else 1.0f),
+            modifier = Modifier.fillMaxHeight().fillMaxWidth(if (isTabletPortrait) 0.65f else if (isPortrait) 0.88f else 1.0f),
           ) { isVisualizerActive ->
           if (isVisualizerActive) {
             AudioVisualizerViewport(
@@ -2018,13 +2018,13 @@ fun AudioPlayerControls(
           exit = fadeOut(animationSpec = tween(300)) + androidx.compose.animation.shrinkVertically(animationSpec = tween(300)),
         ) {
           Column(horizontalAlignment = Alignment.CenterHorizontally) {
-            Spacer(modifier = Modifier.height(16.dp))
+            Spacer(modifier = Modifier.height(4.dp))
             trackMetadataView()
-            Spacer(modifier = Modifier.height(16.dp))
+            Spacer(modifier = Modifier.height(10.dp))
             seekbarView()
-            Spacer(modifier = Modifier.height(16.dp))
+            Spacer(modifier = Modifier.height(14.dp))
             playbackControlsRow()
-            Spacer(modifier = Modifier.height(24.dp))
+            Spacer(modifier = Modifier.height(48.dp))
             bottomActionRow()
           }
         }
