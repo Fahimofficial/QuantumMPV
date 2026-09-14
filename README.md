@@ -486,5 +486,8 @@ Distributed under **GNU Affero General Public License v3.0 (AGPL-3.0-or-later)**
 </a>
 
 ---
-
-<p align="center"><sub>Support QuantumMPV: <a href="upi://pay?pa=SimplyFahim%40Sbi&pn=SimplyFahim&cu=INR">SimplyFahim@Sbi</a></sub></p>
+<div align="center">
+  <a href="upi://pay?pa=SimplyFahim%40Sbi&pn=SimplyFahim&cu=INR">
+    <img src="https://img.shields.io/badge/Support-SimplyFahim%40Sbi-2ea44f?style=for-the-badge" alt="Support QuantumMPV via UPI" />
+  </a>
+</div>
