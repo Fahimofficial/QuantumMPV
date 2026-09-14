@@ -59,14 +59,18 @@ object MusicLibraryScanner {
 
         while (cursor.moveToNext()) {
           val id = cursor.getLong(idCol)
-          val path = cursor.getString(dataCol) ?: continue
+          val path = cursor.getString(dataCol)
           val size = cursor.getLong(sizeCol)
           val duration = cursor.getLong(durationCol)
-          val file = File(path)
-          val fileExists = try { file.exists() } catch (_: Exception) { false }
+
+          // On Android 10+ the DATA column may be null or stale; use content URI as fallback.
+          val contentUri = ContentUris.withAppendedId(MediaStore.Audio.Media.EXTERNAL_CONTENT_URI, id)
+          val effectivePath = path ?: contentUri.toString()
+          val file = path?.let { File(it) }
+          val fileExists = try { file?.exists() == true } catch (_: Exception) { false }
           if (!fileExists && size <= 0L && duration <= 0L) continue
 
-          val title = cursor.getString(titleCol)?.takeIf { it.isNotBlank() } ?: file.nameWithoutExtension
+          val title = cursor.getString(titleCol)?.takeIf { it.isNotBlank() } ?: (file?.nameWithoutExtension ?: id.toString())
           val artist = cursor.getString(artistCol)?.takeIf { it.isNotBlank() && it != "<unknown>" } ?: "Unknown Artist"
           val album = cursor.getString(albumCol)?.takeIf { it.isNotBlank() && it != "<unknown>" } ?: "Unknown Album"
           val albumId = cursor.getLong(albumIdCol)
@@ -74,7 +78,6 @@ object MusicLibraryScanner {
           val track = cursor.getInt(trackCol)
           val year = cursor.getInt(yearCol)
 
-          val contentUri = ContentUris.withAppendedId(MediaStore.Audio.Media.EXTERNAL_CONTENT_URI, id)
           val albumArtUri = if (albumId > 0) ContentUris.withAppendedId(ALBUM_ART_BASE_URI, albumId) else null
 
           songs.add(
@@ -85,7 +88,7 @@ object MusicLibraryScanner {
               album = album,
               albumId = albumId,
               durationMs = duration,
-              path = path,
+              path = effectivePath,
               uri = contentUri,
               dateAdded = dateAdded,
               trackNumber = track,

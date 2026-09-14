@@ -252,10 +252,10 @@ object VideoScanUtils : KoinComponent {
           val mimeColumn = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.MIME_TYPE)
 
           while (cursor.moveToNext()) {
-            val path = cursor.getString(dataColumn)
+            val path = cursor.getString(dataColumn) ?: continue
             val file = File(path)
             if (!areEquivalentStoragePaths(file.parent, normalizedFolderPath)) continue
-            if (!file.exists() || noMediaPathFilter.shouldExcludeDirectory(file.parentFile)) continue
+            if (noMediaPathFilter.shouldExcludeDirectory(file.parentFile)) continue
             if (!FileTypeUtils.isAudioFile(file)) continue
             val duration = cursor.getLong(durationColumn)
             if (!options.includesAudioDuration(duration)) continue

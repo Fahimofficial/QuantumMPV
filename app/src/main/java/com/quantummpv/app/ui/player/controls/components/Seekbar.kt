@@ -52,6 +52,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.ripple
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
+import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
@@ -111,8 +112,20 @@ private data class SkipSegmentOverlay(
   val edgeColor: Color,
 )
 
-private const val READ_AHEAD_TRACK_ALPHA = 0.40f
-private const val EMPTY_TRACK_ALPHA = 0.24f
+private const val READ_AHEAD_TRACK_ALPHA_DARK = 0.40f
+private const val EMPTY_TRACK_ALPHA_DARK = 0.24f
+private const val READ_AHEAD_TRACK_ALPHA_LIGHT = 0.60f
+private const val EMPTY_TRACK_ALPHA_LIGHT = 0.38f
+
+@Composable
+private fun rememberSeekbarTrackAlphas(): Pair<Float, Float> {
+  val isDark = isSystemInDarkTheme()
+  return if (isDark) {
+    READ_AHEAD_TRACK_ALPHA_DARK to EMPTY_TRACK_ALPHA_DARK
+  } else {
+    READ_AHEAD_TRACK_ALPHA_LIGHT to EMPTY_TRACK_ALPHA_LIGHT
+  }
+}
 
 private fun bufferedEndPx(
   bufferPosition: Float?,
@@ -855,6 +868,7 @@ private fun NormalSeekbar(
   modifier: Modifier = Modifier,
 ) {
   val primaryColor = MaterialTheme.colorScheme.primary
+  val (readAheadAlpha, emptyAlpha) = rememberSeekbarTrackAlphas()
   val trackHeight by animateDpAsState(
     targetValue = if (isScrubbing) 6.dp else 4.dp,
     animationSpec = spring(dampingRatio = AppMotion.Spatial.Expressive.dampingRatio, stiffness = AppMotion.Spatial.Expressive.stiffness),
@@ -931,14 +945,14 @@ private fun NormalSeekbar(
     }
 
     // 1. Background unplayed track
-    drawSegmentedTrack(0f, totalWidth, primaryColor.copy(alpha = EMPTY_TRACK_ALPHA))
+    drawSegmentedTrack(0f, totalWidth, primaryColor.copy(alpha = emptyAlpha))
 
     // 2. Buffer readahead track. Normal already uses a real round-rect overlay,
     // so its cache endpoint naturally follows the same pill geometry.
     if (bufferDuration != null && bufferDuration > 0f && duration > 0f) {
       val bufferPx = bufferedEndPx(bufferDuration, duration, totalWidth, playedPx)
       if (bufferPx > playedPx) {
-        drawSegmentedTrack(playedPx, bufferPx, primaryColor.copy(alpha = READ_AHEAD_TRACK_ALPHA))
+        drawSegmentedTrack(playedPx, bufferPx, primaryColor.copy(alpha = readAheadAlpha))
       }
     }
 
@@ -1003,6 +1017,7 @@ private fun SquigglySeekbar(
   modifier: Modifier = Modifier,
 ) {
   val primaryColor = MaterialTheme.colorScheme.primary
+  val (readAheadAlpha, emptyAlpha) = rememberSeekbarTrackAlphas()
   val surfaceVariant = MaterialTheme.colorScheme.surfaceVariant
 
   val isInteracting = isScrubbing
@@ -1156,8 +1171,8 @@ private fun SquigglySeekbar(
     // Draw path up to progress position using clipping
     val clipTop = lineAmplitude + strokeWidth
     val gapHalf = 1.dp.toPx()
-    val bufferColor = primaryColor.copy(alpha = READ_AHEAD_TRACK_ALPHA)
-    val unplayedColor = primaryColor.copy(alpha = EMPTY_TRACK_ALPHA)
+    val bufferColor = primaryColor.copy(alpha = readAheadAlpha)
+    val unplayedColor = primaryColor.copy(alpha = emptyAlpha)
     val bufferPx =
       if (bufferDuration != null && bufferDuration > 0f && duration > 0f) {
         bufferedEndPx(bufferDuration, duration, totalWidth, totalProgressPx)
@@ -1403,6 +1418,7 @@ private fun SlimSeekbar(
   modifier: Modifier = Modifier,
 ) {
   val primaryColor = MaterialTheme.colorScheme.primary
+  val (readAheadAlpha, emptyAlpha) = rememberSeekbarTrackAlphas()
 
   // Height breathes like other seekbars:
   //   paused  → 7dp  (relaxed/thin)
@@ -1440,7 +1456,7 @@ private fun SlimSeekbar(
 
   // Colors stay constant — only height changes on press
   val playedColor = primaryColor
-  val unplayedColor = primaryColor.copy(alpha = EMPTY_TRACK_ALPHA)
+  val unplayedColor = primaryColor.copy(alpha = emptyAlpha)
 
   val chapterStarts = remember(chapters) { chapters.map(Segment::start) }
 
@@ -1472,7 +1488,7 @@ private fun SlimSeekbar(
       centerY = centerY,
       trackHeight = height,
       playedColor = playedColor,
-      bufferedColor = primaryColor.copy(alpha = READ_AHEAD_TRACK_ALPHA),
+      bufferedColor = primaryColor.copy(alpha = readAheadAlpha),
       unplayedColor = unplayedColor,
     )
 
@@ -1509,6 +1525,7 @@ fun SeekbarStylePreview(
   modifier: Modifier = Modifier,
 ) {
   val primaryColor = MaterialTheme.colorScheme.primary
+  val (readAheadAlpha, emptyAlpha) = rememberSeekbarTrackAlphas()
   val previewProgress = progress
 
   val slimPath = remember { Path() }
@@ -1536,7 +1553,7 @@ fun SeekbarStylePreview(
           val trackHeight = 4.dp.toPx()
           val thumbRadius = 7.dp.toPx()
           drawRoundRect(
-            color = primaryColor.copy(alpha = EMPTY_TRACK_ALPHA),
+            color = primaryColor.copy(alpha = emptyAlpha),
             topLeft = Offset(0f, centerY - trackHeight / 2f),
             size = Size(size.width, trackHeight),
             cornerRadius = CornerRadius(trackHeight / 2f),
@@ -1559,7 +1576,7 @@ fun SeekbarStylePreview(
           val height = 10.dp.toPx()
           val radius = height / 2f
           drawRoundRect(
-            color = primaryColor.copy(alpha = EMPTY_TRACK_ALPHA),
+            color = primaryColor.copy(alpha = emptyAlpha),
             topLeft = Offset(0f, centerY - radius),
             size = Size(size.width, height),
             cornerRadius = CornerRadius(radius),
@@ -1607,7 +1624,7 @@ fun SeekbarStylePreview(
           val thumbStart = (playedPx - gapHalf).coerceIn(0f, size.width)
           val thumbEnd = (playedPx + gapHalf).coerceIn(0f, size.width)
           drawRoundRect(
-            color = primaryColor.copy(alpha = EMPTY_TRACK_ALPHA),
+            color = primaryColor.copy(alpha = emptyAlpha),
             topLeft = Offset(thumbEnd, centerY - radius),
             size = Size((size.width - thumbEnd).coerceAtLeast(0f), height),
             cornerRadius = CornerRadius(radius),
@@ -1639,7 +1656,7 @@ fun SeekbarStylePreview(
           val thumbStart = (playedPx - gapHalf).coerceIn(0f, size.width)
           val thumbEnd = (playedPx + gapHalf).coerceIn(0f, size.width)
           drawRoundRect(
-            color = primaryColor.copy(alpha = EMPTY_TRACK_ALPHA),
+            color = primaryColor.copy(alpha = emptyAlpha),
             topLeft = Offset(thumbEnd, centerY - radius),
             size = Size((size.width - thumbEnd).coerceAtLeast(0f), height),
             cornerRadius = CornerRadius(radius),
@@ -1765,6 +1782,7 @@ fun StandardSeekbar(
   modifier: Modifier = Modifier,
 ) {
   val primaryColor = MaterialTheme.colorScheme.primary
+  val (readAheadAlpha, emptyAlpha) = rememberSeekbarTrackAlphas()
   val isPressed by interactionSource.collectIsPressedAsState()
   val isDragged by interactionSource.collectIsDraggedAsState()
   val isThumbInteracting = isPressed || isDragged || isScrubbing
@@ -1853,8 +1871,8 @@ fun StandardSeekbar(
       centerY = centerY,
       trackHeight = trackHeight,
       playedColor = primaryColor,
-      bufferedColor = primaryColor.copy(alpha = READ_AHEAD_TRACK_ALPHA),
-      unplayedColor = primaryColor.copy(alpha = EMPTY_TRACK_ALPHA),
+      bufferedColor = primaryColor.copy(alpha = readAheadAlpha),
+      unplayedColor = primaryColor.copy(alpha = emptyAlpha),
     )
 
     if ((loopStart != null || loopEnd != null) && safeDuration > 0f) {
