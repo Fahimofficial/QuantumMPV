@@ -511,6 +511,20 @@ object AboutScreen : Screen {
                 fontWeight = FontWeight.SemiBold,
               )
             }
+            Spacer(Modifier.height(10.dp))
+            Button(
+              onClick = { showUpiQr.value = true },
+              modifier = Modifier.fillMaxWidth().height(48.dp),
+              shape = RoundedCornerShape(12.dp),
+              colors =
+                ButtonDefaults.buttonColors(
+                  containerColor = cs.secondaryContainer,
+                  contentColor = cs.onSecondaryContainer,
+                ),
+              elevation = ButtonDefaults.buttonElevation(defaultElevation = 0.dp),
+            ) {
+              Text("View UPI QR", fontWeight = FontWeight.SemiBold)
+            }
           }
         }
 
@@ -641,6 +655,42 @@ object AboutScreen : Screen {
         }
 
         Spacer(Modifier.height(12.dp))
+      }
+    }
+
+    if (showUpiQr.value) {
+      Dialog(onDismissRequest = { showUpiQr.value = false }) {
+        Surface(
+          shape = RoundedCornerShape(24.dp),
+          color = MaterialTheme.colorScheme.surface,
+          tonalElevation = 8.dp,
+          modifier = Modifier.fillMaxWidth().padding(18.dp),
+        ) {
+          Column(
+            horizontalAlignment = Alignment.CenterHorizontally,
+            modifier = Modifier.padding(18.dp),
+          ) {
+            Text("Support QuantumMPV", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
+            Spacer(Modifier.height(4.dp))
+            Text("Scan with any UPI app", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Spacer(Modifier.height(14.dp))
+            Image(
+              painter = painterResource(R.drawable.upi_qr),
+              contentDescription = "UPI QR code for SimplyFahim@Sbi",
+              modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp)),
+            )
+            Spacer(Modifier.height(8.dp))
+            Text("SimplyFahim@Sbi", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
+            Spacer(Modifier.height(12.dp))
+            Button(
+              onClick = { showUpiQr.value = false },
+              modifier = Modifier.fillMaxWidth().height(46.dp),
+              shape = RoundedCornerShape(12.dp),
+            ) {
+              Text("Close", fontWeight = FontWeight.SemiBold)
+            }
+          }
+        }
       }
     }
   }
@@ -842,74 +892,10 @@ object LibrariesScreen : Screen {
                 fontWeight = FontWeight.SemiBold,
               )
             }
-            Spacer(Modifier.height(10.dp))
-            Button(
-              onClick = { showUpiQr.value = true },
-              modifier = Modifier.fillMaxWidth().height(48.dp),
-              shape = RoundedCornerShape(12.dp),
-              colors =
-                ButtonDefaults.buttonColors(
-                  containerColor = cs.secondaryContainer,
-                  contentColor = cs.onSecondaryContainer,
-                ),
-              elevation = ButtonDefaults.buttonElevation(defaultElevation = 0.dp),
-            ) {
-              Text("View UPI QR", fontWeight = FontWeight.SemiBold)
-            }
           }
         }
       }
     }
-
-    if (showUpiQr.value) {
-      Dialog(onDismissRequest = { showUpiQr.value = false }) {
-        Surface(
-          shape = RoundedCornerShape(24.dp),
-          color = MaterialTheme.colorScheme.surface,
-          tonalElevation = 8.dp,
-          modifier = Modifier.fillMaxWidth().padding(18.dp),
-        ) {
-          Column(
-            horizontalAlignment = Alignment.CenterHorizontally,
-            modifier = Modifier.padding(18.dp),
-          ) {
-            Text(
-              "Support QuantumMPV",
-              style = MaterialTheme.typography.titleLarge,
-              fontWeight = FontWeight.Bold,
-            )
-            Spacer(Modifier.height(4.dp))
-            Text(
-              "Scan with any UPI app",
-              style = MaterialTheme.typography.bodyMedium,
-              color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-            Spacer(Modifier.height(14.dp))
-            Image(
-              painter = painterResource(R.drawable.upi_qr),
-              contentDescription = "UPI QR code for SimplyFahim@Sbi",
-              modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp)),
-            )
-            Spacer(Modifier.height(8.dp))
-            Text(
-              "SimplyFahim@Sbi",
-              style = MaterialTheme.typography.titleMedium,
-              fontWeight = FontWeight.SemiBold,
-            )
-            Spacer(Modifier.height(12.dp))
-            Button(
-              onClick = { showUpiQr.value = false },
-              modifier = Modifier.fillMaxWidth().height(46.dp),
-              shape = RoundedCornerShape(12.dp),
-            ) {
-              Text("Close", fontWeight = FontWeight.SemiBold)
-            }
-          }
-        }
-      }
-    }
-  }
-}
 
 private data class OpenSourceLibrary(
   val name: String,

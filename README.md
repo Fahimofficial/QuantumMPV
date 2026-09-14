@@ -12,7 +12,9 @@
 
 > [!TIP]
 > **Support QuantumMPV**
-> **If QuantumMPV is useful to you, please consider supporting continued development through [UPI: SimplyFahim@Sbi](https://quantum-mpv.vercel.app/#support).**
+> **If QuantumMPV is useful to you, please consider supporting continued development.**
+>
+> **[Pay via UPI app · SimplyFahim@Sbi](upi://pay?pa=SimplyFahim%40Sbi&pn=SimplyFahim&cu=INR)** · **[Click QR to support](https://quantum-mpv.vercel.app/upi-qr.png)**
 >
 > Use your UPI app to confirm the recipient before sending.
 
