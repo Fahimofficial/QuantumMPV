@@ -10,6 +10,12 @@
   </a>
 </p>
 
+> [!TIP]
+> **Support QuantumMPV**
+> **If QuantumMPV is useful to you, please consider supporting continued development through [UPI: SimplyFahim@Sbi](upi://pay?pa=SimplyFahim%40Sbi&pn=SimplyFahim&cu=INR).**
+>
+> Use your UPI app to confirm the recipient before sending.
+
 <p align="center">
   <b>Feature-rich, Efficient Powerful Android video player based on libmpv.</b>
   <br>
@@ -353,13 +359,6 @@ First Pro Tip Keep Mpv Conf empty if you are newbie
 _Just a Pro tip if your battery consumption stays within 200 mAh and belwo 0.9W ( See Page 6 of QuantumMPV - video player More Settings -> Page6) useage than ur Mpv Conf are Proper for Video watching thats what i have experimented and telling rest all i don't know About in detail technicality's if anyone wanna tell me In depth guide then keep it to yourself i dont wanna listen_
 
 ---
-
-> [!TIP]
-> **Support QuantumMPV**
-> **If QuantumMPV is useful to you, please consider supporting continued development through [UPI: SimplyFahim@Sbi](upi://pay?pa=SimplyFahim%40Sbi&pn=SimplyFahim&cu=INR).**
->
-> Use your UPI app to confirm the recipient before sending.
-
 <div align="center">
   <a href="https://github.com/Fahimofficial/QuantumMPV/releases">
     <img src="https://img.shields.io/badge/Download-Stable_Release-blue?style=for-the-badge&logo=github" alt="Stable Release">
