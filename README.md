@@ -354,6 +354,12 @@ _Just a Pro tip if your battery consumption stays within 200 mAh and belwo 0.9W 
 
 ---
 
+> [!TIP]
+> **Support QuantumMPV**
+> **If QuantumMPV is useful to you, please consider supporting continued development through [UPI: SimplyFahim@Sbi](upi://pay?pa=SimplyFahim%40Sbi&pn=SimplyFahim&cu=INR).**
+>
+> Use your UPI app to confirm the recipient before sending.
+
 <div align="center">
   <a href="https://github.com/Fahimofficial/QuantumMPV/releases">
     <img src="https://img.shields.io/badge/Download-Stable_Release-blue?style=for-the-badge&logo=github" alt="Stable Release">
@@ -410,12 +416,6 @@ For help, reproducible bug reports, or feature suggestions, start with the [supp
 Use the [issue tracker](https://github.com/Fahimofficial/QuantumMPV/issues) for reproducible bug reports and feature requests. Contributions, testing, documentation, and translations are welcome through pull requests.
 
 ---
-
-> [!TIP]
-> ### Support QuantumMPV
-> If QuantumMPV is useful to you, please consider supporting continued development through [UPI: SimplyFahim@Sbi](upi://pay?pa=SimplyFahim%40Sbi&pn=SimplyFahim&cu=INR).
->
-> Use your UPI app to confirm the recipient before sending.
 
 ## Release Notes For Maintainers
 
