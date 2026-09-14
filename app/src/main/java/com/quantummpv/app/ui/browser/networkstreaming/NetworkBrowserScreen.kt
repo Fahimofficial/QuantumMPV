@@ -133,6 +133,9 @@ data class NetworkBrowserScreen(
     var searchQuery by rememberSaveable { mutableStateOf("") }
     var isSearching by rememberSaveable { mutableStateOf(false) }
     val focusRequester = remember { FocusRequester() }
+    LaunchedEffect(isSearching) {
+      if (isSearching) focusRequester.requestFocus()
+    }
 
     // Load files when connectionId or currentPath changes
     LaunchedEffect(connectionId, currentPath) {

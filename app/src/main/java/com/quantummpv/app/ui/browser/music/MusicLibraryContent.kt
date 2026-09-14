@@ -96,6 +96,7 @@ import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.asImageBitmap
@@ -236,6 +237,10 @@ fun MusicLibraryContent(
 
   val isRefreshing = remember { mutableStateOf(false) }
   var isSearchActive by remember { mutableStateOf(false) }
+  val searchFocusRequester = remember { FocusRequester() }
+  LaunchedEffect(isSearchActive) {
+    if (isSearchActive) searchFocusRequester.requestFocus()
+  }
   var isSortMenuExpanded by remember { mutableStateOf(false) }
   var showCreatePlaylistDialog by remember { mutableStateOf(false) }
 
@@ -466,6 +471,7 @@ fun MusicLibraryContent(
             modifier = Modifier
               .fillMaxWidth()
               .padding(horizontal = 16.dp, vertical = 8.dp),
+            inputFieldModifier = Modifier.focusRequester(searchFocusRequester),
             placeholder = { Text(if (selectedTab == MusicTab.FOLDERS) "Search folders & songs..." else "Search songs, albums, artists...") },
             leadingIcon = {
               IconButton(onClick = {

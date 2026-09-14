@@ -234,6 +234,9 @@ object NetworkStreamingScreen : Screen {
     var searchQuery by rememberSaveable { mutableStateOf("") }
     var isSearching by rememberSaveable { mutableStateOf(false) }
     val focusRequester = remember { FocusRequester() }
+    LaunchedEffect(isSearching) {
+      if (isSearching) focusRequester.requestFocus()
+    }
 
     val filteredConnections =
       remember(connections, searchQuery) {
