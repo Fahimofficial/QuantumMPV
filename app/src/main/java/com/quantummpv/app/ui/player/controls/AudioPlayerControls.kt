@@ -152,7 +152,6 @@ import com.quantummpv.app.presentation.components.RemoteImage
 import com.quantummpv.app.preferences.AppearancePreferences
 import com.quantummpv.app.preferences.AudioPreferences
 import com.quantummpv.app.preferences.AudioVisualizerStyle
-import com.quantummpv.app.preferences.GesturePreferences
 import com.quantummpv.app.preferences.PlayerPreferences
 import com.quantummpv.app.preferences.preference.collectAsState
 import com.quantummpv.app.ui.icons.Icon
@@ -570,8 +569,6 @@ fun AudioPlayerControls(
 ) {
   val speedConfigOwned = isMpvOptionOwnedByConfig("speed")
   val audioFiltersConfigOwned = isMpvOptionOwnedByConfig("af")
-  val gesturePreferences = koinInject<GesturePreferences>()
-  val audioSeekDuration by gesturePreferences.doubleTapToSeekDuration.collectAsState()
   val paused by PlaybackSession.propBoolean["pause"].collectAsState()
   val duration by PlaybackSession.propInt["duration"].collectAsState()
   val preciseDuration by viewModel.preciseDuration.collectAsState()
@@ -1084,8 +1081,8 @@ fun AudioPlayerControls(
     }
   }
 
-  val targetTopColor = if (ambientModeEnabled && (!showVisualizer || showInPlaceLyrics)) (ambientColors?.first ?: Color.Transparent) else Color.Transparent
-  val targetBottomColor = if (ambientModeEnabled && (!showVisualizer || showInPlaceLyrics)) (ambientColors?.second ?: Color.Transparent) else Color.Transparent
+  val targetTopColor = if (ambientModeEnabled) (ambientColors?.first ?: Color.Transparent) else Color.Transparent
+  val targetBottomColor = if (ambientModeEnabled) (ambientColors?.second ?: Color.Transparent) else Color.Transparent
 
   val animatedAmbientTop: Color by animateColorAsState(
     targetValue = targetTopColor,
@@ -1104,7 +1101,7 @@ fun AudioPlayerControls(
         .fillMaxSize()
         .background(MaterialTheme.colorScheme.surface)
         .drawWithCache {
-          if (ambientModeEnabled && (!showVisualizer || showInPlaceLyrics) && (animatedAmbientTop != Color.Transparent || animatedAmbientBottom != Color.Transparent)) {
+          if (ambientModeEnabled && (animatedAmbientTop != Color.Transparent || animatedAmbientBottom != Color.Transparent)) {
             val topColor = animatedAmbientTop
             val bottomColor = animatedAmbientBottom
             val radialGradient = Brush.radialGradient(
@@ -1291,7 +1288,7 @@ fun AudioPlayerControls(
               contentTransform.using(SizeTransform(clip = false))
             },
             label = "visualizer_toggle",
-            modifier = Modifier.fillMaxHeight().fillMaxWidth(if (isTabletPortrait) 0.65f else 1.0f),
+            modifier = Modifier.fillMaxHeight().fillMaxWidth(if (isTabletPortrait) 0.65f else if (isPortrait) 0.88f else 1.0f),
           ) { isVisualizerActive ->
           if (isVisualizerActive) {
             AudioVisualizerViewport(
@@ -1734,14 +1731,6 @@ fun AudioPlayerControls(
             modifier = Modifier.size(28.dp),
           )
         }
-        ReactiveIconButton(onClick = { viewModel.seekBy(-audioSeekDuration) }) {
-          Icon(
-            imageVector = Icons.RoundedFilled.FastRewind,
-            contentDescription = null,
-            tint = MaterialTheme.colorScheme.onSurface,
-            modifier = Modifier.size(34.dp),
-          )
-        }
         ReactiveSurfaceButton(
           onClick = { viewModel.pauseUnpause() },
           shape = CircleShape,
@@ -1757,14 +1746,6 @@ fun AudioPlayerControls(
               modifier = Modifier.size(if (isPortrait) 44.dp else 36.dp),
             )
           }
-        }
-        ReactiveIconButton(onClick = { viewModel.seekBy(audioSeekDuration) }) {
-          Icon(
-            imageVector = Icons.RoundedFilled.FastForward,
-            contentDescription = null,
-            tint = MaterialTheme.colorScheme.onSurface,
-            modifier = Modifier.size(34.dp),
-          )
         }
         ReactiveIconButton(onClick = { viewModel.playNext() }, enabled = playlistModeEnabled) {
           Icon(
@@ -2037,13 +2018,13 @@ fun AudioPlayerControls(
           exit = fadeOut(animationSpec = tween(300)) + androidx.compose.animation.shrinkVertically(animationSpec = tween(300)),
         ) {
           Column(horizontalAlignment = Alignment.CenterHorizontally) {
-            Spacer(modifier = Modifier.height(16.dp))
+            Spacer(modifier = Modifier.height(4.dp))
             trackMetadataView()
-            Spacer(modifier = Modifier.height(16.dp))
+            Spacer(modifier = Modifier.height(10.dp))
             seekbarView()
-            Spacer(modifier = Modifier.height(16.dp))
+            Spacer(modifier = Modifier.height(14.dp))
             playbackControlsRow()
-            Spacer(modifier = Modifier.height(24.dp))
+            Spacer(modifier = Modifier.height(48.dp))
             bottomActionRow()
           }
         }

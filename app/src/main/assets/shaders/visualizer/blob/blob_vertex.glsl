@@ -94,7 +94,7 @@ void main() {
     float detailNoise = snoise(aPosition * (4.2 + uTreble * 2.2) - vec3(uTime * 0.38));
     float breathing = 0.016 * sin(uTime * 1.1 + aPosition.y * 3.2);
 
-    float specDisplacement = specValue * 0.22 * (1.0 + uBass * 0.7);
+    float specDisplacement = specValue * 0.22 * uAudio * (1.0 + uBass * 0.7);
     float shockwave = sin(length(aPosition) * 5.0 - uTime * 6.0) * (uBeat * 0.08 + uFlux * 0.05);
 
     float reaction = 0.025 + uAudio * 0.52 + uBass * 0.26 + uSubBass * 0.18 + uBeat * 0.16;
