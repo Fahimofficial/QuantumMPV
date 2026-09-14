@@ -54,8 +54,8 @@ jobs:
             version_tag="${{ inputs.tag_name }}"
           fi
 
-          if [[ ! "$version_tag" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
-            echo "Invalid stable release tag: $version_tag"
+          if [[ ! "$version_tag" =~ ^v[0-9]+\.[0-9]+\.[0-9]+(-preview\.[0-9]+)?$ ]]; then
+            echo "Invalid release tag: $version_tag"
             exit 1
           fi
           if [[ "$version_tag" != v1.* ]]; then
@@ -64,6 +64,7 @@ jobs:
           fi
           build_version="$(sed -n 's/^[[:space:]]*versionName = "\([^"]*\)".*/\1/p' app/build.gradle.kts | head -n 1)"
           expected_version="${version_tag#v}"
+          expected_version="${expected_version%%-preview.*}"
           if [[ "$build_version" != "$expected_version" ]]; then
             echo "Release tag $version_tag does not match app versionName $build_version"
             exit 1
@@ -226,7 +227,7 @@ jobs:
           body_path: release-notes.md
           generate_release_notes: true
           draft: false
-          prerelease: false
+          prerelease: ${{ contains(env.VERSION_TAG, '-preview.') }}
           fail_on_unmatched_files: true
           files: release-assets/*.apk
         env:
