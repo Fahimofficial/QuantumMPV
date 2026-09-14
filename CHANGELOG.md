@@ -2,21 +2,14 @@
 
 These notes are written in plain English and focus on what changed for real use.
 
-## 1.1.0-preview.1
+## Initial release 1.0.0
 
-A visual-polish preview focused on the About section.
+This current-code release includes the main QuantumMPV features and the latest About-screen visual improvements.
 
-### New
+### Visual polish
 
 - Added a subtle automatic liquid-style shimmer to the About support card.
 - Improved About-screen attribution contrast with solid-white writing text.
-
-### Notes
-
-- The shimmer is intentionally low-opacity and non-interactive.
-- Stable release 1.0.0 remains unchanged.
-
-## Initial release 1.0.0
 
 The first stable QuantumMPV release, bringing the current playback, library, streaming, download, customization, and branding work together in one public build.
 
