@@ -5,6 +5,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.PathFillType
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.graphics.vector.group
 import androidx.compose.ui.graphics.vector.path
 import androidx.compose.ui.unit.dp
 import com.composables.icons.materialsymbols.MaterialSymbols
@@ -518,38 +519,65 @@ private val FavoriteBorderVector: ImageVector by lazy(LazyThreadSafetyMode.NONE)
     name = "FavoriteBorder",
     defaultWidth = 24.dp,
     defaultHeight = 24.dp,
-    viewportWidth = 24f,
-    viewportHeight = 24f,
+    viewportWidth = 960f,
+    viewportHeight = 960f,
   ).apply {
-    path(
-      fill = SolidColor(Color.Black),
-      fillAlpha = 1.0f,
-      stroke = null,
-      strokeAlpha = 1.0f,
-      strokeLineWidth = 1.0f,
-      pathFillType = PathFillType.NonZero,
+    group(
+      translationY = 960f,
     ) {
-      moveTo(16.5f, 3.0f)
-      curveTo(14.76f, 3.0f, 13.09f, 3.81f, 12.0f, 5.09f)
-      curveTo(10.91f, 3.81f, 9.24f, 3.0f, 7.5f, 3.0f)
-      curveTo(4.42f, 3.0f, 2.0f, 5.42f, 2.0f, 8.5f)
-      curveTo(2.0f, 12.28f, 5.4f, 15.36f, 10.55f, 20.04f)
-      lineTo(12.0f, 21.35f)
-      lineTo(13.45f, 20.03f)
-      curveTo(18.6f, 15.36f, 22.0f, 12.28f, 22.0f, 8.5f)
-      curveTo(22.0f, 5.42f, 19.58f, 3.0f, 16.5f, 3.0f)
-      close()
-      moveTo(12.1f, 18.55f)
-      lineTo(12.0f, 18.65f)
-      lineTo(11.9f, 18.55f)
-      curveTo(7.14f, 14.24f, 4.0f, 11.39f, 4.0f, 8.5f)
-      curveTo(4.0f, 6.5f, 5.5f, 5.0f, 7.5f, 5.0f)
-      curveTo(9.04f, 5.0f, 10.54f, 5.99f, 11.07f, 7.36f)
-      horizontalLineTo(12.94f)
-      curveTo(13.46f, 5.99f, 14.96f, 5.0f, 16.5f, 5.0f)
-      curveTo(18.5f, 5.0f, 20.0f, 6.5f, 20.0f, 8.5f)
-      curveTo(20.0f, 11.39f, 16.86f, 14.24f, 12.1f, 18.55f)
-      close()
+      path(
+        fill = SolidColor(Color.Black),
+        fillAlpha = 1.0f,
+        stroke = null,
+        strokeAlpha = 1.0f,
+        strokeLineWidth = 1.0f,
+        pathFillType = PathFillType.NonZero,
+      ) {
+        moveTo(451.5f, -152f)
+        quadToRelative(-14.5f, -5f, -25.5f, -16f)
+        lineToRelative(-69f, -63f)
+        quadToRelative(-106f, -97f, -191.5f, -192.5f)
+        reflectiveQuadTo(80f, -634f)
+        quadToRelative(0f, -94f, 63f, -157f)
+        reflectiveQuadToRelative(157f, -63f)
+        quadToRelative(53f, 0f, 100f, 22.5f)
+        reflectiveQuadToRelative(80f, 61.5f)
+        quadToRelative(33f, -39f, 80f, -61.5f)
+        reflectiveQuadTo(660f, -854f)
+        quadToRelative(94f, 0f, 157f, 63f)
+        reflectiveQuadToRelative(63f, 157f)
+        quadToRelative(0f, 115f, -85f, 211f)
+        reflectiveQuadTo(602f, -230f)
+        lineToRelative(-68f, 62f)
+        quadToRelative(-11f, 11f, -25.5f, 16f)
+        reflectiveQuadToRelative(-28.5f, 5f)
+        quadToRelative(-14f, 0f, -28.5f, -5f)
+        close()
+        moveTo(442f, -690f)
+        quadToRelative(-29f, -41f, -62f, -62.5f)
+        reflectiveQuadTo(300f, -774f)
+        quadToRelative(-60f, 0f, -100f, 40f)
+        reflectiveQuadToRelative(-40f, 100f)
+        quadToRelative(0f, 52f, 37f, 110.5f)
+        reflectiveQuadTo(285.5f, -410f)
+        quadToRelative(51.5f, 55f, 106f, 103f)
+        reflectiveQuadToRelative(88.5f, 79f)
+        quadToRelative(34f, -31f, 88.5f, -79f)
+        reflectiveQuadToRelative(106f, -103f)
+        quadTo(726f, -465f, 763f, -523.5f)
+        reflectiveQuadTo(800f, -634f)
+        quadToRelative(0f, -60f, -40f, -100f)
+        reflectiveQuadToRelative(-100f, -40f)
+        quadToRelative(-47f, 0f, -80f, 21.5f)
+        reflectiveQuadTo(518f, -690f)
+        quadToRelative(-7f, 10f, -17f, 15f)
+        reflectiveQuadToRelative(-21f, 5f)
+        quadToRelative(-11f, 0f, -21f, -5f)
+        reflectiveQuadToRelative(-17f, -15f)
+        close()
+        moveToRelative(38f, 189f)
+        close()
+      }
     }
   }.build()
 }
