@@ -484,3 +484,7 @@ Distributed under **GNU Affero General Public License v3.0 (AGPL-3.0-or-later)**
    <img alt="Star History Chart" src="https://api.star-history.com/svg?repos=Fahimofficial/QuantumMPV&type=date&legend=top-left" />
  </picture>
 </a>
+
+---
+
+<p align="center"><sub>Support QuantumMPV: <a href="upi://pay?pa=SimplyFahim%40Sbi&pn=SimplyFahim&cu=INR">SimplyFahim@Sbi</a></sub></p>
