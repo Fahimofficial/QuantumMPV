@@ -24,8 +24,8 @@ import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.infiniteRepeatable
 import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.Image
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -516,11 +516,10 @@ object AboutScreen : Screen {
               onClick = { showUpiQr.value = true },
               modifier = Modifier.fillMaxWidth().height(48.dp),
               shape = RoundedCornerShape(12.dp),
-              colors =
-                ButtonDefaults.buttonColors(
-                  containerColor = cs.secondaryContainer,
-                  contentColor = cs.onSecondaryContainer,
-                ),
+              colors = ButtonDefaults.buttonColors(
+                containerColor = cs.secondaryContainer,
+                contentColor = cs.onSecondaryContainer,
+              ),
               elevation = ButtonDefaults.buttonElevation(defaultElevation = 0.dp),
             ) {
               Text("View UPI QR", fontWeight = FontWeight.SemiBold)
@@ -657,6 +656,8 @@ object AboutScreen : Screen {
         Spacer(Modifier.height(12.dp))
       }
     }
+  }
+}
 
     if (showUpiQr.value) {
       Dialog(onDismissRequest = { showUpiQr.value = false }) {
@@ -693,8 +694,6 @@ object AboutScreen : Screen {
         }
       }
     }
-  }
-}
 
 @Composable
 private fun SystemStatRow(
@@ -887,15 +886,17 @@ object LibrariesScreen : Screen {
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
               )
               Text(
-                androidx.compose.ui.res
-                  .stringResource(com.quantummpv.app.R.string.ui_send_love),
-                fontWeight = FontWeight.SemiBold,
+                text = library.license,
+                style = MaterialTheme.typography.labelMedium,
+                color = MaterialTheme.colorScheme.secondary,
               )
             }
           }
         }
       }
     }
+  }
+}
 
 private data class OpenSourceLibrary(
   val name: String,

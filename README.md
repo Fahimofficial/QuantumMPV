@@ -14,7 +14,7 @@
 > **Support QuantumMPV**
 > **If QuantumMPV is useful to you, please consider supporting continued development.**
 >
-> **[Pay via UPI app · SimplyFahim@Sbi](upi://pay?pa=SimplyFahim%40Sbi&pn=SimplyFahim&cu=INR)** · **[Click QR to support](https://quantum-mpv.vercel.app/upi-qr.png)**
+> **[Pay via UPI app · SimplyFahim@Sbi](upi://pay?pa=SimplyFahim%40Sbi&pn=SimplyFahim&cu=INR)** · **[UPI QR · SimplyFahim@Sbi](https://quantum-mpv.vercel.app/upi-qr.png)**
 >
 > Use your UPI app to confirm the recipient before sending.
 
@@ -492,4 +492,6 @@ Distributed under **GNU Affero General Public License v3.0 (AGPL-3.0-or-later)**
   <a href="https://quantum-mpv.vercel.app/upi-qr.png">
     <img src="https://img.shields.io/badge/View-UPI_QR-2ea44f?style=for-the-badge" alt="View QuantumMPV UPI QR code" />
   </a>
+  <br>
+  <sub><b>UPI ID: <code>SimplyFahim@Sbi</code></b></sub>
 </div>
