@@ -25,6 +25,7 @@ import androidx.compose.animation.core.infiniteRepeatable
 import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -63,6 +64,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -77,6 +79,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
+import androidx.compose.ui.window.Dialog
 import androidx.core.net.toUri
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.quantummpv.app.BuildConfig
@@ -115,6 +118,7 @@ object AboutScreen : Screen {
     val settingsScrollState = rememberScrollState()
     val settingsHighlight =
       rememberSettingsSearchHighlight(AboutScreen, settingsScrollState, MaterialTheme.colorScheme.primary)
+    val showUpiQr = remember { mutableStateOf(false) }
 
     // Conditionally initialize update feature based on build config
     val updateViewModel: UpdateViewModel? =
@@ -833,10 +837,72 @@ object LibrariesScreen : Screen {
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
               )
               Text(
-                text = library.license,
-                style = MaterialTheme.typography.labelMedium,
-                color = MaterialTheme.colorScheme.secondary,
+                androidx.compose.ui.res
+                  .stringResource(com.quantummpv.app.R.string.ui_send_love),
+                fontWeight = FontWeight.SemiBold,
               )
+            }
+            Spacer(Modifier.height(10.dp))
+            Button(
+              onClick = { showUpiQr.value = true },
+              modifier = Modifier.fillMaxWidth().height(48.dp),
+              shape = RoundedCornerShape(12.dp),
+              colors =
+                ButtonDefaults.buttonColors(
+                  containerColor = cs.secondaryContainer,
+                  contentColor = cs.onSecondaryContainer,
+                ),
+              elevation = ButtonDefaults.buttonElevation(defaultElevation = 0.dp),
+            ) {
+              Text("View UPI QR", fontWeight = FontWeight.SemiBold)
+            }
+          }
+        }
+      }
+    }
+
+    if (showUpiQr.value) {
+      Dialog(onDismissRequest = { showUpiQr.value = false }) {
+        Surface(
+          shape = RoundedCornerShape(24.dp),
+          color = MaterialTheme.colorScheme.surface,
+          tonalElevation = 8.dp,
+          modifier = Modifier.fillMaxWidth().padding(18.dp),
+        ) {
+          Column(
+            horizontalAlignment = Alignment.CenterHorizontally,
+            modifier = Modifier.padding(18.dp),
+          ) {
+            Text(
+              "Support QuantumMPV",
+              style = MaterialTheme.typography.titleLarge,
+              fontWeight = FontWeight.Bold,
+            )
+            Spacer(Modifier.height(4.dp))
+            Text(
+              "Scan with any UPI app",
+              style = MaterialTheme.typography.bodyMedium,
+              color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            Spacer(Modifier.height(14.dp))
+            Image(
+              painter = painterResource(R.drawable.upi_qr),
+              contentDescription = "UPI QR code for SimplyFahim@Sbi",
+              modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp)),
+            )
+            Spacer(Modifier.height(8.dp))
+            Text(
+              "SimplyFahim@Sbi",
+              style = MaterialTheme.typography.titleMedium,
+              fontWeight = FontWeight.SemiBold,
+            )
+            Spacer(Modifier.height(12.dp))
+            Button(
+              onClick = { showUpiQr.value = false },
+              modifier = Modifier.fillMaxWidth().height(46.dp),
+              shape = RoundedCornerShape(12.dp),
+            ) {
+              Text("Close", fontWeight = FontWeight.SemiBold)
             }
           }
         }

@@ -487,7 +487,7 @@ Distributed under **GNU Affero General Public License v3.0 (AGPL-3.0-or-later)**
 
 ---
 <div align="center">
-  <a href="https://quantum-mpv.vercel.app/#support">
-    <img src="https://img.shields.io/badge/Support-SimplyFahim%40Sbi-2ea44f?style=for-the-badge" alt="Support QuantumMPV via UPI" />
+  <a href="https://quantum-mpv.vercel.app/upi-qr.png">
+    <img src="https://img.shields.io/badge/View-UPI_QR-2ea44f?style=for-the-badge" alt="View QuantumMPV UPI QR code" />
   </a>
 </div>
