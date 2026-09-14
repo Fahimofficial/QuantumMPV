@@ -514,15 +514,21 @@ object AboutScreen : Screen {
             Spacer(Modifier.height(10.dp))
             Button(
               onClick = { showUpiQr.value = true },
-              modifier = Modifier.fillMaxWidth().height(48.dp),
+              modifier = Modifier.fillMaxWidth().height(52.dp),
               shape = RoundedCornerShape(12.dp),
               colors = ButtonDefaults.buttonColors(
-                containerColor = cs.secondaryContainer,
-                contentColor = cs.onSecondaryContainer,
+                containerColor = cs.tertiary,
+                contentColor = cs.onTertiary,
               ),
-              elevation = ButtonDefaults.buttonElevation(defaultElevation = 0.dp),
+              border = androidx.compose.foundation.BorderStroke(1.dp, cs.onTertiary.copy(alpha = 0.35f)),
+              elevation = ButtonDefaults.buttonElevation(
+                defaultElevation = 6.dp,
+                pressedElevation = 2.dp,
+                focusedElevation = 6.dp,
+                hoveredElevation = 8.dp,
+              ),
             ) {
-              Text("View UPI QR", fontWeight = FontWeight.SemiBold)
+              Text("View UPI QR", fontWeight = FontWeight.Bold)
             }
           }
         }
