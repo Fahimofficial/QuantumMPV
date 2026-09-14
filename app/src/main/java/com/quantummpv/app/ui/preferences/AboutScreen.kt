@@ -656,8 +656,6 @@ object AboutScreen : Screen {
         Spacer(Modifier.height(12.dp))
       }
     }
-  }
-}
 
     if (showUpiQr.value) {
       Dialog(onDismissRequest = { showUpiQr.value = false }) {
@@ -694,6 +692,9 @@ object AboutScreen : Screen {
         }
       }
     }
+
+  }
+}
 
 @Composable
 private fun SystemStatRow(
