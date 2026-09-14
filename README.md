@@ -36,8 +36,6 @@
   <img src="https://img.shields.io/github/downloads/Fahimofficial/QuantumMPV/total?logo=github&cacheSeconds=3600" />
 </p>
 
-<p align="center"><a href="https://quantummpv.vercel.app/#support"><strong>Support me · Support continued QuantumMPV development</strong></a></p>
-
 ---
 
 ## Showcase
