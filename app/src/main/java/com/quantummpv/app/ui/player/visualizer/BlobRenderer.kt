@@ -404,9 +404,11 @@ internal class BlobRenderer(
     volumeScale: Float,
   ) {
     spectrumUploadBuffer.clear()
+    val active = sourceAudio.active
+    val scale = if (active) volumeScale else 0f
     val populatedBins = min(spectrum.size, 512)
     for (index in 0 until populatedBins) {
-      spectrumUploadBuffer.put(spectrum[index] * volumeScale)
+      spectrumUploadBuffer.put(spectrum[index] * scale)
     }
     for (index in populatedBins until 512) {
       spectrumUploadBuffer.put(0f)
