@@ -309,6 +309,7 @@ fun MpvrxTheme(
       resolveAppColorScheme(
         context = context,
         appTheme = appTheme,
+          customTheme = customTheme,
         useDarkTheme = false,
         amoledMode = amoledMode,
       )
