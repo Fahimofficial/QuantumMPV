@@ -251,6 +251,7 @@ object RecentlyPlayedScreen : Screen {
     }
 
     Scaffold(
+      containerColor = com.quantummpv.app.ui.theme.wallpaperAwareBackgroundColor(),
       topBar = {
         BrowserTopBar(
           title = stringResource(R.string.pref_advanced_enable_recently_played_title),

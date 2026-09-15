@@ -57,6 +57,7 @@ import com.quantummpv.app.ui.icons.Icon
 import com.quantummpv.app.ui.icons.Icons
 import com.quantummpv.app.ui.theme.DarkMode
 import com.quantummpv.app.ui.theme.LocalThemeTransitionState
+import com.quantummpv.app.ui.theme.LocalAppWallpaperActive
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import org.koin.compose.koinInject
@@ -170,7 +171,7 @@ private fun NormalTopBar(
   showBetaBadge: Boolean = false,
 ) {
   val preferences = koinInject<AppearancePreferences>()
-  val customWallpaperUri by preferences.customWallpaperUri.collectAsState()
+  val wallpaperActive = LocalAppWallpaperActive.current
   val darkMode by preferences.darkMode.collectAsState()
   val darkTheme = isSystemInDarkTheme()
   val themeTransition = LocalThemeTransitionState.current
@@ -207,7 +208,7 @@ private fun NormalTopBar(
     colors =
       colors ?: TopAppBarDefaults.topAppBarColors(
         containerColor =
-          if (customWallpaperUri.isNotBlank()) {
+          if (wallpaperActive) {
             Color.Transparent
           } else if (MaterialTheme.colorScheme.background == Color.Black) {
             Color.Black
@@ -408,14 +409,13 @@ private fun SelectionTopBar(
   additionalActions: @Composable RowScope.() -> Unit = { },
 ) {
   var showDropdown by remember { mutableStateOf(false) }
-  val preferences = koinInject<AppearancePreferences>()
-  val customWallpaperUri by preferences.customWallpaperUri.collectAsState()
+  val wallpaperActive = LocalAppWallpaperActive.current
 
   TopAppBar(
     colors =
       colors ?: TopAppBarDefaults.topAppBarColors(
         containerColor =
-          if (customWallpaperUri.isNotBlank()) {
+          if (wallpaperActive) {
             Color.Transparent
           } else if (MaterialTheme.colorScheme.background == Color.Black) {
             Color.Black

@@ -278,6 +278,7 @@ fun MpvrxTheme(
   val amoledMode by preferences.amoledMode.collectAsState()
   val appTheme by preferences.appTheme.collectAsState()
   val customTheme by preferences.customTheme.collectAsState()
+  val selectedCustomThemeName by preferences.selectedCustomThemeName.collectAsState()
   val useSystemFont by preferences.useSystemFont.collectAsState()
   val darkTheme = isSystemInDarkTheme()
   val configuration = LocalConfiguration.current
@@ -293,12 +294,17 @@ fun MpvrxTheme(
       DarkMode.Light -> false
       DarkMode.System -> darkTheme
     }
+  val customThemeDefinition =
+    CustomThemeDefinition
+      .parseCollection(customTheme)
+      .firstOrNull { it.name == selectedCustomThemeName }
+      ?: CustomThemeDefinition.parse(customTheme).takeIf { selectedCustomThemeName.isBlank() }
 
   val darkColorScheme =
     resolveAppColorScheme(
       context = context,
       appTheme = appTheme,
-      customTheme = customTheme,
+      customTheme = customThemeDefinition,
       useDarkTheme = true,
       amoledMode = amoledMode,
     )
@@ -309,7 +315,7 @@ fun MpvrxTheme(
       resolveAppColorScheme(
         context = context,
         appTheme = appTheme,
-          customTheme = customTheme,
+        customTheme = customThemeDefinition,
         useDarkTheme = false,
         amoledMode = amoledMode,
       )
@@ -338,11 +344,11 @@ fun MpvrxTheme(
 private fun resolveAppColorScheme(
   context: Context,
   appTheme: AppTheme,
-  customTheme: String,
+  customTheme: CustomThemeDefinition?,
   useDarkTheme: Boolean,
   amoledMode: Boolean,
 ): ColorScheme =
-  CustomThemeDefinition.parse(customTheme)?.let { definition ->
+  customTheme?.let { definition ->
     if (useDarkTheme) definition.darkColorScheme() else definition.lightColorScheme()
   } ?: when {
     appTheme.isDynamic && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S -> {

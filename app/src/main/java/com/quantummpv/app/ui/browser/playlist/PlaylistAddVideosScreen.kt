@@ -176,6 +176,7 @@ data class PlaylistAddVideosScreen(
     }
 
     Scaffold(
+      containerColor = com.quantummpv.app.ui.theme.wallpaperAwareBackgroundColor(),
       topBar = {
         if (folder == null) {
           BrowserTopBar(

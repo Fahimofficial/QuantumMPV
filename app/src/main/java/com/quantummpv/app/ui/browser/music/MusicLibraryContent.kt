@@ -455,13 +455,20 @@ fun MusicLibraryContent(
   }
 
   Scaffold(
+    containerColor = com.quantummpv.app.ui.theme.wallpaperAwareBackgroundColor(),
     modifier = modifier.fillMaxSize(),
     topBar = {
       Column(
         modifier = Modifier
           .fillMaxWidth()
           .background(
-            if (MaterialTheme.colorScheme.background == Color.Black) Color.Black else MaterialTheme.colorScheme.surfaceContainer
+            if (com.quantummpv.app.ui.theme.LocalAppWallpaperActive.current) {
+              Color.Transparent
+            } else if (MaterialTheme.colorScheme.background == Color.Black) {
+              Color.Black
+            } else {
+              MaterialTheme.colorScheme.surfaceContainer
+            }
           )
       ) {
         if (isSearchActive) {

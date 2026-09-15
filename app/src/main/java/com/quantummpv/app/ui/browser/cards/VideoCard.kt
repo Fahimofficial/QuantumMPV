@@ -391,16 +391,12 @@ fun VideoCard(
                 verticalAlignment = Alignment.CenterVertically,
               ) {
                 if (isWatched) {
-                  Box(
-                    modifier = Modifier.cardOverlay(shape = AppShapeScale.full).padding(4.dp),
-                  ) {
-                    Icon(
-                      imageVector = Icons.RoundedFilled.CheckCircle,
-                      contentDescription = stringResource(R.string.video_label_watched),
-                      modifier = Modifier.size(18.dp),
-                      tint = Color.White,
-                    )
-                  }
+                  Icon(
+                    imageVector = Icons.RoundedFilled.Check,
+                    contentDescription = stringResource(R.string.video_label_watched),
+                    modifier = Modifier.size(24.dp),
+                    tint = Color.White,
+                  )
                 }
                 if (showCodecSupportIndicator && !video.isAudio && video.videoCodec.isNotBlank()) {
                   CodecSupportIndicator(video = video, compact = true)
@@ -727,21 +723,12 @@ fun VideoCard(
             }
 
             if (isWatched) {
-              Box(
-                modifier =
-                  Modifier
-                    .align(Alignment.TopEnd)
-                    .padding(6.dp)
-                    .cardOverlay(shape = AppShapeScale.full)
-                    .padding(4.dp),
-              ) {
-                Icon(
-                  imageVector = Icons.RoundedFilled.CheckCircle,
-                  contentDescription = stringResource(R.string.video_label_watched),
-                  modifier = Modifier.size(18.dp),
-                  tint = Color.White,
-                )
-              }
+              Icon(
+                imageVector = Icons.RoundedFilled.Check,
+                contentDescription = stringResource(R.string.video_label_watched),
+                modifier = Modifier.align(Alignment.TopEnd).padding(6.dp).size(24.dp),
+                tint = Color.White,
+              )
             }
 
             // Duration timestamp overlay at bottom-right of the thumbnail

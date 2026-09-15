@@ -155,12 +155,18 @@ fun NavidromeContent(
   }
 
   val headerContainerColor =
-    if (MaterialTheme.colorScheme.background == Color.Black) Color.Black else MaterialTheme.colorScheme.surfaceContainer
+    if (com.quantummpv.app.ui.theme.LocalAppWallpaperActive.current) {
+      Color.Transparent
+    } else if (MaterialTheme.colorScheme.background == Color.Black) {
+      Color.Black
+    } else {
+      MaterialTheme.colorScheme.surfaceContainer
+    }
 
   Column(
     modifier = modifier
       .fillMaxSize()
-      .background(MaterialTheme.colorScheme.background),
+      .background(com.quantummpv.app.ui.theme.wallpaperAwareBackgroundColor()),
   ) {
     // Top Bar Container
     Column(

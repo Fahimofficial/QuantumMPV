@@ -106,8 +106,7 @@ fun SwipeableVideoActions(
     modifier =
       Modifier
         .fillMaxWidth()
-        .clip(shape)
-        .background(MaterialTheme.colorScheme.surface),
+        .clip(shape),
   ) {
     // Swipe right → reveal left action (Watched/Unwatch)
     if (offsetX > 0f) {
@@ -162,7 +161,6 @@ fun SwipeableVideoActions(
         Modifier
           .fillMaxWidth()
           .offset { IntOffset(offsetX.roundToInt(), 0) }
-          .background(MaterialTheme.colorScheme.surface)
           .then(
             if (enabled) {
               Modifier.pointerInput(itemKey, leftRevealPx, rightRevealPx) {

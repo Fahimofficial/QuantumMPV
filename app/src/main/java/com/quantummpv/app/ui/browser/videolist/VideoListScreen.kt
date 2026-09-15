@@ -345,6 +345,7 @@ data class VideoListScreen(
     }
 
     Scaffold(
+      containerColor = com.quantummpv.app.ui.theme.wallpaperAwareBackgroundColor(),
       topBar = {
         if (internalIsSearching) {
           InlineSearchBar(

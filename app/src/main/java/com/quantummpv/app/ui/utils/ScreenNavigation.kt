@@ -19,7 +19,6 @@ import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -34,6 +33,7 @@ import com.quantummpv.app.preferences.PlayerPreferences
 import com.quantummpv.app.preferences.preference.collectAsState
 import com.quantummpv.app.presentation.Screen
 import com.quantummpv.app.ui.player.NavigationAnimStyle
+import com.quantummpv.app.ui.theme.wallpaperAwareBackgroundColor
 import kotlin.math.roundToInt
 import org.koin.compose.koinInject
 
@@ -54,10 +54,11 @@ internal fun ScreenNavDisplay(
   val speed by preferences.animationSpeed.collectAsState()
   val layoutDirection = LocalLayoutDirection.current
   val direction = if (layoutDirection == LayoutDirection.Ltr) 1 else -1
+  val backgroundColor = wallpaperAwareBackgroundColor()
 
   NavDisplay(
     backStack = backStack,
-    modifier = modifier.clipToBounds().background(MaterialTheme.colorScheme.background),
+    modifier = modifier.clipToBounds().background(backgroundColor),
     onBack = onBack,
     sizeTransform = null,
     transitionSpec = { screenNavTransition(true, style, speed, direction) },
@@ -67,7 +68,7 @@ internal fun ScreenNavDisplay(
     },
     entryProvider = { route ->
       NavEntry(route) {
-        Surface(Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
+        Surface(Modifier.fillMaxSize(), color = backgroundColor) {
           content(route)
         }
       }

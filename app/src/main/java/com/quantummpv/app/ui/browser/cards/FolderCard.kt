@@ -11,6 +11,7 @@ package com.quantummpv.app.ui.browser.cards
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.combinedClickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.FlowRow
@@ -37,6 +38,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.rotate
+import androidx.compose.ui.draw.scale
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.asImageBitmap
@@ -101,6 +103,8 @@ fun FolderCard(
   val context = androidx.compose.ui.platform.LocalContext.current
   val density = LocalDensity.current
   val thumbnailRepository = koinInject<ThumbnailRepository>()
+  val cardInteractionSource = remember { MutableInteractionSource() }
+  val thumbnailInteractionSource = remember { MutableInteractionSource() }
   var folderThumbnail by remember(folder.bucketId) { mutableStateOf<android.graphics.Bitmap?>(null) }
 
   LaunchedEffect(
@@ -162,8 +166,6 @@ fun FolderCard(
   val selectionContainerColor =
     if (isSelected) {
       MaterialTheme.colorScheme.tertiary.copy(alpha = 0.3f)
-    } else if (isActive) {
-      MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.5f)
     } else {
       Color.Transparent
     }
@@ -201,6 +203,8 @@ fun FolderCard(
         .fillMaxWidth()
         .clip(cardShape)
         .combinedClickable(
+          interactionSource = cardInteractionSource,
+          indication = null,
           onClick = onClick,
           onLongClick = onLongClick,
         ),
@@ -208,7 +212,7 @@ fun FolderCard(
     colors = CardDefaults.cardColors(containerColor = Color.Transparent),
   ) {
     Box(modifier = Modifier.fillMaxWidth()) {
-      if (isSelected || isActive) {
+      if (isSelected) {
         Box(
           modifier =
             Modifier
@@ -278,9 +282,10 @@ fun FolderCard(
                     .width(thumbWidthDp)
                     .height(thumbHeightDp)
                 }
-              ).clip(AppShapeScale.medium)
-                .tvFocusHighlight(AppShapeScale.medium, focusedScale = 1.03f)
+              ).tvFocusHighlight(AppShapeScale.medium, focusedScale = 1.03f)
                 .combinedClickable(
+                  interactionSource = thumbnailInteractionSource,
+                  indication = null,
                   onClick = onThumbClick,
                   onLongClick = onLongClick,
                 ),
@@ -297,7 +302,7 @@ fun FolderCard(
               androidx.compose.foundation.Image(
                 bitmap = resolvedThumbnail,
                 contentDescription = null,
-                modifier = Modifier.matchParentSize(),
+                modifier = Modifier.matchParentSize().clip(AppShapeScale.medium),
                 contentScale = ContentScale.Crop,
               )
             } else {
@@ -306,8 +311,8 @@ fun FolderCard(
                 contentDescription =
                   androidx.compose.ui.res
                     .stringResource(com.quantummpv.app.R.string.ui_folder),
-                modifier = Modifier.size(56.dp),
-                tint = MaterialTheme.colorScheme.secondary,
+                modifier = Modifier.fillMaxWidth().aspectRatio(aspect).scale(1.2f),
+                tint = MaterialTheme.colorScheme.secondary.copy(alpha = 0.5f),
               )
             }
 
@@ -363,7 +368,12 @@ fun FolderCard(
           Text(
             folder.name,
             style = if (isSingleColumn) MaterialTheme.typography.titleMedium else MaterialTheme.typography.titleSmall,
-            color = if (isRecentlyPlayed) MaterialTheme.colorScheme.tertiary else MaterialTheme.colorScheme.onSurface,
+            color =
+              when {
+                isActive -> MaterialTheme.colorScheme.primary
+                isRecentlyPlayed -> MaterialTheme.colorScheme.tertiary
+                else -> MaterialTheme.colorScheme.onSurface
+              },
             maxLines = maxLines,
             overflow = TextOverflow.Ellipsis,
             textAlign = if (isSingleColumn) androidx.compose.ui.text.style.TextAlign.Start else (if (centerGridTitles) androidx.compose.ui.text.style.TextAlign.Center else androidx.compose.ui.text.style.TextAlign.Start),
@@ -397,9 +407,10 @@ fun FolderCard(
             modifier =
               Modifier
                 .size(64.dp)
-                .clip(AppShapeScale.medium)
                 .tvFocusHighlight(AppShapeScale.medium, focusedScale = 1.03f)
                 .combinedClickable(
+                  interactionSource = thumbnailInteractionSource,
+                  indication = null,
                   onClick = onThumbClick,
                   onLongClick = onLongClick,
                 ),
@@ -409,7 +420,7 @@ fun FolderCard(
               androidx.compose.foundation.Image(
                 bitmap = thumbnail,
                 contentDescription = null,
-                modifier = Modifier.matchParentSize(),
+                modifier = Modifier.matchParentSize().clip(AppShapeScale.medium),
                 contentScale = ContentScale.Crop,
               )
             } else {
@@ -418,8 +429,8 @@ fun FolderCard(
                 contentDescription =
                   androidx.compose.ui.res
                     .stringResource(com.quantummpv.app.R.string.ui_folder),
-                modifier = Modifier.size(48.dp),
-                tint = MaterialTheme.colorScheme.secondary,
+                modifier = Modifier.size(64.dp).scale(1.2f),
+                tint = MaterialTheme.colorScheme.secondary.copy(alpha = 0.5f),
               )
             }
 
@@ -460,7 +471,12 @@ fun FolderCard(
             Text(
               folder.name,
               style = MaterialTheme.typography.titleMedium,
-              color = if (isRecentlyPlayed) MaterialTheme.colorScheme.tertiary else MaterialTheme.colorScheme.onSurface,
+              color =
+                when {
+                  isActive -> MaterialTheme.colorScheme.primary
+                  isRecentlyPlayed -> MaterialTheme.colorScheme.tertiary
+                  else -> MaterialTheme.colorScheme.onSurface
+                },
               maxLines = maxLines,
               overflow = TextOverflow.Ellipsis,
             )

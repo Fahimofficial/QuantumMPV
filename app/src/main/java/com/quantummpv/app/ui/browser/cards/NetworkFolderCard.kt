@@ -11,6 +11,7 @@ package com.quantummpv.app.ui.browser.cards
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.combinedClickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -26,10 +27,12 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.scale
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -60,6 +63,7 @@ fun NetworkFolderCard(
   val browserPreferences = koinInject<BrowserPreferences>()
   val unlimitedNameLines by appearancePreferences.unlimitedNameLines.collectAsState()
   val centerGridTitles by browserPreferences.centerGridTitles.collectAsState()
+  val interactionSource = remember { MutableInteractionSource() }
   val maxLines = if (unlimitedNameLines) Int.MAX_VALUE else 2
 
   Card(
@@ -69,6 +73,8 @@ fun NetworkFolderCard(
         .tvFocusHighlight(AppShapeScale.large, focusedScale = 1.03f)
         .clip(AppShapeScale.large)
         .combinedClickable(
+          interactionSource = interactionSource,
+          indication = null,
           onClick = onClick,
           onLongClick = onLongClick,
         ),
@@ -99,8 +105,7 @@ fun NetworkFolderCard(
           modifier =
             Modifier
               .fillMaxWidth()
-              .aspectRatio(1f)
-                .clip(AppShapeScale.medium),
+                .aspectRatio(1f),
           contentAlignment = Alignment.Center,
         ) {
           Icon(
@@ -108,8 +113,8 @@ fun NetworkFolderCard(
             contentDescription =
               androidx.compose.ui.res
                 .stringResource(com.quantummpv.app.R.string.ui_folder),
-            modifier = Modifier.size(56.dp),
-            tint = MaterialTheme.colorScheme.secondary,
+            modifier = Modifier.fillMaxWidth().aspectRatio(1f).scale(1.2f),
+            tint = MaterialTheme.colorScheme.secondary.copy(alpha = 0.5f),
           )
         }
         Spacer(modifier = Modifier.height(8.dp))
@@ -134,8 +139,7 @@ fun NetworkFolderCard(
         Box(
           modifier =
             Modifier
-              .size(64.dp)
-                .clip(AppShapeScale.medium),
+              .size(64.dp),
           contentAlignment = Alignment.Center,
         ) {
           Icon(
@@ -143,8 +147,8 @@ fun NetworkFolderCard(
             contentDescription =
               androidx.compose.ui.res
                 .stringResource(com.quantummpv.app.R.string.ui_folder),
-            modifier = Modifier.size(48.dp),
-            tint = MaterialTheme.colorScheme.secondary,
+            modifier = Modifier.size(64.dp).scale(1.2f),
+            tint = MaterialTheme.colorScheme.secondary.copy(alpha = 0.5f),
           )
         }
         Spacer(modifier = Modifier.width(16.dp))

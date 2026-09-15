@@ -101,7 +101,7 @@ fun JellyfinMusicView(
     state = pagerState,
     modifier = modifier
       .fillMaxSize()
-      .background(MaterialTheme.colorScheme.background),
+      .background(com.quantummpv.app.ui.theme.wallpaperAwareBackgroundColor()),
     beyondViewportPageCount = 1,
     key = { page -> visibleTabs.getOrNull(page) ?: page },
   ) { page ->

@@ -158,6 +158,7 @@ data class NetworkBrowserScreen(
     }
 
     Scaffold(
+      containerColor = com.quantummpv.app.ui.theme.wallpaperAwareBackgroundColor(),
       topBar = {
         if (isSearching) {
           InlineSearchBar(

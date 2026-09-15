@@ -296,6 +296,7 @@ data class PlaylistDetailScreen(
     }
 
     Scaffold(
+      containerColor = com.quantummpv.app.ui.theme.wallpaperAwareBackgroundColor(),
       topBar = {
         if (isSearching) {
           // Search mode - show search bar

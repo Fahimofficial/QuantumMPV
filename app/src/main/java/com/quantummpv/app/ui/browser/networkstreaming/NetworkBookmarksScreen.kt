@@ -170,6 +170,7 @@ object NetworkBookmarksScreen : Screen {
     }
 
     Scaffold(
+      containerColor = com.quantummpv.app.ui.theme.wallpaperAwareBackgroundColor(),
       topBar = {
         BrowserTopBar(
           title = stringResource(R.string.network_bookmarks_title),

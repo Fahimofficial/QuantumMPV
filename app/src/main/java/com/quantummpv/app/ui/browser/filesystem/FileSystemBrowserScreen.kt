@@ -486,6 +486,7 @@ fun FileSystemBrowserScreen(path: String? = null) {
   // Main content
   Box(modifier = Modifier.fillMaxSize()) {
     Scaffold(
+      containerColor = com.quantummpv.app.ui.theme.wallpaperAwareBackgroundColor(),
       topBar = {
         if (isSearching) {
           // Search mode - show search bar instead of top bar

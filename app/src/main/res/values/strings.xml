@@ -2220,12 +2220,23 @@
   <string name="pref_appearance_custom_theme_name">Theme name</string>
   <string name="pref_appearance_custom_theme_light_primary">Light primary color</string>
   <string name="pref_appearance_custom_theme_dark_primary">Dark primary color</string>
+  <string name="pref_appearance_custom_theme_light_secondary">Light secondary color</string>
+  <string name="pref_appearance_custom_theme_dark_secondary">Dark secondary color</string>
+  <string name="pref_appearance_custom_theme_light_tertiary">Light tertiary color</string>
+  <string name="pref_appearance_custom_theme_dark_tertiary">Dark tertiary color</string>
   <string name="pref_appearance_custom_theme_light_background">Light background color</string>
   <string name="pref_appearance_custom_theme_dark_background">Dark background color</string>
   <string name="pref_appearance_custom_theme_none">No custom theme saved</string>
   <string name="pref_appearance_custom_theme_edit">Create or edit</string>
   <string name="pref_appearance_custom_theme_clear">Clear</string>
   <string name="pref_appearance_custom_theme_save">Save</string>
+  <string name="pref_appearance_custom_theme_new">New custom theme</string>
+  <string name="pref_appearance_custom_theme_edit_title">Edit custom theme</string>
+  <string name="pref_appearance_custom_theme_preview">Preview</string>
+  <string name="pref_appearance_custom_theme_live_preview">Live preview</string>
+  <string name="pref_appearance_custom_theme_name_required">Enter a theme name</string>
+  <string name="pref_appearance_custom_theme_name_duplicate">A theme with this name already exists</string>
+  <string name="pref_appearance_custom_theme_hex_invalid">Use a hex color such as #6750A4</string>
   <string name="pref_appearance_custom_wallpaper_title">Custom wallpaper</string>
   <string name="pref_appearance_custom_wallpaper_summary">Show a full-screen image behind browser content and the top bar</string>
   <string name="pref_appearance_custom_wallpaper_choose">Choose wallpaper</string>
@@ -2236,4 +2247,11 @@
   <string name="pref_appearance_custom_wallpaper_horizontal">Horizontal position</string>
   <string name="pref_appearance_custom_wallpaper_vertical">Vertical position</string>
   <string name="pref_appearance_custom_wallpaper_save">Save wallpaper</string>
+  <string name="pref_appearance_custom_wallpaper_adjust">Adjust</string>
+  <string name="pref_appearance_custom_wallpaper_gesture_hint">Drag to reposition. Pinch to zoom.</string>
+  <string name="pref_appearance_custom_wallpaper_reset">Reset</string>
+  <string name="pref_appearance_custom_wallpaper_fit">Fit</string>
+  <string name="pref_appearance_custom_wallpaper_fill">Fill</string>
+  <string name="pref_appearance_custom_wallpaper_replace_action">Replace</string>
+  <string name="pref_appearance_custom_wallpaper_clear_action">Clear</string>
 </resources>

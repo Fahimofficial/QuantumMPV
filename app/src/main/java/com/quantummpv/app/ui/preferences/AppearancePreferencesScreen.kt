@@ -9,11 +9,6 @@
 
 package com.quantummpv.app.ui.preferences
 
-import android.graphics.Bitmap
-import android.graphics.BitmapFactory
-import android.graphics.Canvas
-import android.graphics.Matrix
-import android.net.Uri
 import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -22,21 +17,17 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.Image
-import androidx.compose.foundation.layout.Box
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.OutlinedButton
-import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.TextButton
-import androidx.compose.material3.Slider
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
@@ -47,20 +38,15 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
-import androidx.compose.runtime.produceState
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
-import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.toArgb
-import androidx.compose.ui.graphics.asImageBitmap
-import androidx.compose.ui.graphics.graphicsLayer
-import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.quantummpv.app.R
 import com.quantummpv.app.domain.thumbnail.ThumbnailRepository
@@ -87,6 +73,7 @@ import com.quantummpv.app.ui.theme.CustomThemeDefinition
 import com.quantummpv.app.ui.theme.LocalThemeTransitionState
 import com.quantummpv.app.ui.utils.LocalBackStack
 import com.quantummpv.app.ui.utils.LocalShowSettingsBackArrow
+import com.quantummpv.app.ui.utils.navigateTo
 import com.quantummpv.app.ui.utils.popSafely
 import kotlinx.collections.immutable.persistentListOf
 import kotlinx.collections.immutable.toImmutableList
@@ -120,19 +107,10 @@ object AppearancePreferencesScreen : Screen {
     val darkMode by preferences.darkMode.collectAsState()
     val appTheme by preferences.appTheme.collectAsState()
     val customTheme by preferences.customTheme.collectAsState()
+    val selectedCustomThemeName by preferences.selectedCustomThemeName.collectAsState()
     val customWallpaperUri by preferences.customWallpaperUri.collectAsState()
     var pendingThumbnailMode by remember { mutableStateOf<ThumbnailMode?>(null) }
     var isThemeSectionExpanded by rememberSaveable { mutableStateOf(true) }
-    var showCustomThemeDialog by rememberSaveable { mutableStateOf(false) }
-    var customThemeName by rememberSaveable { mutableStateOf("") }
-    var customLightPrimary by rememberSaveable { mutableStateOf("") }
-    var customDarkPrimary by rememberSaveable { mutableStateOf("") }
-    var customLightBackground by rememberSaveable { mutableStateOf("") }
-    var customDarkBackground by rememberSaveable { mutableStateOf("") }
-    var pendingWallpaperUri by rememberSaveable { mutableStateOf<String?>(null) }
-    var wallpaperZoom by rememberSaveable { mutableStateOf(1f) }
-    var wallpaperOffsetX by rememberSaveable { mutableStateOf(0f) }
-    var wallpaperOffsetY by rememberSaveable { mutableStateOf(0f) }
     val storedThumbnailMode by browserPreferences.thumbnailMode.collectAsState()
     val thumbnailQuality by browserPreferences.thumbnailQuality.collectAsState()
     val thumbnailFramePosition by browserPreferences.thumbnailFramePosition.collectAsState()
@@ -141,6 +119,8 @@ object AppearancePreferencesScreen : Screen {
     val thumbnailCacheClearedMessage = stringResource(R.string.pref_thumbnail_cache_cleared)
 
     val thumbnailMode = storedThumbnailMode
+    val customThemes = remember(customTheme) { CustomThemeDefinition.parseCollection(customTheme) }
+    val selectedCustomTheme = customThemes.firstOrNull { it.name == selectedCustomThemeName }
 
     val wallpaperPicker =
       rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
@@ -151,148 +131,9 @@ object AppearancePreferencesScreen : Screen {
               android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION,
             )
           }
-          pendingWallpaperUri = uri.toString()
-          wallpaperZoom = 1f
-          wallpaperOffsetX = 0f
-          wallpaperOffsetY = 0f
+          backstack.navigateTo(WallpaperEditorScreen(uri.toString()))
         }
       }
-
-    val pendingWallpaperBitmap =
-      produceState<Bitmap?>(initialValue = null, pendingWallpaperUri) {
-        value =
-          pendingWallpaperUri?.let { uri ->
-            withContext(Dispatchers.IO) {
-              runCatching {
-                context.contentResolver.openInputStream(Uri.parse(uri))?.use(BitmapFactory::decodeStream)
-              }.getOrNull()
-            }
-          }
-      }.value
-
-    if (pendingWallpaperUri != null && pendingWallpaperBitmap != null) {
-      AlertDialog(
-        onDismissRequest = { pendingWallpaperUri = null },
-        title = { Text(stringResource(R.string.pref_appearance_custom_wallpaper_crop_title)) },
-        text = {
-          Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            Box(
-              modifier = Modifier.fillMaxWidth().size(280.dp),
-              contentAlignment = Alignment.Center,
-            ) {
-              Image(
-                bitmap = pendingWallpaperBitmap!!.asImageBitmap(),
-                contentDescription = null,
-                contentScale = ContentScale.Crop,
-                modifier =
-                  Modifier
-                    .fillMaxSize()
-                    .graphicsLayer {
-                      scaleX = wallpaperZoom
-                      scaleY = wallpaperZoom
-                      translationX = wallpaperOffsetX * size.width * 0.35f
-                      translationY = wallpaperOffsetY * size.height * 0.35f
-                    },
-              )
-            }
-            Text(stringResource(R.string.pref_appearance_custom_wallpaper_zoom))
-            Slider(value = wallpaperZoom, onValueChange = { wallpaperZoom = it }, valueRange = 1f..3f)
-            Text(stringResource(R.string.pref_appearance_custom_wallpaper_horizontal))
-            Slider(value = wallpaperOffsetX, onValueChange = { wallpaperOffsetX = it }, valueRange = -1f..1f)
-            Text(stringResource(R.string.pref_appearance_custom_wallpaper_vertical))
-            Slider(value = wallpaperOffsetY, onValueChange = { wallpaperOffsetY = it }, valueRange = -1f..1f)
-          }
-        },
-        confirmButton = {
-          Button(
-            onClick = {
-              val source = pendingWallpaperBitmap
-              val sourceUri = pendingWallpaperUri
-              if (source != null && sourceUri != null) {
-                scope.launch {
-                  val savedUri =
-                    withContext(Dispatchers.IO) {
-                      runCatching {
-                        val width = 1200
-                        val height = 800
-                        val output = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888)
-                        val canvas = Canvas(output)
-                        val scale = maxOf(width.toFloat() / source.width, height.toFloat() / source.height) * wallpaperZoom
-                        val scaledWidth = source.width * scale
-                        val scaledHeight = source.height * scale
-                        val maxX = ((scaledWidth - width) / 2f).coerceAtLeast(0f)
-                        val maxY = ((scaledHeight - height) / 2f).coerceAtLeast(0f)
-                        val matrix = Matrix().apply {
-                          postScale(scale, scale)
-                          postTranslate(
-                            (width - scaledWidth) / 2f - wallpaperOffsetX * maxX,
-                            (height - scaledHeight) / 2f - wallpaperOffsetY * maxY,
-                          )
-                        }
-                        canvas.drawBitmap(source, matrix, null)
-                        val file = java.io.File(context.filesDir, "custom_wallpaper.png")
-                        file.outputStream().use { outputStream ->
-                          output.compress(Bitmap.CompressFormat.PNG, 100, outputStream)
-                        }
-                        output.recycle()
-                        Uri.fromFile(file).toString()
-                      }.getOrNull()
-                    }
-                  if (savedUri != null) preferences.customWallpaperUri.set(savedUri)
-                  pendingWallpaperUri = null
-                }
-              }
-            },
-          ) { Text(stringResource(R.string.pref_appearance_custom_wallpaper_save)) }
-        },
-        dismissButton = {
-          TextButton(onClick = { pendingWallpaperUri = null }) {
-            Text(stringResource(R.string.generic_cancel))
-          }
-        },
-      )
-    }
-
-    if (showCustomThemeDialog) {
-      AlertDialog(
-        onDismissRequest = { showCustomThemeDialog = false },
-        title = { Text(stringResource(R.string.pref_appearance_custom_theme_title)) },
-        text = {
-          Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            OutlinedTextField(customThemeName, { customThemeName = it }, label = { Text(stringResource(R.string.pref_appearance_custom_theme_name)) }, singleLine = true)
-            OutlinedTextField(customLightPrimary, { customLightPrimary = it }, label = { Text(stringResource(R.string.pref_appearance_custom_theme_light_primary)) }, singleLine = true)
-            OutlinedTextField(customDarkPrimary, { customDarkPrimary = it }, label = { Text(stringResource(R.string.pref_appearance_custom_theme_dark_primary)) }, singleLine = true)
-            OutlinedTextField(customLightBackground, { customLightBackground = it }, label = { Text(stringResource(R.string.pref_appearance_custom_theme_light_background)) }, singleLine = true)
-            OutlinedTextField(customDarkBackground, { customDarkBackground = it }, label = { Text(stringResource(R.string.pref_appearance_custom_theme_dark_background)) }, singleLine = true)
-          }
-        },
-        confirmButton = {
-          Button(
-            onClick = {
-              val definition =
-                runCatching {
-                  CustomThemeDefinition(
-                    name = customThemeName.trim().replace('|', ' ').take(40),
-                    primaryLight = Color(android.graphics.Color.parseColor(customLightPrimary.trim())),
-                    primaryDark = Color(android.graphics.Color.parseColor(customDarkPrimary.trim())),
-                    backgroundLight = Color(android.graphics.Color.parseColor(customLightBackground.trim())),
-                    backgroundDark = Color(android.graphics.Color.parseColor(customDarkBackground.trim())),
-                  )
-                }.getOrNull()
-              if (definition != null && definition.name.isNotBlank()) {
-                preferences.customTheme.set(definition.serialize())
-                showCustomThemeDialog = false
-              }
-            },
-          ) { Text(stringResource(R.string.pref_appearance_custom_theme_save)) }
-        },
-        dismissButton = {
-          TextButton(onClick = { showCustomThemeDialog = false }) {
-            Text(stringResource(R.string.generic_cancel))
-          }
-        },
-      )
-    }
 
     // Determine if we're in dark mode for theme preview
     val isDarkMode =
@@ -406,9 +247,7 @@ object AppearancePreferencesScreen : Screen {
                     fontWeight = FontWeight.SemiBold,
                   )
                   Text(
-                    text = "${stringResource(
-                      darkMode.titleRes,
-                    )} · ${stringResource(appTheme.titleRes)}",
+                    text = "${stringResource(darkMode.titleRes)} · ${selectedCustomTheme?.name ?: stringResource(appTheme.titleRes)}",
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.outline,
                   )
@@ -452,47 +291,37 @@ object AppearancePreferencesScreen : Screen {
                   val amoledMode by preferences.amoledMode.collectAsState()
                   ThemePicker(
                     currentTheme = appTheme,
+                    customThemes = customThemes,
+                    selectedCustomThemeName = selectedCustomThemeName,
                     isDarkMode = isDarkMode,
                     onThemeSelected = { theme, position ->
-                      if (theme != appTheme && themeTransition?.isAnimating != true) {
+                      if ((theme != appTheme || selectedCustomThemeName.isNotBlank()) && themeTransition?.isAnimating != true) {
                         themeTransition?.startTransition(position)
                         scope.launch {
                           delay(50)
                           preferences.appTheme.set(theme)
-                          preferences.customTheme.set("")
+                          preferences.selectedCustomThemeName.set("")
                         }
                       }
                     },
-                    modifier = Modifier.padding(vertical = 8.dp),
-                  )
-
-                  val savedCustomTheme = CustomThemeDefinition.parse(customTheme)
-                  PreferenceCard {
-                    Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                      Text(stringResource(R.string.pref_appearance_custom_theme_title), style = MaterialTheme.typography.titleMedium)
-                      Text(
-                        savedCustomTheme?.name ?: stringResource(R.string.pref_appearance_custom_theme_none),
-                        color = MaterialTheme.colorScheme.outline,
-                        style = MaterialTheme.typography.bodySmall,
-                      )
-                      Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        Button(onClick = {
-                          val source = savedCustomTheme
-                          customThemeName = source?.name ?: ""
-                          customLightPrimary = source?.primaryLight?.toArgb()?.let { "#%08X".format(it) } ?: "#6750A4"
-                          customDarkPrimary = source?.primaryDark?.toArgb()?.let { "#%08X".format(it) } ?: "#D0BCFF"
-                          customLightBackground = source?.backgroundLight?.toArgb()?.let { "#%08X".format(it) } ?: "#FFFBFF"
-                          customDarkBackground = source?.backgroundDark?.toArgb()?.let { "#%08X".format(it) } ?: "#1C1B1F"
-                          showCustomThemeDialog = true
-                        }) { Text(stringResource(R.string.pref_appearance_custom_theme_edit)) }
-                        if (savedCustomTheme != null) {
-                          OutlinedButton(onClick = { preferences.customTheme.set("") }) {
-                            Text(stringResource(R.string.pref_appearance_custom_theme_clear))
-                          }
+                    onAddCustomTheme = { backstack.navigateTo(CustomThemeEditorScreen()) },
+                    onCustomThemeSelected = { theme, position ->
+                      if (theme.name != selectedCustomThemeName && themeTransition?.isAnimating != true) {
+                        themeTransition?.startTransition(position)
+                        scope.launch {
+                          delay(50)
+                          preferences.selectedCustomThemeName.set(theme.name)
                         }
                       }
-                    }
-                  }
+                    },
+                    onEditCustomTheme = { name -> backstack.navigateTo(CustomThemeEditorScreen(name)) },
+                    onDeleteCustomTheme = { name ->
+                      val remainingThemes = customThemes.filterNot { it.name == name }
+                      preferences.customTheme.set(CustomThemeDefinition.serializeCollection(remainingThemes))
+                      if (selectedCustomThemeName == name) preferences.selectedCustomThemeName.set("")
+                    },
+                    modifier = Modifier.padding(vertical = 8.dp),
+                  )
 
                   PreferenceDivider()
 
@@ -503,13 +332,49 @@ object AppearancePreferencesScreen : Screen {
                       if (customWallpaperUri.isNotBlank()) {
                         Text(customWallpaperUri.substringAfterLast('/'), style = MaterialTheme.typography.bodySmall, maxLines = 1)
                       }
-                      Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        Button(onClick = { wallpaperPicker.launch(arrayOf("image/*")) }) {
-                          Text(stringResource(if (customWallpaperUri.isBlank()) R.string.pref_appearance_custom_wallpaper_choose else R.string.pref_appearance_custom_wallpaper_replace))
+                      Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                      ) {
+                        Button(
+                          onClick = { wallpaperPicker.launch(arrayOf("image/*")) },
+                          modifier = Modifier.weight(1f),
+                          contentPadding = PaddingValues(horizontal = 8.dp),
+                        ) {
+                          Text(
+                            stringResource(if (customWallpaperUri.isBlank()) R.string.pref_appearance_custom_wallpaper_choose else R.string.pref_appearance_custom_wallpaper_replace_action),
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                          )
                         }
                         if (customWallpaperUri.isNotBlank()) {
-                          OutlinedButton(onClick = { preferences.customWallpaperUri.set("") }) {
-                            Text(stringResource(R.string.pref_appearance_custom_wallpaper_clear))
+                          OutlinedButton(
+                            onClick = { backstack.navigateTo(WallpaperEditorScreen(customWallpaperUri)) },
+                            modifier = Modifier.weight(1f),
+                            contentPadding = PaddingValues(horizontal = 8.dp),
+                          ) {
+                            Text(
+                              stringResource(R.string.pref_appearance_custom_wallpaper_adjust),
+                              maxLines = 1,
+                              overflow = TextOverflow.Ellipsis,
+                            )
+                          }
+                          TextButton(
+                            onClick = {
+                              preferences.customWallpaperUri.set("")
+                              preferences.customWallpaperZoom.set(1f)
+                              preferences.customWallpaperOffsetX.set(0f)
+                              preferences.customWallpaperOffsetY.set(0f)
+                              preferences.customWallpaperScaleMode.set(com.quantummpv.app.ui.theme.WallpaperScaleMode.Fit)
+                            },
+                            modifier = Modifier.weight(1f),
+                            contentPadding = PaddingValues(horizontal = 8.dp),
+                          ) {
+                            Text(
+                              stringResource(R.string.pref_appearance_custom_wallpaper_clear_action),
+                              maxLines = 1,
+                              overflow = TextOverflow.Ellipsis,
+                            )
                           }
                         }
                       }
