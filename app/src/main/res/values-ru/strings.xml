@@ -73,6 +73,7 @@
   <string name="ytdl_audio_quality_reload_summary">Используется для следующей ссылки или после перезагрузки текущей.</string>
   <string name="toast_playback_load_failed">Не удалось загрузить эту ссылку</string>
   <string name="video_label_new">НОВОЕ</string>
+  <string name="video_label_watched">Просмотрено</string>
   <!-- Theme names -->
   <string name="theme_default">По умолчанию</string>
   <string name="theme_dynamic">Динамическая</string>

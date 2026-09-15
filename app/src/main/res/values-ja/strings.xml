@@ -73,6 +73,7 @@
   <string name="ytdl_audio_quality_reload_summary">次のリンク、または現在のリンクを再読み込みしたときに使用されます。</string>
   <string name="toast_playback_load_failed">このリンクを読み込めませんでした</string>
   <string name="video_label_new">新着</string>
+  <string name="video_label_watched">視聴済み</string>
   <!-- Theme names -->
   <string name="theme_default">デフォルト</string>
   <string name="theme_dynamic">ダイナミック</string>

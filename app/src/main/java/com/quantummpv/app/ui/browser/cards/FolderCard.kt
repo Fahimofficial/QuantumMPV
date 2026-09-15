@@ -177,6 +177,7 @@ fun FolderCard(
       shape = AppShapeScale.full,
       color = MaterialTheme.colorScheme.primary.copy(alpha = 0.94f),
       contentColor = MaterialTheme.colorScheme.onPrimary,
+      shadowElevation = 3.dp,
       modifier = modifier.rotate(-18f),
     ) {
       Icon(
@@ -316,8 +317,7 @@ fun FolderCard(
                   Modifier
                     .align(Alignment.TopEnd)
                     .padding(6.dp)
-                    .clip(AppShapeScale.extraSmall)
-                    .background(Color(0xFFD32F2F))
+                      .cardOverlay(containerColor = Color(0xFFD32F2F))
                     .padding(horizontal = 6.dp, vertical = 2.dp),
               ) {
                 Text(
@@ -346,8 +346,7 @@ fun FolderCard(
                   Modifier
                     .align(Alignment.BottomEnd)
                     .padding(6.dp)
-                    .clip(AppShapeScale.extraSmall)
-                    .background(Color.Black.copy(alpha = 0.65f))
+                      .cardOverlay()
                     .padding(horizontal = 6.dp, vertical = 2.dp),
               ) {
                 Text(
@@ -431,8 +430,7 @@ fun FolderCard(
                   Modifier
                     .align(Alignment.TopEnd)
                     .padding(4.dp)
-                    .clip(AppShapeScale.extraSmall)
-                    .background(Color(0xFFD32F2F)) // Warning red color
+                      .cardOverlay(containerColor = Color(0xFFD32F2F))
                     .padding(horizontal = 6.dp, vertical = 2.dp),
               ) {
                 Text(

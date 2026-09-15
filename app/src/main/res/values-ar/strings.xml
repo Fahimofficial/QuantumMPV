@@ -73,6 +73,7 @@
   <string name="ytdl_audio_quality_reload_summary">يُستخدم للرابط التالي أو عند إعادة تحميل الرابط الحالي.</string>
   <string name="toast_playback_load_failed">تعذر تحميل هذا الرابط</string>
   <string name="video_label_new">جديد</string>
+  <string name="video_label_watched">تمت المشاهدة</string>
   <!-- Theme names -->
   <string name="theme_default">افتراضي</string>
   <string name="theme_dynamic">ديناميكي</string>

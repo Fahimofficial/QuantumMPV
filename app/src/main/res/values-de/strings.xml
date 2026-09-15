@@ -73,6 +73,7 @@
   <string name="ytdl_audio_quality_reload_summary">Wird für den nächsten Link oder beim erneuten Laden des aktuellen Links verwendet.</string>
   <string name="toast_playback_load_failed">Dieser Link konnte nicht geladen werden</string>
   <string name="video_label_new">NEU</string>
+  <string name="video_label_watched">Gesehen</string>
   <!-- Theme names -->
   <string name="theme_default">Standard</string>
   <string name="theme_dynamic">Dynamisch</string>

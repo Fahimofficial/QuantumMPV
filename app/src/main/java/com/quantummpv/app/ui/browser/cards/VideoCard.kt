@@ -369,8 +369,7 @@ fun VideoCard(
                     Modifier
                       .align(Alignment.TopStart)
                       .padding(6.dp)
-                      .clip(AppShapeScale.extraSmall)
-                      .background(Color(0xFFD32F2F)) // Warning red color
+                      .cardOverlay(containerColor = Color(0xFFD32F2F))
                       .padding(horizontal = 8.dp, vertical = 3.dp),
                 ) {
                   Text(
@@ -392,12 +391,16 @@ fun VideoCard(
                 verticalAlignment = Alignment.CenterVertically,
               ) {
                 if (isWatched) {
-                  Icon(
-                    imageVector = Icons.RoundedFilled.CheckCircle,
-                    contentDescription = "Watched",
-                    modifier = Modifier.size(26.dp),
-                    tint = Color.White,
-                  )
+                  Box(
+                    modifier = Modifier.cardOverlay(shape = AppShapeScale.full).padding(4.dp),
+                  ) {
+                    Icon(
+                      imageVector = Icons.RoundedFilled.CheckCircle,
+                      contentDescription = stringResource(R.string.video_label_watched),
+                      modifier = Modifier.size(18.dp),
+                      tint = Color.White,
+                    )
+                  }
                 }
                 if (showCodecSupportIndicator && !video.isAudio && video.videoCodec.isNotBlank()) {
                   CodecSupportIndicator(video = video, compact = true)
@@ -412,8 +415,7 @@ fun VideoCard(
                   Modifier
                     .align(Alignment.BottomEnd)
                     .padding(6.dp)
-                    .clip(AppShapeScale.extraSmall)
-                    .background(Color.Black.copy(alpha = 0.65f))
+                      .cardOverlay()
                     .padding(horizontal = 6.dp, vertical = 2.dp),
               ) {
                 Text(
@@ -709,8 +711,7 @@ fun VideoCard(
                     Modifier
                       .align(Alignment.TopStart)
                       .padding(6.dp)
-                      .clip(AppShapeScale.extraSmall)
-                      .background(Color(0xFFD32F2F)) // Warning red color
+                      .cardOverlay(containerColor = Color(0xFFD32F2F))
                       .padding(horizontal = 8.dp, vertical = 3.dp),
                 ) {
                   Text(
@@ -726,12 +727,21 @@ fun VideoCard(
             }
 
             if (isWatched) {
-              Icon(
-                imageVector = Icons.RoundedFilled.CheckCircle,
-                contentDescription = "Watched",
-                modifier = Modifier.align(Alignment.TopEnd).padding(6.dp).size(26.dp),
-                tint = Color.White,
-              )
+              Box(
+                modifier =
+                  Modifier
+                    .align(Alignment.TopEnd)
+                    .padding(6.dp)
+                    .cardOverlay(shape = AppShapeScale.full)
+                    .padding(4.dp),
+              ) {
+                Icon(
+                  imageVector = Icons.RoundedFilled.CheckCircle,
+                  contentDescription = stringResource(R.string.video_label_watched),
+                  modifier = Modifier.size(18.dp),
+                  tint = Color.White,
+                )
+              }
             }
 
             // Duration timestamp overlay at bottom-right of the thumbnail
@@ -741,8 +751,7 @@ fun VideoCard(
                   Modifier
                     .align(Alignment.BottomEnd)
                     .padding(6.dp)
-                    .clip(AppShapeScale.extraSmall)
-                    .background(Color.Black.copy(alpha = 0.65f))
+                      .cardOverlay()
                     .padding(horizontal = 6.dp, vertical = 2.dp),
               ) {
                 Text(
@@ -934,8 +943,10 @@ private fun CodecSupportIndicator(
   Row(
     modifier =
       modifier
-        .clip(AppShapeScale.small)
-        .background(MaterialTheme.colorScheme.surfaceContainerHigh)
+        .cardOverlay(
+          shape = AppShapeScale.small,
+          containerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
+        )
         .padding(horizontal = if (compact) 6.dp else 8.dp, vertical = if (compact) 3.dp else 4.dp),
     verticalAlignment = Alignment.CenterVertically,
   ) {
