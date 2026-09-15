@@ -52,7 +52,6 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.ripple
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
-import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
@@ -112,19 +111,12 @@ private data class SkipSegmentOverlay(
   val edgeColor: Color,
 )
 
-private const val READ_AHEAD_TRACK_ALPHA_DARK = 0.40f
-private const val EMPTY_TRACK_ALPHA_DARK = 0.24f
-private const val READ_AHEAD_TRACK_ALPHA_LIGHT = 0.60f
-private const val EMPTY_TRACK_ALPHA_LIGHT = 0.38f
+private const val READ_AHEAD_TRACK_ALPHA = 0.40f
+private const val EMPTY_TRACK_ALPHA = 0.24f
 
 @Composable
 private fun rememberSeekbarTrackAlphas(): Pair<Float, Float> {
-  val isDark = isSystemInDarkTheme()
-  return if (isDark) {
-    READ_AHEAD_TRACK_ALPHA_DARK to EMPTY_TRACK_ALPHA_DARK
-  } else {
-    READ_AHEAD_TRACK_ALPHA_LIGHT to EMPTY_TRACK_ALPHA_LIGHT
-  }
+  return READ_AHEAD_TRACK_ALPHA to EMPTY_TRACK_ALPHA
 }
 
 private fun bufferedEndPx(
