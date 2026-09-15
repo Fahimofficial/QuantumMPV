@@ -57,6 +57,8 @@ fun AppWallpaperHost(content: @Composable () -> Unit) {
   val wallpaperOffsetX by preferences.customWallpaperOffsetX.collectAsState()
   val wallpaperOffsetY by preferences.customWallpaperOffsetY.collectAsState()
   val wallpaperScaleMode by preferences.customWallpaperScaleMode.collectAsState()
+  val wallpaperBlur by preferences.customWallpaperBlur.collectAsState()
+  val wallpaperAlpha by preferences.customWallpaperAlpha.collectAsState()
   val wallpaper =
     produceState<Bitmap?>(initialValue = null, wallpaperUri) {
       val loadedWallpaper =
@@ -90,6 +92,8 @@ fun AppWallpaperHost(content: @Composable () -> Unit) {
         offsetX = wallpaperOffsetX,
         offsetY = wallpaperOffsetY,
         scaleMode = wallpaperScaleMode,
+        blurRadius = wallpaperBlur,
+        imageAlpha = wallpaperAlpha,
         modifier = Modifier.fillMaxSize(),
       )
       Box(
@@ -122,8 +126,12 @@ fun WallpaperImage(
   offsetX: Float,
   offsetY: Float,
   scaleMode: WallpaperScaleMode,
+  blurRadius: Float = 0f,
+  imageAlpha: Float = 1f,
   modifier: Modifier = Modifier,
 ) {
+  val safeBlur = blurRadius.coerceIn(0f, MAX_WALLPAPER_BLUR_DP)
+  val safeAlpha = imageAlpha.coerceIn(0f, 1f)
   Box(modifier = modifier.clipToBounds()) {
     if (scaleMode == WallpaperScaleMode.Fit) {
       Image(
@@ -136,7 +144,7 @@ fun WallpaperImage(
             .graphicsLayer {
               scaleX = 1.12f
               scaleY = 1.12f
-              alpha = 0.72f
+              alpha = 0.72f * safeAlpha
             }.blur(28.dp),
       )
     }
@@ -153,10 +161,13 @@ fun WallpaperImage(
             scaleY = safeZoom
             translationX = offsetX.coerceIn(-1f, 1f) * size.width * 0.35f
             translationY = offsetY.coerceIn(-1f, 1f) * size.height * 0.35f
-          },
+            alpha = safeAlpha
+          }.then(if (safeBlur > 0f) Modifier.blur(safeBlur.dp) else Modifier),
     )
   }
 }
+
+private const val MAX_WALLPAPER_BLUR_DP = 40f
 
 fun loadWallpaperBitmap(
   context: android.content.Context,

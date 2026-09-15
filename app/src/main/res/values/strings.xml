@@ -2248,6 +2248,8 @@
   <string name="pref_appearance_custom_wallpaper_zoom">Zoom</string>
   <string name="pref_appearance_custom_wallpaper_horizontal">Horizontal position</string>
   <string name="pref_appearance_custom_wallpaper_vertical">Vertical position</string>
+  <string name="pref_appearance_custom_wallpaper_blur">Blur</string>
+  <string name="pref_appearance_custom_wallpaper_transparency">Transparency</string>
   <string name="pref_appearance_custom_wallpaper_save">Save wallpaper</string>
   <string name="pref_appearance_custom_wallpaper_adjust">Adjust</string>
   <string name="pref_appearance_custom_wallpaper_gesture_hint">Drag to reposition. Pinch to zoom.</string>

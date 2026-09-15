@@ -92,6 +92,12 @@ data class WallpaperEditorScreen(
     var scaleMode by rememberSaveable(sourceUri) {
       mutableStateOf(if (isEditingCurrent) preferences.customWallpaperScaleMode.get() else WallpaperScaleMode.Fit)
     }
+    var blur by rememberSaveable(sourceUri) {
+      mutableStateOf(if (isEditingCurrent) preferences.customWallpaperBlur.get() else 0f)
+    }
+    var alpha by rememberSaveable(sourceUri) {
+      mutableStateOf(if (isEditingCurrent) preferences.customWallpaperAlpha.get() else 1f)
+    }
     val bitmap =
       produceState<Bitmap?>(initialValue = null, sourceUri) {
         val loaded = withContext(Dispatchers.IO) { loadWallpaperBitmap(context, sourceUri) }
@@ -127,6 +133,8 @@ data class WallpaperEditorScreen(
                 preferences.customWallpaperOffsetX.set(offsetX)
                 preferences.customWallpaperOffsetY.set(offsetY)
                 preferences.customWallpaperScaleMode.set(scaleMode)
+                preferences.customWallpaperBlur.set(blur)
+                preferences.customWallpaperAlpha.set(alpha)
                 backStack.popSafely()
               },
             ) {
@@ -184,6 +192,8 @@ data class WallpaperEditorScreen(
                 offsetX = offsetX,
                 offsetY = offsetY,
                 scaleMode = scaleMode,
+                blurRadius = blur,
+                imageAlpha = alpha,
                 modifier = Modifier.fillMaxSize(),
               )
             }
@@ -221,6 +231,22 @@ data class WallpaperEditorScreen(
           )
         }
         item {
+          WallpaperSlider(
+            label = stringResource(R.string.pref_appearance_custom_wallpaper_blur),
+            value = blur,
+            valueRange = 0f..40f,
+            onValueChange = { blur = it },
+          )
+        }
+        item {
+          WallpaperSlider(
+            label = stringResource(R.string.pref_appearance_custom_wallpaper_transparency),
+            value = alpha,
+            valueRange = 0f..1f,
+            onValueChange = { alpha = it },
+          )
+        }
+        item {
           Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.End,
@@ -231,6 +257,8 @@ data class WallpaperEditorScreen(
                 offsetX = 0f
                 offsetY = 0f
                 scaleMode = WallpaperScaleMode.Fit
+                blur = 0f
+                alpha = 1f
               },
               modifier = Modifier.tvFocusHighlight(RoundedCornerShape(12.dp), focusedScale = 1.03f),
             ) {
