@@ -37,8 +37,8 @@ import com.quantummpv.app.domain.network.NetworkFile
 import com.quantummpv.app.preferences.AppearancePreferences
 import com.quantummpv.app.preferences.preference.collectAsState
 import com.quantummpv.app.ui.icons.Icon
-import com.quantummpv.app.ui.icons.Icons
 import com.quantummpv.app.ui.player.controls.components.tvFocusHighlight
+import com.quantummpv.app.ui.icons.Icons
 import com.quantummpv.app.ui.theme.AppShapeScale
 import org.koin.compose.koinInject
 
@@ -100,8 +100,7 @@ fun NetworkFolderCard(
             Modifier
               .fillMaxWidth()
               .aspectRatio(1f)
-              .clip(AppShapeScale.medium)
-              .background(MaterialTheme.colorScheme.surfaceContainerHigh),
+                .clip(AppShapeScale.medium),
           contentAlignment = Alignment.Center,
         ) {
           Icon(
@@ -136,8 +135,7 @@ fun NetworkFolderCard(
           modifier =
             Modifier
               .size(64.dp)
-              .clip(AppShapeScale.medium)
-              .background(MaterialTheme.colorScheme.surfaceContainerHigh),
+                .clip(AppShapeScale.medium),
           contentAlignment = Alignment.Center,
         ) {
           Icon(

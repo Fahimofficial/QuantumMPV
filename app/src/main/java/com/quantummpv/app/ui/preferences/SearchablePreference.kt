@@ -1081,7 +1081,7 @@ object SearchablePreferences {
           summaryRes = R.string.ui_install_and_update_yt_dlp_for_streaming_support,
           keywords = listOf("yt-dlp", "online", "streaming", "extractor", "network", "download"),
           category = "Network",
-          screen = YtdlpSettingsScreen,
+          screen = NetworkConfigurationPreferencesScreen,
         ),
       )
       add(
@@ -1546,8 +1546,8 @@ object SearchablePreferences {
       )
       addSearchEntries(
         category = "Network",
-        screen = AdvancedPreferencesScreen,
-        anchorItemIndex = 9,
+        screen = NetworkConfigurationPreferencesScreen,
+        anchorItemIndex = 1,
         SearchEntrySpec(R.string.pref_enable_p2p_streaming_title, listOf("p2p", "torrent", "streaming", "enable")),
         SearchEntrySpec(R.string.pref_enable_hls_proxy_title, listOf("hls", "proxy", "streaming", "network")),
       )

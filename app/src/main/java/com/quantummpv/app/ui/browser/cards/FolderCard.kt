@@ -279,7 +279,6 @@ fun FolderCard(
                 }
               ).clip(AppShapeScale.medium)
                 .tvFocusHighlight(AppShapeScale.medium, focusedScale = 1.03f)
-                .background(MaterialTheme.colorScheme.surfaceContainerHigh)
                 .combinedClickable(
                   onClick = onThumbClick,
                   onLongClick = onLongClick,
@@ -399,9 +398,8 @@ fun FolderCard(
             modifier =
               Modifier
                 .size(64.dp)
-                .tvFocusHighlight(AppShapeScale.medium, focusedScale = 1.03f)
                 .clip(AppShapeScale.medium)
-                .background(MaterialTheme.colorScheme.surfaceContainerHigh)
+                .tvFocusHighlight(AppShapeScale.medium, focusedScale = 1.03f)
                 .combinedClickable(
                   onClick = onThumbClick,
                   onLongClick = onLongClick,

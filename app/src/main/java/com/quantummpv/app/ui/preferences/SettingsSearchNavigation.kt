@@ -210,6 +210,12 @@ private val settingsSearchListAnchors: Map<Screen, List<SettingsSearchListAnchor
         SettingsSearchListAnchor(titleRes = R.string.pref_jellyfin_server_management, itemIndex = 1),
         SettingsSearchListAnchor(titleRes = R.string.pref_seerr_server_management, itemIndex = 2),
       ),
+    NetworkConfigurationPreferencesScreen to
+      listOf(
+        SettingsSearchListAnchor(titleRes = R.string.pref_section_p2p_streaming, itemIndex = 0),
+        SettingsSearchListAnchor(titleRes = R.string.pref_enable_p2p_streaming_title, itemIndex = 1),
+        SettingsSearchListAnchor(titleRes = R.string.ui_yt_dlp_manager, itemIndex = 3),
+      ),
   )
 
 object SettingsSearchNavigation {

@@ -304,10 +304,16 @@ object PreferencesScreen : Screen {
           ),
       ),
       SettingsSection(
-        title = stringResource(R.string.pref_section_media_servers),
+        title = stringResource(R.string.ui_network),
         tint = colorScheme.onSurfaceVariant,
         items =
           listOf(
+            SettingsDestination(
+              title = stringResource(R.string.ui_network),
+              summary = stringResource(R.string.pref_section_p2p_streaming),
+              icon = Icons.RoundedFilled.SettingsEthernet,
+              screen = NetworkConfigurationPreferencesScreen,
+            ),
             SettingsDestination(
               title = stringResource(R.string.pref_media_servers_title),
               summary = stringResource(R.string.pref_media_servers_summary),
