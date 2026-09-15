@@ -83,6 +83,8 @@
   <string name="toast_playback_load_failed">Could not load this link</string>
   <string name="video_label_new">NEW</string>
   <string name="video_label_watched">Watched</string>
+  <string name="video_action_mark_watched">Mark watched</string>
+  <string name="video_action_mark_unwatched">Mark unwatched</string>
   <!-- Theme names -->
   <string name="theme_default">Default</string>
   <string name="theme_dynamic">Dynamic</string>

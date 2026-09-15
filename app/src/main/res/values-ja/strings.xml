@@ -74,6 +74,7 @@
   <string name="toast_playback_load_failed">このリンクを読み込めませんでした</string>
   <string name="video_label_new">新着</string>
   <string name="video_label_watched">視聴済み</string>
+  <string name="video_action_mark_watched">視聴済みにする</string><string name="video_action_mark_unwatched">未視聴にする</string>
   <!-- Theme names -->
   <string name="theme_default">デフォルト</string>
   <string name="theme_dynamic">ダイナミック</string>

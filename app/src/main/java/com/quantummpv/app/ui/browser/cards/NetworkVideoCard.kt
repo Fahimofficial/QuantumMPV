@@ -52,6 +52,7 @@ import com.quantummpv.app.preferences.preference.collectAsState
 import com.quantummpv.app.ui.icons.Icon
 import com.quantummpv.app.ui.icons.Icons
 import com.quantummpv.app.ui.player.controls.components.tvFocusHighlight
+import com.quantummpv.app.ui.player.controls.components.tvContextMenu
 import com.quantummpv.app.ui.theme.AppShapeScale
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
@@ -159,6 +160,7 @@ fun NetworkVideoCard(
         .fillMaxWidth()
         .tvFocusHighlight(AppShapeScale.large, focusedScale = 1.03f)
         .clip(AppShapeScale.large)
+        .tvContextMenu(onLongClick)
         .combinedClickable(
           onClick = onClick,
           onLongClick = onLongClick,

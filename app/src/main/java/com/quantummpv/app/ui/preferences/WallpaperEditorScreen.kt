@@ -58,6 +58,8 @@ import com.quantummpv.app.ui.icons.Icons
 import com.quantummpv.app.ui.theme.WallpaperImage
 import com.quantummpv.app.ui.theme.WallpaperScaleMode
 import com.quantummpv.app.ui.theme.loadWallpaperBitmap
+import com.quantummpv.app.ui.player.controls.components.tvFocusGroup
+import com.quantummpv.app.ui.player.controls.components.tvFocusHighlight
 import com.quantummpv.app.ui.utils.LocalBackStack
 import com.quantummpv.app.ui.utils.popSafely
 import kotlinx.coroutines.Dispatchers
@@ -135,7 +137,7 @@ data class WallpaperEditorScreen(
       },
     ) { padding ->
       LazyColumn(
-        modifier = Modifier.fillMaxSize().padding(padding),
+        modifier = Modifier.fillMaxSize().padding(padding).tvFocusGroup(),
         contentPadding = PaddingValues(16.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp),
       ) {
@@ -230,6 +232,7 @@ data class WallpaperEditorScreen(
                 offsetY = 0f
                 scaleMode = WallpaperScaleMode.Fit
               },
+              modifier = Modifier.tvFocusHighlight(RoundedCornerShape(12.dp), focusedScale = 1.03f),
             ) {
               Icon(Icons.RoundedFilled.Restore, contentDescription = null)
               Text(
@@ -257,6 +260,7 @@ private fun WallpaperSlider(
       value = value,
       onValueChange = onValueChange,
       valueRange = valueRange,
+      modifier = Modifier.fillMaxWidth().tvFocusHighlight(RoundedCornerShape(12.dp), focusedScale = 1.01f),
     )
   }
 }

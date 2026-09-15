@@ -16,6 +16,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
@@ -55,12 +56,16 @@ import com.quantummpv.app.preferences.AppearancePreferences
 import com.quantummpv.app.preferences.preference.collectAsState
 import com.quantummpv.app.ui.icons.Icon
 import com.quantummpv.app.ui.icons.Icons
+import com.quantummpv.app.ui.player.controls.components.tvFocusHighlight
 import com.quantummpv.app.ui.theme.DarkMode
 import com.quantummpv.app.ui.theme.LocalThemeTransitionState
 import com.quantummpv.app.ui.theme.LocalAppWallpaperActive
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import org.koin.compose.koinInject
+
+private fun Modifier.browserTopBarFocus(enabled: Boolean = true): Modifier =
+  tvFocusHighlight(CircleShape, enabled = enabled, focusedScale = 1.06f)
 
 /**
  * Unified top bar for browser screens that switches between normal and selection modes
@@ -300,7 +305,7 @@ private fun NormalTopBar(
       if (onBackClick != null) {
         IconButton(
           onClick = onBackClick,
-          modifier = Modifier.padding(horizontal = 2.dp),
+          modifier = Modifier.padding(horizontal = 2.dp).browserTopBarFocus(),
         ) {
           Icon(
             Icons.RoundedFilled.ArrowBack,
@@ -316,7 +321,7 @@ private fun NormalTopBar(
       if (onSearchClick != null) {
         IconButton(
           onClick = onSearchClick,
-          modifier = Modifier.padding(horizontal = 2.dp),
+          modifier = Modifier.padding(horizontal = 2.dp).browserTopBarFocus(),
         ) {
           Icon(
             Icons.RoundedFilled.Search,
@@ -333,7 +338,7 @@ private fun NormalTopBar(
       if (onRequestClick != null) {
         IconButton(
           onClick = onRequestClick,
-          modifier = Modifier.padding(horizontal = 2.dp),
+          modifier = Modifier.padding(horizontal = 2.dp).browserTopBarFocus(),
         ) {
           Icon(
             Icons.RoundedFilled.Explore,
@@ -349,7 +354,7 @@ private fun NormalTopBar(
       if (onSortClick != null) {
         IconButton(
           onClick = onSortClick,
-          modifier = Modifier.padding(horizontal = 2.dp),
+          modifier = Modifier.padding(horizontal = 2.dp).browserTopBarFocus(),
         ) {
           Icon(
             Icons.RoundedFilled.SortByAlpha,
@@ -363,7 +368,7 @@ private fun NormalTopBar(
       if (onSettingsClick != null) {
         IconButton(
           onClick = onSettingsClick,
-          modifier = Modifier.padding(horizontal = 2.dp),
+          modifier = Modifier.padding(horizontal = 2.dp).browserTopBarFocus(),
         ) {
           Icon(
             Icons.RoundedFilled.Settings,
@@ -426,7 +431,11 @@ private fun SelectionTopBar(
     title = {
       Row(
         verticalAlignment = Alignment.CenterVertically,
-        modifier = Modifier.clip(RoundedCornerShape(8.dp)).clickable { showDropdown = true },
+        modifier =
+          Modifier
+            .clip(RoundedCornerShape(8.dp))
+            .tvFocusHighlight(RoundedCornerShape(8.dp), focusedScale = 1.02f)
+            .clickable { showDropdown = true },
       ) {
         Text(
           stringResource(R.string.selected_items, selectedCount, totalCount),
@@ -479,7 +488,7 @@ private fun SelectionTopBar(
     navigationIcon = {
       IconButton(
         onClick = onCancel,
-        modifier = Modifier.padding(horizontal = 2.dp),
+        modifier = Modifier.padding(horizontal = 2.dp).browserTopBarFocus(),
       ) {
         Icon(
           Icons.RoundedFilled.Close,
@@ -494,7 +503,7 @@ private fun SelectionTopBar(
       if (onRestore != null) {
         IconButton(
           onClick = onRestore,
-          modifier = Modifier.padding(horizontal = 1.dp),
+          modifier = Modifier.padding(horizontal = 1.dp).browserTopBarFocus(),
         ) {
           Icon(
             Icons.RoundedFilled.Restore,
@@ -508,7 +517,7 @@ private fun SelectionTopBar(
       if (onPlay != null) {
         IconButton(
           onClick = onPlay,
-          modifier = Modifier.padding(horizontal = 1.dp),
+          modifier = Modifier.padding(horizontal = 1.dp).browserTopBarFocus(),
         ) {
           Icon(
             Icons.RoundedFilled.PlayArrow,
@@ -524,7 +533,7 @@ private fun SelectionTopBar(
       if (onPin != null) {
         IconButton(
           onClick = onPin,
-          modifier = Modifier.padding(horizontal = 1.dp),
+          modifier = Modifier.padding(horizontal = 1.dp).browserTopBarFocus(),
         ) {
           Icon(
             Icons.RoundedFilled.PushPin,
@@ -541,7 +550,7 @@ private fun SelectionTopBar(
       if (onAddToPlaylist != null) {
         IconButton(
           onClick = onAddToPlaylist,
-          modifier = Modifier.padding(horizontal = 1.dp),
+          modifier = Modifier.padding(horizontal = 1.dp).browserTopBarFocus(),
         ) {
           Icon(
             Icons.RoundedFilled.PlaylistAdd,
@@ -559,7 +568,7 @@ private fun SelectionTopBar(
         IconButton(
           onClick = onRename,
           enabled = isSingleSelection,
-          modifier = Modifier.padding(horizontal = 1.dp),
+          modifier = Modifier.padding(horizontal = 1.dp).browserTopBarFocus(enabled = isSingleSelection),
         ) {
           Icon(
             Icons.RoundedFilled.DriveFileRenameOutline,
@@ -580,7 +589,7 @@ private fun SelectionTopBar(
         IconButton(
           onClick = onInfo,
           enabled = isSingleSelection,
-          modifier = Modifier.padding(horizontal = 1.dp),
+          modifier = Modifier.padding(horizontal = 1.dp).browserTopBarFocus(enabled = isSingleSelection),
         ) {
           Icon(
             Icons.RoundedFilled.Info,
@@ -600,7 +609,7 @@ private fun SelectionTopBar(
       if (onShare != null) {
         IconButton(
           onClick = onShare,
-          modifier = Modifier.padding(horizontal = 1.dp),
+          modifier = Modifier.padding(horizontal = 1.dp).browserTopBarFocus(),
         ) {
           Icon(
             Icons.RoundedFilled.Share,
@@ -616,7 +625,7 @@ private fun SelectionTopBar(
       if (onMoveToSecure != null) {
         IconButton(
           onClick = onMoveToSecure,
-          modifier = Modifier.padding(horizontal = 1.dp),
+          modifier = Modifier.padding(horizontal = 1.dp).browserTopBarFocus(),
         ) {
           Icon(
             Icons.RoundedFilled.Lock,
@@ -631,7 +640,7 @@ private fun SelectionTopBar(
       if (onBlacklist != null) {
         IconButton(
           onClick = onBlacklist,
-          modifier = Modifier.padding(horizontal = 1.dp),
+          modifier = Modifier.padding(horizontal = 1.dp).browserTopBarFocus(),
         ) {
           Icon(
             Icons.RoundedFilled.Block,
@@ -646,7 +655,7 @@ private fun SelectionTopBar(
       if (onDelete != null) {
         IconButton(
           onClick = onDelete,
-          modifier = Modifier.padding(horizontal = 2.dp),
+          modifier = Modifier.padding(horizontal = 2.dp).browserTopBarFocus(),
         ) {
           Icon(
             imageVector = if (useRemoveIcon) Icons.RoundedFilled.RemoveCircle else Icons.RoundedFilled.Delete,

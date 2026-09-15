@@ -115,6 +115,7 @@ import com.quantummpv.app.R
 import com.quantummpv.app.domain.media.model.Video
 import com.quantummpv.app.ui.icons.Icon
 import com.quantummpv.app.ui.icons.Icons
+import com.quantummpv.app.ui.player.controls.components.tvFocusHighlight
 import com.quantummpv.app.ui.theme.AppShapeScale
 import com.quantummpv.app.utils.clipboard.SafeClipboard
 import kotlinx.coroutines.Dispatchers
@@ -994,6 +995,7 @@ private fun CompressorVideoTab(
         onSetTargetSize(it)
       },
       valueRange = 0.1f..maxOf(10f, state.targetSizeMb, (state.originalSize.toFloat() / (1024f * 1024f))),
+      modifier = Modifier.fillMaxWidth().tvFocusHighlight(MaterialTheme.shapes.small, focusedScale = 1.01f),
     )
 
     Text(
@@ -1228,7 +1230,7 @@ private fun CompressorAudioTab(
             onValueChange = onUpdateAudioVolume,
             valueRange = 0f..2f,
             steps = 19,
-            modifier = Modifier.weight(1f),
+            modifier = Modifier.weight(1f).tvFocusHighlight(MaterialTheme.shapes.small, focusedScale = 1.01f),
           )
         }
         Text(
@@ -2272,7 +2274,7 @@ private fun DefaultAudioConfigEditor(
               onValueChange = { volume = it },
               valueRange = 0f..2f,
               steps = 19,
-              modifier = Modifier.weight(1f),
+              modifier = Modifier.weight(1f).tvFocusHighlight(MaterialTheme.shapes.small, focusedScale = 1.01f),
             )
           }
         }

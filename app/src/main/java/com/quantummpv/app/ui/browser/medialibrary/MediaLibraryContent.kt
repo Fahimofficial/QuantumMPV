@@ -34,6 +34,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.systemBars
 import androidx.compose.foundation.layout.windowInsetsPadding
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
 import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.FloatingActionButtonMenu
@@ -105,6 +106,7 @@ import com.quantummpv.app.ui.browser.videolist.VideoListContent
 import com.quantummpv.app.ui.browser.videolist.VideoWithPlaybackInfo
 import com.quantummpv.app.ui.icons.Icon
 import com.quantummpv.app.ui.icons.Icons
+import com.quantummpv.app.ui.player.controls.components.tvFocusHighlight
 import com.quantummpv.app.ui.player.PlaybackIdentity
 import com.quantummpv.app.ui.player.PlaybackItem
 import com.quantummpv.app.ui.player.PreparedPlaybackLaunchStore
@@ -198,13 +200,16 @@ fun MediaLibraryContent(forceAudio: Boolean = false) {
       },
       onOperationComplete = { viewModel.refresh() },
     )
+  val selectedVideos = selectionManager.getSelectedItems()
+  val watchedVideoIds = remember(filteredVideosWithInfo) {
+    filteredVideosWithInfo.filter(VideoWithPlaybackInfo::isWatched).mapTo(hashSetOf()) { it.video.id }
+  }
+  val allSelectedVideosWatched = selectedVideos.isNotEmpty() && selectedVideos.all { it.id in watchedVideoIds }
 
   val isRefreshing = remember { mutableStateOf(false) }
   val sortDialogOpen = rememberSaveable { mutableStateOf(false) }
   val deleteDialogOpen = rememberSaveable { mutableStateOf(false) }
   val renameDialogOpen = rememberSaveable { mutableStateOf(false) }
-  var swipeRenameVideo by remember { mutableStateOf<Video?>(null) }
-  var swipeDeleteVideo by remember { mutableStateOf<Video?>(null) }
   val addToPlaylistDialogOpen = rememberSaveable { mutableStateOf(false) }
   val isFabVisible = remember { mutableStateOf(true) }
   val isFabExpanded = remember { mutableStateOf(false) }
@@ -496,6 +501,30 @@ fun MediaLibraryContent(forceAudio: Boolean = false) {
             }
           },
           onAddToPlaylistClick = { addToPlaylistDialogOpen.value = true },
+          additionalActions = {
+            if (mediaType == MediaLibraryType.Video && selectionManager.isInSelectionMode && selectedVideos.isNotEmpty()) {
+              IconButton(
+                onClick = {
+                  val markWatched = !allSelectedVideosWatched
+                  selectedVideos.forEach { video -> viewModel.setWatched(video, markWatched) }
+                  selectionManager.clear()
+                },
+                modifier = Modifier.tvFocusHighlight(CircleShape, focusedScale = 1.06f),
+              ) {
+                Icon(
+                  imageVector = if (allSelectedVideosWatched) Icons.RoundedFilled.RemoveCircle else Icons.RoundedFilled.CheckCircle,
+                  contentDescription =
+                    stringResource(
+                      if (allSelectedVideosWatched) {
+                        R.string.video_action_mark_unwatched
+                      } else {
+                        R.string.video_action_mark_watched
+                      },
+                    ),
+                )
+              }
+            }
+          },
         )
       }
     },
@@ -691,9 +720,6 @@ fun MediaLibraryContent(forceAudio: Boolean = false) {
                 }
               },
               onVideoLongClick = { video -> selectionManager.handleLongClick(video) },
-              onWatchedChange = viewModel::setWatched,
-              onRename = { video -> swipeRenameVideo = video },
-              onDelete = { video -> swipeDeleteVideo = video },
               isFabVisible = isFabVisible,
               modifier = Modifier.fillMaxSize(),
               showFloatingBottomBar = showFloatingBottomBar,
@@ -784,23 +810,6 @@ fun MediaLibraryContent(forceAudio: Boolean = false) {
       )
     }
 
-    swipeDeleteVideo?.let { video ->
-      DeleteConfirmationDialog(
-        isOpen = true,
-        onDismiss = { swipeDeleteVideo = null },
-        onConfirm = {
-          swipeDeleteVideo = null
-          coroutineScope.launch {
-            viewModel.deleteVideos(listOf(video))
-            viewModel.refresh()
-          }
-        },
-        itemType = if (mediaType == MediaLibraryType.Audio) "audio file" else "video",
-        itemCount = 1,
-        itemNames = listOf(video.displayName),
-      )
-    }
-
     if (renameDialogOpen.value) {
       val video = selectionManager.getSelectedItems().firstOrNull()
       if (video != null) {
@@ -815,27 +824,6 @@ fun MediaLibraryContent(forceAudio: Boolean = false) {
           itemType = if (mediaType == MediaLibraryType.Audio) "audio file" else "video",
         )
       }
-    }
-
-    swipeRenameVideo?.let { video ->
-      val extension =
-        video.displayName.substringAfterLast('.', "")
-          .takeIf { it.isNotBlank() }
-          ?.let { ".$it" }
-      RenameDialog(
-        isOpen = true,
-        onDismiss = { swipeRenameVideo = null },
-        onConfirm = { newName ->
-          swipeRenameVideo = null
-          coroutineScope.launch {
-            viewModel.renameVideo(video, newName)
-            viewModel.refresh()
-          }
-        },
-        currentName = video.displayName.substringBeforeLast('.'),
-        itemType = if (mediaType == MediaLibraryType.Audio) "audio file" else "video",
-        extension = extension,
-      )
     }
 
     AddToPlaylistDialog(

@@ -32,6 +32,7 @@ import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.rememberLazyGridState
 import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
 import androidx.compose.material3.FloatingActionButton
@@ -86,7 +87,6 @@ import com.quantummpv.app.preferences.SecureFolderPreferences
 import com.quantummpv.app.preferences.preference.collectAsState
 import com.quantummpv.app.presentation.Screen
 import com.quantummpv.app.presentation.components.pullrefresh.PullRefreshBox
-import com.quantummpv.app.ui.browser.cards.SwipeableVideoActions
 import com.quantummpv.app.ui.browser.cards.VideoCard
 import com.quantummpv.app.ui.browser.cards.VideoCardUiConfig
 import com.quantummpv.app.ui.browser.components.BrowserBottomBar
@@ -108,6 +108,7 @@ import com.quantummpv.app.ui.browser.states.EmptyState
 import com.quantummpv.app.ui.components.InlineSearchBar
 import com.quantummpv.app.ui.icons.Icon
 import com.quantummpv.app.ui.icons.Icons
+import com.quantummpv.app.ui.player.controls.components.tvFocusHighlight
 import com.quantummpv.app.ui.securefolder.SecureConfirmDialog
 import com.quantummpv.app.ui.securefolder.SecureFolderGateScreen
 import com.quantummpv.app.ui.securefolder.SecureFolderProgressDialog
@@ -213,6 +214,11 @@ data class VideoListScreen(
         onRenameItem = { video, newName -> viewModel.renameVideo(video, newName) },
         onOperationComplete = { viewModel.refresh() },
       )
+    val selectedVideos = selectionManager.getSelectedItems()
+    val watchedVideoIds = remember(sortedVideosWithInfo) {
+      sortedVideosWithInfo.filter(VideoWithPlaybackInfo::isWatched).mapTo(hashSetOf()) { it.video.id }
+    }
+    val allSelectedVideosWatched = selectedVideos.isNotEmpty() && selectedVideos.all { it.id in watchedVideoIds }
 
     // UI State
     val isRefreshing = remember { mutableStateOf(false) }
@@ -221,8 +227,6 @@ data class VideoListScreen(
     val renameDialogOpen = rememberSaveable { mutableStateOf(false) }
     val addToPlaylistDialogOpen = rememberSaveable { mutableStateOf(false) }
     val compressorDialogOpen = rememberSaveable { mutableStateOf(false) }
-    var swipeRenameVideo by remember { mutableStateOf<Video?>(null) }
-    var swipeDeleteVideo by remember { mutableStateOf<Video?>(null) }
 
     // Copy/Move state
     val folderPickerOpen = rememberSaveable { mutableStateOf(false) }
@@ -427,6 +431,30 @@ data class VideoListScreen(
             }
           },
           onAddToPlaylistClick = { addToPlaylistDialogOpen.value = true },
+          additionalActions = {
+            if (selectionManager.isInSelectionMode && selectedVideos.isNotEmpty()) {
+              IconButton(
+                onClick = {
+                  val markWatched = !allSelectedVideosWatched
+                  selectedVideos.forEach { video -> viewModel.setWatched(video, markWatched) }
+                  selectionManager.clear()
+                },
+                modifier = Modifier.tvFocusHighlight(CircleShape, focusedScale = 1.06f),
+              ) {
+                Icon(
+                  imageVector = if (allSelectedVideosWatched) Icons.RoundedFilled.RemoveCircle else Icons.RoundedFilled.CheckCircle,
+                  contentDescription =
+                    stringResource(
+                      if (allSelectedVideosWatched) {
+                        R.string.video_action_mark_unwatched
+                      } else {
+                        R.string.video_action_mark_watched
+                      },
+                    ),
+                )
+              }
+            }
+          },
           )
         }
       },
@@ -517,9 +545,6 @@ data class VideoListScreen(
             }
           },
           onVideoLongClick = { video -> selectionManager.handleLongClick(video) },
-          onWatchedChange = viewModel::setWatched,
-          onRename = { video -> swipeRenameVideo = video },
-          onDelete = { video -> swipeDeleteVideo = video },
           isFabVisible = isFabVisible,
           modifier = Modifier.padding(padding),
           showFloatingBottomBar = showFloatingBottomBar,
@@ -631,23 +656,6 @@ data class VideoListScreen(
         itemNames = selectionManager.getSelectedItems().map { it.displayName },
       )
 
-      swipeDeleteVideo?.let { video ->
-        DeleteConfirmationDialog(
-          isOpen = true,
-          onDismiss = { swipeDeleteVideo = null },
-          onConfirm = {
-            swipeDeleteVideo = null
-            coroutineScope.launch {
-              viewModel.deleteVideos(listOf(video))
-              viewModel.refresh()
-            }
-          },
-          itemType = "video",
-          itemCount = 1,
-          itemNames = listOf(video.displayName),
-        )
-      }
-
       // Rename Dialogs
       if (renameDialogOpen.value) {
         if (selectionManager.isSingleSelection) {
@@ -672,28 +680,6 @@ data class VideoListScreen(
             selectedVideos = selectionManager.getSelectedItems(),
           )
         }
-      }
-
-      swipeRenameVideo?.let { video ->
-        val extension =
-          video.displayName
-            .substringAfterLast('.', "")
-            .takeIf { it.isNotBlank() }
-            ?.let { ".$it" }
-        RenameDialog(
-          isOpen = true,
-          onDismiss = { swipeRenameVideo = null },
-          onConfirm = { newName ->
-            swipeRenameVideo = null
-            coroutineScope.launch {
-              viewModel.renameVideo(video, newName)
-              viewModel.refresh()
-            }
-          },
-          currentName = video.displayName.substringBeforeLast('.'),
-          itemType = "file",
-          extension = extension,
-        )
       }
 
       // Folder Picker Dialog
@@ -857,9 +843,6 @@ internal fun VideoListContent(
   selectionManager: SelectionManager<Video, Long>,
   onVideoClick: (Video) -> Unit,
   onVideoLongClick: (Video) -> Unit,
-  onWatchedChange: ((Video, Boolean) -> Unit)? = null,
-  onRename: ((Video) -> Unit)? = null,
-  onDelete: ((Video) -> Unit)? = null,
   isFabVisible: androidx.compose.runtime.MutableState<Boolean>,
   modifier: Modifier = Modifier,
   showFloatingBottomBar: Boolean = false,
@@ -1190,15 +1173,7 @@ internal fun VideoListContent(
                   val videoWithInfo = videosWithInfo[index]
                   val isRecentlyPlayed = recentlyPlayedFilePath?.let { videoWithInfo.video.path == it } ?: false
 
-                  SwipeableVideoActions(
-                    itemKey = videoWithInfo.video.path,
-                    enabled = !selectionManager.isInSelectionMode && onWatchedChange != null,
-                    isWatched = videoWithInfo.isWatched,
-                    onWatchedChange = { watched -> onWatchedChange?.invoke(videoWithInfo.video, watched) },
-                    onRename = { onRename?.invoke(videoWithInfo.video) },
-                    onDelete = { onDelete?.invoke(videoWithInfo.video) },
-                  ) {
-                    VideoCard(
+                  VideoCard(
                       video = videoWithInfo.video,
                       progressPercentage = videoWithInfo.progressPercentage,
                       isRecentlyPlayed = isRecentlyPlayed,
@@ -1221,8 +1196,7 @@ internal fun VideoListContent(
                       allowThumbnailGeneration = false,
                       allowThumbnailLoading = allowThumbnailLoading,
                       uiConfig = videoCardUiConfig,
-                    )
-                  }
+                  )
                 }
               }
 
@@ -1265,15 +1239,7 @@ internal fun VideoListContent(
                   val videoWithInfo = videosWithInfo[index]
                   val isRecentlyPlayed = recentlyPlayedFilePath?.let { videoWithInfo.video.path == it } ?: false
 
-                  SwipeableVideoActions(
-                    itemKey = videoWithInfo.video.path,
-                    enabled = !selectionManager.isInSelectionMode && onWatchedChange != null,
-                    isWatched = videoWithInfo.isWatched,
-                    onWatchedChange = { watched -> onWatchedChange?.invoke(videoWithInfo.video, watched) },
-                    onRename = { onRename?.invoke(videoWithInfo.video) },
-                    onDelete = { onDelete?.invoke(videoWithInfo.video) },
-                  ) {
-                    VideoCard(
+                  VideoCard(
                       video = videoWithInfo.video,
                       progressPercentage = videoWithInfo.progressPercentage,
                       isRecentlyPlayed = isRecentlyPlayed,
@@ -1295,8 +1261,7 @@ internal fun VideoListContent(
                       uiConfig = videoCardUiConfig,
                       thumbnailWidthPx = if (isAudio) with(density) { musicCoverArtSize.dp.roundToPx() } else null,
                       thumbnailHeightPx = if (isAudio) with(density) { musicCoverArtSize.dp.roundToPx() } else null,
-                    )
-                  }
+                  )
                 }
               }
 

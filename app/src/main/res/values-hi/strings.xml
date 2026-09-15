@@ -74,6 +74,7 @@
   <string name="toast_playback_load_failed">यह लिंक लोड नहीं हो सका</string>
   <string name="video_label_new">नया</string>
   <string name="video_label_watched">देखा गया</string>
+  <string name="video_action_mark_watched">देखा गया चिह्नित करें</string><string name="video_action_mark_unwatched">नहीं देखा गया चिह्नित करें</string>
   <string name="theme_default">डिफ़ॉल्ट</string>
   <string name="theme_dynamic">डायनामिक</string>
   <string name="theme_aurora">Aurora</string>

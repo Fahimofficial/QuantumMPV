@@ -74,6 +74,7 @@
   <string name="toast_playback_load_failed">无法加载此链接</string>
   <string name="video_label_new">新</string>
   <string name="video_label_watched">已观看</string>
+  <string name="video_action_mark_watched">标记为已观看</string><string name="video_action_mark_unwatched">标记为未观看</string>
   <!-- Theme names -->
   <string name="theme_default">默认</string>
   <string name="theme_dynamic">动态</string>

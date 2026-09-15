@@ -43,6 +43,7 @@ import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.lazy.grid.rememberLazyGridState
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
 import androidx.compose.material3.FloatingActionButtonMenu
@@ -95,7 +96,6 @@ import com.quantummpv.app.preferences.MediaLayoutMode
 import com.quantummpv.app.preferences.preference.collectAsState
 import com.quantummpv.app.presentation.components.pullrefresh.PullRefreshBox
 import com.quantummpv.app.ui.browser.cards.FolderCard
-import com.quantummpv.app.ui.browser.cards.SwipeableVideoActions
 import com.quantummpv.app.ui.browser.cards.VideoCard
 import com.quantummpv.app.ui.browser.cards.VideoCardUiConfig
 import com.quantummpv.app.ui.browser.components.BrowserBottomBar
@@ -116,6 +116,7 @@ import com.quantummpv.app.ui.browser.states.PermissionDeniedState
 import com.quantummpv.app.ui.components.InlineSearchBar
 import com.quantummpv.app.ui.icons.Icon
 import com.quantummpv.app.ui.icons.Icons
+import com.quantummpv.app.ui.player.controls.components.tvFocusHighlight
 import com.quantummpv.app.ui.theme.AppMotion
 import com.quantummpv.app.ui.utils.LocalBackStack
 import com.quantummpv.app.ui.utils.navigateTo
@@ -216,8 +217,6 @@ fun FileSystemBrowserScreen(path: String? = null) {
   val sortDialogOpen = rememberSaveable { mutableStateOf(false) }
   var deleteDialogOpen by rememberSaveable { mutableStateOf(false) }
   val renameDialogOpen = rememberSaveable { mutableStateOf(false) }
-  var swipeRenameVideo by remember { mutableStateOf<com.quantummpv.app.domain.media.model.Video?>(null) }
-  var swipeDeleteVideo by remember { mutableStateOf<com.quantummpv.app.domain.media.model.Video?>(null) }
   val addToPlaylistDialogOpen = rememberSaveable { mutableStateOf(false) }
   val compressorDialogOpen = rememberSaveable { mutableStateOf(false) }
 
@@ -297,6 +296,7 @@ fun FileSystemBrowserScreen(path: String? = null) {
   val selectedCount = selectionManager.selectedCount
   val totalCount = items.size
   val onlyVideosSelected = selectedVideos.isNotEmpty() && selectedFolders.isEmpty()
+  val allSelectedVideosWatched = onlyVideosSelected && selectedVideos.all { it.id in watchedVideoIds }
 
   suspend fun selectedPlayableVideos(): List<com.quantummpv.app.domain.media.model.Video> {
     val videosFromFolders =
@@ -604,6 +604,30 @@ fun FileSystemBrowserScreen(path: String? = null) {
               } else {
                 null
               },
+            additionalActions = {
+              if (onlyVideosSelected) {
+                IconButton(
+                  onClick = {
+                    val markWatched = !allSelectedVideosWatched
+                    selectedVideos.forEach { video -> viewModel.setWatched(video, markWatched) }
+                    selectionManager.clear()
+                  },
+                  modifier = Modifier.tvFocusHighlight(CircleShape, focusedScale = 1.06f),
+                ) {
+                  Icon(
+                    imageVector = if (allSelectedVideosWatched) Icons.RoundedFilled.RemoveCircle else Icons.RoundedFilled.CheckCircle,
+                    contentDescription =
+                      stringResource(
+                        if (allSelectedVideosWatched) {
+                          R.string.video_action_mark_unwatched
+                        } else {
+                          R.string.video_action_mark_watched
+                        },
+                      ),
+                  )
+                }
+              }
+            },
           )
         }
       },
@@ -829,9 +853,6 @@ fun FileSystemBrowserScreen(path: String? = null) {
                 onVideoLongClick = { videoFile ->
                   selectionManager.handleLongClick(videoFile)
                 },
-                onWatchedChange = { videoFile, watched -> viewModel.setWatched(videoFile.video, watched) },
-                onRename = { video -> swipeRenameVideo = video },
-                onDelete = { video -> swipeDeleteVideo = video },
                 onBreadcrumbClick = { component ->
                   // Navigate to the breadcrumb by popping until we reach it
                   // or pushing if it's a new path
@@ -950,23 +971,6 @@ fun FileSystemBrowserScreen(path: String? = null) {
       )
     }
 
-    swipeDeleteVideo?.let { video ->
-      DeleteConfirmationDialog(
-        isOpen = true,
-        onDismiss = { swipeDeleteVideo = null },
-        onConfirm = {
-          swipeDeleteVideo = null
-          coroutineScope.launch {
-            viewModel.deleteVideos(listOf(video))
-            viewModel.refresh()
-          }
-        },
-        itemType = "video",
-        itemCount = 1,
-        itemNames = listOf(video.displayName),
-      )
-    }
-
     // Rename Dialog
     if (renameDialogOpen.value) {
       val selectedItem = selectedItems.firstOrNull()
@@ -1003,27 +1007,6 @@ fun FileSystemBrowserScreen(path: String? = null) {
 
         null -> Unit
       }
-    }
-
-    swipeRenameVideo?.let { video ->
-      val extension =
-        video.displayName.substringAfterLast('.', "")
-          .takeIf { it.isNotBlank() }
-          ?.let { ".$it" }
-      RenameDialog(
-        isOpen = true,
-        onDismiss = { swipeRenameVideo = null },
-        onConfirm = { newName ->
-          swipeRenameVideo = null
-          coroutineScope.launch {
-            viewModel.renameVideo(video, newName)
-            viewModel.refresh()
-          }
-        },
-        currentName = video.displayName.substringBeforeLast('.'),
-        itemType = "video",
-        extension = extension,
-      )
     }
 
     // Video Compressor Overlay (for file system browser)
@@ -1275,9 +1258,6 @@ private fun FileSystemBrowserContent(
   onFolderLongClick: (FileSystemItem.Folder) -> Unit,
   onVideoClick: (FileSystemItem.VideoFile) -> Unit,
   onVideoLongClick: (FileSystemItem.VideoFile) -> Unit,
-  onWatchedChange: ((FileSystemItem.VideoFile, Boolean) -> Unit)? = null,
-  onRename: ((com.quantummpv.app.domain.media.model.Video) -> Unit)? = null,
-  onDelete: ((com.quantummpv.app.domain.media.model.Video) -> Unit)? = null,
   onBreadcrumbClick: (com.quantummpv.app.domain.browser.PathComponent) -> Unit,
   selectionManager: com.quantummpv.app.ui.browser.selection.SelectionManager<FileSystemItem, String>,
   modifier: Modifier = Modifier,
@@ -1519,15 +1499,7 @@ private fun FileSystemBrowserContent(
                   contentType = { "video_item" },
                   span = { GridItemSpan(spansInfo.videoSpan) },
                 ) { videoFile ->
-                  SwipeableVideoActions(
-                    itemKey = videoFile.video.path,
-                    enabled = !isInSelectionMode && onWatchedChange != null,
-                    isWatched = watchedVideoIds.contains(videoFile.video.id),
-                    onWatchedChange = { watched -> onWatchedChange?.invoke(videoFile, watched) },
-                    onRename = { onRename?.invoke(videoFile.video) },
-                    onDelete = { onDelete?.invoke(videoFile.video) },
-                  ) {
-                    VideoCard(
+                  VideoCard(
                       video = videoFile.video,
                       progressPercentage = videoFilesWithPlayback[videoFile.video.id],
                       isRecentlyPlayed = false,
@@ -1548,8 +1520,7 @@ private fun FileSystemBrowserContent(
                       overrideShowResolutionChip = null,
                       useFolderNameStyle = false,
                       uiConfig = videoCardUiConfig,
-                    )
-                  }
+                  )
                 }
               }
 
@@ -1637,15 +1608,7 @@ private fun FileSystemBrowserContent(
                 key = { "${it.video.id}_${it.video.path}" },
                 contentType = { "video_item" },
               ) { videoFile ->
-                SwipeableVideoActions(
-                  itemKey = videoFile.video.path,
-                  enabled = !isInSelectionMode && onWatchedChange != null,
-                  isWatched = watchedVideoIds.contains(videoFile.video.id),
-                  onWatchedChange = { watched -> onWatchedChange?.invoke(videoFile, watched) },
-                  onRename = { onRename?.invoke(videoFile.video) },
-                  onDelete = { onDelete?.invoke(videoFile.video) },
-                ) {
-                  VideoCard(
+                VideoCard(
                     video = videoFile.video,
                     progressPercentage = videoFilesWithPlayback[videoFile.video.id],
                     isRecentlyPlayed = false,
@@ -1666,8 +1629,7 @@ private fun FileSystemBrowserContent(
                     overrideShowResolutionChip = null,
                     useFolderNameStyle = false,
                     uiConfig = videoCardUiConfig,
-                  )
-                }
+                )
               }
             }
 

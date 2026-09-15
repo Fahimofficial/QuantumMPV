@@ -60,6 +60,7 @@ import com.quantummpv.app.ui.icons.AppIcon
 import com.quantummpv.app.ui.icons.Icon
 import com.quantummpv.app.ui.icons.Icons
 import com.quantummpv.app.ui.player.controls.components.tvFocusHighlight
+import com.quantummpv.app.ui.player.controls.components.tvContextMenu
 import com.quantummpv.app.ui.player.PlaybackSession
 import com.quantummpv.app.ui.player.controls.components.MiniAudioVisualizer
 import com.quantummpv.app.ui.theme.AppShapeScale
@@ -90,6 +91,7 @@ fun SharedMusicTrackListItem(
       .fillMaxWidth()
       .padding(horizontal = 8.dp, vertical = 3.dp)
       .clip(AppShapeScale.large)
+      .tvContextMenu(onLongClick)
       .then(
         if (onLongClick != null) {
           Modifier.combinedClickable(onClick = onClick, onLongClick = onLongClick)
@@ -262,6 +264,7 @@ fun SharedMusicGridCard(
       .then(if (cardWidth != null) Modifier.width(cardWidth) else Modifier.fillMaxWidth())
       .tvFocusHighlight(AppShapeScale.large, focusedScale = 1.03f)
       .clip(AppShapeScale.large)
+      .tvContextMenu(onLongClick)
       .combinedClickable(onClick = onClick, onLongClick = onLongClick),
     shape = AppShapeScale.large,
     colors = CardDefaults.cardColors(

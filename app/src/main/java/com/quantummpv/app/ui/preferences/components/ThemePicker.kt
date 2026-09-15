@@ -126,7 +126,10 @@ fun ThemePicker(
           onClick = { position -> onCustomThemeSelected(theme, position) },
           modifier = if (isSelected) Modifier.tvInitialFocus(initialFocusRequester) else Modifier,
           actionOverlay = {
-            Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+            Column(
+              modifier = Modifier.tvFocusGroup(),
+              verticalArrangement = Arrangement.spacedBy(2.dp),
+            ) {
               ThemeCardAction(
                 icon = Icons.RoundedFilled.Edit,
                 contentDescription = stringResource(R.string.pref_appearance_custom_theme_edit),
@@ -193,7 +196,8 @@ private fun ThemeCardAction(
   Box(
     modifier =
       Modifier
-        .size(24.dp)
+        .size(30.dp)
+        .tvFocusHighlight(CircleShape, focusedScale = 1.12f)
         .background(Color.Black.copy(alpha = 0.68f), CircleShape)
         .clickable(onClick = onClick),
     contentAlignment = Alignment.Center,
@@ -201,7 +205,7 @@ private fun ThemeCardAction(
     Icon(
       imageVector = icon,
       contentDescription = contentDescription,
-      modifier = Modifier.size(15.dp),
+      modifier = Modifier.size(18.dp),
       tint = Color.White,
     )
   }

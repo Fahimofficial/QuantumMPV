@@ -151,6 +151,8 @@ import com.quantummpv.app.ui.components.InlineSearchBar
 import com.quantummpv.app.ui.icons.Icon
 import com.quantummpv.app.ui.icons.Icons
 import com.quantummpv.app.ui.theme.AppShapeScale
+import com.quantummpv.app.ui.player.controls.components.tvContextMenu
+import com.quantummpv.app.ui.player.controls.components.tvFocusHighlight
 import com.quantummpv.app.ui.utils.LocalBackStack
 import com.quantummpv.app.ui.utils.navigateTo
 import com.quantummpv.app.ui.utils.rememberTabNavigation
@@ -1620,6 +1622,8 @@ private fun SongGridCard(
     modifier = Modifier
       .fillMaxWidth()
       .clip(AppShapeScale.large)
+      .tvFocusHighlight(AppShapeScale.large, focusedScale = 1.03f)
+      .tvContextMenu(onLongClick)
       .combinedClickable(onClick = onClick, onLongClick = onLongClick),
     shape = AppShapeScale.large,
     colors = CardDefaults.cardColors(
@@ -1809,6 +1813,8 @@ private fun AlbumGridCard(
     modifier = Modifier
       .fillMaxWidth()
       .clip(AppShapeScale.large)
+      .tvFocusHighlight(AppShapeScale.large, focusedScale = 1.03f)
+      .tvContextMenu(onLongClick)
       .combinedClickable(onClick = onClick, onLongClick = onLongClick),
     shape = AppShapeScale.large,
     colors = CardDefaults.cardColors(
@@ -1900,6 +1906,8 @@ private fun AlbumListCard(
       .fillMaxWidth()
       .padding(horizontal = 8.dp, vertical = 3.dp)
       .clip(AppShapeScale.large)
+      .tvFocusHighlight(AppShapeScale.large, focusedScale = 1.03f)
+      .tvContextMenu(onLongClick)
       .combinedClickable(onClick = onClick, onLongClick = onLongClick),
     shape = AppShapeScale.large,
     color = if (isSelected) MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.6f) else Color.Transparent
@@ -2034,6 +2042,8 @@ private fun ArtistGridCard(
     modifier = Modifier
       .fillMaxWidth()
       .clip(AppShapeScale.large)
+      .tvFocusHighlight(AppShapeScale.large, focusedScale = 1.03f)
+      .tvContextMenu(onLongClick)
       .combinedClickable(onClick = onClick, onLongClick = onLongClick),
     shape = AppShapeScale.large,
     colors = CardDefaults.cardColors(
@@ -2109,6 +2119,8 @@ private fun ArtistListCard(
       .fillMaxWidth()
       .padding(horizontal = 8.dp, vertical = 3.dp)
       .clip(AppShapeScale.large)
+      .tvFocusHighlight(AppShapeScale.large, focusedScale = 1.03f)
+      .tvContextMenu(onLongClick)
       .combinedClickable(onClick = onClick, onLongClick = onLongClick),
     shape = AppShapeScale.large,
     color = if (isSelected) MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.6f) else Color.Transparent
@@ -2357,6 +2369,8 @@ private fun MusicPlaylistCard(
       modifier = Modifier
         .fillMaxWidth()
         .clip(AppShapeScale.large)
+        .tvFocusHighlight(AppShapeScale.large, focusedScale = 1.03f)
+        .tvContextMenu(onLongClick)
         .combinedClickable(onClick = onClick, onLongClick = onLongClick),
       shape = AppShapeScale.large,
       colors = CardDefaults.cardColors(
@@ -2414,6 +2428,8 @@ private fun MusicPlaylistCard(
       modifier = Modifier
         .fillMaxWidth()
         .clip(AppShapeScale.large)
+        .tvFocusHighlight(AppShapeScale.large, focusedScale = 1.03f)
+        .tvContextMenu(onLongClick)
         .combinedClickable(onClick = onClick, onLongClick = onLongClick),
       color = if (isSelected) MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.5f) else Color.Transparent
     ) {

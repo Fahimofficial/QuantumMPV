@@ -66,6 +66,8 @@ import com.quantummpv.app.domain.torrent.formatTorrentBytes
 import com.quantummpv.app.presentation.components.RemoteImage
 import com.quantummpv.app.ui.icons.Icon
 import com.quantummpv.app.ui.icons.Icons
+import com.quantummpv.app.ui.player.controls.components.tvContextMenu
+import com.quantummpv.app.ui.player.controls.components.tvFocusHighlight
 import com.quantummpv.app.utils.media.MediaInfoParser
 import com.quantummpv.app.utils.media.MediaUtils
 import kotlinx.coroutines.delay
@@ -458,6 +460,8 @@ fun TorrentResumeCard(
         .aspectRatio(16f / 9.5f)
         .shadow(6.dp, RoundedCornerShape(18.dp))
         .clip(RoundedCornerShape(18.dp))
+        .tvFocusHighlight(RoundedCornerShape(18.dp), focusedScale = 1.03f)
+        .tvContextMenu(onLongClick)
         .combinedClickable(
           onClick = onClick,
           onLongClick = onLongClick,
@@ -611,6 +615,8 @@ fun TorrentPosterCard(
       modifier
         .width(135.dp)
         .clip(RoundedCornerShape(16.dp))
+        .tvFocusHighlight(RoundedCornerShape(16.dp), focusedScale = 1.03f)
+        .tvContextMenu(onLongClick)
         .combinedClickable(
           onClick = onClick,
           onLongClick = onLongClick,

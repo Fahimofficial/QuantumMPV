@@ -58,6 +58,7 @@ import com.quantummpv.app.ui.icons.AppIcon
 import com.quantummpv.app.ui.icons.Icon
 import com.quantummpv.app.ui.icons.Icons
 import com.quantummpv.app.ui.player.controls.components.tvFocusHighlight
+import com.quantummpv.app.ui.player.controls.components.tvContextMenu
 import com.quantummpv.app.ui.theme.AppShapeScale
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -202,6 +203,7 @@ fun FolderCard(
       modifier
         .fillMaxWidth()
         .clip(cardShape)
+        .tvContextMenu(onLongClick)
         .combinedClickable(
           interactionSource = cardInteractionSource,
           indication = null,

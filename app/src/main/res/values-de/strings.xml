@@ -74,6 +74,7 @@
   <string name="toast_playback_load_failed">Dieser Link konnte nicht geladen werden</string>
   <string name="video_label_new">NEU</string>
   <string name="video_label_watched">Gesehen</string>
+  <string name="video_action_mark_watched">Als gesehen markieren</string><string name="video_action_mark_unwatched">Als ungesehen markieren</string>
   <!-- Theme names -->
   <string name="theme_default">Standard</string>
   <string name="theme_dynamic">Dynamisch</string>

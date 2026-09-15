@@ -24,6 +24,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -56,6 +57,10 @@ import com.quantummpv.app.presentation.Screen
 import com.quantummpv.app.ui.icons.Icon
 import com.quantummpv.app.ui.icons.Icons
 import com.quantummpv.app.ui.preferences.components.ThemePreviewCard
+import com.quantummpv.app.ui.player.controls.components.rememberTvInitialFocusRequester
+import com.quantummpv.app.ui.player.controls.components.tvFocusGroup
+import com.quantummpv.app.ui.player.controls.components.tvFocusHighlight
+import com.quantummpv.app.ui.player.controls.components.tvInitialFocus
 import com.quantummpv.app.ui.theme.CustomThemeDefinition
 import com.quantummpv.app.ui.utils.LocalBackStack
 import com.quantummpv.app.ui.utils.popSafely
@@ -75,8 +80,15 @@ data class CustomThemeEditorScreen(
     val serializedThemes by preferences.customTheme.collectAsState()
     val savedThemes = remember(serializedThemes) { CustomThemeDefinition.parseCollection(serializedThemes) }
     val existingTheme = remember(savedThemes, themeName) { savedThemes.firstOrNull { it.name == themeName } }
+    val customThemeLabel = stringResource(R.string.pref_appearance_custom_theme_title)
+    val defaultThemeName =
+      remember(savedThemes, customThemeLabel) {
+        generateSequence(1) { it + 1 }
+          .map { index -> "$customThemeLabel $index" }
+          .first { candidate -> savedThemes.none { it.name.equals(candidate, ignoreCase = true) } }
+      }
 
-    var name by rememberSaveable(themeName) { mutableStateOf(existingTheme?.name.orEmpty()) }
+    var name by rememberSaveable(themeName) { mutableStateOf(existingTheme?.name ?: defaultThemeName) }
     var primaryLight by rememberSaveable(themeName) { mutableStateOf(existingTheme?.primaryLight.toEditorHex("#6750A4")) }
     var primaryDark by rememberSaveable(themeName) { mutableStateOf(existingTheme?.primaryDark.toEditorHex("#D0BCFF")) }
     var secondaryLight by rememberSaveable(themeName) { mutableStateOf(existingTheme?.secondaryLight.toEditorHex("#625B71")) }
@@ -88,6 +100,7 @@ data class CustomThemeEditorScreen(
     var editorMode by rememberSaveable { mutableStateOf(CustomThemeEditorMode.Light) }
     var showValidationErrors by rememberSaveable { mutableStateOf(false) }
     val editorListState = rememberLazyListState()
+    val modeFocusRequester = rememberTvInitialFocusRequester(requestKey = editorMode)
 
     LaunchedEffect(editorMode) {
       editorListState.scrollToItem(0)
@@ -208,7 +221,7 @@ data class CustomThemeEditorScreen(
               fontWeight = FontWeight.SemiBold,
             )
             Row(
-              modifier = Modifier.fillMaxWidth(),
+              modifier = Modifier.fillMaxWidth().tvFocusGroup(),
               horizontalArrangement = Arrangement.SpaceEvenly,
             ) {
               ThemePreviewCard(
@@ -216,12 +229,24 @@ data class CustomThemeEditorScreen(
                 colorScheme = previewTheme.lightColorScheme(),
                 isSelected = editorMode == CustomThemeEditorMode.Light,
                 onClick = { editorMode = CustomThemeEditorMode.Light },
+                modifier =
+                  if (editorMode == CustomThemeEditorMode.Light) {
+                    Modifier.tvInitialFocus(modeFocusRequester)
+                  } else {
+                    Modifier
+                  },
               )
               ThemePreviewCard(
                 label = stringResource(R.string.pref_appearance_darkmode_dark),
                 colorScheme = previewTheme.darkColorScheme(),
                 isSelected = editorMode == CustomThemeEditorMode.Dark,
                 onClick = { editorMode = CustomThemeEditorMode.Dark },
+                modifier =
+                  if (editorMode == CustomThemeEditorMode.Dark) {
+                    Modifier.tvInitialFocus(modeFocusRequester)
+                  } else {
+                    Modifier
+                  },
               )
             }
           }
@@ -229,7 +254,7 @@ data class CustomThemeEditorScreen(
 
         LazyColumn(
           state = editorListState,
-          modifier = Modifier.weight(1f),
+          modifier = Modifier.weight(1f).tvFocusGroup(),
           contentPadding = PaddingValues(bottom = 16.dp),
           verticalArrangement = Arrangement.spacedBy(4.dp),
         ) {
@@ -417,6 +442,7 @@ private fun ColorChannelSlider(
       value = value.toFloat(),
       onValueChange = { onValueChange(it.roundToInt().coerceIn(0, 255)) },
       valueRange = 0f..255f,
+      modifier = Modifier.fillMaxWidth().tvFocusHighlight(RoundedCornerShape(12.dp), focusedScale = 1.01f),
       colors =
         SliderDefaults.colors(
           thumbColor = tint,
