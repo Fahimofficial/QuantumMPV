@@ -19,6 +19,56 @@ import androidx.compose.ui.graphics.toArgb
 import com.quantummpv.app.R
 import com.quantummpv.app.ui.player.visualizer.VisualizerPalette
 
+data class CustomThemeDefinition(
+  val name: String,
+  val primaryLight: Color,
+  val primaryDark: Color,
+  val backgroundLight: Color,
+  val backgroundDark: Color,
+) {
+  fun serialize(): String =
+    listOf(name, primaryLight.toHex(), primaryDark.toHex(), backgroundLight.toHex(), backgroundDark.toHex())
+      .joinToString("|")
+
+  fun lightColorScheme(): ColorScheme =
+    lightColorScheme(
+      primary = primaryLight,
+      onPrimary = primaryLight.accessibleContentColor(),
+      background = backgroundLight,
+      surface = backgroundLight,
+      onBackground = backgroundLight.accessibleContentColor(),
+      onSurface = backgroundLight.accessibleContentColor(),
+    )
+
+  fun darkColorScheme(): ColorScheme =
+    darkColorScheme(
+      primary = primaryDark,
+      onPrimary = primaryDark.accessibleContentColor(),
+      background = backgroundDark,
+      surface = backgroundDark,
+      onBackground = backgroundDark.accessibleContentColor(),
+      onSurface = backgroundDark.accessibleContentColor(),
+    )
+
+  companion object {
+    fun parse(serialized: String): CustomThemeDefinition? {
+      val parts = serialized.split('|')
+      if (parts.size != 5 || parts[0].isBlank()) return null
+      return runCatching {
+        CustomThemeDefinition(
+          name = parts[0],
+          primaryLight = Color(android.graphics.Color.parseColor(parts[1])),
+          primaryDark = Color(android.graphics.Color.parseColor(parts[2])),
+          backgroundLight = Color(android.graphics.Color.parseColor(parts[3])),
+          backgroundDark = Color(android.graphics.Color.parseColor(parts[4])),
+        )
+      }.getOrNull()
+    }
+  }
+}
+
+private fun Color.toHex(): String = "#%08X".format(toArgb())
+
 /**
  * App themes inspired by Aniyomi design
  * Each theme has light and dark color schemes with unique backgrounds

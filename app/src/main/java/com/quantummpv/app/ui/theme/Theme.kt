@@ -277,6 +277,7 @@ fun MpvrxTheme(
   val darkMode by preferences.darkMode.collectAsState()
   val amoledMode by preferences.amoledMode.collectAsState()
   val appTheme by preferences.appTheme.collectAsState()
+  val customTheme by preferences.customTheme.collectAsState()
   val useSystemFont by preferences.useSystemFont.collectAsState()
   val darkTheme = isSystemInDarkTheme()
   val configuration = LocalConfiguration.current
@@ -297,6 +298,7 @@ fun MpvrxTheme(
     resolveAppColorScheme(
       context = context,
       appTheme = appTheme,
+      customTheme = customTheme,
       useDarkTheme = true,
       amoledMode = amoledMode,
     )
@@ -335,10 +337,13 @@ fun MpvrxTheme(
 private fun resolveAppColorScheme(
   context: Context,
   appTheme: AppTheme,
+  customTheme: String,
   useDarkTheme: Boolean,
   amoledMode: Boolean,
 ): ColorScheme =
-  when {
+  CustomThemeDefinition.parse(customTheme)?.let { definition ->
+    if (useDarkTheme) definition.darkColorScheme() else definition.lightColorScheme()
+  } ?: when {
     appTheme.isDynamic && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S -> {
       when {
         useDarkTheme && amoledMode -> {

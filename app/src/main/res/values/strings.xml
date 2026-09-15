@@ -2215,4 +2215,24 @@
   <string name="navidrome_connect">Connect</string>
   <string name="navidrome_connecting">Connecting…</string>
   <string name="navidrome_connect_failed">Failed to connect to Navidrome server</string>
+  <string name="pref_appearance_custom_theme_title">Custom theme</string>
+  <string name="pref_appearance_custom_theme_name">Theme name</string>
+  <string name="pref_appearance_custom_theme_light_primary">Light primary color</string>
+  <string name="pref_appearance_custom_theme_dark_primary">Dark primary color</string>
+  <string name="pref_appearance_custom_theme_light_background">Light background color</string>
+  <string name="pref_appearance_custom_theme_dark_background">Dark background color</string>
+  <string name="pref_appearance_custom_theme_none">No custom theme saved</string>
+  <string name="pref_appearance_custom_theme_edit">Create or edit</string>
+  <string name="pref_appearance_custom_theme_clear">Clear</string>
+  <string name="pref_appearance_custom_theme_save">Save</string>
+  <string name="pref_appearance_custom_wallpaper_title">Custom wallpaper</string>
+  <string name="pref_appearance_custom_wallpaper_summary">Show a full-screen image behind browser content and the top bar</string>
+  <string name="pref_appearance_custom_wallpaper_choose">Choose wallpaper</string>
+  <string name="pref_appearance_custom_wallpaper_replace">Replace wallpaper</string>
+  <string name="pref_appearance_custom_wallpaper_clear">Clear wallpaper</string>
+  <string name="pref_appearance_custom_wallpaper_crop_title">Adjust wallpaper</string>
+  <string name="pref_appearance_custom_wallpaper_zoom">Zoom</string>
+  <string name="pref_appearance_custom_wallpaper_horizontal">Horizontal position</string>
+  <string name="pref_appearance_custom_wallpaper_vertical">Vertical position</string>
+  <string name="pref_appearance_custom_wallpaper_save">Save wallpaper</string>
 </resources>

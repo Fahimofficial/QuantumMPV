@@ -11,6 +11,9 @@ package com.quantummpv.app.ui.browser
 
 import android.annotation.SuppressLint
 import android.content.res.Configuration
+import android.graphics.Bitmap
+import android.graphics.BitmapFactory
+import android.net.Uri
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.EnterTransition
@@ -24,6 +27,7 @@ import androidx.compose.animation.fadeOut
 import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.selection.selectableGroup
@@ -62,6 +66,7 @@ import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -72,6 +77,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.layout.layout
@@ -85,6 +91,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.layout.ContentScale
 import kotlin.math.roundToInt
 import com.quantummpv.app.R
 import com.quantummpv.app.preferences.AppearancePreferences
@@ -109,8 +116,10 @@ import com.quantummpv.app.ui.player.controls.components.tvInitialFocus
 import com.quantummpv.app.ui.player.NavigationAnimStyle
 import com.quantummpv.app.ui.utils.navigationDurationMillis
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.cancelAndJoin
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import kotlinx.serialization.Serializable
 import org.koin.compose.koinInject
 
@@ -176,6 +185,7 @@ object MainScreen : Screen {
     val showPlaylistsTab by appearancePreferences.showPlaylistsTab.collectAsState()
     val showNetworkTab by appearancePreferences.showNetworkTab.collectAsState()
     val showJellyfinTab by appearancePreferences.showJellyfinTab.collectAsState()
+    val customWallpaperUri by appearancePreferences.customWallpaperUri.collectAsState()
     val hideNavigationBar = NavigationBarState.shouldHideNavigationBar
     val isPermissionDenied = NavigationBarState.isPermissionDenied
     val isDualPaneFolderSelected = NavigationBarState.isDualPaneFolderSelected
@@ -332,8 +342,30 @@ object MainScreen : Screen {
     // Scaffold with bottom navigation bar
     Scaffold(
       modifier = Modifier.fillMaxSize(),
+      containerColor = Color.Transparent,
     ) { paddingValues ->
       Box(modifier = Modifier.fillMaxSize()) {
+        val wallpaperBitmap =
+          produceState<Bitmap?>(initialValue = null, customWallpaperUri) {
+            value =
+              if (customWallpaperUri.isBlank()) {
+                null
+              } else {
+                withContext(Dispatchers.IO) {
+                  runCatching {
+                    context.contentResolver.openInputStream(Uri.parse(customWallpaperUri))?.use(BitmapFactory::decodeStream)
+                  }.getOrNull()
+                }
+              }
+          }.value
+        wallpaperBitmap?.let { bitmap ->
+          Image(
+            bitmap = bitmap.asImageBitmap(),
+            contentDescription = null,
+            contentScale = ContentScale.Crop,
+            modifier = Modifier.fillMaxSize(),
+          )
+        }
         if (visibleTabs.isEmpty()) {
           CompositionLocalProvider(
             LocalNavigationBarHeight provides contentBottomPadding,

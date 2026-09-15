@@ -184,6 +184,7 @@ object FolderListScreen : Screen {
     val foldersPreferences = koinInject<FoldersPreferences>()
     val advancedPreferences = koinInject<com.quantummpv.app.preferences.AdvancedPreferences>()
     val appearancePreferences = koinInject<AppearancePreferences>()
+    val customWallpaperUri by appearancePreferences.customWallpaperUri.collectAsState()
     val showQuickPlayFab by appearancePreferences.showQuickPlayFab.collectAsState()
     val quickPlayFabDirect by appearancePreferences.quickPlayFabDirect.collectAsState()
 
@@ -552,6 +553,7 @@ object FolderListScreen : Screen {
     @Composable
     fun FoldersPane() {
       Scaffold(
+        containerColor = if (customWallpaperUri.isNotBlank()) Color.Transparent else MaterialTheme.colorScheme.background,
         contentWindowInsets = if (embedded) WindowInsets(0, 0, 0, 0) else ScaffoldDefaults.contentWindowInsets,
         topBar = {
           if (embedded) {

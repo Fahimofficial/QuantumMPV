@@ -385,12 +385,24 @@ fun VideoCard(
               }
             }
 
-            if (showCodecSupportIndicator && !video.isAudio && video.videoCodec.isNotBlank()) {
-              CodecSupportIndicator(
-                video = video,
-                compact = true,
+            if (isWatched || (showCodecSupportIndicator && !video.isAudio && video.videoCodec.isNotBlank())) {
+              Row(
                 modifier = Modifier.align(Alignment.TopEnd).padding(6.dp),
-              )
+                horizontalArrangement = Arrangement.spacedBy(4.dp),
+                verticalAlignment = Alignment.CenterVertically,
+              ) {
+                if (isWatched) {
+                  Icon(
+                    imageVector = Icons.RoundedFilled.CheckCircle,
+                    contentDescription = "Watched",
+                    modifier = Modifier.size(26.dp),
+                    tint = Color.White,
+                  )
+                }
+                if (showCodecSupportIndicator && !video.isAudio && video.videoCodec.isNotBlank()) {
+                  CodecSupportIndicator(video = video, compact = true)
+                }
+              }
             }
 
             // Duration overlay
@@ -711,6 +723,15 @@ fun VideoCard(
                   )
                 }
               }
+            }
+
+            if (isWatched) {
+              Icon(
+                imageVector = Icons.RoundedFilled.CheckCircle,
+                contentDescription = "Watched",
+                modifier = Modifier.align(Alignment.TopEnd).padding(6.dp).size(26.dp),
+                tint = Color.White,
+              )
             }
 
             // Duration timestamp overlay at bottom-right of the thumbnail
