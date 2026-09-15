@@ -296,7 +296,6 @@ fun FileSystemBrowserScreen(path: String? = null) {
   val selectedCount = selectionManager.selectedCount
   val totalCount = items.size
   val onlyVideosSelected = selectedVideos.isNotEmpty() && selectedFolders.isEmpty()
-  val allSelectedVideosWatched = onlyVideosSelected && selectedVideos.all { it.id in watchedVideoIds }
 
   suspend fun selectedPlayableVideos(): List<com.quantummpv.app.domain.media.model.Video> {
     val videosFromFolders =
@@ -598,36 +597,6 @@ fun FileSystemBrowserScreen(path: String? = null) {
             onSelectAll = { selectionManager.selectAll() },
             onInvertSelection = { selectionManager.invertSelection() },
             onDeselectAll = { selectionManager.clear() },
-            onAddToPlaylistClick =
-              if (onlyVideosSelected) {
-                { addToPlaylistDialogOpen.value = true }
-              } else {
-                null
-              },
-            additionalActions = {
-              if (onlyVideosSelected) {
-                IconButton(
-                  onClick = {
-                    val markWatched = !allSelectedVideosWatched
-                    selectedVideos.forEach { video -> viewModel.setWatched(video, markWatched) }
-                    selectionManager.clear()
-                  },
-                  modifier = Modifier.tvFocusHighlight(CircleShape, focusedScale = 1.06f),
-                ) {
-                  Icon(
-                    imageVector = if (allSelectedVideosWatched) Icons.RoundedFilled.RemoveCircle else Icons.RoundedFilled.CheckCircle,
-                    contentDescription =
-                      stringResource(
-                        if (allSelectedVideosWatched) {
-                          R.string.video_action_mark_unwatched
-                        } else {
-                          R.string.video_action_mark_watched
-                        },
-                      ),
-                  )
-                }
-              }
-            },
           )
         }
       },

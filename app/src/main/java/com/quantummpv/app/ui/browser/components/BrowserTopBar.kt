@@ -90,7 +90,6 @@ fun BrowserTopBar(
   onInfoClick: (() -> Unit)? = null,
   onShareClick: (() -> Unit)? = null,
   onPlayClick: (() -> Unit)? = null,
-  onPinClick: (() -> Unit)? = null,
   onBlacklistClick: (() -> Unit)? = null,
   onSelectAll: (() -> Unit)? = null,
   onInvertSelection: (() -> Unit)? = null,
@@ -102,7 +101,6 @@ fun BrowserTopBar(
   onTitleDoubleTap: (() -> Unit)? = null,
   onMoveToSecureClick: (() -> Unit)? = null,
   useRemoveIcon: Boolean = false,
-  onAddToPlaylistClick: (() -> Unit)? = null,
   onRestoreClick: (() -> Unit)? = null,
   colors: TopAppBarColors? = null,
   forceHeadlineSmall: Boolean = false,
@@ -119,7 +117,6 @@ fun BrowserTopBar(
       onInfo = onInfoClick,
       onShare = onShareClick,
       onPlay = onPlayClick,
-      onPin = onPinClick,
       onBlacklist = onBlacklistClick,
       onSelectAll = onSelectAll,
       onInvertSelection = onInvertSelection,
@@ -128,7 +125,6 @@ fun BrowserTopBar(
       onRestore = onRestoreClick,
       modifier = modifier,
       useRemoveIcon = useRemoveIcon,
-      onAddToPlaylist = onAddToPlaylistClick,
       colors = colors,
       additionalActions = additionalActions,
     )
@@ -400,14 +396,12 @@ private fun SelectionTopBar(
   onInfo: (() -> Unit)?,
   onShare: (() -> Unit)?,
   onPlay: (() -> Unit)?,
-  onPin: (() -> Unit)?,
   onBlacklist: (() -> Unit)?,
   onSelectAll: (() -> Unit)?,
   onInvertSelection: (() -> Unit)?,
   onDeselectAll: (() -> Unit)?,
   modifier: Modifier = Modifier,
   useRemoveIcon: Boolean = false,
-  onAddToPlaylist: (() -> Unit)? = null,
   onMoveToSecure: (() -> Unit)? = null,
   onRestore: (() -> Unit)? = null,
   colors: TopAppBarColors? = null,
@@ -526,39 +520,6 @@ private fun SelectionTopBar(
                 .stringResource(com.quantummpv.app.R.string.ui_play),
             modifier = Modifier.size(28.dp),
             tint = MaterialTheme.colorScheme.primary,
-          )
-        }
-      }
-
-      if (onPin != null) {
-        IconButton(
-          onClick = onPin,
-          modifier = Modifier.padding(horizontal = 1.dp).browserTopBarFocus(),
-        ) {
-          Icon(
-            Icons.RoundedFilled.PushPin,
-            contentDescription =
-              androidx.compose.ui.res
-                .stringResource(com.quantummpv.app.R.string.ui_pin_folders),
-            modifier = Modifier.size(24.dp),
-            tint = MaterialTheme.colorScheme.secondary,
-          )
-        }
-      }
-
-      // Add to Playlist icon (for Play Store builds)
-      if (onAddToPlaylist != null) {
-        IconButton(
-          onClick = onAddToPlaylist,
-          modifier = Modifier.padding(horizontal = 1.dp).browserTopBarFocus(),
-        ) {
-          Icon(
-            Icons.RoundedFilled.PlaylistAdd,
-            contentDescription =
-              androidx.compose.ui.res
-                .stringResource(com.quantummpv.app.R.string.ui_add_to_playlist),
-            modifier = Modifier.size(28.dp),
-            tint = MaterialTheme.colorScheme.secondary,
           )
         }
       }

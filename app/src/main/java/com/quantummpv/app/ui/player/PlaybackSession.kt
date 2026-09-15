@@ -145,6 +145,9 @@ object PlaybackSession : MPVLib.EventObserver {
   private val observers = CopyOnWriteArraySet<MPVLib.EventObserver>()
   private val _state = MutableStateFlow(PlaybackSessionState())
   private val _queue = MutableStateFlow(PlaybackQueueState())
+  private val _videoZoom = MutableStateFlow(0f)
+  private val _videoPanX = MutableStateFlow(0f)
+  private val _videoPanY = MutableStateFlow(0f)
   private val streamSequence = AtomicLong()
   private val observedProperties = mutableSetOf<Pair<String, Int>>()
   private val seekAudioGuardHandler = Handler(Looper.getMainLooper())
@@ -152,6 +155,21 @@ object PlaybackSession : MPVLib.EventObserver {
 
   val state: StateFlow<PlaybackSessionState> = _state.asStateFlow()
   val queue: StateFlow<PlaybackQueueState> = _queue.asStateFlow()
+  val videoZoom: StateFlow<Float> = _videoZoom.asStateFlow()
+  val videoPanX: StateFlow<Float> = _videoPanX.asStateFlow()
+  val videoPanY: StateFlow<Float> = _videoPanY.asStateFlow()
+
+  fun setVideoTransformZoom(zoom: Float) {
+    _videoZoom.value = zoom
+  }
+
+  fun setVideoTransformPan(
+    x: Float,
+    y: Float,
+  ) {
+    _videoPanX.value = x
+    _videoPanY.value = y
+  }
 
   @Volatile
   private var initialized = false
@@ -575,6 +593,9 @@ object PlaybackSession : MPVLib.EventObserver {
     observers.clear()
     observedProperties.clear()
     resetAmbientShaderTrackingLocked()
+    _videoZoom.value = 0f
+    _videoPanX.value = 0f
+    _videoPanY.value = 0f
     initialized = false
     nativeCoreReady = false
     activeCoreConfigurationKey = null

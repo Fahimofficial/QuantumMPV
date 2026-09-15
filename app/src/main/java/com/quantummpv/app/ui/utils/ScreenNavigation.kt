@@ -19,6 +19,7 @@ import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -46,6 +47,7 @@ internal fun navigationDurationMillis(speed: Float, baseMillis: Int = 300): Int 
 internal fun ScreenNavDisplay(
   backStack: NavBackStack<Screen>,
   modifier: Modifier = Modifier,
+  opaqueBackground: Boolean = false,
   onBack: () -> Unit = { backStack.popSafely() },
   content: @Composable (Screen) -> Unit = { it.Content() },
 ) {
@@ -54,7 +56,7 @@ internal fun ScreenNavDisplay(
   val speed by preferences.animationSpeed.collectAsState()
   val layoutDirection = LocalLayoutDirection.current
   val direction = if (layoutDirection == LayoutDirection.Ltr) 1 else -1
-  val backgroundColor = wallpaperAwareBackgroundColor()
+  val backgroundColor = if (opaqueBackground) MaterialTheme.colorScheme.background else wallpaperAwareBackgroundColor()
 
   NavDisplay(
     backStack = backStack,

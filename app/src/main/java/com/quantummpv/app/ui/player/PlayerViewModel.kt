@@ -1636,8 +1636,7 @@ val isBrightnessSliderShown = MutableStateFlow(false)
   val isSnapshotLoading: StateFlow<Boolean> = _isSnapshotLoading.asStateFlow()
 
   // Video zoom
-  private val _videoZoom = MutableStateFlow(0f)
-  val videoZoom: StateFlow<Float> = _videoZoom.asStateFlow()
+  val videoZoom: StateFlow<Float> = PlaybackSession.videoZoom
 
   // Video aspect ratio (persisted in player preferences)
   private val _videoAspect = MutableStateFlow(VideoAspect.Fit)
@@ -3497,13 +3496,8 @@ val isBrightnessSliderShown = MutableStateFlow(false)
       refreshChapterDerivedSegments(chapters.value)
 
       // Reset Video Pan
-      if (_videoPanX.value != 0f || _videoPanY.value != 0f) {
-        _videoPanX.value = 0f
-        _videoPanY.value = 0f
-        runCatching {
-          PlaybackSession.setPropertyDouble("video-pan-x", 0.0)
-          PlaybackSession.setPropertyDouble("video-pan-y", 0.0)
-        }
+      if (videoPanX.value != 0f || videoPanY.value != 0f) {
+        resetVideoPan()
       }
       // ---------------------------------------------------
     }
@@ -5580,26 +5574,24 @@ val isBrightnessSliderShown = MutableStateFlow(false)
 
   fun setVideoZoom(zoom: Float) {
     if (MpvConfigOverridePolicy.ownsAny(MpvConfigControlledFeatures.VIDEO_ZOOM)) {
-      _videoZoom.value = 0f
+      PlaybackSession.setVideoTransformZoom(0f)
       return
     }
-    _videoZoom.value = zoom
-    runCatching { PlaybackSession.setPropertyDouble("video-zoom", zoom.toDouble()) }
+    PlaybackSession.setVideoTransformZoom(zoom)
   }
 
   // Video pan (for pan & zoom feature)
-  private val _videoPanX = MutableStateFlow(0f)
-  val videoPanX: StateFlow<Float> = _videoPanX.asStateFlow()
-
-  private val _videoPanY = MutableStateFlow(0f)
-  val videoPanY: StateFlow<Float> = _videoPanY.asStateFlow()
+  val videoPanX: StateFlow<Float> = PlaybackSession.videoPanX
+  val videoPanY: StateFlow<Float> = PlaybackSession.videoPanY
 
   fun setVideoPan(
     x: Float,
     y: Float,
   ) {
-    _videoPanX.value = if (MpvConfigOverridePolicy.isOwnedByMpvConf("video-pan-x")) 0f else x
-    _videoPanY.value = if (MpvConfigOverridePolicy.isOwnedByMpvConf("video-pan-y")) 0f else y
+    PlaybackSession.setVideoTransformPan(
+      x = if (MpvConfigOverridePolicy.isOwnedByMpvConf("video-pan-x")) 0f else x,
+      y = if (MpvConfigOverridePolicy.isOwnedByMpvConf("video-pan-y")) 0f else y,
+    )
   }
 
   fun resetVideoPan() {

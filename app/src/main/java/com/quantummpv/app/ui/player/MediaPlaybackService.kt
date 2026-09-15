@@ -1866,7 +1866,7 @@ class MediaPlaybackService :
       isPositionRestorePending =
         PlaybackSession.isPositionRestorePending(PlaybackSession.state.value.activeGeneration),
       playbackSpeed = readMpvDouble("speed", oldState?.playbackSpeed ?: DEFAULT_PLAYBACK_STATE_SPEED),
-      videoZoom = readMpvDouble("video-zoom", oldState?.videoZoom?.toDouble() ?: 0.0).toFloat(),
+      videoZoom = PlaybackSession.videoZoom.value,
       sid = readMpvTrackId("sid", oldState?.sid ?: -1),
       secondarySid = readMpvTrackId("secondary-sid", oldState?.secondarySid ?: -1),
       subDelayMs =

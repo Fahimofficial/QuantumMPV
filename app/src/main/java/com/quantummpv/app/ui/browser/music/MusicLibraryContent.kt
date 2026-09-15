@@ -551,7 +551,6 @@ fun MusicLibraryContent(
                   MusicTab.FOLDERS -> { }
                 }
               },
-              onPinClick = null,
               onBlacklistClick = {
                 val selectedItems = activeSelectionManager.getSelectedItems()
                 val selectedPaths = selectedItems.mapNotNull { item ->
@@ -568,7 +567,6 @@ fun MusicLibraryContent(
               onRenameClick = null,
               isSingleSelection = activeSelectionManager.isSingleSelection,
               onInfoClick = null,
-              onAddToPlaylistClick = null,
               preSearchActions = {
                 if (!activeSelectionManager.isInSelectionMode && (hasJellyfinMusicLibrary || hasNavidromeServer)) {
                   var isSourceDropdownOpen by remember { mutableStateOf(false) }

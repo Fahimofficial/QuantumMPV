@@ -532,6 +532,7 @@ class MainActivity : AppCompatActivity() {
           ScreenNavDisplay(
             modifier = Modifier.fillMaxSize(),
             backStack = typedBackstack,
+            opaqueBackground = typedBackstack.any { it == com.quantummpv.app.ui.preferences.PreferencesScreen },
             onBack = {
               if (typedBackstack.size <= 1 || !typedBackstack.popSafely()) {
                 this@MainActivity.finish()

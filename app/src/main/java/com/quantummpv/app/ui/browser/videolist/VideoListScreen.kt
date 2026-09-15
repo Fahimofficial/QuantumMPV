@@ -218,7 +218,6 @@ data class VideoListScreen(
     val watchedVideoIds = remember(sortedVideosWithInfo) {
       sortedVideosWithInfo.filter(VideoWithPlaybackInfo::isWatched).mapTo(hashSetOf()) { it.video.id }
     }
-    val allSelectedVideosWatched = selectedVideos.isNotEmpty() && selectedVideos.all { it.id in watchedVideoIds }
 
     // UI State
     val isRefreshing = remember { mutableStateOf(false) }
@@ -428,31 +427,6 @@ data class VideoListScreen(
               moveSelectedToSecureFolder()
             } else {
               moveToSecureConfirmOpen.value = true
-            }
-          },
-          onAddToPlaylistClick = { addToPlaylistDialogOpen.value = true },
-          additionalActions = {
-            if (selectionManager.isInSelectionMode && selectedVideos.isNotEmpty()) {
-              IconButton(
-                onClick = {
-                  val markWatched = !allSelectedVideosWatched
-                  selectedVideos.forEach { video -> viewModel.setWatched(video, markWatched) }
-                  selectionManager.clear()
-                },
-                modifier = Modifier.tvFocusHighlight(CircleShape, focusedScale = 1.06f),
-              ) {
-                Icon(
-                  imageVector = if (allSelectedVideosWatched) Icons.RoundedFilled.RemoveCircle else Icons.RoundedFilled.CheckCircle,
-                  contentDescription =
-                    stringResource(
-                      if (allSelectedVideosWatched) {
-                        R.string.video_action_mark_unwatched
-                      } else {
-                        R.string.video_action_mark_watched
-                      },
-                    ),
-                )
-              }
             }
           },
           )

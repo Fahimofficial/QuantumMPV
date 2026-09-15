@@ -130,8 +130,8 @@ fun GestureHandler(
   val currentOnLockedTouchSideChanged by rememberUpdatedState(onLockedTouchSideChanged)
   val subtitleTracks by viewModel.subtitleTracks.collectAsState(emptyList())
   val videoAspectState by PlaybackSession.propDouble["video-params/aspect"].collectAsState()
-  val videoZoomState by PlaybackSession.propDouble["video-zoom"].collectAsState()
-  val videoPanYState by PlaybackSession.propDouble["video-pan-y"].collectAsState()
+  val videoTransformZoom by viewModel.videoZoom.collectAsState()
+  val videoTransformPanY by viewModel.videoPanY.collectAsState()
   val subUseMarginsState by PlaybackSession.propString["sub-use-margins"].collectAsState()
 
   fun getSubtitleScreenY(
@@ -158,11 +158,9 @@ fun GestureHandler(
           } else {
             height
           }
-        val zoom = videoZoomState?.toFloat() ?: 0f
-        val videoScale = 2f.pow(zoom)
-        val videoPanY = videoPanYState?.toFloat() ?: 0f
+        val videoScale = 2f.pow(videoTransformZoom)
         val screenCenterY = height / 2f
-        val subtitleScreenY = screenCenterY + (subPos / 100f - 0.5f + videoPanY) * videoHeight * videoScale
+        val subtitleScreenY = screenCenterY + (subPos / 100f - 0.5f) * videoHeight * videoScale + videoTransformPanY
         return subtitleScreenY.coerceIn(0f, height)
       }
     }
@@ -1119,6 +1117,7 @@ fun GestureHandler(
                     }
 
                     if (gestureStarted) {
+                      val previousScale = 2f.pow(viewModel.videoZoom.value)
                       if (pinchToZoomGesture && prevDist > 0f && distDelta > 0.5f) {
                         // Per-frame zoom: ratio of current distance to previous distance
                         val zoomRatio = dist / prevDist
@@ -1135,11 +1134,20 @@ fun GestureHandler(
                         val extraHeight = (scale - 1f) * sh
                         val maxX = (extraWidth / 2f).coerceAtLeast(0f)
                         val maxY = (extraHeight / 2f).coerceAtLeast(0f)
+                        val scaleRatio = scale / previousScale
+                        val centerX = sw / 2f
+                        val centerY = sh / 2f
 
-                        val panDx = midX - prevMidX
-                        val panDy = midY - prevMidY
-                        currentPanX = (currentPanX + panDx).coerceIn(-maxX, maxX)
-                        currentPanY = (currentPanY + panDy).coerceIn(-maxY, maxY)
+                        currentPanX =
+                          (
+                            midX - centerX -
+                              (prevMidX - centerX - currentPanX) * scaleRatio
+                          ).coerceIn(-maxX, maxX)
+                        currentPanY =
+                          (
+                            midY - centerY -
+                              (prevMidY - centerY - currentPanY) * scaleRatio
+                          ).coerceIn(-maxY, maxY)
                         viewModel.setVideoPan(currentPanX, currentPanY)
                       }
                     }

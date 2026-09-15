@@ -650,23 +650,6 @@ object FolderListScreen : Screen {
                   }
                 }
               },
-              onPinClick = {
-                coroutineScope.launch {
-                  val selectedFolders = selectionManager.getSelectedItems()
-                  if (selectedFolders.isEmpty()) return@launch
-                  val updated = foldersPreferences.pinnedFolders.get().toMutableSet()
-                  val shouldUnpinAll = selectedFolders.all { it.path in updated }
-                  selectedFolders.forEach { folder ->
-                    if (shouldUnpinAll) {
-                      updated.remove(folder.path)
-                    } else {
-                      updated.add(folder.path)
-                    }
-                  }
-                  foldersPreferences.pinnedFolders.set(updated)
-                  selectionManager.clear()
-                }
-              },
               onBlacklistClick = {
                 coroutineScope.launch {
                   val selectedFolders = selectionManager.getSelectedItems()

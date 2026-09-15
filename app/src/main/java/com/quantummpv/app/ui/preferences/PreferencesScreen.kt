@@ -125,7 +125,11 @@ object PreferencesScreen : Screen {
         )
         Box(modifier = Modifier.weight(0.6f).tvFocusGroup()) {
           CompositionLocalProvider(LocalBackStack provides detailBackstack) {
-            ScreenNavDisplay(backStack = detailBackstack, modifier = Modifier.fillMaxSize()) { screen ->
+            ScreenNavDisplay(
+              backStack = detailBackstack,
+              modifier = Modifier.fillMaxSize(),
+              opaqueBackground = true,
+            ) { screen ->
               CompositionLocalProvider(LocalShowSettingsBackArrow provides (screen != selectedScreen)) {
                 screen.Content()
               }

@@ -11,7 +11,6 @@ package com.quantummpv.app.ui.browser.cards
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.combinedClickable
-import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.FlowRow
@@ -104,8 +103,6 @@ fun FolderCard(
   val context = androidx.compose.ui.platform.LocalContext.current
   val density = LocalDensity.current
   val thumbnailRepository = koinInject<ThumbnailRepository>()
-  val cardInteractionSource = remember { MutableInteractionSource() }
-  val thumbnailInteractionSource = remember { MutableInteractionSource() }
   var folderThumbnail by remember(folder.bucketId) { mutableStateOf<android.graphics.Bitmap?>(null) }
 
   LaunchedEffect(
@@ -205,8 +202,6 @@ fun FolderCard(
         .clip(cardShape)
         .tvContextMenu(onLongClick)
         .combinedClickable(
-          interactionSource = cardInteractionSource,
-          indication = null,
           onClick = onClick,
           onLongClick = onLongClick,
         ),
@@ -286,8 +281,6 @@ fun FolderCard(
                 }
               ).tvFocusHighlight(AppShapeScale.medium, focusedScale = 1.03f)
                 .combinedClickable(
-                  interactionSource = thumbnailInteractionSource,
-                  indication = null,
                   onClick = onThumbClick,
                   onLongClick = onLongClick,
                 ),
@@ -411,8 +404,6 @@ fun FolderCard(
                 .size(64.dp)
                 .tvFocusHighlight(AppShapeScale.medium, focusedScale = 1.03f)
                 .combinedClickable(
-                  interactionSource = thumbnailInteractionSource,
-                  indication = null,
                   onClick = onThumbClick,
                   onLongClick = onLongClick,
                 ),

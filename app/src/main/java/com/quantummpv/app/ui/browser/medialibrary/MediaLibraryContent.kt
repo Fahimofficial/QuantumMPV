@@ -204,7 +204,6 @@ fun MediaLibraryContent(forceAudio: Boolean = false) {
   val watchedVideoIds = remember(filteredVideosWithInfo) {
     filteredVideosWithInfo.filter(VideoWithPlaybackInfo::isWatched).mapTo(hashSetOf()) { it.video.id }
   }
-  val allSelectedVideosWatched = selectedVideos.isNotEmpty() && selectedVideos.all { it.id in watchedVideoIds }
 
   val isRefreshing = remember { mutableStateOf(false) }
   val sortDialogOpen = rememberSaveable { mutableStateOf(false) }
@@ -498,31 +497,6 @@ fun MediaLibraryContent(forceAudio: Boolean = false) {
               moveSelectedToSecureFolder()
             } else {
               moveToSecureConfirmOpen.value = true
-            }
-          },
-          onAddToPlaylistClick = { addToPlaylistDialogOpen.value = true },
-          additionalActions = {
-            if (mediaType == MediaLibraryType.Video && selectionManager.isInSelectionMode && selectedVideos.isNotEmpty()) {
-              IconButton(
-                onClick = {
-                  val markWatched = !allSelectedVideosWatched
-                  selectedVideos.forEach { video -> viewModel.setWatched(video, markWatched) }
-                  selectionManager.clear()
-                },
-                modifier = Modifier.tvFocusHighlight(CircleShape, focusedScale = 1.06f),
-              ) {
-                Icon(
-                  imageVector = if (allSelectedVideosWatched) Icons.RoundedFilled.RemoveCircle else Icons.RoundedFilled.CheckCircle,
-                  contentDescription =
-                    stringResource(
-                      if (allSelectedVideosWatched) {
-                        R.string.video_action_mark_unwatched
-                      } else {
-                        R.string.video_action_mark_watched
-                      },
-                    ),
-                )
-              }
             }
           },
         )

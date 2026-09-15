@@ -9,8 +9,6 @@
 
 package com.quantummpv.app.ui.player.controls.components.sheets
 
-import com.quantummpv.app.ui.player.PlaybackSession
-
 import androidx.compose.animation.Crossfade
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.layout.Arrangement
@@ -69,11 +67,6 @@ fun VideoZoomSheet(
   var zoom by remember { mutableFloatStateOf(videoZoom) }
 
   val currentOnSetVideoZoom by rememberUpdatedState(onSetVideoZoom)
-
-  LaunchedEffect(Unit) {
-    val mpvZoom = PlaybackSession.getPropertyDouble("video-zoom")?.toFloat() ?: videoZoom
-    zoom = mpvZoom
-  }
 
   LaunchedEffect(zoom) {
     if (zoomControlEnabled) currentOnSetVideoZoom(zoom)
