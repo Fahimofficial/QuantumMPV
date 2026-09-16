@@ -1964,6 +1964,7 @@ class PlayerActivity :
     }.onFailure { error ->
       Log.e(TAG, "Error restoring the player after PiP expansion", error)
     }
+    viewModel.restartPostProcessingIfActive()
     viewModel.restartAmbientIfActive()
   }
 
@@ -2477,6 +2478,7 @@ class PlayerActivity :
       if (!isDeviceScreenOffOrLocked() && (isInBackgroundPlayback || lastVid > 0)) {
         enableVideoAfterBackground()
       }
+      viewModel.restartPostProcessingIfActive()
       viewModel.restartAmbientIfActive()
       binding.root.post(::updateVideoAmbientPlayerBounds)
     }
@@ -4348,6 +4350,7 @@ class PlayerActivity :
 
     // Drop the old ambient shader file, but keep the user's ambient preference/style.
     viewModel.prepareAmbientForNewVideo()
+    viewModel.preparePostProcessingForNewVideo()
 
     setIntentExtras(intent.extras)
 
@@ -5959,6 +5962,7 @@ private suspend fun restorePlaybackPosition(state: PlaybackStateEntity?) {
       }.onFailure { error ->
         Log.e(TAG, "Error entering PiP UI mode", error)
       }
+      viewModel.restartPostProcessingIfActive()
       viewModel.restartAmbientIfActive()
     }
   }

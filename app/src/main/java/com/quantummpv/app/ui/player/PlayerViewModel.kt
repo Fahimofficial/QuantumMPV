@@ -1804,6 +1804,24 @@ val isBrightnessSliderShown = MutableStateFlow(false)
   private var batteryReceiver: BroadcastReceiver? = null
   private var androidSystemInfoBridgeJob: Job? = null
 
+  // ==================== Post-Processing ===================================
+  private val _isPostProcessingEnabled = MutableStateFlow(playerPreferences.isPostProcessingEnabled.get())
+  val isPostProcessingEnabled: StateFlow<Boolean> = _isPostProcessingEnabled.asStateFlow()
+
+  private val _postProcessingPreset = MutableStateFlow(playerPreferences.postProcessingPreset.get())
+  val postProcessingPreset: StateFlow<PostProcessingPreset> = _postProcessingPreset.asStateFlow()
+
+  private val _postProcessingParams = MutableStateFlow(loadPostProcessingParamsFromPrefs())
+  val postProcessingParams: StateFlow<PostProcessingParams> = _postProcessingParams.asStateFlow()
+
+  @Volatile private var ppShaderFiles: List<java.io.File> = emptyList()
+  private val ppShaderSeq = AtomicLong()
+  private val ppScheduleLock = Any()
+  private val ppRenderLock = Any()
+  private val ppUpdateGeneration = AtomicLong()
+  private var ppDebounceJob: Job? = null
+  @Volatile private var lastCompiledPpSpec: Pair<PostProcessingPreset, PostProcessingParams>? = null
+
   // ==================== Custom Buttons ====================
 
   data class CustomButtonState(
@@ -6533,6 +6551,7 @@ val isBrightnessSliderShown = MutableStateFlow(false)
    */
   fun restartHdrScreenOutputAndAmbientIfActive() {
     refreshHdrScreenOutputForCurrentVideo()
+    restartPostProcessingIfActive()
     restartAmbientIfActive()
   }
 
@@ -6950,6 +6969,311 @@ val isBrightnessSliderShown = MutableStateFlow(false)
     )
   }
 
+  // ==================== Post-Processing Implementation ====================
+
+  fun togglePostProcessing() {
+    _isPostProcessingEnabled.value = !_isPostProcessingEnabled.value
+    playerPreferences.isPostProcessingEnabled.set(_isPostProcessingEnabled.value)
+    if (_isPostProcessingEnabled.value) {
+      if (_postProcessingPreset.value == PostProcessingPreset.None) {
+        setPostProcessingPreset(PostProcessingPreset.Natural)
+      } else {
+        schedulePostProcessingUpdate(0)
+      }
+      playerUpdate.value = PlayerUpdates.ShowText(appContext.getString(R.string.pp_on))
+    } else {
+      clearPostProcessingShaders()
+      playerUpdate.value = PlayerUpdates.ShowText(appContext.getString(R.string.pp_off))
+    }
+  }
+
+  fun setPostProcessingPreset(preset: PostProcessingPreset) {
+    if (_postProcessingPreset.value == preset) return
+    _postProcessingPreset.value = preset
+    playerPreferences.postProcessingPreset.set(preset)
+    val name = appContext.getString(preset.displayNameRes)
+    playerUpdate.value = PlayerUpdates.ShowText(name)
+    if (_isPostProcessingEnabled.value) {
+      if (preset == PostProcessingPreset.None) {
+        clearPostProcessingShaders()
+      } else {
+        schedulePostProcessingUpdate(0)
+      }
+    }
+  }
+
+  fun updatePostProcessingParams(params: PostProcessingParams) {
+    _postProcessingParams.value = params
+    savePostProcessingParamsToPrefs(params)
+    if (_isPostProcessingEnabled.value && _postProcessingPreset.value != PostProcessingPreset.None) {
+      schedulePostProcessingUpdate(150L)
+    }
+  }
+
+  fun resetPostProcessingParams() {
+    updatePostProcessingParams(PostProcessingParams())
+  }
+
+  fun clearPostProcessingShaders() {
+    synchronized(ppScheduleLock) {
+      ppUpdateGeneration.incrementAndGet()
+      ppDebounceJob?.cancel()
+      ppDebounceJob = null
+    }
+    synchronized(ppRenderLock) {
+      ppShaderFiles.forEach { file ->
+        runCatching { PlaybackSession.command("change-list", "glsl-shaders", "remove", file.absolutePath) }
+        file.delete()
+      }
+      ppShaderFiles = emptyList()
+      lastCompiledPpSpec = null
+    }
+  }
+
+  fun preparePostProcessingForNewVideo() {
+    if (!_isPostProcessingEnabled.value) return
+    clearPostProcessingShaders()
+  }
+
+  fun restartPostProcessingIfActive() {
+    if (!_isPostProcessingEnabled.value || _postProcessingPreset.value == PostProcessingPreset.None) return
+    clearPostProcessingShaders()
+    schedulePostProcessingUpdate(200)
+  }
+
+  private fun schedulePostProcessingUpdate(delayMs: Long = 150L) {
+    synchronized(ppScheduleLock) {
+      if (!_isPostProcessingEnabled.value || _postProcessingPreset.value == PostProcessingPreset.None) return
+
+      val generation = ppUpdateGeneration.incrementAndGet()
+      ppDebounceJob?.cancel()
+      ppDebounceJob =
+        viewModelScope.launch(renderPrepDispatcher) {
+          delay(delayMs)
+          updatePostProcessingShaders(generation)
+        }
+    }
+  }
+
+  private suspend fun updatePostProcessingShaders(generation: Long) {
+    if (!_isPostProcessingEnabled.value || generation != ppUpdateGeneration.get()) return
+
+    runCatching {
+      val preset = _postProcessingPreset.value
+      if (preset == PostProcessingPreset.None) {
+        clearPostProcessingShaders()
+        return
+      }
+      val params = _postProcessingParams.value
+      val spec = Pair(preset, params)
+
+      val isCurrent =
+        synchronized(ppRenderLock) {
+          spec == lastCompiledPpSpec && ppShaderFiles.isNotEmpty() && ppShaderFiles.all { it.exists() }
+        }
+      if (isCurrent) return
+
+      val shaderSources = preset.buildShaders(params)
+      if (shaderSources.isEmpty()) {
+        clearPostProcessingShaders()
+        return
+      }
+
+      val baseSeq = ppShaderSeq.incrementAndGet()
+      val writtenFiles = mutableListOf<java.io.File>()
+      try {
+        withContext(kotlinx.coroutines.Dispatchers.IO) {
+          shaderSources.forEachIndexed { index, source ->
+            val file = java.io.File(appContext.cacheDir, "pp_${baseSeq}_${index}.glsl")
+            file.writeText(source)
+            writtenFiles.add(file)
+          }
+        }
+      } catch (error: Throwable) {
+        writtenFiles.forEach { it.delete() }
+        throw error
+      }
+      currentCoroutineContext().ensureActive()
+
+      synchronized(ppRenderLock) {
+        if (!_isPostProcessingEnabled.value || generation != ppUpdateGeneration.get()) {
+          writtenFiles.forEach { it.delete() }
+          return@synchronized
+        }
+        ppShaderFiles.forEach { oldFile ->
+          runCatching { PlaybackSession.command("change-list", "glsl-shaders", "remove", oldFile.absolutePath) }
+          oldFile.delete()
+        }
+        writtenFiles.forEach { newFile ->
+          PlaybackSession.command("change-list", "glsl-shaders", "append", newFile.absolutePath)
+        }
+        ppShaderFiles = writtenFiles
+        lastCompiledPpSpec = spec
+      }
+      restartAmbientIfActive()
+    }.onFailure { e ->
+      if (e is kotlinx.coroutines.CancellationException) throw e
+      Log.e(TAG, "Failed to update post-processing shaders", e)
+    }
+  }
+
+  private fun loadPostProcessingParamsFromPrefs(): PostProcessingParams =
+    PostProcessingParams(
+      naturalLuma = playerPreferences.ppNaturalLuma.get(),
+      naturalChroma = playerPreferences.ppNaturalChroma.get(),
+      levelsInputBlack = playerPreferences.ppLevelsInputBlack.get(),
+      levelsInputWhite = playerPreferences.ppLevelsInputWhite.get(),
+      levelsGamma = playerPreferences.ppLevelsGamma.get(),
+      levelsOutputBlack = playerPreferences.ppLevelsOutputBlack.get(),
+      levelsOutputWhite = playerPreferences.ppLevelsOutputWhite.get(),
+      sharpenAmount = playerPreferences.ppSharpenAmount.get(),
+      bloomRadius = playerPreferences.ppBloomRadius.get(),
+      bloomAmount = playerPreferences.ppBloomAmount.get(),
+      cgSaturation = playerPreferences.ppCgSaturation.get(),
+      cgBrightness = playerPreferences.ppCgBrightness.get(),
+      cgContrast = playerPreferences.ppCgContrast.get(),
+      cgGamma = playerPreferences.ppCgGamma.get(),
+      denoiseStrength = playerPreferences.ppDenoiseStrength.get(),
+      denoiseRadius = playerPreferences.ppDenoiseRadius.get(),
+      denoiseCurve = playerPreferences.ppDenoiseCurve.get(),
+      celBands = playerPreferences.ppCelBands.get(),
+      celBandContrast = playerPreferences.ppCelBandContrast.get(),
+      celBandEdge = playerPreferences.ppCelBandEdge.get(),
+      celDetail = playerPreferences.ppCelDetail.get(),
+      celOutlineStrength = playerPreferences.ppCelOutlineStrength.get(),
+      celOutlineThreshold = playerPreferences.ppCelOutlineThreshold.get(),
+      celSaturation = playerPreferences.ppCelSaturation.get(),
+      filmicExposure = playerPreferences.ppFilmicExposure.get(),
+      filmicToe = playerPreferences.ppFilmicToe.get(),
+      filmicShoulder = playerPreferences.ppFilmicShoulder.get(),
+      filmicAmount = playerPreferences.ppFilmicAmount.get(),
+      blurRadius = playerPreferences.ppBlurRadius.get(),
+      blurStrength = playerPreferences.ppBlurStrength.get(),
+      blurFocusSize = playerPreferences.ppBlurFocusSize.get(),
+      blurFocusSoftness = playerPreferences.ppBlurFocusSoftness.get(),
+      cartoonEdgeStrength = playerPreferences.ppCartoonEdgeStrength.get(),
+      cartoonLevels = playerPreferences.ppCartoonLevels.get(),
+      cartoonSoftEdgeStrength = playerPreferences.ppCartoonSoftEdgeStrength.get(),
+      cartoonSoftShadowGuard = playerPreferences.ppCartoonSoftShadowGuard.get(),
+      cartoonSoftLevels = playerPreferences.ppCartoonSoftLevels.get(),
+      cartoonSoftSmoothing = playerPreferences.ppCartoonSoftSmoothing.get(),
+      cartoonSoftSaturation = playerPreferences.ppCartoonSoftSaturation.get(),
+      caStrength = playerPreferences.ppCaStrength.get(),
+      caFalloff = playerPreferences.ppCaFalloff.get(),
+      debandThreshold = playerPreferences.ppDebandThreshold.get(),
+      debandRadius = playerPreferences.ppDebandRadius.get(),
+      debandGrain = playerPreferences.ppDebandGrain.get(),
+      grainIntensity = playerPreferences.ppGrainIntensity.get(),
+      grainSize = playerPreferences.ppGrainSize.get(),
+      grainColored = playerPreferences.ppGrainColored.get(),
+      lensDistortion = playerPreferences.ppLensDistortion.get(),
+      lensZoom = playerPreferences.ppLensZoom.get(),
+      motionLength = playerPreferences.ppMotionLength.get(),
+      motionZoom = playerPreferences.ppMotionZoom.get(),
+      motionPan = playerPreferences.ppMotionPan.get(),
+      motionAngle = playerPreferences.ppMotionAngle.get(),
+      motionSpin = playerPreferences.ppMotionSpin.get(),
+      reflHorizon = playerPreferences.ppReflHorizon.get(),
+      reflAmount = playerPreferences.ppReflAmount.get(),
+      reflFalloff = playerPreferences.ppReflFalloff.get(),
+      reflPerspective = playerPreferences.ppReflPerspective.get(),
+      reflRipple = playerPreferences.ppReflRipple.get(),
+      reflRippleSpeed = playerPreferences.ppReflRippleSpeed.get(),
+      scanlinesDensity = playerPreferences.ppScanlinesDensity.get(),
+      scanlinesIntensity = playerPreferences.ppScanlinesIntensity.get(),
+      scanlinesTint = playerPreferences.ppScanlinesTint.get(),
+      splitShadowHue = playerPreferences.ppSplitShadowHue.get(),
+      splitShadowStrength = playerPreferences.ppSplitShadowStrength.get(),
+      splitHighlightHue = playerPreferences.ppSplitHighlightHue.get(),
+      splitHighlightStrength = playerPreferences.ppSplitHighlightStrength.get(),
+      splitBalance = playerPreferences.ppSplitBalance.get(),
+      vignetteStrength = playerPreferences.ppVignetteStrength.get(),
+      vignetteAspect = playerPreferences.ppVignetteAspect.get(),
+      wbTemperature = playerPreferences.ppWbTemperature.get(),
+      wbTint = playerPreferences.ppWbTint.get(),
+      crtDensity = playerPreferences.ppCrtDensity.get(),
+      crtRollSpeed = playerPreferences.ppCrtRollSpeed.get(),
+      crtBleed = playerPreferences.ppCrtBleed.get(),
+    )
+
+  private fun savePostProcessingParamsToPrefs(p: PostProcessingParams) {
+    playerPreferences.ppNaturalLuma.set(p.naturalLuma)
+    playerPreferences.ppNaturalChroma.set(p.naturalChroma)
+    playerPreferences.ppLevelsInputBlack.set(p.levelsInputBlack)
+    playerPreferences.ppLevelsInputWhite.set(p.levelsInputWhite)
+    playerPreferences.ppLevelsGamma.set(p.levelsGamma)
+    playerPreferences.ppLevelsOutputBlack.set(p.levelsOutputBlack)
+    playerPreferences.ppLevelsOutputWhite.set(p.levelsOutputWhite)
+    playerPreferences.ppSharpenAmount.set(p.sharpenAmount)
+    playerPreferences.ppBloomRadius.set(p.bloomRadius)
+    playerPreferences.ppBloomAmount.set(p.bloomAmount)
+    playerPreferences.ppCgSaturation.set(p.cgSaturation)
+    playerPreferences.ppCgBrightness.set(p.cgBrightness)
+    playerPreferences.ppCgContrast.set(p.cgContrast)
+    playerPreferences.ppCgGamma.set(p.cgGamma)
+    playerPreferences.ppDenoiseStrength.set(p.denoiseStrength)
+    playerPreferences.ppDenoiseRadius.set(p.denoiseRadius)
+    playerPreferences.ppDenoiseCurve.set(p.denoiseCurve)
+    playerPreferences.ppCelBands.set(p.celBands)
+    playerPreferences.ppCelBandContrast.set(p.celBandContrast)
+    playerPreferences.ppCelBandEdge.set(p.celBandEdge)
+    playerPreferences.ppCelDetail.set(p.celDetail)
+    playerPreferences.ppCelOutlineStrength.set(p.celOutlineStrength)
+    playerPreferences.ppCelOutlineThreshold.set(p.celOutlineThreshold)
+    playerPreferences.ppCelSaturation.set(p.celSaturation)
+    playerPreferences.ppFilmicExposure.set(p.filmicExposure)
+    playerPreferences.ppFilmicToe.set(p.filmicToe)
+    playerPreferences.ppFilmicShoulder.set(p.filmicShoulder)
+    playerPreferences.ppFilmicAmount.set(p.filmicAmount)
+    playerPreferences.ppBlurRadius.set(p.blurRadius)
+    playerPreferences.ppBlurStrength.set(p.blurStrength)
+    playerPreferences.ppBlurFocusSize.set(p.blurFocusSize)
+    playerPreferences.ppBlurFocusSoftness.set(p.blurFocusSoftness)
+    playerPreferences.ppCartoonEdgeStrength.set(p.cartoonEdgeStrength)
+    playerPreferences.ppCartoonLevels.set(p.cartoonLevels)
+    playerPreferences.ppCartoonSoftEdgeStrength.set(p.cartoonSoftEdgeStrength)
+    playerPreferences.ppCartoonSoftShadowGuard.set(p.cartoonSoftShadowGuard)
+    playerPreferences.ppCartoonSoftLevels.set(p.cartoonSoftLevels)
+    playerPreferences.ppCartoonSoftSmoothing.set(p.cartoonSoftSmoothing)
+    playerPreferences.ppCartoonSoftSaturation.set(p.cartoonSoftSaturation)
+    playerPreferences.ppCaStrength.set(p.caStrength)
+    playerPreferences.ppCaFalloff.set(p.caFalloff)
+    playerPreferences.ppDebandThreshold.set(p.debandThreshold)
+    playerPreferences.ppDebandRadius.set(p.debandRadius)
+    playerPreferences.ppDebandGrain.set(p.debandGrain)
+    playerPreferences.ppGrainIntensity.set(p.grainIntensity)
+    playerPreferences.ppGrainSize.set(p.grainSize)
+    playerPreferences.ppGrainColored.set(p.grainColored)
+    playerPreferences.ppLensDistortion.set(p.lensDistortion)
+    playerPreferences.ppLensZoom.set(p.lensZoom)
+    playerPreferences.ppMotionLength.set(p.motionLength)
+    playerPreferences.ppMotionZoom.set(p.motionZoom)
+    playerPreferences.ppMotionPan.set(p.motionPan)
+    playerPreferences.ppMotionAngle.set(p.motionAngle)
+    playerPreferences.ppMotionSpin.set(p.motionSpin)
+    playerPreferences.ppReflHorizon.set(p.reflHorizon)
+    playerPreferences.ppReflAmount.set(p.reflAmount)
+    playerPreferences.ppReflFalloff.set(p.reflFalloff)
+    playerPreferences.ppReflPerspective.set(p.reflPerspective)
+    playerPreferences.ppReflRipple.set(p.reflRipple)
+    playerPreferences.ppReflRippleSpeed.set(p.reflRippleSpeed)
+    playerPreferences.ppScanlinesDensity.set(p.scanlinesDensity)
+    playerPreferences.ppScanlinesIntensity.set(p.scanlinesIntensity)
+    playerPreferences.ppScanlinesTint.set(p.scanlinesTint)
+    playerPreferences.ppSplitShadowHue.set(p.splitShadowHue)
+    playerPreferences.ppSplitShadowStrength.set(p.splitShadowStrength)
+    playerPreferences.ppSplitHighlightHue.set(p.splitHighlightHue)
+    playerPreferences.ppSplitHighlightStrength.set(p.splitHighlightStrength)
+    playerPreferences.ppSplitBalance.set(p.splitBalance)
+    playerPreferences.ppVignetteStrength.set(p.vignetteStrength)
+    playerPreferences.ppVignetteAspect.set(p.vignetteAspect)
+    playerPreferences.ppWbTemperature.set(p.wbTemperature)
+    playerPreferences.ppWbTint.set(p.wbTint)
+    playerPreferences.ppCrtDensity.set(p.crtDensity)
+    playerPreferences.ppCrtRollSpeed.set(p.crtRollSpeed)
+    playerPreferences.ppCrtBleed.set(p.crtBleed)
+  }
+
   // ==================== Utility ====================
 
   fun showToast(message: String) {
@@ -6978,6 +7302,7 @@ val isBrightnessSliderShown = MutableStateFlow(false)
     runCatching { audioEqualizerManager.release() }
     _isAmbientLifecycleActive.value = false
     runCatching { disableAmbientShader() }
+    runCatching { clearPostProcessingShaders() }
 
     super.onCleared()
   }

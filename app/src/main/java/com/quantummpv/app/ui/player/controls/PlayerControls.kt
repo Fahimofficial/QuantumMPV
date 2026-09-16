@@ -325,6 +325,7 @@ fun PlayerControls(
   val transformState by viewModel.transformState.collectAsState()
   val isHdrOutputEnabled by viewModel.isHdrScreenOutputEnabled.collectAsState()
   val isAmbientEnabled by viewModel.isAmbientEnabled.collectAsState()
+  val isPostProcessingEnabled by viewModel.isPostProcessingEnabled.collectAsState()
   val backgroundPlaybackEnabled by audioPreferences.backgroundPlayback.collectAsState()
 
   val onOpenSheet: (Sheets) -> Unit = remember(viewModel) {
@@ -2044,6 +2045,7 @@ val activePlayerDrawerButtons =
         abLoopB,
         isHdrOutputEnabled,
         isAmbientEnabled,
+        isPostProcessingEnabled,
         backgroundPlaybackEnabled,
         statisticsPage,
         mediaScopesState.overlayVisible,
@@ -2058,6 +2060,7 @@ val activePlayerDrawerButtons =
           if (abLoopA != null || abLoopB != null) add(PlayerButton.AB_LOOP)
           if (isHdrOutputEnabled) add(PlayerButton.HDR_MODE)
           if (isAmbientEnabled) add(PlayerButton.AMBIENT_MODE)
+          if (isPostProcessingEnabled) add(PlayerButton.POST_PROCESSING)
           if (backgroundPlaybackEnabled) add(PlayerButton.BACKGROUND_PLAYBACK)
           if (statisticsPage == 6) add(PlayerButton.TIME_NETWORK)
           if (mediaScopesState.overlayVisible) add(PlayerButton.SCOPES)
