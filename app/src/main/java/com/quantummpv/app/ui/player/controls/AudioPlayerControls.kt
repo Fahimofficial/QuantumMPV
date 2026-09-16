@@ -1095,6 +1095,8 @@ fun AudioPlayerControls(
     animationSpec = tween(durationMillis = 800),
     label = "ambient_bottom_color",
   )
+  val edgeToEdgeVisualizer = showVisualizer && (!showInPlaceLyrics || isTabletLandscape)
+  val controlsSidePadding = if (edgeToEdgeVisualizer) 16.dp else 0.dp
   Box(
     modifier =
       modifier
@@ -1131,7 +1133,8 @@ fun AudioPlayerControls(
           }
         }
         .windowInsetsPadding(WindowInsets.safeDrawing)
-        .padding(start = 16.dp, end = 16.dp, top = 6.dp, bottom = 12.dp),
+        .padding(horizontal = if (edgeToEdgeVisualizer) 0.dp else 16.dp)
+        .padding(top = 6.dp, bottom = 12.dp),
   ) {
     val headerBar = @Composable {
       Box(modifier = Modifier.fillMaxWidth()) {
@@ -1268,6 +1271,7 @@ fun AudioPlayerControls(
         } else {
           AnimatedContent(
             targetState = showVisualizer,
+            contentAlignment = Alignment.Center,
             transitionSpec = {
               val contentTransform =
                 if (targetState) {
@@ -1288,7 +1292,7 @@ fun AudioPlayerControls(
               contentTransform.using(SizeTransform(clip = false))
             },
             label = "visualizer_toggle",
-            modifier = Modifier.fillMaxHeight().fillMaxWidth(if (isTabletPortrait) 0.65f else if (isPortrait) 0.88f else 1.0f),
+            modifier = Modifier.fillMaxSize(),
           ) { isVisualizerActive ->
           if (isVisualizerActive) {
             AudioVisualizerViewport(
@@ -1309,7 +1313,8 @@ fun AudioPlayerControls(
 
             Box(
               modifier = Modifier
-                .fillMaxSize()
+                .fillMaxHeight()
+                .fillMaxWidth(if (isTabletPortrait) 0.65f else if (isPortrait) 0.88f else 1f)
                 .pointerInput(showVisualizer, containerWidthPx) {
                   if (showVisualizer || containerWidthPx <= 0f) return@pointerInput
                   detectHorizontalDragGestures(
@@ -2002,10 +2007,13 @@ fun AudioPlayerControls(
           enter = fadeIn(animationSpec = tween(300)) + androidx.compose.animation.expandVertically(animationSpec = tween(300)),
           exit = fadeOut(animationSpec = tween(300)) + androidx.compose.animation.shrinkVertically(animationSpec = tween(300)),
         ) {
-          Column(horizontalAlignment = Alignment.CenterHorizontally) {
+          Column(
+            modifier = Modifier.padding(horizontal = controlsSidePadding),
+            horizontalAlignment = Alignment.CenterHorizontally,
+          ) {
             headerBar()
             losslessBadge()
-            Spacer(modifier = Modifier.height(16.dp))
+            if (!edgeToEdgeVisualizer) Spacer(modifier = Modifier.height(16.dp))
           }
         }
 
@@ -2017,7 +2025,10 @@ fun AudioPlayerControls(
           enter = fadeIn(animationSpec = tween(300)) + androidx.compose.animation.expandVertically(animationSpec = tween(300)),
           exit = fadeOut(animationSpec = tween(300)) + androidx.compose.animation.shrinkVertically(animationSpec = tween(300)),
         ) {
-          Column(horizontalAlignment = Alignment.CenterHorizontally) {
+          Column(
+            modifier = Modifier.padding(horizontal = controlsSidePadding),
+            horizontalAlignment = Alignment.CenterHorizontally,
+          ) {
             Spacer(modifier = Modifier.height(4.dp))
             trackMetadataView()
             Spacer(modifier = Modifier.height(10.dp))
@@ -2042,30 +2053,41 @@ fun AudioPlayerControls(
           verticalArrangement = Arrangement.SpaceBetween,
           horizontalAlignment = Alignment.CenterHorizontally,
         ) {
-          headerBar()
-          Spacer(modifier = Modifier.height(4.dp))
-          losslessBadge()
-          Spacer(modifier = Modifier.height(6.dp))
+          Column(
+            modifier = Modifier.padding(horizontal = controlsSidePadding),
+            horizontalAlignment = Alignment.CenterHorizontally,
+          ) {
+            headerBar()
+            Spacer(modifier = Modifier.height(4.dp))
+            losslessBadge()
+            if (!edgeToEdgeVisualizer) Spacer(modifier = Modifier.height(6.dp))
+          }
           centerVisualizerView(
             Modifier
               .weight(1f)
               .fillMaxWidth()
-              .padding(vertical = 12.dp, horizontal = 24.dp),
+              .then(if (edgeToEdgeVisualizer) Modifier else Modifier.padding(vertical = 12.dp, horizontal = 24.dp)),
           )
-          Spacer(modifier = Modifier.height(6.dp))
-          trackMetadataView()
-          Spacer(modifier = Modifier.height(8.dp))
-          seekbarView()
-          Spacer(modifier = Modifier.height(8.dp))
-          playbackControlsRow()
-          Spacer(modifier = Modifier.height(12.dp))
-          bottomActionRow()
+          Column(
+            modifier = Modifier.padding(horizontal = controlsSidePadding),
+            horizontalAlignment = Alignment.CenterHorizontally,
+          ) {
+            Spacer(modifier = Modifier.height(6.dp))
+            trackMetadataView()
+            Spacer(modifier = Modifier.height(8.dp))
+            seekbarView()
+            Spacer(modifier = Modifier.height(8.dp))
+            playbackControlsRow()
+            Spacer(modifier = Modifier.height(12.dp))
+            bottomActionRow()
+          }
         }
 
         Surface(
           modifier = Modifier
             .weight(1.1f)
             .fillMaxHeight()
+            .padding(end = controlsSidePadding)
             .clip(RoundedCornerShape(24.dp)),
           color = MaterialTheme.colorScheme.surfaceContainerLow,
           shape = RoundedCornerShape(24.dp),
@@ -2085,7 +2107,7 @@ fun AudioPlayerControls(
       ) {
         centerVisualizerView(Modifier.weight(1f).fillMaxHeight())
         Column(
-          modifier = Modifier.weight(1.2f).fillMaxHeight(),
+          modifier = Modifier.weight(1.2f).fillMaxHeight().padding(end = controlsSidePadding),
           verticalArrangement = Arrangement.SpaceBetween,
           horizontalAlignment = Alignment.CenterHorizontally,
         ) {
