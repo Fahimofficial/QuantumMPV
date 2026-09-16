@@ -2192,4 +2192,6 @@
   <string name="pref_appearance_custom_theme_light_secondary">浅色辅助色</string><string name="pref_appearance_custom_theme_dark_secondary">深色辅助色</string><string name="pref_appearance_custom_theme_light_tertiary">浅色第三色</string><string name="pref_appearance_custom_theme_dark_tertiary">深色第三色</string>
   <string name="pref_appearance_custom_wallpaper_fit">适应</string><string name="pref_appearance_custom_wallpaper_fill">填充</string><string name="pref_appearance_custom_wallpaper_replace_action">替换</string><string name="pref_appearance_custom_wallpaper_clear_action">清除</string>
   <string name="wallpaper_save_failed">无法保存壁纸，请重新选择图片。</string>
+  <string name="pref_haptic_feedback_title">触觉反馈</string>
+  <string name="pref_haptic_feedback_summary">选择、拖动和调整控件时提供触觉反馈。遵循系统设置。</string>
 </resources>

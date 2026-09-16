@@ -98,14 +98,12 @@ import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.Shadow
 import androidx.compose.ui.graphics.StrokeJoin
 import androidx.compose.ui.graphics.drawscope.Stroke
-import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.layout.positionInParent
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
-import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.SpanStyle
@@ -315,7 +313,6 @@ fun PlayerControls(
   val showSkipChipAuto by viewModel.showSkipChipAuto.collectAsState()
   val playlistMode by playerPreferences.playlistMode.collectAsState()
   val playlistItems by viewModel.playlistItems.collectAsState()
-  val haptic = LocalHapticFeedback.current
 
   val customButtons by viewModel.customButtons.collectAsState()
   val showVideoQualitySelector by viewModel.showVideoQualitySelector.collectAsState()
@@ -1117,7 +1114,6 @@ is PlayerUpdates.FrameInfo -> {
                             viewModel.callCustomButton(button.id)
                           },
                           onLongClick = {
-                            haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
                             resetControlsTimestamp = System.currentTimeMillis()
                             viewModel.callCustomButtonLongPress(button.id)
                           },
@@ -1181,7 +1177,6 @@ is PlayerUpdates.FrameInfo -> {
                             viewModel.callCustomButton(button.id)
                           },
                           onLongClick = {
-                            haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
                             resetControlsTimestamp = System.currentTimeMillis()
                             viewModel.callCustomButtonLongPress(button.id)
                           },
@@ -1246,7 +1241,6 @@ is PlayerUpdates.FrameInfo -> {
                             viewModel.callCustomButton(button.id)
                           },
                           onLongClick = {
-                            haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
                             resetControlsTimestamp = System.currentTimeMillis()
                             viewModel.callCustomButtonLongPress(button.id)
                           },

@@ -15,14 +15,22 @@ import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.SpringSpec
 import androidx.compose.animation.core.spring
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.runtime.Stable
 import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.platform.LocalView
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.compose.LifecycleEventEffect
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
+import com.quantummpv.app.preferences.PlayerPreferences
+import com.quantummpv.app.preferences.preference.collectAsState
+import org.koin.compose.koinInject
 
 /**
  * mpvRx motion policy — respects system reduce-motion accessibility setting.
@@ -37,8 +45,11 @@ val LocalMotionPolicy = staticCompositionLocalOf { MotionPolicy() }
 
 @Composable
 fun rememberMotionPolicy(): MotionPolicy {
-  LocalView.current
-  return MotionPolicy(reduceMotion = !ValueAnimator.areAnimatorsEnabled())
+  var animationsDisabled by remember { mutableStateOf(!ValueAnimator.areAnimatorsEnabled()) }
+  LifecycleEventEffect(Lifecycle.Event.ON_RESUME) {
+    animationsDisabled = !ValueAnimator.areAnimatorsEnabled()
+  }
+  return MotionPolicy(reduceMotion = animationsDisabled)
 }
 
 /**
@@ -57,6 +68,12 @@ object AppMotion {
 
   @Composable
   fun shouldReduceMotion(): Boolean = policy().reduceMotion
+
+  @Composable
+  fun playerReducedMotion(): Boolean {
+    val reducedByPlayer by koinInject<PlayerPreferences>().reduceMotion.collectAsState()
+    return shouldReduceMotion() || reducedByPlayer
+  }
 
   fun <T> noBounce(stiffness: Float): SpringSpec<T> =
     spring(dampingRatio = Spring.DampingRatioNoBouncy, stiffness = stiffness)

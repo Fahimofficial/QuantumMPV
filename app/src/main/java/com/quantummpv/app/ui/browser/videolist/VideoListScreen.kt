@@ -510,7 +510,7 @@ data class VideoListScreen(
           selectionManager = selectionManager,
           onVideoClick = { video ->
             if (selectionManager.isInSelectionMode) {
-              selectionManager.toggle(video)
+              selectionManager.toggleFromUser(video)
             } else {
               // Always use MediaUtils.playFile which lets PlayerActivity auto-generate playlist
               // This avoids TransactionTooLargeException from passing large playlists
@@ -1166,7 +1166,7 @@ internal fun VideoListContent(
                       onLongClick = { onVideoLongClick(videoWithInfo.video) },
                       onThumbClick =
                         if (tapThumbnailToSelect) {
-                          { selectionManager.toggle(videoWithInfo.video) }
+                          { selectionManager.toggleFromUser(videoWithInfo.video) }
                         } else {
                           { onVideoClick(videoWithInfo.video) }
                         },
@@ -1233,7 +1233,7 @@ internal fun VideoListContent(
                       onLongClick = { onVideoLongClick(videoWithInfo.video) },
                       onThumbClick =
                         if (tapThumbnailToSelect) {
-                          { selectionManager.toggle(videoWithInfo.video) }
+                          { selectionManager.toggleFromUser(videoWithInfo.video) }
                         } else {
                           { onVideoClick(videoWithInfo.video) }
                         },

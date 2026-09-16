@@ -16,6 +16,11 @@ import android.content.res.Configuration.ORIENTATION_LANDSCAPE
 import android.content.res.Configuration.ORIENTATION_PORTRAIT
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.AnimationVector
+import androidx.compose.animation.core.FiniteAnimationSpec
+import androidx.compose.animation.core.TwoWayConverter
+import androidx.compose.animation.core.VectorizedFiniteAnimationSpec
+import androidx.compose.animation.core.snap
 import androidx.compose.animation.rememberSplineBasedDecay
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -70,8 +75,6 @@ import kotlinx.coroutines.flow.filter
 import kotlinx.coroutines.launch
 import kotlin.math.roundToInt
 
-private val sheetAnimationSpec = AppMotion.Spatial.Standard
-
 @SuppressLint("ConfigurationScreenWidthHeight")
 @Composable
 fun PlayerSheet(
@@ -86,6 +89,17 @@ fun PlayerSheet(
   content: @Composable () -> Unit,
 ) {
   val scope = rememberCoroutineScope()
+  val reducedMotion = AppMotion.playerReducedMotion()
+  val currentSheetSpec by rememberUpdatedState<FiniteAnimationSpec<Float>>(
+    if (reducedMotion) snap() else AppMotion.Spatial.Expressive,
+  )
+  val sheetAnimationSpec = remember {
+    object : FiniteAnimationSpec<Float> {
+      override fun <Vector : AnimationVector> vectorize(
+        converter: TwoWayConverter<Float, Vector>,
+      ): VectorizedFiniteAnimationSpec<Vector> = currentSheetSpec.vectorize(converter)
+    }
+  }
   val density = LocalDensity.current
   val latestOnDismissRequest by rememberUpdatedState(onDismissRequest)
   val maxWidth =
@@ -143,7 +157,7 @@ fun PlayerSheet(
     }
   val alpha by animateFloatAsState(
     targetAlpha,
-    animationSpec = sheetAnimationSpec,
+    animationSpec = if (reducedMotion) snap() else AppMotion.Effect.Alpha,
     label = "alpha",
   )
 

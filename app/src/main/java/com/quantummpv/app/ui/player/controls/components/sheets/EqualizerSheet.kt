@@ -253,9 +253,11 @@ fun EqualizerSheet(
       Spacer(modifier = Modifier.height(8.dp))
 
       var volumeBoostValue by remember(state.volumeBoostDb) { mutableFloatStateOf(state.volumeBoostDb.toFloat()) }
+      val boostHaptics = com.quantummpv.app.ui.utils.rememberAdjustmentHaptics(0f, 10f)
       Slider(
         value = volumeBoostValue,
         onValueChange = { newValue ->
+          boostHaptics.move(volumeBoostValue, newValue)
           volumeBoostValue = newValue
           onVolumeBoostChanged(newValue.roundToInt())
         },
@@ -351,6 +353,7 @@ private fun BandColumn(
   modifier: Modifier = Modifier,
 ) {
   var sliderValue by remember(gainDb) { mutableFloatStateOf(gainDb.toFloat()) }
+  val gainHaptics = com.quantummpv.app.ui.utils.rememberAdjustmentHaptics(EQ_MIN_DB.toFloat(), EQ_MAX_DB.toFloat())
 
   Column(
     modifier = modifier.fillMaxHeight(),
@@ -373,6 +376,7 @@ private fun BandColumn(
     Slider(
       value = sliderValue,
       onValueChange = { newValue ->
+        gainHaptics.move(sliderValue, newValue)
         sliderValue = newValue
         onGainChanged(newValue.roundToInt())
       },

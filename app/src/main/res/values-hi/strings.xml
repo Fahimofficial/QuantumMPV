@@ -2098,4 +2098,6 @@
   <string name="pref_appearance_custom_theme_light_secondary">हल्का द्वितीयक रंग</string><string name="pref_appearance_custom_theme_dark_secondary">गहरा द्वितीयक रंग</string><string name="pref_appearance_custom_theme_light_tertiary">हल्का तृतीयक रंग</string><string name="pref_appearance_custom_theme_dark_tertiary">गहरा तृतीयक रंग</string>
   <string name="pref_appearance_custom_wallpaper_fit">फिट</string><string name="pref_appearance_custom_wallpaper_fill">भरें</string><string name="pref_appearance_custom_wallpaper_replace_action">बदलें</string><string name="pref_appearance_custom_wallpaper_clear_action">साफ़ करें</string>
   <string name="wallpaper_save_failed">वॉलपेपर सहेजा नहीं जा सका। कृपया चित्र फिर से चुनें।</string>
+  <string name="pref_haptic_feedback_title">हैप्टिक फ़ीडबैक</string>
+  <string name="pref_haptic_feedback_summary">चयन, खींचने और नियंत्रण समायोजन पर स्पर्श प्रतिक्रिया। सिस्टम सेटिंग का पालन करता है।</string>
 </resources>

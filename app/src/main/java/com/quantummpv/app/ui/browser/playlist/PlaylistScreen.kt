@@ -308,7 +308,7 @@ object PlaylistScreen : Screen {
           selectionManager = selectionManager,
           onPlaylistClick = { playlistWithCount ->
             if (selectionManager.isInSelectionMode) {
-              selectionManager.toggle(playlistWithCount)
+              selectionManager.toggleFromUser(playlistWithCount)
             } else {
               backStack.navigateTo(PlaylistDetailScreen(playlistWithCount.playlist.id))
             }

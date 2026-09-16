@@ -51,6 +51,10 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.shadow
+import com.quantummpv.app.ui.utils.ReorderFeedback
+import com.quantummpv.app.ui.utils.dragElevation
+import com.quantummpv.app.ui.utils.rememberReorderFeedback
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
@@ -442,6 +446,7 @@ fun PlaylistSheet(
 
           var dragStartIndex by remember { mutableIntStateOf(-1) }
           var dragEndIndex by remember { mutableIntStateOf(-1) }
+          val reorderFeedback = rememberReorderFeedback()
 
           val reorderableLazyListState =
             rememberReorderableLazyListState(lazyListState) { from, to ->
@@ -453,6 +458,7 @@ fun PlaylistSheet(
                 displayPlaylist = displayPlaylist.toMutableList().apply {
                   add(to.index, removeAt(from.index))
                 }.toImmutableList()
+                reorderFeedback.move(from.index, to.index)
               }
             }
 
@@ -479,13 +485,18 @@ fun PlaylistSheet(
 
                   PlaylistTrackListItem(
                     item = item,
+                    modifier = Modifier.shadow(
+                      dragElevation(isDragging, com.quantummpv.app.ui.theme.AppMotion.playerReducedMotion()),
+                      MaterialTheme.shapes.medium,
+                      clip = false,
+                    ),
                     thumbnailRepository = thumbnailRepository,
                     onClick = { onItemClick(item) },
                     skipThumbnail = false,
                     accentColor = accentColor,
                     isAudioOnly = isAudioOnly,
                     dragHandle = {
-                      DragHandle(scope = this, isDragging = isDragging)
+                      DragHandle(scope = this, isDragging = isDragging, feedback = reorderFeedback)
                     },
                   )
                 }
@@ -544,6 +555,7 @@ fun PlaylistSheet(
 private fun DragHandle(
   scope: ReorderableCollectionItemScope,
   isDragging: Boolean,
+  feedback: ReorderFeedback,
   modifier: Modifier = Modifier,
 ) {
   val alpha by animateFloatAsState(
@@ -561,7 +573,10 @@ private fun DragHandle(
       with(scope) {
         modifier
           .size(40.dp)
-          .draggableHandle()
+          .draggableHandle(
+            interactionSource = feedback.interactions,
+            onDragStarted = { feedback.start() },
+          )
       },
     contentAlignment = Alignment.Center,
   ) {

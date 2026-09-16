@@ -2202,4 +2202,6 @@
   <string name="pref_appearance_custom_theme_light_secondary">Светлый дополнительный цвет</string><string name="pref_appearance_custom_theme_dark_secondary">Тёмный дополнительный цвет</string><string name="pref_appearance_custom_theme_light_tertiary">Светлый третичный цвет</string><string name="pref_appearance_custom_theme_dark_tertiary">Тёмный третичный цвет</string>
   <string name="pref_appearance_custom_wallpaper_fit">Вписать</string><string name="pref_appearance_custom_wallpaper_fill">Заполнить</string><string name="pref_appearance_custom_wallpaper_replace_action">Заменить</string><string name="pref_appearance_custom_wallpaper_clear_action">Очистить</string>
   <string name="wallpaper_save_failed">Не удалось сохранить обои. Выберите изображение ещё раз.</string>
+  <string name="pref_haptic_feedback_title">Тактильный отклик</string>
+  <string name="pref_haptic_feedback_summary">Отклик при выборе, перетаскивании и настройке элементов управления. Учитывает настройки системы.</string>
 </resources>

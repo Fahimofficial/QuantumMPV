@@ -827,7 +827,7 @@ private fun RecentItemsContent(
                   isSelected = selectionManager.isSelected(item),
                   onClick = {
                     if (selectionManager.isInSelectionMode) {
-                      selectionManager.toggle(item)
+                      selectionManager.toggleFromUser(item)
                     } else {
                       onVideoClick(item.video)
                     }
@@ -835,11 +835,11 @@ private fun RecentItemsContent(
                   onLongClick = { selectionManager.handleLongClick(item) },
                   onThumbClick =
                     if (tapThumbnailToSelect) {
-                      { selectionManager.toggle(item) }
+                      { selectionManager.toggleFromUser(item) }
                     } else {
                       {
                         if (selectionManager.isInSelectionMode) {
-                          selectionManager.toggle(item)
+                          selectionManager.toggleFromUser(item)
                         } else {
                           onVideoClick(item.video)
                         }
@@ -869,7 +869,7 @@ private fun RecentItemsContent(
                   isRecentlyPlayed = false,
                   onClick = {
                     if (selectionManager.isInSelectionMode) {
-                      selectionManager.toggle(item)
+                      selectionManager.toggleFromUser(item)
                     } else {
                       coroutineScope.launch {
                         onPlaylistClick(item)
@@ -879,10 +879,10 @@ private fun RecentItemsContent(
                   onLongClick = { selectionManager.handleLongClick(item) },
                   onThumbClick = {
                     if (tapThumbnailToSelect) {
-                      selectionManager.toggle(item)
+                      selectionManager.toggleFromUser(item)
                     } else {
                       if (selectionManager.isInSelectionMode) {
-                        selectionManager.toggle(item)
+                        selectionManager.toggleFromUser(item)
                       } else {
                         coroutineScope.launch {
                           onPlaylistClick(item)
@@ -953,7 +953,7 @@ private fun RecentItemsContent(
                   isSelected = selectionManager.isSelected(item),
                   onClick = {
                     if (selectionManager.isInSelectionMode) {
-                      selectionManager.toggle(item)
+                      selectionManager.toggleFromUser(item)
                     } else {
                       onVideoClick(item.video)
                     }
@@ -961,11 +961,11 @@ private fun RecentItemsContent(
                   onLongClick = { selectionManager.handleLongClick(item) },
                   onThumbClick =
                     if (tapThumbnailToSelect) {
-                      { selectionManager.toggle(item) }
+                      { selectionManager.toggleFromUser(item) }
                     } else {
                       {
                         if (selectionManager.isInSelectionMode) {
-                          selectionManager.toggle(item)
+                          selectionManager.toggleFromUser(item)
                         } else {
                           onVideoClick(item.video)
                         }
@@ -996,7 +996,7 @@ private fun RecentItemsContent(
                   isRecentlyPlayed = false,
                   onClick = {
                     if (selectionManager.isInSelectionMode) {
-                      selectionManager.toggle(item)
+                      selectionManager.toggleFromUser(item)
                     } else {
                       coroutineScope.launch {
                         onPlaylistClick(item)
@@ -1006,10 +1006,10 @@ private fun RecentItemsContent(
                   onLongClick = { selectionManager.handleLongClick(item) },
                   onThumbClick = {
                     if (tapThumbnailToSelect) {
-                      selectionManager.toggle(item)
+                      selectionManager.toggleFromUser(item)
                     } else {
                       if (selectionManager.isInSelectionMode) {
-                        selectionManager.toggle(item)
+                        selectionManager.toggleFromUser(item)
                       } else {
                         coroutineScope.launch {
                           onPlaylistClick(item)

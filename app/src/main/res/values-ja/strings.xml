@@ -2190,4 +2190,6 @@
   <string name="pref_appearance_custom_theme_light_secondary">ライトのセカンダリカラー</string><string name="pref_appearance_custom_theme_dark_secondary">ダークのセカンダリカラー</string><string name="pref_appearance_custom_theme_light_tertiary">ライトのターシャリカラー</string><string name="pref_appearance_custom_theme_dark_tertiary">ダークのターシャリカラー</string>
   <string name="pref_appearance_custom_wallpaper_fit">全体表示</string><string name="pref_appearance_custom_wallpaper_fill">画面を埋める</string><string name="pref_appearance_custom_wallpaper_replace_action">置換</string><string name="pref_appearance_custom_wallpaper_clear_action">クリア</string>
   <string name="wallpaper_save_failed">壁紙を保存できませんでした。画像を選び直してください。</string>
+  <string name="pref_haptic_feedback_title">触覚フィードバック</string>
+  <string name="pref_haptic_feedback_summary">選択、ドラッグ、コントロールの調整時に触覚で反応します。システム設定に従います。</string>
 </resources>

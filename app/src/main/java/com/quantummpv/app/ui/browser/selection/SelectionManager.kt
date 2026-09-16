@@ -22,6 +22,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.platform.LocalContext
 import com.quantummpv.app.R
 import com.quantummpv.app.domain.media.model.Video
+import com.quantummpv.app.ui.utils.rememberAppHaptics
 import com.quantummpv.app.utils.media.MediaUtils
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.launch
@@ -38,6 +39,7 @@ class SelectionManager<T, ID>(
   private val onDeleteItems: suspend (List<T>, Boolean) -> Pair<Int, Int>,
   private val onRenameItem: (suspend (T, String) -> Result<Unit>)?,
   private val onOperationComplete: () -> Unit,
+  private val onUserSelection: (Boolean) -> Unit = {},
 ) {
   var state by mutableStateOf(SelectionState<ID>())
     private set
@@ -56,6 +58,11 @@ class SelectionManager<T, ID>(
    */
   fun toggle(item: T) {
     state = state.toggle(getId(item))
+  }
+
+  fun toggleFromUser(item: T) {
+    toggle(item)
+    onUserSelection(isSelected(item))
   }
 
   /**
@@ -307,6 +314,7 @@ fun <T, ID> rememberSelectionManager(
 ): SelectionManager<T, ID> {
   val context = LocalContext.current
   val scope = rememberCoroutineScope()
+  val haptics by rememberUpdatedState(rememberAppHaptics())
   val latestItems by rememberUpdatedState(items)
   val latestGetId by rememberUpdatedState(getId)
   val latestOnDeleteItems by rememberUpdatedState(onDeleteItems)
@@ -331,6 +339,7 @@ fun <T, ID> rememberSelectionManager(
           null
         },
       onOperationComplete = { latestOnOperationComplete() },
+      onUserSelection = { selected -> haptics.selection(selected) },
     )
   }
 }

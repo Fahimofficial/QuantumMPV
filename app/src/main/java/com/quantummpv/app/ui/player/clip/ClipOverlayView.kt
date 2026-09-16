@@ -20,6 +20,7 @@ import android.util.AttributeSet
 import android.util.TypedValue
 import android.view.Gravity
 import android.view.HapticFeedbackConstants
+import com.quantummpv.app.ui.utils.performAppHapticFeedback
 import android.view.MotionEvent
 import android.view.View
 import android.view.ViewGroup
@@ -1246,7 +1247,7 @@ private class CropSelectionView(
         dragMode = hitTest(event.x, event.y)
         if (dragMode == DragMode.NONE) return false
         activePointerId = event.getPointerId(0)
-        performHapticFeedback(HapticFeedbackConstants.CLOCK_TICK)
+        performAppHapticFeedback(HapticFeedbackConstants.CLOCK_TICK)
         lastX = event.x
         lastY = event.y
         parent?.requestDisallowInterceptTouchEvent(true)

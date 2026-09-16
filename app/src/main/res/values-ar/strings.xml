@@ -2208,4 +2208,6 @@
   <string name="pref_appearance_custom_theme_light_secondary">اللون الثانوي الفاتح</string><string name="pref_appearance_custom_theme_dark_secondary">اللون الثانوي الداكن</string><string name="pref_appearance_custom_theme_light_tertiary">اللون الثالث الفاتح</string><string name="pref_appearance_custom_theme_dark_tertiary">اللون الثالث الداكن</string>
   <string name="pref_appearance_custom_wallpaper_fit">احتواء</string><string name="pref_appearance_custom_wallpaper_fill">ملء</string><string name="pref_appearance_custom_wallpaper_replace_action">استبدال</string><string name="pref_appearance_custom_wallpaper_clear_action">مسح</string>
   <string name="wallpaper_save_failed">تعذر حفظ الخلفية. يرجى اختيار الصورة مرة أخرى.</string>
+  <string name="pref_haptic_feedback_title">استجابة لمسية</string>
+  <string name="pref_haptic_feedback_summary">استجابة لمسية للتحديد والسحب وضبط عناصر التحكم. تراعي إعدادات النظام.</string>
 </resources>

@@ -881,7 +881,7 @@ object FolderListScreen : Screen {
                   onRefresh = { viewModel.refresh() },
                   onFolderClick = { folder ->
                     if (selectionManager.isInSelectionMode) {
-                      selectionManager.toggle(folder)
+                      selectionManager.toggleFromUser(folder)
                     } else {
                       if (isDualPaneActive) {
                         selectedFolderBucketId = folder.bucketId
@@ -1366,7 +1366,7 @@ private fun GridContent(
           onLongClick = { onFolderLongClick(folder) },
           onThumbClick =
             if (tapThumbnailToSelect) {
-              { selectionManager.toggle(folder) }
+              { selectionManager.toggleFromUser(folder) }
             } else {
               { onFolderClick(folder) }
             },
@@ -1457,7 +1457,7 @@ private fun ListContent(
           onLongClick = { onFolderLongClick(folder) },
           onThumbClick =
             if (tapThumbnailToSelect) {
-              { selectionManager.toggle(folder) }
+              { selectionManager.toggleFromUser(folder) }
             } else {
               { onFolderClick(folder) }
             },

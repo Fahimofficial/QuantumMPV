@@ -42,6 +42,8 @@ import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.layout.onSizeChanged
+import androidx.compose.ui.semantics.selected
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.IntSize
@@ -128,12 +130,8 @@ fun FolderCard(
 
   val maxLines = if (unlimitedNameLines) Int.MAX_VALUE else 2
   val selectionInset = 2.dp
-  val selectionContainerColor =
-    if (isSelected) {
-      MaterialTheme.colorScheme.tertiary.copy(alpha = 0.3f)
-    } else {
-      Color.Transparent
-    }
+  val selectionContainerColor = animatedSelectionColor(isSelected)
+  val showSelectionBadge = isSelected || selectionContainerColor.alpha > 0.001f
 
   // Remove the redundant folder name from the path
   val parentPath = folder.path.substringBeforeLast("/", folder.path)
@@ -167,6 +165,7 @@ fun FolderCard(
       modifier
         .fillMaxWidth()
         .clip(cardShape)
+        .semantics { selected = isSelected }
         .tvContextMenu(onLongClick)
         .combinedClickable(
           onClick = onClick,
@@ -176,16 +175,14 @@ fun FolderCard(
     colors = CardDefaults.cardColors(containerColor = Color.Transparent),
   ) {
     Box(modifier = Modifier.fillMaxWidth()) {
-      if (isSelected) {
-        Box(
-          modifier =
-            Modifier
-              .matchParentSize()
-              .padding(selectionInset)
-              .clip(cardShape)
-              .background(selectionContainerColor),
-        )
-      }
+      Box(
+        modifier =
+          Modifier
+            .matchParentSize()
+            .padding(selectionInset)
+            .clip(cardShape)
+            .background(selectionContainerColor),
+      )
 
       if (isGridMode) {
         val horizontalAlignment = if (centerGridTitles) Alignment.CenterHorizontally else Alignment.Start
@@ -238,7 +235,7 @@ fun FolderCard(
               )
             }
 
-            if (newVideoCount > 0) {
+            if (newVideoCount > 0 && !showSelectionBadge) {
               Box(
                 modifier =
                   Modifier
@@ -257,6 +254,8 @@ fun FolderCard(
                 )
               }
             }
+
+            SelectionIndicator(isSelected, Modifier.align(Alignment.TopEnd).padding(6.dp))
 
             if (isPinned) {
               PinnedFolderBadge(
@@ -360,7 +359,7 @@ fun FolderCard(
             }
 
             // Show new video count badge if folder contains new videos
-            if (newVideoCount > 0) {
+            if (newVideoCount > 0 && !showSelectionBadge) {
               Box(
                 modifier =
                   Modifier
@@ -379,6 +378,8 @@ fun FolderCard(
                 )
               }
             }
+
+            SelectionIndicator(isSelected, Modifier.align(Alignment.TopEnd).padding(4.dp))
 
             if (isPinned) {
               PinnedFolderBadge(

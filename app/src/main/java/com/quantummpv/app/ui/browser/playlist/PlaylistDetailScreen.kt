@@ -52,6 +52,9 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.shadow
+import com.quantummpv.app.ui.utils.dragElevation
+import com.quantummpv.app.ui.utils.rememberReorderFeedback
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.graphicsLayer
@@ -615,7 +618,7 @@ data class PlaylistDetailScreen(
                 },
               onVideoItemClick = { item ->
                 if (selectionManager.isInSelectionMode) {
-                  selectionManager.toggle(item)
+                  selectionManager.toggleFromUser(item)
                 } else {
                   coroutineScope.launch {
                     viewModel.updatePlayHistory(item.video.path)
@@ -805,10 +808,12 @@ private fun PlaylistVideoListContent(
       )
 
       // Reorderable state
+      val reorderFeedback = rememberReorderFeedback()
       val reorderableLazyListState =
         rememberReorderableLazyListState(listState) { from, to ->
           if (isReorderMode) {
             onReorder(from.index, to.index)
+            reorderFeedback.move(from.index, to.index)
           }
         }
 
@@ -822,8 +827,9 @@ private fun PlaylistVideoListContent(
             count = videoItems.size,
             key = { index -> videoItems[index].playlistItem.id },
           ) { index ->
-            ReorderableItem(reorderableLazyListState, key = videoItems[index].playlistItem.id) {
+            ReorderableItem(reorderableLazyListState, key = videoItems[index].playlistItem.id) { isDragging ->
               val item = videoItems[index]
+              val elevation = dragElevation(isDragging)
 
               val progressPercentage =
                 if (item.playlistItem.lastPosition > 0 && item.video.duration > 0) {
@@ -833,7 +839,7 @@ private fun PlaylistVideoListContent(
                 }
 
               Row(
-                modifier = Modifier.fillMaxWidth(),
+                modifier = Modifier.fillMaxWidth().shadow(elevation, MaterialTheme.shapes.medium, clip = false),
                 verticalAlignment = Alignment.CenterVertically,
               ) {
                 if (isM3uPlaylist) {
@@ -864,7 +870,7 @@ private fun PlaylistVideoListContent(
                     onLongClick = { onVideoItemLongClick(item) },
                     onThumbClick =
                       if (tapThumbnailToSelect) {
-                        { selectionManager.toggle(item) }
+                        { selectionManager.toggleFromUser(item) }
                       } else {
                         { onVideoItemClick(item) }
                       },
@@ -882,7 +888,10 @@ private fun PlaylistVideoListContent(
                     modifier =
                       Modifier
                         .size(48.dp)
-                        .draggableHandle(),
+                        .draggableHandle(
+                          interactionSource = reorderFeedback.interactions,
+                          onDragStarted = { reorderFeedback.start() },
+                        ),
                   ) {
                     Icon(
                       imageVector = Icons.RoundedFilled.DragHandle,

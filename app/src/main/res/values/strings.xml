@@ -2270,4 +2270,6 @@
   <string name="pref_appearance_custom_wallpaper_replace_action">Replace</string>
   <string name="pref_appearance_custom_wallpaper_clear_action">Clear</string>
   <string name="wallpaper_save_failed">Could not save the wallpaper. Please choose the image again.</string>
+  <string name="pref_haptic_feedback_title">Haptic feedback</string>
+  <string name="pref_haptic_feedback_summary">Tactile feedback for selection, dragging, and control adjustments. Respects system settings.</string>
 </resources>

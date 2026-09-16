@@ -11,6 +11,8 @@ package com.quantummpv.app.ui.browser.components
 
 import android.content.res.Configuration
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.EnterTransition
+import androidx.compose.animation.ExitTransition
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.layout.Arrangement
@@ -37,11 +39,13 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalConfiguration
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.dp
 import com.quantummpv.app.ui.icons.AppIcon
 import com.quantummpv.app.ui.icons.Icon
 import com.quantummpv.app.ui.icons.Icons
 import com.quantummpv.app.ui.player.controls.components.tvFocusHighlight
+import com.quantummpv.app.ui.theme.AppMotion
 
 private data class BarLayoutParams(
   val buttonSize: androidx.compose.ui.unit.Dp,
@@ -78,6 +82,9 @@ fun BrowserBottomBar(
   val configuration = LocalConfiguration.current
   val isTablet = configuration.smallestScreenWidthDp >= 600
   val isLandscape = configuration.orientation == Configuration.ORIENTATION_LANDSCAPE
+  val reducedMotion = AppMotion.shouldReduceMotion()
+  val haptics = com.quantummpv.app.ui.utils.rememberAppHaptics()
+  val entranceOffset = with(LocalDensity.current) { 12.dp.roundToPx() }
 
   var lastShowCopy by remember { mutableStateOf(showCopy) }
   var lastShowMove by remember { mutableStateOf(showMove) }
@@ -118,23 +125,31 @@ fun BrowserBottomBar(
     visible = isSelectionMode,
     modifier = modifier,
     enter =
-      androidx.compose.animation.slideInVertically(
-        animationSpec =
-          androidx.compose.animation.core.spring(
-            dampingRatio = com.quantummpv.app.ui.theme.AppMotion.Spatial.ExpressiveDp.dampingRatio,
-            stiffness = com.quantummpv.app.ui.theme.AppMotion.Spatial.ExpressiveDp.stiffness,
-          ),
-        initialOffsetY = { fullHeight -> fullHeight * 2 },
-      ) + fadeIn(),
+      if (reducedMotion) {
+        EnterTransition.None
+      } else {
+        androidx.compose.animation.slideInVertically(
+          animationSpec =
+            androidx.compose.animation.core.spring(
+              dampingRatio = AppMotion.Spatial.ExpressiveDp.dampingRatio,
+              stiffness = AppMotion.Spatial.ExpressiveDp.stiffness,
+            ),
+          initialOffsetY = { entranceOffset },
+        ) + fadeIn(androidx.compose.animation.core.tween(180))
+      },
     exit =
-      androidx.compose.animation.slideOutVertically(
-        animationSpec =
-          androidx.compose.animation.core.spring(
-            dampingRatio = androidx.compose.animation.core.Spring.DampingRatioNoBouncy,
-            stiffness = androidx.compose.animation.core.Spring.StiffnessMedium,
-          ),
-        targetOffsetY = { fullHeight -> fullHeight * 2 },
-      ) + fadeOut(),
+      if (reducedMotion) {
+        ExitTransition.None
+      } else {
+        androidx.compose.animation.slideOutVertically(
+          animationSpec =
+            androidx.compose.animation.core.spring(
+              dampingRatio = androidx.compose.animation.core.Spring.DampingRatioNoBouncy,
+              stiffness = androidx.compose.animation.core.Spring.StiffnessMedium,
+            ),
+          targetOffsetY = { entranceOffset },
+        ) + fadeOut(androidx.compose.animation.core.tween(120))
+      },
   ) {
     BoxWithConstraints(modifier = Modifier.fillMaxWidth()) {
       val availableWidth = maxWidth
@@ -313,7 +328,14 @@ fun BrowserBottomBar(
           )
           BrowserBottomBarButton(
             effectiveShowPin,
-            onPinClick ?: {},
+            {
+              if (isSelectionMode) {
+                onPinClick?.let { action ->
+                  action()
+                  haptics.selection(!effectiveUnpinSelected)
+                }
+              }
+            },
             Icons.RoundedFilled.PushPin,
             androidx.compose.ui.res.stringResource(
               if (effectiveUnpinSelected) {

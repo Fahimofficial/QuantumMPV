@@ -688,7 +688,7 @@ fun MediaLibraryContent(forceAudio: Boolean = false) {
               selectionManager = selectionManager,
               onVideoClick = { video ->
                 if (selectionManager.isInSelectionMode) {
-                  selectionManager.toggle(video)
+                  selectionManager.toggleFromUser(video)
                 } else {
                   playFromMediaLibrary(video)
                 }

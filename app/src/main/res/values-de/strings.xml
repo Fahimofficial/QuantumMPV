@@ -2194,4 +2194,6 @@ Bitte starten Sie die App neu, damit alle Änderungen wirksam werden.</string>
   <string name="pref_appearance_custom_theme_light_secondary">Helle Sekundärfarbe</string><string name="pref_appearance_custom_theme_dark_secondary">Dunkle Sekundärfarbe</string><string name="pref_appearance_custom_theme_light_tertiary">Helle Tertiärfarbe</string><string name="pref_appearance_custom_theme_dark_tertiary">Dunkle Tertiärfarbe</string>
   <string name="pref_appearance_custom_wallpaper_fit">Einpassen</string><string name="pref_appearance_custom_wallpaper_fill">Füllen</string><string name="pref_appearance_custom_wallpaper_replace_action">Ersetzen</string><string name="pref_appearance_custom_wallpaper_clear_action">Löschen</string>
   <string name="wallpaper_save_failed">Das Hintergrundbild konnte nicht gespeichert werden. Bitte wähle das Bild erneut aus.</string>
+  <string name="pref_haptic_feedback_title">Haptisches Feedback</string>
+  <string name="pref_haptic_feedback_summary">Tastbare Rückmeldung beim Auswählen, Ziehen und Einstellen. Beachtet die Systemeinstellungen.</string>
 </resources>

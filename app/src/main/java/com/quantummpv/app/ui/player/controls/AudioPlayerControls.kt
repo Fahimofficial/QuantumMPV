@@ -113,6 +113,9 @@ import com.quantummpv.app.ui.player.controls.components.sheets.PlaylistItem
 import sh.calvin.reorderable.ReorderableCollectionItemScope
 import sh.calvin.reorderable.ReorderableItem
 import sh.calvin.reorderable.rememberReorderableLazyListState
+import com.quantummpv.app.ui.utils.ReorderFeedback
+import com.quantummpv.app.ui.utils.dragElevation
+import com.quantummpv.app.ui.utils.rememberReorderFeedback
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -892,6 +895,7 @@ fun AudioPlayerControls(
   var addToPlaylistDialogOpen by rememberSaveable { mutableStateOf(false) }
 
   val playerPreferences = koinInject<PlayerPreferences>()
+  val actionHaptics = com.quantummpv.app.ui.utils.rememberAppHaptics()
   val playlistRepository = koinInject<PlaylistRepository>()
   val jellyfinRepository = koinInject<JellyfinRepository>()
   val jellyfinServers by jellyfinRepository.allServers.collectAsState(initial = emptyList())
@@ -1665,6 +1669,7 @@ fun AudioPlayerControls(
                 coroutineScope.launch {
                   // Toggle local Room favorite state
                   playlistRepository.toggleFavorite(filePath = path, fileName = displayTitle, isAudio = true)
+                  actionHaptics.selection(newFavState)
                   // Toggle Jellyfin server favorite status via API if playing from Jellyfin
                   if (server != null && !itemId.isNullOrBlank()) {
                     jellyfinFavoriteOverride = newFavState
@@ -1842,7 +1847,10 @@ fun AudioPlayerControls(
               horizontalArrangement = Arrangement.spacedBy(4.dp),
             ) {
               ReactiveIconButton(
-                onClick = viewModel::toggleShuffle,
+                onClick = {
+                  viewModel.toggleShuffle()
+                  actionHaptics.selection(!shuffleEnabled)
+                },
                 enabled = playlistModeEnabled,
                 modifier = Modifier.size(40.dp),
               ) {
@@ -1853,7 +1861,10 @@ fun AudioPlayerControls(
                 )
               }
               ReactiveIconButton(
-                onClick = viewModel::cycleRepeatMode,
+                onClick = {
+                  viewModel.cycleRepeatMode()
+                  actionHaptics.confirm()
+                },
                 modifier = Modifier.size(40.dp),
               ) {
                 Icon(
@@ -1923,7 +1934,10 @@ fun AudioPlayerControls(
               horizontalArrangement = Arrangement.spacedBy(4.dp),
             ) {
               ReactiveIconButton(
-                onClick = viewModel::toggleShuffle,
+                onClick = {
+                  viewModel.toggleShuffle()
+                  actionHaptics.selection(!shuffleEnabled)
+                },
                 enabled = playlistModeEnabled,
                 modifier = Modifier.size(40.dp),
               ) {
@@ -1934,7 +1948,10 @@ fun AudioPlayerControls(
                 )
               }
               ReactiveIconButton(
-                onClick = viewModel::cycleRepeatMode,
+                onClick = {
+                  viewModel.cycleRepeatMode()
+                  actionHaptics.confirm()
+                },
                 modifier = Modifier.size(40.dp),
               ) {
                 Icon(
@@ -2325,6 +2342,7 @@ private fun UpNextPlaylistContent(
 
   var dragStartIndex by remember { mutableIntStateOf(-1) }
   var dragEndIndex by remember { mutableIntStateOf(-1) }
+  val reorderFeedback = rememberReorderFeedback()
 
   val reorderableLazyListState = rememberReorderableLazyListState(lazyListState) { from, to ->
     if (showDragHandle) {
@@ -2335,6 +2353,7 @@ private fun UpNextPlaylistContent(
       displayPlaylist = displayPlaylist.toMutableList().apply {
         add(to.index, removeAt(from.index))
       }
+      reorderFeedback.move(from.index, to.index)
     }
   }
 
@@ -2405,6 +2424,8 @@ private fun UpNextPlaylistContent(
                 isPlaying = item.isPlaying,
                 onClick = { viewModel.playPlaylistItem(item.index) },
                 scope = this,
+                isDragging = isDragging,
+                reorderFeedback = reorderFeedback,
               )
             }
           } else {
@@ -2427,6 +2448,8 @@ private fun UpNextPlaylistItemRow(
   isPlaying: Boolean,
   onClick: () -> Unit,
   scope: ReorderableCollectionItemScope?,
+  isDragging: Boolean = false,
+  reorderFeedback: ReorderFeedback? = null,
 ) {
   val bgColor = if (isPlaying) {
     MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.45f)
@@ -2441,12 +2464,11 @@ private fun UpNextPlaylistItemRow(
     )
 
   Surface(
-    modifier = Modifier
-      .fillMaxWidth()
-      .clip(RoundedCornerShape(16.dp))
-      .clickable(onClick = onClick),
+    onClick = onClick,
+    modifier = Modifier.fillMaxWidth(),
     shape = RoundedCornerShape(16.dp),
     color = bgColor,
+    shadowElevation = dragElevation(isDragging, com.quantummpv.app.ui.theme.AppMotion.playerReducedMotion()),
   ) {
     Row(
       modifier = Modifier
@@ -2462,7 +2484,10 @@ private fun UpNextPlaylistItemRow(
           modifier = with(scope) {
             Modifier
               .size(24.dp)
-              .draggableHandle()
+              .draggableHandle(
+                interactionSource = reorderFeedback?.interactions,
+                onDragStarted = { reorderFeedback?.start() },
+              )
           },
         )
         Spacer(modifier = Modifier.width(8.dp))
@@ -2580,11 +2605,13 @@ private fun ReactiveIconButton(
 ) {
   val interactionSource = remember { MutableInteractionSource() }
   val isPressed by interactionSource.collectIsPressedAsState()
-  val haptic = LocalHapticFeedback.current
+  val reducedMotion = com.quantummpv.app.ui.theme.AppMotion.playerReducedMotion()
 
   val scale by animateFloatAsState(
-    targetValue = if (isPressed) 0.82f else 1f,
-    animationSpec = spring(dampingRatio = 0.55f, stiffness = 900f),
+    targetValue = if (isPressed && enabled && !reducedMotion) 0.96f else 1f,
+    animationSpec =
+      if (reducedMotion) androidx.compose.animation.core.snap() else
+        com.quantummpv.app.ui.theme.AppMotion.Spatial.ExpressiveFast,
     label = "reactive_icon_button_scale",
   )
 
@@ -2602,14 +2629,8 @@ private fun ReactiveIconButton(
             interactionSource = interactionSource,
             indication = ripple(bounded = false, radius = 24.dp),
             enabled = enabled,
-            onClick = {
-              haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-              onClick()
-            },
-            onLongClick = {
-              haptic.performHapticFeedback(HapticFeedbackType.LongPress)
-              onLongClick()
-            },
+            onClick = onClick,
+            onLongClick = onLongClick,
           )
           .padding(8.dp),
       contentAlignment = Alignment.Center,
@@ -2618,10 +2639,7 @@ private fun ReactiveIconButton(
     }
   } else {
     IconButton(
-      onClick = {
-        haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-        onClick()
-      },
+      onClick = onClick,
       enabled = enabled,
       interactionSource = interactionSource,
       modifier =
@@ -2649,19 +2667,18 @@ private fun ReactiveSurfaceButton(
 ) {
   val interactionSource = remember { MutableInteractionSource() }
   val isPressed by interactionSource.collectIsPressedAsState()
-  val haptic = LocalHapticFeedback.current
+  val reducedMotion = com.quantummpv.app.ui.theme.AppMotion.playerReducedMotion()
 
   val scale by animateFloatAsState(
-    targetValue = if (isPressed) 0.88f else 1f,
-    animationSpec = spring(dampingRatio = 0.55f, stiffness = 900f),
+    targetValue = if (isPressed && enabled && !reducedMotion) 0.95f else 1f,
+    animationSpec =
+      if (reducedMotion) androidx.compose.animation.core.snap() else
+        com.quantummpv.app.ui.theme.AppMotion.Spatial.ExpressiveFast,
     label = "reactive_surface_button_scale",
   )
 
   Surface(
-    onClick = {
-      haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-      onClick()
-    },
+    onClick = onClick,
     shape = shape,
     color = color,
     shadowElevation = shadowElevation,

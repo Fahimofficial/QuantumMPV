@@ -468,6 +468,14 @@ object SearchablePreferences {
       )
       add(
         SearchablePreference(
+          titleRes = R.string.pref_haptic_feedback_title,
+          keywords = listOf("haptic", "vibration", "feedback", "selection", "drag"),
+          category = "Gestures",
+          screen = GesturePreferencesScreen,
+        ),
+      )
+      add(
+        SearchablePreference(
           titleRes = R.string.pref_player_gestures_brightness,
           keywords = listOf("brightness", "gesture", "swipe", "display", "control"),
           category = "Gestures",

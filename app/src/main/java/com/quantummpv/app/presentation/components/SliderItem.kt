@@ -26,14 +26,13 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.TransformOrigin
 import androidx.compose.ui.graphics.graphicsLayer
-import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.layout.layout
-import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.Constraints
 import androidx.compose.ui.unit.dp
 import com.quantummpv.app.ui.theme.spacing
 import com.quantummpv.app.ui.player.controls.components.tvFocusHighlight
+import com.quantummpv.app.ui.utils.rememberAdjustmentHaptics
 import kotlin.math.roundToInt
 
 @Composable
@@ -46,9 +45,12 @@ fun SliderItem(
   modifier: Modifier = Modifier,
   min: Int = 0,
   enabled: Boolean = true,
+  hapticLandmarks: List<Int> = emptyList(),
   icon: @Composable () -> Unit = {},
 ) {
-  val haptic = LocalHapticFeedback.current
+  val haptics = rememberAdjustmentHaptics(
+    min.toFloat(), max.toFloat(), (max - min - 1).coerceAtLeast(0), hapticLandmarks.map(Int::toFloat),
+  )
 
   Row(
     modifier =
@@ -87,7 +89,7 @@ fun SliderItem(
           val newValue = it.roundToInt()
           if (newValue != value) {
             onChange(newValue)
-            haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+            haptics.move(value.toFloat(), newValue.toFloat())
           }
         },
         modifier =
@@ -113,9 +115,10 @@ fun SliderItem(
   steps: Int = 0,
   min: Float = 0f,
   enabled: Boolean = true,
+  hapticLandmarks: List<Float> = emptyList(),
   icon: @Composable () -> Unit = {},
 ) {
-  val haptic = LocalHapticFeedback.current
+  val haptics = rememberAdjustmentHaptics(min, max, steps, hapticLandmarks)
 
   Row(
     modifier =
@@ -154,7 +157,7 @@ fun SliderItem(
           val newValue = it
           if (newValue != value) {
             onChange(newValue)
-            haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+            haptics.move(value, newValue)
           }
         },
         modifier =
@@ -180,7 +183,7 @@ fun VerticalSliderItem(
   min: Int = 0,
   icon: @Composable () -> Unit = {},
 ) {
-  val haptic = LocalHapticFeedback.current
+  val haptics = rememberAdjustmentHaptics(min.toFloat(), max.toFloat())
 
   Column(
     modifier =
@@ -199,8 +202,10 @@ fun VerticalSliderItem(
       min = min,
       max = max,
       onValueChange = {
-        haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-        onChange(it)
+        if (it != value) {
+          onChange(it)
+          haptics.move(value.toFloat(), it.toFloat())
+        }
       },
       modifier = Modifier.weight(1f),
     )

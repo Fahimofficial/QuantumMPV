@@ -118,6 +118,7 @@ private val settingsSearchListAnchors: Map<Screen, List<SettingsSearchListAnchor
     GesturePreferencesScreen to
       listOf(
         SettingsSearchListAnchor(titleRes = R.string.pref_gesture, itemIndex = 0),
+        SettingsSearchListAnchor(titleRes = R.string.pref_haptic_feedback_title, itemIndex = 1),
         SettingsSearchListAnchor(titleRes = R.string.pref_player_gestures_brightness, itemIndex = 1),
         SettingsSearchListAnchor(titleRes = R.string.pref_player_gestures_volume, itemIndex = 1),
         SettingsSearchListAnchor(titleRes = R.string.pref_player_gestures_pinch_to_zoom, itemIndex = 1),

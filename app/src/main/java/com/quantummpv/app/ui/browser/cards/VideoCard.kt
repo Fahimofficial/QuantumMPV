@@ -40,6 +40,8 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.semantics.selected
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asImageBitmap
@@ -192,12 +194,8 @@ fun VideoCard(
     }
 
   val selectionInset = 2.dp
-  val selectionContainerColor =
-    if (isSelected) {
-      MaterialTheme.colorScheme.tertiary.copy(alpha = 0.3f)
-    } else {
-      Color.Transparent
-    }
+  val selectionContainerColor = animatedSelectionColor(isSelected)
+  val showSelectionBadge = isSelected || selectionContainerColor.alpha > 0.001f
 
   // Use override parameters if provided, otherwise use preferences
   val showSizeChip = overrideShowSizeChip ?: resolvedUiConfig.showSizeChip
@@ -212,6 +210,7 @@ fun VideoCard(
           if (isGridMode) Modifier.fillMaxWidth() else Modifier.fillMaxWidth(),
         ).tvFocusHighlight(cardShape, focusedScale = 1.03f)
         .clip(cardShape)
+        .semantics { selected = isSelected }
         .tvContextMenu(onLongClick)
         .combinedClickable(
           onClick = onClick,
@@ -221,16 +220,14 @@ fun VideoCard(
     colors = CardDefaults.cardColors(containerColor = Color.Transparent),
   ) {
     Box(modifier = Modifier.fillMaxWidth()) {
-      if (isSelected) {
-        Box(
-          modifier =
-            Modifier
-              .matchParentSize()
-              .padding(selectionInset)
-              .clip(cardShape)
-              .background(selectionContainerColor),
-        )
-      }
+      Box(
+        modifier =
+          Modifier
+            .matchParentSize()
+            .padding(selectionInset)
+            .clip(cardShape)
+            .background(selectionContainerColor),
+      )
 
       if (isGridMode) {
         val centerGridTitles = resolvedUiConfig.centerGridTitles
@@ -354,7 +351,7 @@ fun VideoCard(
 
             // Show "NEW" label for recently added unplayed videos if enabled (top-left corner)
             // Like MX Player: show NEW for videos added within threshold days that haven't been played
-            if (showUnplayedOldVideoLabel && isOldAndUnplayed) {
+            if (showUnplayedOldVideoLabel && isOldAndUnplayed && !showSelectionBadge) {
               // Check if video is recently modified (within threshold days)
               val currentTime = System.currentTimeMillis()
               val videoAge = currentTime - (video.dateModified * 1000) // dateModified is in seconds
@@ -381,7 +378,12 @@ fun VideoCard(
               }
             }
 
-            if (isWatched || (showCodecSupportIndicator && !video.isAudio && video.videoCodec.isNotBlank())) {
+            SelectionIndicator(isSelected, Modifier.align(Alignment.TopEnd).padding(6.dp))
+
+            if (
+              !showSelectionBadge &&
+              (isWatched || (showCodecSupportIndicator && !video.isAudio && video.videoCodec.isNotBlank()))
+            ) {
               Row(
                 modifier = Modifier.align(Alignment.TopEnd).padding(6.dp),
                 horizontalArrangement = Arrangement.spacedBy(4.dp),
@@ -680,7 +682,7 @@ fun VideoCard(
 
             // Show "NEW" label for recently added unplayed videos if enabled (top-left corner)
             // Like MX Player: show NEW for videos added within threshold days that haven't been played
-            if (showUnplayedOldVideoLabel && isOldAndUnplayed) {
+            if (showUnplayedOldVideoLabel && isOldAndUnplayed && !showSelectionBadge) {
               // Check if video is recently modified (within threshold days)
               val currentTime = System.currentTimeMillis()
               val videoAge = currentTime - (video.dateModified * 1000) // dateModified is in seconds
@@ -707,7 +709,9 @@ fun VideoCard(
               }
             }
 
-            if (isWatched) {
+            SelectionIndicator(isSelected, Modifier.align(Alignment.TopEnd).padding(6.dp))
+
+            if (isWatched && !showSelectionBadge) {
               Icon(
                 imageVector = Icons.RoundedFilled.Check,
                 contentDescription = stringResource(R.string.video_label_watched),

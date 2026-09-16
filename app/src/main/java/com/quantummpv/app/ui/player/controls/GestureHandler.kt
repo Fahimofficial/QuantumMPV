@@ -251,6 +251,11 @@ fun GestureHandler(
   val currentBrightness by viewModel.currentBrightness.collectAsState()
   val volumeBoostingCap = audioPreferences.volumeBoostCap.get()
   val haptics = LocalHapticFeedback.current
+  val actionHaptics = com.quantummpv.app.ui.utils.rememberAppHaptics()
+  val volumeHaptics = com.quantummpv.app.ui.utils.rememberAdjustmentHaptics(
+    0f, 100f + volumeBoostingCap, landmarks = listOf(100f),
+  )
+  val brightnessHaptics = com.quantummpv.app.ui.utils.rememberAdjustmentHaptics(0f, 1f)
   val coroutineScope = rememberCoroutineScope()
   val density = LocalDensity.current
   val topStatusBarInsetPx = WindowInsets.statusBars.getTop(density).toFloat()
@@ -801,7 +806,7 @@ fun GestureHandler(
                             val newSpeed = speedPresets[newIndex]
 
                             if (abs(lastAppliedSpeed - newSpeed) > 0.01f) {
-                              haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                              actionHaptics.tick()
                               lastAppliedSpeed = newSpeed
                               PlaybackSession.setPropertyFloat("speed", newSpeed)
                               viewModel.playerUpdate.update { PlayerUpdates.DynamicSpeedControl(newSpeed) }
@@ -860,6 +865,7 @@ fun GestureHandler(
 
                               if (newMPVVolume != lastMPVVolumeValue) {
                                 viewModel.changeMPVVolumeTo(newMPVVolume)
+                                volumeHaptics.move(lastMPVVolumeValue.toFloat(), newMPVVolume.toFloat())
                                 lastMPVVolumeValue = newMPVVolume
                               }
                             } else {
@@ -878,6 +884,7 @@ fun GestureHandler(
 
                               if (newVolumePercent != lastVolumePercentValue) {
                                 viewModel.changeVolumePercentTo(newVolumePercent)
+                                volumeHaptics.move(lastVolumePercentValue.toFloat(), newVolumePercent.toFloat())
                                 lastVolumePercentValue = newVolumePercent
                               }
                             }
@@ -896,6 +903,10 @@ fun GestureHandler(
 
                             if (abs(newBrightness - lastBrightnessValue) > 0.001f) {
                               viewModel.changeBrightnessTo(newBrightness)
+                              brightnessHaptics.move(
+                                lastBrightnessValue.coerceIn(0f, 1f),
+                                newBrightness.coerceIn(0f, 1f),
+                              )
                               lastBrightnessValue = newBrightness
                             }
 
@@ -1324,7 +1335,10 @@ fun GestureHandler(
 
             // Apply the final seek when gesture ends
             if (hasStartedSeeking) {
-              pendingSeekPosition?.let { viewModel.seekTo(it.toInt()) }
+              pendingSeekPosition?.let { target ->
+                viewModel.seekTo(target.toInt())
+                if (target.toInt() != initialVideoPosition.toInt()) actionHaptics.confirm()
+              }
               coroutineScope.launch {
                 delay(300)
                 viewModel.playerUpdate.update { PlayerUpdates.None }

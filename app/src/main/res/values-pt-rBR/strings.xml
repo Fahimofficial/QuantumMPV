@@ -2194,4 +2194,6 @@ Reinicie o aplicativo para que todas as alterações entrem em vigor.</string>
   <string name="pref_appearance_custom_theme_light_secondary">Cor secundária clara</string><string name="pref_appearance_custom_theme_dark_secondary">Cor secundária escura</string><string name="pref_appearance_custom_theme_light_tertiary">Cor terciária clara</string><string name="pref_appearance_custom_theme_dark_tertiary">Cor terciária escura</string>
   <string name="pref_appearance_custom_wallpaper_fit">Ajustar</string><string name="pref_appearance_custom_wallpaper_fill">Preencher</string><string name="pref_appearance_custom_wallpaper_replace_action">Substituir</string><string name="pref_appearance_custom_wallpaper_clear_action">Limpar</string>
   <string name="wallpaper_save_failed">Não foi possível salvar o papel de parede. Selecione a imagem novamente.</string>
+  <string name="pref_haptic_feedback_title">Resposta tátil</string>
+  <string name="pref_haptic_feedback_summary">Resposta tátil ao selecionar, arrastar e ajustar controles. Respeita as configurações do sistema.</string>
 </resources>

@@ -787,7 +787,7 @@ fun FileSystemBrowserScreen(path: String? = null) {
                 onRefresh = { viewModel.refresh() },
                 onFolderClick = { folder ->
                   if (isInSelectionMode) {
-                    selectionManager.toggle(folder)
+                    selectionManager.toggleFromUser(folder)
                   } else {
                     backstack.navigateTo(FileSystemDirectoryScreen(folder.path))
                   }
@@ -798,7 +798,7 @@ fun FileSystemBrowserScreen(path: String? = null) {
                 onVideoClick = { videoFile ->
                   val video = videoFile.video
                   if (isInSelectionMode) {
-                    selectionManager.toggle(videoFile)
+                    selectionManager.toggleFromUser(videoFile)
                   } else {
                     // If playlist mode is enabled, play all videos in current folder starting from clicked one
                     if (playlistMode) {
@@ -1453,7 +1453,7 @@ private fun FileSystemBrowserContent(
                     onLongClick = { onFolderLongClick(folder) },
                     onThumbClick =
                       if (tapThumbnailToSelect) {
-                        { selectionManager.toggle(folder) }
+                        { selectionManager.toggleFromUser(folder) }
                       } else {
                         { onFolderClick(folder) }
                       },
@@ -1478,7 +1478,7 @@ private fun FileSystemBrowserContent(
                       onLongClick = { onVideoLongClick(videoFile) },
                       onThumbClick =
                         if (tapThumbnailToSelect) {
-                          { selectionManager.toggle(videoFile) }
+                          { selectionManager.toggleFromUser(videoFile) }
                         } else {
                           { onVideoClick(videoFile) }
                         },
@@ -1564,7 +1564,7 @@ private fun FileSystemBrowserContent(
                   onLongClick = { onFolderLongClick(folder) },
                   onThumbClick =
                     if (tapThumbnailToSelect) {
-                      { selectionManager.toggle(folder) }
+                      { selectionManager.toggleFromUser(folder) }
                     } else {
                       { onFolderClick(folder) }
                     },
@@ -1588,7 +1588,7 @@ private fun FileSystemBrowserContent(
                     onLongClick = { onVideoLongClick(videoFile) },
                     onThumbClick =
                       if (tapThumbnailToSelect) {
-                        { selectionManager.toggle(videoFile) }
+                        { selectionManager.toggleFromUser(videoFile) }
                       } else {
                         { onVideoClick(videoFile) }
                       },

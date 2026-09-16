@@ -71,6 +71,14 @@ fun PlaybackSpeedSheet(
   pitchCorrectionEnabled: Boolean = true,
   modifier: Modifier = Modifier,
 ) {
+  val speedHaptics = com.quantummpv.app.ui.utils.rememberAdjustmentHaptics(0.05f, 4f, landmarks = listOf(1f))
+  val actionHaptics = com.quantummpv.app.ui.utils.rememberAppHaptics()
+  val adjustSpeed: (Float) -> Unit = { target ->
+    if (kotlin.math.abs(target - speed) > 0.001f) {
+      onSpeedChange(target)
+      speedHaptics.move(speed, target)
+    }
+  }
   PlayerSheet(onDismissRequest = onDismissRequest) {
     Column(
       modifier
@@ -106,7 +114,7 @@ fun PlaybackSpeedSheet(
         horizontalArrangement = Arrangement.spacedBy(MaterialTheme.spacing.small),
       ) {
         RepeatingIconButton(
-          onClick = { onSpeedChange((speed - 0.05f).coerceAtLeast(0.05f)) },
+          onClick = { adjustSpeed((speed - 0.05f).coerceAtLeast(0.05f)) },
           enabled = speedControlEnabled,
           modifier = Modifier.size(40.dp),
         ) {
@@ -118,7 +126,7 @@ fun PlaybackSpeedSheet(
           onValueChange = {
             // Snap to nearest 0.05
             val snapped = (it * 20).roundToInt() / 20f
-            onSpeedChange(snapped)
+            adjustSpeed(snapped)
           },
           valueRange = 0.1f..4.0f,
           enabled = speedControlEnabled,
@@ -129,7 +137,7 @@ fun PlaybackSpeedSheet(
         )
 
         RepeatingIconButton(
-          onClick = { onSpeedChange((speed + 0.05f).coerceAtMost(4.0f)) },
+          onClick = { adjustSpeed((speed + 0.05f).coerceAtMost(4.0f)) },
           enabled = speedControlEnabled,
           modifier = Modifier.size(40.dp),
         ) {
@@ -158,7 +166,12 @@ fun PlaybackSpeedSheet(
 
             FilterChip(
               selected = kotlin.math.abs(presetSpeed - speed) < 0.01f,
-              onClick = { onSpeedChange(presetSpeed) },
+              onClick = {
+                if (kotlin.math.abs(presetSpeed - speed) > 0.001f) {
+                  onSpeedChange(presetSpeed)
+                  actionHaptics.selection(true)
+                }
+              },
               label = { Text("${presetSpeed.toFixed(2)}") },
               leadingIcon = null,
               enabled = speedControlEnabled,

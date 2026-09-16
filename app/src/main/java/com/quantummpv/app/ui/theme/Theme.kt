@@ -335,7 +335,7 @@ fun MpvrxTheme(
         typography = if (useSystemFont || localeNeedsSystemFont) SystemTypography else AppTypography,
         shapes = AppShapes,
         motionScheme = MotionScheme.expressive(),
-        content = content,
+        content = { com.quantummpv.app.ui.utils.ProvideAppHaptics(content) },
       )
     }
   }

@@ -9,10 +9,18 @@
 
 package com.quantummpv.app.ui.browser.components
 
+import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInVertically
+import androidx.compose.animation.slideOutVertically
+import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -37,13 +45,17 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.input.pointer.PointerEventPass
+import androidx.compose.ui.input.key.onPreviewKeyEvent
 import androidx.compose.ui.layout.boundsInWindow
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.style.BaselineShift
@@ -58,6 +70,8 @@ import com.quantummpv.app.ui.icons.Icon
 import com.quantummpv.app.ui.icons.Icons
 import com.quantummpv.app.ui.player.controls.components.tvFocusHighlight
 import com.quantummpv.app.ui.theme.DarkMode
+import com.quantummpv.app.ui.theme.AppMotion
+import com.quantummpv.app.ui.utils.rememberAppHaptics
 import com.quantummpv.app.ui.theme.LocalThemeTransitionState
 import com.quantummpv.app.ui.theme.LocalAppWallpaperActive
 import kotlinx.coroutines.delay
@@ -106,46 +120,79 @@ fun BrowserTopBar(
   forceHeadlineSmall: Boolean = false,
   showBetaBadge: Boolean = false,
 ) {
-  if (isInSelectionMode) {
-    SelectionTopBar(
-      selectedCount = selectedCount,
-      totalCount = totalCount,
-      onCancel = onCancelSelection,
-      onDelete = onDeleteClick,
-      onRename = onRenameClick,
-      isSingleSelection = isSingleSelection,
-      onInfo = onInfoClick,
-      onShare = onShareClick,
-      onPlay = onPlayClick,
-      onBlacklist = onBlacklistClick,
-      onSelectAll = onSelectAll,
-      onInvertSelection = onInvertSelection,
-      onDeselectAll = onDeselectAll,
-      onMoveToSecure = onMoveToSecureClick,
-      onRestore = onRestoreClick,
-      modifier = modifier,
-      useRemoveIcon = useRemoveIcon,
-      colors = colors,
-      additionalActions = additionalActions,
-    )
-  } else {
-    NormalTopBar(
-      title = title,
-      onBackClick = onBackClick,
-      onSortClick = onSortClick,
-      onSearchClick = onSearchClick,
-      onRequestClick = onRequestClick,
-      onSettingsClick = onSettingsClick,
-      preSearchActions = preSearchActions,
-      postSearchActions = postSearchActions,
-      additionalActions = additionalActions,
-      modifier = modifier,
-      onTitleLongPress = onTitleLongPress,
-      onTitleDoubleTap = onTitleDoubleTap,
-      colors = colors,
-      forceHeadlineSmall = forceHeadlineSmall,
-      showBetaBadge = showBetaBadge,
-    )
+  val reducedMotion = AppMotion.shouldReduceMotion()
+  val haptics = rememberAppHaptics()
+  AnimatedContent(
+    targetState = isInSelectionMode,
+    modifier = modifier,
+    transitionSpec = {
+      val enter = fadeIn(tween(if (reducedMotion) 0 else 180))
+      val exit = fadeOut(tween(if (reducedMotion) 0 else 100))
+      if (reducedMotion) {
+        (enter togetherWith exit).using(null)
+      } else {
+        ((enter + slideInVertically(tween(180)) { it / 10 }) togetherWith exit).using(null)
+      }
+    },
+    label = "browserToolbarMode",
+  ) { selectionMode ->
+    val outgoing = selectionMode != isInSelectionMode
+    val toolbarModifier =
+      if (outgoing) {
+        Modifier.clearAndSetSemantics { }
+          .onPreviewKeyEvent { true }
+          .pointerInput(Unit) {
+            awaitPointerEventScope {
+              while (true) awaitPointerEvent(PointerEventPass.Initial).changes.forEach { it.consume() }
+            }
+          }
+      } else {
+        Modifier
+      }
+    if (selectionMode) {
+      SelectionTopBar(
+        selectedCount = selectedCount,
+        totalCount = totalCount,
+        onCancel = {
+          onCancelSelection()
+          if (selectedCount > 0) haptics.selection(false)
+        },
+        onDelete = onDeleteClick,
+        onRename = onRenameClick,
+        isSingleSelection = isSingleSelection,
+        onInfo = onInfoClick,
+        onShare = onShareClick,
+        onPlay = onPlayClick,
+        onBlacklist = onBlacklistClick,
+        onSelectAll = onSelectAll,
+        onInvertSelection = onInvertSelection,
+        onDeselectAll = onDeselectAll,
+        onMoveToSecure = onMoveToSecureClick,
+        onRestore = onRestoreClick,
+        modifier = toolbarModifier,
+        useRemoveIcon = useRemoveIcon,
+        colors = colors,
+        additionalActions = additionalActions,
+      )
+    } else {
+      NormalTopBar(
+        title = title,
+        onBackClick = onBackClick,
+        onSortClick = onSortClick,
+        onSearchClick = onSearchClick,
+        onRequestClick = onRequestClick,
+        onSettingsClick = onSettingsClick,
+        preSearchActions = preSearchActions,
+        postSearchActions = postSearchActions,
+        additionalActions = additionalActions,
+        modifier = toolbarModifier,
+        onTitleLongPress = onTitleLongPress,
+        onTitleDoubleTap = onTitleDoubleTap,
+        colors = colors,
+        forceHeadlineSmall = forceHeadlineSmall,
+        showBetaBadge = showBetaBadge,
+      )
+    }
   }
 }
 
@@ -409,6 +456,8 @@ private fun SelectionTopBar(
 ) {
   var showDropdown by remember { mutableStateOf(false) }
   val wallpaperActive = LocalAppWallpaperActive.current
+  val haptics = rememberAppHaptics()
+  val reducedMotion = AppMotion.shouldReduceMotion()
 
   TopAppBar(
     colors =
@@ -431,13 +480,36 @@ private fun SelectionTopBar(
             .tvFocusHighlight(RoundedCornerShape(8.dp), focusedScale = 1.02f)
             .clickable { showDropdown = true },
       ) {
-        Text(
-          stringResource(R.string.selected_items, selectedCount, totalCount),
-          style = MaterialTheme.typography.titleMedium,
-          color = MaterialTheme.colorScheme.primary,
-          maxLines = 1,
-          overflow = TextOverflow.Ellipsis,
-        )
+        Box(Modifier.weight(1f, fill = false)) {
+          Text(
+            stringResource(R.string.selected_items, totalCount, totalCount),
+            style = MaterialTheme.typography.titleMedium,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+            modifier = Modifier.alpha(0f).clearAndSetSemantics { },
+          )
+          AnimatedContent(
+            targetState = selectedCount,
+            transitionSpec = {
+              if (reducedMotion) {
+                (fadeIn(tween(0)) togetherWith fadeOut(tween(0))).using(null)
+              } else {
+                val direction = if (targetState > initialState) 1 else -1
+                ((fadeIn(tween(160)) + slideInVertically(tween(160)) { it * direction / 3 }) togetherWith
+                  (fadeOut(tween(100)) + slideOutVertically(tween(100)) { -it * direction / 3 })).using(null)
+              }
+            },
+            label = "selectionCount",
+          ) { count ->
+            Text(
+              stringResource(R.string.selected_items, count, totalCount),
+              style = MaterialTheme.typography.titleMedium,
+              color = MaterialTheme.colorScheme.primary,
+              maxLines = 1,
+              overflow = TextOverflow.Ellipsis,
+            )
+          }
+        }
         Icon(
           Icons.RoundedFilled.ArrowDropDown,
           contentDescription = stringResource(R.string.selection_options),
@@ -454,6 +526,7 @@ private fun SelectionTopBar(
               text = { Text(stringResource(R.string.select_all)) },
               onClick = {
                 onSelectAll()
+                if (selectedCount != totalCount) haptics.selection(true)
                 showDropdown = false
               },
             )
@@ -463,6 +536,7 @@ private fun SelectionTopBar(
               text = { Text(stringResource(R.string.invert_selection)) },
               onClick = {
                 onInvertSelection()
+                if (totalCount > 0) haptics.confirm()
                 showDropdown = false
               },
             )
@@ -472,6 +546,7 @@ private fun SelectionTopBar(
               text = { Text(stringResource(R.string.deselect_all)) },
               onClick = {
                 onDeselectAll()
+                if (selectedCount > 0) haptics.selection(false)
                 showDropdown = false
               },
             )

@@ -120,6 +120,16 @@ object GesturePreferencesScreen : Screen {
           }
           item {
             PreferenceCard {
+              val hapticFeedbackEnabled by preferences.hapticFeedbackEnabled.collectAsState()
+              SwitchPreference(
+                modifier = Modifier.settingsSearchTarget(R.string.pref_haptic_feedback_title),
+                value = hapticFeedbackEnabled,
+                onValueChange = preferences.hapticFeedbackEnabled::set,
+                title = { Text(stringResource(R.string.pref_haptic_feedback_title)) },
+                summary = { Text(stringResource(R.string.pref_haptic_feedback_summary)) },
+              )
+              PreferenceDivider()
+
               val brightnessGesture by playerPreferences.brightnessGesture.collectAsState()
               SwitchPreference(
                 modifier = Modifier.settingsSearchTarget(R.string.pref_player_gestures_brightness),

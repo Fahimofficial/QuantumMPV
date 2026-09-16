@@ -929,7 +929,7 @@ fun MusicLibraryContent(
                 gridCoverArtSizeDp = gridCoverArtSizeDp,
                 onSongClick = { song ->
                   if (songSelectionManager.isInSelectionMode) {
-                    songSelectionManager.toggle(song)
+                    songSelectionManager.toggleFromUser(song)
                   } else {
                     musicViewModel.playSong(context, song, songs)
                   }
@@ -949,7 +949,7 @@ fun MusicLibraryContent(
                 gridCoverArtSizeDp = gridCoverArtSizeDp,
                 onAlbumClick = { album ->
                   if (albumSelectionManager.isInSelectionMode) {
-                    albumSelectionManager.toggle(album)
+                    albumSelectionManager.toggleFromUser(album)
                   } else {
                     musicViewModel.selectAlbum(album)
                   }
@@ -969,7 +969,7 @@ fun MusicLibraryContent(
                 gridCoverArtSizeDp = gridCoverArtSizeDp,
                 onArtistClick = { artist ->
                   if (artistSelectionManager.isInSelectionMode) {
-                    artistSelectionManager.toggle(artist)
+                    artistSelectionManager.toggleFromUser(artist)
                   } else {
                     musicViewModel.selectArtist(artist)
                   }
@@ -990,7 +990,7 @@ fun MusicLibraryContent(
                 gridCoverArtSizeDp = gridCoverArtSizeDp,
                 onPlaylistClick = { playlist ->
                   if (playlistSelectionManager.isInSelectionMode) {
-                    playlistSelectionManager.toggle(playlist)
+                    playlistSelectionManager.toggleFromUser(playlist)
                   } else {
                     backStack.navigateTo(PlaylistDetailScreen(playlistId = playlist.id))
                   }

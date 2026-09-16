@@ -2194,4 +2194,6 @@ Veuillez redémarrer l’application pour appliquer toutes les modifications.</s
   <string name="pref_appearance_custom_theme_light_secondary">Couleur secondaire claire</string><string name="pref_appearance_custom_theme_dark_secondary">Couleur secondaire sombre</string><string name="pref_appearance_custom_theme_light_tertiary">Couleur tertiaire claire</string><string name="pref_appearance_custom_theme_dark_tertiary">Couleur tertiaire sombre</string>
   <string name="pref_appearance_custom_wallpaper_fit">Ajuster</string><string name="pref_appearance_custom_wallpaper_fill">Remplir</string><string name="pref_appearance_custom_wallpaper_replace_action">Remplacer</string><string name="pref_appearance_custom_wallpaper_clear_action">Effacer</string>
   <string name="wallpaper_save_failed">Impossible de sauvegarder le fond. Veuillez sélectionner à nouveau l’image.</string>
+  <string name="pref_haptic_feedback_title">Retour haptique</string>
+  <string name="pref_haptic_feedback_summary">Retour tactile lors de la sélection, du déplacement et des réglages. Respecte les paramètres du système.</string>
 </resources>
