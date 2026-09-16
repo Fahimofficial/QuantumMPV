@@ -451,8 +451,8 @@ private fun NetworkBrowserContent(
                   top = 8.dp,
                   bottom = navigationBarHeight,
                 ),
-              horizontalArrangement = Arrangement.spacedBy(4.dp),
-              verticalArrangement = Arrangement.spacedBy(4.dp),
+              horizontalArrangement = Arrangement.spacedBy(2.dp),
+              verticalArrangement = Arrangement.spacedBy(2.dp),
             ) {
               if (folders.isNotEmpty()) {
                 item(span = { GridItemSpan(gridColumns) }) {

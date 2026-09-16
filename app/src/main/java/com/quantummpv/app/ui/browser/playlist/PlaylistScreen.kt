@@ -466,7 +466,7 @@ object PlaylistScreen : Screen {
               folderGridColumnsPref.coerceAtLeast(1)
             } else {
               val contentHorizontalPadding = 8.dp
-              val itemSpacing = 8.dp
+              val itemSpacing = 2.dp
               val usableWidth = maxWidth - (contentHorizontalPadding * 2) - itemSpacing
               val folderMinWidth = 100.dp
               (usableWidth / folderMinWidth).toInt().coerceAtLeast(1)
@@ -482,8 +482,8 @@ object PlaylistScreen : Screen {
                 end = 8.dp,
                 bottom = if (isInSelectionMode) 88.dp else navigationBarHeight,
               ),
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
-            verticalArrangement = Arrangement.spacedBy(8.dp),
+            horizontalArrangement = Arrangement.spacedBy(2.dp),
+            verticalArrangement = Arrangement.spacedBy(2.dp),
           ) {
             items(
               count = playlistsWithCount.size,

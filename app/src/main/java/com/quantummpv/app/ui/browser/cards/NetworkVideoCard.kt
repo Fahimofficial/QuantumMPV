@@ -185,14 +185,14 @@ fun NetworkVideoCard(
           modifier =
             Modifier
               .fillMaxWidth()
-              .padding(12.dp),
+              .padding(horizontal = 4.dp, vertical = 6.dp),
           horizontalAlignment = if (centerGridTitles) Alignment.CenterHorizontally else Alignment.Start,
         ) {
         Box(
           modifier =
             Modifier
               .fillMaxWidth()
-              .aspectRatio(16f / 9f)
+              .aspectRatio(16f / 10f)
               .clip(AppShapeScale.medium)
               .background(MaterialTheme.colorScheme.surfaceContainerHigh),
           contentAlignment = Alignment.Center,
@@ -218,7 +218,7 @@ fun NetworkVideoCard(
             )
           }
         }
-        Spacer(modifier = Modifier.height(8.dp))
+        Spacer(modifier = Modifier.height(4.dp))
         Text(
           displayName,
           style = MaterialTheme.typography.titleSmall,
@@ -269,7 +269,7 @@ fun NetworkVideoCard(
           modifier =
             Modifier
               .fillMaxWidth()
-              .padding(16.dp),
+              .padding(horizontal = 8.dp, vertical = 6.dp),
           verticalAlignment = Alignment.CenterVertically,
         ) {
         // Match the normal video list thumbnail footprint.
@@ -307,7 +307,7 @@ fun NetworkVideoCard(
             )
           }
         }
-        Spacer(modifier = Modifier.width(16.dp))
+        Spacer(modifier = Modifier.width(12.dp))
         Column(
           modifier = Modifier.weight(1f),
         ) {

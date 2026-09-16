@@ -957,7 +957,7 @@ internal fun VideoListContent(
           if (mediaLayoutMode == MediaLayoutMode.GRID) {
             val cellWidth =
               (maxWidth - contentHorizontalPadding * 2 - itemSpacing * (videoGridColumns - 1)) / videoGridColumns
-            (cellWidth - 16.dp).coerceAtLeast(1.dp)
+            (cellWidth - 8.dp).coerceAtLeast(1.dp)
           } else if (isAudio) {
             // List mode for audio folders uses the configurable cover-art size instead of the
             // fixed video thumbnail width, so the Music sort dialog's slider has any effect here.

@@ -240,7 +240,7 @@ fun VideoCard(
           modifier =
             Modifier
               .fillMaxWidth()
-              .padding(8.dp),
+              .padding(horizontal = 4.dp, vertical = 6.dp),
           horizontalAlignment = horizontalAlignment,
         ) {
           val thumbnailRepository = koinInject<ThumbnailRepository>()
@@ -440,7 +440,7 @@ fun VideoCard(
             }
           }
 
-          Spacer(modifier = Modifier.height(8.dp))
+          Spacer(modifier = Modifier.height(4.dp))
 
           // Title below thumbnail
           Text(
@@ -565,7 +565,7 @@ fun VideoCard(
           modifier =
             Modifier
               .fillMaxWidth()
-              .padding(12.dp),
+              .padding(horizontal = 8.dp, vertical = 6.dp),
           verticalAlignment = Alignment.CenterVertically,
         ) {
           val thumbnailRepository = koinInject<ThumbnailRepository>()
@@ -761,7 +761,7 @@ fun VideoCard(
               }
             }
           }
-          Spacer(modifier = Modifier.width(16.dp))
+          Spacer(modifier = Modifier.width(12.dp))
           Column(
             modifier = Modifier.weight(1f),
           ) {

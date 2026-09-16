@@ -32,7 +32,6 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.scale
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -100,14 +99,14 @@ fun NetworkFolderCard(
           modifier =
             Modifier
               .fillMaxWidth()
-              .padding(12.dp),
+              .padding(horizontal = 4.dp, vertical = 6.dp),
           horizontalAlignment = if (centerGridTitles) Alignment.CenterHorizontally else Alignment.Start,
         ) {
         Box(
           modifier =
             Modifier
               .fillMaxWidth()
-                .aspectRatio(1f),
+              .aspectRatio(20f / 17f),
           contentAlignment = Alignment.Center,
         ) {
           Icon(
@@ -115,11 +114,11 @@ fun NetworkFolderCard(
             contentDescription =
               androidx.compose.ui.res
                 .stringResource(com.quantummpv.app.R.string.ui_folder),
-            modifier = Modifier.fillMaxWidth().aspectRatio(1f).scale(1.2f),
+            modifier = Modifier.matchParentSize(),
             tint = MaterialTheme.colorScheme.secondary.copy(alpha = 0.5f),
           )
         }
-        Spacer(modifier = Modifier.height(8.dp))
+        Spacer(modifier = Modifier.height(4.dp))
         Text(
           file.name,
           style = MaterialTheme.typography.titleMedium,
@@ -135,13 +134,13 @@ fun NetworkFolderCard(
           modifier =
             Modifier
               .fillMaxWidth()
-              .padding(16.dp),
+              .padding(horizontal = 8.dp, vertical = 6.dp),
           verticalAlignment = Alignment.CenterVertically,
         ) {
         Box(
           modifier =
             Modifier
-              .size(64.dp),
+              .size(72.dp),
           contentAlignment = Alignment.Center,
         ) {
           Icon(
@@ -149,11 +148,11 @@ fun NetworkFolderCard(
             contentDescription =
               androidx.compose.ui.res
                 .stringResource(com.quantummpv.app.R.string.ui_folder),
-            modifier = Modifier.size(64.dp).scale(1.2f),
+            modifier = Modifier.matchParentSize(),
             tint = MaterialTheme.colorScheme.secondary.copy(alpha = 0.5f),
           )
         }
-        Spacer(modifier = Modifier.width(16.dp))
+        Spacer(modifier = Modifier.width(12.dp))
         Column(
           modifier = Modifier.weight(1f),
         ) {

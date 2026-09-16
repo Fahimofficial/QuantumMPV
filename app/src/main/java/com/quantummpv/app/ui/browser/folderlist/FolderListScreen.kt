@@ -1608,8 +1608,8 @@ private fun SearchResultsContent(
               top = 8.dp,
               bottom = navigationBarHeight + 8.dp,
             ),
-          horizontalArrangement = Arrangement.spacedBy(4.dp),
-          verticalArrangement = Arrangement.spacedBy(4.dp),
+          horizontalArrangement = Arrangement.spacedBy(2.dp),
+          verticalArrangement = Arrangement.spacedBy(2.dp),
         ) {
           items(
             count = folders.size,

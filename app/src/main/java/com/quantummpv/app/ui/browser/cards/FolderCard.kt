@@ -37,7 +37,6 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.rotate
-import androidx.compose.ui.draw.scale
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.asImageBitmap
@@ -196,7 +195,7 @@ fun FolderCard(
           modifier =
             Modifier
               .fillMaxWidth()
-              .padding(8.dp),
+              .padding(horizontal = 4.dp, vertical = 6.dp),
           horizontalAlignment = horizontalAlignment,
         ) {
           val aspect = 20f / 17f
@@ -204,7 +203,7 @@ fun FolderCard(
           Box(
             modifier =
               Modifier
-                .width(90.dp)
+                .fillMaxWidth()
                 .aspectRatio(aspect)
                 .onSizeChanged { thumbnailSize = it }
                 .tvFocusHighlight(AppShapeScale.medium, focusedScale = 1.03f)
@@ -286,7 +285,7 @@ fun FolderCard(
             }
           }
 
-          Spacer(modifier = Modifier.height(8.dp))
+          Spacer(modifier = Modifier.height(4.dp))
 
           Text(
             folder.name,
@@ -328,13 +327,13 @@ fun FolderCard(
           modifier =
             Modifier
               .fillMaxWidth()
-              .padding(12.dp),
+              .padding(horizontal = 8.dp, vertical = 6.dp),
           verticalAlignment = Alignment.CenterVertically,
         ) {
           Box(
             modifier =
               Modifier
-                .size(64.dp)
+                .size(72.dp)
                 .tvFocusHighlight(AppShapeScale.medium, focusedScale = 1.03f)
                 .combinedClickable(
                   onClick = onThumbClick,
@@ -355,7 +354,7 @@ fun FolderCard(
                 contentDescription =
                   androidx.compose.ui.res
                     .stringResource(com.quantummpv.app.R.string.ui_folder),
-                modifier = Modifier.size(64.dp).scale(1.2f),
+                modifier = Modifier.matchParentSize(),
                 tint = MaterialTheme.colorScheme.secondary.copy(alpha = 0.5f),
               )
             }
@@ -390,7 +389,7 @@ fun FolderCard(
               )
             }
           }
-          Spacer(modifier = Modifier.width(16.dp))
+          Spacer(modifier = Modifier.width(12.dp))
           Column(
             modifier = Modifier.weight(1f),
           ) {

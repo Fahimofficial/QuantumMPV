@@ -685,7 +685,9 @@ private fun RecentItemsContent(
 
   val thumbWidthDp =
     if (isGridMode) {
-      (screenWidthDp / computedVideoColumns)
+      val cellWidth =
+        (screenWidthDp - contentHorizontalPadding * 2 - itemSpacing * (computedVideoColumns - 1)) / computedVideoColumns
+      (cellWidth - 8.dp).coerceAtLeast(1.dp)
     } else if (isAudioTab) {
       // List mode for the Audio tab uses the configurable cover-art size instead of the
       // fixed video thumbnail width, so the Music sort dialog's slider has an effect here too.
@@ -693,7 +695,7 @@ private fun RecentItemsContent(
     } else {
       160.dp
     }
-  val aspect = 16f / 9f
+  val aspect = if (isAudioTab) 1f else if (isGridMode) 16f / 10f else 16f / 9f
   val thumbWidthPx = with(density) { thumbWidthDp.roundToPx() }
   val thumbHeightPx = (thumbWidthPx / aspect).toInt()
   val videoCardUiConfig =
@@ -795,8 +797,8 @@ private fun RecentItemsContent(
               end = 8.dp,
               bottom = if (isInSelectionMode) 88.dp else navigationBarHeight,
             ),
-          horizontalArrangement = Arrangement.spacedBy(4.dp),
-          verticalArrangement = Arrangement.spacedBy(4.dp),
+          horizontalArrangement = Arrangement.spacedBy(2.dp),
+          verticalArrangement = Arrangement.spacedBy(2.dp),
         ) {
           items(
             count = recentItems.size,
