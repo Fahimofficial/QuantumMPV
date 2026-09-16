@@ -647,7 +647,7 @@ Weiter: NEXT</string>
   <string name="pref_online_skip_markers_title">Online-Sprungmarken verwenden</string>
   <string name="pref_online_skip_markers_summary">Intro-, Rückblick-, Outro-, Abspann- und Vorschaumarken vom gewählten Anbieter abrufen</string>
   <string name="pref_marker_provider_title">Anbieter für Online-Marken</string>
-  <string name="pref_marker_provider_summary">IntroDB, TIDB, AniSkip oder Anime Skip für Online-Intro-/Outro-Marken auswählen</string>
+  <string name="pref_marker_provider_summary">IntroDB, TIDB, AniSkip, Anime Skip oder SkipDB auswählen. Hybrid verwendet das erste gültige Ergebnis.</string>
   <string name="pref_chapter_detect_title">Intro/Outro anhand von Kapiteltiteln erkennen</string>
   <string name="pref_chapter_detect_summary">Varianten wie Opening/Ending/Abspann analysieren und Sprungmarken erstellen</string>
   <string name="pref_auto_skip_intro_title">Intro automatisch überspringen</string>
@@ -1831,7 +1831,7 @@ Bitte starten Sie die App neu, damit alle Änderungen wirksam werden.</string>
   <string name="pref_audio_effects">Audioverarbeitung</string>
   <string name="toast_file_not_found">Datei ist nicht mehr vorhanden</string>
   <string name="pref_audio_visualizer_style_particle">Partikel</string>
-  <string name="pref_section_p2p_streaming">P2P-Streaming</string>
+  <string name="pref_section_p2p_streaming">P2P-Streaming, Ytdlp-Manager</string>
   <string name="toast_torrent_streaming_disabled">Aktiviere zuerst P2P-Torrent-Streaming in den erweiterten Einstellungen</string>
   <string name="ui_recent_stream_links">Letzte Links</string>
   <string name="ui_torrent_files">Torrents</string>

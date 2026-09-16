@@ -649,7 +649,7 @@
   <string name="pref_online_skip_markers_title">使用在线跳过标记</string>
   <string name="pref_online_skip_markers_summary">从所选提供商获取片头、回顾、片尾、演职员表和预览标记</string>
   <string name="pref_marker_provider_title">在线标记提供商</string>
-  <string name="pref_marker_provider_summary">选择 IntroDB、TIDB、AniSkip 或 Anime Skip 获取在线片头/片尾标记</string>
+  <string name="pref_marker_provider_summary">选择 IntroDB、TIDB、AniSkip、Anime Skip 或 SkipDB。Hybrid 使用首个有效结果。</string>
   <string name="pref_chapter_detect_title">从章节标题检测片头/片尾</string>
   <string name="pref_chapter_detect_summary">分析 opening/ending/credits 等章节名称变体并创建跳过标记</string>
   <string name="pref_auto_skip_intro_title">自动跳过片头</string>
@@ -1829,7 +1829,7 @@
   <string name="pref_audio_effects">音频处理</string>
   <string name="toast_file_not_found">文件已不存在</string>
   <string name="pref_audio_visualizer_style_particle">粒子</string>
-  <string name="pref_section_p2p_streaming">P2P 流媒体播放</string>
+  <string name="pref_section_p2p_streaming">P2P 流媒体播放, Ytdlp 管理器</string>
   <string name="toast_torrent_streaming_disabled">请先在高级设置中启用 P2P 种子流媒体播放</string>
   <string name="ui_recent_stream_links">最近的链接</string>
   <string name="ui_torrent_files">种子</string>

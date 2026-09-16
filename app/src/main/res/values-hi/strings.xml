@@ -627,7 +627,7 @@
   <string name="pref_online_skip_markers_title">ऑनलाइन स्किप मार्कर इस्तेमाल करें</string>
   <string name="pref_online_skip_markers_summary">चुने गए प्रोवाइडर से इंट्रो, रीकैप, आउट्रो, क्रेडिट्स और प्रीव्यू मार्कर लाएं</string>
   <string name="pref_marker_provider_title">ऑनलाइन मार्कर प्रोवाइडर</string>
-  <string name="pref_marker_provider_summary">ऑनलाइन इंट्रो/आउट्रो मार्कर के लिए IntroDB, TIDB, AniSkip या Anime Skip चुनें</string>
+  <string name="pref_marker_provider_summary">IntroDB, TIDB, AniSkip, Anime Skip या SkipDB चुनें। Hybrid पहले मान्य परिणाम का उपयोग करता है।</string>
   <string name="pref_chapter_detect_title">चैप्टर टाइटल से इंट्रो/आउट्रो पहचानें</string>
   <string name="pref_chapter_detect_summary">opening/ending/credits जैसे चैप्टर नाम वेरिएंट का विश्लेषण करके स्किप मार्कर बनाएं</string>
   <string name="pref_auto_skip_intro_title">इंट्रो ऑटो-स्किप करें</string>
@@ -1735,7 +1735,7 @@
   <string name="lyrics_source_local">लोकल (.lrc)</string>
   <string name="pref_enable_p2p_streaming_title">P2P टोरेंट स्ट्रीमिंग सक्षम करें</string>
   <string name="pref_enable_p2p_streaming_summary">मैग्नेट लिंक और टोरेंट फ़ाइलों से चलाने योग्य मीडिया स्ट्रीम करें</string>
-  <string name="pref_section_p2p_streaming">P2P स्ट्रीमिंग</string>
+  <string name="pref_section_p2p_streaming">P2P स्ट्रीमिंग, Ytdlp मैनेजर</string>
   <string name="toast_torrent_streaming_disabled">पहले उन्नत सेटिंग्स में P2P टोरेंट स्ट्रीमिंग सक्षम करें</string>
   <string name="ui_recent_stream_links">हाल के लिंक</string>
   <string name="ui_torrent_files">टोरेंट</string>

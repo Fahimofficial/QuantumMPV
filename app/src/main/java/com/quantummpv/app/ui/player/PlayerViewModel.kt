@@ -98,8 +98,6 @@ import kotlinx.collections.immutable.toImmutableList
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
-import kotlinx.coroutines.async
-import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.ensureActive
@@ -335,6 +333,7 @@ class PlayerViewModel : ViewModel(),
   private var introDbSegments: List<com.quantummpv.app.repository.IntroDbSegment> = emptyList()
   private var introDbSourceKey: String = IntroSegmentProvider.INTRO_DB.sourceKey
   private var introLookupJob: Job? = null
+  private var introLookupGeneration = 0L
   private val introKeywordPatterns =
     listOf(
       // English/general
@@ -2012,6 +2011,18 @@ val isBrightnessSliderShown = MutableStateFlow(false)
         }
     }
 
+    viewModelScope.launch {
+      combine(
+        playerPreferences.enableIntroDb.changes(),
+        playerPreferences.introSegmentProvider.changes(),
+      ) { enabled, provider -> enabled to provider }
+        .distinctUntilChanged()
+        .drop(1)
+        .collect {
+          currentMediaTitle.takeIf { it.isNotBlank() }?.let(::lookupIntroSegments)
+        }
+    }
+
     viewModelScope.launch(playbackStateDispatcher) {
       chapters
         .collect { chapterList ->
@@ -2746,9 +2757,10 @@ val isBrightnessSliderShown = MutableStateFlow(false)
     const val PLAYLIST_METADATA_PREFETCH_RADIUS = 40
     const val PLAYLIST_METADATA_PREFETCH_LIMIT = 120
     const val INTRO_MARKER_CACHE_PREFS = "intro_marker_cache"
-    const val INTRO_MARKER_CACHE_PREFIX = "intro_marker:v2:"
+    const val INTRO_MARKER_CACHE_PREFIX = "intro_marker:v3:"
     const val INTRO_MARKER_CACHE_MAX_ENTRIES = 200
-    const val INTRO_MARKER_CACHE_TTL_MS = 30L * 24L * 60L * 60L * 1000L
+    const val INTRO_MARKER_CACHE_TTL_MS = 7L * 24L * 60L * 60L * 1000L
+    const val INTRO_MARKER_EMPTY_CACHE_TTL_MS = 60L * 60L * 1000L
     const val INTRO_MARKER_CACHE_LOADED = "loaded"
     const val INTRO_MARKER_CACHE_NO_SEGMENTS = "no_segments"
     const val INTRO_MARKER_CACHE_UNRESOLVED = "unresolved"
@@ -3559,7 +3571,17 @@ val isBrightnessSliderShown = MutableStateFlow(false)
   }
 
   private fun mergeSkipSegments() {
-    val merged = SkipMarkerResolver.merge(resolveIntroDbSegments() + chapterDerivedSegments)
+    val providerSegments = resolveIntroDbSegments()
+    val endingTypes = setOf(SkipSegmentType.OUTRO, SkipSegmentType.CREDITS)
+    val chapterFallbacks =
+      chapterDerivedSegments.filter { chapter ->
+        providerSegments.none { provider ->
+          provider.type == chapter.type ||
+            (provider.type in endingTypes && chapter.type in endingTypes) ||
+            (provider.startSeconds < chapter.endSeconds && chapter.startSeconds < provider.endSeconds)
+        }
+      }
+    val merged = SkipMarkerResolver.merge(providerSegments + chapterFallbacks)
     skipSegmentsSnapshot = merged
     _skipSegments.value = merged
   }
@@ -3584,10 +3606,20 @@ val isBrightnessSliderShown = MutableStateFlow(false)
   }
 
   private fun lookupIntroSegments(mediaTitle: String) {
+    val generation = ++introLookupGeneration
+    introLookupJob?.cancel()
+    introLookupJob = null
+    introDbSegments = emptyList()
+    _currentSkippableSegment.value = null
+    _showSkipChipAuto.value = false
+    mergeSkipSegments()
     if (!playerPreferences.enableIntroDb.get()) {
       pendingIntroLookupTitle = null
-      introDbSegments = emptyList()
-      mergeSkipSegments()
+      _introDbStatus.value =
+        IntroDbStatus(
+          state = IntroDbStatusState.DISABLED,
+          message = "Online skip markers are disabled",
+        )
       return
     }
 
@@ -3613,6 +3645,7 @@ val isBrightnessSliderShown = MutableStateFlow(false)
         season = lookupHints.season,
         episode = lookupHints.episode,
         provider = provider,
+        durationSeconds = durationSec,
       )
     val cacheKey = buildIntroMarkerCacheKey(lookupRequest)
 
@@ -3629,76 +3662,15 @@ val isBrightnessSliderShown = MutableStateFlow(false)
         message = "${provider.displayName}: matching title",
       )
 
-    introLookupJob?.cancel()
     introLookupJob =
       viewModelScope.launch {
-        val outcome =
-          if (provider == IntroSegmentProvider.HYBRID) {
-            val providers =
-              listOf(
-                IntroSegmentProvider.INTRO_DB,
-                IntroSegmentProvider.THE_INTRO_DB,
-                IntroSegmentProvider.ANI_SKIP,
-                IntroSegmentProvider.ANIME_SKIP,
-              )
-            val receivedOutcomes =
-              providers
-                .map { lookupProvider ->
-                  async(Dispatchers.IO) {
-                    try {
-                      introDbRepository.lookupSegments(lookupRequest.copy(provider = lookupProvider))
-                    } catch (cancellation: kotlinx.coroutines.CancellationException) {
-                      throw cancellation
-                    } catch (error: Exception) {
-                      IntroDbLookupOutcome.Error(error.message ?: "unknown", lookupProvider)
-                    }
-                  }
-                }.awaitAll()
-            val loadedOutcomes = receivedOutcomes.filterIsInstance<IntroDbLookupOutcome.Loaded>()
-
-            if (loadedOutcomes.isNotEmpty()) {
-              val primary = loadedOutcomes.first()
-              IntroDbLookupOutcome.Loaded(
-                imdbId = primary.imdbId,
-                segments = loadedOutcomes.flatMap(IntroDbLookupOutcome.Loaded::segments).distinct(),
-                source = primary.source,
-                provider = IntroSegmentProvider.HYBRID,
-              )
-            } else {
-              val fallbackOutcome =
-                receivedOutcomes.firstOrNull { it is IntroDbLookupOutcome.NoSegments }
-                  ?: receivedOutcomes.firstOrNull { it is IntroDbLookupOutcome.Unresolved }
-                  ?: receivedOutcomes.firstOrNull()
-
-              if (fallbackOutcome != null) {
-                when (fallbackOutcome) {
-                  is IntroDbLookupOutcome.NoSegments ->
-                    IntroDbLookupOutcome.NoSegments(
-                      fallbackOutcome.imdbId,
-                      fallbackOutcome.source,
-                      IntroSegmentProvider.HYBRID,
-                    )
-                  is IntroDbLookupOutcome.Unresolved ->
-                    IntroDbLookupOutcome.Unresolved(
-                      fallbackOutcome.title,
-                      IntroSegmentProvider.HYBRID,
-                    )
-                  is IntroDbLookupOutcome.Error ->
-                    IntroDbLookupOutcome.Error(
-                      fallbackOutcome.reason,
-                      IntroSegmentProvider.HYBRID,
-                    )
-                  else -> fallbackOutcome
-                }
-              } else {
-                IntroDbLookupOutcome.Error("No outcomes", IntroSegmentProvider.HYBRID)
-              }
-            }
-          } else {
-            introDbRepository.lookupSegments(lookupRequest)
-          }
-
-        if (currentMediaTitle != lookupKey) return@launch
+        val outcome = introDbRepository.lookupSegments(lookupRequest)
+        if (
+          generation != introLookupGeneration || currentMediaTitle != lookupKey ||
+          !playerPreferences.enableIntroDb.get() || playerPreferences.introSegmentProvider.get() != provider
+        ) {
+          return@launch
+        }
 
         applyIntroDbOutcome(outcome)
         cacheIntroDbOutcome(cacheKey, outcome)
@@ -3744,6 +3716,8 @@ val isBrightnessSliderShown = MutableStateFlow(false)
       append(request.season?.toString().orEmpty())
       append('|')
       append(request.episode?.toString().orEmpty())
+      append('|')
+      append(request.durationSeconds?.toString().orEmpty())
     }.md5()
 
   private fun readIntroMarkerCacheEntry(cacheKey: String): IntroMarkerCacheEntry? {
@@ -3756,7 +3730,9 @@ val isBrightnessSliderShown = MutableStateFlow(false)
           return null
         }
 
-    if ((System.currentTimeMillis() - entry.cachedAtMs) > INTRO_MARKER_CACHE_TTL_MS) {
+    val ttl =
+      if (entry.outcomeType == INTRO_MARKER_CACHE_LOADED) INTRO_MARKER_CACHE_TTL_MS else INTRO_MARKER_EMPTY_CACHE_TTL_MS
+    if ((System.currentTimeMillis() - entry.cachedAtMs) > ttl) {
       introMarkerCachePrefs.edit().remove(prefKey).apply()
       return null
     }
@@ -4499,7 +4475,7 @@ val isBrightnessSliderShown = MutableStateFlow(false)
               return
             }
         }
-      PlaybackSession.command("seek", target.toString(), "absolute+keyframes")
+      PlaybackSession.commandWithSeekAudioGuard("seek", target.toString(), "absolute+keyframes")
       delay(PREVIEW_SEEK_INTERVAL_MS)
     }
   }

@@ -647,7 +647,7 @@ Próximo: NEXT</string>
   <string name="pref_online_skip_markers_title">Usar marcadores de salto on-line</string>
   <string name="pref_online_skip_markers_summary">Buscar marcadores de introdução, resumo, encerramento, créditos e prévia do provedor selecionado</string>
   <string name="pref_marker_provider_title">Provedor de marcadores on-line</string>
-  <string name="pref_marker_provider_summary">Escolher IntroDB, TIDB, AniSkip ou Anime Skip para marcadores on-line de introdução/encerramento</string>
+  <string name="pref_marker_provider_summary">Escolher IntroDB, TIDB, AniSkip, Anime Skip ou SkipDB. Hybrid usa o primeiro resultado válido.</string>
   <string name="pref_chapter_detect_title">Detectar introdução/encerramento pelos títulos dos capítulos</string>
   <string name="pref_chapter_detect_summary">Analisar variações como abertura/final/créditos e criar marcadores de salto</string>
   <string name="pref_auto_skip_intro_title">Pular introdução automaticamente</string>
@@ -1831,7 +1831,7 @@ Reinicie o aplicativo para que todas as alterações entrem em vigor.</string>
   <string name="pref_audio_effects">Processamento de áudio</string>
   <string name="toast_file_not_found">O arquivo não existe mais</string>
   <string name="pref_audio_visualizer_style_particle">Partículas</string>
-  <string name="pref_section_p2p_streaming">Streaming P2P</string>
+  <string name="pref_section_p2p_streaming">Streaming P2P, Gerenciador Ytdlp</string>
   <string name="toast_torrent_streaming_disabled">Ative primeiro o streaming de torrents P2P nas configurações avançadas</string>
   <string name="ui_recent_stream_links">Links recentes</string>
   <string name="ui_torrent_files">Torrents</string>

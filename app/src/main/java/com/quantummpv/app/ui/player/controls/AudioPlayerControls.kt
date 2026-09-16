@@ -15,7 +15,6 @@ import android.Manifest
 import android.content.pm.PackageManager
 import android.content.res.Configuration
 import android.graphics.Bitmap
-import android.graphics.Color as AndroidColor
 import android.media.MediaMetadataRetriever
 import android.net.Uri
 import android.util.LruCache
@@ -329,26 +328,26 @@ private fun contrastingVisualizerTone(
   colorArgb: Int,
   backgrounds: List<Int>,
 ): Int {
-  fun contrast(candidate: Int): Double = backgrounds.minOf { ColorUtils.calculateContrast(candidate, it) }
-
-  val base = ColorUtils.setAlphaComponent(colorArgb, 255)
-  val contrastTarget =
-    if (contrast(AndroidColor.BLACK) >= contrast(AndroidColor.WHITE)) AndroidColor.BLACK else AndroidColor.WHITE
-  val minimumContrast = minOf(3.0, contrast(contrastTarget))
-  if (contrast(base) >= minimumContrast) return base
-
-  var insufficientFraction = 0f
-  var sufficientFraction = 1f
-  repeat(12) {
-    val fraction = (insufficientFraction + sufficientFraction) / 2f
-    val candidate = ColorUtils.blendARGB(base, contrastTarget, fraction)
-    if (contrast(candidate) >= minimumContrast) {
-      sufficientFraction = fraction
-    } else {
-      insufficientFraction = fraction
+  val hsl = FloatArray(3)
+  ColorUtils.colorToHSL(colorArgb, hsl)
+  if (hsl[1] >= 0.12f) hsl[1] = hsl[1].coerceIn(0.45f, 0.85f)
+  val originalLightness = hsl[2].coerceIn(0.18f, 0.82f)
+  val candidates =
+    (0..32).map { step ->
+      val lightness = 0.18f + step * 0.02f
+      hsl[2] = lightness
+      val color = ColorUtils.HSLToColor(hsl)
+      val contrast =
+        backgrounds.minOf { background ->
+          ColorUtils.calculateContrast(
+            ColorUtils.compositeColors(ColorUtils.setAlphaComponent(color, 220), background),
+            background,
+          )
+        }
+      Triple(color, contrast, abs(lightness - originalLightness))
     }
-  }
-  return ColorUtils.blendARGB(base, contrastTarget, sufficientFraction)
+  return candidates.filter { it.second >= 3.0 }.minByOrNull { it.third }?.first
+    ?: candidates.maxBy { it.second }.first
 }
 
 private fun VisualizerPalette.withThemeContrast(backgrounds: List<Int>): VisualizerPalette =
@@ -366,6 +365,8 @@ private fun artworkVisualizerPalette(
   val maximumPopulation = extracted.swatches.maxOfOrNull { it.population }?.coerceAtLeast(1) ?: 1
   val rankedSwatches =
     extracted.swatches
+      .filter { it.hsl[1] >= 0.18f && it.hsl[2] in 0.12f..0.88f }
+      .ifEmpty { extracted.swatches.filter { it.hsl[2] in 0.08f..0.92f }.ifEmpty { extracted.swatches } }
       .sortedByDescending { swatch ->
         val population = swatch.population.toFloat() / maximumPopulation
         val centeredLightness = 1f - abs(swatch.hsl[2] - 0.52f)
@@ -1101,17 +1102,17 @@ fun AudioPlayerControls(
     label = "ambient_bottom_color",
   )
   val visualizerPalette =
-    remember(artworkPalette, animatedAmbientTop, animatedAmbientBottom) {
+    remember(artworkPalette, targetTopColor, targetBottomColor) {
       val surface = artworkPalette.background
       val topBackdrop =
         ColorUtils.compositeColors(
-          animatedAmbientTop.copy(alpha = animatedAmbientTop.alpha * 0.65f).toArgb(),
-          ColorUtils.compositeColors(animatedAmbientTop.toArgb(), surface),
+          targetTopColor.copy(alpha = targetTopColor.alpha * 0.65f).toArgb(),
+          ColorUtils.compositeColors(targetTopColor.toArgb(), surface),
         )
       val bottomBackdrop =
         ColorUtils.compositeColors(
-          animatedAmbientBottom.copy(alpha = animatedAmbientBottom.alpha * 0.35f).toArgb(),
-          ColorUtils.compositeColors(animatedAmbientBottom.toArgb(), surface),
+          targetBottomColor.copy(alpha = targetBottomColor.alpha * 0.35f).toArgb(),
+          ColorUtils.compositeColors(targetBottomColor.toArgb(), surface),
         )
       artworkPalette.withThemeContrast(
         listOf(surface, topBackdrop, bottomBackdrop, ColorUtils.blendARGB(topBackdrop, bottomBackdrop, 0.5f)),
@@ -1686,7 +1687,7 @@ fun AudioPlayerControls(
                 imageVector = if (isCurrentTrackFavorite) Icons.RoundedFilled.Favorite else Icons.RoundedFilled.FavoriteBorder,
                 contentDescription = if (isCurrentTrackFavorite) "Remove from Favorites" else "Add to Favorites",
                 tint = if (isCurrentTrackFavorite) Color.White else MaterialTheme.colorScheme.onSurface,
-                modifier = Modifier.size(30.dp),
+                modifier = Modifier.size(28.dp),
               )
             }
 

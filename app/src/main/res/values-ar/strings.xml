@@ -647,7 +647,7 @@
   <string name="pref_online_skip_markers_title">استخدام علامات تخطي عبر الإنترنت</string>
   <string name="pref_online_skip_markers_summary">جلب علامات المقدمة والملخص والنهاية والشارات والمعاينة من المزوّد المحدد</string>
   <string name="pref_marker_provider_title">مزوّد العلامات عبر الإنترنت</string>
-  <string name="pref_marker_provider_summary">اختر IntroDB أو TIDB أو AniSkip أو Anime Skip لعلامات المقدمة/النهاية عبر الإنترنت</string>
+  <string name="pref_marker_provider_summary">اختر IntroDB أو TIDB أو AniSkip أو Anime Skip أو SkipDB. يستخدم وضع Hybrid أول نتيجة صالحة.</string>
   <string name="pref_chapter_detect_title">اكتشاف المقدمة/النهاية من عناوين الفصول</string>
   <string name="pref_chapter_detect_summary">تحليل صيغ أسماء الفصول مثل البداية/النهاية/الشارات وإنشاء علامات تخطٍ</string>
   <string name="pref_auto_skip_intro_title">تخطي المقدمة تلقائيًا</string>
@@ -1845,7 +1845,7 @@
   <string name="pref_audio_effects">معالجة الصوت</string>
   <string name="toast_file_not_found">الملف لم يعد موجودًا</string>
   <string name="pref_audio_visualizer_style_particle">جسيمات</string>
-  <string name="pref_section_p2p_streaming">بث P2P</string>
+  <string name="pref_section_p2p_streaming">بث P2P, مدير Ytdlp</string>
   <string name="toast_torrent_streaming_disabled">فعّل بث التورنت P2P في الإعدادات المتقدمة أولاً</string>
   <string name="ui_recent_stream_links">الروابط الأخيرة</string>
   <string name="ui_torrent_files">تورنت</string>

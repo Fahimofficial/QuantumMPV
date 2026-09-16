@@ -647,7 +647,7 @@
   <string name="pref_online_skip_markers_title">オンラインのスキップマーカーを使用</string>
   <string name="pref_online_skip_markers_summary">選択した提供元からイントロ、振り返り、アウトロ、クレジット、プレビューのマーカーを取得します</string>
   <string name="pref_marker_provider_title">オンラインマーカーの提供元</string>
-  <string name="pref_marker_provider_summary">オンラインのイントロ/アウトロマーカーにIntroDB、TIDB、AniSkip、Anime Skipのいずれかを選択します</string>
+  <string name="pref_marker_provider_summary">IntroDB、TIDB、AniSkip、Anime Skip、SkipDBから選択します。Hybridは最初の有効な結果を使用します。</string>
   <string name="pref_chapter_detect_title">チャプター名からイントロ/アウトロを検出</string>
   <string name="pref_chapter_detect_summary">opening/ending/creditsなどのチャプター名を解析し、スキップマーカーを作成します</string>
   <string name="pref_auto_skip_intro_title">イントロを自動スキップ</string>
@@ -1827,7 +1827,7 @@
   <string name="pref_audio_effects">音声処理</string>
   <string name="toast_file_not_found">ファイルはもう存在しません</string>
   <string name="pref_audio_visualizer_style_particle">粒子</string>
-  <string name="pref_section_p2p_streaming">P2P ストリーミング</string>
+  <string name="pref_section_p2p_streaming">P2P ストリーミング, Ytdlp マネージャー</string>
   <string name="toast_torrent_streaming_disabled">最初に詳細設定で P2P トレントストリーミングを有効化してください</string>
   <string name="ui_recent_stream_links">最近のリンク</string>
   <string name="ui_torrent_files">トレント</string>

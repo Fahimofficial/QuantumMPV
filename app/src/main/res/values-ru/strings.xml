@@ -647,7 +647,7 @@
   <string name="pref_online_skip_markers_title">Использовать сетевые метки пропуска</string>
   <string name="pref_online_skip_markers_summary">Получать метки вступления, повтора, концовки, титров и превью от выбранного поставщика</string>
   <string name="pref_marker_provider_title">Поставщик сетевых меток</string>
-  <string name="pref_marker_provider_summary">Выберите IntroDB, TIDB, AniSkip или Anime Skip для сетевых меток вступления/концовки</string>
+  <string name="pref_marker_provider_summary">Выберите IntroDB, TIDB, AniSkip, Anime Skip или SkipDB. Hybrid использует первый корректный результат.</string>
   <string name="pref_chapter_detect_title">Определять вступление/концовку по названиям глав</string>
   <string name="pref_chapter_detect_summary">Анализировать варианты названий вроде opening/ending/credits и создавать метки пропуска</string>
   <string name="pref_auto_skip_intro_title">Автоматически пропускать вступление</string>
@@ -1839,7 +1839,7 @@
   <string name="pref_audio_effects">Обработка звука</string>
   <string name="toast_file_not_found">Файл больше не существует</string>
   <string name="pref_audio_visualizer_style_particle">Частицы</string>
-  <string name="pref_section_p2p_streaming">P2P-стриминг</string>
+  <string name="pref_section_p2p_streaming">P2P-стриминг, Менеджер Ytdlp</string>
   <string name="toast_torrent_streaming_disabled">Сначала включите P2P-стриминг торрентов в расширенных настройках</string>
   <string name="ui_recent_stream_links">Недавние ссылки</string>
   <string name="ui_torrent_files">Торренты</string>

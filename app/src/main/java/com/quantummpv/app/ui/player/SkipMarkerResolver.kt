@@ -9,8 +9,8 @@
 
 package com.quantummpv.app.ui.player
 
+import com.quantummpv.app.repository.IntroDbSegment
 import java.util.Locale
-import kotlin.math.abs
 
 internal data class ChapterSkipMarker(
   val title: String?,
@@ -25,7 +25,6 @@ internal data class ProviderSkipMarker(
 
 /** Shared, deterministic skip-marker rules kept independent from mpv and Android lifecycle state. */
 internal object SkipMarkerResolver {
-  private const val DUPLICATE_TOLERANCE_SECONDS = 0.001
   private const val EOF_SEEK_GUARD_SECONDS = 0.25
 
   fun parseCustomKeywords(value: String): List<String> =
@@ -117,38 +116,22 @@ internal object SkipMarkerResolver {
     durationSeconds: Double,
     source: String,
   ): SkipSegment? {
-    val finiteStart = startSeconds?.takeIf { it.isFinite() }
-    val finiteEnd = endSeconds?.takeIf { it.isFinite() }
-    if (finiteStart == null && finiteEnd == null) return null
-    val start = finiteStart?.coerceAtLeast(0.0) ?: 0.0
-    val end =
-      finiteEnd
-        ?: durationSeconds.takeIf { it.isFinite() && it > start }
-        ?: return null
-    val normalizedEnd =
-      if (durationSeconds.isFinite() && durationSeconds > 0.0) {
-        end.coerceAtMost(durationSeconds)
-      } else {
-        end
-      }
-    if (normalizedEnd <= start) return null
-
-    val loweredType = segmentType?.lowercase(Locale.ROOT).orEmpty().trim()
+    val marker =
+      IntroDbSegment(segmentType = segmentType, start = startSeconds, end = endSeconds)
+        .validatedForDuration(durationSeconds) ?: return null
     val type =
-      when {
-        "recap" in loweredType || "summary" in loweredType -> SkipSegmentType.RECAP
-        "credit" in loweredType -> SkipSegmentType.CREDITS
-        "preview" in loweredType || "next" in loweredType -> SkipSegmentType.PREVIEW
-        "out" in loweredType ||
-          "ending" in loweredType ||
-          "ed" == loweredType ||
-          "mixed-ed" in loweredType -> SkipSegmentType.OUTRO
-        else -> SkipSegmentType.INTRO
+      when (marker.segmentType) {
+        "intro" -> SkipSegmentType.INTRO
+        "recap" -> SkipSegmentType.RECAP
+        "outro" -> SkipSegmentType.OUTRO
+        "credits" -> SkipSegmentType.CREDITS
+        "preview" -> SkipSegmentType.PREVIEW
+        else -> return null
       }
     return SkipSegment(
       type = type,
-      startSeconds = start,
-      endSeconds = normalizedEnd,
+      startSeconds = marker.normalizedStart,
+      endSeconds = marker.normalizedEnd,
       source = source,
     )
   }
@@ -157,31 +140,16 @@ internal object SkipMarkerResolver {
     markers: List<ProviderSkipMarker>,
     durationSeconds: Double,
     source: String,
-  ): List<SkipSegment> {
-    val ordered =
-      markers
-        .filter { marker ->
-          marker.startSeconds?.isFinite() == true || marker.endSeconds?.isFinite() == true
-        }.sortedBy { marker -> marker.startSeconds?.takeIf { it.isFinite() } ?: 0.0 }
-
-    return ordered.mapIndexedNotNull { index, marker ->
-      val start = marker.startSeconds?.takeIf { it.isFinite() }?.coerceAtLeast(0.0) ?: 0.0
-      val nextStart =
-        ordered
-          .asSequence()
-          .drop(index + 1)
-          .mapNotNull(ProviderSkipMarker::startSeconds)
-          .filter { it.isFinite() }
-          .firstOrNull { it > start }
+  ): List<SkipSegment> =
+    markers.mapNotNull { marker ->
       resolveProviderSegment(
         segmentType = marker.type,
         startSeconds = marker.startSeconds,
-        endSeconds = marker.endSeconds ?: nextStart,
+        endSeconds = marker.endSeconds,
         durationSeconds = durationSeconds,
         source = source,
       )
     }
-  }
 
   fun merge(segments: Iterable<SkipSegment>): List<SkipSegment> {
     val merged = mutableListOf<SkipSegment>()
@@ -192,19 +160,17 @@ internal object SkipMarkerResolver {
           segment.startSeconds >= 0.0 &&
           segment.isValid
       }.sortedWith(
-        compareBy<SkipSegment>(SkipSegment::startSeconds)
-          .thenBy(SkipSegment::endSeconds)
+        compareBy<SkipSegment> { it.endSeconds - it.startSeconds }
+          .thenBy(SkipSegment::startSeconds)
           .thenBy { it.type.ordinal },
       ).forEach { candidate ->
-        val duplicate =
+        val overlaps =
           merged.any { existing ->
-            existing.type == candidate.type &&
-              abs(existing.startSeconds - candidate.startSeconds) <= DUPLICATE_TOLERANCE_SECONDS &&
-              abs(existing.endSeconds - candidate.endSeconds) <= DUPLICATE_TOLERANCE_SECONDS
+            existing.startSeconds < candidate.endSeconds && candidate.startSeconds < existing.endSeconds
           }
-        if (!duplicate) merged += candidate
+        if (!overlaps) merged += candidate
       }
-    return merged
+    return merged.sortedBy(SkipSegment::startSeconds)
   }
 
   /** Avoids seeking to mpv's exact EOF while still allowing a final marker to be skipped. */

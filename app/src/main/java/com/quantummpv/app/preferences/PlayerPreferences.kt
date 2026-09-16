@@ -31,6 +31,7 @@ enum class IntroSegmentProvider(
   ANI_SKIP("AniSkip (Anime)", "aniskip"),
   ANIME_SKIP("Anime Skip", "animeskip"),
   HYBRID("Hybrid (Fastest)", "hybrid"),
+  SKIP_DB("SkipDB", "skipdb"),
 }
 
 enum class PlayerClockFormat(
