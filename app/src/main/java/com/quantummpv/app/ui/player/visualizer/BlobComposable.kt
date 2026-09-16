@@ -93,7 +93,7 @@ private fun <T> VisualizerOverlay(
     update = { view ->
       view.updatePalette(palette)
       if (isSheetOpen) {
-        // Translucent GL surfaces sit above the app window, so hide them while a sheet is open.
+        // Hide and pause the GL surface while a sheet covers the visualizer.
         view.visibility = View.INVISIBLE
         view.renderMode = GLSurfaceView.RENDERMODE_WHEN_DIRTY
       } else {

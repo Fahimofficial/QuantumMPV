@@ -2038,6 +2038,7 @@ class PlayerActivity :
   }
 
   private fun onExternalDisplayStateChanged(active: Boolean) {
+    player.surfaceBindingEnabled = !active
     binding.externalDisplayOverlay.visibility = if (active) View.VISIBLE else View.GONE
     if (active) {
       window.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)

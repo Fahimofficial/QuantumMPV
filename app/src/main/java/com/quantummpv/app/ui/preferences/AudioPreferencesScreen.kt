@@ -26,7 +26,7 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.RangeSlider
+import androidx.compose.material3.Slider
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextField
@@ -206,17 +206,14 @@ object AudioPreferencesScreen : Screen {
                   color = MaterialTheme.colorScheme.outline,
                   style = MaterialTheme.typography.bodyMedium,
                 )
-                RangeSlider(
+                Slider(
                   value =
                     minimumAudioDurationSeconds
                       .toFloat()
-                      .coerceIn(0f, maxMinimumDurationSeconds)..maxMinimumDurationSeconds,
-                  onValueChange = { selectedRange ->
-                    // The left thumb is the lower bound; there is intentionally no upper limit.
-                    // Music reacts live via the preference flow. Files/Folders are refreshed once
-                    // the drag finishes so storage is not rescanned for every intermediate step.
+                      .coerceIn(0f, maxMinimumDurationSeconds),
+                  onValueChange = { minimumSeconds ->
                     browserPreferences.minimumAudioDurationSeconds.set(
-                      selectedRange.start.toInt().coerceIn(0, maxMinimumDurationSeconds.toInt()),
+                      minimumSeconds.toInt().coerceIn(0, maxMinimumDurationSeconds.toInt()),
                     )
                   },
                   onValueChangeFinished = { MediaLibraryEvents.notifyChanged() },

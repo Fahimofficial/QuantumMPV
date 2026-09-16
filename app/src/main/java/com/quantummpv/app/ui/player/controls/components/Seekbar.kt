@@ -577,6 +577,7 @@ private fun SeekbarContent(
           if (safeDuration > 0f) (positionProvider() / safeDuration).coerceIn(0f, 1f) else 0f
         },
         trackHeight = waveTrackHeight,
+        trackColor = MaterialTheme.colorScheme.primary,
         modifier = Modifier.fillMaxWidth().matchParentSize(),
       )
     }

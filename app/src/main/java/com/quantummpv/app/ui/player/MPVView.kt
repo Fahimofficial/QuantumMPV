@@ -64,6 +64,11 @@ class MPVView(
   var isSurfaceReady = false
     private set
   var onSurfaceReady: (() -> Unit)? = null
+  var surfaceBindingEnabled = true
+    set(value) {
+      field = value
+      if (!value) isSurfaceReady = false
+    }
 
   /**
    * Configures the process-wide player and binds this view as its current rendering surface.
@@ -108,7 +113,7 @@ class MPVView(
   }
 
   fun rebindCurrentSurface() {
-    if (!holder.surface.isValid) return
+    if (!surfaceBindingEnabled || !holder.surface.isValid) return
     isSurfaceReady = false
     surfaceCreated(holder)
   }
@@ -394,7 +399,9 @@ class MPVView(
   }
 
   override fun surfaceCreated(holder: android.view.SurfaceHolder) {
-    isSurfaceReady = PlaybackSession.bindSurface(holder.surface, width, height, this)
+    if (!surfaceBindingEnabled) return
+    isSurfaceReady =
+      PlaybackSession.bindSurface(holder.surface, width, height, this, ownerIsActive = { surfaceBindingEnabled })
     applyFrameRate()
     post {
       if (isSurfaceReady && holder.surface.isValid) {

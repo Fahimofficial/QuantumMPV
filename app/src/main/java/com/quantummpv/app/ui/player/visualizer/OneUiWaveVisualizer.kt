@@ -35,14 +35,12 @@ import kotlin.math.sqrt
 private data class RibbonTones(
   val bass: Color,
   val mid: Color,
-  val treble: Color,
 )
 
 private fun ribbonTones(palette: VisualizerPalette): RibbonTones =
   RibbonTones(
     bass = Color(palette.secondary),
     mid = Color(palette.tertiary),
-    treble = Color(palette.primary),
   )
 
 /** Loud audio can accelerate the ribbon motion by at most thirty percent. */
@@ -75,6 +73,7 @@ internal fun WaveVisualizerOverlay(
   isPlaying: Boolean,
   progressProvider: () -> Float,
   trackHeight: Dp,
+  trackColor: Color,
   modifier: Modifier = Modifier,
 ) {
   // Each ribbon owns a frequency-band envelope; system volume remains a separate live gain.
@@ -264,7 +263,7 @@ internal fun WaveVisualizerOverlay(
     )
     drawRibbon(
       path = highRibbonPath,
-      color = tones.treble.copy(alpha = 0.94f),
+      color = trackColor,
       wavelength = 40.dp.toPx(),
       baseLift = 9.dp.toPx(),
       phase = highPhase,

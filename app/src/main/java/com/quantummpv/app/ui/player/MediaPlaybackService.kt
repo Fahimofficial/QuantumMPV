@@ -1156,7 +1156,7 @@ class MediaPlaybackService :
   private fun useProgressNotification(): Boolean = currentNotificationStyle() == NotificationStyle.Progress
 
   /**
-   * A ProgressStyle notification and an active MediaSession are two independent System UI
+  * A custom progress notification and an active MediaSession are two independent System UI
    * surfaces on Android 16. Publishing both makes one selected notification preference appear as
    * two playback cards. Media Controls owns the MediaSession surface; Progress with Chapters owns
    * only the foreground notification and keeps its transport actions on explicit PendingIntents.
@@ -1280,7 +1280,11 @@ class MediaPlaybackService :
   // ==================== Notification Builders ====================
 
   private fun buildNotification(): Notification =
-    if (useProgressNotification()) buildModernNotification() else buildLegacyNotification()
+    if (Build.VERSION.SDK_INT >= 36 && useProgressNotification()) {
+      buildModernNotification()
+    } else {
+      buildLegacyNotification()
+    }
 
   private fun buildContentIntent(): PendingIntent {
     val currentItem = PlaybackSession.queue.value.currentItem
@@ -1465,59 +1469,73 @@ class MediaPlaybackService :
    * This style uses explicit notification actions instead of also advertising a MediaSession,
    * which would make System UI render a second playback card.
    */
+  @androidx.annotation.RequiresApi(36)
   private fun buildModernNotification(): Notification {
     val (maximum, position) = notificationProgress()
-    val style = NotificationCompat.ProgressStyle().setStyledByProgress(true)
-    val appIcon = androidx.core.graphics.drawable.IconCompat.createWithResource(this, R.drawable.ic_launcher_monochrome)
-    style.setProgressStartIcon(
-      thumbnail?.takeUnless { it.isRecycled }
-        ?.let { androidx.core.graphics.drawable.IconCompat.createWithBitmap(it) } ?: appIcon,
+    val title = mediaTitle.ifBlank { getString(R.string.player_unknown_video) }
+    val timeline = playbackTimeText()
+    val chapterText = if (chapters.isEmpty()) chapterContentText() else "${chapterLabel()}: ${chapterContentText()}"
+    val isDark =
+      resources.configuration.uiMode and android.content.res.Configuration.UI_MODE_NIGHT_MASK ==
+        android.content.res.Configuration.UI_MODE_NIGHT_YES
+    val progressColor = getColor(if (isDark) android.R.color.system_accent1_200 else android.R.color.system_accent1_600)
+    val progressBitmap = if (maximum > 0) notificationProgressBitmap(maximum, position, progressColor) else null
+    val actions = listOf(prevAction(), playPauseAction(), nextAction(), favoriteAction(), stopAction())
+    val actionViews = listOf(
+      R.id.notification_previous,
+      R.id.notification_play_pause,
+      R.id.notification_next,
+      R.id.notification_favorite,
+      R.id.notification_stop,
     )
-    style.setProgressEndIcon(appIcon)
 
-    if (maximum <= 0) {
-      style.addProgressSegment(
-        NotificationCompat.ProgressStyle
-          .Segment(100)
-          .setColor(accentColor),
-      )
-      style.setProgressIndeterminate(true)
-    } else {
-      val chapterBoundaries =
-        buildList {
-          add(0)
-          if (maximum > 1) {
-            chapters.forEach { chapter ->
-              chapter.time
-                .takeIf { it.isFinite() && it >= 1f && it < maximum }
-                ?.let { time -> add(time.toInt()) }
-            }
-          }
-          add(maximum)
-        }.distinct().sorted()
-
-      chapterBoundaries.zipWithNext().forEach { (start, end) ->
-        style.addProgressSegment(
-          NotificationCompat.ProgressStyle.Segment(end - start).setColor(accentColor),
+    fun contentView(expanded: Boolean): android.widget.RemoteViews =
+      android.widget.RemoteViews(packageName, R.layout.notification_playback_progress).apply {
+        setTextViewText(R.id.notification_media_title, title)
+        setTextViewText(R.id.notification_timeline, timeline)
+        setTextViewText(R.id.notification_chapter, chapterText)
+        val expandedVisibility = if (expanded) android.view.View.VISIBLE else android.view.View.GONE
+        setViewVisibility(R.id.notification_chapter, expandedVisibility)
+        setViewVisibility(R.id.notification_actions, expandedVisibility)
+        setContentDescription(R.id.notification_artwork, title)
+        val artwork = thumbnail?.takeUnless { it.isRecycled }
+        if (artwork != null) {
+          setImageViewBitmap(R.id.notification_artwork, artwork)
+        } else {
+          setImageViewResource(R.id.notification_artwork, Icons.Platform.Play)
+          setInt(R.id.notification_artwork, "setColorFilter", if (isDark) Color.WHITE else Color.BLACK)
+        }
+        if (progressBitmap != null) {
+          setImageViewBitmap(R.id.notification_chapter_progress, progressBitmap)
+          setContentDescription(R.id.notification_chapter_progress, "$timeline; $chapterText")
+        }
+        setViewVisibility(
+          R.id.notification_chapter_progress,
+          if (progressBitmap != null) android.view.View.VISIBLE else android.view.View.GONE,
         )
-        if (start > 0) {
-          style.addProgressPoint(NotificationCompat.ProgressStyle.Point(start).setColor(accentColor))
+        setViewVisibility(
+          R.id.notification_loading_progress,
+          if (progressBitmap == null) android.view.View.VISIBLE else android.view.View.GONE,
+        )
+        setProgressBar(R.id.notification_loading_progress, 100, 0, true)
+        actions.forEachIndexed { index, action ->
+          val viewId = actionViews[index]
+          action.getIconCompat()?.let { setImageViewResource(viewId, it.resId) }
+          setInt(viewId, "setColorFilter", if (isDark) Color.WHITE else Color.BLACK)
+          setContentDescription(viewId, action.title)
+          action.actionIntent?.let { setOnClickPendingIntent(viewId, it) }
         }
       }
-      style.setProgress(position)
-    }
 
     val builder =
       NotificationCompat
         .Builder(this, NOTIFICATION_CHANNEL_ID)
         .setSmallIcon(R.drawable.ic_launcher_monochrome)
-        .setContentTitle(mediaTitle.ifBlank { getString(R.string.player_unknown_video) })
-        .setContentText(playbackTimeText())
-        .setSubText(if (chapters.isEmpty()) chapterContentText() else "${chapterLabel()}: ${chapterContentText()}")
+        .setContentTitle(title)
+        .setContentText(timeline)
         .setContentIntent(buildContentIntent())
         .setDeleteIntent(buildTransportIntent(ACTION_NOTIFICATION_STOP, 1005))
         .setOngoing(!paused)
-        .setRequestPromotedOngoing(true)
         .setAutoCancel(false)
         .setSilent(true)
         .setCategory(NotificationCompat.CATEGORY_TRANSPORT)
@@ -1526,27 +1544,40 @@ class MediaPlaybackService :
         .setPriority(NotificationCompat.PRIORITY_LOW)
         .setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
         .setOnlyAlertOnce(true)
-        .addAction(prevAction())
-        .addAction(playPauseAction())
-        .addAction(nextAction())
-        .addAction(favoriteAction())
-        .addAction(stopAction())
-
-    // Set ProgressStyle — this sets the visual style to segmented progress
-    if (!paused && maximum > 0) {
-      val remainingMs = (sanitizedDurationMs() - sanitizedPositionMs()).coerceAtLeast(0L)
-      val adjustedRemainingMs = (remainingMs / playbackSpeed.coerceAtLeast(0.01f)).toLong()
-      builder.setWhen(System.currentTimeMillis() + adjustedRemainingMs)
-      builder.setShowWhen(true)
-    } else {
-      builder.setShowWhen(false)
-    }
-    builder.setStyle(style)
-    builder.setShortCriticalText(
-      if (maximum > 0) "${position.toLong() * 100 / maximum}%" else formatSeconds(currentPositionSeconds),
-    )
+        .setShowWhen(false)
+        .setProgress(maximum, position, maximum <= 0)
+        .setCustomContentView(contentView(expanded = false))
+        .setCustomBigContentView(contentView(expanded = true))
+        .setStyle(NotificationCompat.DecoratedCustomViewStyle())
+    actions.forEach { builder.addInvisibleAction(it) }
 
     return builder.build()
+  }
+
+  private fun notificationProgressBitmap(maximum: Int, position: Int, color: Int): Bitmap {
+    val bitmap = Bitmap.createBitmap(1024, 16, Bitmap.Config.ARGB_8888)
+    val canvas = android.graphics.Canvas(bitmap)
+    val width = bitmap.width.toFloat()
+    val height = bitmap.height.toFloat()
+    if (resources.configuration.layoutDirection == android.view.View.LAYOUT_DIRECTION_RTL) {
+      canvas.scale(-1f, 1f, width / 2f, height / 2f)
+    }
+    val paint = android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG)
+    paint.color = ColorUtils.setAlphaComponent(color, 64)
+    canvas.drawRoundRect(0f, 0f, width, height, height / 2f, height / 2f, paint)
+    val playedWidth = width * (position.toFloat() / maximum).coerceIn(0f, 1f)
+    canvas.save()
+    canvas.clipRect(0f, 0f, playedWidth, height)
+    paint.color = color
+    canvas.drawRoundRect(0f, 0f, width, height, height / 2f, height / 2f, paint)
+    canvas.restore()
+    paint.xfermode = android.graphics.PorterDuffXfermode(android.graphics.PorterDuff.Mode.CLEAR)
+    chapters.mapNotNull { chapter ->
+      chapter.time.takeIf { it.isFinite() && it > 0f && it < maximum }?.let { width * it / maximum }
+    }.distinct().forEach { chapterPosition ->
+      canvas.drawRect(chapterPosition - 2f, 0f, chapterPosition + 2f, height, paint)
+    }
+    return bitmap
   }
 
   /**

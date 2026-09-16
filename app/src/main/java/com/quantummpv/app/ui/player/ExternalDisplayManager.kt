@@ -14,7 +14,7 @@ class ExternalDisplayManager(
   private val displayManager = appContext.getSystemService(Context.DISPLAY_SERVICE) as DisplayManager
   private val handler = Handler(Looper.getMainLooper())
   private var presentation: ExternalDisplayPresentation? = null
-  private var released = false
+  private var released = true
 
   var enabled = true
     set(value) {
@@ -23,7 +23,7 @@ class ExternalDisplayManager(
     }
 
   val isActive: Boolean
-    get() = presentation != null
+    get() = presentation?.isSurfaceReady == true
 
   private val displayListener =
     object : DisplayManager.DisplayListener {
@@ -69,7 +69,9 @@ class ExternalDisplayManager(
 
     if (target != null && presentation == null) {
       Log.d(TAG, "Showing external display on ${target.name} (${target.displayId})")
-      val shown = ExternalDisplayPresentation(appContext, target)
+      val shown = ExternalDisplayPresentation(appContext, target) { source, ready ->
+        if (!released && presentation === source) onStateChanged(ready)
+      }
       shown.setOnDismissListener {
         if (presentation === shown) {
           presentation = null
@@ -78,8 +80,14 @@ class ExternalDisplayManager(
         }
       }
       presentation = shown
-      shown.show()
-      onStateChanged(true)
+      try {
+        shown.show()
+      } catch (error: android.view.WindowManager.InvalidDisplayException) {
+        presentation = null
+        shown.dismiss()
+        onStateChanged(false)
+        Log.w(TAG, "External display became unavailable", error)
+      }
     }
   }
 
