@@ -456,7 +456,7 @@ Weiter: NEXT</string>
   <string name="player_aspect_fit">An Bildschirm anpassen</string>
   <string name="player_aspect_crop">Zuschneiden</string>
   <string name="player_aspect_stretch">Strecken</string>
-  <string name="crash_screen_title">Hoppla</string>
+  <string name="crash_screen_title">Unerwarteter Fehler</string>
   <string name="crash_screen_subtitle">Bei %s ist offenbar ein unerwarteter Fehler aufgetreten. Teilen Sie die Absturzprotokolle gegebenenfalls in einem GitHub-Issue.</string>
   <string name="crash_screen_logs_title">Absturzprotokolle:</string>
   <string name="crash_screen_share">Absturzprotokolle teilen</string>
@@ -464,6 +464,15 @@ Weiter: NEXT</string>
   <string name="crash_screen_fix_crash">Absturz beheben (Datenbank löschen)</string>
   <string name="crash_screen_database_deleted">Datenbank erfolgreich gelöscht. Bitte starten Sie die App neu.</string>
   <string name="crash_screen_database_hint">Dieser Absturz scheint mit der Datenbank zusammenzuhängen. Löschen Sie die Datenbank, um ihn zu beheben.</string>
+  <string name="crash_screen_report_preparing">Vollständiger Absturzbericht wird vorbereitet...</string>
+  <string name="crash_screen_report_failed">Der Bericht konnte nicht erstellt oder geteilt werden. Bitte erneut versuchen.</string>
+  <string name="crash_screen_report_privacy">Berichte können Dateipfade und andere private Informationen enthalten. Prüfen Sie die Details vor dem Teilen.</string>
+  <string name="crash_screen_details">Technische Details</string>
+  <string name="crash_screen_copy_failed">Der vollständige Bericht konnte nicht kopiert werden. Teilen Sie stattdessen die vollständige Berichtsdatei.</string>
+  <string name="crash_screen_report_id">Absturz-ID: %1$s</string>
+  <string name="crash_screen_reset_confirm">Die App-Datenbank wird dauerhaft gelöscht, einschließlich Wiedergabeverlauf, Wiedergabelisten und Bibliothekseinstellungen. Mediendateien werden nicht gelöscht. Das Zurücksetzen behebt den Absturz möglicherweise nicht.</string>
+  <string name="crash_screen_reset_failed">Die Datenbank konnte nicht zurückgesetzt werden. Es wurde kein Neustart versucht.</string>
+  <string name="oss_crashx_description">Absturzwiederherstellung von TutorialsAndroid, basierend auf CustomActivityOnCrash von Eduard Ereza Martínez.</string>
   <string name="timer_picker_enter_timer">Zeit eingeben</string>
   <string name="timer_picker_pick_time">Zeit auswählen</string>
   <string name="timer_title">Schlaftimer</string>

@@ -251,6 +251,7 @@ dependencies {
   implementation(libs.bundles.compose.navigation3)
   implementation(libs.androidx.appcompat)
   implementation(libs.androidx.core.ktx)
+  implementation(libs.crashx)
   implementation(libs.androidx.compose.constraintlayout)
   implementation(libs.androidx.preference.ktx)
   implementation(libs.androidx.constraintlayout)

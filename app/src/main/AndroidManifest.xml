@@ -454,7 +454,32 @@
             android:exported="false"
             android:launchMode="singleTask"
             android:theme="@style/Theme.mpvrx" />
-        <activity android:name=".presentation.crash.CrashActivity" />
+        <activity
+            android:name=".presentation.crash.CrashActivity"
+            android:process=":crash"
+            android:exported="false"
+            android:excludeFromRecents="true"
+            android:launchMode="singleTask"
+            android:theme="@style/Theme.mpvrx">
+            <intent-filter>
+                <action android:name="com.developer.crashx.ERROR" />
+                <category android:name="android.intent.category.DEFAULT" />
+            </intent-filter>
+        </activity>
+        <activity
+            android:name=".presentation.crash.DebugLogsActivity"
+            android:exported="false"
+            android:theme="@style/Theme.mpvrx" />
+        <provider
+            android:name=".presentation.crash.CrashReportProvider"
+            android:authorities="${applicationId}.crash-reports"
+            android:exported="false"
+            android:grantUriPermissions="true"
+            android:process=":crash">
+            <meta-data
+                android:name="android.support.FILE_PROVIDER_PATHS"
+                android:resource="@xml/crash_report_paths" />
+        </provider>
 
         <activity
             android:name=".ui.mediainfo.MediaInfoActivity"

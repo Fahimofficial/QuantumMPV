@@ -456,7 +456,7 @@ Siguiente: NEXT</string>
   <string name="player_aspect_fit">Ajustar a pantalla</string>
   <string name="player_aspect_crop">Recortar</string>
   <string name="player_aspect_stretch">Estirar</string>
-  <string name="crash_screen_title">Vaya</string>
+  <string name="crash_screen_title">Error inesperado</string>
   <string name="crash_screen_subtitle">Parece que %s sufrió un error inesperado. Considera compartir los registros del fallo en una incidencia de GitHub.</string>
   <string name="crash_screen_logs_title">Registros del fallo:</string>
   <string name="crash_screen_share">Compartir registros del fallo</string>
@@ -464,6 +464,15 @@ Siguiente: NEXT</string>
   <string name="crash_screen_fix_crash">Corregir fallo (eliminar base de datos)</string>
   <string name="crash_screen_database_deleted">Base de datos eliminada correctamente. Reinicia la aplicación.</string>
   <string name="crash_screen_database_hint">Este fallo parece estar relacionado con la base de datos. Prueba a eliminarla para corregirlo.</string>
+  <string name="crash_screen_report_preparing">Preparando el informe completo del fallo...</string>
+  <string name="crash_screen_report_failed">No se pudo preparar o compartir el informe. Inténtalo de nuevo.</string>
+  <string name="crash_screen_report_privacy">Los informes pueden contener rutas de archivos y otra información privada. Revisa los detalles antes de compartirlos.</string>
+  <string name="crash_screen_details">Detalles técnicos</string>
+  <string name="crash_screen_copy_failed">No se pudo copiar el informe completo. Comparte el archivo completo del informe.</string>
+  <string name="crash_screen_report_id">ID del fallo: %1$s</string>
+  <string name="crash_screen_reset_confirm">Esto elimina permanentemente la base de datos de la aplicación, incluidos el historial de reproducción, las listas y los ajustes de la biblioteca. No elimina los archivos multimedia. El restablecimiento podría no corregir el fallo.</string>
+  <string name="crash_screen_reset_failed">No se pudo restablecer la base de datos. No se intentó reiniciar.</string>
+  <string name="oss_crashx_description">Recuperación de fallos de TutorialsAndroid, basada en CustomActivityOnCrash de Eduard Ereza Martínez.</string>
   <string name="timer_picker_enter_timer">Introducir hora</string>
   <string name="timer_picker_pick_time">Elegir hora</string>
   <string name="timer_title">Temporizador de apagado</string>

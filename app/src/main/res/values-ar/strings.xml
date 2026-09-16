@@ -456,7 +456,7 @@
   <string name="player_aspect_fit">ملاءمة الشاشة</string>
   <string name="player_aspect_crop">اقتصاص</string>
   <string name="player_aspect_stretch">تمديد</string>
-  <string name="crash_screen_title">عذرًا</string>
+  <string name="crash_screen_title">خطأ غير متوقع</string>
   <string name="crash_screen_subtitle">يبدو أن %s واجه خطأ غير متوقع. فكّر في مشاركة سجلات التعطل ضمن مشكلة على GitHub.</string>
   <string name="crash_screen_logs_title">سجلات التعطل:</string>
   <string name="crash_screen_share">مشاركة سجلات التعطل</string>
@@ -464,6 +464,15 @@
   <string name="crash_screen_fix_crash">إصلاح التعطل (حذف قاعدة البيانات)</string>
   <string name="crash_screen_database_deleted">تم حذف قاعدة البيانات بنجاح. يرجى إعادة تشغيل التطبيق.</string>
   <string name="crash_screen_database_hint">يبدو أن هذا التعطل مرتبط بقاعدة البيانات. جرّب حذف قاعدة البيانات لإصلاحه.</string>
+  <string name="crash_screen_report_preparing">جارٍ إعداد تقرير التعطل الكامل...</string>
+  <string name="crash_screen_report_failed">تعذر إعداد التقرير أو مشاركته. يرجى المحاولة مجددًا.</string>
+  <string name="crash_screen_report_privacy">قد تتضمن التقارير مسارات الملفات ومعلومات خاصة أخرى. راجع التفاصيل قبل المشاركة.</string>
+  <string name="crash_screen_details">التفاصيل التقنية</string>
+  <string name="crash_screen_copy_failed">تعذر نسخ التقرير الكامل. شارك ملف التقرير الكامل بدلًا من ذلك.</string>
+  <string name="crash_screen_report_id">معرّف التعطل: %1$s</string>
+  <string name="crash_screen_reset_confirm">سيؤدي هذا إلى حذف قاعدة بيانات التطبيق نهائيًا، بما فيها سجل التشغيل وقوائم التشغيل وإعدادات المكتبة. لن تُحذف ملفات الوسائط. قد لا تؤدي إعادة الضبط إلى إصلاح التعطل.</string>
+  <string name="crash_screen_reset_failed">تعذرت إعادة ضبط قاعدة البيانات. لم تتم محاولة إعادة التشغيل.</string>
+  <string name="oss_crashx_description">استعادة التطبيق بعد التعطل من TutorialsAndroid، استنادًا إلى CustomActivityOnCrash من Eduard Ereza Martínez.</string>
   <string name="timer_picker_enter_timer">أدخل الوقت</string>
   <string name="timer_picker_pick_time">اختر الوقت</string>
   <string name="timer_title">مؤقت النوم</string>

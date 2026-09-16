@@ -454,7 +454,7 @@
   <string name="player_aspect_fit">फिट स्क्रीन</string>
   <string name="player_aspect_crop">क्रॉप</string>
   <string name="player_aspect_stretch">स्ट्रेच</string>
-  <string name="crash_screen_title">ओह</string>
+  <string name="crash_screen_title">अप्रत्याशित त्रुटि</string>
   <string name="crash_screen_subtitle">लगता है %s में कोई अनजान गड़बड़ी हुई है। GitHub इश्यू में क्रैश लॉग शेयर करने पर विचार करें।</string>
   <string name="crash_screen_logs_title">क्रैश लॉग:</string>
   <string name="crash_screen_share">क्रैश लॉग शेयर करें</string>
@@ -462,6 +462,15 @@
   <string name="crash_screen_fix_crash">क्रैश ठीक करें (डेटाबेस डिलीट करें)</string>
   <string name="crash_screen_database_deleted">डेटाबेस सफलतापूर्वक डिलीट हो गया। कृपया ऐप रीस्टार्ट करें।</string>
   <string name="crash_screen_database_hint">यह क्रैश डेटाबेस से जुड़ा लगता है। इसे ठीक करने के लिए डेटाबेस डिलीट करने की कोशिश करें।</string>
+  <string name="crash_screen_report_preparing">पूरी क्रैश रिपोर्ट तैयार हो रही है...</string>
+  <string name="crash_screen_report_failed">रिपोर्ट तैयार या साझा नहीं की जा सकी। कृपया दोबारा कोशिश करें।</string>
+  <string name="crash_screen_report_privacy">रिपोर्ट में फ़ाइल पथ और अन्य निजी जानकारी हो सकती है। साझा करने से पहले विवरण जाँचें।</string>
+  <string name="crash_screen_details">तकनीकी विवरण</string>
+  <string name="crash_screen_copy_failed">पूरी रिपोर्ट कॉपी नहीं की जा सकी। इसके बजाय पूरी रिपोर्ट की फ़ाइल साझा करें।</string>
+  <string name="crash_screen_report_id">क्रैश आईडी: %1$s</string>
+  <string name="crash_screen_reset_confirm">इससे ऐप का डेटाबेस स्थायी रूप से मिट जाएगा, जिसमें प्लेबैक इतिहास, प्लेलिस्ट और लाइब्रेरी सेटिंग शामिल हैं। मीडिया फ़ाइलें नहीं मिटेंगी। रीसेट करने से क्रैश ठीक हो यह ज़रूरी नहीं है।</string>
+  <string name="crash_screen_reset_failed">डेटाबेस रीसेट नहीं हो सका। ऐप को दोबारा शुरू करने की कोशिश नहीं की गई।</string>
+  <string name="oss_crashx_description">TutorialsAndroid की क्रैश रिकवरी, Eduard Ereza Martínez के CustomActivityOnCrash पर आधारित है।</string>
   <string name="timer_picker_enter_timer">समय डालें</string>
   <string name="timer_picker_pick_time">समय चुनें</string>
   <string name="timer_title">स्लीप टाइमर</string>

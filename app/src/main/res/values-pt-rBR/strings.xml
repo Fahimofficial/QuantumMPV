@@ -456,7 +456,7 @@ Próximo: NEXT</string>
   <string name="player_aspect_fit">Ajustar à tela</string>
   <string name="player_aspect_crop">Cortar</string>
   <string name="player_aspect_stretch">Esticar</string>
-  <string name="crash_screen_title">Ops</string>
+  <string name="crash_screen_title">Erro inesperado</string>
   <string name="crash_screen_subtitle">Parece que %s encontrou um erro inesperado. Considere compartilhar os logs de falha em uma issue do GitHub.</string>
   <string name="crash_screen_logs_title">Logs de falha:</string>
   <string name="crash_screen_share">Compartilhar logs de falha</string>
@@ -464,6 +464,15 @@ Próximo: NEXT</string>
   <string name="crash_screen_fix_crash">Corrigir falha (excluir banco de dados)</string>
   <string name="crash_screen_database_deleted">Banco de dados excluído com sucesso. Reinicie o aplicativo.</string>
   <string name="crash_screen_database_hint">Esta falha parece estar relacionada ao banco de dados. Tente excluí-lo para corrigir.</string>
+  <string name="crash_screen_report_preparing">Preparando o relatório completo da falha...</string>
+  <string name="crash_screen_report_failed">Não foi possível preparar ou compartilhar o relatório. Tente novamente.</string>
+  <string name="crash_screen_report_privacy">Os relatórios podem conter caminhos de arquivos e outras informações privadas. Confira os detalhes antes de compartilhar.</string>
+  <string name="crash_screen_details">Detalhes técnicos</string>
+  <string name="crash_screen_copy_failed">Não foi possível copiar o relatório completo. Compartilhe o arquivo completo do relatório.</string>
+  <string name="crash_screen_report_id">ID da falha: %1$s</string>
+  <string name="crash_screen_reset_confirm">Isso exclui permanentemente o banco de dados do aplicativo, incluindo histórico de reprodução, playlists e configurações da biblioteca. Os arquivos de mídia não são excluídos. A redefinição pode não corrigir a falha.</string>
+  <string name="crash_screen_reset_failed">Não foi possível redefinir o banco de dados. Nenhuma reinicialização foi tentada.</string>
+  <string name="oss_crashx_description">Recuperação de falhas por TutorialsAndroid, baseada em CustomActivityOnCrash de Eduard Ereza Martínez.</string>
   <string name="timer_picker_enter_timer">Inserir horário</string>
   <string name="timer_picker_pick_time">Escolher horário</string>
   <string name="timer_title">Temporizador de suspensão</string>

@@ -10,11 +10,13 @@
 package com.quantummpv.app
 
 import android.app.Activity
+import android.app.ActivityManager
 import android.app.Application
 import android.content.ComponentName
 import android.content.pm.PackageManager
 import android.os.Build
 import android.os.Bundle
+import android.os.Process
 import android.os.StrictMode
 import android.util.Log
 import android.view.View
@@ -28,12 +30,13 @@ import com.quantummpv.app.preferences.AudioPreferences
 import com.quantummpv.app.preferences.DecoderPreferences
 import com.quantummpv.app.preferences.PlayerPreferences
 import com.quantummpv.app.presentation.crash.CrashActivity
-import com.quantummpv.app.presentation.crash.GlobalExceptionHandler
+import com.quantummpv.app.presentation.crash.CrashReportStore
 import com.quantummpv.app.repository.NetworkRepository
 import com.quantummpv.app.ui.player.PlaybackPerformanceTrace
 import com.quantummpv.app.ui.player.PlaybackPhase
 import com.quantummpv.app.ui.player.PlaybackSession
 import com.quantummpv.app.ui.player.PlayerActivity
+import com.developer.crashx.config.CrashConfig
 import `is`.xyz.mpv.FastThumbnails
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
@@ -69,6 +72,41 @@ class App :
   override fun onCreate() {
     super.onCreate()
 
+    val processName =
+      if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+        Application.getProcessName()
+      } else {
+        getSystemService(ActivityManager::class.java).runningAppProcesses
+          ?.firstOrNull { it.pid == Process.myPid() }?.processName
+      }
+    if (processName == "$packageName:crash" || processName == "$packageName:crashx_error") {
+      startKoin {
+        androidContext(this@App)
+        modules(PreferencesModule)
+      }
+      return
+    }
+
+    CrashConfig.Builder.create()
+      .enabled(true)
+      .errorActivity(CrashActivity::class.java)
+      .restartActivity(MainActivity::class.java)
+      .backgroundMode(CrashConfig.BACKGROUND_MODE_SHOW_CUSTOM)
+      .minTimeBetweenCrashesMs(5_000)
+      .maxStackTraceSize(96 * 1024)
+      .trackActivities(true)
+      .maxActivityLogEntries(32)
+      .showErrorDetails(true)
+      .showReportButton(true)
+      .showCloseButton(true)
+      .logErrorOnRestart(false)
+      .includeStackTrace(true)
+      .includeBuildDate(false)
+      .crashIdPrefix("MPVRX")
+      .additionalReportInfo("mpvRx ${BuildConfig.VERSION_NAME} (${BuildConfig.GIT_SHA})")
+      .apply()
+    CrashReportStore.install(this)
+
     configureDebugStrictMode()
 
     // Initialize Koin
@@ -88,7 +126,6 @@ class App :
     registerActivityLifecycleCallbacks(this)
     PlaybackSession.addObserver(PlaybackPerformanceTrace)
     startPlaybackPerformanceTracing()
-    Thread.setDefaultUncaughtExceptionHandler(GlobalExceptionHandler(applicationContext, CrashActivity::class.java))
     startIdleMpvCoreReaper()
 
     applicationScope.launch {

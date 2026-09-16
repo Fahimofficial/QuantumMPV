@@ -537,7 +537,7 @@
   <string name="player_aspect_fit">Fit Screen</string>
   <string name="player_aspect_crop">Crop</string>
   <string name="player_aspect_stretch">Stretch</string>
-  <string name="crash_screen_title">Oops</string>
+  <string name="crash_screen_title">Unexpected error</string>
   <string name="crash_screen_subtitle">Looks like %s experienced an unexpected error. Consider sharing the crash logs in a GitHub issue.</string>
   <string name="crash_screen_logs_title">Crash logs:</string>
   <string name="crash_screen_share">Share crash logs</string>
@@ -545,6 +545,15 @@
   <string name="crash_screen_fix_crash">Fix Crash (Delete Database)</string>
   <string name="crash_screen_database_deleted">Database deleted successfully. Please restart the app.</string>
   <string name="crash_screen_database_hint">This crash appears to be database-related. Try deleting the database to fix it.</string>
+  <string name="crash_screen_report_preparing">Preparing the full crash report...</string>
+  <string name="crash_screen_report_failed">The report could not be prepared or shared. Please try again.</string>
+  <string name="crash_screen_report_privacy">Reports may contain file paths and other private information. Review the details before sharing.</string>
+  <string name="crash_screen_details">Technical details</string>
+  <string name="crash_screen_copy_failed">The full report could not be copied. Share the complete report file instead.</string>
+  <string name="crash_screen_report_id">Crash ID: %1$s</string>
+  <string name="crash_screen_reset_confirm">This permanently deletes the app database, including playback history, playlists, and library settings. Media files are not deleted. Resetting may not fix the crash.</string>
+  <string name="crash_screen_reset_failed">The database could not be reset. No restart was attempted.</string>
+  <string name="oss_crashx_description">Crash recovery by TutorialsAndroid, based on CustomActivityOnCrash by Eduard Ereza Martínez.</string>
   <string name="timer_picker_enter_timer">Enter time</string>
   <string name="timer_picker_pick_time">Pick time</string>
   <string name="timer_title">Sleep timer</string>

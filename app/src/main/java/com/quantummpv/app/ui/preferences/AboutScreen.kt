@@ -877,6 +877,13 @@ private val OPEN_SOURCE_LIBRARIES =
       url = "https://developer.android.com/jetpack/androidx/releases/compose-material3",
     ),
     OpenSourceLibrary(
+      name = "CrashX",
+      artifact = "io.github.tutorialsandroid:crashx",
+      descriptionRes = R.string.oss_crashx_description,
+      license = "Apache-2.0",
+      url = "https://github.com/TutorialsAndroid/crashx",
+    ),
+    OpenSourceLibrary(
       name = "Navigation 3",
       artifact = "androidx.navigation3:navigation3-runtime",
       descriptionRes = R.string.oss_navigation_3_description,

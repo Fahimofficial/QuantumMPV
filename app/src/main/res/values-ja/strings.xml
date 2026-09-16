@@ -456,7 +456,7 @@
   <string name="player_aspect_fit">画面に合わせる</string>
   <string name="player_aspect_crop">切り抜き</string>
   <string name="player_aspect_stretch">引き伸ばす</string>
-  <string name="crash_screen_title">問題が発生しました</string>
+  <string name="crash_screen_title">予期しないエラー</string>
   <string name="crash_screen_subtitle">%sで予期しないエラーが発生したようです。GitHubのIssueでクラッシュログを共有することをご検討ください。</string>
   <string name="crash_screen_logs_title">クラッシュログ：</string>
   <string name="crash_screen_share">クラッシュログを共有</string>
@@ -464,6 +464,15 @@
   <string name="crash_screen_fix_crash">クラッシュを修復（データベースを削除）</string>
   <string name="crash_screen_database_deleted">データベースを削除しました。アプリを再起動してください。</string>
   <string name="crash_screen_database_hint">このクラッシュはデータベースに関連しているようです。データベースを削除して修復してください。</string>
+  <string name="crash_screen_report_preparing">完全なクラッシュレポートを準備しています...</string>
+  <string name="crash_screen_report_failed">レポートを準備または共有できませんでした。もう一度お試しください。</string>
+  <string name="crash_screen_report_privacy">レポートにはファイルのパスなどの個人情報が含まれる場合があります。共有する前に内容を確認してください。</string>
+  <string name="crash_screen_details">技術情報</string>
+  <string name="crash_screen_copy_failed">レポート全体をコピーできませんでした。代わりに完全なレポートファイルを共有してください。</string>
+  <string name="crash_screen_report_id">クラッシュID: %1$s</string>
+  <string name="crash_screen_reset_confirm">再生履歴、プレイリスト、ライブラリ設定など、アプリのデータベースが完全に削除されます。メディアファイルは削除されません。リセットしてもクラッシュが解決しない場合があります。</string>
+  <string name="crash_screen_reset_failed">データベースをリセットできませんでした。再起動は行っていません。</string>
+  <string name="oss_crashx_description">TutorialsAndroidによるクラッシュ復旧機能。Eduard Ereza MartínezのCustomActivityOnCrashを基にしています。</string>
   <string name="timer_picker_enter_timer">時間を入力</string>
   <string name="timer_picker_pick_time">時間を選択</string>
   <string name="timer_title">スリープタイマー</string>

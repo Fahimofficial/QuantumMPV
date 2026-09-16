@@ -456,7 +456,7 @@ Suivant : NEXT</string>
   <string name="player_aspect_fit">Adapter à l’écran</string>
   <string name="player_aspect_crop">Rogner</string>
   <string name="player_aspect_stretch">Étirer</string>
-  <string name="crash_screen_title">Oups</string>
+  <string name="crash_screen_title">Erreur inattendue</string>
   <string name="crash_screen_subtitle">Il semble que %s ait rencontré une erreur inattendue. Pensez à partager les journaux de plantage dans un ticket GitHub.</string>
   <string name="crash_screen_logs_title">Journaux de plantage :</string>
   <string name="crash_screen_share">Partager les journaux de plantage</string>
@@ -464,6 +464,15 @@ Suivant : NEXT</string>
   <string name="crash_screen_fix_crash">Corriger le plantage (supprimer la base de données)</string>
   <string name="crash_screen_database_deleted">Base de données supprimée. Veuillez redémarrer l’application.</string>
   <string name="crash_screen_database_hint">Ce plantage semble lié à la base de données. Essayez de supprimer la base de données pour le corriger.</string>
+  <string name="crash_screen_report_preparing">Préparation du rapport de plantage complet...</string>
+  <string name="crash_screen_report_failed">Impossible de préparer ou de partager le rapport. Veuillez réessayer.</string>
+  <string name="crash_screen_report_privacy">Les rapports peuvent contenir des chemins de fichiers et des informations privées. Vérifiez les détails avant de les partager.</string>
+  <string name="crash_screen_details">Détails techniques</string>
+  <string name="crash_screen_copy_failed">Impossible de copier le rapport complet. Partagez plutôt le fichier du rapport complet.</string>
+  <string name="crash_screen_report_id">Identifiant du plantage : %1$s</string>
+  <string name="crash_screen_reset_confirm">Cette action supprime définitivement la base de données de l’application, notamment l’historique de lecture, les listes de lecture et les paramètres de la bibliothèque. Les fichiers multimédias ne sont pas supprimés. La réinitialisation peut ne pas résoudre le plantage.</string>
+  <string name="crash_screen_reset_failed">Impossible de réinitialiser la base de données. Aucun redémarrage n’a été tenté.</string>
+  <string name="oss_crashx_description">Récupération après plantage par TutorialsAndroid, basée sur CustomActivityOnCrash d’Eduard Ereza Martínez.</string>
   <string name="timer_picker_enter_timer">Saisir l’heure</string>
   <string name="timer_picker_pick_time">Choisir l’heure</string>
   <string name="timer_title">Minuteur de veille</string>

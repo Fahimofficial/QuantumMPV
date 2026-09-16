@@ -456,7 +456,7 @@
   <string name="player_aspect_fit">适应屏幕</string>
   <string name="player_aspect_crop">裁剪</string>
   <string name="player_aspect_stretch">拉伸</string>
-  <string name="crash_screen_title">糟糕</string>
+  <string name="crash_screen_title">意外错误</string>
   <string name="crash_screen_subtitle">%s 似乎遇到了意外错误。建议在 GitHub Issue 中分享崩溃日志。</string>
   <string name="crash_screen_logs_title">崩溃日志：</string>
   <string name="crash_screen_share">分享崩溃日志</string>
@@ -464,6 +464,15 @@
   <string name="crash_screen_fix_crash">修复崩溃（删除数据库）</string>
   <string name="crash_screen_database_deleted">数据库已成功删除。请重启应用。</string>
   <string name="crash_screen_database_hint">此次崩溃似乎与数据库有关。请尝试删除数据库进行修复。</string>
+  <string name="crash_screen_report_preparing">正在准备完整的崩溃报告...</string>
+  <string name="crash_screen_report_failed">无法准备或分享报告，请重试。</string>
+  <string name="crash_screen_report_privacy">报告可能包含文件路径及其他私人信息。分享前请查看详情。</string>
+  <string name="crash_screen_details">技术详情</string>
+  <string name="crash_screen_copy_failed">无法复制完整报告，请改为分享完整的报告文件。</string>
+  <string name="crash_screen_report_id">崩溃 ID：%1$s</string>
+  <string name="crash_screen_reset_confirm">这将永久删除应用数据库，包括播放历史、播放列表和媒体库设置。不会删除媒体文件。重置不一定能解决崩溃问题。</string>
+  <string name="crash_screen_reset_failed">无法重置数据库，未尝试重新启动。</string>
+  <string name="oss_crashx_description">由 TutorialsAndroid 提供的崩溃恢复功能，基于 Eduard Ereza Martínez 的 CustomActivityOnCrash。</string>
   <string name="timer_picker_enter_timer">输入时间</string>
   <string name="timer_picker_pick_time">选择时间</string>
   <string name="timer_title">睡眠定时器</string>

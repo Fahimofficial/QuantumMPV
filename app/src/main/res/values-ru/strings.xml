@@ -456,7 +456,7 @@
   <string name="player_aspect_fit">По размеру экрана</string>
   <string name="player_aspect_crop">Обрезать</string>
   <string name="player_aspect_stretch">Растянуть</string>
-  <string name="crash_screen_title">Упс</string>
+  <string name="crash_screen_title">Непредвиденная ошибка</string>
   <string name="crash_screen_subtitle">Похоже, в %s произошла непредвиденная ошибка. Попробуйте поделиться журналами сбоя в задаче GitHub.</string>
   <string name="crash_screen_logs_title">Журналы сбоя:</string>
   <string name="crash_screen_share">Поделиться журналами сбоя</string>
@@ -464,6 +464,15 @@
   <string name="crash_screen_fix_crash">Исправить сбой (удалить базу данных)</string>
   <string name="crash_screen_database_deleted">База данных успешно удалена. Перезапустите приложение.</string>
   <string name="crash_screen_database_hint">Этот сбой, вероятно, связан с базой данных. Попробуйте удалить её.</string>
+  <string name="crash_screen_report_preparing">Подготовка полного отчёта о сбое...</string>
+  <string name="crash_screen_report_failed">Не удалось подготовить или отправить отчёт. Повторите попытку.</string>
+  <string name="crash_screen_report_privacy">Отчёты могут содержать пути к файлам и другие личные данные. Просмотрите подробности перед отправкой.</string>
+  <string name="crash_screen_details">Технические сведения</string>
+  <string name="crash_screen_copy_failed">Не удалось скопировать полный отчёт. Вместо этого отправьте полный файл отчёта.</string>
+  <string name="crash_screen_report_id">ID сбоя: %1$s</string>
+  <string name="crash_screen_reset_confirm">База данных приложения будет удалена безвозвратно, включая историю воспроизведения, плейлисты и настройки библиотеки. Медиафайлы не удаляются. Сброс может не устранить сбой.</string>
+  <string name="crash_screen_reset_failed">Не удалось сбросить базу данных. Перезапуск не выполнялся.</string>
+  <string name="oss_crashx_description">Восстановление после сбоев от TutorialsAndroid на основе CustomActivityOnCrash, созданного Eduard Ereza Martínez.</string>
   <string name="timer_picker_enter_timer">Введите время</string>
   <string name="timer_picker_pick_time">Выберите время</string>
   <string name="timer_title">Таймер сна</string>
