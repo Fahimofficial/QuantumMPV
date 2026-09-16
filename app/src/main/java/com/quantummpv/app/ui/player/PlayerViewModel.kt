@@ -4475,7 +4475,7 @@ val isBrightnessSliderShown = MutableStateFlow(false)
               return
             }
         }
-      PlaybackSession.commandWithSeekAudioGuard("seek", target.toString(), "absolute+keyframes")
+      PlaybackSession.command("seek", target.toString(), "absolute+keyframes")
       delay(PREVIEW_SEEK_INTERVAL_MS)
     }
   }

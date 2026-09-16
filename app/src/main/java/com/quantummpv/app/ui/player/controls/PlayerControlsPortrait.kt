@@ -75,8 +75,7 @@ fun TopPlayerControlsPortrait(
       modifier =
         Modifier
           .fillMaxWidth()
-          .padding(top = MaterialTheme.spacing.medium)
-          .padding(horizontal = MaterialTheme.spacing.medium),
+          .padding(top = MaterialTheme.spacing.medium),
     ) {
       Row(
         verticalAlignment = Alignment.CenterVertically,

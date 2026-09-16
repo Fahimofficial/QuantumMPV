@@ -858,14 +858,18 @@ fun PlayerControls(
             modifier =
               Modifier
                 .then(
-                  if (showSystemStatusBar) {
+                  if (showSystemStatusBar && (!isPortrait || !controlsShown || areControlsLocked)) {
                     Modifier.windowInsetsPadding(WindowInsets.statusBars)
                   } else {
                     Modifier
                   },
                 ).constrainAs(playerUpdates) {
                   linkTo(parent.start, parent.end)
-                  top.linkTo(parent.top, if (isPortrait) 104.dp else 64.dp)
+                  if (isPortrait && controlsShown && !areControlsLocked) {
+                    top.linkTo(topLeftControls.bottom, spacing.medium)
+                  } else {
+                    top.linkTo(parent.top, if (isPortrait) 104.dp else 64.dp)
+                  }
                 },
           ) {
             when (currentPlayerUpdate) {

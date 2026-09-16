@@ -921,20 +921,9 @@ object PlaybackSession : MPVLib.EventObserver {
   }
 
   fun command(vararg command: String) {
-    dispatchCommand(command, guardSeekAudio = false)
-  }
-
-  fun commandWithSeekAudioGuard(vararg command: String) {
-    dispatchCommand(command, guardSeekAudio = true)
-  }
-
-  private fun dispatchCommand(
-    command: Array<out String>,
-    guardSeekAudio: Boolean,
-  ) {
     if (MpvConfigOverridePolicy.shouldSuppress(command)) return
     withCore(Unit) {
-      if (guardSeekAudio && command.firstOrNull() == "seek") beginSeekAudioGuardLocked()
+      if (command.firstOrNull() == "seek") beginSeekAudioGuardLocked()
       if (handleAmbientShaderCommandLocked(command)) return@withCore
       MPVLib.command(*command)
     }
@@ -948,6 +937,7 @@ object PlaybackSession : MPVLib.EventObserver {
     nativeLock.withLock {
       if (!initialized || _state.value.generation != expectedGeneration) return@withLock false
       if (MpvConfigOverridePolicy.shouldSuppress(command)) return@withLock true
+      if (command.firstOrNull() == "seek") beginSeekAudioGuardLocked()
       if (!handleAmbientShaderCommandLocked(command)) MPVLib.command(*command)
       true
     }
