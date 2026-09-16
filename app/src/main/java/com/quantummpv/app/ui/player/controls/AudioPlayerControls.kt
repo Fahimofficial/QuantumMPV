@@ -327,67 +327,69 @@ private fun rememberAudioAlbumArt(
 
 private fun contrastingVisualizerTone(
   colorArgb: Int,
-  backgroundArgb: Int,
-  isDarkTheme: Boolean,
+  backgrounds: List<Int>,
 ): Int {
-  val hsv = FloatArray(3)
-  AndroidColor.colorToHSV(colorArgb, hsv)
-  hsv[1] = hsv[1].coerceAtLeast(if (isDarkTheme) 0.42f else 0.52f)
-  hsv[2] =
-    if (isDarkTheme) {
-      hsv[2].coerceIn(0.72f, 0.98f)
+  fun contrast(candidate: Int): Double = backgrounds.minOf { ColorUtils.calculateContrast(candidate, it) }
+
+  val base = ColorUtils.setAlphaComponent(colorArgb, 255)
+  val contrastTarget =
+    if (contrast(AndroidColor.BLACK) >= contrast(AndroidColor.WHITE)) AndroidColor.BLACK else AndroidColor.WHITE
+  val minimumContrast = minOf(3.0, contrast(contrastTarget))
+  if (contrast(base) >= minimumContrast) return base
+
+  var insufficientFraction = 0f
+  var sufficientFraction = 1f
+  repeat(12) {
+    val fraction = (insufficientFraction + sufficientFraction) / 2f
+    val candidate = ColorUtils.blendARGB(base, contrastTarget, fraction)
+    if (contrast(candidate) >= minimumContrast) {
+      sufficientFraction = fraction
     } else {
-      hsv[2].coerceIn(0.28f, 0.56f)
+      insufficientFraction = fraction
     }
-  val base = AndroidColor.HSVToColor(hsv)
-  val contrastTarget = if (isDarkTheme) AndroidColor.WHITE else AndroidColor.BLACK
-  val minimumContrast = if (isDarkTheme) 2.4 else 3.2
-  if (ColorUtils.calculateContrast(base, backgroundArgb) >= minimumContrast) return base
-
-  for (step in 1..9) {
-    val adjusted = ColorUtils.blendARGB(base, contrastTarget, step * 0.08f)
-    if (ColorUtils.calculateContrast(adjusted, backgroundArgb) >= minimumContrast) return adjusted
   }
-  return ColorUtils.blendARGB(base, contrastTarget, 0.72f)
+  return ColorUtils.blendARGB(base, contrastTarget, sufficientFraction)
 }
 
-private fun VisualizerPalette.withThemeContrast(): VisualizerPalette {
-  val isDarkTheme = ColorUtils.calculateLuminance(background) < 0.5
-  return copy(
-    primary = contrastingVisualizerTone(primary, background, isDarkTheme),
-    secondary = contrastingVisualizerTone(secondary, background, isDarkTheme),
-    tertiary = contrastingVisualizerTone(tertiary, background, isDarkTheme),
+private fun VisualizerPalette.withThemeContrast(backgrounds: List<Int>): VisualizerPalette =
+  copy(
+    primary = contrastingVisualizerTone(primary, backgrounds),
+    secondary = contrastingVisualizerTone(secondary, backgrounds),
+    tertiary = contrastingVisualizerTone(tertiary, backgrounds),
   )
-}
-
-private fun visualizerPaletteFromAccent(
-  materialPalette: VisualizerPalette,
-  accentArgb: Int,
-): VisualizerPalette =
-  materialPalette.copy(
-    primary = ColorUtils.blendARGB(materialPalette.primary, accentArgb, 0.56f),
-    secondary = ColorUtils.blendARGB(materialPalette.secondary, accentArgb, 0.36f),
-    tertiary = ColorUtils.blendARGB(materialPalette.tertiary, accentArgb, 0.28f),
-  )
-    .withThemeContrast()
 
 private fun artworkVisualizerPalette(
   bitmap: Bitmap,
   materialPalette: VisualizerPalette,
 ): VisualizerPalette {
-  val extracted = Palette.from(bitmap).maximumColorCount(20).generate()
+  val extracted = Palette.from(bitmap).maximumColorCount(20).clearFilters().generate()
   val maximumPopulation = extracted.swatches.maxOfOrNull { it.population }?.coerceAtLeast(1) ?: 1
-  val accent =
+  val rankedSwatches =
     extracted.swatches
-      .asSequence()
-      .filter { swatch -> swatch.hsl[1] >= 0.18f && swatch.hsl[2] in 0.12f..0.88f }
-      .maxByOrNull { swatch ->
+      .sortedByDescending { swatch ->
         val population = swatch.population.toFloat() / maximumPopulation
         val centeredLightness = 1f - abs(swatch.hsl[2] - 0.52f)
         swatch.hsl[1] * 0.58f + population * 0.27f + centeredLightness * 0.15f
-      }?.rgb
-      ?: materialPalette.primary
-  return visualizerPaletteFromAccent(materialPalette, accent)
+      }
+  val accents = mutableListOf<Palette.Swatch>()
+  for (swatch in rankedSwatches) {
+    val similar =
+      accents.any { existing ->
+        val hueDistance = abs(existing.hsl[0] - swatch.hsl[0])
+        minOf(hueDistance, 360f - hueDistance) < 30f &&
+          abs(existing.hsl[1] - swatch.hsl[1]) < 0.25f &&
+          abs(existing.hsl[2] - swatch.hsl[2]) < 0.18f
+      }
+    if (!similar) accents += swatch
+    if (accents.size == 3) break
+  }
+  val primary = accents.firstOrNull()?.rgb ?: materialPalette.primary
+  val secondary = accents.getOrNull(1)?.rgb ?: primary
+  return materialPalette.copy(
+    primary = primary,
+    secondary = secondary,
+    tertiary = accents.getOrNull(2)?.rgb ?: secondary,
+  )
 }
 
 @Composable
@@ -824,14 +826,15 @@ fun AudioPlayerControls(
         primary = colorScheme.primary.toArgb(),
         secondary = colorScheme.secondary.toArgb(),
         tertiary = colorScheme.tertiary.toArgb(),
-      ).withThemeContrast()
+      )
     }
-  val visualizerPalette by produceState(
+  val artworkPalette by produceState(
     initialValue = palette,
     key1 = albumArtBitmap,
     key2 = palette,
   ) {
     val artwork = albumArtBitmap
+    value = palette
     value =
       if (artwork == null) {
         palette
@@ -1097,6 +1100,23 @@ fun AudioPlayerControls(
     animationSpec = tween(durationMillis = 800),
     label = "ambient_bottom_color",
   )
+  val visualizerPalette =
+    remember(artworkPalette, animatedAmbientTop, animatedAmbientBottom) {
+      val surface = artworkPalette.background
+      val topBackdrop =
+        ColorUtils.compositeColors(
+          animatedAmbientTop.copy(alpha = animatedAmbientTop.alpha * 0.65f).toArgb(),
+          ColorUtils.compositeColors(animatedAmbientTop.toArgb(), surface),
+        )
+      val bottomBackdrop =
+        ColorUtils.compositeColors(
+          animatedAmbientBottom.copy(alpha = animatedAmbientBottom.alpha * 0.35f).toArgb(),
+          ColorUtils.compositeColors(animatedAmbientBottom.toArgb(), surface),
+        )
+      artworkPalette.withThemeContrast(
+        listOf(surface, topBackdrop, bottomBackdrop, ColorUtils.blendARGB(topBackdrop, bottomBackdrop, 0.5f)),
+      )
+    }
   val edgeToEdgeVisualizer = showVisualizer && (!showInPlaceLyrics || isTabletLandscape)
   val controlsSidePadding = if (edgeToEdgeVisualizer) 16.dp else 0.dp
   Box(

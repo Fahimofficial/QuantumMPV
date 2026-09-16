@@ -1210,6 +1210,7 @@ internal fun VideoListContent(
                   PaddingValues(
                     start = 8.dp,
                     end = 8.dp,
+                    top = 4.dp,
                     bottom = bottomPadding,
                   ),
               ) {

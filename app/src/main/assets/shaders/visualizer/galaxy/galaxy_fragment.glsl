@@ -28,7 +28,7 @@ void main() {
     float halo = 1.0 - smoothstep(0.08, 0.75, radiusSquared);
 
     vec3 color = mix(themeColor * 0.85, uTertiaryColor, halo * 0.25);
-    color = mix(color, vec3(1.0), hotCore * 0.55);
+    color = mix(color, uPrimaryColor, hotCore * 0.55);
     float bottomFade = smoothstep(0.0, 0.22, vVerticalPosition);
     float alpha = softEdge * clamp(vBrightness * (0.85 + halo * 0.28), 0.0, 1.5) * bottomFade;
     fragColor = vec4(color * vBrightness, alpha);

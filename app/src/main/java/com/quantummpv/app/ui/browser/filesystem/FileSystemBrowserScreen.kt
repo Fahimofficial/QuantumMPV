@@ -1411,6 +1411,7 @@ private fun FileSystemBrowserContent(
                   PaddingValues(
                     start = 8.dp,
                     end = 8.dp,
+                    top = 4.dp,
                     bottom = navigationBarHeight,
                   ),
                 horizontalArrangement = Arrangement.spacedBy(2.dp),
@@ -1524,6 +1525,7 @@ private fun FileSystemBrowserContent(
                 PaddingValues(
                   start = 8.dp,
                   end = 8.dp,
+                  top = 4.dp,
                   bottom = navigationBarHeight,
                 ),
             ) {

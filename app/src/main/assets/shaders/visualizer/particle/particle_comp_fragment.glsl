@@ -1,7 +1,7 @@
 #version 300 es
 precision highp float;
 uniform sampler2D uTrail;
-uniform float uAspect, uFlare, uHue, uFrame, uGrain, uCA, uExposure, uVig, uIsDarkTheme;
+uniform float uAspect, uFlare, uHue, uFrame, uGrain, uCA, uExposure, uVig;
 uniform vec3 uPrimaryColor;
 uniform vec3 uSecondaryColor;
 in vec2 vUv;
@@ -31,30 +31,16 @@ void main(){
   rawCol.g = trailCol(uv).g;
   rawCol.b = trailCol(uv - ca).b;
 
-  // Dynamic theme tinting using Primary and Secondary theme palette colors
   vec3 themeTint = mix(uPrimaryColor, uSecondaryColor, clamp(rawCol.r * 2.0, 0.0, 1.0));
-  vec3 col = mix(rawCol, rawCol * themeTint * 2.5, 0.70);
-
-  // Tonemap particle brightness
-  col = 1.0 - exp(-col * uExposure);
-
-  // Calculate particle alpha based on brightness (0.0 = completely transparent background)
-  float lum = dot(col, vec3(0.299, 0.587, 0.114));
+  float energy = max(max(rawCol.r, rawCol.g), rawCol.b);
+  float brightness = 1.0 - exp(-energy * uExposure);
   float bottomFade = smoothstep(0.0, 0.22, vUv.y);
-  float alpha = clamp(lum * 3.5, 0.0, 1.0) * bottomFade;
+  float alpha = clamp(brightness * 3.5, 0.0, 1.0) * bottomFade;
 
   if (alpha < 0.005) {
-    // 100% transparent background everywhere there are no particles
     o = vec4(0.0, 0.0, 0.0, 0.0);
     return;
   }
 
-  if (uIsDarkTheme < 0.5) {
-    // Light Theme: render vivid particles tinted with theme colors for contrast against light backgrounds
-    vec3 lightParticleCol = mix(themeTint * 0.85, col, 0.5);
-    o = vec4(lightParticleCol, alpha * 0.90);
-  } else {
-    // Dark Theme: render vibrant glowing particles
-    o = vec4(col, alpha);
-  }
+  o = vec4(themeTint, alpha);
 }

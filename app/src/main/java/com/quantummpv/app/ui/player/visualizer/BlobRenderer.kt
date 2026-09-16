@@ -470,7 +470,12 @@ internal class BlobRenderer(
     GLES30.glViewport(0, 0, sceneTarget.width, sceneTarget.height)
     GLES30.glClear(GLES30.GL_COLOR_BUFFER_BIT)
     GLES30.glEnable(GLES30.GL_BLEND)
-    GLES30.glBlendFunc(GLES30.GL_SRC_ALPHA, GLES30.GL_ONE)
+    GLES30.glBlendFuncSeparate(
+      GLES30.GL_SRC_ALPHA,
+      GLES30.GL_ONE,
+      GLES30.GL_ONE,
+      GLES30.GL_ONE_MINUS_SRC_ALPHA,
+    )
 
     GLES30.glUseProgram(blobProgram)
     GLES30.glUniformMatrix4fv(uBlobMvp, 1, false, mvp, 0)

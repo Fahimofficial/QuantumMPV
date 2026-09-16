@@ -31,7 +31,6 @@ import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.input.pointer.pointerInput
 import kotlinx.coroutines.isActive
-import kotlin.math.abs
 import kotlin.math.cos
 import kotlin.math.max
 import kotlin.math.min
@@ -303,9 +302,7 @@ private fun DrawScope.drawCuboidTunnel(
       } else {
         mixCuboidRgb(tones.secondary, tones.tertiary, (paletteDepth - 0.5f) * 2f)
       }
-    val ringR = max(state.slowColor.r, state.fastColor.r - depth) * 0.38f + paletteTone.r * 0.62f
-    val ringG = max(state.slowColor.g, state.fastColor.g - depth) * 0.38f + paletteTone.g * 0.62f
-    val ringB = max(state.slowColor.b, state.fastColor.b - depth) * 0.38f + paletteTone.b * 0.62f
+    val ringTone = mixCuboidRgb(paletteTone, tones.primary, state.invertValue / 255f)
 
     for (bucket in 0 until COLOR_BUCKETS) {
       ring.bucketPaths[bucket].reset()
@@ -389,7 +386,7 @@ private fun DrawScope.drawCuboidTunnel(
         } else {
           ringIndex.toFloat() / ringCount.toFloat() * 200f
         }
-      val color = cuboidLineColor(ringR, ringG, ringB, lineValue, state.invertValue)
+      val color = cuboidLineColor(ringTone, lineValue)
       drawPath(ring.bucketPaths[bucket], color = color, style = stroke)
     }
   }
@@ -468,22 +465,12 @@ private fun Path.edge(
 }
 
 private fun cuboidLineColor(
-  r: Float,
-  g: Float,
-  b: Float,
+  tone: CuboidRgb,
   lineValue: Float,
-  invertValue: Float,
-): Color {
-  var red = (r * lineValue).roundToInt().coerceIn(0, 255)
-  var green = (g * lineValue).roundToInt().coerceIn(0, 255)
-  var blue = (b * lineValue).roundToInt().coerceIn(0, 255)
-
-  if (invertValue > 0f) {
-    val invert = invertValue.roundToInt().coerceIn(0, 255)
-    red = abs(invert - red).coerceIn(0, 255)
-    green = abs(invert - green).coerceIn(0, 255)
-    blue = abs(invert - blue).coerceIn(0, 255)
-  }
-
-  return Color(red = red, green = green, blue = blue, alpha = 255)
-}
+): Color =
+  Color(
+    red = (tone.r * 255f).roundToInt().coerceIn(0, 255),
+    green = (tone.g * 255f).roundToInt().coerceIn(0, 255),
+    blue = (tone.b * 255f).roundToInt().coerceIn(0, 255),
+    alpha = lineValue.roundToInt().coerceIn(0, 255),
+  )

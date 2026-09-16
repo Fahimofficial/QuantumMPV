@@ -78,7 +78,7 @@ private fun <T> VisualizerOverlay(
   isSheetOpen: Boolean = false,
   features: AudioFeatures,
   factory: (android.content.Context, AudioFeatures, VisualizerPalette) -> T,
-) where T : GLSurfaceView, T : PaletteConsumer {
+) where T : VisualizerTextureView, T : PaletteConsumer {
   AndroidView(
     factory = { ctx ->
       factory(ctx, features, palette).apply {

@@ -203,7 +203,12 @@ internal class GalaxyRenderer(
     GLES30.glClearColor(0f, 0f, 0f, 0f)
     GLES30.glClear(GLES30.GL_COLOR_BUFFER_BIT)
     GLES30.glEnable(GLES30.GL_BLEND)
-    GLES30.glBlendFunc(GLES30.GL_SRC_ALPHA, GLES30.GL_ONE)
+    GLES30.glBlendFuncSeparate(
+      GLES30.GL_SRC_ALPHA,
+      GLES30.GL_ONE,
+      GLES30.GL_ONE,
+      GLES30.GL_ONE_MINUS_SRC_ALPHA,
+    )
     GLES30.glDepthMask(false)
 
     GLES30.glUseProgram(program)

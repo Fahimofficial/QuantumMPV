@@ -129,7 +129,6 @@ internal class ParticleFeedbackRenderer(
   private var uCompCA = -1
   private var uCompExposure = -1
   private var uCompVig = -1
-  private var uCompIsDarkTheme = -1
   private var uCompPrimaryColor = -1
   private var uCompSecondaryColor = -1
 
@@ -286,16 +285,18 @@ internal class ParticleFeedbackRenderer(
     /* 5. Composite Pass to Screen with Dynamic Colors & Theme Adaptation */
     val primaryRgb = requestedPalette.primaryRgb()
     val secondaryRgb = requestedPalette.secondaryRgb()
-    val bgRgb = requestedPalette.backgroundRgb()
-    val bgLuminance = 0.299f * bgRgb[0] + 0.587f * bgRgb[1] + 0.114f * bgRgb[2]
-    val isDarkTheme = if (bgLuminance < 0.5f) 1.0f else 0.0f
 
     GLES30.glViewport(0, 0, viewportWidth, viewportHeight)
     GLES30.glClearColor(0f, 0f, 0f, 0f)
     GLES30.glClear(GLES30.GL_COLOR_BUFFER_BIT)
 
     GLES30.glEnable(GLES30.GL_BLEND)
-    GLES30.glBlendFunc(GLES30.GL_SRC_ALPHA, GLES30.GL_ONE_MINUS_SRC_ALPHA)
+    GLES30.glBlendFuncSeparate(
+      GLES30.GL_SRC_ALPHA,
+      GLES30.GL_ONE_MINUS_SRC_ALPHA,
+      GLES30.GL_ONE,
+      GLES30.GL_ONE_MINUS_SRC_ALPHA,
+    )
 
     GLES30.glUseProgram(pComp)
     GLES30.glUniform1i(uCompTrail, 0)
@@ -307,7 +308,6 @@ internal class ParticleFeedbackRenderer(
     GLES30.glUniform1f(uCompCA, Cfg.CHROMATIC_ABERRATION)
     GLES30.glUniform1f(uCompExposure, Cfg.EXPOSURE)
     GLES30.glUniform1f(uCompVig, Cfg.VIGNETTE)
-    GLES30.glUniform1f(uCompIsDarkTheme, isDarkTheme)
     GLES30.glUniform3f(uCompPrimaryColor, primaryRgb[0], primaryRgb[1], primaryRgb[2])
     GLES30.glUniform3f(uCompSecondaryColor, secondaryRgb[0], secondaryRgb[1], secondaryRgb[2])
     GLES30.glDrawArrays(GLES30.GL_TRIANGLES, 0, 3)
@@ -494,7 +494,6 @@ internal class ParticleFeedbackRenderer(
     uCompCA = GLES30.glGetUniformLocation(pComp, "uCA")
     uCompExposure = GLES30.glGetUniformLocation(pComp, "uExposure")
     uCompVig = GLES30.glGetUniformLocation(pComp, "uVig")
-    uCompIsDarkTheme = GLES30.glGetUniformLocation(pComp, "uIsDarkTheme")
     uCompPrimaryColor = GLES30.glGetUniformLocation(pComp, "uPrimaryColor")
     uCompSecondaryColor = GLES30.glGetUniformLocation(pComp, "uSecondaryColor")
   }
