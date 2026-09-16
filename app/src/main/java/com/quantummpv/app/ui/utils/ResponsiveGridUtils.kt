@@ -37,7 +37,7 @@ data class ResponsiveGridSpans(
 @Composable
 fun calculateResponsiveGridSpans(
   maxWidth: Dp,
-  folderMinWidth: Dp = 100.dp,
+  folderMinWidth: Dp = 90.dp,
   videoMinWidth: Dp = 130.dp,
   contentHorizontalPadding: Dp = 8.dp,
   itemSpacing: Dp = 2.dp,
@@ -67,8 +67,12 @@ fun calculateResponsiveGridSpans(
     maxVideos = videoGridColumnsPref.coerceAtLeast(1)
   } else {
     val usableWidth = maxWidth - (contentHorizontalPadding * 2) - itemSpacing
-    maxFolders = (usableWidth / folderMinWidth).toInt().coerceAtLeast(1)
-    maxVideos = (usableWidth / videoMinWidth).toInt().coerceAtLeast(1)
+    val isTelevision =
+      com.quantummpv.app.utils.device.DeviceFormFactor.isTelevision(androidx.compose.ui.platform.LocalContext.current)
+    val minimumFolderWidth = if (isTelevision) maxOf(folderMinWidth, 160.dp) else folderMinWidth
+    val minimumVideoWidth = if (isTelevision) maxOf(videoMinWidth, 240.dp) else videoMinWidth
+    maxFolders = (usableWidth / minimumFolderWidth).toInt().coerceAtLeast(1)
+    maxVideos = (usableWidth / minimumVideoWidth).toInt().coerceAtLeast(1)
   }
 
   val spans = lcm(maxFolders, maxVideos).coerceAtLeast(1)

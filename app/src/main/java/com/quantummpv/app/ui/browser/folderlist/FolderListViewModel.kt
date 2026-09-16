@@ -28,6 +28,7 @@ import com.quantummpv.app.utils.storage.FolderViewScanner
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -36,6 +37,7 @@ import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.drop
 import kotlinx.coroutines.flow.merge
+import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import org.koin.core.component.KoinComponent
 import org.koin.core.component.inject
@@ -396,16 +398,22 @@ class FolderListViewModel(
                 context = getApplication(),
                 minimumAudioDurationSeconds = browserPreferences.minimumAudioDurationSeconds.get(),
               )
+            ensureActive()
             _allVideoFolders.value = folders
             _isLoading.value = false
             _hasCompletedInitialLoad.value = true
+          } catch (error: kotlinx.coroutines.CancellationException) {
+            throw error
           } catch (e: Exception) {
+            ensureActive()
             Log.e(TAG, "Error loading audio folders", e)
             _hasCompletedInitialLoad.value = true
           } finally {
-            _isLoading.value = false
-            _isEnriching.value = false
-            _scanStatus.value = null
+            if (isActive) {
+              _isLoading.value = false
+              _isEnriching.value = false
+              _scanStatus.value = null
+            }
           }
         }
       return
@@ -430,12 +438,14 @@ class FolderListViewModel(
               forceFileSystemCheck = forceFileSystemCheck,
               includeAudioOverride = browserPreferences.includeAudioBrowser.get(),
             )
+          ensureActive()
           // This is the important latency boundary: never wait for a filesystem walk.
           _allVideoFolders.value = mediaStoreFolders
           _isLoading.value = false
           _hasCompletedInitialLoad.value = true
 
           val indexedFolders = MediaFileRepository.getIndexedNoMediaFolders()
+          ensureActive()
           var visibleFolders = mergeFolders(mediaStoreFolders, indexedFolders)
           _allVideoFolders.value = visibleFolders
           Log.d(TAG, "Published ${mediaStoreFolders.size} MediaStore and ${indexedFolders.size} indexed folders")
@@ -452,6 +462,7 @@ class FolderListViewModel(
                 context = getApplication(),
                 forceDiscovery = forceFileSystemCheck,
               ).collect { batch ->
+                ensureActive()
                 visibleFolders = mergeFolders(visibleFolders, batch)
                 _allVideoFolders.value = visibleFolders
                 _scanStatus.value = "Found ${visibleFolders.size} folders"
@@ -459,6 +470,7 @@ class FolderListViewModel(
 
             // Replace the old indexed snapshot after the scan, removing deleted/stale folders.
             visibleFolders = mergeFolders(mediaStoreFolders, MediaFileRepository.getIndexedNoMediaFolders())
+            ensureActive()
             _allVideoFolders.value = visibleFolders
           }
 
@@ -498,17 +510,21 @@ class FolderListViewModel(
               },
             )
 
+          ensureActive()
           _allVideoFolders.value = enrichedFolders
         } catch (e: kotlinx.coroutines.CancellationException) {
           Log.d(TAG, "Scan cancelled (new scan started)")
           throw e
         } catch (e: Exception) {
+          ensureActive()
           Log.e(TAG, "Error loading video folders", e)
           _hasCompletedInitialLoad.value = true
         } finally {
-          _isLoading.value = false
-          _isEnriching.value = false
-          _scanStatus.value = null
+          if (isActive) {
+            _isLoading.value = false
+            _isEnriching.value = false
+            _scanStatus.value = null
+          }
         }
       }
   }

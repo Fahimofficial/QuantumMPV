@@ -532,6 +532,7 @@ Próximo: NEXT</string>
   <string name="notification_repeat_one">Repetir uma</string>
   <string name="notification_repeat_all">Repetir tudo</string>
   <string name="notification_chapter_counter">Capítulo %1$d de %2$d</string>
+  <string name="notification_playback_progress">%1$s decorridos - %2$s restantes</string>
   <string name="notification_permission_denied">A permissão de notificações é necessária para os controles de reprodução em segundo plano.</string>
   <string name="notification_permission_disabled">As notificações estão desativadas para o mpvRx. Ative-as para mostrar os controles de reprodução.</string>
   <string name="notification_disabled_in_advanced_settings">Ative as notificações nas configurações avançadas para usar a reprodução em segundo plano.</string>
@@ -1186,6 +1187,7 @@ Reinicie o aplicativo para que todas as alterações entrem em vigor.</string>
   <string name="ui_play">Reproduzir</string>
   <string name="ui_settings">Configurações</string>
   <string name="ui_pin_folders">Fixar pastas</string>
+  <string name="ui_unpin_folders">Desafixar pastas</string>
   <string name="ui_add_to_playlist">Adicionar à playlist</string>
   <string name="ui_copy_path">Copiar caminho</string>
   <string name="ui_add_network_connection">Adicionar conexão de rede</string>
@@ -2182,4 +2184,5 @@ Reinicie o aplicativo para que todas as alterações entrem em vigor.</string>
   <string name="pref_appearance_custom_theme_new">Novo tema personalizado</string><string name="pref_appearance_custom_theme_edit_title">Editar tema personalizado</string><string name="pref_appearance_custom_theme_preview">Prévia</string><string name="pref_appearance_custom_theme_live_preview">Prévia ao vivo</string><string name="pref_appearance_custom_theme_name_required">Digite um nome para o tema</string><string name="pref_appearance_custom_theme_name_duplicate">Já existe um tema com esse nome</string><string name="pref_appearance_custom_theme_hex_invalid">Use uma cor hexadecimal como #6750A4</string><string name="pref_appearance_custom_wallpaper_adjust">Ajustar</string><string name="pref_appearance_custom_wallpaper_gesture_hint">Arraste para reposicionar. Faça pinça para ampliar.</string><string name="pref_appearance_custom_wallpaper_reset">Redefinir</string>
   <string name="pref_appearance_custom_theme_light_secondary">Cor secundária clara</string><string name="pref_appearance_custom_theme_dark_secondary">Cor secundária escura</string><string name="pref_appearance_custom_theme_light_tertiary">Cor terciária clara</string><string name="pref_appearance_custom_theme_dark_tertiary">Cor terciária escura</string>
   <string name="pref_appearance_custom_wallpaper_fit">Ajustar</string><string name="pref_appearance_custom_wallpaper_fill">Preencher</string><string name="pref_appearance_custom_wallpaper_replace_action">Substituir</string><string name="pref_appearance_custom_wallpaper_clear_action">Limpar</string>
+  <string name="wallpaper_save_failed">Não foi possível salvar o papel de parede. Selecione a imagem novamente.</string>
 </resources>

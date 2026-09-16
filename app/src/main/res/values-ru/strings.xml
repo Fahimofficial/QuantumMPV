@@ -532,6 +532,7 @@
   <string name="notification_repeat_one">Повтор одного</string>
   <string name="notification_repeat_all">Повтор всех</string>
   <string name="notification_chapter_counter">Глава %1$d из %2$d</string>
+  <string name="notification_playback_progress">Прошло %1$s - осталось %2$s</string>
   <string name="notification_permission_denied">Для управления фоновым воспроизведением требуется разрешение на уведомления.</string>
   <string name="notification_permission_disabled">Уведомления для mpvRx отключены. Включите их, чтобы показывать элементы управления воспроизведением.</string>
   <string name="notification_disabled_in_advanced_settings">Включите уведомления в расширенных настройках для фонового воспроизведения.</string>
@@ -1188,6 +1189,7 @@
   <string name="ui_play">Воспроизвести</string>
   <string name="ui_settings">Настройки</string>
   <string name="ui_pin_folders">Закрепить папки</string>
+  <string name="ui_unpin_folders">Открепить папки</string>
   <string name="ui_add_to_playlist">Добавить в плейлист</string>
   <string name="ui_copy_path">Копировать путь</string>
   <string name="ui_add_network_connection">Добавить сетевое подключение</string>
@@ -2190,4 +2192,5 @@
   <string name="pref_appearance_custom_theme_new">Новая пользовательская тема</string><string name="pref_appearance_custom_theme_edit_title">Изменить пользовательскую тему</string><string name="pref_appearance_custom_theme_preview">Предпросмотр</string><string name="pref_appearance_custom_theme_live_preview">Предпросмотр в реальном времени</string><string name="pref_appearance_custom_theme_name_required">Введите название темы</string><string name="pref_appearance_custom_theme_name_duplicate">Тема с таким названием уже существует</string><string name="pref_appearance_custom_theme_hex_invalid">Используйте HEX-цвет, например #6750A4</string><string name="pref_appearance_custom_wallpaper_adjust">Настроить</string><string name="pref_appearance_custom_wallpaper_gesture_hint">Перетаскивайте для смещения. Сведите пальцы для масштаба.</string><string name="pref_appearance_custom_wallpaper_reset">Сбросить</string>
   <string name="pref_appearance_custom_theme_light_secondary">Светлый дополнительный цвет</string><string name="pref_appearance_custom_theme_dark_secondary">Тёмный дополнительный цвет</string><string name="pref_appearance_custom_theme_light_tertiary">Светлый третичный цвет</string><string name="pref_appearance_custom_theme_dark_tertiary">Тёмный третичный цвет</string>
   <string name="pref_appearance_custom_wallpaper_fit">Вписать</string><string name="pref_appearance_custom_wallpaper_fill">Заполнить</string><string name="pref_appearance_custom_wallpaper_replace_action">Заменить</string><string name="pref_appearance_custom_wallpaper_clear_action">Очистить</string>
+  <string name="wallpaper_save_failed">Не удалось сохранить обои. Выберите изображение ещё раз.</string>
 </resources>

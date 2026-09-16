@@ -12,6 +12,7 @@ package com.quantummpv.app.ui.preferences
 import android.graphics.Bitmap
 import android.os.Handler
 import android.os.Looper
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.border
 import androidx.compose.foundation.background
 import androidx.compose.foundation.gestures.detectTransformGestures
@@ -40,6 +41,8 @@ import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.produceState
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
@@ -58,11 +61,14 @@ import com.quantummpv.app.ui.icons.Icons
 import com.quantummpv.app.ui.theme.WallpaperImage
 import com.quantummpv.app.ui.theme.WallpaperScaleMode
 import com.quantummpv.app.ui.theme.loadWallpaperBitmap
+import com.quantummpv.app.ui.theme.saveWallpaperCopy
 import com.quantummpv.app.ui.player.controls.components.tvFocusGroup
 import com.quantummpv.app.ui.player.controls.components.tvFocusHighlight
 import com.quantummpv.app.ui.utils.LocalBackStack
 import com.quantummpv.app.ui.utils.popSafely
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import kotlinx.collections.immutable.persistentListOf
 import kotlinx.collections.immutable.toImmutableList
@@ -79,6 +85,9 @@ data class WallpaperEditorScreen(
     val context = LocalContext.current
     val backStack = LocalBackStack.current
     val preferences = koinInject<AppearancePreferences>()
+    val scope = rememberCoroutineScope()
+    var isSaving by remember { mutableStateOf(false) }
+    BackHandler(enabled = isSaving) { }
     val isEditingCurrent = sourceUri == preferences.customWallpaperUri.get()
     var zoom by rememberSaveable(sourceUri) {
       mutableStateOf(if (isEditingCurrent) preferences.customWallpaperZoom.get() else 1f)
@@ -120,22 +129,36 @@ data class WallpaperEditorScreen(
         TopAppBar(
           title = { Text(stringResource(R.string.pref_appearance_custom_wallpaper_crop_title)) },
           navigationIcon = {
-            IconButton(onClick = { backStack.popSafely() }) {
+            IconButton(enabled = !isSaving, onClick = { backStack.popSafely() }) {
               Icon(Icons.RoundedFilled.ArrowBack, contentDescription = null)
             }
           },
           actions = {
             TextButton(
-              enabled = bitmap != null,
+              enabled = bitmap != null && !isSaving,
               onClick = {
-                preferences.customWallpaperUri.set(sourceUri)
-                preferences.customWallpaperZoom.set(zoom)
-                preferences.customWallpaperOffsetX.set(offsetX)
-                preferences.customWallpaperOffsetY.set(offsetY)
-                preferences.customWallpaperScaleMode.set(scaleMode)
-                preferences.customWallpaperBlur.set(blur)
-                preferences.customWallpaperAlpha.set(alpha)
-                backStack.popSafely()
+                isSaving = true
+                scope.launch {
+                  try {
+                    val savedUri = saveWallpaperCopy(context, sourceUri)
+                    preferences.customWallpaperZoom.set(zoom)
+                    preferences.customWallpaperOffsetX.set(offsetX)
+                    preferences.customWallpaperOffsetY.set(offsetY)
+                    preferences.customWallpaperScaleMode.set(scaleMode)
+                    preferences.customWallpaperBlur.set(blur)
+                    preferences.customWallpaperAlpha.set(alpha)
+                    preferences.customWallpaperUri.set(savedUri)
+                    backStack.popSafely()
+                  } catch (error: CancellationException) {
+                    throw error
+                  } catch (_: Exception) {
+                    android.widget.Toast
+                      .makeText(context, R.string.wallpaper_save_failed, android.widget.Toast.LENGTH_LONG)
+                      .show()
+                  } finally {
+                    isSaving = false
+                  }
+                }
               },
             ) {
               Text(stringResource(R.string.pref_appearance_custom_wallpaper_save))

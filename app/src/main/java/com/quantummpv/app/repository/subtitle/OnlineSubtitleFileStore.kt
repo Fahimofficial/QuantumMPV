@@ -47,12 +47,13 @@ class OnlineSubtitleFileStore(
     }
     val extension =
       extracted?.extension
-        ?: subtitle.format?.lowercase()?.takeIf { it in STANDARD_SUBTITLE_EXTENSIONS }
+        ?: subtitle.format?.lowercase(Locale.ROOT)?.takeIf { it in STANDARD_SUBTITLE_EXTENSIONS }
         ?: SubtitleArchiveExtractor.extensionFromName(subtitle.fileName)?.takeIf { it in STANDARD_SUBTITLE_EXTENSIONS }
         ?: SubtitleArchiveExtractor.extensionFromName(subtitle.url)?.takeIf { it in STANDARD_SUBTITLE_EXTENSIONS }
         ?: "srt"
 
     val payload = extracted?.bytes ?: bytes
+    check(payload.isNotEmpty()) { "Downloaded subtitle is empty" }
     if (SubtitleArchiveExtractor.looksLikeHtml(payload)) {
       throw IllegalStateException("Downloaded file is HTML, not a subtitle")
     }
@@ -74,7 +75,9 @@ class OnlineSubtitleFileStore(
         if (movieDir != null) {
           val subFile = movieDir.findFile(subFileName) ?: movieDir.createFile(mimeForSubtitle(extension), subFileName)
           if (subFile != null) {
-            context.contentResolver.openOutputStream(subFile.uri)?.use { it.write(payload) }
+            checkNotNull(context.contentResolver.openOutputStream(subFile.uri, "wt")) {
+              "Could not open the subtitle file for writing"
+            }.use { it.write(payload) }
             return subFile.uri
           }
         }
@@ -118,8 +121,8 @@ class OnlineSubtitleFileStore(
     val sourcePart = cleanSourceName(subtitle.source)
     val releasePart =
       listOf(
-        subtitle.fileName,
         extractedFileName,
+        subtitle.fileName,
         subtitle.release,
         subtitle.displayName,
       ).firstNotNullOfOrNull { raw ->
@@ -127,18 +130,20 @@ class OnlineSubtitleFileStore(
           ?.takeIf { isUsefulDescriptor(it, mediaBase, sourcePart) }
       }
     val languagePart =
-      (subtitle.language ?: subtitle.displayLanguage)
+      (subtitle.language?.takeIf { it.isNotBlank() } ?: subtitle.displayLanguage)
         .sanitizeFilePart()
-        .takeUnless(::isGenericSubtitleName)
+        .takeUnless { it.equals("unknown", ignoreCase = true) || it.equals("subtitle", ignoreCase = true) }
         ?: "und"
 
     val parts =
-      listOf(mediaBase, releasePart, sourcePart, languagePart)
+      listOf(mediaBase, releasePart, sourcePart)
         .mapNotNull { it?.sanitizeFilePart()?.takeIf(String::isNotBlank) }
         .distinctBy { it.normalizedFilePart() }
         .map { it.take(MAX_FILE_PART_LENGTH).trim(' ', '.') }
 
-    return "${parts.joinToString(".").take(MAX_FILE_STEM_LENGTH).trim(' ', '.')}.$extension"
+    val suffix = ".${languagePart.take(MAX_FILE_PART_LENGTH).trim(' ', '.')}.$extension"
+    val stem = parts.joinToString(".").take(MAX_FILE_STEM_LENGTH - suffix.length).trim(' ', '.')
+    return "$stem$suffix"
   }
 
   private fun cleanSourceName(value: String?): String? =
@@ -173,6 +178,7 @@ class OnlineSubtitleFileStore(
   ): Boolean {
     if (isGenericSubtitleName(value)) return false
     val normalized = value.normalizedFilePart()
+    if (normalized.none { it.isLetter() }) return false
     if (normalized == mediaBase.normalizedFilePart()) return false
     if (sourcePart != null && normalized == sourcePart.normalizedFilePart()) return false
     if (normalized.length <= 3 && mediaBase.normalizedFilePart().contains(normalized)) return false
@@ -181,14 +187,11 @@ class OnlineSubtitleFileStore(
 
   private fun isGenericSubtitleName(value: String): Boolean = value.normalizedFilePart() in GENERIC_SUBTITLE_NAMES
 
-  private fun String.normalizedFilePart(): String = lowercase(Locale.ROOT).replace(Regex("""[^a-z0-9]+"""), "")
+  private fun String.normalizedFilePart(): String = lowercase(Locale.ROOT).replace(Regex("""[^\p{L}\p{N}]+"""), "")
 
   private fun mimeForSubtitle(extension: String): String =
-    when (extension) {
-      "vtt" -> "text/vtt"
-      "srt", "ass", "ssa", "sub" -> "text/plain"
-      else -> "application/octet-stream"
-    }
+    android.webkit.MimeTypeMap.getSingleton().getMimeTypeFromExtension(extension)
+      ?: "application/octet-stream"
 
   private companion object {
     val STANDARD_SUBTITLE_EXTENSIONS = setOf("srt", "ass", "ssa", "vtt", "sub")

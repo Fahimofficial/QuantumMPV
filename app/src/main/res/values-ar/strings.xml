@@ -532,6 +532,7 @@
   <string name="notification_repeat_one">تكرار عنصر واحد</string>
   <string name="notification_repeat_all">تكرار الكل</string>
   <string name="notification_chapter_counter">الفصل %1$d من %2$d</string>
+  <string name="notification_playback_progress">انقضى %1$s - متبقٍ %2$s</string>
   <string name="notification_permission_denied">يلزم إذن الإشعارات لعناصر تحكم التشغيل في الخلفية.</string>
   <string name="notification_permission_disabled">الإشعارات معطّلة لـ mpvRx. فعّلها لإظهار عناصر تحكم التشغيل.</string>
   <string name="notification_disabled_in_advanced_settings">قم بتمكين الإشعارات من الإعدادات المتقدمة لاستخدام التشغيل في الخلفية.</string>
@@ -1186,6 +1187,7 @@
   <string name="ui_play">تشغيل</string>
   <string name="ui_settings">الإعدادات</string>
   <string name="ui_pin_folders">تثبيت المجلدات</string>
+  <string name="ui_unpin_folders">إلغاء تثبيت المجلدات</string>
   <string name="ui_add_to_playlist">إضافة إلى قائمة التشغيل</string>
   <string name="ui_copy_path">نسخ المسار</string>
   <string name="ui_add_network_connection">إضافة اتصال شبكة</string>
@@ -2196,4 +2198,5 @@
   <string name="pref_appearance_custom_theme_new">سمة مخصصة جديدة</string><string name="pref_appearance_custom_theme_edit_title">تعديل السمة المخصصة</string><string name="pref_appearance_custom_theme_preview">معاينة</string><string name="pref_appearance_custom_theme_live_preview">معاينة مباشرة</string><string name="pref_appearance_custom_theme_name_required">أدخل اسم السمة</string><string name="pref_appearance_custom_theme_name_duplicate">توجد سمة بهذا الاسم بالفعل</string><string name="pref_appearance_custom_theme_hex_invalid">استخدم لونًا سداسيًا مثل #6750A4</string><string name="pref_appearance_custom_wallpaper_adjust">ضبط</string><string name="pref_appearance_custom_wallpaper_gesture_hint">اسحب لتغيير الموضع. قرّب بإصبعين للتكبير.</string><string name="pref_appearance_custom_wallpaper_reset">إعادة تعيين</string>
   <string name="pref_appearance_custom_theme_light_secondary">اللون الثانوي الفاتح</string><string name="pref_appearance_custom_theme_dark_secondary">اللون الثانوي الداكن</string><string name="pref_appearance_custom_theme_light_tertiary">اللون الثالث الفاتح</string><string name="pref_appearance_custom_theme_dark_tertiary">اللون الثالث الداكن</string>
   <string name="pref_appearance_custom_wallpaper_fit">احتواء</string><string name="pref_appearance_custom_wallpaper_fill">ملء</string><string name="pref_appearance_custom_wallpaper_replace_action">استبدال</string><string name="pref_appearance_custom_wallpaper_clear_action">مسح</string>
+  <string name="wallpaper_save_failed">تعذر حفظ الخلفية. يرجى اختيار الصورة مرة أخرى.</string>
 </resources>

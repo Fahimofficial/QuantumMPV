@@ -861,7 +861,7 @@ internal fun VideoListContent(
   val manualGridColumnsEnabled by browserPreferences.manualGridColumnsEnabled.collectAsState()
   val videoGridColumnsPortrait by browserPreferences.videoGridColumnsPortrait.collectAsState()
   val videoGridColumnsLandscape by browserPreferences.videoGridColumnsLandscape.collectAsState()
-  val aspect = 16f / 9f
+  val aspect = if (isAudio) 1f else if (mediaLayoutMode == MediaLayoutMode.GRID) 16f / 10f else 16f / 9f
 
   val videoCardUiConfig =
     remember(
@@ -933,7 +933,7 @@ internal fun VideoListContent(
         val isLandscape = configuration.orientation == android.content.res.Configuration.ORIENTATION_LANDSCAPE
         val videoGridColumnsPref = if (isLandscape) videoGridColumnsLandscape else videoGridColumnsPortrait
         val contentHorizontalPadding = 8.dp
-        val itemSpacing = 4.dp
+        val itemSpacing = 2.dp
         val usableWidth = maxWidth - (contentHorizontalPadding * 2) - itemSpacing
         val videoGridColumns =
           if (isAudio) {
@@ -942,7 +942,12 @@ internal fun VideoListContent(
           } else if (manualGridColumnsEnabled) {
             videoGridColumnsPref.coerceAtLeast(1)
           } else {
-            val videoMinWidth = 130.dp
+            val videoMinWidth =
+              if (com.quantummpv.app.utils.device.DeviceFormFactor.isTelevision(LocalContext.current)) {
+                240.dp
+              } else {
+                130.dp
+              }
             (usableWidth / videoMinWidth).toInt().coerceAtLeast(1)
           }
 
@@ -950,7 +955,9 @@ internal fun VideoListContent(
         // otherwise the cache keys won't line up and the UI won't receive updates.
         val thumbWidthDp =
           if (mediaLayoutMode == MediaLayoutMode.GRID) {
-            (usableWidth / videoGridColumns)
+            val cellWidth =
+              (maxWidth - contentHorizontalPadding * 2 - itemSpacing * (videoGridColumns - 1)) / videoGridColumns
+            (cellWidth - 16.dp).coerceAtLeast(1.dp)
           } else if (isAudio) {
             // List mode for audio folders uses the configurable cover-art size instead of the
             // fixed video thumbnail width, so the Music sort dialog's slider has any effect here.
@@ -1134,10 +1141,11 @@ internal fun VideoListContent(
                   PaddingValues(
                     start = 8.dp,
                     end = 8.dp,
-                    bottom = bottomPadding,
+                    top = 8.dp,
+                    bottom = bottomPadding + 8.dp,
                   ),
-                horizontalArrangement = Arrangement.spacedBy(4.dp),
-                verticalArrangement = Arrangement.spacedBy(4.dp),
+                horizontalArrangement = Arrangement.spacedBy(2.dp),
+                verticalArrangement = Arrangement.spacedBy(2.dp),
               ) {
                 items(
                   count = videosWithInfo.size,

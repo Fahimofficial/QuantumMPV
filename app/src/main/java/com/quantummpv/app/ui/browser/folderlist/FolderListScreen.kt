@@ -946,6 +946,19 @@ object FolderListScreen : Screen {
             onRenameClick = { renameDialogOpen = true },
             onDeleteClick = { pendingDeleteFolders = selectionManager.getSelectedItems() },
             onAddToPlaylistClick = { },
+            onPinClick = {
+              val selectedFolders = selectionManager.getSelectedItems()
+              if (selectedFolders.isNotEmpty()) {
+                val pinned = foldersPreferences.pinnedFolders.get()
+                val paths = selectedFolders.map { it.path }.toSet()
+                foldersPreferences.pinnedFolders.set(if (pinned.containsAll(paths)) pinned - paths else pinned + paths)
+                selectionManager.clear()
+              }
+            },
+            unpinSelected =
+              selectionManager.getSelectedItems().let { selected ->
+                selected.isNotEmpty() && selected.all { it.path in pinnedFolderPaths }
+              },
             showCopy = true,
             showMove = true,
             showRename = selectionManager.isSingleSelection,
@@ -1314,29 +1327,15 @@ private fun GridContent(
 
   BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
     val browserPreferences = org.koin.compose.koinInject<com.quantummpv.app.preferences.BrowserPreferences>()
-    val manualGridColumnsEnabled by browserPreferences.manualGridColumnsEnabled.collectAsState()
-    val folderGridColumnsPortrait by browserPreferences.folderGridColumnsPortrait.collectAsState()
-    val folderGridColumnsLandscape by browserPreferences.folderGridColumnsLandscape.collectAsState()
-
     val configuration = androidx.compose.ui.platform.LocalConfiguration.current
-    val isLandscape = configuration.orientation == android.content.res.Configuration.ORIENTATION_LANDSCAPE
-    val folderGridColumnsPref = if (isLandscape) folderGridColumnsLandscape else folderGridColumnsPortrait
 
     val isTablet = configuration.smallestScreenWidthDp >= 600
     val dualPaneForTablet by browserPreferences.dualPaneForTablet.collectAsState()
     val isDualPaneActive = isTablet && dualPaneForTablet
     val isDualPane = isDualPaneActive && selectedFolderBucketId != null
 
-    val computedColumns =
-      if (manualGridColumnsEnabled) {
-        folderGridColumnsPref.coerceAtLeast(1)
-      } else {
-        val contentHorizontalPadding = 8.dp
-        val itemSpacing = 2.dp
-        val usableWidth = maxWidth - (contentHorizontalPadding * 2) - itemSpacing
-        val folderMinWidth = 100.dp
-        (usableWidth / folderMinWidth).toInt().coerceAtLeast(1)
-      }
+    val spansInfo = calculateResponsiveGridSpans(maxWidth = maxWidth)
+    val computedColumns = spansInfo.spans / spansInfo.folderSpan
 
     LazyVerticalGrid(
       columns = GridCells.Fixed(computedColumns),
@@ -1346,7 +1345,8 @@ private fun GridContent(
         PaddingValues(
           start = 8.dp,
           end = 8.dp,
-          bottom = navigationBarHeight,
+          top = 8.dp,
+          bottom = navigationBarHeight + 8.dp,
         ),
       horizontalArrangement = Arrangement.spacedBy(2.dp),
       verticalArrangement = Arrangement.spacedBy(2.dp),

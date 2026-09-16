@@ -670,6 +670,8 @@ object MediaFileRepository : KoinComponent {
         }
 
         Result.success(items)
+      } catch (error: kotlinx.coroutines.CancellationException) {
+        throw error
       } catch (e: SecurityException) {
         Log.e(TAG, "Security exception scanning directory: $path", e)
         Result.failure(Exception("Permission denied: ${e.message}"))

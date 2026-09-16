@@ -2932,7 +2932,7 @@ val isBrightnessSliderShown = MutableStateFlow(false)
         mpvPathToUriMap[mpvPath] = uri.toString()
 
         withContext(Dispatchers.Main) {
-          PlaybackSession.command("sub-add", mpvPath, mode)
+          PlaybackSession.command("sub-add", mpvPath, mode, fileName)
         }
 
         // Track external subtitle URI for persistence

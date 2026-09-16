@@ -1236,6 +1236,7 @@ private fun FileSystemBrowserContent(
   val browserPreferences = koinInject<BrowserPreferences>()
   val appearancePreferences = koinInject<AppearancePreferences>()
   val thumbnailRepository = koinInject<com.quantummpv.app.domain.thumbnail.ThumbnailRepository>()
+  val mediaLayoutMode by browserPreferences.mediaLayoutMode.collectAsState()
   val tapThumbnailToSelect by gesturePreferences.tapThumbnailToSelect.collectAsState()
   val showVideoThumbnails by browserPreferences.showVideoThumbnails.collectAsState()
   val unlimitedNameLines by appearancePreferences.unlimitedNameLines.collectAsState()
@@ -1289,7 +1290,7 @@ private fun FileSystemBrowserContent(
   // Calculate thumbnail dimensions for list mode
   val thumbWidthDp = 160.dp
   val density = androidx.compose.ui.platform.LocalDensity.current
-  val aspect = 16f / 9f
+  val aspect = if (mediaLayoutMode == MediaLayoutMode.GRID) 16f / 10f else 16f / 9f
   val thumbWidthPx = with(density) { thumbWidthDp.roundToPx() }
   val thumbHeightPx = ((thumbWidthPx.toFloat() / aspect).toInt())
 
@@ -1380,7 +1381,6 @@ private fun FileSystemBrowserContent(
         label = "scrollbarAlpha",
       )
 
-      val mediaLayoutMode by browserPreferences.mediaLayoutMode.collectAsState()
       val isGridMode = mediaLayoutMode == com.quantummpv.app.preferences.MediaLayoutMode.GRID
 
       val folderItems = remember(items) { items.filterIsInstance<FileSystemItem.Folder>() }

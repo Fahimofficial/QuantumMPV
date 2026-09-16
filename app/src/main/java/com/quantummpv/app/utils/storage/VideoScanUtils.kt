@@ -21,6 +21,8 @@ import android.util.Log
 import com.quantummpv.app.database.repository.VideoMetadataCacheRepository
 import com.quantummpv.app.domain.media.model.Video
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.currentCoroutineContext
+import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.withContext
 import org.koin.core.component.KoinComponent
 import org.koin.core.component.inject
@@ -73,6 +75,7 @@ object VideoScanUtils : KoinComponent {
           v.duration <= 0L && v.path.substringAfterLast('.').lowercase() in MEDIASTORE_DURATION_UNRELIABLE
         }
       for (key in zeroTsKeys) {
+        currentCoroutineContext().ensureActive()
         val v = videosMap[key] ?: continue
         try {
           val file = File(v.path)
@@ -85,6 +88,8 @@ object VideoScanUtils : KoinComponent {
                 durationFormatted = formatDuration(meta.durationMs),
               )
           }
+        } catch (error: kotlinx.coroutines.CancellationException) {
+          throw error
         } catch (_: Exception) {
         }
       }
@@ -105,7 +110,7 @@ object VideoScanUtils : KoinComponent {
   /**
    * Scan videos from MediaStore
    */
-  private fun scanVideosFromMediaStore(
+  private suspend fun scanVideosFromMediaStore(
     context: Context,
     folderPath: String,
     videosMap: MutableMap<String, Video>,
@@ -151,7 +156,8 @@ object VideoScanUtils : KoinComponent {
           val heightColumn = cursor.getColumnIndexOrThrow(MediaStore.Video.Media.HEIGHT)
 
           while (cursor.moveToNext()) {
-            val path = cursor.getString(dataColumn)
+            currentCoroutineContext().ensureActive()
+            val path = cursor.getString(dataColumn)?.takeIf { it.isNotBlank() } ?: continue
             val file = File(path)
             val normalizedPath = normalizeStoragePath(path) ?: continue
 
@@ -162,7 +168,7 @@ object VideoScanUtils : KoinComponent {
             if (noMediaPathFilter.shouldExcludeDirectory(file.parentFile)) continue
 
             val id = cursor.getLong(idColumn)
-            val displayName = cursor.getString(nameColumn)
+            val displayName = cursor.getString(nameColumn)?.takeIf { it.isNotBlank() } ?: file.name
             val title = file.nameWithoutExtension
             val size = cursor.getLong(sizeColumn)
             val duration = cursor.getLong(durationColumn)
@@ -204,12 +210,14 @@ object VideoScanUtils : KoinComponent {
               )
           }
         }
+    } catch (error: kotlinx.coroutines.CancellationException) {
+      throw error
     } catch (e: Exception) {
       Log.e(TAG, "MediaStore video scan error", e)
     }
   }
 
-  private fun scanAudioFromMediaStore(
+  private suspend fun scanAudioFromMediaStore(
     context: Context,
     folderPath: String,
     videosMap: MutableMap<String, Video>,
@@ -252,8 +260,10 @@ object VideoScanUtils : KoinComponent {
           val mimeColumn = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.MIME_TYPE)
 
           while (cursor.moveToNext()) {
-            val path = cursor.getString(dataColumn) ?: continue
+            currentCoroutineContext().ensureActive()
+            val path = cursor.getString(dataColumn)?.takeIf { it.isNotBlank() } ?: continue
             val file = File(path)
+            if (!file.isFile) continue
             if (!areEquivalentStoragePaths(file.parent, normalizedFolderPath)) continue
             if (noMediaPathFilter.shouldExcludeDirectory(file.parentFile)) continue
             if (!FileTypeUtils.isAudioFile(file)) continue
@@ -290,6 +300,8 @@ object VideoScanUtils : KoinComponent {
               )
           }
         }
+    } catch (error: kotlinx.coroutines.CancellationException) {
+      throw error
     } catch (e: Exception) {
       Log.e(TAG, "MediaStore audio scan error", e)
     }
@@ -310,6 +322,7 @@ object VideoScanUtils : KoinComponent {
       val filesToProcess = mutableListOf<File>()
 
       for (file in files) {
+        currentCoroutineContext().ensureActive()
         if (!file.isFile) continue
         if (FileFilterUtils.shouldSkipFile(file, options, noMediaPathFilter)) continue
 
@@ -332,6 +345,7 @@ object VideoScanUtils : KoinComponent {
         )
 
       for (file in filesToProcess) {
+        currentCoroutineContext().ensureActive()
         try {
           val path = normalizeStoragePath(file.absolutePath) ?: continue
           val videoKey = mediaPathKey(path) ?: path
@@ -371,10 +385,14 @@ object VideoScanUtils : KoinComponent {
               subtitleCodec = cachedMetadata?.subtitleCodec ?: "",
               isAudio = isAudio,
             )
+        } catch (error: kotlinx.coroutines.CancellationException) {
+          throw error
         } catch (e: Exception) {
           Log.w(TAG, "Error processing file: ${file.absolutePath}", e)
         }
       }
+    } catch (error: kotlinx.coroutines.CancellationException) {
+      throw error
     } catch (e: Exception) {
       Log.e(TAG, "Filesystem video scan error", e)
     }

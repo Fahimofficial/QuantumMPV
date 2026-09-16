@@ -234,22 +234,17 @@ fun VideoCard(
 
       if (isGridMode) {
         val centerGridTitles = resolvedUiConfig.centerGridTitles
-        val horizontalAlignment =
-          if (gridColumns == 1) {
-            Alignment.Start
-          } else {
-            if (centerGridTitles) Alignment.CenterHorizontally else Alignment.Start
-          }
+        val horizontalAlignment = if (centerGridTitles) Alignment.CenterHorizontally else Alignment.Start
         // GRID LAYOUT - Vertical arrangement
         Column(
           modifier =
             Modifier
               .fillMaxWidth()
-              .padding(12.dp),
+              .padding(8.dp),
           horizontalAlignment = horizontalAlignment,
         ) {
           val thumbnailRepository = koinInject<ThumbnailRepository>()
-          val aspect = if (video.isAudio) 1f else 16f / 9f
+          val aspect = if (video.isAudio) 1f else 16f / 10f
           // Screens that know their grid-cell dimensions pass them here. This is
           // essential for a one-column grid, whose full-width artwork used to be
           // rendered from a fixed 160 dp thumbnail.
@@ -451,11 +446,7 @@ fun VideoCard(
           Text(
             text = displayName,
             style =
-              if (useFolderNameStyle) {
-                MaterialTheme.typography.titleSmall
-              } else {
-                if (gridColumns == 1) MaterialTheme.typography.titleMedium else MaterialTheme.typography.titleSmall
-              }.let { baseStyle ->
+              MaterialTheme.typography.titleMedium.let { baseStyle ->
                 if (isRecentlyPlayed) baseStyle.copy(fontStyle = FontStyle.Italic) else baseStyle
               },
             color =
@@ -468,30 +459,22 @@ fun VideoCard(
               },
             maxLines = maxLines,
             overflow = TextOverflow.Ellipsis,
-            textAlign =
-              if (useFolderNameStyle) {
-                if (centerGridTitles) TextAlign.Center else TextAlign.Start
-              } else {
-                if (gridColumns == 1) {
-                  TextAlign.Start
-                } else {
-                  if (centerGridTitles) TextAlign.Center else TextAlign.Start
-                }
-              },
+            textAlign = if (centerGridTitles) TextAlign.Center else TextAlign.Start,
           )
-          if (gridColumns == 1) {
+          if (
+            showSizeChip || showDateChip ||
+            (!video.isAudio && (showResolutionChip || showFramerateInResolution || showSubtitleIndicator))
+          ) {
             Spacer(modifier = Modifier.height(4.dp))
             FlowRow(
+              modifier = Modifier.fillMaxWidth(),
               horizontalArrangement =
                 androidx.compose.foundation.layout.Arrangement
-                  .spacedBy(4.dp),
+                  .spacedBy(4.dp, if (centerGridTitles) Alignment.CenterHorizontally else Alignment.Start),
               verticalArrangement =
                 androidx.compose.foundation.layout.Arrangement
                   .spacedBy(4.dp),
             ) {
-              if (showCodecSupportIndicator && !video.isAudio && video.videoCodec.isNotBlank()) {
-                CodecSupportIndicator(video = video)
-              }
               if (showSubtitleIndicator && !video.isAudio) {
                 if (video.hasEmbeddedSubtitles && video.subtitleCodec.isNotBlank()) {
                   video.subtitleCodec.split(" ").forEach { codec ->
@@ -547,7 +530,7 @@ fun VideoCard(
                     color = MaterialTheme.colorScheme.onSurface,
                   )
                 }
-              } else if (showFramerateInResolution && hasFps) {
+              } else if (!video.isAudio && showFramerateInResolution && hasFps) {
                 Text(
                   "$fpsOnly FPS",
                   style = MaterialTheme.typography.labelSmall,

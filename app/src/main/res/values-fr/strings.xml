@@ -532,6 +532,7 @@ Suivant : NEXT</string>
   <string name="notification_repeat_one">Répéter un titre</string>
   <string name="notification_repeat_all">Tout répéter</string>
   <string name="notification_chapter_counter">Chapitre %1$d sur %2$d</string>
+  <string name="notification_playback_progress">%1$s écoulées - %2$s restantes</string>
   <string name="notification_permission_denied">L’autorisation des notifications est requise pour les commandes de lecture en arrière-plan.</string>
   <string name="notification_permission_disabled">Les notifications sont désactivées pour mpvRx. Activez-les pour afficher les commandes de lecture.</string>
   <string name="notification_disabled_in_advanced_settings">Activez les notifications dans les paramètres avancés pour utiliser la lecture en arrière-plan.</string>
@@ -1186,6 +1187,7 @@ Veuillez redémarrer l’application pour appliquer toutes les modifications.</s
   <string name="ui_play">Lire</string>
   <string name="ui_settings">Paramètres</string>
   <string name="ui_pin_folders">Épingler des dossiers</string>
+  <string name="ui_unpin_folders">Désépingler les dossiers</string>
   <string name="ui_add_to_playlist">Ajouter à la liste de lecture</string>
   <string name="ui_copy_path">Copier le chemin</string>
   <string name="ui_add_network_connection">Ajouter une connexion réseau</string>
@@ -2182,4 +2184,5 @@ Veuillez redémarrer l’application pour appliquer toutes les modifications.</s
   <string name="pref_appearance_custom_theme_new">Nouveau thème personnalisé</string><string name="pref_appearance_custom_theme_edit_title">Modifier le thème personnalisé</string><string name="pref_appearance_custom_theme_preview">Aperçu</string><string name="pref_appearance_custom_theme_live_preview">Aperçu en direct</string><string name="pref_appearance_custom_theme_name_required">Saisissez un nom de thème</string><string name="pref_appearance_custom_theme_name_duplicate">Un thème porte déjà ce nom</string><string name="pref_appearance_custom_theme_hex_invalid">Utilisez une couleur hexadécimale comme #6750A4</string><string name="pref_appearance_custom_wallpaper_adjust">Ajuster</string><string name="pref_appearance_custom_wallpaper_gesture_hint">Faites glisser pour déplacer. Pincez pour zoomer.</string><string name="pref_appearance_custom_wallpaper_reset">Réinitialiser</string>
   <string name="pref_appearance_custom_theme_light_secondary">Couleur secondaire claire</string><string name="pref_appearance_custom_theme_dark_secondary">Couleur secondaire sombre</string><string name="pref_appearance_custom_theme_light_tertiary">Couleur tertiaire claire</string><string name="pref_appearance_custom_theme_dark_tertiary">Couleur tertiaire sombre</string>
   <string name="pref_appearance_custom_wallpaper_fit">Ajuster</string><string name="pref_appearance_custom_wallpaper_fill">Remplir</string><string name="pref_appearance_custom_wallpaper_replace_action">Remplacer</string><string name="pref_appearance_custom_wallpaper_clear_action">Effacer</string>
+  <string name="wallpaper_save_failed">Impossible de sauvegarder le fond. Veuillez sélectionner à nouveau l’image.</string>
 </resources>

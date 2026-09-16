@@ -532,6 +532,7 @@ Weiter: NEXT</string>
   <string name="notification_repeat_one">Einen Titel wiederholen</string>
   <string name="notification_repeat_all">Alle wiederholen</string>
   <string name="notification_chapter_counter">Kapitel %1$d von %2$d</string>
+  <string name="notification_playback_progress">%1$s vergangen - %2$s verbleibend</string>
   <string name="notification_permission_denied">Für die Steuerung der Hintergrundwiedergabe ist die Benachrichtigungsberechtigung erforderlich.</string>
   <string name="notification_permission_disabled">Benachrichtigungen sind für mpvRx deaktiviert. Aktivieren Sie sie, um Wiedergabesteuerungen anzuzeigen.</string>
   <string name="notification_disabled_in_advanced_settings">Aktivieren Sie Benachrichtigungen in den erweiterten Einstellungen, um die Hintergrundwiedergabe zu nutzen.</string>
@@ -1186,6 +1187,7 @@ Bitte starten Sie die App neu, damit alle Änderungen wirksam werden.</string>
   <string name="ui_play">Abspielen</string>
   <string name="ui_settings">Einstellungen</string>
   <string name="ui_pin_folders">Ordner anheften</string>
+  <string name="ui_unpin_folders">Ordner lösen</string>
   <string name="ui_add_to_playlist">Zur Wiedergabeliste hinzufügen</string>
   <string name="ui_copy_path">Pfad kopieren</string>
   <string name="ui_add_network_connection">Netzwerkverbindung hinzufügen</string>
@@ -2182,4 +2184,5 @@ Bitte starten Sie die App neu, damit alle Änderungen wirksam werden.</string>
   <string name="pref_appearance_custom_theme_new">Neues benutzerdefiniertes Design</string><string name="pref_appearance_custom_theme_edit_title">Benutzerdefiniertes Design bearbeiten</string><string name="pref_appearance_custom_theme_preview">Vorschau</string><string name="pref_appearance_custom_theme_live_preview">Live-Vorschau</string><string name="pref_appearance_custom_theme_name_required">Designnamen eingeben</string><string name="pref_appearance_custom_theme_name_duplicate">Ein Design mit diesem Namen ist bereits vorhanden</string><string name="pref_appearance_custom_theme_hex_invalid">Hex-Farbe wie #6750A4 verwenden</string><string name="pref_appearance_custom_wallpaper_adjust">Anpassen</string><string name="pref_appearance_custom_wallpaper_gesture_hint">Zum Verschieben ziehen. Zum Zoomen zwei Finger verwenden.</string><string name="pref_appearance_custom_wallpaper_reset">Zurücksetzen</string>
   <string name="pref_appearance_custom_theme_light_secondary">Helle Sekundärfarbe</string><string name="pref_appearance_custom_theme_dark_secondary">Dunkle Sekundärfarbe</string><string name="pref_appearance_custom_theme_light_tertiary">Helle Tertiärfarbe</string><string name="pref_appearance_custom_theme_dark_tertiary">Dunkle Tertiärfarbe</string>
   <string name="pref_appearance_custom_wallpaper_fit">Einpassen</string><string name="pref_appearance_custom_wallpaper_fill">Füllen</string><string name="pref_appearance_custom_wallpaper_replace_action">Ersetzen</string><string name="pref_appearance_custom_wallpaper_clear_action">Löschen</string>
+  <string name="wallpaper_save_failed">Das Hintergrundbild konnte nicht gespeichert werden. Bitte wähle das Bild erneut aus.</string>
 </resources>

@@ -169,6 +169,31 @@ fun WallpaperImage(
 
 private const val MAX_WALLPAPER_BLUR_DP = 40f
 
+suspend fun saveWallpaperCopy(
+  context: android.content.Context,
+  sourceUri: String,
+): String = withContext(Dispatchers.IO) {
+  val directory = java.io.File(context.filesDir, "wallpapers")
+  check(directory.isDirectory || directory.mkdirs())
+  val uri = Uri.parse(sourceUri)
+  val sourceFile = if (uri.scheme.equals("file", ignoreCase = true)) uri.path?.let { java.io.File(it) } else null
+  if (sourceFile != null && sourceFile.parentFile?.canonicalFile == directory.canonicalFile && sourceFile.isFile) {
+    return@withContext sourceUri
+  }
+  val destination = java.io.File.createTempFile("wallpaper_", ".image", directory)
+  try {
+    val input = sourceFile?.inputStream() ?: context.contentResolver.openInputStream(uri)
+    requireNotNull(input).use { source ->
+      destination.outputStream().use { output -> source.copyTo(output) }
+    }
+    check(destination.length() > 0)
+    Uri.fromFile(destination).toString()
+  } catch (error: Exception) {
+    destination.delete()
+    throw error
+  }
+}
+
 fun loadWallpaperBitmap(
   context: android.content.Context,
   wallpaperUri: String,

@@ -65,6 +65,8 @@ fun BrowserBottomBar(
   onAddToPlaylistClick: () -> Unit,
   onPlayNextClick: (() -> Unit)? = null,
   onAddToQueueClick: (() -> Unit)? = null,
+  onPinClick: (() -> Unit)? = null,
+  unpinSelected: Boolean = false,
   modifier: Modifier = Modifier,
   showCopy: Boolean = true,
   showMove: Boolean = true,
@@ -85,6 +87,8 @@ fun BrowserBottomBar(
   var lastShowAddToPlaylist by remember { mutableStateOf(showAddToPlaylist) }
   var lastShowPlayNext by remember { mutableStateOf(onPlayNextClick != null) }
   var lastShowAddToQueue by remember { mutableStateOf(onAddToQueueClick != null) }
+  var lastShowPin by remember { mutableStateOf(onPinClick != null) }
+  var lastUnpinSelected by remember { mutableStateOf(unpinSelected) }
 
   if (isSelectionMode) {
     lastShowCopy = showCopy
@@ -95,6 +99,8 @@ fun BrowserBottomBar(
     lastShowAddToPlaylist = showAddToPlaylist
     lastShowPlayNext = onPlayNextClick != null
     lastShowAddToQueue = onAddToQueueClick != null
+    lastShowPin = onPinClick != null
+    lastUnpinSelected = unpinSelected
   }
 
   val effectiveShowCopy = if (isSelectionMode) showCopy else lastShowCopy
@@ -105,6 +111,8 @@ fun BrowserBottomBar(
   val effectiveShowAddToPlaylist = if (isSelectionMode) showAddToPlaylist else lastShowAddToPlaylist
   val effectiveShowPlayNext = if (isSelectionMode) onPlayNextClick != null else lastShowPlayNext
   val effectiveShowAddToQueue = if (isSelectionMode) onAddToQueueClick != null else lastShowAddToQueue
+  val effectiveShowPin = if (isSelectionMode) onPinClick != null else lastShowPin
+  val effectiveUnpinSelected = if (isSelectionMode) unpinSelected else lastUnpinSelected
 
   AnimatedVisibility(
     visible = isSelectionMode,
@@ -138,6 +146,7 @@ fun BrowserBottomBar(
           effectiveShowRename,
           effectiveShowPlayNext,
           effectiveShowAddToQueue,
+          effectiveShowPin,
           effectiveShowAddToPlaylist,
           effectiveShowDelete,
         ).count { it }
@@ -299,6 +308,20 @@ fun BrowserBottomBar(
             onAddToPlaylistClick,
             Icons.RoundedFilled.PlaylistAdd,
             "Add to Playlist",
+            layoutParams.buttonSize,
+            layoutParams.iconSize,
+          )
+          BrowserBottomBarButton(
+            effectiveShowPin,
+            onPinClick ?: {},
+            Icons.RoundedFilled.PushPin,
+            androidx.compose.ui.res.stringResource(
+              if (effectiveUnpinSelected) {
+                com.quantummpv.app.R.string.ui_unpin_folders
+              } else {
+                com.quantummpv.app.R.string.ui_pin_folders
+              },
+            ),
             layoutParams.buttonSize,
             layoutParams.iconSize,
           )

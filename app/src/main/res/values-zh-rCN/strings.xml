@@ -534,6 +534,7 @@
   <string name="notification_repeat_one">单曲循环</string>
   <string name="notification_repeat_all">全部循环</string>
   <string name="notification_chapter_counter">第 %1$d 章，共 %2$d 章</string>
+  <string name="notification_playback_progress">已播放 %1$s - 剩余 %2$s</string>
   <string name="notification_permission_denied">后台播放控制需要通知权限。</string>
   <string name="notification_permission_disabled">mpvRx 的通知已禁用。请启用通知以显示播放控制。</string>
   <string name="notification_disabled_in_advanced_settings">请在高级设置中启用通知以使用后台播放。</string>
@@ -1187,6 +1188,7 @@
   <string name="ui_play">播放</string>
   <string name="ui_settings">设置</string>
   <string name="ui_pin_folders">固定文件夹</string>
+  <string name="ui_unpin_folders">取消固定文件夹</string>
   <string name="ui_add_to_playlist">添加到播放列表</string>
   <string name="ui_copy_path">复制路径</string>
   <string name="ui_add_network_connection">添加网络连接</string>
@@ -2180,4 +2182,5 @@
   <string name="pref_appearance_custom_theme_new">新建自定义主题</string><string name="pref_appearance_custom_theme_edit_title">编辑自定义主题</string><string name="pref_appearance_custom_theme_preview">预览</string><string name="pref_appearance_custom_theme_live_preview">实时预览</string><string name="pref_appearance_custom_theme_name_required">请输入主题名称</string><string name="pref_appearance_custom_theme_name_duplicate">已存在同名主题</string><string name="pref_appearance_custom_theme_hex_invalid">请使用类似 #6750A4 的十六进制颜色</string><string name="pref_appearance_custom_wallpaper_adjust">调整</string><string name="pref_appearance_custom_wallpaper_gesture_hint">拖动以调整位置，双指捏合以缩放。</string><string name="pref_appearance_custom_wallpaper_reset">重置</string>
   <string name="pref_appearance_custom_theme_light_secondary">浅色辅助色</string><string name="pref_appearance_custom_theme_dark_secondary">深色辅助色</string><string name="pref_appearance_custom_theme_light_tertiary">浅色第三色</string><string name="pref_appearance_custom_theme_dark_tertiary">深色第三色</string>
   <string name="pref_appearance_custom_wallpaper_fit">适应</string><string name="pref_appearance_custom_wallpaper_fill">填充</string><string name="pref_appearance_custom_wallpaper_replace_action">替换</string><string name="pref_appearance_custom_wallpaper_clear_action">清除</string>
+  <string name="wallpaper_save_failed">无法保存壁纸，请重新选择图片。</string>
 </resources>

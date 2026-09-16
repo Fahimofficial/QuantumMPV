@@ -74,10 +74,16 @@ fun getTrackTitle(track: TrackNode): String {
   val hasTitle = !title.isNullOrBlank()
   val hasLang = !lang.isNullOrBlank()
 
-  if (track.isSubtitle && track.external == true && !hasTitle && !hasLang && track.externalFilename != null) {
-    val decoded = Uri.decode(track.externalFilename)
-    val fileName = decoded.substringAfterLast("/")
-    return stringResource(R.string.player_sheets_track_title_wo_lang, track.id, fileName)
+  if (track.isSubtitle && track.external == true) {
+    val fileName =
+      track.externalFilename
+        ?.takeUnless { it.startsWith("fd://") || it.startsWith("content://") }
+        ?.let { Uri.decode(it).substringAfterLast('/').substringAfterLast('\\') }
+        ?.takeIf { it.isNotBlank() }
+    val externalTitle = title?.takeIf { it.isNotBlank() } ?: fileName
+    if (externalTitle != null) {
+      return if (hasLang) "$externalTitle ($lang)" else externalTitle
+    }
   }
 
   return when {

@@ -1414,7 +1414,12 @@ class MediaPlaybackService :
   private fun playbackTimeText(): String {
     val positionSeconds = sanitizedPositionMs() / 1000.0
     val durationSeconds = sanitizedDurationMs() / 1000.0
-    return "${formatSeconds(positionSeconds)} / ${formatSeconds(durationSeconds)}"
+    if (durationSeconds <= 0.0) return formatSeconds(positionSeconds)
+    return getString(
+      R.string.notification_playback_progress,
+      formatSeconds(positionSeconds),
+      formatSeconds((durationSeconds - positionSeconds).coerceAtLeast(0.0)),
+    )
   }
 
   private fun refreshNotificationPalette() {
@@ -1462,7 +1467,13 @@ class MediaPlaybackService :
    */
   private fun buildModernNotification(): Notification {
     val (maximum, position) = notificationProgress()
-    val style = NotificationCompat.ProgressStyle().setStyledByProgress(false)
+    val style = NotificationCompat.ProgressStyle().setStyledByProgress(true)
+    val appIcon = androidx.core.graphics.drawable.IconCompat.createWithResource(this, R.drawable.ic_launcher_monochrome)
+    style.setProgressStartIcon(
+      thumbnail?.takeUnless { it.isRecycled }
+        ?.let { androidx.core.graphics.drawable.IconCompat.createWithBitmap(it) } ?: appIcon,
+    )
+    style.setProgressEndIcon(appIcon)
 
     if (maximum <= 0) {
       style.addProgressSegment(
@@ -1478,23 +1489,20 @@ class MediaPlaybackService :
           if (maximum > 1) {
             chapters.forEach { chapter ->
               chapter.time
-                .takeIf { it.isFinite() && it > 0f }
-                ?.let { time -> add(time.toInt().coerceIn(1, maximum - 1)) }
+                .takeIf { it.isFinite() && it >= 1f && it < maximum }
+                ?.let { time -> add(time.toInt()) }
             }
           }
           add(maximum)
         }.distinct().sorted()
 
       chapterBoundaries.zipWithNext().forEach { (start, end) ->
-        val color =
-          when {
-            end <= position -> accentColorDone
-            start <= position -> accentColor
-            else -> accentColorDim
-          }
         style.addProgressSegment(
-          NotificationCompat.ProgressStyle.Segment(end - start).setColor(color),
+          NotificationCompat.ProgressStyle.Segment(end - start).setColor(accentColor),
         )
+        if (start > 0) {
+          style.addProgressPoint(NotificationCompat.ProgressStyle.Point(start).setColor(accentColor))
+        }
       }
       style.setProgress(position)
     }
@@ -1504,9 +1512,8 @@ class MediaPlaybackService :
         .Builder(this, NOTIFICATION_CHANNEL_ID)
         .setSmallIcon(R.drawable.ic_launcher_monochrome)
         .setContentTitle(mediaTitle.ifBlank { getString(R.string.player_unknown_video) })
-        .setContentText(chapterContentText())
-        .setSubText(chapterLabel())
-        .setLargeIcon(thumbnail)
+        .setContentText(playbackTimeText())
+        .setSubText(if (chapters.isEmpty()) chapterContentText() else "${chapterLabel()}: ${chapterContentText()}")
         .setContentIntent(buildContentIntent())
         .setDeleteIntent(buildTransportIntent(ACTION_NOTIFICATION_STOP, 1005))
         .setOngoing(!paused)
@@ -1535,7 +1542,9 @@ class MediaPlaybackService :
       builder.setShowWhen(false)
     }
     builder.setStyle(style)
-    builder.setShortCriticalText(formatSeconds(currentPositionSeconds))
+    builder.setShortCriticalText(
+      if (maximum > 0) "${position.toLong() * 100 / maximum}%" else formatSeconds(currentPositionSeconds),
+    )
 
     return builder.build()
   }

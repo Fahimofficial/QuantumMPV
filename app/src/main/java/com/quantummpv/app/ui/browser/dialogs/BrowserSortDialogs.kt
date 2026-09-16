@@ -80,8 +80,10 @@ fun FolderSortDialog(
   val usableFolderWidth = folderPaneWidth - (contentHorizontalPadding * 2) - itemSpacing
   val usableVideoWidth = videoPaneWidth - (contentHorizontalPadding * 2) - itemSpacing
 
-  val folderMinWidth = 100.dp
-  val videoMinWidth = 130.dp
+  val isTelevision =
+    com.quantummpv.app.utils.device.DeviceFormFactor.isTelevision(androidx.compose.ui.platform.LocalContext.current)
+  val folderMinWidth = if (isTelevision) 160.dp else 90.dp
+  val videoMinWidth = if (isTelevision) 240.dp else 130.dp
   val dynamicFolderColumns = (usableFolderWidth / folderMinWidth).toInt().coerceIn(1, maxColumns)
   val dynamicVideoColumns = (usableVideoWidth / videoMinWidth).toInt().coerceIn(1, maxColumns)
 
@@ -243,6 +245,7 @@ fun FolderSortDialog(
             label = "Path",
             checked = showFolderPath,
             onCheckedChange = { browserPreferences.showFolderPath.set(it) },
+            enabled = activeLayoutMode == MediaLayoutMode.LIST,
           ),
         )
         add(
@@ -264,6 +267,7 @@ fun FolderSortDialog(
             label = "Folder Size",
             checked = showTotalSizeChip,
             onCheckedChange = { browserPreferences.showTotalSizeChip.set(it) },
+            enabled = activeLayoutMode == MediaLayoutMode.LIST,
           ),
         )
         add(
@@ -271,6 +275,7 @@ fun FolderSortDialog(
             label = "Date",
             checked = showDateChip,
             onCheckedChange = { browserPreferences.showDateChip.set(it) },
+            enabled = activeLayoutMode == MediaLayoutMode.LIST,
           ),
         )
         if (activeLayoutMode == MediaLayoutMode.GRID) {
@@ -370,8 +375,10 @@ fun VideoSortDialog(
   val usableFolderWidth = folderPaneWidth - (contentHorizontalPadding * 2) - itemSpacing
   val usableVideoWidth = videoPaneWidth - (contentHorizontalPadding * 2) - itemSpacing
 
-  val folderMinWidth = 100.dp
-  val videoMinWidth = 130.dp
+  val isTelevision =
+    com.quantummpv.app.utils.device.DeviceFormFactor.isTelevision(androidx.compose.ui.platform.LocalContext.current)
+  val folderMinWidth = if (isTelevision) 160.dp else 90.dp
+  val videoMinWidth = if (isTelevision) 240.dp else 130.dp
   val dynamicFolderColumns = (usableFolderWidth / folderMinWidth).toInt().coerceIn(1, maxColumns)
   val dynamicVideoColumns = (usableVideoWidth / videoMinWidth).toInt().coerceIn(1, maxColumns)
 
@@ -589,7 +596,7 @@ fun VideoSortDialog(
             onCheckedChange = { browserPreferences.showProgressBar.set(it) },
           ),
         )
-        if (mediaLayoutMode == MediaLayoutMode.GRID) {
+        if (activeLayoutMode == MediaLayoutMode.GRID) {
           add(
             VisibilityToggle(
               label = "Manual Grid Columns",
@@ -665,8 +672,10 @@ fun FileSystemSortDialog(
   val contentHorizontalPadding = 8.dp
   val itemSpacing = 2.dp
   val usableWidth = screenWidthDp - (contentHorizontalPadding * 2) - itemSpacing
-  val folderMinWidth = 100.dp
-  val videoMinWidth = 130.dp
+  val isTelevision =
+    com.quantummpv.app.utils.device.DeviceFormFactor.isTelevision(androidx.compose.ui.platform.LocalContext.current)
+  val folderMinWidth = if (isTelevision) 160.dp else 90.dp
+  val videoMinWidth = if (isTelevision) 240.dp else 130.dp
   val dynamicFolderColumns = (usableWidth / folderMinWidth).toInt().coerceIn(1, maxColumns)
   val dynamicVideoColumns = (usableWidth / videoMinWidth).toInt().coerceIn(1, maxColumns)
 
@@ -827,6 +836,7 @@ fun FileSystemSortDialog(
             label = "Path",
             checked = showFolderPath,
             onCheckedChange = { browserPreferences.showFolderPath.set(it) },
+            enabled = mediaLayoutMode == MediaLayoutMode.LIST,
           ),
         )
         add(
@@ -841,6 +851,7 @@ fun FileSystemSortDialog(
             label = "Folder Size",
             checked = showTotalSizeChip,
             onCheckedChange = { browserPreferences.showTotalSizeChip.set(it) },
+            enabled = mediaLayoutMode == MediaLayoutMode.LIST,
           ),
         )
         add(

@@ -23,6 +23,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.platform.LocalLayoutDirection
@@ -56,7 +57,9 @@ internal fun ScreenNavDisplay(
   val speed by preferences.animationSpeed.collectAsState()
   val layoutDirection = LocalLayoutDirection.current
   val direction = if (layoutDirection == LayoutDirection.Ltr) 1 else -1
-  val backgroundColor = if (opaqueBackground) MaterialTheme.colorScheme.background else wallpaperAwareBackgroundColor()
+  val backgroundColor by rememberUpdatedState(
+    if (opaqueBackground) MaterialTheme.colorScheme.background else wallpaperAwareBackgroundColor(),
+  )
 
   NavDisplay(
     backStack = backStack,

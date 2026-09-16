@@ -532,6 +532,7 @@
   <string name="notification_repeat_one">1曲リピート</string>
   <string name="notification_repeat_all">全曲リピート</string>
   <string name="notification_chapter_counter">チャプター %1$d / %2$d</string>
+  <string name="notification_playback_progress">経過 %1$s - 残り %2$s</string>
   <string name="notification_permission_denied">バックグラウンド再生の操作には通知権限が必要です。</string>
   <string name="notification_permission_disabled">mpvRxの通知が無効です。再生操作を表示するには有効にしてください。</string>
   <string name="notification_disabled_in_advanced_settings">バックグラウンド再生を使用するには、高度な設定で通知を有効にしてください。</string>
@@ -1185,6 +1186,7 @@
   <string name="ui_play">再生</string>
   <string name="ui_settings">設定</string>
   <string name="ui_pin_folders">フォルダーをピン留め</string>
+  <string name="ui_unpin_folders">フォルダーのピン留めを解除</string>
   <string name="ui_add_to_playlist">プレイリストに追加</string>
   <string name="ui_copy_path">パスをコピー</string>
   <string name="ui_add_network_connection">ネットワーク接続を追加</string>
@@ -2178,4 +2180,5 @@
   <string name="pref_appearance_custom_theme_new">新しいカスタムテーマ</string><string name="pref_appearance_custom_theme_edit_title">カスタムテーマを編集</string><string name="pref_appearance_custom_theme_preview">プレビュー</string><string name="pref_appearance_custom_theme_live_preview">ライブプレビュー</string><string name="pref_appearance_custom_theme_name_required">テーマ名を入力してください</string><string name="pref_appearance_custom_theme_name_duplicate">同じ名前のテーマが既にあります</string><string name="pref_appearance_custom_theme_hex_invalid">#6750A4 のような16進カラーを使用してください</string><string name="pref_appearance_custom_wallpaper_adjust">調整</string><string name="pref_appearance_custom_wallpaper_gesture_hint">ドラッグして位置を変更。ピンチしてズーム。</string><string name="pref_appearance_custom_wallpaper_reset">リセット</string>
   <string name="pref_appearance_custom_theme_light_secondary">ライトのセカンダリカラー</string><string name="pref_appearance_custom_theme_dark_secondary">ダークのセカンダリカラー</string><string name="pref_appearance_custom_theme_light_tertiary">ライトのターシャリカラー</string><string name="pref_appearance_custom_theme_dark_tertiary">ダークのターシャリカラー</string>
   <string name="pref_appearance_custom_wallpaper_fit">全体表示</string><string name="pref_appearance_custom_wallpaper_fill">画面を埋める</string><string name="pref_appearance_custom_wallpaper_replace_action">置換</string><string name="pref_appearance_custom_wallpaper_clear_action">クリア</string>
+  <string name="wallpaper_save_failed">壁紙を保存できませんでした。画像を選び直してください。</string>
 </resources>

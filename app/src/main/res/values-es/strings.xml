@@ -532,6 +532,7 @@ Siguiente: NEXT</string>
   <string name="notification_repeat_one">Repetir uno</string>
   <string name="notification_repeat_all">Repetir todo</string>
   <string name="notification_chapter_counter">Capítulo %1$d de %2$d</string>
+  <string name="notification_playback_progress">%1$s transcurridos - %2$s restantes</string>
   <string name="notification_permission_denied">Se necesita permiso de notificaciones para los controles de reproducción en segundo plano.</string>
   <string name="notification_permission_disabled">Las notificaciones están desactivadas para mpvRx. Actívalas para mostrar los controles de reproducción.</string>
   <string name="notification_disabled_in_advanced_settings">Activa las notificaciones en los ajustes avanzados para usar la reproducción en segundo plano.</string>
@@ -1186,6 +1187,7 @@ Reinicia la aplicación para que se apliquen todos los cambios.</string>
   <string name="ui_play">Reproducir</string>
   <string name="ui_settings">Ajustes</string>
   <string name="ui_pin_folders">Fijar carpetas</string>
+  <string name="ui_unpin_folders">Desfijar carpetas</string>
   <string name="ui_add_to_playlist">Añadir a la lista de reproducción</string>
   <string name="ui_copy_path">Copiar ruta</string>
   <string name="ui_add_network_connection">Añadir conexión de red</string>
@@ -2182,4 +2184,5 @@ Reinicia la aplicación para que se apliquen todos los cambios.</string>
   <string name="pref_appearance_custom_theme_new">Nuevo tema personalizado</string><string name="pref_appearance_custom_theme_edit_title">Editar tema personalizado</string><string name="pref_appearance_custom_theme_preview">Vista previa</string><string name="pref_appearance_custom_theme_live_preview">Vista previa en vivo</string><string name="pref_appearance_custom_theme_name_required">Introduce un nombre para el tema</string><string name="pref_appearance_custom_theme_name_duplicate">Ya existe un tema con este nombre</string><string name="pref_appearance_custom_theme_hex_invalid">Usa un color hexadecimal como #6750A4</string><string name="pref_appearance_custom_wallpaper_adjust">Ajustar</string><string name="pref_appearance_custom_wallpaper_gesture_hint">Arrastra para mover. Pellizca para ampliar.</string><string name="pref_appearance_custom_wallpaper_reset">Restablecer</string>
   <string name="pref_appearance_custom_theme_light_secondary">Color secundario claro</string><string name="pref_appearance_custom_theme_dark_secondary">Color secundario oscuro</string><string name="pref_appearance_custom_theme_light_tertiary">Color terciario claro</string><string name="pref_appearance_custom_theme_dark_tertiary">Color terciario oscuro</string>
   <string name="pref_appearance_custom_wallpaper_fit">Ajustar</string><string name="pref_appearance_custom_wallpaper_fill">Rellenar</string><string name="pref_appearance_custom_wallpaper_replace_action">Reemplazar</string><string name="pref_appearance_custom_wallpaper_clear_action">Borrar</string>
+  <string name="wallpaper_save_failed">No se pudo guardar el fondo. Vuelve a seleccionar la imagen.</string>
 </resources>

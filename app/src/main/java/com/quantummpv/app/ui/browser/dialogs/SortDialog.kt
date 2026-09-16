@@ -273,10 +273,11 @@ fun SortDialog(
                     FilterChip(
                       selected = toggle.checked,
                       onClick = { toggle.onCheckedChange(!toggle.checked) },
+                      enabled = toggle.enabled,
                       label = { Text(text = toggle.label) },
                       border =
                         FilterChipDefaults.filterChipBorder(
-                          enabled = true,
+                          enabled = toggle.enabled,
                           selected = toggle.checked,
                           selectedBorderWidth = 1.dp,
                           selectedBorderColor = MaterialTheme.colorScheme.primary,
@@ -561,6 +562,7 @@ data class VisibilityToggle(
   val label: String,
   val checked: Boolean,
   val onCheckedChange: (Boolean) -> Unit,
+  val enabled: Boolean = true,
 )
 
 data class ViewModeOption(

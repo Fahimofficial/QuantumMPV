@@ -30,14 +30,19 @@ import com.quantummpv.app.utils.sort.SortUtils
 import com.quantummpv.app.utils.storage.FileTypeUtils
 import com.quantummpv.app.utils.storage.FolderViewScanner
 import com.quantummpv.app.utils.storage.TreeViewScanner
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.drop
+import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import org.koin.core.component.KoinComponent
 import org.koin.core.component.inject
 import java.io.File
@@ -117,6 +122,7 @@ class FileSystemBrowserViewModel(
 
   // Track previous item count per path to detect if folder became empty
   private val itemCountByPath = mutableMapOf<String, Int>()
+  private var directoryLoadJob: Job? = null
 
   companion object {
     private const val TAG = "FileSystemBrowserVM"
@@ -421,20 +427,21 @@ class FileSystemBrowserViewModel(
    * Main loading logic based on Fossify's getItems() and getRegularItemsOf()
    */
   private fun loadCurrentDirectory(forceFileSystemCheck: Boolean = false) {
-    viewModelScope.launch(Dispatchers.IO) {
+    directoryLoadJob?.cancel()
+    val path = _currentPath.value
+    directoryLoadJob = viewModelScope.launch {
       _isLoading.value = true
       _error.value = null
       // Don't reset the flag here - let navigation handle it
 
       try {
-        val path = _currentPath.value
-
         // Special case: Show storage roots at the special marker
         // Similar to Fossify's StoragePickerDialog logic
         if (path == STORAGE_ROOTS_MARKER) {
           Log.d(TAG, "Loading storage roots")
           _breadcrumbs.value = emptyList()
           val roots = MediaFileRepository.getStorageRoots(getApplication(), forceFileSystemCheck)
+          ensureActive()
           _unsortedItems.value = roots
           _videoFilesWithPlayback.value = emptyMap()
           _newVideoIds.value = emptySet()
@@ -456,6 +463,7 @@ class FileSystemBrowserViewModel(
               showAllFileTypes = false,
               forceFileSystemCheck = forceFileSystemCheck,
             ).onSuccess { items ->
+              ensureActive()
               // Get previous count for this path
               val previousCount = itemCountByPath[path] ?: 0
 
@@ -484,12 +492,14 @@ class FileSystemBrowserViewModel(
                   val videoFiles = items.filterIsInstance<FileSystemItem.VideoFile>()
                   val videos = videoFiles.map { it.video }
                   val enrichedVideos =
-                    MetadataRetrieval.enrichVideosIfNeeded(
-                      context = getApplication(),
-                      videos = videos,
-                      browserPreferences = browserPreferences,
-                      metadataCache = metadataCache,
-                    )
+                    withContext(Dispatchers.IO) {
+                      MetadataRetrieval.enrichVideosIfNeeded(
+                        context = getApplication(),
+                        videos = videos,
+                        browserPreferences = browserPreferences,
+                        metadataCache = metadataCache,
+                      )
+                    }
 
                   // Replace videos in items with enriched versions
                   val enrichedVideoMap = enrichedVideos.associateBy { it.id }
@@ -510,11 +520,14 @@ class FileSystemBrowserViewModel(
                   items
                 }
 
+              ensureActive()
               _unsortedItems.value = enrichedItems
 
               // Load playback info and NEW-state data for videos in the current tree view.
               applyPlaybackState(enrichedItems)
             }.onFailure { error ->
+              if (error is CancellationException) throw error
+              ensureActive()
               _error.value = error.message
               _unsortedItems.value = emptyList()
               _videoFilesWithPlayback.value = emptyMap()
@@ -523,7 +536,10 @@ class FileSystemBrowserViewModel(
               Log.e(TAG, "Error loading directory: $path", error)
             }
         }
+      } catch (error: CancellationException) {
+        throw error
       } catch (e: Exception) {
+        ensureActive()
         _error.value = e.message
         _unsortedItems.value = emptyList()
         _videoFilesWithPlayback.value = emptyMap()
@@ -531,7 +547,7 @@ class FileSystemBrowserViewModel(
         _watchedVideoIds.value = emptySet()
         Log.e(TAG, "Exception loading directory", e)
       } finally {
-        _isLoading.value = false
+        if (isActive) _isLoading.value = false
       }
     }
   }
@@ -565,9 +581,9 @@ class FileSystemBrowserViewModel(
       val playbackState = playbackIdentifiers.firstNotNullOfOrNull { playbackStates[it] }
       val progressValue =
         if (playbackState != null && video.duration > 0) {
-          val durationSeconds = video.duration / 1000
-          val watched = durationSeconds - playbackState.timeRemaining.toLong()
-          (watched.toFloat() / durationSeconds.toFloat()).coerceIn(0f, 1f)
+          val durationSeconds = video.duration / 1000.0
+          val watched = durationSeconds - playbackState.timeRemaining.toDouble()
+          (watched / durationSeconds).toFloat().coerceIn(0f, 1f)
         } else {
           0f
         }
@@ -587,10 +603,13 @@ class FileSystemBrowserViewModel(
       }
     }
 
-    _videoFilesWithPlayback.value = playbackMap
-    _newVideoIds.value = newIds
-    _watchedVideoIds.value = watchedIds
-    Log.d(TAG, "Loaded playback info for ${playbackMap.size} videos with progress")
+    withContext(Dispatchers.Main.immediate) {
+      if (_unsortedItems.value != items) return@withContext
+      _videoFilesWithPlayback.value = playbackMap
+      _newVideoIds.value = newIds
+      _watchedVideoIds.value = watchedIds
+      Log.d(TAG, "Loaded playback info for ${playbackMap.size} videos with progress")
+    }
   }
 
   fun setWatched(video: Video, watched: Boolean) {
