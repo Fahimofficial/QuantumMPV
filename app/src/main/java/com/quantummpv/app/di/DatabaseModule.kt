@@ -833,6 +833,41 @@ val MIGRATION_21_22 =
     }
   }
 
+val MIGRATION_22_23 =
+  object : Migration(22, 23) {
+    override fun migrate(db: SupportSQLiteDatabase) {
+      db.execSQL("""CREATE TABLE IF NOT EXISTS `audiobooks` (
+        `id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `sourceKey` TEXT NOT NULL,
+        `title` TEXT NOT NULL, `subtitle` TEXT NOT NULL, `author` TEXT NOT NULL,
+        `narrator` TEXT NOT NULL, `series` TEXT NOT NULL, `seriesPart` TEXT NOT NULL,
+        `description` TEXT NOT NULL, `genre` TEXT NOT NULL, `language` TEXT NOT NULL,
+        `publisher` TEXT NOT NULL, `publishedYear` TEXT NOT NULL, `isbn` TEXT NOT NULL,
+        `asin` TEXT NOT NULL, `abridged` INTEGER, `coverUri` TEXT, `addedAt` INTEGER NOT NULL,
+        `lastPlayedAt` INTEGER NOT NULL, `currentTrackId` INTEGER, `positionMs` INTEGER NOT NULL,
+        `progressMs` INTEGER NOT NULL, `finished` INTEGER NOT NULL, `playbackSpeed` REAL NOT NULL,
+        `rewindSeconds` INTEGER NOT NULL)""")
+      db.execSQL("CREATE UNIQUE INDEX IF NOT EXISTS `index_audiobooks_sourceKey` ON `audiobooks` (`sourceKey`)")
+      db.execSQL("""CREATE TABLE IF NOT EXISTS `audiobook_tracks` (
+        `id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `bookId` INTEGER NOT NULL,
+        `uri` TEXT NOT NULL, `fileName` TEXT NOT NULL, `title` TEXT NOT NULL,
+        `position` INTEGER NOT NULL, `durationMs` INTEGER NOT NULL, `size` INTEGER NOT NULL,
+        FOREIGN KEY(`bookId`) REFERENCES `audiobooks`(`id`) ON UPDATE NO ACTION ON DELETE CASCADE)""")
+      db.execSQL("CREATE INDEX IF NOT EXISTS `index_audiobook_tracks_bookId` ON `audiobook_tracks` (`bookId`)")
+      db.execSQL("CREATE UNIQUE INDEX IF NOT EXISTS `index_audiobook_tracks_bookId_uri` ON `audiobook_tracks` (`bookId`, `uri`)")
+      db.execSQL("""CREATE TABLE IF NOT EXISTS `audiobook_chapters` (
+        `trackId` INTEGER NOT NULL, `startMs` INTEGER NOT NULL, `endMs` INTEGER NOT NULL, `title` TEXT NOT NULL,
+        PRIMARY KEY(`trackId`, `startMs`),
+        FOREIGN KEY(`trackId`) REFERENCES `audiobook_tracks`(`id`) ON UPDATE NO ACTION ON DELETE CASCADE)""")
+      db.execSQL("""CREATE TABLE IF NOT EXISTS `audiobook_bookmarks` (
+        `id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `bookId` INTEGER NOT NULL,
+        `trackId` INTEGER NOT NULL, `positionMs` INTEGER NOT NULL, `title` TEXT NOT NULL, `createdAt` INTEGER NOT NULL,
+        FOREIGN KEY(`bookId`) REFERENCES `audiobooks`(`id`) ON UPDATE NO ACTION ON DELETE CASCADE,
+        FOREIGN KEY(`trackId`) REFERENCES `audiobook_tracks`(`id`) ON UPDATE NO ACTION ON DELETE CASCADE)""")
+      db.execSQL("CREATE INDEX IF NOT EXISTS `index_audiobook_bookmarks_bookId` ON `audiobook_bookmarks` (`bookId`)")
+      db.execSQL("CREATE INDEX IF NOT EXISTS `index_audiobook_bookmarks_trackId` ON `audiobook_bookmarks` (`trackId`)")
+    }
+  }
+
 val DatabaseModule =
   module {
     single<Json> {
@@ -870,6 +905,7 @@ val DatabaseModule =
           MIGRATION_20_21,
           MIGRATION_19_21,
           MIGRATION_21_22,
+          MIGRATION_22_23,
         ).build()
     }
 
@@ -880,6 +916,8 @@ val DatabaseModule =
     }
 
     single { ThumbnailRepository(androidContext()) }
+
+    single { get<MpvRxDatabase>().audiobookDao() }
 
     single {
       com.quantummpv.app.database.repository.VideoMetadataCacheRepository(

@@ -14,6 +14,7 @@ import androidx.room.RoomDatabase
 import androidx.room.TypeConverters
 import com.quantummpv.app.database.converters.NetworkProtocolConverter
 import com.quantummpv.app.database.converters.NetworkStreamEntryTypeConverter
+import com.quantummpv.app.database.dao.AudiobookDao
 import com.quantummpv.app.database.dao.DirectoryScanDao
 import com.quantummpv.app.database.dao.DownloadItemDao
 import com.quantummpv.app.database.dao.NetworkConnectionDao
@@ -26,6 +27,10 @@ import com.quantummpv.app.database.dao.VideoMetadataDao
 import com.quantummpv.app.database.dao.JellyfinServerDao
 import com.quantummpv.app.database.dao.NavidromeServerDao
 import com.quantummpv.app.database.entities.DirectoryScanEntity
+import com.quantummpv.app.database.entities.AudiobookEntity
+import com.quantummpv.app.database.entities.AudiobookTrackEntity
+import com.quantummpv.app.database.entities.AudiobookChapterEntity
+import com.quantummpv.app.database.entities.AudiobookBookmarkEntity
 import com.quantummpv.app.database.entities.DownloadItemEntity
 import com.quantummpv.app.database.entities.JellyfinServerEntity
 import com.quantummpv.app.database.entities.NavidromeServerEntity
@@ -52,8 +57,12 @@ import com.quantummpv.app.domain.network.NetworkConnection
     JellyfinServerEntity::class,
     DownloadItemEntity::class,
     NavidromeServerEntity::class,
+    AudiobookEntity::class,
+    AudiobookTrackEntity::class,
+    AudiobookChapterEntity::class,
+    AudiobookBookmarkEntity::class,
   ],
-  version = 22,
+  version = 23,
   exportSchema = true,
 )
 @TypeConverters(NetworkProtocolConverter::class, NetworkStreamEntryTypeConverter::class)
@@ -79,4 +88,6 @@ abstract class MpvRxDatabase : RoomDatabase() {
   abstract fun downloadItemDao(): DownloadItemDao
 
   abstract fun navidromeServerDao(): NavidromeServerDao
+
+  abstract fun audiobookDao(): AudiobookDao
 }

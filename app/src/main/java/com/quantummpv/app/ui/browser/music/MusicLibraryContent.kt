@@ -572,6 +572,11 @@ fun MusicLibraryContent(
               isSingleSelection = activeSelectionManager.isSingleSelection,
               onInfoClick = null,
               preSearchActions = {
+                if (!activeSelectionManager.isInSelectionMode) {
+                  com.quantummpv.app.ui.browser.audiobooks.AudiobookIconButton(
+                    Icons.RoundedFilled.MenuBook, stringResource(R.string.audiobooks_title),
+                  ) { backStack.navigateTo(com.quantummpv.app.ui.browser.audiobooks.AudiobookLibraryScreen) }
+                }
                 if (!activeSelectionManager.isInSelectionMode && (hasJellyfinMusicLibrary || hasNavidromeServer)) {
                   var isSourceDropdownOpen by remember { mutableStateOf(false) }
                   Box {

@@ -362,6 +362,10 @@ fun PlayerControls(
       else -> isAudioOnly || activity?.isCurrentMediaKnownAudio() == true
     }
   if (useAudioPlayer) {
+    if (currentPlaybackItem?.audiobook != null) {
+      AudiobookPlayerControls(viewModel, onBackPress, modifier)
+      return
+    }
     val rawMediaTitle by PlaybackSession.propString["media-title"].collectAsState()
     val queuedTitle =
       playbackQueue.currentItem?.title?.takeIf { playbackQueue.isExplicitQueue && it.isNotBlank() }

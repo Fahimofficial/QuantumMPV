@@ -186,6 +186,10 @@ object PlaybackSession : MPVLib.EventObserver {
   private var supersededStopGeneration = 0L
   private var desiredPaused = true
   private var loadedGeneration = 0L
+  private var loadedAudiobook: AudiobookPlaybackInfo? = null
+  private var loadedAudiobookDurationMs = 0L
+  private var loadedAudiobookEnded = false
+  private var speedBeforeAudiobook: Float? = null
   private var defaultUserAgent: String? = null
   private var pendingPositionRestoreGeneration = 0L
   private var pendingPositionRestoreOverride: Pair<Long, PlaybackPositionRestoreOverride>? = null
@@ -416,6 +420,9 @@ object PlaybackSession : MPVLib.EventObserver {
   /** Stop playback while keeping the app-scoped core ready for a later screen attachment. */
   fun stop(clearQueue: Boolean = true) {
     withCore(Unit) {
+      AudiobookPlayback.capture()
+      loadedAudiobook = null
+      AudiobookPlayback.clearTimer()
       val previousPhase = _state.value.phase
       if (previousPhase == PlaybackPhase.STOPPING) {
         pendingStopClearQueue = pendingStopClearQueue || clearQueue
@@ -567,6 +574,10 @@ object PlaybackSession : MPVLib.EventObserver {
   }
 
   private fun destroyLocked() {
+    AudiobookPlayback.capture()
+    loadedAudiobook = null
+    speedBeforeAudiobook = null
+    AudiobookPlayback.clearTimer()
     updateState { it.copy(phase = PlaybackPhase.STOPPING) }
     desiredPaused = true
     loadedGeneration = 0L
@@ -615,6 +626,9 @@ object PlaybackSession : MPVLib.EventObserver {
         pendingStopClearQueue = false
       }
       _queue.value = PlaybackQueueReducer.replace(_queue.value, items, currentIndex, isExplicitQueue, isM3u)
+      if (_queue.value.currentItem?.audiobook != null) {
+        _queue.value = PlaybackQueueReducer.setRepeatMode(PlaybackQueueReducer.setShuffleEnabled(_queue.value, false), RepeatMode.OFF)
+      }
       updateState { it.copy(currentItem = _queue.value.currentItem) }
     }
   }
@@ -628,6 +642,7 @@ object PlaybackSession : MPVLib.EventObserver {
     to: Int,
   ): Boolean =
     nativeLock.withLock {
+      if (_queue.value.items.any { it.audiobook != null }) return@withLock false
       val next = PlaybackQueueReducer.move(_queue.value, from, to) ?: return@withLock false
       _queue.value = next
       updateState { it.copy(currentItem = next.currentItem) }
@@ -636,6 +651,7 @@ object PlaybackSession : MPVLib.EventObserver {
 
   fun insertQueueItemsNext(items: List<PlaybackItem>): Boolean =
     nativeLock.withLock {
+      if (_queue.value.items.any { it.audiobook != null } || items.any { it.audiobook != null }) return@withLock false
       val next = PlaybackQueueReducer.insertNext(_queue.value, items) ?: return@withLock false
       _queue.value = next
       updateState { it.copy(currentItem = next.currentItem) }
@@ -644,6 +660,7 @@ object PlaybackSession : MPVLib.EventObserver {
 
   fun appendQueueItems(items: List<PlaybackItem>): Boolean =
     nativeLock.withLock {
+      if (_queue.value.items.any { it.audiobook != null } || items.any { it.audiobook != null }) return@withLock false
       val next = PlaybackQueueReducer.append(_queue.value, items) ?: return@withLock false
       _queue.value = next
       updateState { it.copy(currentItem = next.currentItem) }
@@ -659,11 +676,15 @@ object PlaybackSession : MPVLib.EventObserver {
     }
 
   fun setRepeatMode(repeatMode: RepeatMode) {
-    nativeLock.withLock { _queue.value = PlaybackQueueReducer.setRepeatMode(_queue.value, repeatMode) }
+    nativeLock.withLock {
+      _queue.value = PlaybackQueueReducer.setRepeatMode(_queue.value, if (_queue.value.currentItem?.audiobook != null) RepeatMode.OFF else repeatMode)
+    }
   }
 
   fun setShuffleEnabled(enabled: Boolean) {
-    nativeLock.withLock { _queue.value = PlaybackQueueReducer.setShuffleEnabled(_queue.value, enabled) }
+    nativeLock.withLock {
+      _queue.value = PlaybackQueueReducer.setShuffleEnabled(_queue.value, enabled && _queue.value.currentItem?.audiobook == null)
+    }
   }
 
   fun hasNext(): Boolean = nativeLock.withLock { PlaybackQueueReducer.hasNext(_queue.value) }
@@ -782,7 +803,14 @@ object PlaybackSession : MPVLib.EventObserver {
   ): Long =
     withCore(default = -1L) {
       if (_state.value.phase == PlaybackPhase.STOPPING) return@withCore -1L
+      AudiobookPlayback.capture()
+      loadedAudiobook = null
       val resolvedItem = item ?: PlaybackItem.fromUri(playableUri)
+      if (resolvedItem.audiobook != null) AudiobookPlayback.ensureStarted()
+      if (resolvedItem.audiobook == null && speedBeforeAudiobook != null) {
+        if (!MpvConfigOverridePolicy.isOwnedByMpvConf("speed")) MPVLib.setPropertyDouble("speed", speedBeforeAudiobook!!.toDouble())
+        speedBeforeAudiobook = null
+      }
       val videoSelection = resolvedItem.videoSelection(_state.value.surfaceAttached)
       // A preceding surface detach may have left the outgoing file at vid=no. Select video in the
       // load command only when Android has already attached a valid render Surface; otherwise
@@ -923,7 +951,10 @@ object PlaybackSession : MPVLib.EventObserver {
   fun command(vararg command: String) {
     if (MpvConfigOverridePolicy.shouldSuppress(command)) return
     withCore(Unit) {
-      if (command.firstOrNull() == "seek") beginSeekAudioGuardLocked()
+      if (command.firstOrNull() == "seek") {
+        loadedAudiobookEnded = false
+        beginSeekAudioGuardLocked()
+      }
       if (handleAmbientShaderCommandLocked(command)) return@withCore
       MPVLib.command(*command)
     }
@@ -1021,6 +1052,28 @@ object PlaybackSession : MPVLib.EventObserver {
 
   fun getPropertyBoolean(property: String): Boolean? = withReadyCore(null) { MPVLib.getPropertyBoolean(property) }
 
+  internal fun audiobookProgress(reachedEnd: Boolean = false): AudiobookProgress? = withCore(null) {
+    val book = loadedAudiobook ?: return@withCore null
+    val current = _state.value
+    if (loadedGeneration != current.generation || current.phase == PlaybackPhase.STOPPING) return@withCore null
+    if (!reachedEnd && current.phase !in setOf(PlaybackPhase.READY, PlaybackPhase.BACKGROUND)) return@withCore null
+    if (reachedEnd) loadedAudiobookEnded = true
+    val position = if (reachedEnd) loadedAudiobookDurationMs else {
+      val seconds = MPVLib.getPropertyDouble("time-pos")?.takeIf { it.isFinite() } ?: return@withCore null
+      (seconds * 1000).toLong().coerceAtLeast(0)
+    }
+    AudiobookProgress(book, position, loadedAudiobookEnded || MPVLib.getPropertyBoolean("eof-reached") == true,
+      android.os.SystemClock.elapsedRealtimeNanos())
+  }
+
+  internal fun applyAudiobookSpeed(generation: Long, speed: Float) = withCore(Unit) {
+    if (_state.value.generation != generation || _state.value.currentItem?.audiobook == null || MpvConfigOverridePolicy.isOwnedByMpvConf("speed")) {
+      return@withCore
+    }
+    if (speedBeforeAudiobook == null) speedBeforeAudiobook = MPVLib.getPropertyDouble("speed")?.toFloat() ?: 1f
+    MPVLib.setPropertyDouble("speed", speed.coerceIn(0.5f, 3f).toDouble())
+  }
+
   fun setPropertyBoolean(
     property: String,
     value: Boolean,
@@ -1028,6 +1081,7 @@ object PlaybackSession : MPVLib.EventObserver {
     if (MpvConfigOverridePolicy.isOwnedByMpvConf(property)) return
     withCore(Unit) {
       if (property == "pause") {
+        AudiobookPlayback.onPauseRequested(value)
         desiredPaused = value
         // Loading may include an asynchronous saved-position restore. Record user/service intent
         // now, then apply it once the load owner publishes READY.
@@ -1256,6 +1310,10 @@ object PlaybackSession : MPVLib.EventObserver {
             }
             supersededStopGeneration = 0L
             loadedGeneration = current.generation
+            loadedAudiobook = current.currentItem?.audiobook
+            loadedAudiobookEnded = false
+            loadedAudiobookDurationMs = ((MPVLib.getPropertyDouble("duration") ?: 0.0) * 1000).toLong().coerceAtLeast(0)
+            current.currentItem?.let { AudiobookPlayback.onFileLoaded(it, current.generation) }
             val restoringPosition = pendingPositionRestoreGeneration == current.generation
             val appliedPaused = restoringPosition || desiredPaused
             // Track/decoder replacement is now complete. Apply the latest user/service intent
@@ -1325,6 +1383,7 @@ object PlaybackSession : MPVLib.EventObserver {
               return@withLock true
             }
             if (current.activeGeneration == current.generation) {
+              if (reason == EndFileReason.EOF) AudiobookPlayback.capture(reachedEnd = true)
               if (reason == EndFileReason.REDIRECT && loadedGeneration != current.generation) {
                 // Redirects emit END_FILE before mpv starts the resolved target. Preserve LOADING;
                 // the following START_FILE belongs to the same app-level generation.

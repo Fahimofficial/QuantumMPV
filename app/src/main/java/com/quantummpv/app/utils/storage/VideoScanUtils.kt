@@ -485,6 +485,7 @@ object FileTypeUtils {
     setOf(
       "mp3",
       "m4a",
+      "m4b",
       "aac",
       "flac",
       "ogg",

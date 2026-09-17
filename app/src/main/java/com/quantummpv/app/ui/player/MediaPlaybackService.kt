@@ -1030,8 +1030,10 @@ class MediaPlaybackService :
 
   private fun handleDetachedEndOfFile() {
     if (activityForeground || PlaybackSession.state.value.surfaceAttached || !foregroundReady) return
+    if (AudiobookPlayback.handleEndOfFile()) return
     val queueState = PlaybackSession.queue.value
-    val autoplay = if (notificationIsAudio) playerPreferences.autoplayNextAudio.get() else playerPreferences.autoplayNextVideo.get()
+    val autoplay = queueState.currentItem?.audiobook != null ||
+      if (notificationIsAudio) playerPreferences.autoplayNextAudio.get() else playerPreferences.autoplayNextVideo.get()
     when {
       queueState.repeatMode == RepeatMode.ONE -> {
         PlaybackSession.command("seek", "0", "absolute")
@@ -1313,6 +1315,10 @@ class MediaPlaybackService :
         putExtra("internal_launch", true)
         putExtra("is_audio", isAudio)
         putExtra("media_library_audio", isAudio)
+        currentItem?.audiobook?.let { book ->
+          putExtra(AudiobookPlayback.EXTRA_BOOK_ID, book.bookId)
+          putExtra(AudiobookPlayback.EXTRA_TRACK_ID, book.trackId)
+        }
         flags = Intent.FLAG_ACTIVITY_SINGLE_TOP or Intent.FLAG_ACTIVITY_CLEAR_TOP
       }
 

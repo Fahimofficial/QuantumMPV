@@ -166,6 +166,7 @@ object Icons {
     val MonetizationOn by lazy(LazyThreadSafetyMode.NONE) { AppIcon(MaterialSymbols.RoundedFilled.Monetization_on) }
     val MoreTime by lazy(LazyThreadSafetyMode.NONE) { AppIcon(MaterialSymbols.RoundedFilled.More_time) }
     val MoreVert by lazy(LazyThreadSafetyMode.NONE) { AppIcon(MaterialSymbols.RoundedFilled.More_vert) }
+    val MenuBook by lazy(LazyThreadSafetyMode.NONE) { AppIcon(MaterialSymbols.RoundedFilled.Menu_book) }
     val Movie by lazy(LazyThreadSafetyMode.NONE) { AppIcon(MaterialSymbols.RoundedFilled.Movie) }
     val Mystery by lazy(LazyThreadSafetyMode.NONE) { AppIcon(MaterialSymbols.RoundedFilled.Mystery) }
     val Notifications by lazy(LazyThreadSafetyMode.NONE) { AppIcon(MaterialSymbols.RoundedFilled.Notifications) }
@@ -390,6 +391,7 @@ object Icons {
     val MonetizationOn get() = Shared.MonetizationOn
     val MoreTime get() = Shared.MoreTime
     val MoreVert get() = Shared.MoreVert
+    val MenuBook get() = Shared.MenuBook
     val Movie get() = Shared.Movie
     val Mystery get() = Shared.Mystery
     val Notifications get() = Shared.Notifications

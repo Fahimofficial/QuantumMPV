@@ -729,6 +729,7 @@ class PlayerActivity :
     // Only auto-generate playlist from folder if playlist mode is enabled and no playlist_id
     if (playlist.isEmpty() &&
       playlistId == null &&
+      !intent.hasExtra(AudiobookPlayback.EXTRA_BOOK_ID) &&
       playerPreferences.playlistMode.get() &&
       !hasReusableSavedPlaybackSession
     ) {
@@ -2416,6 +2417,9 @@ class PlayerActivity :
       }
       PreparedPlaybackLaunchResult.Missing -> true
       PreparedPlaybackLaunchResult.Stale -> {
+        if (sourceIntent.getBooleanExtra("internal_launch", false) && sourceIntent.getLongExtra(AudiobookPlayback.EXTRA_BOOK_ID, -1L) > 0) {
+          return true
+        }
         Log.w(TAG, "Ignoring stale prepared playback launch")
         false
       }
@@ -3275,7 +3279,8 @@ class PlayerActivity :
   }
 
   private fun isBackgroundPlaybackEnabled(): Boolean =
-    if (isCurrentPlaybackAudio()) audioPreferences.audioBackgroundPlayback.get()
+    if (PlaybackSession.state.value.currentItem?.audiobook != null) true
+    else if (isCurrentPlaybackAudio()) audioPreferences.audioBackgroundPlayback.get()
     else audioPreferences.backgroundPlayback.get()
 
   private fun isCurrentPlaybackAudio(): Boolean =
@@ -4008,14 +4013,16 @@ class PlayerActivity :
     if (durationSecs > 0 && positionSecs < durationSecs - 2) return
     if (fileName.isNotBlank()) saveVideoPlaybackState(fileName, immediate = true)
 
-    val repeatMode = viewModel.repeatMode.value
+    val isAudiobook = PlaybackSession.state.value.currentItem?.audiobook != null
+    if (AudiobookPlayback.handleEndOfFile()) return
+    val repeatMode = if (isAudiobook) RepeatMode.OFF else viewModel.repeatMode.value
     if (repeatMode == RepeatMode.ONE) {
       restartCurrentAtEof()
       return
     }
 
     val isAudio = viewModel.isAudioOnly.value || isKnownAudioLaunch(intent) || isCurrentMediaKnownAudio()
-    val autoplay = if (isAudio) playerPreferences.autoplayNextAudio.get() else playerPreferences.autoplayNextVideo.get()
+    val autoplay = isAudiobook || if (isAudio) playerPreferences.autoplayNextAudio.get() else playerPreferences.autoplayNextVideo.get()
     val repeatAll = repeatMode == RepeatMode.ALL
 
     if (playlist.isNotEmpty()) {
@@ -4908,6 +4915,11 @@ class PlayerActivity :
       return false
     }
 
+    PlaybackSession.state.value.currentItem?.takeIf { it.audiobook != null }?.let { item ->
+      AudiobookPlayback.applyBookSettings(item, loadGeneration)
+      return true
+    }
+
     return runCatching {
       val state = resolvePlaybackState(identifier, legacyIdentifier)
 
@@ -5489,6 +5501,27 @@ private suspend fun restorePlaybackPosition(state: PlaybackStateEntity?) {
     mediaLoadJob =
       lifecycleScope.launch(mediaLoadDispatcher) {
         try {
+          val bookId = sourceIntent.getLongExtra(AudiobookPlayback.EXTRA_BOOK_ID, -1L)
+          if (sourceIntent.getBooleanExtra("internal_launch", false) && bookId > 0 && requestedQueueItem?.audiobook?.bookId != bookId) {
+            val recovered = AudiobookPlayback.prepareQueue(bookId,
+              sourceIntent.getLongExtra(AudiobookPlayback.EXTRA_TRACK_ID, -1L).takeIf { it > 0 })
+            val bookItem = recovered.items[recovered.currentIndex]
+            withContext(Dispatchers.Main) {
+              ensureCurrentMediaRequest(requestGeneration)
+              intent.setDataAndType(Uri.parse(bookItem.originalUri), "audio/*")
+              intent.putExtra("internal_launch", true)
+                .putExtra(EXTRA_PREPARED_PLAYBACK_QUEUE, true)
+                .putExtra("playlist_index", recovered.currentIndex)
+              acceptedPreparedPlaybackLaunch = recovered
+              check(restorePreparedPlaybackQueue(intent))
+              currentPlayableUri = bookItem.playableUri
+              fileName = bookItem.title.orEmpty()
+              mediaIdentifier = bookItem.stableId
+              viewModel.refreshPlaylistItems()
+            }
+            issuePlaybackLoad(bookItem, attempt = 0, requestGeneration = requestGeneration)
+            return@launch
+          }
           if (!isTorrentRequest) torrentStreamingEngine.stopStream()
           if (isTorrentRequest && !advancedPreferences.enableP2pStreaming.get()) {
             torrentStreamingEngine.stopStream()
@@ -5699,12 +5732,13 @@ private suspend fun restorePlaybackPosition(state: PlaybackStateEntity?) {
     positionRestoreOverride: PlaybackPositionRestoreOverride? = null,
   ) {
     ensureCurrentMediaRequest(requestGeneration)
+    val effectivePositionOverride = positionRestoreOverride ?: AudiobookPlayback.positionForLoad(item, intent)
     val restoreSavedPosition = playerPreferences.savePositionOnQuit.get()
     val resumeMode = playerPreferences.resumePlaybackMode.get()
     // Only Always Resume may use the fast load-local start option. Never starts at zero.
     val initialPositionSeconds =
-      if (positionRestoreOverride != null) {
-        positionRestoreOverride.positionSeconds?.takeIf { it.isFinite() && it > 0.0 }
+      if (effectivePositionOverride != null) {
+        effectivePositionOverride.positionSeconds?.takeIf { it.isFinite() && it > 0.0 }
       } else if (
         restoreSavedPosition &&
         resumeMode == ResumePlaybackMode.Always &&
@@ -5733,7 +5767,7 @@ private suspend fun restorePlaybackPosition(state: PlaybackStateEntity?) {
       PlaybackSession.load(
         item = item,
         restoreSavedPosition = restoreSavedPosition,
-        positionRestoreOverride = positionRestoreOverride,
+        positionRestoreOverride = effectivePositionOverride,
         initialPositionSeconds = initialPositionSeconds,
         flattenEditions = requiresYtdlp && !MpvConfigOverridePolicy.isOwnedByMpvConf("flatten-editions"),
         commit = { nativeLoad ->
@@ -5751,6 +5785,7 @@ private suspend fun restorePlaybackPosition(state: PlaybackStateEntity?) {
       ensureCurrentMediaRequest(requestGeneration)
       throw IllegalStateException("libmpv core is unavailable")
     }
+    if (item.audiobook != null) intent.removeExtra(AudiobookPlayback.EXTRA_POSITION_MS)
 
     val request =
       PendingMediaLoadRecovery(
@@ -5760,7 +5795,7 @@ private suspend fun restorePlaybackPosition(state: PlaybackStateEntity?) {
         requestGeneration = requestGeneration,
         legacyMediaIdentifier = legacyMediaIdentifier,
         ytdlFormat = ytdlFormat,
-        positionRestoreOverride = positionRestoreOverride,
+        positionRestoreOverride = effectivePositionOverride,
       )
     withContext(Dispatchers.Main) { armPlaybackLoadRecovery(request) }
   }
@@ -7985,6 +8020,7 @@ private suspend fun restorePlaybackPosition(state: PlaybackStateEntity?) {
   }
 
   private fun generatePlaylistFromFolder(currentPath: String) {
+    if (intent.hasExtra(AudiobookPlayback.EXTRA_BOOK_ID)) return
     val expectedGeneration = mediaRequestGeneration
     lifecycleScope.launch(Dispatchers.IO) {
       generatePlaylistFromFolderInternal(currentPath, expectedGeneration)

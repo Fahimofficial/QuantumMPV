@@ -1093,6 +1093,7 @@ class PlayerViewModel : ViewModel(),
   }
 
   fun loadLyricsForCurrentTrack(forceRefresh: Boolean = false) {
+    if (PlaybackSession.state.value.currentItem?.audiobook != null) return
     val path = PlaybackSession.getPropertyString("path") ?: PlaybackSession.getPropertyString("stream-open-filename") ?: return
     if (path.isBlank()) return
     val generation = PlaybackSession.state.value.generation
