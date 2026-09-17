@@ -506,12 +506,21 @@ class PlayerViewModel : ViewModel(),
   private val renderPrepDispatcher = Dispatchers.Default.limitedParallelism(1)
   private var autoCropJob: Job? = null
   private var autoCropReadinessJob: Job? = null
-  private var autoCropAnalyzedGeneration = -1L
+  private var autoCropAnalyzedInput: AutoCropInput? = null
+  private val autoCropAnalysisMutex = Mutex()
   private var autoCropApplied = false
   // Memory-only analysis cache. This is not playback history and does not enable auto-crop.
   private val autoCropResultCache = LruCache<String, AutoCropEdges>(AUTO_CROP_CACHE_CAPACITY)
   private val _autoCropState = MutableStateFlow(AutoCropState.IDLE)
   val autoCropState: StateFlow<AutoCropState> = _autoCropState.asStateFlow()
+
+  private data class AutoCropInput(
+    val generation: Long,
+    val trackId: Int?,
+    val width: Int,
+    val height: Int,
+    val rotation: Int,
+  )
 
   private data class AutoCropSamples(
     val edges: List<AutoCropEdges>,
@@ -787,6 +796,15 @@ class PlayerViewModel : ViewModel(),
       if (selector != null && host.reloadCurrentYtdlFormat(selector)) return
     }
 
+    if (
+      PlaybackSession.getPropertyInt("vid") != track.id &&
+      playerPreferences.autoCropBlackBars.get() &&
+      !MpvConfigOverridePolicy.ownsAny(MpvConfigControlledFeatures.AUTO_CROP)
+    ) {
+      cancelAutoCropAnalysis()
+      clearAutoCropProperty()
+      _autoCropState.value = AutoCropState.ANALYZING
+    }
     val selectedProgramIds = track.effectiveProgramIds.toSet()
     if (selectedProgramIds.isNotEmpty()) {
       allTracks.value
@@ -2283,7 +2301,6 @@ val isBrightnessSliderShown = MutableStateFlow(false)
     stopRealtimeSubtitles(showToastMessage = false)
     introLookupJob?.cancel()
     cancelAutoCropAnalysis()
-    autoCropAnalyzedGeneration = -1L
     if (autoCropApplied || playerPreferences.autoCropBlackBars.get()) {
       clearAutoCropProperty()
     }
@@ -2323,6 +2340,17 @@ val isBrightnessSliderShown = MutableStateFlow(false)
     applyEqualizerMpvFilters()
     loadLyricsForCurrentTrack()
     scheduleAutoCropAnalysis()
+  }
+
+  fun onVideoParametersChanged() {
+    if (!playerPreferences.autoCropBlackBars.get()) return
+    if (MpvConfigOverridePolicy.ownsAny(MpvConfigControlledFeatures.AUTO_CROP)) return
+    if (_videoOpenAnimationState.value.isWaitingForVideo) return
+    val input = currentAutoCropInput()
+    if (input.width <= 0 || input.height <= 0 || autoCropAnalyzedInput == input) return
+    cancelAutoCropAnalysis()
+    clearAutoCropProperty()
+    scheduleAutoCropAnalysis(force = true)
   }
 
   fun updateTorrentState(state: TorrentStreamingState) {
@@ -4929,7 +4957,6 @@ val isBrightnessSliderShown = MutableStateFlow(false)
   fun setAutoCropBlackBars(enabled: Boolean) {
     playerPreferences.autoCropBlackBars.set(enabled)
     cancelAutoCropAnalysis()
-    autoCropAnalyzedGeneration = -1L
     if (!enabled) {
       clearAutoCropProperty()
       _autoCropState.value = AutoCropState.IDLE
@@ -4942,6 +4969,15 @@ val isBrightnessSliderShown = MutableStateFlow(false)
     clearAutoCropProperty()
     scheduleAutoCropAnalysis(force = true)
   }
+
+  private fun currentAutoCropInput(): AutoCropInput =
+    AutoCropInput(
+      generation = PlaybackSession.state.value.generation,
+      trackId = PlaybackSession.getPropertyInt("vid"),
+      width = PlaybackSession.getPropertyInt("video-params/w") ?: 0,
+      height = PlaybackSession.getPropertyInt("video-params/h") ?: 0,
+      rotation = (PlaybackSession.getPropertyInt("video-params/rotate") ?: 0).mod(360),
+    )
 
   private fun scheduleAutoCropAnalysis(force: Boolean = false) {
     if (!playerPreferences.autoCropBlackBars.get()) return
@@ -4984,16 +5020,17 @@ val isBrightnessSliderShown = MutableStateFlow(false)
       return
     }
     val generation = session.generation
-    if (!force && autoCropAnalyzedGeneration == generation) return
+    val input = currentAutoCropInput()
+    if (!force && autoCropAnalyzedInput == input) return
     val source = runCatching { host.currentThumbnailSource() }.getOrNull()?.takeIf(String::isNotBlank)
     val durationSeconds =
       sequenceOf(
         PlaybackSession.getPropertyDouble("duration"),
         preciseDuration.value.toDouble(),
       ).filterNotNull().firstOrNull { it.isFinite() && it > 0.0 }
-    val sourceWidth = PlaybackSession.getPropertyInt("video-params/w") ?: 0
-    val sourceHeight = PlaybackSession.getPropertyInt("video-params/h") ?: 0
-    val rotation = (PlaybackSession.getPropertyInt("video-params/rotate") ?: 0).mod(360)
+    val sourceWidth = input.width
+    val sourceHeight = input.height
+    val rotation = input.rotation
     if (sourceWidth <= 0 || sourceHeight <= 0) {
       if (autoCropReadinessJob?.isActive != true) {
         _autoCropState.value = AutoCropState.ANALYZING
@@ -5016,7 +5053,7 @@ val isBrightnessSliderShown = MutableStateFlow(false)
             if (dimensionsReady) {
               scheduleAutoCropAnalysis(force)
             } else {
-              autoCropAnalyzedGeneration = generation
+              autoCropAnalyzedInput = input
               _autoCropState.value = AutoCropState.UNSUPPORTED
             }
           }
@@ -5024,7 +5061,7 @@ val isBrightnessSliderShown = MutableStateFlow(false)
       return
     }
 
-    autoCropAnalyzedGeneration = generation
+    autoCropAnalyzedInput = input
     autoCropJob?.cancel()
     _autoCropState.value = AutoCropState.ANALYZING
     val sourceIdentity = source ?: session.currentItem?.stableId ?: "generation:$generation"
@@ -5032,34 +5069,37 @@ val isBrightnessSliderShown = MutableStateFlow(false)
     // A URL can identify a changing live channel, so only cache results for local/Android media.
     val cacheKey =
       durationSeconds?.takeIf { androidReadableSource }?.let { duration ->
-        "$sourceIdentity|$sourceWidth|$sourceHeight|${duration.toLong()}"
+        "$sourceIdentity|${input.trackId}|$sourceWidth|$sourceHeight|$rotation|${duration.toLong()}"
       }
     autoCropJob =
       viewModelScope.launch(Dispatchers.IO) {
         Log.i(TAG, "Auto-crop analyzing generation=$generation source=$sourceIdentity")
         val result =
           try {
-            val cached = cacheKey?.let(autoCropResultCache::get)
-            if (cached != null) {
-              AutoCropAnalysisResult.Detected(cached)
-            } else if (source != null && durationSeconds != null && androidReadableSource) {
-              val positions = autoCropSamplePositions(source, durationSeconds)
-              val combined = extractAutoCropSamples(source, positions)
-              when {
-                combined == null -> detectAutoCropFromActivePlayback(generation, sourceWidth, sourceHeight)
-                else -> {
-                  val detected = AutoCropAnalyzer.combine(combined.edges)
-                  if (detected == null) {
-                    AutoCropAnalysisResult.NoBars
-                  } else {
-                    val sourceEdges =
-                      if (combined.framesWereRotated) mapRotatedEdgesToSource(detected, rotation) else detected
-                    AutoCropAnalysisResult.Detected(sourceEdges)
+            autoCropAnalysisMutex.withLock {
+              currentCoroutineContext().ensureActive()
+              val cached = cacheKey?.let(autoCropResultCache::get)
+              if (cached != null) {
+                AutoCropAnalysisResult.Detected(cached)
+              } else if (source != null && durationSeconds != null && androidReadableSource) {
+                val positions = autoCropSamplePositions(source, durationSeconds)
+                val combined = extractAutoCropSamples(source, positions)
+                when {
+                  combined == null -> detectAutoCropFromActivePlayback(generation, sourceWidth, sourceHeight)
+                  else -> {
+                    val detected = AutoCropAnalyzer.combine(combined.edges)
+                    if (detected == null) {
+                      AutoCropAnalysisResult.NoBars
+                    } else {
+                      val sourceEdges =
+                        if (combined.framesWereRotated) mapRotatedEdgesToSource(detected, rotation) else detected
+                      AutoCropAnalysisResult.Detected(sourceEdges)
+                    }
                   }
                 }
+              } else {
+                detectAutoCropFromActivePlayback(generation, sourceWidth, sourceHeight)
               }
-            } else {
-              detectAutoCropFromActivePlayback(generation, sourceWidth, sourceHeight)
             }
           } catch (cancellation: kotlinx.coroutines.CancellationException) {
             throw cancellation
@@ -5070,6 +5110,12 @@ val isBrightnessSliderShown = MutableStateFlow(false)
 
         withContext(Dispatchers.Main) {
           if (!PlaybackSession.isCurrentGeneration(generation) || !playerPreferences.autoCropBlackBars.get()) {
+            return@withContext
+          }
+          if (currentAutoCropInput() != input) {
+            clearAutoCropProperty()
+            autoCropAnalyzedInput = null
+            scheduleAutoCropAnalysis(force = true)
             return@withContext
           }
           if (result == AutoCropAnalysisResult.Unavailable) {
@@ -5353,6 +5399,7 @@ val isBrightnessSliderShown = MutableStateFlow(false)
   private fun cancelAutoCropAnalysis() {
     autoCropJob?.cancel()
     autoCropJob = null
+    autoCropAnalyzedInput = null
     autoCropReadinessJob?.cancel()
     autoCropReadinessJob = null
     PlaybackSession.command("vf", "remove", "@$AUTO_CROP_FILTER_LABEL")

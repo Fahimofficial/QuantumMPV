@@ -4171,6 +4171,7 @@ class PlayerActivity :
         delay(100)
         if (!mpvInitialized || player.isExiting || isFinishing) return@launch
 
+        viewModel.onVideoParametersChanged()
         val aspect =
           withContext(playbackRenderDispatcher) {
             player.getVideoOutAspect()
@@ -4245,6 +4246,7 @@ class PlayerActivity :
         if (!isReady) {
           isReady = true
         }
+        viewModel.onVideoParametersChanged()
         viewModel.onVideoLoadCompleted()
       }
 
