@@ -12,6 +12,7 @@ package com.quantummpv.app.ui.browser.networkstreaming
 import com.quantummpv.app.ui.utils.NavigationBackHandler as BackHandler
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -46,7 +47,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.graphicsLayer
-import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
@@ -77,6 +77,7 @@ import com.quantummpv.app.ui.icons.Icon
 import com.quantummpv.app.ui.icons.Icons
 import com.quantummpv.app.ui.preferences.PreferencesScreen
 import com.quantummpv.app.ui.utils.LocalBackStack
+import com.quantummpv.app.ui.utils.calculateResponsiveGridSpans
 import com.quantummpv.app.ui.utils.navigateTo
 import com.quantummpv.app.ui.utils.popSafely
 import kotlinx.serialization.Serializable
@@ -99,9 +100,6 @@ data class NetworkBrowserScreen(
     val networkSortType by browserPreferences.networkSortType.collectAsState()
     val networkSortOrder by browserPreferences.networkSortOrder.collectAsState()
     val networkLayoutMode by browserPreferences.networkLayoutMode.collectAsState()
-    val manualGridColumnsEnabled by browserPreferences.manualGridColumnsEnabled.collectAsState()
-    val videoGridColumnsPortrait by browserPreferences.videoGridColumnsPortrait.collectAsState()
-    val videoGridColumnsLandscape by browserPreferences.videoGridColumnsLandscape.collectAsState()
     val includeAudioInBrowser by browserPreferences.includeAudioBrowser.collectAsState()
     val bookmarks by bookmarkPreferences.bookmarks.collectAsState()
     val normalizedPath = remember(currentPath) { NetworkPath.from(currentPath) }
@@ -263,9 +261,6 @@ data class NetworkBrowserScreen(
         networkSortType = networkSortType,
         networkSortOrder = networkSortOrder,
         networkLayoutMode = networkLayoutMode,
-        manualGridColumnsEnabled = manualGridColumnsEnabled,
-        videoGridColumnsPortrait = videoGridColumnsPortrait,
-        videoGridColumnsLandscape = videoGridColumnsLandscape,
         includeAudio = includeAudioInBrowser,
         searchQuery = searchQuery,
         onRefresh = { viewModel.loadFiles() },
@@ -302,9 +297,6 @@ private fun NetworkBrowserContent(
   networkSortType: NetworkSortType,
   networkSortOrder: SortOrder,
   networkLayoutMode: MediaLayoutMode,
-  manualGridColumnsEnabled: Boolean,
-  videoGridColumnsPortrait: Int,
-  videoGridColumnsLandscape: Int,
   includeAudio: Boolean,
   searchQuery: String,
   onRefresh: suspend () -> Unit,
@@ -389,16 +381,6 @@ private fun NetworkBrowserContent(
         }
       val isGrid = networkLayoutMode == MediaLayoutMode.GRID
 
-      val configuration = LocalConfiguration.current
-      val isLandscape = configuration.orientation == android.content.res.Configuration.ORIENTATION_LANDSCAPE
-      val isTablet = configuration.smallestScreenWidthDp >= 600
-      val gridColumns =
-        if (manualGridColumnsEnabled) {
-          if (isLandscape) videoGridColumnsLandscape else videoGridColumnsPortrait
-        } else {
-          if (isTablet || isLandscape) 4 else 2
-        }
-
       val listState = rememberLazyListState()
       val gridState = rememberLazyGridState()
       val hasEnoughItems = (folders.size + videos.size) > 20
@@ -433,15 +415,16 @@ private fun NetworkBrowserContent(
             }
           }
         val navigationBarHeight = com.quantummpv.app.ui.browser.LocalNavigationBarHeight.current
-        Box(
+        BoxWithConstraints(
           modifier =
             Modifier
               .fillMaxSize()
               .padding(bottom = navigationBarHeight),
         ) {
           if (isGrid) {
+            val spansInfo = calculateResponsiveGridSpans(maxWidth = maxWidth, isGridMode = true)
             LazyVerticalGrid(
-              columns = GridCells.Fixed(gridColumns),
+              columns = GridCells.Fixed(spansInfo.spans),
               state = gridState,
               modifier = Modifier.fillMaxSize(),
               contentPadding =
@@ -455,7 +438,7 @@ private fun NetworkBrowserContent(
               verticalArrangement = Arrangement.spacedBy(2.dp),
             ) {
               if (folders.isNotEmpty()) {
-                item(span = { GridItemSpan(gridColumns) }) {
+                item(span = { GridItemSpan(spansInfo.spans) }) {
                   Text(
                     text = stringResource(R.string.pref_folders_title),
                     style = MaterialTheme.typography.titleMedium,
@@ -466,6 +449,7 @@ private fun NetworkBrowserContent(
                 items(
                   items = folders,
                   key = { it.path },
+                  span = { GridItemSpan(spansInfo.folderSpan) },
                 ) { folder ->
                   NetworkFolderCard(
                     file = folder,
@@ -477,7 +461,7 @@ private fun NetworkBrowserContent(
               }
 
               if (videos.isNotEmpty()) {
-                item(span = { GridItemSpan(gridColumns) }) {
+                item(span = { GridItemSpan(spansInfo.spans) }) {
                   Text(
                     text = stringResource(R.string.ui_videos),
                     style = MaterialTheme.typography.titleMedium,
@@ -488,6 +472,7 @@ private fun NetworkBrowserContent(
                 items(
                   items = videos,
                   key = { it.path },
+                  span = { GridItemSpan(spansInfo.videoSpan) },
                 ) { video ->
                   connection?.let { conn ->
                     NetworkVideoCard(
