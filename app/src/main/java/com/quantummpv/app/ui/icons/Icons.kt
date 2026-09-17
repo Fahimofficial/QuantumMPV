@@ -259,6 +259,7 @@ object Icons {
     val WbSunny by lazy(LazyThreadSafetyMode.NONE) { AppIcon(MaterialSymbols.RoundedFilled.Wb_sunny) }
     val ZoomIn by lazy(LazyThreadSafetyMode.NONE) { AppIcon(MaterialSymbols.RoundedFilled.Zoom_in) }
     val ZoomOutMap by lazy(LazyThreadSafetyMode.NONE) { AppIcon(MaterialSymbols.RoundedFilled.Zoom_out_map) }
+    val PostProcessing by lazy(LazyThreadSafetyMode.NONE) { AppIcon(PostProcessingVector) }
   }
 
   object RoundedFilled {
@@ -474,6 +475,7 @@ object Icons {
     val WbSunny get() = Shared.WbSunny
     val ZoomIn get() = Shared.ZoomIn
     val ZoomOutMap get() = Shared.ZoomOutMap
+    val PostProcessing get() = Shared.PostProcessing
   }
 
   object Alternatives {
@@ -629,6 +631,85 @@ private val LyricsVector: ImageVector by lazy(LazyThreadSafetyMode.NONE) {
       curveTo(12.9f, 12.3f, 13.5f, 11.0f, 13.2f, 9.7f)
       curveTo(12.8f, 9.7f, 12.5f, 9.2f, 12.5f, 8.5f)
       curveTo(12.5f, 7.3f, 13.3f, 6.5f, 14.5f, 6.5f)
+      close()
+    }
+  }.build()
+}
+
+/**
+ * Post-Processing icon: a camera lens aperture ring with two 4-point sparkle stars,
+ * representing visual effects / shader post-processing.
+ * Hand-crafted 24×24 Material-style vector.
+ */
+private val PostProcessingVector: ImageVector by lazy(LazyThreadSafetyMode.NONE) {
+  ImageVector.Builder(
+    name = "PostProcessing",
+    defaultWidth = 24.dp,
+    defaultHeight = 24.dp,
+    viewportWidth = 24f,
+    viewportHeight = 24f,
+  ).apply {
+    path(
+      fill = SolidColor(Color.Black),
+      fillAlpha = 1.0f,
+      stroke = null,
+      strokeAlpha = 1.0f,
+      strokeLineWidth = 1.0f,
+      pathFillType = PathFillType.EvenOdd,
+    ) {
+      // Outer aperture ring — annulus (donut) via EvenOdd fill
+      // Outer circle: centre (11, 13), radius 9
+      moveTo(11.0f, 4.0f)
+      curveTo(6.03f, 4.0f, 2.0f, 8.03f, 2.0f, 13.0f)
+      curveTo(2.0f, 17.97f, 6.03f, 22.0f, 11.0f, 22.0f)
+      curveTo(15.97f, 22.0f, 20.0f, 17.97f, 20.0f, 13.0f)
+      curveTo(20.0f, 8.03f, 15.97f, 4.0f, 11.0f, 4.0f)
+      close()
+      // Inner hole — centre (11, 13), radius 5.5
+      moveTo(11.0f, 7.5f)
+      curveTo(13.76f, 7.5f, 16.0f, 9.74f, 16.0f, 12.5f)
+      curveTo(16.0f, 15.26f, 13.76f, 17.5f, 11.0f, 17.5f)
+      curveTo(8.24f, 17.5f, 6.0f, 15.26f, 6.0f, 12.5f)
+      curveTo(6.0f, 9.74f, 8.24f, 7.5f, 11.0f, 7.5f)
+      close()
+    }
+    path(
+      fill = SolidColor(Color.Black),
+      fillAlpha = 1.0f,
+      stroke = null,
+      strokeAlpha = 1.0f,
+      strokeLineWidth = 1.0f,
+      pathFillType = PathFillType.NonZero,
+    ) {
+      // Large 4-point sparkle star — top-right corner (17.5, 4.5), arm half-length 3.5 / 1.0
+      // Top arm
+      moveTo(17.5f, 1.0f)
+      lineTo(18.2f, 3.8f)
+      lineTo(21.0f, 4.5f)
+      lineTo(18.2f, 5.2f)
+      lineTo(17.5f, 8.0f)
+      lineTo(16.8f, 5.2f)
+      lineTo(14.0f, 4.5f)
+      lineTo(16.8f, 3.8f)
+      close()
+    }
+    path(
+      fill = SolidColor(Color.Black),
+      fillAlpha = 1.0f,
+      stroke = null,
+      strokeAlpha = 1.0f,
+      strokeLineWidth = 1.0f,
+      pathFillType = PathFillType.NonZero,
+    ) {
+      // Small 4-point sparkle dot — beside large star (21.5, 1.5), arm half-length 1.5 / 0.5
+      moveTo(21.5f, 0.5f)
+      lineTo(21.9f, 1.6f)
+      lineTo(23.0f, 2.0f)
+      lineTo(21.9f, 2.4f)
+      lineTo(21.5f, 3.5f)
+      lineTo(21.1f, 2.4f)
+      lineTo(20.0f, 2.0f)
+      lineTo(21.1f, 1.6f)
       close()
     }
   }.build()

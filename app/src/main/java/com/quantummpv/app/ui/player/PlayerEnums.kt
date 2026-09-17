@@ -149,6 +149,7 @@ enum class Sheets {
   VisualizerStyle,
   Lyrics,
   Scopes,
+  PostProcessingConfig,
 }
 
 enum class Panels {

@@ -2272,4 +2272,38 @@
   <string name="wallpaper_save_failed">Could not save the wallpaper. Please choose the image again.</string>
   <string name="pref_haptic_feedback_title">Haptic feedback</string>
   <string name="pref_haptic_feedback_summary">Tactile feedback for selection, dragging, and control adjustments. Respects system settings.</string>
+
+  <!-- Post-Processing Effects -->
+  <string name="btn_label_post_processing">Post-Processing</string>
+  <string name="ui_post_processing">Post-Processing Effects</string>
+  <string name="pp_preset_none">None</string>
+  <string name="pp_preset_natural">Natural</string>
+  <string name="pp_preset_vivid">Vivid</string>
+  <string name="pp_preset_anime">Anime</string>
+  <string name="pp_preset_clean">Clean</string>
+  <string name="pp_preset_cel_shaded">Cel Shaded</string>
+  <string name="pp_preset_cartoon">Cartoon</string>
+  <string name="pp_preset_cinematic">Cinematic</string>
+  <string name="pp_preset_dreamy">Dreamy</string>
+  <string name="pp_preset_retro">Retro</string>
+  <string name="pp_preset_bloom">Bloom</string>
+  <string name="pp_preset_scanlines">Scanlines</string>
+  <string name="pp_preset_white_balance">White Balance</string>
+  <string name="pp_preset_film">Film</string>
+  <string name="pp_desc_none">No post-processing shaders active.</string>
+  <string name="pp_desc_natural">Warm YIQ colour boost from PPSSPP.</string>
+  <string name="pp_desc_vivid">Saturated and levelled colours.</string>
+  <string name="pp_desc_anime">Denoise + sharpen for anime content.</string>
+  <string name="pp_desc_clean">Cleans up low-res artifacts: noise, banding, and edges.</string>
+  <string name="pp_desc_cel_shaded">Flat cel bands with inked edges.</string>
+  <string name="pp_desc_cartoon">Softer cartoon ink, shadows preserved.</string>
+  <string name="pp_desc_cinematic">Film aesthetic: glow, S-curve, split toning, grain and vignette.</string>
+  <string name="pp_desc_dreamy">Soft radial focus with highlight bloom.</string>
+  <string name="pp_desc_retro">Classic CRT television: aberration, scanlines and vignette.</string>
+  <string name="pp_desc_bloom">Additive halo glow on bright areas.</string>
+  <string name="pp_desc_scanlines">CRT horizontal scanline overlay.</string>
+  <string name="pp_desc_white_balance">Chromatic temperature correction.</string>
+  <string name="pp_desc_film">Film grain and corner vignette.</string>
+  <string name="pp_on">Post-processing on</string>
+  <string name="pp_off">Post-processing off</string>
 </resources>

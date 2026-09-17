@@ -1190,6 +1190,71 @@ fun RenderPlayerButton(
       }
     }
 
+    PlayerButton.POST_PROCESSING -> {
+      val isPostProcessingEnabled by viewModel.isPostProcessingEnabled.collectAsState()
+      @OptIn(ExperimentalFoundationApi::class)
+      Surface(
+        shape = CircleShape,
+        color =
+          if (hideBackground) {
+            Color.Transparent
+          } else {
+            MaterialTheme.colorScheme.surfaceContainer.copy(
+              alpha = 0.55f,
+            )
+          },
+        contentColor =
+          if (isPostProcessingEnabled) {
+            MaterialTheme.colorScheme.primary
+          } else {
+            if (hideBackground) controlColor else MaterialTheme.colorScheme.onSurface
+          },
+        border =
+          if (hideBackground) {
+            null
+          } else {
+            BorderStroke(
+              1.dp,
+              MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f),
+            )
+          },
+        modifier =
+          Modifier
+            .size(buttonSize)
+            .clip(CircleShape)
+            .combinedClickable(
+              interactionSource = remember { MutableInteractionSource() },
+              indication = ripple(bounded = true),
+              onClick = {
+                clickEvent()
+                viewModel.togglePostProcessing()
+              },
+              onLongClick = {
+                clickEvent()
+                onOpenSheet(Sheets.PostProcessingConfig)
+              },
+            ),
+      ) {
+        Box(contentAlignment = Alignment.Center) {
+          AppSymbolIcon(
+            imageVector = Icons.RoundedFilled.PostProcessing,
+            contentDescription =
+              androidx.compose.ui.res
+                .stringResource(com.quantummpv.app.R.string.btn_label_post_processing),
+            tint =
+              if (isPostProcessingEnabled) {
+                MaterialTheme.colorScheme.primary
+              } else if (hideBackground) {
+                controlColor
+              } else {
+                MaterialTheme.colorScheme.onSurface
+              },
+            modifier = Modifier.size(24.dp),
+          )
+        }
+      }
+    }
+
     PlayerButton.TIME_NETWORK -> {
       val clockFormat by playerPreferences.clockFormat.collectAsState()
       val stat by rememberTimeAndNetworkStat(clockFormat)

@@ -39,6 +39,7 @@ import com.quantummpv.app.ui.player.Sheets
 import com.quantummpv.app.ui.player.TrackNode
 import com.quantummpv.app.ui.player.controls.components.MpvConfigOwnedSheet
 import com.quantummpv.app.ui.player.controls.components.sheets.AmbientSheet
+import com.quantummpv.app.ui.player.controls.components.sheets.PostProcessingSheet
 import com.quantummpv.app.ui.player.controls.components.sheets.AspectRatioSheet
 import com.quantummpv.app.ui.player.controls.components.sheets.AudioTracksSheet
 import com.quantummpv.app.ui.player.controls.components.sheets.ChaptersSheet
@@ -562,6 +563,13 @@ fun PlayerSheets(
 
     Sheets.AmbientConfig -> {
       AmbientSheet(
+        viewModel = viewModel,
+        onDismissRequest = onDismissRequest,
+      )
+    }
+
+    Sheets.PostProcessingConfig -> {
+      PostProcessingSheet(
         viewModel = viewModel,
         onDismissRequest = onDismissRequest,
       )
