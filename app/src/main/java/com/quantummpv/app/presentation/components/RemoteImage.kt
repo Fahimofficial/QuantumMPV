@@ -165,13 +165,18 @@ internal object RemoteImageLoader {
     }
 
     val host = httpUrl.host
+    val token = httpUrl.queryParameter("token")
     val request =
       runCatching {
         Request
           .Builder()
           .url(httpUrl)
           .header("User-Agent", "Mozilla/5.0 (Android) mpvRx")
-          .apply { if (host.isNotBlank()) header("Referer", "https://$host") }
+          .apply {
+            if (!token.isNullOrBlank()) {
+              header("Authorization", "Bearer $token")
+            }
+          }
           .build()
       }.getOrNull() ?: return null
 
@@ -216,21 +221,22 @@ internal object RemoteImageLoader {
 
   private fun decodeSampled(file: File): Bitmap? {
     if (!file.isFile || file.length() <= 0L) return null
-    val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
-    BitmapFactory.decodeFile(file.absolutePath, bounds)
-    if (bounds.outWidth <= 0 || bounds.outHeight <= 0) return null
+    return runCatching {
+      val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
+      BitmapFactory.decodeFile(file.absolutePath, bounds)
+      if (bounds.outWidth <= 0 || bounds.outHeight <= 0) return null
 
-    var sampleSize = 1
-    while (maxOf(bounds.outWidth, bounds.outHeight) / (sampleSize * 2) >= MAX_IMAGE_DIMENSION) {
-      sampleSize *= 2
-    }
-    return BitmapFactory.decodeFile(
-      file.absolutePath,
-      BitmapFactory.Options().apply {
-        inSampleSize = sampleSize
-        inPreferredConfig = Bitmap.Config.RGB_565
-      },
-    )
+      var sampleSize = 1
+      while (maxOf(bounds.outWidth, bounds.outHeight) / (sampleSize * 2) >= MAX_IMAGE_DIMENSION) {
+        sampleSize *= 2
+      }
+      BitmapFactory.decodeFile(
+        file.absolutePath,
+        BitmapFactory.Options().apply {
+          inSampleSize = sampleSize
+        },
+      )
+    }.getOrNull()
   }
 
   private fun hash(value: String): String =

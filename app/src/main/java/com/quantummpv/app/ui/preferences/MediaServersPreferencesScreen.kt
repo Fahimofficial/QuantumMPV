@@ -50,11 +50,14 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.quantummpv.app.R
+import com.quantummpv.app.domain.audiobookshelf.AudiobookshelfServer
 import com.quantummpv.app.domain.jellyfin.JellyfinServer
 import com.quantummpv.app.domain.navidrome.NavidromeServer
 import com.quantummpv.app.domain.seerr.JellyseerrUser
 import com.quantummpv.app.presentation.Screen
 import com.quantummpv.app.presentation.components.RemoteImage
+import com.quantummpv.app.ui.browser.audiobooks.AddAudiobookshelfServerDialog
+import com.quantummpv.app.ui.browser.audiobooks.AudiobookshelfViewModel
 import com.quantummpv.app.ui.browser.jellyfin.AddJellyfinServerDialog
 import com.quantummpv.app.ui.browser.jellyfin.JellyfinViewModel
 import com.quantummpv.app.ui.browser.jellyfin.seerr.SeerrConnectionDialog
@@ -91,11 +94,17 @@ object MediaServersPreferencesScreen : Screen {
       viewModel(factory = NavidromeViewModel.factory(context.applicationContext as Application))
     val navidromeUiState by navidromeViewModel.uiState.collectAsStateWithLifecycle()
 
+    val audiobookshelfViewModel: AudiobookshelfViewModel =
+      viewModel(factory = AudiobookshelfViewModel.factory(context.applicationContext as Application))
+    val audiobookshelfUiState by audiobookshelfViewModel.uiState.collectAsStateWithLifecycle()
+
     var isAddServerOpen by remember { mutableStateOf(false) }
     var serverToReauth by remember { mutableStateOf<JellyfinServer?>(null) }
     var isSeerrConnectionDialogOpen by remember { mutableStateOf(false) }
     var isAddNavidromeServerOpen by remember { mutableStateOf(false) }
     var navidromeServerToEdit by remember { mutableStateOf<NavidromeServer?>(null) }
+    var isAddAudiobookshelfServerOpen by remember { mutableStateOf(false) }
+    var audiobookshelfServerToEdit by remember { mutableStateOf<AudiobookshelfServer?>(null) }
 
     Scaffold(
       topBar = {
@@ -159,7 +168,7 @@ object MediaServersPreferencesScreen : Screen {
                       painter = painterResource(R.drawable.ic_jellyfin),
                       contentDescription = null,
                       tint = MaterialTheme.colorScheme.primary,
-                      modifier = Modifier.size(24.dp),
+                      modifier = Modifier.size(32.dp),
                     )
                   },
                   onClick = {
@@ -435,7 +444,7 @@ object MediaServersPreferencesScreen : Screen {
                       painter = painterResource(R.drawable.ic_seerr_logo),
                       contentDescription = null,
                       tint = MaterialTheme.colorScheme.primary,
-                      modifier = Modifier.size(24.dp),
+                      modifier = Modifier.size(32.dp),
                     )
                   },
                   onClick = { isSeerrConnectionDialogOpen = true },
@@ -469,7 +478,7 @@ object MediaServersPreferencesScreen : Screen {
                       painter = painterResource(R.drawable.ic_navidrome),
                       contentDescription = null,
                       tint = MaterialTheme.colorScheme.primary,
-                      modifier = Modifier.size(24.dp),
+                      modifier = Modifier.size(32.dp),
                     )
                   },
                   onClick = {
@@ -624,6 +633,198 @@ object MediaServersPreferencesScreen : Screen {
               }
             }
           }
+
+          // --- AUDIOBOOKSHELF SECTION ---
+          item {
+            PreferenceSectionHeader(
+              title = stringResource(R.string.pref_audiobookshelf_title),
+              modifier = Modifier.settingsSearchTarget(R.string.pref_media_servers_title),
+            )
+          }
+
+          item {
+            PreferenceCard {
+              if (audiobookshelfUiState.servers.isEmpty()) {
+                Preference(
+                  modifier = Modifier.settingsSearchTarget(R.string.pref_audiobookshelf_title),
+                  title = { Text(stringResource(R.string.pref_audiobookshelf_add_server)) },
+                  summary = {
+                    Text(
+                      text = stringResource(R.string.pref_audiobookshelf_add_server_desc),
+                      color = MaterialTheme.colorScheme.outline,
+                    )
+                  },
+                  icon = {
+                    Icon(
+                      painter = painterResource(R.drawable.ic_audiobookshelf),
+                      contentDescription = null,
+                      tint = MaterialTheme.colorScheme.primary,
+                      modifier = Modifier.size(32.dp),
+                    )
+                  },
+                  onClick = {
+                    audiobookshelfServerToEdit = null
+                    isAddAudiobookshelfServerOpen = true
+                  },
+                )
+              } else {
+                audiobookshelfUiState.servers.forEachIndexed { index, server ->
+                  if (index > 0) {
+                    PreferenceDivider()
+                  }
+                  val isActive = server.id == audiobookshelfUiState.activeServer?.id
+                  ServerPreferenceItem(
+                    modifier = Modifier.settingsSearchTarget(R.string.pref_audiobookshelf_title),
+                    title = {
+                      Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                      ) {
+                        Text(
+                          text = server.name,
+                          style = MaterialTheme.typography.titleMedium,
+                          fontWeight = if (isActive) FontWeight.Bold else FontWeight.SemiBold,
+                          maxLines = 1,
+                          overflow = TextOverflow.Ellipsis,
+                        )
+                        if (isActive) {
+                          Surface(
+                            shape = RoundedCornerShape(4.dp),
+                            color = MaterialTheme.colorScheme.primary,
+                          ) {
+                            Text(
+                              text = stringResource(R.string.pref_server_active),
+                              style = MaterialTheme.typography.labelSmall,
+                              color = MaterialTheme.colorScheme.onPrimary,
+                              modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
+                            )
+                          }
+                        }
+                      }
+                    },
+                    summary = {
+                      Column(verticalArrangement = Arrangement.spacedBy(1.dp)) {
+                        if (server.username.isNotBlank()) {
+                          Text(
+                            text = server.username,
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                          )
+                        }
+                        Text(
+                          text = server.serverUrl,
+                          style = MaterialTheme.typography.bodySmall,
+                          color = MaterialTheme.colorScheme.outline,
+                          maxLines = 1,
+                          overflow = TextOverflow.Ellipsis,
+                        )
+                      }
+                    },
+                    icon = {
+                      AudiobookshelfServerAvatar(
+                        server = server,
+                        isActive = isActive,
+                      )
+                    },
+                    trailing = {
+                      var menuExpanded by remember { mutableStateOf(false) }
+                      Box {
+                        IconButton(onClick = { menuExpanded = true }) {
+                          Icon(
+                            imageVector = Icons.RoundedFilled.MoreVert,
+                            contentDescription = stringResource(R.string.pref_server_more_options),
+                          )
+                        }
+                        DropdownMenu(
+                          expanded = menuExpanded,
+                          onDismissRequest = { menuExpanded = false },
+                        ) {
+                          if (!isActive) {
+                            DropdownMenuItem(
+                              text = { Text(stringResource(R.string.pref_server_set_active)) },
+                              leadingIcon = {
+                                Icon(
+                                  imageVector = Icons.RoundedFilled.Check,
+                                  contentDescription = null,
+                                )
+                              },
+                              onClick = {
+                                menuExpanded = false
+                                audiobookshelfViewModel.selectServer(server)
+                              },
+                            )
+                          }
+                          DropdownMenuItem(
+                            text = { Text(stringResource(R.string.ui_edit)) },
+                            leadingIcon = {
+                              Icon(
+                                imageVector = Icons.RoundedFilled.Edit,
+                                contentDescription = null,
+                              )
+                            },
+                            onClick = {
+                              menuExpanded = false
+                              audiobookshelfServerToEdit = server
+                              isAddAudiobookshelfServerOpen = true
+                            },
+                          )
+                          DropdownMenuItem(
+                            text = {
+                              Text(
+                                text = stringResource(R.string.delete),
+                                color = MaterialTheme.colorScheme.error,
+                              )
+                            },
+                            leadingIcon = {
+                              Icon(
+                                imageVector = Icons.RoundedFilled.Delete,
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.error,
+                              )
+                            },
+                            onClick = {
+                              menuExpanded = false
+                              audiobookshelfViewModel.deleteServer(server)
+                            },
+                          )
+                        }
+                      }
+                    },
+                    onClick = {
+                      audiobookshelfServerToEdit = server
+                      isAddAudiobookshelfServerOpen = true
+                    },
+                  )
+                }
+
+                PreferenceDivider()
+
+                Preference(
+                  modifier = Modifier.settingsSearchTarget(R.string.pref_audiobookshelf_title),
+                  title = { Text(stringResource(R.string.pref_audiobookshelf_add_another_server)) },
+                  summary = {
+                    Text(
+                      text = stringResource(R.string.pref_audiobookshelf_add_another_server_desc),
+                      color = MaterialTheme.colorScheme.outline,
+                    )
+                  },
+                  icon = {
+                    Icon(
+                      imageVector = Icons.RoundedFilled.Add,
+                      contentDescription = null,
+                      tint = MaterialTheme.colorScheme.primary,
+                    )
+                  },
+                  onClick = {
+                    audiobookshelfServerToEdit = null
+                    isAddAudiobookshelfServerOpen = true
+                  },
+                )
+              }
+            }
+          }
         }
       }
     }
@@ -704,6 +905,57 @@ object MediaServersPreferencesScreen : Screen {
         )
       },
     )
+
+    // Add / Edit Audiobookshelf Server Dialog
+    AddAudiobookshelfServerDialog(
+      isOpen = isAddAudiobookshelfServerOpen,
+      isLoading = audiobookshelfUiState.isConnectingServer,
+      errorMessage = audiobookshelfUiState.connectServerError,
+      initialServer = audiobookshelfServerToEdit,
+      onDismiss = {
+        isAddAudiobookshelfServerOpen = false
+        audiobookshelfServerToEdit = null
+      },
+      onConnect = { url, name, isToken, username, password, token ->
+        audiobookshelfViewModel.connectServer(
+          serverUrl = url,
+          serverName = name,
+          isToken = isToken,
+          username = username,
+          password = password,
+          token = token,
+          existingServer = audiobookshelfServerToEdit,
+          onSuccess = {
+            isAddAudiobookshelfServerOpen = false
+            audiobookshelfServerToEdit = null
+          },
+        )
+      },
+    )
+  }
+}
+
+@Composable
+private fun AudiobookshelfServerAvatar(
+  server: AudiobookshelfServer,
+  isActive: Boolean,
+  modifier: Modifier = Modifier,
+) {
+  Box(
+    modifier = modifier.size(40.dp),
+    contentAlignment = Alignment.Center,
+  ) {
+    Icon(
+      painter = painterResource(R.drawable.ic_audiobookshelf),
+      contentDescription = null,
+      tint =
+        if (isActive) {
+          MaterialTheme.colorScheme.primary
+        } else {
+          MaterialTheme.colorScheme.onSurfaceVariant
+        },
+      modifier = Modifier.size(36.dp),
+    )
   }
 }
 
@@ -713,32 +965,21 @@ private fun NavidromeServerAvatar(
   isActive: Boolean,
   modifier: Modifier = Modifier,
 ) {
-  Surface(
-    shape = CircleShape,
-    color =
-      if (isActive) {
-        MaterialTheme.colorScheme.primaryContainer
-      } else {
-        MaterialTheme.colorScheme.surfaceContainerHighest
-      },
+  Box(
     modifier = modifier.size(40.dp),
+    contentAlignment = Alignment.Center,
   ) {
-    Box(
-      modifier = Modifier.fillMaxSize(),
-      contentAlignment = Alignment.Center,
-    ) {
-      Icon(
-        painter = painterResource(R.drawable.ic_navidrome),
-        contentDescription = null,
-        tint =
-          if (isActive) {
-            MaterialTheme.colorScheme.primary
-          } else {
-            MaterialTheme.colorScheme.onSurfaceVariant
-          },
-        modifier = Modifier.size(22.dp),
-      )
-    }
+    Icon(
+      painter = painterResource(R.drawable.ic_navidrome),
+      contentDescription = null,
+      tint =
+        if (isActive) {
+          MaterialTheme.colorScheme.primary
+        } else {
+          MaterialTheme.colorScheme.onSurfaceVariant
+        },
+      modifier = Modifier.size(36.dp),
+    )
   }
 }
 
@@ -792,7 +1033,7 @@ private fun JellyfinServerAvatar(
             } else {
               MaterialTheme.colorScheme.onSurfaceVariant
             },
-          modifier = Modifier.size(22.dp),
+          modifier = Modifier.size(36.dp),
         )
       }
 
@@ -846,7 +1087,7 @@ private fun SeerrServerAvatar(
           painter = painterResource(R.drawable.ic_seerr_logo),
           contentDescription = null,
           tint = MaterialTheme.colorScheme.primary,
-          modifier = Modifier.size(22.dp),
+          modifier = Modifier.size(36.dp),
         )
       }
 

@@ -2380,4 +2380,13 @@
   <string name="audiobook_no_text">لا توجد كلمات أو نص مرفق</string>
   <string name="player_seek_backward">الرجوع %1$s</string>
   <string name="player_seek_forward">التقدم %1$s</string>
+  <string name="pref_audiobookshelf_title">Audiobookshelf</string>
+  <string name="pref_audiobookshelf_add_server">ربط Audiobookshelf</string>
+  <string name="pref_audiobookshelf_add_server_desc">إضافة والاتصال بخادم Audiobookshelf</string>
+  <string name="pref_audiobookshelf_add_another_server">إضافة خادم آخر</string>
+  <string name="pref_audiobookshelf_add_another_server_desc">الاتصال بخادم Audiobookshelf إضافي</string>
+  <string name="audiobook_source_audiobookshelf">Audiobookshelf</string>
+  <string name="audiobook_source_audiobookshelf_desc">تشغيل الكتب الصوتية من خادم Audiobookshelf</string>
+  <string name="audiobook_source_local">الكتب الصوتية المحلية</string>
+  <string name="pref_audiobookshelf_no_server">لا يوجد خادم Audiobookshelf متصل</string>
 </resources>

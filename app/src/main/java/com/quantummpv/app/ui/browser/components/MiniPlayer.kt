@@ -15,6 +15,7 @@ import android.content.Intent
 import android.graphics.Bitmap
 import android.media.MediaMetadataRetriever
 import android.net.Uri
+import android.text.format.DateUtils
 import android.view.SurfaceHolder
 import android.view.SurfaceView
 import androidx.compose.animation.AnimatedContent
@@ -183,8 +184,19 @@ private fun MiniPlayerContent(
   val videoHeight by PlaybackSession.propLong["video-params/h"].collectAsStateWithLifecycle()
 
   val isPlaying = paused == false
+  val activeBook by com.quantummpv.app.ui.player.AudiobookPlayback.book.collectAsStateWithLifecycle()
+  val audiobook = activeBook?.takeIf { it.book.id == currentItem?.audiobook?.bookId }
+  val isAudiobook = currentItem?.audiobook != null
+
+  val bookOffsetSec = currentItem?.audiobook?.let { audiobook?.positionInBook(it.trackId, 0) }?.div(1000f) ?: 0f
+  val currentPosSec = positionState.value?.toFloat() ?: 0f
+  val totalPosSec = if (audiobook != null) (bookOffsetSec + currentPosSec).coerceIn(0f, audiobook.durationMs / 1000f) else currentPosSec
+  val totalDurSec = if (audiobook != null && audiobook.durationMs > 0) audiobook.durationMs / 1000f else (duration?.toFloat() ?: 0f)
+  val progressFraction = if (totalDurSec > 0f) (totalPosSec / totalDurSec).coerceIn(0f, 1f) else 0f
+
   val title =
-    queueState.currentItem?.title?.takeIf { queueState.isExplicitQueue && it.isNotBlank() }
+    audiobook?.book?.title
+      ?: queueState.currentItem?.title?.takeIf { queueState.isExplicitQueue && it.isNotBlank() }
       ?: rawMediaTitle?.takeIf { it.isNotBlank() }
       ?: currentItem?.title?.takeIf { it.isNotBlank() }
       ?: "Media Track"
@@ -203,10 +215,12 @@ private fun MiniPlayerContent(
   val coverArtPath =
     currentItem?.originalUri?.takeIf { it.isNotBlank() }
       ?: currentItem?.playableUri?.takeIf { it.isNotBlank() }
+  val effectiveArtworkUri = currentItem?.artworkUri
+    ?: audiobook?.book?.coverUri?.takeIf { it.isNotBlank() }
   val coverArt =
     rememberMiniPlayerCoverArt(
       pathOrUri = if (isAudioOnlyItem) coverArtPath else null,
-      artworkUri = if (isAudioOnlyItem) currentItem?.artworkUri else null,
+      artworkUri = if (isAudioOnlyItem) effectiveArtworkUri else null,
     )
 
   val coroutineScope = rememberCoroutineScope()
@@ -422,9 +436,6 @@ private fun MiniPlayerContent(
         modifier = Modifier
           .fillMaxWidth()
           .drawBehind {
-            val dur = duration?.toFloat() ?: 0f
-            val pos = positionState.value?.toFloat() ?: 0f
-            val progressFraction = if (dur > 0f) (pos / dur).coerceIn(0f, 1f) else 0f
             if (progressFraction > 0f) {
               drawRect(
                 color = primaryContainerColor.copy(alpha = 0.35f),
@@ -471,7 +482,7 @@ private fun MiniPlayerContent(
           modifier = Modifier.weight(1f),
           verticalArrangement = Arrangement.Center,
         ) {
-          key(currentItem?.stableId ?: currentItem?.originalUri) {
+          key(currentItem?.stableId ?: currentItem?.originalUri ?: audiobook?.book?.id) {
             Text(
               text = title,
               style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Bold),
@@ -481,11 +492,22 @@ private fun MiniPlayerContent(
               modifier = Modifier.basicMarquee(),
             )
           }
+          val statusText = when {
+            audiobook != null -> {
+              val author = audiobook.book.author.takeIf { it.isNotBlank() }
+              val durText = DateUtils.formatElapsedTime(audiobook.durationMs / 1000)
+              val posText = DateUtils.formatElapsedTime(totalPosSec.toLong())
+              val timeInfo = "$posText / $durText"
+              if (author != null) "$author • $timeInfo" else timeInfo
+            }
+            else -> if (isPlaying) "Playing" else "Paused"
+          }
           Text(
-            text = if (isPlaying) "Playing" else "Paused",
+            text = statusText,
             style = MaterialTheme.typography.labelSmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
           )
         }
 
@@ -564,30 +586,34 @@ private fun rememberMiniPlayerCoverArt(
   val context = LocalContext.current
   var bitmap by remember { mutableStateOf<Bitmap?>(null) }
   LaunchedEffect(pathOrUri, artworkUri) {
-    if (pathOrUri.isNullOrBlank()) {
+    if (pathOrUri.isNullOrBlank() && artworkUri.isNullOrBlank()) {
       bitmap = null
       return@LaunchedEffect
     }
     withContext(Dispatchers.IO) {
       runCatching {
-        EmbeddedArtworkResolver.decodeArtworkUri(context, artworkUri)?.let { return@runCatching it }
-        val cleanPath =
-          when {
-            pathOrUri.startsWith("file://", ignoreCase = true) -> Uri.parse(pathOrUri).path
-            pathOrUri.startsWith("content://", ignoreCase = true) -> null
-            else -> pathOrUri
-          }
-        val retriever = MediaMetadataRetriever()
-        try {
-          if (cleanPath != null) {
-            retriever.setDataSource(cleanPath)
-          } else {
-            retriever.setDataSource(context, Uri.parse(pathOrUri))
-          }
-          EmbeddedArtworkResolver.decodeEmbeddedArtwork(cleanPath, retriever)
-        } finally {
-          runCatching { retriever.release() }
+        if (!artworkUri.isNullOrBlank()) {
+          EmbeddedArtworkResolver.decodeArtworkUri(context, artworkUri)?.let { return@runCatching it }
         }
+        if (!pathOrUri.isNullOrBlank()) {
+          val cleanPath =
+            when {
+              pathOrUri.startsWith("file://", ignoreCase = true) -> Uri.parse(pathOrUri).path
+              pathOrUri.startsWith("content://", ignoreCase = true) -> null
+              else -> pathOrUri
+            }
+          val retriever = MediaMetadataRetriever()
+          try {
+            if (cleanPath != null) {
+              retriever.setDataSource(cleanPath)
+            } else {
+              retriever.setDataSource(context, Uri.parse(pathOrUri))
+            }
+            EmbeddedArtworkResolver.decodeEmbeddedArtwork(cleanPath, retriever)
+          } finally {
+            runCatching { retriever.release() }
+          }
+        } else null
       }.onSuccess { loaded ->
         bitmap = loaded
       }.onFailure {

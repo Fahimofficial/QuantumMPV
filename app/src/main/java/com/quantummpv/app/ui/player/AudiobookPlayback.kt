@@ -46,6 +46,7 @@ internal object AudiobookPlayback {
 
   private val dao by lazy { GlobalContext.get().get<AudiobookDao>() }
   private val json by lazy { GlobalContext.get().get<Json>() }
+  private val absRepo by lazy { runCatching { GlobalContext.get().get<com.quantummpv.app.repository.AudiobookshelfRepository>() }.getOrNull() }
   private val started = AtomicBoolean(false)
   private val handler = CoroutineExceptionHandler { _, error ->
     Log.e("AudiobookPlayback", "Audiobook operation failed", error)
@@ -80,6 +81,28 @@ internal object AudiobookPlayback {
               dao.saveProgress(progress.item.bookId, progress.item.trackId, progress.positionMs, progress.playedAt, progress.reachedEnd)
               savedAt[progress.item.bookId] = progress.capturedAtNanos
               _saveFailed.value = false
+
+              val currentBook = dao.getBook(progress.item.bookId)
+              val sourceKey = currentBook?.book?.sourceKey
+              if (sourceKey?.startsWith("abs:") == true) {
+                val parts = sourceKey.split(":")
+                if (parts.size >= 3) {
+                  val serverId = parts[1].toLongOrNull()
+                  val itemId = parts[2]
+                  if (serverId != null) {
+                    val posMs = currentBook.positionInBook(progress.item.trackId, progress.positionMs)
+                    val durMs = currentBook.durationMs
+                    val isFinished = progress.reachedEnd || (durMs > 0 && posMs >= durMs - 5000)
+                    absRepo?.syncProgress(
+                      serverId = serverId,
+                      itemId = itemId,
+                      currentTimeSeconds = posMs / 1000.0,
+                      durationSeconds = durMs / 1000.0,
+                      isFinished = isFinished,
+                    )
+                  }
+                }
+              }
             }
           }
         } catch (cancelled: CancellationException) {

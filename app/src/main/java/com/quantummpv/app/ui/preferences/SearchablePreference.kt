@@ -1625,6 +1625,20 @@ object SearchablePreferences {
         anchorItemIndex = 2,
         SearchEntrySpec(R.string.pref_seerr_server_management, listOf("seerr", "jellyseerr", "overseerr", "requests", "server", "api")),
       )
+      addSearchEntries(
+        category = "Media Servers",
+        screen = MediaServersPreferencesScreen,
+        anchorItemIndex = 3,
+        SearchEntrySpec(R.string.pref_navidrome_title, listOf("navidrome", "subsonic", "opensubsonic", "music", "server", "stream", "audio")),
+        SearchEntrySpec(R.string.pref_navidrome_add_server, listOf("navidrome", "subsonic", "connect", "server", "music")),
+      )
+      addSearchEntries(
+        category = "Media Servers",
+        screen = MediaServersPreferencesScreen,
+        anchorItemIndex = 4,
+        SearchEntrySpec(R.string.pref_audiobookshelf_title, listOf("audiobookshelf", "abs", "audiobook", "audiobooks", "server", "stream", "listening", "book")),
+        SearchEntrySpec(R.string.pref_audiobookshelf_add_server, listOf("audiobookshelf", "abs", "connect", "server", "token", "login")),
+      )
 
       // About
       add(
