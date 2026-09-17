@@ -10,9 +10,11 @@
 package com.quantummpv.app.ui.editor
 
 import android.content.Context
+import android.graphics.Rect
 import android.graphics.Typeface
 import android.os.Bundle
 import android.util.Log
+import android.view.ViewTreeObserver
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.text.selection.LocalTextSelectionColors
 import androidx.compose.runtime.Composable
@@ -30,6 +32,7 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
 import com.quantummpv.app.utils.clipboard.SafeClipboard
 import io.github.rosemoe.sora.event.ContentChangeEvent
+import io.github.rosemoe.sora.event.EditorReleaseEvent
 import io.github.rosemoe.sora.lang.EmptyLanguage
 import io.github.rosemoe.sora.lang.Language
 import io.github.rosemoe.sora.lang.completion.CompletionHelper
@@ -44,6 +47,7 @@ import io.github.rosemoe.sora.langs.textmate.registry.provider.AssetsFileResolve
 import io.github.rosemoe.sora.text.CharPosition
 import io.github.rosemoe.sora.text.ContentReference
 import io.github.rosemoe.sora.widget.CodeEditor
+import io.github.rosemoe.sora.widget.component.EditorAutoCompletion
 import io.github.rosemoe.sora.widget.schemes.EditorColorScheme
 import io.github.rosemoe.sora.widget.subscribeAlways
 import org.eclipse.tm4e.core.registry.IThemeSource
@@ -132,6 +136,10 @@ fun MpvScriptEditor(
 private class SafeCodeEditor(
   context: Context,
 ) : CodeEditor(context) {
+  init {
+    replaceComponent(EditorAutoCompletion::class.java, AboveCaretAutoCompletion(this))
+  }
+
   override fun copyTextToClipboard(
     text: CharSequence,
     start: Int,
@@ -139,6 +147,81 @@ private class SafeCodeEditor(
   ) {
     val textToCopy = if (end > start) text.subSequence(start, end) else text
     SafeClipboard.copyPlainText(context, "Editor selection", textToCopy, showToast = true)
+  }
+}
+
+private class AboveCaretAutoCompletion(
+  private val codeEditor: CodeEditor,
+) : EditorAutoCompletion(codeEditor) {
+  private val visibleEditor = Rect()
+  private val visibleWindow = Rect()
+  private val screenLocation = IntArray(2)
+  private var showRequested = false
+  private val layoutListener = ViewTreeObserver.OnGlobalLayoutListener {
+    if (isShowing || showRequested) updateCompletionWindowPosition(false)
+  }
+
+  init {
+    codeEditor.viewTreeObserver.addOnGlobalLayoutListener(layoutListener)
+    codeEditor.subscribeAlways<EditorReleaseEvent> {
+      if (codeEditor.viewTreeObserver.isAlive) codeEditor.viewTreeObserver.removeOnGlobalLayoutListener(layoutListener)
+    }
+  }
+
+  override fun updateCompletionWindowPosition(scrollEditor: Boolean) {
+    val fullWidth = completionWndPositionMode == WINDOW_POS_MODE_FULL_WIDTH_ALWAYS ||
+      completionWndPositionMode == WINDOW_POS_MODE_AUTO && codeEditor.width < 500 * codeEditor.dpUnit
+    val desiredWidth = if (fullWidth) codeEditor.width * 7 / 8 else minOf((300 * codeEditor.dpUnit).toInt(), codeEditor.width / 2)
+    setSize(desiredWidth, height)
+  }
+
+  override fun setSize(width: Int, height: Int) {
+    if (!codeEditor.getLocalVisibleRect(visibleEditor)) {
+      setMaxHeight(0)
+      super.setSize(0, 0)
+      hide()
+      return
+    }
+    codeEditor.getWindowVisibleDisplayFrame(visibleWindow)
+    codeEditor.getLocationOnScreen(screenLocation)
+    val top = maxOf(visibleEditor.top, visibleWindow.top - screenLocation[1])
+    val bottom = minOf(visibleEditor.bottom, visibleWindow.bottom - screenLocation[1])
+    val cursor = codeEditor.cursor
+    val caretBottom = (codeEditor.layout.getCharLayoutOffset(cursor.rightLine, cursor.rightColumn)[0] - codeEditor.offsetY).toInt()
+    val caretTop = caretBottom - codeEditor.rowHeight
+    val gap = (8 * codeEditor.dpUnit).toInt()
+    val above = (caretTop - gap - top).coerceAtLeast(0)
+    val below = (bottom - caretBottom - gap).coerceAtLeast(0)
+    val minimumHeight = maxOf(codeEditor.rowHeight, (48 * codeEditor.dpUnit).toInt())
+    val placeAbove = above >= minimumHeight
+    val available = minOf(if (placeAbove) above else below, (200 * codeEditor.dpUnit).toInt())
+    if (caretTop < top || caretBottom > bottom || available < minimumHeight) {
+      setMaxHeight(0)
+      super.setSize(0, 0)
+      hide()
+      return
+    }
+    setMaxHeight(available)
+    val popupWidth = width.coerceIn(0, visibleEditor.width())
+    val popupHeight = height.coerceIn(0, available)
+    val fullWidth = completionWndPositionMode == WINDOW_POS_MODE_FULL_WIDTH_ALWAYS ||
+      completionWndPositionMode == WINDOW_POS_MODE_AUTO && codeEditor.width < 500 * codeEditor.dpUnit
+    val desiredLeft = if (fullWidth) (codeEditor.width - popupWidth) / 2 else codeEditor.updateCursorAnchor().toInt()
+    val left = desiredLeft.coerceIn(visibleEditor.left, visibleEditor.right - popupWidth)
+    val popupTop = if (placeAbove) caretTop - gap - popupHeight else caretBottom + gap
+    super.setSize(popupWidth, popupHeight)
+    setLocationAbsolutely(left, popupTop)
+  }
+
+  override fun show() {
+    showRequested = true
+    updateCompletionWindowPosition(false)
+    if (showRequested && width > 0 && height > 0) super.show()
+  }
+
+  override fun hide() {
+    showRequested = false
+    super.hide()
   }
 }
 

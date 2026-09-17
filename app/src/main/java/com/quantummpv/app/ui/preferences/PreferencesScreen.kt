@@ -351,7 +351,6 @@ object PreferencesScreen : Screen {
                   stringResource(R.string.pref_section_app_language),
                   stringResource(R.string.pref_section_backup_restore),
                   stringResource(R.string.pref_section_mpv_config),
-                  stringResource(R.string.ui_network),
                 ).joinToString(", "),
               icon = Icons.Alternatives.AdvancedSettings,
               screen = AdvancedPreferencesScreen,
