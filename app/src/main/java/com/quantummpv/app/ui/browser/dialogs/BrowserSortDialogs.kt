@@ -17,6 +17,7 @@ import androidx.compose.ui.unit.dp
 import com.quantummpv.app.R
 import com.quantummpv.app.preferences.AppearancePreferences
 import com.quantummpv.app.preferences.BrowserPreferences
+import com.quantummpv.app.preferences.AudiobookSortType
 import com.quantummpv.app.preferences.FolderSortType
 import com.quantummpv.app.preferences.FolderViewMode
 import com.quantummpv.app.preferences.MediaLayoutMode
@@ -1258,4 +1259,65 @@ fun JellyfinSortDialog(
     showSortOptions = true,
   )
 }
+
+@Composable
+fun AudiobookSortDialog(
+  isOpen: Boolean,
+  onDismiss: () -> Unit,
+  sortType: AudiobookSortType,
+  sortOrder: SortOrder,
+  layoutMode: MediaLayoutMode,
+  onSortTypeChange: (AudiobookSortType) -> Unit,
+  onSortOrderChange: (SortOrder) -> Unit,
+  onLayoutModeChange: (MediaLayoutMode) -> Unit,
+) {
+  SortDialog(
+    isOpen = isOpen,
+    onDismiss = onDismiss,
+    title = stringResource(R.string.sort_view_options),
+    sortType = sortType.displayName,
+    onSortTypeChange = { typeName ->
+      AudiobookSortType.entries.find { it.displayName == typeName }?.let(onSortTypeChange)
+    },
+    sortOrderAsc = sortOrder == SortOrder.Ascending,
+    onSortOrderChange = { isAsc ->
+      onSortOrderChange(if (isAsc) SortOrder.Ascending else SortOrder.Descending)
+    },
+    types = AudiobookSortType.entries.map { it.displayName },
+    icons =
+      listOf(
+        Icons.RoundedFilled.Title,
+        Icons.RoundedFilled.Person,
+        Icons.RoundedFilled.AccessTime,
+        Icons.RoundedFilled.AvTimer,
+        Icons.RoundedFilled.History,
+        Icons.RoundedFilled.CalendarToday,
+      ),
+    getLabelForType = { type, _ ->
+      when (type) {
+        AudiobookSortType.Title.displayName,
+        AudiobookSortType.Author.displayName -> Pair("A-Z", "Z-A")
+        AudiobookSortType.Duration.displayName -> Pair("Shortest", "Longest")
+        AudiobookSortType.Progress.displayName -> Pair("Least", "Most")
+        AudiobookSortType.LastPlayed.displayName -> Pair("Oldest", "Newest")
+        AudiobookSortType.DateAdded.displayName -> Pair("Oldest", "Newest")
+        else -> Pair("Asc", "Desc")
+      }
+    },
+    layoutModeSelector =
+      ViewModeSelector(
+        label = "Layout",
+        firstOptionLabel = "List",
+        secondOptionLabel = "Grid",
+        firstOptionIcon = Icons.RoundedFilled.ViewList,
+        secondOptionIcon = Icons.RoundedFilled.GridView,
+        isFirstOptionSelected = layoutMode == MediaLayoutMode.LIST,
+        onViewModeChange = { isList ->
+          onLayoutModeChange(if (isList) MediaLayoutMode.LIST else MediaLayoutMode.GRID)
+        },
+      ),
+    showSortOptions = true,
+  )
+}
+
 

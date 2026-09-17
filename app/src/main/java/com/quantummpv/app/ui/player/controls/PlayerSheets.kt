@@ -571,35 +571,76 @@ fun PlayerSheets(
     }
 
     Sheets.Playlist -> {
-      // Observe playlist updates
-      val playlist by viewModel.playlistItems.collectAsState()
       val playbackState by com.quantummpv.app.ui.player.PlaybackSession.state.composeCollectAsState()
-      val isAudioOnly by viewModel.isAudioOnly.collectAsState()
-      val playerPreferences = koinInject<com.quantummpv.app.preferences.PlayerPreferences>()
-      val isPlaylistSwipeActive by viewModel.isPlaylistSwipeActive.collectAsState()
-      val playlistSwipeOffset by viewModel.playlistSwipeOffset.collectAsState()
-
-      val playlistImmutable = remember(playlist) { playlist.toImmutableList() }
-
-      if (playlistImmutable.isNotEmpty()) {
-        val totalCount = playlistImmutable.size
-        val isM3U = viewModel.isPlaylistM3U()
-        PlaylistSheet(
-          playlist = playlistImmutable,
+      if (playbackState.currentItem?.audiobook != null) {
+        val bookmarks by viewModel.playbackBookmarks.composeCollectAsState()
+        val mediaId by viewModel.bookmarkMediaId.composeCollectAsState()
+        val scope = rememberCoroutineScope()
+        val context = LocalContext.current
+        var deleting by remember(mediaId) { mutableStateOf(false) }
+        ChaptersSheet(
+          chapters = chapters,
+          currentChapter = chapter,
+          onClick = { onSeekToChapter(chapters.indexOf(it)) },
           onDismissRequest = onDismissRequest,
-          onItemClick = { item ->
-            viewModel.playPlaylistItem(item.index)
+          itemActions = { segment ->
+            bookmarks.firstOrNull { it.mediaId == mediaId && it.title == segment.name && viewModel.bookmarkPositionMs(it) / 1000f == segment.start }?.let { bookmark ->
+              androidx.compose.material3.IconButton(enabled = !deleting, onClick = {
+                if (viewModel.preparePlaybackBookmark(bookmark)) onShowSheet(Sheets.BookmarkEditor)
+              }) {
+                com.quantummpv.app.ui.icons.Icon(com.quantummpv.app.ui.icons.Icons.RoundedFilled.Edit,
+                  androidx.compose.ui.res.stringResource(R.string.audiobook_bookmark_name))
+              }
+              androidx.compose.material3.IconButton(enabled = !deleting, onClick = {
+                deleting = true
+                scope.launch {
+                  try {
+                    viewModel.deletePlaybackBookmark(bookmark)
+                  } catch (cancelled: kotlinx.coroutines.CancellationException) {
+                    throw cancelled
+                  } catch (_: Exception) {
+                    Toast.makeText(context, R.string.playback_bookmark_update_failed, Toast.LENGTH_SHORT).show()
+                  } finally {
+                    deleting = false
+                  }
+                }
+              }) {
+                com.quantummpv.app.ui.icons.Icon(com.quantummpv.app.ui.icons.Icons.RoundedFilled.Delete,
+                  androidx.compose.ui.res.stringResource(R.string.audiobook_delete_bookmark))
+              }
+            }
           },
-          onReorder = if (playbackState.currentItem?.audiobook != null) null else { from, to ->
-            viewModel.reorderPlaylistItem(from, to)
-          },
-          totalCount = totalCount,
-          isM3UPlaylist = isM3U,
-          playerPreferences = playerPreferences,
-          isSwipeActive = isPlaylistSwipeActive,
-          swipeOffset = playlistSwipeOffset,
-          isAudioOnly = isAudioOnly,
         )
+      } else {
+        // Observe playlist updates
+        val playlist by viewModel.playlistItems.collectAsState()
+        val isAudioOnly by viewModel.isAudioOnly.collectAsState()
+        val playerPreferences = koinInject<com.quantummpv.app.preferences.PlayerPreferences>()
+        val isPlaylistSwipeActive by viewModel.isPlaylistSwipeActive.collectAsState()
+        val playlistSwipeOffset by viewModel.playlistSwipeOffset.collectAsState()
+
+        val playlistImmutable = remember(playlist) { playlist.toImmutableList() }
+
+        if (playlistImmutable.isNotEmpty()) {
+          val totalCount = playlistImmutable.size
+          val isM3U = viewModel.isPlaylistM3U()
+          PlaylistSheet(
+            playlist = playlistImmutable,
+            onDismissRequest = onDismissRequest,
+            onItemClick = { item ->
+              viewModel.playPlaylistItem(item.index)
+            },
+            onReorder = { from, to ->
+              viewModel.reorderPlaylistItem(from, to)
+            },
+            totalCount = totalCount,
+            isM3UPlaylist = isM3U,
+            playerPreferences = playerPreferences,
+            isSwipeActive = isPlaylistSwipeActive,
+            swipeOffset = playlistSwipeOffset,
+            isAudioOnly = isAudioOnly,
+          )
+        }
       }
     }
 

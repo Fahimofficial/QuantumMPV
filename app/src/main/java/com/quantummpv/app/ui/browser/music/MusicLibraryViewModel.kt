@@ -46,6 +46,7 @@ class MusicLibraryViewModel : ViewModel(), KoinComponent {
   private val browserPreferences: com.quantummpv.app.preferences.BrowserPreferences by inject()
   private val audioPreferences: com.quantummpv.app.preferences.AudioPreferences by inject()
   private val foldersPreferences: com.quantummpv.app.preferences.FoldersPreferences by inject()
+  private val audiobookDao: com.quantummpv.app.database.dao.AudiobookDao by inject()
 
   val visibleTabs: StateFlow<List<MusicTab>> = combine(
     audioPreferences.musicTabOrder.changes(),
@@ -193,6 +194,7 @@ class MusicLibraryViewModel : ViewModel(), KoinComponent {
   suspend fun refreshLibrary(context: Context) {
     _isLoading.value = true
     try {
+      com.quantummpv.app.domain.audiobook.AudiobookMarkerUtils.syncKnownAudiobooks(context, audiobookDao)
       _allSongs.value = MusicLibraryScanner.scanSongs(context)
       applyFilters()
     } catch (e: CancellationException) {
@@ -223,7 +225,8 @@ class MusicLibraryViewModel : ViewModel(), KoinComponent {
           song.path.equals(folderPath, ignoreCase = true) ||
             song.path.startsWith(if (folderPath.endsWith("/")) folderPath else "$folderPath/", ignoreCase = true)
         }
-        meetsDuration && isNotBlacklisted
+        val isNotAudiobook = !com.quantummpv.app.domain.audiobook.AudiobookMarkerUtils.isAudiobookPath(song.path)
+        meetsDuration && isNotBlacklisted && isNotAudiobook
       }
       Triple(visible, buildAlbums(visible), buildArtists(visible))
     }

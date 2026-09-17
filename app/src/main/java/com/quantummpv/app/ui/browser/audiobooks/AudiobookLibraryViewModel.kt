@@ -30,6 +30,12 @@ class AudiobookLibraryViewModel(application: Application) : AndroidViewModel(app
   val error = _error.asStateFlow()
   private var importJob: Job? = null
 
+  init {
+    viewModelScope.launch(Dispatchers.IO) {
+      com.quantummpv.app.domain.audiobook.AudiobookMarkerUtils.syncKnownAudiobooks(application, dao)
+    }
+  }
+
   fun importFiles(uris: List<Uri>, folder: Uri? = null) {
     if (importJob?.isActive == true || uris.isEmpty() && folder == null) return
     _error.value = null
@@ -38,7 +44,17 @@ class AudiobookLibraryViewModel(application: Application) : AndroidViewModel(app
       val context = getApplication<Application>()
       try {
         (listOfNotNull(folder) + uris).forEach { uri ->
-          context.contentResolver.takePersistableUriPermission(uri, Intent.FLAG_GRANT_READ_URI_PERMISSION)
+          runCatching {
+            context.contentResolver.takePersistableUriPermission(
+              uri,
+              Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_GRANT_WRITE_URI_PERMISSION
+            )
+          }.recoverCatching {
+            context.contentResolver.takePersistableUriPermission(
+              uri,
+              Intent.FLAG_GRANT_READ_URI_PERMISSION
+            )
+          }
         }
         AudiobookImporter(context, dao).importBook(uris, folder) { current, total -> _progress.value = current to total }
       } catch (cancelled: CancellationException) {

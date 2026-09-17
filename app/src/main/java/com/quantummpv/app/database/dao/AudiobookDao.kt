@@ -112,4 +112,10 @@ abstract class AudiobookDao {
     if (chapters.isNotEmpty()) insertChapters(chapters.distinctBy { it.startMs })
   }
 
+  @Query("SELECT * FROM audiobooks")
+  abstract suspend fun getAllBooks(): List<AudiobookEntity>
+
+  @Query("SELECT * FROM audiobook_tracks")
+  abstract suspend fun getAllTracks(): List<AudiobookTrackEntity>
+
 }

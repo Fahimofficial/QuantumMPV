@@ -71,6 +71,7 @@ class NoMediaPathFilter(
       runCatching {
         directory.name.startsWith(".") ||
           options.normalizedHiddenFolderMarkerNames.any { File(directory, it).isFile } ||
+          File(directory, com.quantummpv.app.domain.audiobook.AudiobookMarkerUtils.AUDIOBOOK_MARKER).isFile ||
           directory.parentFile?.let(::hasHiddenMarkerInPath) == true
       }.getOrElse { error ->
         Log.w(TAG, "Failed checking hidden-folder ancestry for $path", error)

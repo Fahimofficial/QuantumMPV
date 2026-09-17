@@ -31,14 +31,20 @@ internal class AudiobookImporter(private val context: Context, private val dao: 
 
   suspend fun importBook(uris: List<Uri>, folder: Uri? = null, onProgress: (Int, Int) -> Unit): Long = withContext(Dispatchers.IO) {
     val root = folder?.let { openPersistedTreeDocument(context, it.toString()) ?: throw IOException(it.toString()) }
+    AudiobookMarkerUtils.ensureMarker(context, folder, root)
     val sources = if (root != null) collectFiles(root) else uris.distinct().map { uri ->
       val file = DocumentFile.fromSingleUri(context, uri) ?: throw IOException(uri.toString())
+      AudiobookMarkerUtils.ensureMarker(context, uri, file)
       Source(file, file.name.orEmpty())
     }
     val audio = sources.filter { it.document.name?.substringAfterLast('.')?.lowercase() in FileTypeUtils.AUDIO_EXTENSIONS }
     if (audio.isEmpty()) throw IOException(context.getString(R.string.audiobook_no_audio))
     val sourceKey = folder?.toString() ?: digest(audio.map { it.document.uri.toString() }.sorted().joinToString("\n"))
-    dao.findBySource(sourceKey)?.let { return@withContext it }
+    dao.findBySource(sourceKey)?.let {
+      AudiobookMarkerUtils.clearCache()
+      com.quantummpv.app.utils.media.MediaLibraryEvents.notifyChanged()
+      return@withContext it
+    }
     val metadata = readMetadata(sources)
     var coverUri = sources.firstOrNull {
       it.document.name?.lowercase() in setOf("cover.jpg", "cover.png", "folder.jpg", "folder.png")
@@ -120,6 +126,8 @@ internal class AudiobookImporter(private val context: Context, private val dao: 
         offset += track.durationMs
       }
     }
+    AudiobookMarkerUtils.clearCache()
+    com.quantummpv.app.utils.media.MediaLibraryEvents.notifyChanged()
     id
   }
 

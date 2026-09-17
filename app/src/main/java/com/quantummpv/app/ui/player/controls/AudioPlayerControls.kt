@@ -1821,37 +1821,42 @@ fun AudioPlayerControls(
     }
 
     val playbackControlsRow = @Composable {
-      val gesturePreferences = koinInject<GesturePreferences>()
-      val configuredSeekSeconds by gesturePreferences.doubleTapToSeekDuration.collectAsState()
       val seekable by PlaybackSession.propBoolean["seekable"].collectAsStateWithLifecycle()
-      val seekSeconds = configuredSeekSeconds.coerceIn(1, 120)
       val canSeek = seekable == true && playbackState.phase in setOf(PlaybackPhase.READY, PlaybackPhase.BACKGROUND)
+      val prevEnabled = if (isAudiobook) bookChapterIndex >= 0 else playlistModeEnabled
+      val nextEnabled = if (isAudiobook) bookChapterIndex >= 0 && bookChapterIndex < chapters.lastIndex else playlistModeEnabled
       Row(
-        modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
+        modifier =
+          Modifier
+            .fillMaxWidth()
+            .then(if (isAudiobook) Modifier.horizontalScroll(rememberScrollState()) else Modifier),
         horizontalArrangement = Arrangement.SpaceEvenly,
         verticalAlignment = Alignment.CenterVertically,
       ) {
-        ReactiveIconButton(onClick = {
-          if (isAudiobook) viewModel.stepPlaybackChapter(-1) else viewModel.playPrevious()
-        }, enabled = if (isAudiobook) bookChapterIndex >= 0 else playlistModeEnabled) {
+        ReactiveIconButton(
+          onClick = {
+            if (isAudiobook) viewModel.stepPlaybackChapter(-1) else viewModel.playPrevious()
+          },
+          enabled = prevEnabled,
+          modifier = Modifier.size(if (isAudiobook) 48.dp else 56.dp),
+        ) {
           Icon(
             imageVector = Icons.RoundedFilled.SkipPrevious,
             contentDescription = if (isAudiobook) stringResource(R.string.audiobook_previous_chapter) else null,
             tint =
-              if (playlistModeEnabled) {
+              if (prevEnabled) {
                 MaterialTheme.colorScheme.onSurface
               } else {
-                MaterialTheme.colorScheme.onSurface
-                  .copy(
-                    alpha = 0.38f,
-                  )
+                MaterialTheme.colorScheme.onSurface.copy(alpha = 0.38f)
               },
-            modifier = Modifier.size(28.dp),
+            modifier = Modifier.size(if (isAudiobook) 28.dp else 38.dp),
           )
         }
-        AudioSeekButton(forward = false, seconds = seekSeconds, enabled = canSeek) {
-          viewModel.leftSeek()
-          actionHaptics.confirm()
+        if (isAudiobook) {
+          AudioSeekButton(forward = false, seconds = 30, enabled = canSeek) {
+            viewModel.seekBy(-30)
+            actionHaptics.confirm()
+          }
         }
         ReactiveSurfaceButton(
           onClick = { viewModel.pauseUnpause() },
@@ -1869,43 +1874,35 @@ fun AudioPlayerControls(
             )
           }
         }
-        AudioSeekButton(forward = true, seconds = seekSeconds, enabled = canSeek) {
-          viewModel.rightSeek()
-          actionHaptics.confirm()
+        if (isAudiobook) {
+          AudioSeekButton(forward = true, seconds = 30, enabled = canSeek) {
+            viewModel.seekBy(30)
+            actionHaptics.confirm()
+          }
         }
-        ReactiveIconButton(onClick = {
-          if (isAudiobook) viewModel.stepPlaybackChapter(1) else viewModel.playNext()
-        }, enabled = if (isAudiobook) bookChapterIndex >= 0 && bookChapterIndex < chapters.lastIndex else playlistModeEnabled) {
+        ReactiveIconButton(
+          onClick = {
+            if (isAudiobook) viewModel.stepPlaybackChapter(1) else viewModel.playNext()
+          },
+          enabled = nextEnabled,
+          modifier = Modifier.size(if (isAudiobook) 48.dp else 56.dp),
+        ) {
           Icon(
             imageVector = Icons.RoundedFilled.SkipNext,
             contentDescription = if (isAudiobook) stringResource(R.string.audiobook_next_chapter) else null,
             tint =
-              if (playlistModeEnabled) {
+              if (nextEnabled) {
                 MaterialTheme.colorScheme.onSurface
               } else {
-                MaterialTheme.colorScheme.onSurface
-                  .copy(
-                    alpha = 0.38f,
-                  )
+                MaterialTheme.colorScheme.onSurface.copy(alpha = 0.38f)
               },
-            modifier = Modifier.size(28.dp),
+            modifier = Modifier.size(if (isAudiobook) 28.dp else 38.dp),
           )
         }
       }
     }
 
     val playbackModeButtons = @Composable {
-      ReactiveIconButton(
-        onClick = { onOpenSheet(Sheets.Chapters) },
-        onLongClick = {
-          if (viewModel.preparePlaybackBookmark()) {
-            actionHaptics.confirm()
-            onOpenSheet(Sheets.BookmarkEditor)
-          }
-        },
-        modifier = Modifier.size(40.dp),
-        onLongClickLabel = stringResource(R.string.audiobook_add_bookmark),
-      ) { Icon(Icons.RoundedFilled.Bookmark, stringResource(R.string.audiobook_bookmarks), tint = MaterialTheme.colorScheme.onSurfaceVariant) }
       if (isAudiobook) {
         val timer by com.quantummpv.app.ui.player.AudiobookPlayback.timer.collectAsStateWithLifecycle()
         ReactiveIconButton(onClick = { onOpenSheet(Sheets.AudiobookRewind) }, modifier = Modifier.size(40.dp)) {
@@ -2078,7 +2075,7 @@ fun AudioPlayerControls(
             Box(contentAlignment = Alignment.Center, modifier = Modifier.fillMaxSize()) {
               Icon(
                 imageVector = Icons.RoundedFilled.QueueMusic,
-                contentDescription = "Playlist",
+                contentDescription = if (isAudiobook) stringResource(R.string.audiobook_chapters) else stringResource(R.string.player_up_next_title),
                 tint = MaterialTheme.colorScheme.onSurface,
                 modifier = Modifier.size(24.dp),
               )
@@ -2318,6 +2315,8 @@ private fun DualPaneSidePanel(
   playlist: List<PlaylistItem>,
   initialLyricsActive: Boolean = false,
 ) {
+  val playbackState by PlaybackSession.state.collectAsStateWithLifecycle()
+  val isAudiobook = playbackState.currentItem?.audiobook != null
   var selectedTab by remember(initialLyricsActive) { mutableIntStateOf(if (initialLyricsActive) 1 else 0) }
 
   Column(
@@ -2335,7 +2334,12 @@ private fun DualPaneSidePanel(
       androidx.compose.material3.FilterChip(
         selected = selectedTab == 0,
         onClick = { selectedTab = 0 },
-        label = { Text(stringResource(R.string.player_up_next_title), fontWeight = FontWeight.Bold) },
+        label = {
+          Text(
+            text = if (isAudiobook) stringResource(R.string.audiobook_chapters) else stringResource(R.string.player_up_next_title),
+            fontWeight = FontWeight.Bold,
+          )
+        },
         colors = androidx.compose.material3.FilterChipDefaults.filterChipColors(
           selectedContainerColor = MaterialTheme.colorScheme.primaryContainer,
           selectedLabelColor = MaterialTheme.colorScheme.onPrimaryContainer,
@@ -2376,6 +2380,118 @@ private fun UpNextPlaylistContent(
   val lazyListState = rememberLazyListState()
   val isM3U = viewModel.isPlaylistM3U()
   val playbackState by PlaybackSession.state.collectAsStateWithLifecycle()
+
+  if (playbackState.currentItem?.audiobook != null) {
+    val chapters by viewModel.playbackChapters.collectAsStateWithLifecycle()
+    val filePosition by viewModel.precisePosition.collectAsStateWithLifecycle()
+    val activeBook by com.quantummpv.app.ui.player.AudiobookPlayback.book.collectAsStateWithLifecycle()
+    val currentItem = playbackState.currentItem
+    val audiobook = activeBook?.takeIf { it.book.id == currentItem?.audiobook?.bookId }
+    val currentChapterIndex by remember(currentItem?.audiobook, chapters, audiobook?.tracks, filePosition) {
+      derivedStateOf {
+        val seconds = currentItem?.audiobook?.let { info -> audiobook?.positionInBook(info.trackId, (filePosition * 1000).toLong())?.div(1000f) }
+          ?: filePosition
+        chapters.indexOfLast { it.start <= seconds }
+      }
+    }
+
+    LaunchedEffect(currentChapterIndex) {
+      if (currentChapterIndex >= 0) {
+        lazyListState.scrollToItem(currentChapterIndex)
+      }
+    }
+
+    Column(modifier = Modifier.fillMaxSize()) {
+      Row(
+        modifier = Modifier
+          .fillMaxWidth()
+          .padding(bottom = 12.dp, start = 4.dp, end = 4.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.SpaceBetween,
+      ) {
+        Text(
+          text = stringResource(R.string.audiobook_chapters),
+          style = MaterialTheme.typography.titleMedium,
+          fontWeight = FontWeight.Bold,
+          color = MaterialTheme.colorScheme.onSurface,
+        )
+        Surface(
+          shape = RoundedCornerShape(50),
+          color = MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.7f),
+        ) {
+          Text(
+            text = "${chapters.size} chapters",
+            style = MaterialTheme.typography.labelSmall,
+            fontWeight = FontWeight.SemiBold,
+            color = MaterialTheme.colorScheme.onSecondaryContainer,
+            modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp),
+          )
+        }
+      }
+
+      if (chapters.isEmpty()) {
+        Box(
+          modifier = Modifier.fillMaxSize(),
+          contentAlignment = Alignment.Center,
+        ) {
+          Text(
+            text = stringResource(R.string.playback_bookmarks_empty),
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+          )
+        }
+      } else {
+        LazyColumn(
+          state = lazyListState,
+          modifier = Modifier.fillMaxSize(),
+          verticalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+          items(chapters.size, key = { index -> "${chapters[index].name}_${chapters[index].start}" }) { index ->
+            val chapter = chapters[index]
+            val isSelected = currentChapterIndex == index
+            val bgColor = if (isSelected) {
+              MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.45f)
+            } else {
+              MaterialTheme.colorScheme.surfaceContainer
+            }
+            Surface(
+              modifier = Modifier
+                .fillMaxWidth()
+                .clip(RoundedCornerShape(12.dp))
+                .clickable { viewModel.seekToPlaybackChapter(chapter) },
+              shape = RoundedCornerShape(12.dp),
+              color = bgColor,
+            ) {
+              Row(
+                modifier = Modifier
+                  .fillMaxWidth()
+                  .padding(horizontal = 16.dp, vertical = 14.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween,
+              ) {
+                Text(
+                  text = "${index + 1}. ${chapter.name}",
+                  style = MaterialTheme.typography.bodyMedium,
+                  fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
+                  color = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface,
+                  maxLines = 2,
+                  overflow = TextOverflow.Ellipsis,
+                  modifier = Modifier.weight(1f),
+                )
+                Text(
+                  text = `is`.xyz.mpv.Utils.prettyTime(chapter.start.toInt()),
+                  style = MaterialTheme.typography.labelMedium,
+                  color = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
+                  modifier = Modifier.padding(start = 12.dp),
+                )
+              }
+            }
+          }
+        }
+      }
+    }
+    return
+  }
 
   var displayPlaylist by remember(playlist) { mutableStateOf(playlist) }
   LaunchedEffect(playlist) {
@@ -2650,29 +2766,33 @@ private fun formatSec(totalSeconds: Long): String {
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun AudioSeekButton(forward: Boolean, seconds: Int, enabled: Boolean, onClick: () -> Unit) {
+private fun AudioSeekButton(
+  forward: Boolean,
+  seconds: Int,
+  enabled: Boolean,
+  modifier: Modifier = Modifier.size(48.dp),
+  onClick: () -> Unit,
+) {
   val duration = pluralStringResource(R.plurals.seconds, seconds, seconds)
   val label = stringResource(if (forward) R.string.player_seek_forward else R.string.player_seek_backward, duration)
+  val tint =
+    if (enabled) {
+      MaterialTheme.colorScheme.onSurface
+    } else {
+      MaterialTheme.colorScheme.onSurface.copy(alpha = 0.38f)
+    }
   TooltipBox(
     positionProvider = TooltipDefaults.rememberTooltipPositionProvider(TooltipAnchorPosition.Above),
     tooltip = { PlainTooltip { Text(label) } },
     state = rememberTooltipState(),
   ) {
-    ReactiveIconButton(onClick = onClick, enabled = enabled, modifier = Modifier.size(48.dp)) {
-      Column(horizontalAlignment = Alignment.CenterHorizontally) {
-        Icon(
-          imageVector = if (forward) Icons.RoundedFilled.FastForward else Icons.RoundedFilled.FastRewind,
-          contentDescription = label,
-          modifier = Modifier.size(20.dp),
-        )
-        Text(
-          text = if (forward) "+$seconds" else "-$seconds",
-          style = MaterialTheme.typography.labelSmall,
-          fontWeight = FontWeight.Bold,
-          maxLines = 1,
-          modifier = Modifier.clearAndSetSemantics {},
-        )
-      }
+    ReactiveIconButton(onClick = onClick, enabled = enabled, modifier = modifier) {
+      Icon(
+        imageVector = if (forward) Icons.RoundedFilled.FastForward else Icons.RoundedFilled.FastRewind,
+        contentDescription = label,
+        tint = tint,
+        modifier = Modifier.size(28.dp),
+      )
     }
   }
 }
