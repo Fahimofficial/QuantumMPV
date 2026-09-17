@@ -1113,6 +1113,7 @@ class PlayerViewModel : ViewModel(),
   fun loadLyricsForCurrentTrack(forceRefresh: Boolean = false) {
     val path = PlaybackSession.getPropertyString("path") ?: PlaybackSession.getPropertyString("stream-open-filename") ?: return
     if (path.isBlank()) return
+    val generation = PlaybackSession.state.value.generation
 
     val title = currentMediaTitle.takeIf { it.isNotBlank() }
       ?: PlaybackSession.getPropertyString("metadata/by-key/Title")
@@ -1126,7 +1127,10 @@ class PlayerViewModel : ViewModel(),
 
     val duration = PlaybackSession.getPropertyInt("duration") ?: 0
     val request = LyricsLoadRequest(path, title, artist, duration)
-    if (!forceRefresh && request == lastLyricsLoadRequest) return
+    if (
+      !forceRefresh && lastLyricsLoadRequest?.path == path &&
+      (lyricsLoadJob?.isActive == true || request == lastLyricsLoadRequest)
+    ) return
     lastLyricsLoadRequest = request
 
     lyricsUiState.value = lyricsUiState.value.copy(isLoading = true, errorMessage = null, syncOffsetMs = 0)
@@ -1150,7 +1154,7 @@ class PlayerViewModel : ViewModel(),
       // result if we're still on the same track (extra guard on top of job cancellation).
       val stillCurrentPath = PlaybackSession.getPropertyString("path")
         ?: PlaybackSession.getPropertyString("stream-open-filename")
-      if (stillCurrentPath != path) return@launch
+      if (!PlaybackSession.isCurrentGeneration(generation) || stillCurrentPath != path) return@launch
 
       val activeIndex = com.quantummpv.app.utils.media.LyricsUtils.getActiveLineIndex(
         syncedLines = result.activeLyrics?.synced,
@@ -2298,6 +2302,12 @@ val isBrightnessSliderShown = MutableStateFlow(false)
   }
 
   fun onVideoLoadStarted() {
+    lyricsLoadJob?.cancel()
+    lyricsLoadJob = null
+    lyricsTranslateJob?.cancel()
+    lyricsTranslateJob = null
+    lastLyricsLoadRequest = null
+    lyricsUiState.value = LyricsUiState()
     stopRealtimeSubtitles(showToastMessage = false)
     introLookupJob?.cancel()
     cancelAutoCropAnalysis()
@@ -2338,7 +2348,7 @@ val isBrightnessSliderShown = MutableStateFlow(false)
     }
     syncplayManager.updateFileInfo(currentSyncplayFileInfo())
     applyEqualizerMpvFilters()
-    loadLyricsForCurrentTrack()
+    if (isAudioOnly.value) loadLyricsForCurrentTrack()
     scheduleAutoCropAnalysis()
   }
 

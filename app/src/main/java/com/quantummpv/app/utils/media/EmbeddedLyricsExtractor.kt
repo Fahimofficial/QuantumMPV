@@ -12,6 +12,8 @@ import com.quantummpv.app.domain.lyrics.Lyrics
 import com.quantummpv.app.domain.lyrics.LyricsSourceType
 import com.quantummpv.app.ui.player.PlaybackSession
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.currentCoroutineContext
+import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.withContext
 import java.io.File
 
@@ -23,9 +25,15 @@ object EmbeddedLyricsExtractor {
     mediaPath: String?,
   ): Lyrics? = withContext(Dispatchers.IO) {
     if (mediaPath.isNullOrBlank()) return@withContext null
+    currentCoroutineContext().ensureActive()
+    val sourceUri = Uri.parse(mediaPath)
+    val scheme = sourceUri.scheme
+    val isLocalSource =
+      scheme.isNullOrBlank() || scheme.equals("file", ignoreCase = true) ||
+        scheme.equals("content", ignoreCase = true) || scheme.equals("android.resource", ignoreCase = true)
 
     // 1. Try reading local .lrc file next to audio file first
-    val localLrcLyrics = findLocalLrcFile(mediaPath)
+    val localLrcLyrics = if (isLocalSource) findLocalLrcFile(mediaPath) else null
     if (localLrcLyrics != null && localLrcLyrics.isValid()) {
       Log.d(TAG, "Found local .lrc file for: $mediaPath")
       return@withContext localLrcLyrics
@@ -41,6 +49,9 @@ object EmbeddedLyricsExtractor {
       }
     }
 
+    if (!isLocalSource) return@withContext null
+    currentCoroutineContext().ensureActive()
+
     // 3. Fallback: Direct ID3v2 parser from media file / content stream
     val id3Lyrics = findLyricsDirectlyFromMedia(context, mediaPath)
     if (id3Lyrics != null) {
@@ -52,23 +63,20 @@ object EmbeddedLyricsExtractor {
     }
 
     // 4. Fallback to MediaMetadataRetriever (for supported platforms)
+    currentCoroutineContext().ensureActive()
     runCatching {
       val retriever = MediaMetadataRetriever()
-      val cleanPath = when {
-        mediaPath.startsWith("file://") -> mediaPath.removePrefix("file://")
-        mediaPath.startsWith("content://") -> null
-        else -> mediaPath
+      val rawLyrics = try {
+        when {
+          scheme.isNullOrBlank() -> retriever.setDataSource(mediaPath)
+          scheme.equals("file", ignoreCase = true) -> retriever.setDataSource(sourceUri.path)
+          else -> retriever.setDataSource(context, sourceUri)
+        }
+        // Key 1000 represents METADATA_KEY_LYRICS in vendor MediaMetadataRetriever extensions
+        retriever.extractMetadata(1000)
+      } finally {
+        retriever.release()
       }
-
-      if (cleanPath != null) {
-        retriever.setDataSource(cleanPath)
-      } else {
-        retriever.setDataSource(context, Uri.parse(mediaPath))
-      }
-
-      // Key 1000 represents METADATA_KEY_LYRICS in vendor MediaMetadataRetriever extensions
-      val rawLyrics = retriever.extractMetadata(1000)
-      retriever.release()
 
       if (!rawLyrics.isNullOrBlank()) {
         val parsed = LyricsUtils.parseLyrics(rawLyrics, sourceType = LyricsSourceType.EMBEDDED)
