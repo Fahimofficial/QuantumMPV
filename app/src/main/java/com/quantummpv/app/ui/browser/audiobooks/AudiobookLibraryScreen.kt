@@ -672,171 +672,98 @@ object AudiobookLibraryScreen : Screen {
 
     // Local Book Details Bottom Sheet
     books?.firstOrNull { it.book.id == detailsId }?.let { book ->
-      ModalBottomSheet(onDismissRequest = { detailsId = null }) {
-        Column(Modifier.fillMaxWidth().heightIn(max = 620.dp).verticalScroll(rememberScrollState()).padding(20.dp),
-          verticalArrangement = Arrangement.spacedBy(12.dp)) {
-          Row(horizontalArrangement = Arrangement.spacedBy(16.dp), verticalAlignment = Alignment.CenterVertically) {
-            AudiobookArtwork(book.book.coverUri, Modifier.size(92.dp).clip(RoundedCornerShape(4.dp)))
-            Column(Modifier.weight(1f)) {
-              Text(book.book.title, style = MaterialTheme.typography.titleLarge)
-              Text(book.book.author, style = MaterialTheme.typography.bodyLarge)
-              Text(bookTime(book.durationMs), style = MaterialTheme.typography.labelMedium)
-            }
-          }
-          Button(onClick = { playLocal(book) }, enabled = !opening, modifier = Modifier.fillMaxWidth()) {
-            Text(stringResource(if (book.book.finished) R.string.audiobook_start_over else R.string.audiobook_continue))
-          }
-          if (book.book.progressMs > 0 && !book.book.finished) TextButton(onClick = { playLocal(book, true) }, enabled = !opening) {
-            Text(stringResource(R.string.audiobook_start_over))
-          }
-          AudiobookDetails(book.book)
-          HorizontalDivider()
-          Text(stringResource(R.string.audiobook_files), style = MaterialTheme.typography.titleSmall)
-          LazyColumn(Modifier.fillMaxWidth().heightIn(max = 180.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-            items(book.orderedTracks, key = { it.id }) { track ->
-              Text("${track.position + 1}. ${track.fileName}", style = MaterialTheme.typography.bodySmall)
-            }
-          }
-          HorizontalDivider()
+      AudiobookDetailsBottomSheet(
+        coverUri = book.book.coverUri,
+        title = book.book.title,
+        author = book.book.author,
+        durationMs = book.durationMs,
+        isFinished = book.book.finished,
+        hasProgress = book.book.progressMs > 0 && !book.book.finished,
+        opening = opening,
+        onDismiss = { detailsId = null },
+        onPlay = { playLocal(book) },
+        onPlayFromBeginning = { playLocal(book, true) },
+        details = listOf(
+          R.string.audiobook_subtitle to book.book.subtitle,
+          R.string.audiobook_author to book.book.author,
+          R.string.audiobook_narrator to book.book.narrator,
+          R.string.audiobook_series to book.book.series,
+          R.string.audiobook_series_part to book.book.seriesPart,
+          R.string.audiobook_description to book.book.description,
+          R.string.audiobook_genre to book.book.genre,
+          R.string.audiobook_language to book.book.language,
+          R.string.audiobook_publisher to book.book.publisher,
+          R.string.audiobook_published to book.book.publishedYear,
+          R.string.audiobook_isbn to book.book.isbn,
+          R.string.audiobook_asin to book.book.asin,
+        ).filter { it.second.isNotBlank() },
+        itemsTitleRes = R.string.audiobook_files,
+        items = book.orderedTracks.map { track -> "${track.position + 1}. ${track.fileName}" to bookTime(track.durationMs) },
+        onToggleFinished = {
+          model.setFinished(book.book.id, !book.book.finished)
+          detailsId = null
+        },
+        toggleFinishedEnabled = PlaybackSession.state.value.currentItem?.audiobook?.bookId != book.book.id,
+        extraActions = {
           TextButton(onClick = { editing = book.book; detailsId = null }) { Text(stringResource(R.string.audiobook_edit)) }
-          TextButton(onClick = { model.setFinished(book.book.id, !book.book.finished); detailsId = null },
-            enabled = PlaybackSession.state.value.currentItem?.audiobook?.bookId != book.book.id) {
-            Text(stringResource(if (book.book.finished) R.string.audiobook_mark_unfinished else R.string.audiobook_mark_finished))
-          }
           TextButton(onClick = { removeId = book.book.id; detailsId = null }) {
             Text(stringResource(R.string.audiobook_remove), color = MaterialTheme.colorScheme.error)
           }
-        }
-      }
+        },
+      )
     }
 
     // Audiobookshelf Book Details Bottom Sheet
     absDetailsBook?.let { initialBook ->
       val book = (if (absState.detailBook?.id == initialBook.id) absState.detailBook else null) ?: initialBook
-      ModalBottomSheet(onDismissRequest = {
-        absDetailsBook = null
-        absModel.closeBookDetails()
-      }) {
-        Column(
-          Modifier
-            .fillMaxWidth()
-            .heightIn(max = 620.dp)
-            .verticalScroll(rememberScrollState())
-            .padding(20.dp),
-          verticalArrangement = Arrangement.spacedBy(12.dp),
-        ) {
-          Row(horizontalArrangement = Arrangement.spacedBy(16.dp), verticalAlignment = Alignment.CenterVertically) {
-            AudiobookArtwork(
-              uri = book.coverUrl,
-              modifier = Modifier.size(92.dp).clip(RoundedCornerShape(6.dp)),
-            )
-            Column(Modifier.weight(1f)) {
-              Text(book.title, style = MaterialTheme.typography.titleLarge)
-              if (book.author.isNotBlank() && book.author != "null") {
-                Text(book.author, style = MaterialTheme.typography.bodyLarge)
-              }
-              Text(bookTime(book.durationMs), style = MaterialTheme.typography.labelMedium)
-            }
-          }
-
-          Button(onClick = { playAbs(book) }, enabled = !opening, modifier = Modifier.fillMaxWidth()) {
-            Text(stringResource(if (book.isFinished) R.string.audiobook_start_over else R.string.audiobook_continue))
-          }
-          if (book.progressMs > 0 && !book.isFinished) {
-            TextButton(onClick = { playAbs(book, restart = true) }, enabled = !opening, modifier = Modifier.fillMaxWidth()) {
-              Text(stringResource(R.string.audiobook_start_over))
-            }
-          }
-
-          val absDetails = listOfNotNull(
-            book.subtitle.takeIf { it.isNotBlank() && it != "null" }?.let { R.string.audiobook_subtitle to it },
-            book.author.takeIf { it.isNotBlank() && it != "null" }?.let { R.string.audiobook_author to it },
-            book.narrator.takeIf { it.isNotBlank() && it != "null" }?.let { R.string.audiobook_narrator to it },
-            book.series.takeIf { it.isNotBlank() && it != "null" }?.let {
-              val partStr = if (book.seriesPart.isNotBlank() && book.seriesPart != "null") " #${book.seriesPart}" else ""
-              R.string.audiobook_series to "$it$partStr"
-            },
-            book.description.takeIf { it.isNotBlank() && it != "null" }?.let { R.string.audiobook_description to it },
-            book.genres.takeIf { it.isNotEmpty() }?.let { R.string.audiobook_genre to it.joinToString(", ") },
-            book.language.takeIf { it.isNotBlank() && it != "null" }?.let { R.string.audiobook_language to it },
-            book.publishedYear.takeIf { it.isNotBlank() && it != "null" }?.let { R.string.audiobook_published to it },
-            book.isbn.takeIf { it.isNotBlank() && it != "null" }?.let { R.string.audiobook_isbn to it },
-            book.asin.takeIf { it.isNotBlank() && it != "null" }?.let { R.string.audiobook_asin to it },
-          )
-          absDetails.forEach { (label, value) ->
-            Column(Modifier.fillMaxWidth().padding(vertical = 4.dp)) {
-              Text(stringResource(label), style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.secondary)
-              Text(value, style = MaterialTheme.typography.bodyMedium)
-            }
-          }
-
-          if (book.chapters.isNotEmpty()) {
-            HorizontalDivider()
-            Text(stringResource(R.string.audiobook_chapters), style = MaterialTheme.typography.titleSmall)
-            LazyColumn(Modifier.fillMaxWidth().heightIn(max = 180.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-              itemsIndexed(book.chapters, key = { _, chap -> chap.id }) { index, chapter ->
-                Row(
-                  modifier = Modifier.fillMaxWidth().padding(vertical = 2.dp),
-                  horizontalArrangement = Arrangement.SpaceBetween,
-                ) {
-                  Text(
-                    "${index + 1}. ${chapter.title}",
-                    style = MaterialTheme.typography.bodySmall,
-                    modifier = Modifier.weight(1f),
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                  )
-                  Text(
-                    bookTime(chapter.startMs),
-                    style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.outline,
-                  )
-                }
-              }
-            }
-          } else if (book.tracks.isNotEmpty()) {
-            HorizontalDivider()
-            Text(stringResource(R.string.audiobook_files), style = MaterialTheme.typography.titleSmall)
-            LazyColumn(Modifier.fillMaxWidth().heightIn(max = 180.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-              items(book.tracks, key = { it.id }) { track ->
-                Row(
-                  modifier = Modifier.fillMaxWidth().padding(vertical = 2.dp),
-                  horizontalArrangement = Arrangement.SpaceBetween,
-                ) {
-                  Text(
-                    "${track.index + 1}. ${track.title}",
-                    style = MaterialTheme.typography.bodySmall,
-                    modifier = Modifier.weight(1f),
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                  )
-                  Text(
-                    bookTime(track.durationMs),
-                    style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.outline,
-                  )
-                }
-              }
-            }
-          }
-
-          HorizontalDivider()
-          TextButton(
-            onClick = {
-              absModel.syncProgress(
-                book = book,
-                currentTimeSeconds = if (book.isFinished) 0.0 else (book.durationMs / 1000.0),
-                durationSeconds = book.durationMs / 1000.0,
-                isFinished = !book.isFinished,
-              )
-              absDetailsBook = null
-              absModel.closeBookDetails()
-            },
-          ) {
-            Text(stringResource(if (book.isFinished) R.string.audiobook_mark_unfinished else R.string.audiobook_mark_finished))
-          }
-        }
+      val absDetails = listOfNotNull(
+        book.subtitle.takeIf { it.isNotBlank() && it != "null" }?.let { R.string.audiobook_subtitle to it },
+        book.author.takeIf { it.isNotBlank() && it != "null" }?.let { R.string.audiobook_author to it },
+        book.narrator.takeIf { it.isNotBlank() && it != "null" }?.let { R.string.audiobook_narrator to it },
+        book.series.takeIf { it.isNotBlank() && it != "null" }?.let {
+          val partStr = if (book.seriesPart.isNotBlank() && book.seriesPart != "null") " #${book.seriesPart}" else ""
+          R.string.audiobook_series to "$it$partStr"
+        },
+        book.description.takeIf { it.isNotBlank() && it != "null" }?.let { R.string.audiobook_description to it },
+        book.genres.takeIf { it.isNotEmpty() }?.let { R.string.audiobook_genre to it.joinToString(", ") },
+        book.language.takeIf { it.isNotBlank() && it != "null" }?.let { R.string.audiobook_language to it },
+        book.publishedYear.takeIf { it.isNotBlank() && it != "null" }?.let { R.string.audiobook_published to it },
+        book.isbn.takeIf { it.isNotBlank() && it != "null" }?.let { R.string.audiobook_isbn to it },
+        book.asin.takeIf { it.isNotBlank() && it != "null" }?.let { R.string.audiobook_asin to it },
+      )
+      val (itemsTitle, itemList) = when {
+        book.chapters.isNotEmpty() -> R.string.audiobook_chapters to book.chapters.mapIndexed { i, c -> "${i + 1}. ${c.title}" to bookTime(c.startMs) }
+        book.tracks.isNotEmpty() -> R.string.audiobook_files to book.tracks.map { "${it.index + 1}. ${it.title}" to bookTime(it.durationMs) }
+        else -> null to emptyList()
       }
+      AudiobookDetailsBottomSheet(
+        coverUri = book.coverUrl,
+        title = book.title,
+        author = book.author,
+        durationMs = book.durationMs,
+        isFinished = book.isFinished,
+        hasProgress = book.progressMs > 0 && !book.isFinished,
+        opening = opening,
+        onDismiss = {
+          absDetailsBook = null
+          absModel.closeBookDetails()
+        },
+        onPlay = { playAbs(book) },
+        onPlayFromBeginning = { playAbs(book, restart = true) },
+        details = absDetails,
+        itemsTitleRes = itemsTitle,
+        items = itemList,
+        onToggleFinished = {
+          absModel.syncProgress(
+            book = book,
+            currentTimeSeconds = if (book.isFinished) 0.0 else (book.durationMs / 1000.0),
+            durationSeconds = book.durationMs / 1000.0,
+            isFinished = !book.isFinished,
+          )
+          absDetailsBook = null
+          absModel.closeBookDetails()
+        },
+      )
     }
 
     books?.firstOrNull { it.book.id == removeId }?.let { book ->
@@ -855,22 +782,83 @@ object AudiobookLibraryScreen : Screen {
   }
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
-internal fun AudiobookDetails(book: AudiobookEntity) {
-  listOf(
-    R.string.audiobook_subtitle to book.subtitle, R.string.audiobook_author to book.author,
-    R.string.audiobook_narrator to book.narrator, R.string.audiobook_series to book.series,
-    R.string.audiobook_series_part to book.seriesPart, R.string.audiobook_description to book.description,
-    R.string.audiobook_genre to book.genre, R.string.audiobook_language to book.language,
-    R.string.audiobook_publisher to book.publisher, R.string.audiobook_published to book.publishedYear,
-    R.string.audiobook_isbn to book.isbn, R.string.audiobook_asin to book.asin,
-  ).filter { it.second.isNotBlank() }.forEach { (label, value) ->
-    Column(Modifier.fillMaxWidth().padding(vertical = 4.dp)) {
-      Text(stringResource(label), style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.secondary)
-      Text(value, style = MaterialTheme.typography.bodyMedium)
+private fun AudiobookDetailsBottomSheet(
+  coverUri: String?,
+  title: String,
+  author: String,
+  durationMs: Long,
+  isFinished: Boolean,
+  hasProgress: Boolean,
+  opening: Boolean,
+  onDismiss: () -> Unit,
+  onPlay: () -> Unit,
+  onPlayFromBeginning: () -> Unit,
+  details: List<Pair<Int, String>>,
+  itemsTitleRes: Int?,
+  items: List<Pair<String, String>>,
+  onToggleFinished: () -> Unit,
+  toggleFinishedEnabled: Boolean = true,
+  extraActions: (@Composable androidx.compose.foundation.layout.ColumnScope.() -> Unit)? = null,
+) {
+  ModalBottomSheet(onDismissRequest = onDismiss) {
+    Column(
+      Modifier
+        .fillMaxWidth()
+        .heightIn(max = 620.dp)
+        .verticalScroll(rememberScrollState())
+        .padding(20.dp),
+      verticalArrangement = Arrangement.spacedBy(12.dp),
+    ) {
+      Row(horizontalArrangement = Arrangement.spacedBy(16.dp), verticalAlignment = Alignment.CenterVertically) {
+        AudiobookArtwork(uri = coverUri, modifier = Modifier.size(92.dp).clip(RoundedCornerShape(6.dp)))
+        Column(Modifier.weight(1f)) {
+          Text(title, style = MaterialTheme.typography.titleLarge)
+          if (author.isNotBlank() && author != "null") {
+            Text(author, style = MaterialTheme.typography.bodyLarge)
+          }
+          Text(bookTime(durationMs), style = MaterialTheme.typography.labelMedium)
+        }
+      }
+
+      Button(onClick = onPlay, enabled = !opening, modifier = Modifier.fillMaxWidth()) {
+        Text(stringResource(if (isFinished) R.string.audiobook_start_over else R.string.audiobook_continue))
+      }
+      if (hasProgress) {
+        TextButton(onClick = onPlayFromBeginning, enabled = !opening, modifier = Modifier.fillMaxWidth()) {
+          Text(stringResource(R.string.audiobook_start_over))
+        }
+      }
+
+      details.forEach { (label, value) ->
+        Column(Modifier.fillMaxWidth().padding(vertical = 4.dp)) {
+          Text(stringResource(label), style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.secondary)
+          Text(value, style = MaterialTheme.typography.bodyMedium)
+        }
+      }
+
+      if (itemsTitleRes != null && items.isNotEmpty()) {
+        HorizontalDivider()
+        Text(stringResource(itemsTitleRes), style = MaterialTheme.typography.titleSmall)
+        LazyColumn(Modifier.fillMaxWidth().heightIn(max = 180.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+          items(items.size, key = { it }) { index ->
+            val (itemTitle, itemDuration) = items[index]
+            Row(modifier = Modifier.fillMaxWidth().padding(vertical = 2.dp), horizontalArrangement = Arrangement.SpaceBetween) {
+              Text(itemTitle, style = MaterialTheme.typography.bodySmall, modifier = Modifier.weight(1f), maxLines = 1, overflow = TextOverflow.Ellipsis)
+              Text(itemDuration, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.outline)
+            }
+          }
+        }
+      }
+
+      HorizontalDivider()
+      extraActions?.invoke(this)
+      TextButton(onClick = onToggleFinished, enabled = toggleFinishedEnabled) {
+        Text(stringResource(if (isFinished) R.string.audiobook_mark_unfinished else R.string.audiobook_mark_finished))
+      }
     }
   }
-  book.abridged?.let { Text(stringResource(if (it) R.string.audiobook_abridged else R.string.audiobook_unabridged)) }
 }
 
 @Composable

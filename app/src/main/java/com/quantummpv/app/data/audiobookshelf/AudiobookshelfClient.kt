@@ -25,6 +25,7 @@ import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonNull
 import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.booleanOrNull
 import kotlinx.serialization.json.contentOrNull
 import kotlinx.serialization.json.doubleOrNull
@@ -55,46 +56,24 @@ class AudiobookshelfClient(
   ): Result<AudiobookshelfServer> = withContext(Dispatchers.IO) {
     val cleanUrl = serverUrl.trimEnd('/')
     try {
-      val payload = json.encodeToString(
-        JsonObject.serializer(),
-        JsonObject(
-          mapOf(
-            "username" to kotlinx.serialization.json.JsonPrimitive(username),
-            "password" to kotlinx.serialization.json.JsonPrimitive(password),
+      val payload = JsonObject(mapOf("username" to JsonPrimitive(username), "password" to JsonPrimitive(password))).toString()
+      val req = Request.Builder().url("$cleanUrl/login").post(payload.toRequestBody(JSON_MEDIA_TYPE)).build()
+      httpClient.newCall(req).awaitResponse().use { response ->
+        if (!response.isSuccessful) return@withContext Result.failure(Exception("Login failed (HTTP ${response.code})"))
+        val root = json.parseToJsonElement(response.body.string()).jsonObject
+        val userObj = root.obj("user") ?: return@withContext Result.failure(Exception("Missing user object in response"))
+        val token = userObj.str("token") ?: root.str("token") ?: return@withContext Result.failure(Exception("Missing token"))
+        Result.success(
+          AudiobookshelfServer(
+            name = cleanUrl.substringAfter("://").substringBefore(":").substringBefore("/"),
+            serverUrl = cleanUrl,
+            username = username,
+            token = token,
+            userId = userObj.str("id") ?: "",
+            activeLibraryId = userObj.str("userDefaultLibraryId"),
+            lastConnected = System.currentTimeMillis(),
           )
         )
-      )
-
-      val request = Request.Builder()
-        .url("$cleanUrl/login")
-        .post(payload.toRequestBody(JSON_MEDIA_TYPE))
-        .build()
-
-      httpClient.newCall(request).awaitResponse().use { response ->
-        if (!response.isSuccessful) {
-          return@withContext Result.failure(Exception("Login failed (HTTP ${response.code})"))
-        }
-
-        val body = response.body.string() ?: return@withContext Result.failure(Exception("Empty response"))
-        val root = json.parseToJsonElement(body).jsonObject
-        val userObj = root["user"]?.jsonObject ?: return@withContext Result.failure(Exception("Missing user object in response"))
-
-        val token = userObj["token"]?.jsonPrimitive?.content
-          ?: root["token"]?.jsonPrimitive?.content
-          ?: return@withContext Result.failure(Exception("Missing token in login response"))
-        val userId = userObj["id"]?.jsonPrimitive?.content ?: ""
-        val defaultLibId = userObj["userDefaultLibraryId"]?.jsonPrimitive?.content
-
-        val server = AudiobookshelfServer(
-          name = cleanUrl.substringAfter("://").substringBefore(":").substringBefore("/"),
-          serverUrl = cleanUrl,
-          username = username,
-          token = token,
-          userId = userId,
-          activeLibraryId = defaultLibId,
-          lastConnected = System.currentTimeMillis(),
-        )
-        Result.success(server)
       }
     } catch (e: Exception) {
       if (e is CancellationException) throw e
@@ -110,58 +89,25 @@ class AudiobookshelfClient(
   ): Result<AudiobookshelfServer> = withContext(Dispatchers.IO) {
     val cleanUrl = serverUrl.trimEnd('/')
     try {
-      val request = Request.Builder()
-        .url("$cleanUrl/api/authorize")
-        .header("Authorization", "Bearer $token")
-        .post("{}".toRequestBody(JSON_MEDIA_TYPE))
-        .build()
-
-      httpClient.newCall(request).awaitResponse().use { response ->
-        if (!response.isSuccessful) {
-          // Fallback to GET /api/me
-          val meRequest = Request.Builder()
-            .url("$cleanUrl/api/me")
-            .header("Authorization", "Bearer $token")
-            .get()
-            .build()
-          httpClient.newCall(meRequest).awaitResponse().use { meResponse ->
-            if (!meResponse.isSuccessful) {
-              return@withContext Result.failure(Exception("Token verification failed (HTTP ${meResponse.code})"))
-            }
-            val body = meResponse.body?.string() ?: return@withContext Result.failure(Exception("Empty response"))
-            val userObj = json.parseToJsonElement(body).jsonObject
-            val username = userObj["username"]?.jsonPrimitive?.content ?: "user"
-            val userId = userObj["id"]?.jsonPrimitive?.content ?: ""
-            val defaultLibId = userObj["userDefaultLibraryId"]?.jsonPrimitive?.content
-
-            Result.success(
-              AudiobookshelfServer(
-                name = name.ifBlank { cleanUrl.substringAfter("://").substringBefore(":").substringBefore("/") },
-                serverUrl = cleanUrl,
-                username = username,
-                token = token,
-                userId = userId,
-                activeLibraryId = defaultLibId,
-                lastConnected = System.currentTimeMillis(),
-              )
-            )
-          }
-        } else {
-          val body = response.body.string() ?: return@withContext Result.failure(Exception("Empty response"))
-          val root = json.parseToJsonElement(body).jsonObject
-          val userObj = root["user"]?.jsonObject ?: root
-          val username = userObj["username"]?.jsonPrimitive?.content ?: "user"
-          val userId = userObj["id"]?.jsonPrimitive?.content ?: ""
-          val defaultLibId = userObj["userDefaultLibraryId"]?.jsonPrimitive?.content
-
+      val authReq = Request.Builder().url("$cleanUrl/api/authorize").header("Authorization", "Bearer $token")
+        .post("{}".toRequestBody(JSON_MEDIA_TYPE)).build()
+      httpClient.newCall(authReq).awaitResponse().use { response ->
+        val targetResponse = if (response.isSuccessful) response else {
+          val meReq = Request.Builder().url("$cleanUrl/api/me").header("Authorization", "Bearer $token").get().build()
+          httpClient.newCall(meReq).awaitResponse()
+        }
+        targetResponse.use { res ->
+          if (!res.isSuccessful) return@withContext Result.failure(Exception("Token verification failed (HTTP ${res.code})"))
+          val root = json.parseToJsonElement(res.body.string()).jsonObject
+          val userObj = root.obj("user") ?: root
           Result.success(
             AudiobookshelfServer(
               name = name.ifBlank { cleanUrl.substringAfter("://").substringBefore(":").substringBefore("/") },
               serverUrl = cleanUrl,
-              username = username,
+              username = userObj.str("username") ?: "user",
               token = token,
-              userId = userId,
-              activeLibraryId = defaultLibId,
+              userId = userObj.str("id") ?: "",
+              activeLibraryId = userObj.str("userDefaultLibraryId"),
               lastConnected = System.currentTimeMillis(),
             )
           )
@@ -176,36 +122,22 @@ class AudiobookshelfClient(
 
   suspend fun getLibraries(server: AudiobookshelfServer): Result<List<AudiobookshelfLibrary>> = withContext(Dispatchers.IO) {
     try {
-      val request = Request.Builder()
-        .url("${server.serverUrl.trimEnd('/')}/api/libraries")
-        .header("Authorization", "Bearer ${server.token}")
-        .get()
-        .build()
-
-      httpClient.newCall(request).awaitResponse().use { response ->
-        if (!response.isSuccessful) {
-          return@withContext Result.failure(Exception("Failed to fetch libraries (HTTP ${response.code})"))
-        }
-        val body = response.body.string() ?: return@withContext Result.failure(Exception("Empty response"))
-        val root = json.parseToJsonElement(body).jsonObject
-        val librariesArray = root["libraries"]?.jsonArray ?: JsonArray(emptyList())
-
-        val libraries = librariesArray.mapNotNull { element ->
-          val obj = element.jsonObject
-          val id = obj["id"]?.jsonPrimitive?.content ?: return@mapNotNull null
-          val name = obj["name"]?.jsonPrimitive?.content ?: "Library"
-          val mediaType = obj["mediaType"]?.jsonPrimitive?.content ?: "book"
-          val icon = obj["icon"]?.jsonPrimitive?.content
-          val displayOrder = obj["displayOrder"]?.jsonPrimitive?.intOrNull ?: 0
+      val req = Request.Builder().url("${server.serverUrl.trimEnd('/')}/api/libraries")
+        .header("Authorization", "Bearer ${server.token}").get().build()
+      httpClient.newCall(req).awaitResponse().use { response ->
+        if (!response.isSuccessful) return@withContext Result.failure(Exception("Failed to fetch libraries (HTTP ${response.code})"))
+        val root = json.parseToJsonElement(response.body.string()).jsonObject
+        val libraries = root.arr("libraries").orEmpty().mapNotNull { elem ->
+          val obj = elem.jsonObject
+          val id = obj.str("id") ?: return@mapNotNull null
           AudiobookshelfLibrary(
             id = id,
-            name = name,
-            mediaType = mediaType,
-            icon = icon,
-            displayOrder = displayOrder,
+            name = obj.str("name") ?: "Library",
+            mediaType = obj.str("mediaType") ?: "book",
+            icon = obj.str("icon"),
+            displayOrder = obj["displayOrder"]?.jsonPrimitive?.intOrNull ?: 0,
           )
         }.filter { it.mediaType == "book" || it.mediaType == "podcast" }
-
         Result.success(libraries)
       }
     } catch (e: Exception) {
@@ -229,35 +161,16 @@ class AudiobookshelfClient(
         .appendQueryParameter("limit", limit.toString())
         .appendQueryParameter("page", page.toString())
         .appendQueryParameter("include", "progress,rssfeed,authors,downloads")
+      if (!sort.isNullOrBlank()) builder.appendQueryParameter("sort", sort)
+      if (desc) builder.appendQueryParameter("desc", "1")
+      if (!filter.isNullOrBlank()) builder.appendQueryParameter("filter", filter)
 
-      if (!sort.isNullOrBlank()) {
-        builder.appendQueryParameter("sort", sort)
-      }
-      if (desc) {
-        builder.appendQueryParameter("desc", "1")
-      }
-      if (!filter.isNullOrBlank()) {
-        builder.appendQueryParameter("filter", filter)
-      }
-
-      val request = Request.Builder()
-        .url(builder.build().toString())
-        .header("Authorization", "Bearer ${server.token}")
-        .get()
-        .build()
-
-      httpClient.newCall(request).awaitResponse().use { response ->
-        if (!response.isSuccessful) {
-          return@withContext Result.failure(Exception("Failed to fetch library items (HTTP ${response.code})"))
-        }
-        val body = response.body.string()
-        val root = json.parseToJsonElement(body).jsonObject
-        val resultsArray = root["results"]?.jsonArray ?: JsonArray(emptyList())
-
-        val books = resultsArray.mapNotNull { elem ->
-          parseBookItem(elem.jsonObject, server, libraryId)
-        }
-
+      val req = Request.Builder().url(builder.build().toString())
+        .header("Authorization", "Bearer ${server.token}").get().build()
+      httpClient.newCall(req).awaitResponse().use { response ->
+        if (!response.isSuccessful) return@withContext Result.failure(Exception("Failed to fetch library items (HTTP ${response.code})"))
+        val root = json.parseToJsonElement(response.body.string()).jsonObject
+        val books = root.arr("results").orEmpty().mapNotNull { parseBookItem(it.jsonObject, server, libraryId) }
         Result.success(books)
       }
     } catch (e: Exception) {
@@ -273,21 +186,12 @@ class AudiobookshelfClient(
   ): Result<AudiobookshelfBook> = withContext(Dispatchers.IO) {
     try {
       val url = "${server.serverUrl.trimEnd('/')}/api/items/$itemId?expanded=1&include=progress,rssfeed,authors,downloads"
-      val request = Request.Builder()
-        .url(url)
-        .header("Authorization", "Bearer ${server.token}")
-        .get()
-        .build()
-
-      httpClient.newCall(request).awaitResponse().use { response ->
-        if (!response.isSuccessful) {
-          return@withContext Result.failure(Exception("Failed to fetch item details (HTTP ${response.code})"))
-        }
-        val body = response.body.string()
-        val root = json.parseToJsonElement(body).jsonObject
-        val book = parseBookItem(root, server, root["libraryId"]?.jsonPrimitive?.content ?: "")
+      val req = Request.Builder().url(url).header("Authorization", "Bearer ${server.token}").get().build()
+      httpClient.newCall(req).awaitResponse().use { response ->
+        if (!response.isSuccessful) return@withContext Result.failure(Exception("Failed to fetch item details (HTTP ${response.code})"))
+        val root = json.parseToJsonElement(response.body.string()).jsonObject
+        val book = parseBookItem(root, server, root.str("libraryId") ?: "")
           ?: return@withContext Result.failure(Exception("Failed to parse book item"))
-
         Result.success(book)
       }
     } catch (e: Exception) {
@@ -308,40 +212,25 @@ class AudiobookshelfClient(
       val progress = if (durationSeconds > 0) (currentTimeSeconds / durationSeconds).toFloat().coerceIn(0f, 1f) else 0f
       val payload = JsonObject(
         mapOf(
-          "currentTime" to kotlinx.serialization.json.JsonPrimitive(currentTimeSeconds),
-          "timeListened" to kotlinx.serialization.json.JsonPrimitive(5.0),
-          "duration" to kotlinx.serialization.json.JsonPrimitive(durationSeconds),
-          "progress" to kotlinx.serialization.json.JsonPrimitive(progress),
-          "isFinished" to kotlinx.serialization.json.JsonPrimitive(isFinished),
+          "currentTime" to JsonPrimitive(currentTimeSeconds),
+          "timeListened" to JsonPrimitive(5.0),
+          "duration" to JsonPrimitive(durationSeconds),
+          "progress" to JsonPrimitive(progress),
+          "isFinished" to JsonPrimitive(isFinished),
         )
       ).toString()
 
-      val cleanUrl = server.serverUrl.trimEnd('/')
-      val url = "$cleanUrl/api/me/progress/$itemId"
-      val request = Request.Builder()
-        .url(url)
-        .header("Authorization", "Bearer ${server.token}")
-        .patch(payload.toRequestBody(JSON_MEDIA_TYPE))
-        .build()
+      val url = "${server.serverUrl.trimEnd('/')}/api/me/progress/$itemId"
+      val patchReq = Request.Builder().url(url).header("Authorization", "Bearer ${server.token}")
+        .patch(payload.toRequestBody(JSON_MEDIA_TYPE)).build()
 
-      httpClient.newCall(request).awaitResponse().use { response ->
-        if (response.isSuccessful) {
-          Result.success(Unit)
-        } else {
-          // Fallback to POST /api/me/progress/$itemId
-          val postRequest = Request.Builder()
-            .url(url)
-            .header("Authorization", "Bearer ${server.token}")
-            .post(payload.toRequestBody(JSON_MEDIA_TYPE))
-            .build()
-          httpClient.newCall(postRequest).awaitResponse().use { postResponse ->
-            if (postResponse.isSuccessful) {
-              Result.success(Unit)
-            } else {
-              Log.w(TAG, "Progress sync failed (PATCH HTTP ${response.code}, POST HTTP ${postResponse.code})")
-              Result.failure(Exception("Progress sync failed (HTTP ${response.code})"))
-            }
-          }
+      httpClient.newCall(patchReq).awaitResponse().use { response ->
+        if (response.isSuccessful) return@withContext Result.success(Unit)
+        val postReq = Request.Builder().url(url).header("Authorization", "Bearer ${server.token}")
+          .post(payload.toRequestBody(JSON_MEDIA_TYPE)).build()
+        httpClient.newCall(postReq).awaitResponse().use { postRes ->
+          if (postRes.isSuccessful) Result.success(Unit)
+          else Result.failure(Exception("Progress sync failed (HTTP ${response.code})"))
         }
       }
     } catch (e: Exception) {
@@ -351,10 +240,8 @@ class AudiobookshelfClient(
     }
   }
 
-  fun getCoverUrl(server: AudiobookshelfServer, itemId: String): String {
-    val cleanUrl = server.serverUrl.trimEnd('/')
-    return "$cleanUrl/api/items/$itemId/cover?token=${server.token}"
-  }
+  fun getCoverUrl(server: AudiobookshelfServer, itemId: String): String =
+    "${server.serverUrl.trimEnd('/')}/api/items/$itemId/cover?token=${server.token}"
 
   fun getTrackStreamUrl(server: AudiobookshelfServer, track: AudiobookshelfTrack, bookId: String): String {
     val cleanUrl = server.serverUrl.trimEnd('/')
@@ -363,9 +250,7 @@ class AudiobookshelfClient(
         if (!track.contentUrl.contains("token=")) {
           val sep = if (track.contentUrl.contains("?")) "&" else "?"
           "${track.contentUrl}${sep}token=${server.token}"
-        } else {
-          track.contentUrl
-        }
+        } else track.contentUrl
       }
       track.contentUrl.startsWith("/") -> "$cleanUrl${track.contentUrl}?token=${server.token}"
       track.ino.isNotBlank() -> "$cleanUrl/api/items/$bookId/file/${track.ino}?token=${server.token}"
@@ -379,94 +264,45 @@ class AudiobookshelfClient(
     server: AudiobookshelfServer,
     fallbackLibraryId: String,
   ): AudiobookshelfBook? {
-    val id = obj["id"].asString() ?: return null
-    val libraryId = obj["libraryId"].asString() ?: fallbackLibraryId
-    val media = obj["media"]?.jsonObject ?: JsonObject(emptyMap())
-    val metadata = media["metadata"]?.jsonObject ?: obj["metadata"]?.jsonObject ?: JsonObject(emptyMap())
+    val id = obj.str("id") ?: return null
+    val media = obj.obj("media") ?: JsonObject(emptyMap())
+    val meta = media.obj("metadata") ?: obj.obj("metadata") ?: JsonObject(emptyMap())
 
-    val title = metadata["title"].asString()
-      ?: obj["title"].asString()
-      ?: "Unknown Title"
-    val subtitle = metadata["subtitle"].asString() ?: obj["subtitle"].asString() ?: ""
+    val title = meta.str("title") ?: obj.str("title") ?: "Unknown Title"
+    val subtitle = meta.str("subtitle") ?: obj.str("subtitle") ?: ""
 
-    // Author resolution: join all authors if available
-    val authorsArray = metadata["authors"]?.jsonArray ?: obj["authors"]?.jsonArray
-    val authors = authorsArray?.mapNotNull {
-      if (it is JsonObject) it["name"].asString() else it.asString()
+    val authors = (meta.arr("authors") ?: obj.arr("authors"))?.mapNotNull {
+      if (it is JsonObject) it.str("name") else it.asString()
     }?.filter { it.isNotBlank() }
-    val authorName = if (!authors.isNullOrEmpty()) {
-      authors.joinToString(", ")
-    } else {
-      metadata["authorName"].asString()
-        ?: metadata["author"].asString()
-        ?: obj["author"].asString()
-        ?: ""
-    }
+    val author = if (!authors.isNullOrEmpty()) authors.joinToString(", ")
+      else (meta.str("authorName", "author") ?: obj.str("author") ?: "")
 
-    // Narrator resolution: join all narrators if available
-    val narratorsArray = metadata["narrators"]?.jsonArray ?: obj["narrators"]?.jsonArray
-    val narrators = narratorsArray?.mapNotNull {
-      if (it is JsonObject) it["name"].asString() else it.asString()
+    val narrators = (meta.arr("narrators") ?: obj.arr("narrators"))?.mapNotNull {
+      if (it is JsonObject) it.str("name") else it.asString()
     }?.filter { it.isNotBlank() }
-    val narrator = if (!narrators.isNullOrEmpty()) {
-      narrators.joinToString(", ")
-    } else {
-      metadata["narratorName"].asString()
-        ?: metadata["narrator"].asString()
-        ?: obj["narrator"].asString()
-        ?: ""
-    }
+    val narrator = if (!narrators.isNullOrEmpty()) narrators.joinToString(", ")
+      else (meta.str("narratorName", "narrator") ?: obj.str("narrator") ?: "")
 
-    // Series resolution
-    val seriesList = metadata["series"]?.jsonArray ?: obj["series"]?.jsonArray
-    val firstSeries = seriesList?.firstOrNull()?.jsonObject
-    val seriesName = firstSeries?.get("name").asString()
-      ?: metadata["seriesName"].asString()
-      ?: ""
-    val seriesPart = firstSeries?.get("sequence").asString()
-      ?: metadata["seriesSequence"].asString()
-      ?: ""
+    val firstSeries = (meta.arr("series") ?: obj.arr("series"))?.firstOrNull()?.jsonObject
+    val series = firstSeries?.str("name") ?: meta.str("seriesName") ?: ""
+    val seriesPart = firstSeries?.str("sequence") ?: meta.str("seriesSequence") ?: ""
 
-    val description = metadata["description"].asString()
-      ?: metadata["summary"].asString()
-      ?: obj["description"].asString()
-      ?: ""
-    val rawGenres = (metadata["genres"]?.jsonArray ?: obj["genres"]?.jsonArray)?.mapNotNull { it.asString() } ?: emptyList()
-    val rawTags = (metadata["tags"]?.jsonArray ?: obj["tags"]?.jsonArray)?.mapNotNull { it.asString() } ?: emptyList()
-    val genres = (rawGenres + rawTags).distinct()
-    val publishedYear = metadata["publishedYear"].asString()
-      ?: metadata["publishedDate"].asString()
-      ?: obj["publishedYear"].asString()
-      ?: ""
-    val publisher = metadata["publisher"].asString() ?: obj["publisher"].asString() ?: ""
-    val language = metadata["language"].asString() ?: obj["language"].asString() ?: ""
-    val isbn = metadata["isbn"].asString() ?: obj["isbn"].asString() ?: ""
-    val asin = metadata["asin"].asString() ?: obj["asin"].asString() ?: ""
+    val genres = ((meta.arr("genres") ?: obj.arr("genres")).orEmpty().mapNotNull { it.asString() } +
+      (meta.arr("tags") ?: obj.arr("tags")).orEmpty().mapNotNull { it.asString() }).distinct()
 
-    // Tracks parsing
-    val tracksArray = media["tracks"]?.jsonArray ?: media["audioFiles"]?.jsonArray ?: obj["tracks"]?.jsonArray ?: obj["audioFiles"]?.jsonArray
-    val tracks = tracksArray?.mapIndexedNotNull { index, itemElem ->
-      val trackObj = itemElem.jsonObject
-      val trackId = trackObj["id"].asString() ?: trackObj["ino"].asString() ?: "$index"
-      val trackIno = trackObj["ino"].asString() ?: ""
-      val trackMeta = trackObj["metadata"]?.jsonObject
-      val trackTitle = trackObj["title"].asString()
-        ?: trackMeta?.get("filename").asString()
-        ?: "Track ${index + 1}"
-      val trackDurationSec = trackObj["duration"]?.jsonPrimitive?.doubleOrNull ?: 0.0
-      val trackSize = trackObj["size"]?.jsonPrimitive?.longOrNull ?: 0L
-      val mimeType = trackObj["mimeType"]?.jsonPrimitive?.content ?: "audio/mp4"
-      val contentUrl = trackObj["contentUrl"]?.jsonPrimitive?.content ?: ""
-
+    val rawTracks = media.arr("tracks") ?: media.arr("audioFiles") ?: obj.arr("tracks") ?: obj.arr("audioFiles")
+    val tracks = rawTracks?.mapIndexedNotNull { index, itemElem ->
+      val tObj = itemElem.jsonObject
+      val tMeta = tObj.obj("metadata")
       AudiobookshelfTrack(
-        id = trackId,
+        id = tObj.str("id", "ino") ?: "$index",
         index = index,
-        ino = trackIno,
-        title = trackTitle,
-        durationMs = (trackDurationSec * 1000).toLong(),
-        size = trackSize,
-        mimeType = mimeType,
-        contentUrl = contentUrl,
+        ino = tObj.str("ino") ?: "",
+        title = tObj.str("title") ?: tMeta?.str("filename") ?: "Track ${index + 1}",
+        durationMs = ((tObj["duration"]?.jsonPrimitive?.doubleOrNull ?: 0.0) * 1000).toLong(),
+        size = tObj["size"]?.jsonPrimitive?.longOrNull ?: 0L,
+        mimeType = tObj.str("mimeType") ?: "audio/mp4",
+        contentUrl = tObj.str("contentUrl") ?: "",
       )
     } ?: emptyList()
 
@@ -476,106 +312,83 @@ class AudiobookshelfClient(
       ?: (tracks.sumOf { it.durationMs } / 1000.0)
     val durationMs = (durationSec * 1000).toLong()
 
-    // Progress resolution: check all possible keys
-    val userProgress = obj["userMediaProgress"]?.jsonObject
-      ?: obj["mediaProgress"]?.jsonObject
-      ?: media["userMediaProgress"]?.jsonObject
-      ?: media["progress"]?.jsonObject
-      ?: obj["progress"]?.jsonObject
-    val currentTimeSec = userProgress?.get("currentTime")?.jsonPrimitive?.doubleOrNull
-      ?: userProgress?.get("currentTime")?.jsonPrimitive?.longOrNull?.toDouble()
-      ?: 0.0
-    val rawProgress = userProgress?.get("progress")?.jsonPrimitive?.floatOrNull
-      ?: userProgress?.get("progress")?.jsonPrimitive?.doubleOrNull?.toFloat()
-      ?: 0f
-    val isFinished = userProgress?.get("isFinished")?.jsonPrimitive?.booleanOrNull
-      ?: (userProgress?.get("isFinished")?.jsonPrimitive?.intOrNull?.let { it == 1 })
+    val progressObj = obj.obj("userMediaProgress") ?: obj.obj("mediaProgress")
+      ?: media.obj("userMediaProgress") ?: media.obj("progress") ?: obj.obj("progress")
+    val currentTimeSec = progressObj?.get("currentTime")?.jsonPrimitive?.doubleOrNull
+      ?: progressObj?.get("currentTime")?.jsonPrimitive?.longOrNull?.toDouble() ?: 0.0
+    val rawProgress = progressObj?.get("progress")?.jsonPrimitive?.floatOrNull ?: 0f
+    val isFinished = progressObj?.get("isFinished")?.jsonPrimitive?.booleanOrNull
+      ?: progressObj?.get("isFinished")?.jsonPrimitive?.intOrNull?.let { it == 1 }
       ?: (currentTimeSec > 0 && durationSec > 0 && currentTimeSec >= durationSec - 5)
     val progressMs = (currentTimeSec * 1000).toLong()
     val progressPercent = if (rawProgress > 0f) rawProgress else if (durationSec > 0) (currentTimeSec / durationSec).toFloat().coerceIn(0f, 1f) else 0f
 
-    val coverUrl = getCoverUrl(server, id)
-
-    // Chapters parsing
-    val rawChapters = media["chapters"]?.jsonArray
-      ?: obj["chapters"]?.jsonArray
-      ?: media["audioFiles"]?.jsonArray?.firstOrNull()?.jsonObject?.get("chapters")?.jsonArray
+    val rawChapters = media.arr("chapters") ?: obj.arr("chapters")
+      ?: media.arr("audioFiles")?.firstOrNull()?.jsonObject?.arr("chapters")
     var chapters = rawChapters?.mapIndexedNotNull { index, chapElem ->
-      val chapObj = chapElem.jsonObject
-      val chapId = chapObj["id"]?.jsonPrimitive?.longOrNull ?: index.toLong()
-      val startSec = chapObj["start"]?.jsonPrimitive?.doubleOrNull ?: 0.0
-      val endSec = chapObj["end"]?.jsonPrimitive?.doubleOrNull ?: 0.0
-      val chapTitle = chapObj["title"].asString() ?: "Chapter ${index + 1}"
-
+      val cObj = chapElem.jsonObject
       AudiobookshelfChapter(
-        id = chapId,
-        startMs = (startSec * 1000).toLong(),
-        endMs = (endSec * 1000).toLong(),
-        title = chapTitle,
+        id = cObj["id"]?.jsonPrimitive?.longOrNull ?: index.toLong(),
+        startMs = ((cObj["start"]?.jsonPrimitive?.doubleOrNull ?: 0.0) * 1000).toLong(),
+        endMs = ((cObj["end"]?.jsonPrimitive?.doubleOrNull ?: 0.0) * 1000).toLong(),
+        title = cObj.str("title") ?: "Chapter ${index + 1}",
       )
     } ?: emptyList()
 
     if (chapters.isEmpty()) {
-      var runningMs = 0L
-      val fileChapters = media["audioFiles"]?.jsonArray?.flatMapIndexed { fileIndex, fileElem ->
-        val fileObj = fileElem.jsonObject
-        val fileDurSec = fileObj["duration"]?.jsonPrimitive?.doubleOrNull ?: 0.0
-        val fileDurMs = (fileDurSec * 1000).toLong()
-        val fileChaps = fileObj["chapters"]?.jsonArray
-        val mapped = fileChaps?.mapNotNull { chapElem ->
-          val chapObj = chapElem.jsonObject
-          val chapId = chapObj["id"]?.jsonPrimitive?.longOrNull ?: 0L
-          val startSec = chapObj["start"]?.jsonPrimitive?.doubleOrNull ?: 0.0
-          val endSec = chapObj["end"]?.jsonPrimitive?.doubleOrNull ?: 0.0
-          val chapTitle = chapObj["title"].asString() ?: "Chapter"
+      chapters = media.arr("audioFiles")?.flatMapIndexed { _, fileElem ->
+        val fObj = fileElem.jsonObject
+        fObj.arr("chapters").orEmpty().mapNotNull { chapElem ->
+          val cObj = chapElem.jsonObject
           AudiobookshelfChapter(
-            id = chapId,
-            startMs = (startSec * 1000).toLong(),
-            endMs = (endSec * 1000).toLong(),
-            title = chapTitle,
+            id = cObj["id"]?.jsonPrimitive?.longOrNull ?: 0L,
+            startMs = ((cObj["start"]?.jsonPrimitive?.doubleOrNull ?: 0.0) * 1000).toLong(),
+            endMs = ((cObj["end"]?.jsonPrimitive?.doubleOrNull ?: 0.0) * 1000).toLong(),
+            title = cObj.str("title") ?: "Chapter",
           )
         }
-        runningMs += fileDurMs
-        mapped ?: emptyList()
       } ?: emptyList()
-      if (fileChapters.isNotEmpty()) {
-        chapters = fileChapters
-      }
     }
-
-    val addedAt = obj["addedAt"]?.jsonPrimitive?.longOrNull ?: 0L
-    val updatedAt = obj["updatedAt"]?.jsonPrimitive?.longOrNull ?: 0L
 
     return AudiobookshelfBook(
       id = id,
-      libraryId = libraryId,
+      libraryId = obj.str("libraryId") ?: fallbackLibraryId,
       title = title,
       subtitle = subtitle,
-      author = authorName,
+      author = author,
       narrator = narrator,
-      series = seriesName,
+      series = series,
       seriesPart = seriesPart,
-      description = description,
+      description = meta.str("description", "summary") ?: obj.str("description") ?: "",
       genres = genres,
-      publisher = publisher,
-      publishedYear = publishedYear,
-      language = language,
-      isbn = isbn,
-      asin = asin,
+      publisher = meta.str("publisher") ?: obj.str("publisher") ?: "",
+      publishedYear = meta.str("publishedYear", "publishedDate") ?: obj.str("publishedYear") ?: "",
+      language = meta.str("language") ?: obj.str("language") ?: "",
+      isbn = meta.str("isbn") ?: obj.str("isbn") ?: "",
+      asin = meta.str("asin") ?: obj.str("asin") ?: "",
       durationMs = durationMs,
       progressMs = progressMs,
       progressPercent = progressPercent,
       isFinished = isFinished,
-      coverUrl = coverUrl,
+      coverUrl = getCoverUrl(server, id),
       tracks = tracks,
       chapters = chapters,
-      addedAt = addedAt,
-      updatedAt = updatedAt,
+      addedAt = obj["addedAt"]?.jsonPrimitive?.longOrNull ?: 0L,
+      updatedAt = obj["updatedAt"]?.jsonPrimitive?.longOrNull ?: 0L,
     )
   }
 
+  private fun JsonObject.str(vararg keys: String): String? =
+    keys.firstNotNullOfOrNull { get(it).asString() }
+
+  private fun JsonObject.obj(key: String): JsonObject? =
+    get(key)?.takeIf { it !is JsonNull }?.runCatching { jsonObject }?.getOrNull()
+
+  private fun JsonObject.arr(key: String): JsonArray? =
+    get(key)?.takeIf { it !is JsonNull }?.runCatching { jsonArray }?.getOrNull()
+
   private fun JsonElement?.asString(): String? {
-    if (this == null || this is kotlinx.serialization.json.JsonNull) return null
+    if (this == null || this is JsonNull) return null
     val str = this.jsonPrimitive.contentOrNull ?: return null
     return if (str.equals("null", ignoreCase = true) || str.isBlank()) null else str
   }
