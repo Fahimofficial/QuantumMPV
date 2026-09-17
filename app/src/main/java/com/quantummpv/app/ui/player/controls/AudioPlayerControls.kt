@@ -1090,7 +1090,7 @@ fun AudioPlayerControls(
 
   val configuration = LocalConfiguration.current
   val isPortrait = configuration.orientation == Configuration.ORIENTATION_PORTRAIT
-  val isTablet = configuration.smallestScreenWidthDp >= 600
+  val isTablet = configuration.smallestScreenWidthDp >= 600 || configuration.screenWidthDp >= 600
   val isTabletLandscape = !isPortrait && isTablet
   val isTabletPortrait = isPortrait && isTablet
 
@@ -1408,7 +1408,7 @@ fun AudioPlayerControls(
             Box(
               modifier = Modifier
                 .fillMaxHeight()
-                .fillMaxWidth(if (isTabletPortrait) 0.65f else if (isPortrait) 0.88f else 1f)
+                .fillMaxWidth(if (isTabletPortrait) 0.52f else if (isPortrait) 0.88f else 1f)
                 .pointerInput(showVisualizer, containerWidthPx, isAudiobook) {
                   if (showVisualizer || isAudiobook || containerWidthPx <= 0f) return@pointerInput
                   detectHorizontalDragGestures(
@@ -1478,7 +1478,11 @@ fun AudioPlayerControls(
                   shape = coverShape,
                   color = Color.Transparent,
                 ) {
-                  CoverArtCardImage(bitmap = prevCoverBitmap, artworkUrl = prevItem?.tvgLogo?.takeIf { it.isNotBlank() })
+                  CoverArtCardImage(
+                    bitmap = prevCoverBitmap,
+                    artworkUrl = prevItem?.tvgLogo?.takeIf { it.isNotBlank() },
+                    contentScale = if (isAudiobook) ContentScale.Fit else ContentScale.Crop,
+                  )
                 }
               }
 
@@ -1492,7 +1496,11 @@ fun AudioPlayerControls(
                   shape = coverShape,
                   color = Color.Transparent,
                 ) {
-                  CoverArtCardImage(bitmap = nextCoverBitmap, artworkUrl = nextItem?.tvgLogo?.takeIf { it.isNotBlank() })
+                  CoverArtCardImage(
+                    bitmap = nextCoverBitmap,
+                    artworkUrl = nextItem?.tvgLogo?.takeIf { it.isNotBlank() },
+                    contentScale = if (isAudiobook) ContentScale.Fit else ContentScale.Crop,
+                  )
                 }
               }
 
@@ -1505,8 +1513,11 @@ fun AudioPlayerControls(
                 shape = coverShape,
                 color = Color.Transparent,
               ) {
-                CoverArtCardImage(bitmap = activeCoverOverride ?: albumArtBitmap, artworkUrl = currentArtworkUri,
-                  contentScale = if (isAudiobook) ContentScale.Fit else ContentScale.Crop)
+                CoverArtCardImage(
+                  bitmap = activeCoverOverride ?: albumArtBitmap,
+                  artworkUrl = currentArtworkUri,
+                  contentScale = if (isAudiobook) ContentScale.Fit else ContentScale.Crop,
+                )
               }
             }
           }
@@ -2100,8 +2111,6 @@ fun AudioPlayerControls(
         }
       }
     }
-
-    val isTabletPortrait = isPortrait && (isTablet || configuration.screenWidthDp >= 600)
 
     if (isPortrait) {
       Column(
