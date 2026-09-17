@@ -5,11 +5,8 @@ import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.snap
 import androidx.compose.foundation.background
-import androidx.compose.foundation.gestures.Orientation
-import androidx.compose.foundation.gestures.draggable
-import androidx.compose.foundation.gestures.rememberDraggableState
-import androidx.compose.foundation.interaction.DragInteraction
-import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.gestures.awaitEachGesture
+import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -39,6 +36,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.graphics.drawscope.clipRect
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
@@ -135,7 +133,6 @@ internal fun VideoSwipeSurface(
   val reducedMotion = AppMotion.shouldReduceMotion()
   val isTelevision = DeviceFormFactor.isTelevision(LocalContext.current)
   val density = LocalDensity.current
-  val interactions = remember(identity) { MutableInteractionSource() }
   var rowWidth by remember(identity) { mutableIntStateOf(0) }
   var dragOffset by remember(identity) { mutableFloatStateOf(0f) }
   var dragging by remember(identity) { mutableStateOf(false) }
@@ -145,7 +142,6 @@ internal fun VideoSwipeSurface(
   val threshold = minOf(travel * 0.7f, with(density) { 56.dp.toPx() })
   val canSwipe = enabled && onAction != null &&
     (leftAction != VideoSwipeAction.None || rightAction != VideoSwipeAction.None)
-  val currentEnabled by rememberUpdatedState(canSwipe)
   val currentAction by rememberUpdatedState(onAction)
   val currentLeft by rememberUpdatedState(leftAction)
   val currentRight by rememberUpdatedState(rightAction)
@@ -162,24 +158,6 @@ internal fun VideoSwipeSurface(
     thresholdReached = false
     thresholdFeedbackSent = false
   }
-  LaunchedEffect(interactions) {
-    interactions.interactions.collect { interaction ->
-      if (interaction is DragInteraction.Stop || interaction is DragInteraction.Cancel) {
-        val committedOffset = dragOffset
-        val action = if (committedOffset > 0f) currentRight else currentLeft
-        dragging = false
-        dragOffset = 0f
-        thresholdReached = false
-        if (
-          interaction is DragInteraction.Stop && currentEnabled && currentThreshold > 0f &&
-          abs(committedOffset) >= currentThreshold && action != VideoSwipeAction.None
-        ) {
-          currentAction?.invoke(action)
-        }
-      }
-    }
-  }
-
   val accessibilityActions =
     if (canSwipe) {
       listOf(rightAction, leftAction).filter { it != VideoSwipeAction.None }.distinct().map { action ->
@@ -207,32 +185,84 @@ internal fun VideoSwipeSurface(
     modifier = modifier
       .onSizeChanged { rowWidth = it.width }
       .semantics { customActions = accessibilityActions }
-      .draggable(
-        state = rememberDraggableState { delta ->
-          val minimum = if (leftAction == VideoSwipeAction.None) 0f else -travel
-          val maximum = if (rightAction == VideoSwipeAction.None) 0f else travel
-          dragOffset = (dragOffset + delta).coerceIn(minimum, maximum)
-          if (!thresholdReached && threshold > 0f && abs(dragOffset) >= threshold) {
-            thresholdReached = true
-            if (!thresholdFeedbackSent) {
-              thresholdFeedbackSent = true
-              haptics.tick()
-            }
-          } else if (abs(dragOffset) < threshold * 0.8f) {
-            thresholdReached = false
+      .pointerInput(identity, canSwipe, isTelevision, rowWidth, leftAction, rightAction, travel, threshold) {
+        if (!canSwipe || isTelevision || rowWidth <= 0) return@pointerInput
+        val leftEdge = rowWidth * 0.25f
+        val rightEdge = rowWidth * 0.75f
+        val touchSlop = viewConfiguration.touchSlop
+
+        awaitEachGesture {
+          val down = awaitFirstDown(requireUnconsumed = false)
+          val startX = down.position.x
+          val isEdgeZone = startX <= leftEdge || startX >= rightEdge
+          if (!isEdgeZone) {
+            // Started in the middle zone: leave horizontal drag unconsumed for tab pager sliding
+            return@awaitEachGesture
           }
-        },
-        orientation = Orientation.Horizontal,
-        enabled = canSwipe && !isTelevision && rowWidth > 0 && (dragging || abs(displayOffset) < 0.5f),
-        reverseDirection = false,
-        interactionSource = interactions,
-        onDragStarted = {
-          dragOffset = 0f
-          dragging = true
-          thresholdReached = false
-          thresholdFeedbackSent = false
-        },
-      ),
+
+          val pointerId = down.id
+          var totalDeltaX = 0f
+          var totalDeltaY = 0f
+          var dragStarted = false
+
+          while (true) {
+            val event = awaitPointerEvent()
+            val change = event.changes.firstOrNull { it.id == pointerId } ?: break
+            if (!change.pressed) {
+              break
+            }
+
+            val currentPos = change.position
+            val prevPos = change.previousPosition
+            val deltaX = currentPos.x - prevPos.x
+            val deltaY = currentPos.y - prevPos.y
+
+            totalDeltaX += deltaX
+            totalDeltaY += deltaY
+
+            if (!dragStarted) {
+              if (abs(totalDeltaX) > touchSlop && abs(totalDeltaX) > abs(totalDeltaY)) {
+                dragStarted = true
+                dragging = true
+                thresholdReached = false
+                thresholdFeedbackSent = false
+                dragOffset = 0f
+                change.consume()
+              } else if (abs(totalDeltaY) > touchSlop) {
+                // Vertical scrolling took precedence
+                break
+              }
+            } else {
+              change.consume()
+              val minimum = if (leftAction == VideoSwipeAction.None) 0f else -travel
+              val maximum = if (rightAction == VideoSwipeAction.None) 0f else travel
+              dragOffset = (dragOffset + deltaX).coerceIn(minimum, maximum)
+
+              if (!thresholdReached && threshold > 0f && abs(dragOffset) >= threshold) {
+                thresholdReached = true
+                if (!thresholdFeedbackSent) {
+                  thresholdFeedbackSent = true
+                  haptics.tick()
+                }
+              } else if (abs(dragOffset) < threshold * 0.8f) {
+                thresholdReached = false
+              }
+            }
+          }
+
+          if (dragStarted) {
+            val committedOffset = dragOffset
+            val action = if (committedOffset > 0f) currentRight else currentLeft
+            dragging = false
+            dragOffset = 0f
+            thresholdReached = false
+            thresholdFeedbackSent = false
+            if (currentThreshold > 0f && abs(committedOffset) >= currentThreshold && action != VideoSwipeAction.None) {
+              currentAction?.invoke(action)
+            }
+          }
+        }
+      },
   ) {
     Box(
       modifier = Modifier.matchParentSize().clearAndSetSemantics { }
