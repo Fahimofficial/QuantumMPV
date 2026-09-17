@@ -73,6 +73,7 @@ fun ControlsButton(
   title: String? = null,
   color: Color? = null,
   enabled: Boolean = true,
+  onLongClickLabel: String? = null,
 ) {
   val interactionSource = remember { MutableInteractionSource() }
   val hideBackground = LocalHidePlayerButtonsBackground.current
@@ -94,6 +95,7 @@ fun ControlsButton(
             clickEvent()
             onLongClick()
           },
+          onLongClickLabel = onLongClickLabel,
           interactionSource = interactionSource,
           indication = ripple(),
         ),

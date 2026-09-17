@@ -2265,4 +2265,9 @@
   <string name="audiobook_save_failed">सुनने की प्रगति सहेजी नहीं जा सकी।</string>
   <string name="audiobook_play_failed">यह किताब खुल नहीं सकी। जाँचें कि इसकी फ़ाइलें अभी भी उपलब्ध हैं।</string>
   <string name="audiobook_retry">फिर कोशिश करें</string>
+  <string name="playback_bookmarks_empty">कोई बुकमार्क या अध्याय नहीं है</string>
+  <string name="playback_bookmark_update_failed">बुकमार्क अपडेट नहीं किए जा सके।</string>
+  <string name="audiobook_no_text">कोई गीत या प्रतिलिपि उपलब्ध नहीं है</string>
+  <string name="player_seek_backward">%1$s पीछे जाएँ</string>
+  <string name="player_seek_forward">%1$s आगे जाएँ</string>
 </resources>

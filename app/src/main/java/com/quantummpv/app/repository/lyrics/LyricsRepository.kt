@@ -44,7 +44,8 @@ class LyricsRepository(
   }
 
   // Cache by media path -> LyricsResult
-  private val cache = LruCache<String, LyricsResult>(64)
+  private data class CacheKey(val mediaPath: String, val allowOnline: Boolean)
+  private val cache = LruCache<CacheKey, LyricsResult>(64)
 
   private fun cleanTitle(title: String): String {
     return title
@@ -91,9 +92,11 @@ class LyricsRepository(
     artist: String?,
     durationSeconds: Int = 0,
     forceRefresh: Boolean = false,
+    allowOnline: Boolean = true,
   ): LyricsResult = withContext(Dispatchers.IO) {
+    val cacheKey = CacheKey(mediaPath, allowOnline)
     if (!forceRefresh) {
-      cache.get(mediaPath)?.let { return@withContext it }
+      cache.get(cacheKey)?.let { return@withContext it }
     }
 
     Log.d(TAG, "Loading lyrics for: $title by $artist ($mediaPath)")
@@ -102,7 +105,7 @@ class LyricsRepository(
     val embedded = EmbeddedLyricsExtractor.extractEmbeddedLyrics(context, mediaPath)
 
     // 2. Fetch online lyrics from LRCLIB
-    val online = fetchOnlineLyrics(title, artist, durationSeconds)
+    val online = if (allowOnline) fetchOnlineLyrics(title, artist, durationSeconds) else null
 
     // 3. Determine available sources and default preference (Embedded first if available)
     val sources = mutableListOf<LyricsSourceType>()
@@ -132,7 +135,7 @@ class LyricsRepository(
       availableSources = sources.distinct(),
     )
 
-    cache.put(mediaPath, result)
+    cache.put(cacheKey, result)
     result
   }
 
@@ -276,8 +279,10 @@ class LyricsRepository(
     return if (parsed.isValid()) parsed else null
   }
 
-  fun switchSource(mediaPath: String, sourceType: LyricsSourceType): LyricsResult? {
-    val existing = cache.get(mediaPath) ?: return null
+  fun switchSource(mediaPath: String, sourceType: LyricsSourceType, allowOnline: Boolean = true): LyricsResult? {
+    if (!allowOnline && sourceType == LyricsSourceType.ONLINE) return null
+    val cacheKey = CacheKey(mediaPath, allowOnline)
+    val existing = cache.get(cacheKey) ?: return null
     val newActive = when (sourceType) {
       LyricsSourceType.EMBEDDED, LyricsSourceType.LOCAL -> existing.embeddedLyrics ?: existing.onlineLyrics
       LyricsSourceType.ONLINE -> existing.onlineLyrics ?: existing.embeddedLyrics
@@ -286,7 +291,7 @@ class LyricsRepository(
       selectedSource = sourceType,
       activeLyrics = newActive,
     )
-    cache.put(mediaPath, updated)
+    cache.put(cacheKey, updated)
     return updated
   }
 }

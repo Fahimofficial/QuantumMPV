@@ -868,6 +868,22 @@ val MIGRATION_22_23 =
     }
   }
 
+val MIGRATION_23_24 =
+  object : Migration(23, 24) {
+    override fun migrate(db: SupportSQLiteDatabase) {
+      db.execSQL("""CREATE TABLE IF NOT EXISTS `playback_bookmarks` (
+        `id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `mediaId` TEXT NOT NULL,
+        `positionMs` INTEGER NOT NULL, `title` TEXT NOT NULL, `createdAt` INTEGER NOT NULL,
+        `bookTrackId` INTEGER,
+        FOREIGN KEY(`bookTrackId`) REFERENCES `audiobook_tracks`(`id`) ON UPDATE NO ACTION ON DELETE CASCADE)""")
+      db.execSQL("CREATE INDEX IF NOT EXISTS `index_playback_bookmarks_mediaId` ON `playback_bookmarks` (`mediaId`)")
+      db.execSQL("CREATE INDEX IF NOT EXISTS `index_playback_bookmarks_bookTrackId` ON `playback_bookmarks` (`bookTrackId`)")
+      db.execSQL("""INSERT INTO `playback_bookmarks` (`id`, `mediaId`, `positionMs`, `title`, `createdAt`, `bookTrackId`)
+        SELECT `id`, 'audiobook:' || `bookId`, `positionMs`, `title`, `createdAt`, `trackId` FROM `audiobook_bookmarks`""")
+      db.execSQL("DROP TABLE `audiobook_bookmarks`")
+    }
+  }
+
 val DatabaseModule =
   module {
     single<Json> {
@@ -906,6 +922,7 @@ val DatabaseModule =
           MIGRATION_19_21,
           MIGRATION_21_22,
           MIGRATION_22_23,
+          MIGRATION_23_24,
         ).build()
     }
 
@@ -918,6 +935,7 @@ val DatabaseModule =
     single { ThumbnailRepository(androidContext()) }
 
     single { get<MpvRxDatabase>().audiobookDao() }
+    single { get<MpvRxDatabase>().playbackBookmarkDao() }
 
     single {
       com.quantummpv.app.database.repository.VideoMetadataCacheRepository(

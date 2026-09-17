@@ -2375,4 +2375,9 @@
   <string name="audiobook_save_failed">تعذر حفظ تقدم الاستماع.</string>
   <string name="audiobook_play_failed">تعذر فتح هذا الكتاب. تحقق من إمكانية الوصول إلى ملفاته.</string>
   <string name="audiobook_retry">إعادة المحاولة</string>
+  <string name="playback_bookmarks_empty">لا توجد إشارات مرجعية أو فصول</string>
+  <string name="playback_bookmark_update_failed">تعذر تحديث الإشارات المرجعية.</string>
+  <string name="audiobook_no_text">لا توجد كلمات أو نص مرفق</string>
+  <string name="player_seek_backward">الرجوع %1$s</string>
+  <string name="player_seek_forward">التقدم %1$s</string>
 </resources>

@@ -2391,4 +2391,9 @@
   <string name="audiobook_save_failed">Could not save listening progress.</string>
   <string name="audiobook_play_failed">Could not open this book. Check that its files are still accessible.</string>
   <string name="audiobook_retry">Retry</string>
+  <string name="playback_bookmarks_empty">No bookmarks or chapters</string>
+  <string name="playback_bookmark_update_failed">Could not update bookmarks.</string>
+  <string name="audiobook_no_text">No supplied lyrics or transcript</string>
+  <string name="player_seek_backward">Seek back %1$s</string>
+  <string name="player_seek_forward">Seek forward %1$s</string>
 </resources>

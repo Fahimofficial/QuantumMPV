@@ -64,18 +64,7 @@ fun LuaScriptsPanel(
 
   fun toggleScriptSelection(scriptName: String) {
     val isEnabled = selectedScripts.contains(scriptName)
-    val newSelection =
-      if (isEnabled) {
-        Toast
-          .makeText(
-            context,
-            "$scriptName disabled. Reopen the video if the script stays active.",
-            Toast.LENGTH_LONG,
-          ).show()
-        selectedScripts - scriptName
-      } else {
-        selectedScripts + scriptName
-      }
+    val newSelection = if (isEnabled) selectedScripts - scriptName else selectedScripts + scriptName
     preferences.selectedLuaScripts.set(newSelection)
   }
 

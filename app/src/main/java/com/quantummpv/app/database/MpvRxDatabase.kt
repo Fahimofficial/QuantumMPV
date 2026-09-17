@@ -20,6 +20,7 @@ import com.quantummpv.app.database.dao.DownloadItemDao
 import com.quantummpv.app.database.dao.NetworkConnectionDao
 import com.quantummpv.app.database.dao.NetworkStreamEntryDao
 import com.quantummpv.app.database.dao.PlaybackStateDao
+import com.quantummpv.app.database.dao.PlaybackBookmarkDao
 import com.quantummpv.app.database.dao.PlaylistDao
 import com.quantummpv.app.database.dao.RecentlyPlayedDao
 import com.quantummpv.app.database.dao.SecureMediaDao
@@ -30,12 +31,12 @@ import com.quantummpv.app.database.entities.DirectoryScanEntity
 import com.quantummpv.app.database.entities.AudiobookEntity
 import com.quantummpv.app.database.entities.AudiobookTrackEntity
 import com.quantummpv.app.database.entities.AudiobookChapterEntity
-import com.quantummpv.app.database.entities.AudiobookBookmarkEntity
 import com.quantummpv.app.database.entities.DownloadItemEntity
 import com.quantummpv.app.database.entities.JellyfinServerEntity
 import com.quantummpv.app.database.entities.NavidromeServerEntity
 import com.quantummpv.app.database.entities.NetworkStreamEntryEntity
 import com.quantummpv.app.database.entities.PlaybackStateEntity
+import com.quantummpv.app.database.entities.PlaybackBookmarkEntity
 import com.quantummpv.app.database.entities.PlaylistEntity
 import com.quantummpv.app.database.entities.PlaylistItemEntity
 import com.quantummpv.app.database.entities.RecentlyPlayedEntity
@@ -60,9 +61,9 @@ import com.quantummpv.app.domain.network.NetworkConnection
     AudiobookEntity::class,
     AudiobookTrackEntity::class,
     AudiobookChapterEntity::class,
-    AudiobookBookmarkEntity::class,
+    PlaybackBookmarkEntity::class,
   ],
-  version = 23,
+  version = 24,
   exportSchema = true,
 )
 @TypeConverters(NetworkProtocolConverter::class, NetworkStreamEntryTypeConverter::class)
@@ -90,4 +91,6 @@ abstract class MpvRxDatabase : RoomDatabase() {
   abstract fun navidromeServerDao(): NavidromeServerDao
 
   abstract fun audiobookDao(): AudiobookDao
+
+  abstract fun playbackBookmarkDao(): PlaybackBookmarkDao
 }

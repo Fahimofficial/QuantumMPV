@@ -42,6 +42,7 @@ object Icons {
     val BlurOff by lazy(LazyThreadSafetyMode.NONE) { AppIcon(MaterialSymbols.RoundedFilled.Blur_off) }
     val BlurOn by lazy(LazyThreadSafetyMode.NONE) { AppIcon(MaterialSymbols.RoundedFilled.Blur_on) }
     val Bookmarks by lazy(LazyThreadSafetyMode.NONE) { AppIcon(MaterialSymbols.RoundedFilled.Bookmarks) }
+    val Bookmark by lazy(LazyThreadSafetyMode.NONE) { AppIcon(MaterialSymbols.RoundedFilled.Bookmark) }
     val BorderColor by lazy(LazyThreadSafetyMode.NONE) { AppIcon(MaterialSymbols.RoundedFilled.Border_color) }
     val BorderStyle by lazy(LazyThreadSafetyMode.NONE) { AppIcon(MaterialSymbols.RoundedFilled.Border_style) }
     val BrandFamily by lazy(LazyThreadSafetyMode.NONE) { AppIcon(MaterialSymbols.RoundedFilled.Brand_family) }
@@ -202,6 +203,7 @@ object Icons {
     val Repeat by lazy(LazyThreadSafetyMode.NONE) { AppIcon(MaterialSymbols.RoundedFilled.Repeat) }
     val RepeatOn by lazy(LazyThreadSafetyMode.NONE) { AppIcon(MaterialSymbols.RoundedFilled.Repeat_on) }
     val RepeatOne by lazy(LazyThreadSafetyMode.NONE) { AppIcon(MaterialSymbols.RoundedFilled.Repeat_one) }
+    val Replay by lazy(LazyThreadSafetyMode.NONE) { AppIcon(MaterialSymbols.RoundedFilled.Replay) }
     val ResetIso by lazy(LazyThreadSafetyMode.NONE) { AppIcon(MaterialSymbols.RoundedFilled.Reset_iso) }
     val Restore by lazy(LazyThreadSafetyMode.NONE) { AppIcon(MaterialSymbols.RoundedFilled.Undo) }
     val RoundedCorner by lazy(LazyThreadSafetyMode.NONE) { AppIcon(MaterialSymbols.RoundedFilled.Rounded_corner) }
@@ -289,6 +291,7 @@ object Icons {
     val BlurOff get() = Shared.BlurOff
     val BlurOn get() = Shared.BlurOn
     val Bookmarks get() = Shared.Bookmarks
+    val Bookmark get() = Shared.Bookmark
     val BorderColor get() = Shared.BorderColor
     val BorderStyle get() = Shared.BorderStyle
     val BrandFamily get() = Shared.BrandFamily
@@ -421,6 +424,7 @@ object Icons {
     val Repeat get() = Shared.Repeat
     val RepeatOn get() = Shared.RepeatOn
     val RepeatOne get() = Shared.RepeatOne
+    val Replay get() = Shared.Replay
     val ResetIso get() = Shared.ResetIso
     val Restore get() = Shared.Restore
     val RoundedCorner get() = Shared.RoundedCorner

@@ -2361,4 +2361,9 @@ Veuillez redémarrer l’application pour appliquer toutes les modifications.</s
   <string name="audiobook_save_failed">Impossible d\'enregistrer la progression.</string>
   <string name="audiobook_play_failed">Impossible d\'ouvrir ce livre. Vérifiez que ses fichiers sont toujours accessibles.</string>
   <string name="audiobook_retry">Réessayer</string>
+  <string name="playback_bookmarks_empty">Aucun signet ni chapitre</string>
+  <string name="playback_bookmark_update_failed">Impossible de mettre à jour les signets.</string>
+  <string name="audiobook_no_text">Aucune parole ni transcription fournie</string>
+  <string name="player_seek_backward">Reculer de %1$s</string>
+  <string name="player_seek_forward">Avancer de %1$s</string>
 </resources>

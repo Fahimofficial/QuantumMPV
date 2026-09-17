@@ -297,7 +297,6 @@ fun PlayerControls(
   }
   var resetControlsTimestamp by remember { mutableStateOf(0L) }
   val seekText = seekState.text
-  val currentChapter by PlaybackSession.propInt["chapter"].collectAsState()
   val configuredDecoder by PlaybackSession.propString["hwdec"].collectAsState()
   val activeDecoder by PlaybackSession.propString["hwdec-current"].collectAsState()
   val decoder = remember(activeDecoder, configuredDecoder) {
@@ -307,7 +306,11 @@ fun PlayerControls(
     abs((playbackSpeed ?: 1f) - 1f) > 0.001f
   }
   val playerTimeToDisappear by playerPreferences.playerTimeToDisappear.collectAsState()
-  val chapters by viewModel.chapters.collectAsState(persistentListOf())
+  val chapters by viewModel.playbackChapters.collectAsState(persistentListOf())
+  val chapterPositionState = viewModel.precisePosition.collectAsState()
+  val currentChapter by remember(chapters) {
+    androidx.compose.runtime.derivedStateOf { chapters.indexOfLast { it.start <= chapterPositionState.value }.takeIf { it >= 0 } }
+  }
   val skipSegments by viewModel.skipSegments.collectAsState(persistentListOf())
   val currentSkippableSegment by viewModel.currentSkippableSegment.collectAsState()
   val showSkipChipAuto by viewModel.showSkipChipAuto.collectAsState()
@@ -362,9 +365,13 @@ fun PlayerControls(
       else -> isAudioOnly || activity?.isCurrentMediaKnownAudio() == true
     }
   if (useAudioPlayer) {
-    if (currentPlaybackItem?.audiobook != null) {
-      AudiobookPlayerControls(viewModel, onBackPress, modifier)
-      return
+    val audioBook by com.quantummpv.app.ui.player.AudiobookPlayback.book.collectAsState()
+    val audioPosition by viewModel.precisePosition.collectAsState()
+    val audioTimelinePosition = currentPlaybackItem?.audiobook?.let { info ->
+      audioBook?.takeIf { it.book.id == info.bookId }?.positionInBook(info.trackId, (audioPosition * 1000).toLong())?.div(1000f)
+    } ?: audioPosition
+    val audioChapterIndex = chapters.indexOfLast {
+      it.start <= audioTimelinePosition
     }
     val rawMediaTitle by PlaybackSession.propString["media-title"].collectAsState()
     val queuedTitle =
@@ -404,23 +411,27 @@ fun PlayerControls(
         audioTracks = audioTracks.toImmutableList(),
         onAddAudio = viewModel::addAudio,
         onSelectAudio = viewModel::selectAudioTrack,
-        chapter = chapters.getOrNull(currentChapter ?: 0),
+        chapter = chapters.getOrNull(audioChapterIndex),
         chapters = chapters.toImmutableList(),
         onSeekToChapter = {
-          PlaybackSession.setPropertyInt("chapter", it)
-          viewModel.unpause()
+          chapters.getOrNull(it)?.let(viewModel::seekToPlaybackChapter)
         },
         decoder = decoder,
         onUpdateDecoder = { PlaybackSession.setPropertyString("hwdec", it.value) },
         speed = playbackSpeed ?: playerPreferences.defaultSpeed.get(),
-        onSpeedChange = { PlaybackSession.setPropertyFloat("speed", it.toFixed(2)) },
+        onSpeedChange = {
+          if (currentPlaybackItem?.audiobook != null) com.quantummpv.app.ui.player.AudiobookPlayback.setSpeed(it.toFixed(2))
+          else PlaybackSession.setPropertyFloat("speed", it.toFixed(2))
+        },
         onMakeDefaultSpeed = { playerPreferences.defaultSpeed.set(it.toFixed(2)) },
         onAddSpeedPreset = { playerPreferences.speedPresets += it.toFixed(2).toString() },
         onRemoveSpeedPreset = { playerPreferences.speedPresets -= it.toFixed(2).toString() },
         onResetSpeedPresets = playerPreferences.speedPresets::delete,
         speedPresets = sortedSpeedPresets,
         onResetDefaultSpeed = {
-          PlaybackSession.setPropertyFloat("speed", playerPreferences.defaultSpeed.deleteAndGet().toFixed(2))
+          val speed = playerPreferences.defaultSpeed.deleteAndGet().toFixed(2)
+          if (currentPlaybackItem?.audiobook != null) com.quantummpv.app.ui.player.AudiobookPlayback.setSpeed(speed)
+          else PlaybackSession.setPropertyFloat("speed", speed)
         },
         sleepTimerTimeRemaining = sleepTimerTimeRemaining,
         onStartSleepTimer = viewModel::startTimer,
@@ -493,7 +504,6 @@ fun PlayerControls(
     ) {
       allPlayerButtons.filter { button ->
         when (button) {
-          PlayerButton.CURRENT_CHAPTER -> chapters.isNotEmpty()
           PlayerButton.PICTURE_IN_PICTURE -> !isAudioOnly
           PlayerButton.VIDEO_QUALITY -> showVideoQualitySelector
           PlayerButton.SHUFFLE -> hasPlaylistSupport
@@ -2005,11 +2015,10 @@ is PlayerUpdates.FrameInfo -> {
       audioTracks = audioTracks.toImmutableList(),
       onAddAudio = viewModel::addAudio,
       onSelectAudio = viewModel::selectAudioTrack,
-      chapter = chapters.getOrNull(currentChapter ?: 0),
+      chapter = currentChapter?.let(chapters::getOrNull),
       chapters = chapters.toImmutableList(),
       onSeekToChapter = {
-        PlaybackSession.setPropertyInt("chapter", it)
-        viewModel.unpause()
+        chapters.getOrNull(it)?.let(viewModel::seekToPlaybackChapter)
       },
       decoder = decoder,
       onUpdateDecoder = { PlaybackSession.setPropertyString("hwdec", it.value) },

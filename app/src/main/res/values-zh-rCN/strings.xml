@@ -2357,4 +2357,9 @@
   <string name="audiobook_save_failed">无法保存收听进度。</string>
   <string name="audiobook_play_failed">无法打开此书。请检查其文件是否仍可访问。</string>
   <string name="audiobook_retry">重试</string>
+  <string name="playback_bookmarks_empty">暂无书签或章节</string>
+  <string name="playback_bookmark_update_failed">无法更新书签。</string>
+  <string name="audiobook_no_text">未提供歌词或文字稿</string>
+  <string name="player_seek_backward">后退 %1$s</string>
+  <string name="player_seek_forward">前进 %1$s</string>
 </resources>

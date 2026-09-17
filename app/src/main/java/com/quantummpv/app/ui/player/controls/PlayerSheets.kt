@@ -20,6 +20,7 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.platform.LocalContext
 import com.quantummpv.app.R
@@ -43,6 +44,7 @@ import com.quantummpv.app.ui.player.controls.components.sheets.PostProcessingShe
 import com.quantummpv.app.ui.player.controls.components.sheets.AspectRatioSheet
 import com.quantummpv.app.ui.player.controls.components.sheets.AudioTracksSheet
 import com.quantummpv.app.ui.player.controls.components.sheets.ChaptersSheet
+import com.quantummpv.app.ui.player.controls.components.sheets.PlaybackBookmarkEditor
 import com.quantummpv.app.ui.player.controls.components.sheets.DecodersSheet
 import com.quantummpv.app.ui.player.controls.components.sheets.FrameNavigationSheet
 import com.quantummpv.app.ui.player.controls.components.sheets.MoreSheet
@@ -60,6 +62,7 @@ import dev.vivvvek.seeker.Segment
 import kotlinx.collections.immutable.ImmutableList
 import kotlinx.collections.immutable.toImmutableList
 import org.koin.compose.koinInject
+import kotlinx.coroutines.launch
 import androidx.compose.runtime.collectAsState as composeCollectAsState
 
 @Composable
@@ -121,6 +124,12 @@ fun PlayerSheets(
 
   when (sheetShown) {
     Sheets.None -> {}
+    Sheets.BookmarkEditor -> PlaybackBookmarkEditor(viewModel, { onShowSheet(Sheets.Chapters) }, onDismissRequest)
+    Sheets.AudiobookRewind,
+    Sheets.AudiobookSleepTimer,
+    -> com.quantummpv.app.ui.player.controls.components.sheets.AudiobookSheet(
+      sheetShown, viewModel::sleepAtCurrentChapterEnd, onDismissRequest,
+    )
     Sheets.SubtitleTracks -> {
       val subtitlesPicker =
         rememberLauncherForActivityResult(
@@ -394,11 +403,43 @@ fun PlayerSheets(
     }
 
     Sheets.Chapters -> {
+      val bookmarks by viewModel.playbackBookmarks.composeCollectAsState()
+      val mediaId by viewModel.bookmarkMediaId.composeCollectAsState()
+      val scope = rememberCoroutineScope()
+      val context = LocalContext.current
+      var deleting by remember(mediaId) { mutableStateOf(false) }
       ChaptersSheet(
-        chapters,
+        chapters = chapters,
         currentChapter = chapter,
         onClick = { onSeekToChapter(chapters.indexOf(it)) },
-        onDismissRequest,
+        onDismissRequest = onDismissRequest,
+        itemActions = { segment ->
+          bookmarks.firstOrNull { it.mediaId == mediaId && it.title == segment.name && viewModel.bookmarkPositionMs(it) / 1000f == segment.start }?.let { bookmark ->
+            androidx.compose.material3.IconButton(enabled = !deleting, onClick = {
+              if (viewModel.preparePlaybackBookmark(bookmark)) onShowSheet(Sheets.BookmarkEditor)
+            }) {
+              com.quantummpv.app.ui.icons.Icon(com.quantummpv.app.ui.icons.Icons.RoundedFilled.Edit,
+                androidx.compose.ui.res.stringResource(R.string.audiobook_bookmark_name))
+            }
+            androidx.compose.material3.IconButton(enabled = !deleting, onClick = {
+              deleting = true
+              scope.launch {
+                try {
+                  viewModel.deletePlaybackBookmark(bookmark)
+                } catch (cancelled: kotlinx.coroutines.CancellationException) {
+                  throw cancelled
+                } catch (_: Exception) {
+                  Toast.makeText(context, R.string.playback_bookmark_update_failed, Toast.LENGTH_SHORT).show()
+                } finally {
+                  deleting = false
+                }
+              }
+            }) {
+              com.quantummpv.app.ui.icons.Icon(com.quantummpv.app.ui.icons.Icons.RoundedFilled.Delete,
+                androidx.compose.ui.res.stringResource(R.string.audiobook_delete_bookmark))
+            }
+          }
+        },
       )
     }
 
@@ -532,6 +573,7 @@ fun PlayerSheets(
     Sheets.Playlist -> {
       // Observe playlist updates
       val playlist by viewModel.playlistItems.collectAsState()
+      val playbackState by com.quantummpv.app.ui.player.PlaybackSession.state.composeCollectAsState()
       val isAudioOnly by viewModel.isAudioOnly.collectAsState()
       val playerPreferences = koinInject<com.quantummpv.app.preferences.PlayerPreferences>()
       val isPlaylistSwipeActive by viewModel.isPlaylistSwipeActive.collectAsState()
@@ -548,7 +590,7 @@ fun PlayerSheets(
           onItemClick = { item ->
             viewModel.playPlaylistItem(item.index)
           },
-          onReorder = { from, to ->
+          onReorder = if (playbackState.currentItem?.audiobook != null) null else { from, to ->
             viewModel.reorderPlaylistItem(from, to)
           },
           totalCount = totalCount,

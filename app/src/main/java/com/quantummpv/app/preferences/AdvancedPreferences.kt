@@ -31,6 +31,17 @@ class AdvancedPreferences(
   val enableLuaScripts = preferenceStore.getBoolean("enable_lua_scripts", false)
   val selectedLuaScripts = preferenceStore.getStringSet("selected_lua_scripts", emptySet())
 
+  fun userScriptsConfigurationKey(): String {
+    if (!enableLuaScripts.get()) return "disabled"
+    return buildString {
+      val location = mpvConfStorageUri.get()
+      append(location.length).append(':').append(location)
+      selectedLuaScripts.get().sorted().forEach { script ->
+        append('|').append(script.length).append(':').append(script)
+      }
+    }
+  }
+
   val enableP2pStreaming = preferenceStore.getBoolean("enable_p2p_streaming", true)
 
   val enableHlsProxy = preferenceStore.getBoolean("enable_hls_proxy", true)

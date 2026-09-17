@@ -111,6 +111,8 @@ fun LyricsView(
   val audioPreferences = koinInject<AudioPreferences>()
   val translationDisplayMode by audioPreferences.lyricsTranslationDisplayMode.collectAsState()
   val state by viewModel.lyricsUiState.collectAsState()
+  val playbackState by PlaybackSession.state.collectAsState()
+  val isAudiobook = playbackState.currentItem?.audiobook != null
   val precisePosition by viewModel.precisePosition.collectAsState()
   val listState = rememberLazyListState()
   val density = LocalDensity.current
@@ -236,7 +238,7 @@ fun LyricsView(
             ),
           )
 
-          FilterChip(
+          if (!isAudiobook) FilterChip(
             selected = state.selectedSource == LyricsSourceType.ONLINE,
             onClick = { viewModel.switchLyricsSource(LyricsSourceType.ONLINE) },
             label = {
@@ -515,14 +517,14 @@ fun LyricsView(
               verticalArrangement = Arrangement.Center,
             ) {
               Text(
-                text = "No lyrics available for this track.",
+                text = if (isAudiobook) stringResource(R.string.audiobook_no_text) else "No lyrics available for this track.",
                 style = MaterialTheme.typography.bodyMedium,
                 fontWeight = FontWeight.Bold,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
               )
               Spacer(modifier = Modifier.height(8.dp))
               TextButton(onClick = { viewModel.loadLyricsForCurrentTrack(forceRefresh = true) }) {
-                Text("Search Online", fontWeight = FontWeight.Bold)
+                Text(if (isAudiobook) stringResource(R.string.audiobook_retry) else "Search Online", fontWeight = FontWeight.Bold)
               }
             }
           }

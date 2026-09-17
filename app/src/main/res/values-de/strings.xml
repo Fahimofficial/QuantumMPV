@@ -2361,4 +2361,9 @@ Bitte starten Sie die App neu, damit alle Änderungen wirksam werden.</string>
   <string name="audiobook_save_failed">Hörfortschritt konnte nicht gespeichert werden.</string>
   <string name="audiobook_play_failed">Hörbuch konnte nicht geöffnet werden. Prüfe, ob seine Dateien noch zugänglich sind.</string>
   <string name="audiobook_retry">Erneut versuchen</string>
+  <string name="playback_bookmarks_empty">Keine Lesezeichen oder Kapitel</string>
+  <string name="playback_bookmark_update_failed">Lesezeichen konnten nicht aktualisiert werden.</string>
+  <string name="audiobook_no_text">Kein Liedtext oder Transkript vorhanden</string>
+  <string name="player_seek_backward">%1$s zurückspulen</string>
+  <string name="player_seek_forward">%1$s vorspulen</string>
 </resources>

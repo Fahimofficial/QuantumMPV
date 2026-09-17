@@ -7,6 +7,7 @@ import android.os.SystemClock
 import android.util.Log
 import com.quantummpv.app.database.dao.AudiobookDao
 import com.quantummpv.app.database.entities.Audiobook
+import com.quantummpv.app.database.entities.AudiobookChapter
 import com.quantummpv.app.database.entities.AudiobookChapterEntity
 import java.util.concurrent.atomic.AtomicBoolean
 import kotlinx.coroutines.CancellationException
@@ -20,6 +21,7 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.collectLatest
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
@@ -54,6 +56,8 @@ internal object AudiobookPlayback {
   private val saves = Channel<SaveWork>(Channel.UNLIMITED)
   private val _book = MutableStateFlow<Audiobook?>(null)
   val book = _book.asStateFlow()
+  private val _chapters = MutableStateFlow<List<AudiobookChapter>>(emptyList())
+  val chapters = _chapters.asStateFlow()
   private val _saveFailed = MutableStateFlow(false)
   val saveFailed = _saveFailed.asStateFlow()
   private val _timer = MutableStateFlow<SleepTimer?>(null)
@@ -63,7 +67,7 @@ internal object AudiobookPlayback {
   @Volatile private var sleepStoppedTrack: Long? = null
 
   data class SleepTimer(val bookId: Long, val deadline: Long? = null, val trackId: Long? = null, val chapterEndMs: Long? = null,
-    val remainingSeconds: Int = 0)
+    val remainingSeconds: Int = 0, val durationMinutes: Int? = null)
 
   fun ensureStarted() {
     if (!started.compareAndSet(false, true)) return
@@ -92,7 +96,12 @@ internal object AudiobookPlayback {
       PlaybackSession.state.map { it.currentItem?.audiobook?.bookId }.distinctUntilChanged().collectLatest { id ->
         if (_timer.value?.bookId != id) _timer.value = null
         _book.value = null
-        if (id != null) dao.observeBook(id).collect { _book.value = it }
+        _chapters.value = emptyList()
+        if (id != null) combine(dao.observeBook(id), dao.observeChapters(id)) { book, chapters -> book to chapters }
+          .collect { (book, chapters) ->
+            _book.value = book
+            _chapters.value = book?.chapterTimeline(chapters).orEmpty()
+          }
       }
     }
     scope.launch {
@@ -170,8 +179,44 @@ internal object AudiobookPlayback {
 
   fun seekBy(seconds: Int) {
     val progress = PlaybackSession.audiobookProgress() ?: return
-    val duration = _book.value?.tracks?.firstOrNull { it.id == progress.item.trackId }?.durationMs ?: Long.MAX_VALUE
-    seek((progress.positionMs + seconds * 1000L).coerceIn(0, duration.coerceAtLeast(0)))
+    val book = _book.value?.takeIf { it.book.id == progress.item.bookId } ?: return
+    seekInBook(book.positionInBook(progress.item.trackId, progress.positionMs) + seconds * 1000L)
+  }
+
+  fun seekInBook(positionMs: Long, resumePlayback: Boolean = false) {
+    val state = PlaybackSession.state.value
+    val info = state.currentItem?.audiobook ?: return
+    val book = _book.value?.takeIf { it.book.id == info.bookId } ?: return
+    val (track, localPosition) = book.resolvePosition(positionMs) ?: return
+    pausedAt = 0
+    sleepStoppedTrack = null
+    if (track.id == info.trackId) {
+      seek(localPosition)
+      if (resumePlayback) PlaybackSession.setPropertyBoolean("pause", false)
+    } else {
+      scope.launch(Dispatchers.IO) {
+        PlaybackSession.seekAudiobookTrack(info.bookId, track.id, localPosition, state.generation, resumePlayback)
+      }
+    }
+  }
+
+  fun seekToBookmark(trackId: Long, positionMs: Long) {
+    val current = _book.value ?: return
+    if (current.tracks.none { it.id == trackId }) return
+    seekInBook(current.positionInBook(trackId, positionMs))
+  }
+
+  fun currentChapter(): AudiobookChapter? {
+    val progress = PlaybackSession.audiobookProgress() ?: return null
+    return chapters.value.lastOrNull { it.trackId == progress.item.trackId && it.startMs <= progress.positionMs }
+  }
+
+  fun resumeAtEnd() {
+    val info = PlaybackSession.state.value.currentItem?.audiobook ?: return
+    val book = _book.value?.takeIf { it.book.id == info.bookId } ?: return
+    val track = book.tracks.firstOrNull { it.id == info.trackId } ?: return
+    val nextPosition = book.positionInBook(track.id, track.durationMs)
+    seekInBook(if (nextPosition >= book.durationMs) 0 else nextPosition, resumePlayback = true)
   }
 
   fun onFileLoaded(item: PlaybackItem, generation: Long) {
@@ -230,7 +275,7 @@ internal object AudiobookPlayback {
       chapterEndMs != null && chapterEndMs > progress.positionMs -> SleepTimer(progress.item.bookId, trackId = progress.item.trackId,
         chapterEndMs = chapterEndMs)
       minutes != null && minutes > 0 -> SleepTimer(progress.item.bookId,
-        deadline = SystemClock.elapsedRealtime() + minutes * 60_000L, remainingSeconds = minutes * 60)
+        deadline = SystemClock.elapsedRealtime() + minutes * 60_000L, remainingSeconds = minutes * 60, durationMinutes = minutes)
       else -> null
     }
   }
@@ -241,8 +286,9 @@ internal object AudiobookPlayback {
   }
 
   fun setSpeed(speed: Float) {
+    if (!speed.isFinite()) return
     val id = PlaybackSession.state.value.currentItem?.audiobook?.bookId ?: return
-    val safeSpeed = speed.coerceIn(0.5f, 3f)
+    val safeSpeed = speed.coerceIn(0.1f, 4f)
     scope.launch {
       dao.setSpeed(id, safeSpeed)
       if (PlaybackSession.state.value.currentItem?.audiobook?.bookId == id) PlaybackSession.setPropertyFloat("speed", safeSpeed)

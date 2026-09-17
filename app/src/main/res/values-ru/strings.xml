@@ -2369,4 +2369,9 @@
   <string name="audiobook_save_failed">Не удалось сохранить прогресс прослушивания.</string>
   <string name="audiobook_play_failed">Не удалось открыть книгу. Убедитесь, что её файлы по-прежнему доступны.</string>
   <string name="audiobook_retry">Повторить попытку</string>
+  <string name="playback_bookmarks_empty">Нет закладок или глав</string>
+  <string name="playback_bookmark_update_failed">Не удалось обновить закладки.</string>
+  <string name="audiobook_no_text">Текст или расшифровка не предоставлены</string>
+  <string name="player_seek_backward">Назад на %1$s</string>
+  <string name="player_seek_forward">Вперёд на %1$s</string>
 </resources>

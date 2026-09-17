@@ -67,6 +67,7 @@ data class PlaybackSubtitleTrack(
 object MediaUtils {
   fun shouldPlayInMiniPlayerOnly(isAudio: Boolean): Boolean {
     if (!isAudio) return false
+    if (userScriptRuntimeNeedsReload()) return false
     val audioPreferences =
       runCatching { org.koin.core.context.GlobalContext.get().get<com.quantummpv.app.preferences.AudioPreferences>() }.getOrNull()
     if (audioPreferences?.miniPlayerTrackSwitching?.get() != true) return false
@@ -86,6 +87,19 @@ object MediaUtils {
   ) {
     if (queueItems.isEmpty()) return
     val selectedIndex = startIndex.coerceIn(queueItems.indices)
+    if (userScriptRuntimeNeedsReload()) {
+      val token = PreparedPlaybackLaunchStore.stage(queueItems, selectedIndex, isExplicitQueue = true)
+      context.startActivity(Intent(context, PlayerActivity::class.java)
+        .setAction(Intent.ACTION_VIEW)
+        .setData(Uri.parse(queueItems[selectedIndex].originalUri))
+        .addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_ACTIVITY_SINGLE_TOP)
+        .putExtra("internal_launch", true)
+        .putExtra("is_audio", true)
+        .putExtra(PlayerActivity.EXTRA_PREPARED_PLAYBACK_QUEUE, true)
+        .putExtra(PlayerActivity.EXTRA_PREPARED_PLAYBACK_TOKEN, token)
+        .putExtra("playlist_index", selectedIndex))
+      return
+    }
     PlaybackSession.replaceQueue(queueItems, selectedIndex, isExplicitQueue = true)
     val item = queueItems[selectedIndex]
     PlaybackSession.load(item)
@@ -105,6 +119,11 @@ object MediaUtils {
     runCatching {
       ContextCompat.startForegroundService(context, serviceIntent)
     }
+  }
+
+  private fun userScriptRuntimeNeedsReload(): Boolean {
+    val preferences = org.koin.core.context.GlobalContext.get().get<com.quantummpv.app.preferences.AdvancedPreferences>()
+    return PlaybackSession.userScriptsNeedReload(preferences.userScriptsConfigurationKey())
   }
 
   fun playFiles(

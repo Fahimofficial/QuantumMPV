@@ -84,9 +84,10 @@ class MPVView(
     // selection, but recreate the core when gpu-next/Vulkan selection actually changes.
     MpvConfigOverridePolicy.configure(advancedPreferences.mpvConfOverrides.get())
     val requestedBackend = selectRenderBackend(ignoreForcedOpenGlFallback = true)
+    val scriptsKey = advancedPreferences.userScriptsConfigurationKey()
     val coreConfigurationKey =
       "${requestedBackend.configurationKey}|conf=${MpvConfigOverridePolicy.configurationKey()}" +
-        "|mpv=${mpvConfigCache.configurationKey()}"
+        "|mpv=${mpvConfigCache.configurationKey()}|scripts=$scriptsKey"
     val result =
       PlaybackSession.initialize(
         context = context.applicationContext,
@@ -96,6 +97,7 @@ class MPVView(
         initOptions = ::initOptions,
         postInitOptions = ::postInitOptions,
         observeProperties = ::observeProperties,
+        userScriptsKey = scriptsKey,
       )
     if (result.isSuccess) {
       holder.removeCallback(this)
@@ -104,6 +106,9 @@ class MPVView(
     }
     return result
   }
+
+  internal fun userScriptsNeedReload(): Boolean =
+    PlaybackSession.userScriptsNeedReload(advancedPreferences.userScriptsConfigurationKey())
 
   fun releaseSurface() {
     holder.removeCallback(this)

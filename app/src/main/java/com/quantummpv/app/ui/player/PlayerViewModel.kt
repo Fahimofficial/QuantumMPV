@@ -111,6 +111,9 @@ import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.drop
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.flatMapLatest
+import kotlinx.coroutines.flow.flowOf
+import kotlinx.coroutines.flow.onStart
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
@@ -200,6 +203,7 @@ class PlayerViewModel : ViewModel(),
   private val hdrToysManager: HdrToysManager by inject()
   private val json: Json by inject()
   private val playbackStateDao: com.quantummpv.app.database.dao.PlaybackStateDao by inject()
+  private val playbackBookmarkDao: com.quantummpv.app.database.dao.PlaybackBookmarkDao by inject()
   private val aiService: com.quantummpv.app.repository.ai.AiService by inject()
   private val subtitleGenerationService: SubtitleGenerationService by inject()
   private val realtimeSubtitleService: com.quantummpv.app.repository.ai.RealtimeSubtitleService by inject()
@@ -974,6 +978,45 @@ class PlayerViewModel : ViewModel(),
           ?: persistentListOf()
       }.stateIn(viewModelScope, SharingStarted.Eagerly, persistentListOf())
 
+  private fun bookmarkMediaId(item: PlaybackItem?): String? = item?.audiobook?.let {
+    com.quantummpv.app.database.entities.PlaybackBookmarkEntity.audiobookMediaId(it.bookId)
+  } ?: item?.stableId
+
+  val bookmarkMediaId: StateFlow<String?> = PlaybackSession.state.map { bookmarkMediaId(it.currentItem) }
+    .distinctUntilChanged().stateIn(viewModelScope, SharingStarted.Eagerly, null)
+
+  @OptIn(kotlinx.coroutines.ExperimentalCoroutinesApi::class)
+  val playbackBookmarks: StateFlow<List<com.quantummpv.app.database.entities.PlaybackBookmarkEntity>> =
+    bookmarkMediaId.flatMapLatest { mediaId ->
+      if (mediaId == null) flowOf(emptyList()) else playbackBookmarkDao.observe(mediaId).onStart { emit(emptyList()) }
+    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
+  val playbackChapters: StateFlow<List<dev.vivvvek.seeker.Segment>> =
+    combine(chapters, AudiobookPlayback.book, AudiobookPlayback.chapters, playbackBookmarks, PlaybackSession.state) { native, book, bookChapters, bookmarks, state ->
+      val item = state.currentItem
+      val mediaId = bookmarkMediaId(item)
+      val currentBook = book?.takeIf { it.book.id == item?.audiobook?.bookId }
+      val sourceChapters = if (item?.audiobook == null) native else if (currentBook == null) emptyList() else {
+        bookChapters.map { dev.vivvvek.seeker.Segment(it.title, it.bookStartMs / 1000f) }
+      }
+      val customChapters = bookmarks.filter { it.mediaId == mediaId }.mapNotNull { bookmark ->
+        val positionMs = if (bookmark.bookTrackId == null) bookmark.positionMs else {
+          currentBook?.takeIf { book -> book.tracks.any { it.id == bookmark.bookTrackId } }
+            ?.positionInBook(bookmark.bookTrackId, bookmark.positionMs) ?: return@mapNotNull null
+        }
+        dev.vivvvek.seeker.Segment(bookmark.title, positionMs / 1000f)
+      }
+      val customStarts = customChapters.mapTo(hashSetOf()) { (it.start * 1000).toLong() }
+      (customChapters + sourceChapters.distinctBy { (it.start * 1000).toLong() }.filter { (it.start * 1000).toLong() !in customStarts })
+        .filter { it.start.isFinite() && it.start >= 0 }.sortedBy { it.start }
+    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
+  fun seekAudioTo(positionSeconds: Float) {
+    if (!positionSeconds.isFinite()) return
+    if (PlaybackSession.state.value.currentItem?.audiobook != null) AudiobookPlayback.seekInBook((positionSeconds * 1000).toLong())
+    else seekTo(positionSeconds.toInt(), fast = false)
+  }
+
   // Audio player UI state
   val albumArtBounds = MutableStateFlow<android.graphics.Rect?>(null)
   // The style and artwork/visualizer display choice are persisted via audioPreferences.
@@ -1055,6 +1098,7 @@ class PlayerViewModel : ViewModel(),
     val title: String,
     val artist: String,
     val durationSeconds: Int,
+    val allowOnline: Boolean,
   )
 
   private var lyricsLoadJob: Job? = null
@@ -1092,9 +1136,12 @@ class PlayerViewModel : ViewModel(),
     }
   }
 
+  private fun currentLyricsPath(): String? = PlaybackSession.state.value.currentItem?.originalUri?.takeIf(String::isNotBlank)
+    ?: PlaybackSession.getPropertyString("path") ?: PlaybackSession.getPropertyString("stream-open-filename")
+
   fun loadLyricsForCurrentTrack(forceRefresh: Boolean = false) {
-    if (PlaybackSession.state.value.currentItem?.audiobook != null) return
-    val path = PlaybackSession.getPropertyString("path") ?: PlaybackSession.getPropertyString("stream-open-filename") ?: return
+    val allowOnline = PlaybackSession.state.value.currentItem?.audiobook == null
+    val path = currentLyricsPath() ?: return
     if (path.isBlank()) return
     val generation = PlaybackSession.state.value.generation
 
@@ -1109,9 +1156,9 @@ class PlayerViewModel : ViewModel(),
       ?: ""
 
     val duration = PlaybackSession.getPropertyInt("duration") ?: 0
-    val request = LyricsLoadRequest(path, title, artist, duration)
+    val request = LyricsLoadRequest(path, title, artist, duration, allowOnline)
     if (
-      !forceRefresh && lastLyricsLoadRequest?.path == path &&
+      !forceRefresh && lastLyricsLoadRequest?.path == path && lastLyricsLoadRequest?.allowOnline == allowOnline &&
       (lyricsLoadJob?.isActive == true || request == lastLyricsLoadRequest)
     ) return
     lastLyricsLoadRequest = request
@@ -1131,12 +1178,12 @@ class PlayerViewModel : ViewModel(),
         artist = artist,
         durationSeconds = duration,
         forceRefresh = forceRefresh,
+        allowOnline = allowOnline,
       )
 
       // The track may have changed again while this fetch was in-flight; only apply the
       // result if we're still on the same track (extra guard on top of job cancellation).
-      val stillCurrentPath = PlaybackSession.getPropertyString("path")
-        ?: PlaybackSession.getPropertyString("stream-open-filename")
+      val stillCurrentPath = currentLyricsPath()
       if (!PlaybackSession.isCurrentGeneration(generation) || stillCurrentPath != path) return@launch
 
       val activeIndex = com.quantummpv.app.utils.media.LyricsUtils.getActiveLineIndex(
@@ -1144,7 +1191,7 @@ class PlayerViewModel : ViewModel(),
         positionMs = (precisePosition.value * 1000).toLong(),
         offsetMs = 0,
       )
-      val autoTranslate = audioPreferences.lyricsAutoTranslate.get()
+      val autoTranslate = allowOnline && audioPreferences.lyricsAutoTranslate.get()
       val defaultTargetLang = audioPreferences.lyricsTargetLanguage.get().ifBlank { "en" }
 
       lyricsUiState.value = lyricsUiState.value.copy(
@@ -1170,11 +1217,13 @@ class PlayerViewModel : ViewModel(),
   }
 
   fun switchLyricsSource(sourceType: com.quantummpv.app.domain.lyrics.LyricsSourceType) {
-    val path = PlaybackSession.getPropertyString("path") ?: PlaybackSession.getPropertyString("stream-open-filename") ?: return
+    val allowOnline = PlaybackSession.state.value.currentItem?.audiobook == null
+    if (!allowOnline && sourceType == com.quantummpv.app.domain.lyrics.LyricsSourceType.ONLINE) return
+    val path = currentLyricsPath() ?: return
     if (path.isBlank()) return
 
     val current = lyricsUiState.value
-    val autoTranslate = audioPreferences.lyricsAutoTranslate.get()
+    val autoTranslate = allowOnline && audioPreferences.lyricsAutoTranslate.get()
     val defaultTargetLang = audioPreferences.lyricsTargetLanguage.get().ifBlank { "en" }
 
     if (sourceType == com.quantummpv.app.domain.lyrics.LyricsSourceType.ONLINE && current.onlineLyrics == null) {
@@ -1194,8 +1243,7 @@ class PlayerViewModel : ViewModel(),
 
         val online = lyricsRepository.fetchOnlineLyrics(title, artist, duration)
 
-        val stillCurrentPath = PlaybackSession.getPropertyString("path")
-          ?: PlaybackSession.getPropertyString("stream-open-filename")
+        val stillCurrentPath = currentLyricsPath()
         if (stillCurrentPath != path) return@launch
 
         val updatedSources = (current.availableSources + com.quantummpv.app.domain.lyrics.LyricsSourceType.ONLINE).distinct()
@@ -1225,7 +1273,7 @@ class PlayerViewModel : ViewModel(),
       return
     }
 
-    val updatedResult = lyricsRepository.switchSource(path, sourceType)
+    val updatedResult = lyricsRepository.switchSource(path, sourceType, allowOnline)
     if (updatedResult != null) {
       val activeLyrics = updatedResult.activeLyrics
       val activeIndex = com.quantummpv.app.utils.media.LyricsUtils.getActiveLineIndex(
@@ -1609,6 +1657,78 @@ val isBrightnessSliderShown = MutableStateFlow(false)
     )
 
   val sheetShown = MutableStateFlow(Sheets.None)
+  private val _bookmarkDraft = MutableStateFlow<com.quantummpv.app.database.entities.PlaybackBookmarkEntity?>(null)
+  val bookmarkDraft = _bookmarkDraft.asStateFlow()
+
+  fun preparePlaybackBookmark(existing: com.quantummpv.app.database.entities.PlaybackBookmarkEntity? = null): Boolean {
+    val mediaId = bookmarkMediaId(PlaybackSession.state.value.currentItem) ?: return false
+    if (existing != null) {
+      if (existing.mediaId != mediaId) return false
+      _bookmarkDraft.value = existing
+    } else {
+      val (item, positionMs) = PlaybackSession.bookmarkSnapshot() ?: return false
+      if (bookmarkMediaId(item) != mediaId) return false
+      val timelinePosition = item.audiobook?.let { info ->
+        AudiobookPlayback.book.value?.takeIf { it.book.id == info.bookId }?.positionInBook(info.trackId, positionMs)
+      } ?: positionMs
+      val chapter = playbackChapters.value.lastOrNull { it.start * 1000 <= timelinePosition }?.name ?: currentMediaTitle
+      val time = android.text.format.DateUtils.formatElapsedTime(timelinePosition / 1000)
+      _bookmarkDraft.value = com.quantummpv.app.database.entities.PlaybackBookmarkEntity(
+        mediaId = mediaId, bookTrackId = item.audiobook?.trackId, positionMs = positionMs, title = "$chapter $time".trim(),
+      )
+    }
+    return true
+  }
+
+  fun bookmarkPositionMs(bookmark: com.quantummpv.app.database.entities.PlaybackBookmarkEntity): Long {
+    val trackId = bookmark.bookTrackId ?: return bookmark.positionMs
+    return AudiobookPlayback.book.value?.positionInBook(trackId, bookmark.positionMs) ?: bookmark.positionMs
+  }
+
+  suspend fun savePlaybackBookmark(bookmark: com.quantummpv.app.database.entities.PlaybackBookmarkEntity, title: String) {
+    require(title.isNotBlank())
+    if (bookmark.id == 0L) playbackBookmarkDao.add(bookmark.copy(title = title.trim())) else playbackBookmarkDao.rename(bookmark.id, title.trim())
+  }
+
+  suspend fun deletePlaybackBookmark(bookmark: com.quantummpv.app.database.entities.PlaybackBookmarkEntity) {
+    playbackBookmarkDao.delete(bookmark.id)
+  }
+
+  fun seekToBookmark(bookmark: com.quantummpv.app.database.entities.PlaybackBookmarkEntity) {
+    if (bookmark.mediaId != bookmarkMediaId(PlaybackSession.state.value.currentItem)) return
+    if (bookmark.bookTrackId != null) AudiobookPlayback.seekToBookmark(bookmark.bookTrackId, bookmark.positionMs)
+    else PlaybackSession.command("seek", (bookmark.positionMs / 1000.0).toString(), "absolute+exact")
+  }
+
+  fun seekToPlaybackChapter(chapter: dev.vivvvek.seeker.Segment) {
+    if (!chapter.start.isFinite() || chapter.start < 0) return
+    if (PlaybackSession.state.value.currentItem?.audiobook != null) AudiobookPlayback.seekInBook((chapter.start * 1000).toLong())
+    else PlaybackSession.command("seek", chapter.start.toString(), "absolute+exact")
+  }
+
+  fun stepPlaybackChapter(direction: Int) {
+    if (direction !in setOf(-1, 1)) return
+    val (item, positionMs) = PlaybackSession.bookmarkSnapshot() ?: return
+    val position = item.audiobook?.let { info ->
+      AudiobookPlayback.book.value?.takeIf { it.book.id == info.bookId }?.positionInBook(info.trackId, positionMs)
+    } ?: positionMs
+    val chapters = playbackChapters.value
+    val index = chapters.indexOfLast { it.start * 1000 <= position }
+    val current = chapters.getOrNull(index)
+    val target = if (direction < 0 && current != null && position - current.start * 1000 > 3000) current else chapters.getOrNull(index + direction)
+    target?.let(::seekToPlaybackChapter)
+  }
+
+  fun sleepAtCurrentChapterEnd() {
+    val progress = PlaybackSession.audiobookProgress() ?: return
+    val book = AudiobookPlayback.book.value?.takeIf { it.book.id == progress.item.bookId } ?: return
+    val track = book.tracks.firstOrNull { it.id == progress.item.trackId } ?: return
+    val offset = book.positionInBook(track.id, 0)
+    val position = offset + progress.positionMs
+    val nextStart = playbackChapters.value.firstOrNull { it.start * 1000 > position }?.start?.times(1000)?.toLong()
+    val localEnd = nextStart?.minus(offset)?.coerceAtMost(track.durationMs) ?: track.durationMs
+    AudiobookPlayback.setTimer(null, localEnd)
+  }
   val isPlaylistSwipeActive = MutableStateFlow(false)
   val playlistSwipeOffset = MutableStateFlow(0f)
   val panelShown = MutableStateFlow(Panels.None)
@@ -2737,8 +2857,10 @@ val isBrightnessSliderShown = MutableStateFlow(false)
 
   private fun String.toScriptLiteral(): String = replace("\\", "\\\\").replace("'", "\\'")
 
+  private val doubleTapToSeekDuration: Int
+    get() = gesturePreferences.doubleTapToSeekDuration.get().coerceIn(1, 120)
+
   // Cached values
-  private val doubleTapToSeekDuration by lazy { gesturePreferences.doubleTapToSeekDuration.get() }
   private val inputMethodManager by lazy {
     appContext.getSystemService(Context.INPUT_METHOD_SERVICE) as InputMethodManager
   }
@@ -4371,6 +4493,10 @@ val isBrightnessSliderShown = MutableStateFlow(false)
       if (wasPaused) {
         val focusGranted = withContext(Dispatchers.Main) { host.requestAudioFocus() }
         if (!focusGranted) return@launch
+        if (PlaybackSession.state.value.currentItem?.audiobook != null && PlaybackSession.getPropertyBoolean("eof-reached") == true) {
+          AudiobookPlayback.resumeAtEnd()
+          return@launch
+        }
         PlaybackSession.setPropertyBoolean("pause", false)
         syncplayManager.updatePlayerState(precisePosition.value.toDouble(), false, doSeek = false)
       } else {
@@ -4566,6 +4692,10 @@ val isBrightnessSliderShown = MutableStateFlow(false)
         pendingSeekOffset = 0
 
         if (toApply != 0) {
+          if (PlaybackSession.state.value.currentItem?.audiobook != null) {
+            AudiobookPlayback.seekBy(toApply)
+            return@launch
+          }
           val durationSeconds =
             PlaybackSession
               .getPropertyDouble("duration")
@@ -4642,27 +4772,29 @@ val isBrightnessSliderShown = MutableStateFlow(false)
   }
 
   fun leftSeek() {
-    _seekState.update { s ->
-      s.copy(amount = if ((pos ?: 0) > 0) s.amount - doubleTapToSeekDuration else s.amount, isForwards = false)
+    val seconds = doubleTapToSeekDuration
+    _seekState.update { state ->
+      state.copy(amount = if ((pos ?: 0) > 0) state.amount - seconds else state.amount, isForwards = false)
     }
-    seekBy(-doubleTapToSeekDuration)
+    seekBy(-seconds)
   }
 
   fun rightSeek() {
-    _seekState.update { s ->
-      s.copy(
+    val seconds = doubleTapToSeekDuration
+    _seekState.update { state ->
+      state.copy(
         amount =
           if ((pos ?: 0) <
             (duration ?: 0)
           ) {
-            s.amount + doubleTapToSeekDuration
+            state.amount + seconds
           } else {
-            s.amount
+            state.amount
           },
         isForwards = true,
       )
     }
-    seekBy(doubleTapToSeekDuration)
+    seekBy(seconds)
   }
 
   fun updateSeekAmount(amount: Int) {
@@ -5874,7 +6006,9 @@ val isBrightnessSliderShown = MutableStateFlow(false)
 
     return queue.items.mapIndexed { index, item ->
       val uri = Uri.parse(item.originalUri)
-      val title = item.title?.takeIf { it.isNotBlank() } ?: uri.lastPathSegment.orEmpty()
+      val book = AudiobookPlayback.book.value?.takeIf { it.book.id == item.audiobook?.bookId }
+      val bookTrack = book?.tracks?.firstOrNull { it.id == item.audiobook?.trackId }
+      val title = bookTrack?.title?.takeIf(String::isNotBlank) ?: item.title?.takeIf { it.isNotBlank() } ?: uri.lastPathSegment.orEmpty()
       val resolvedUri =
         if (uri.scheme == "content") {
           uri.extractLocalPath()?.let { Uri.fromFile(File(it)) } ?: uri
@@ -5923,7 +6057,7 @@ val isBrightnessSliderShown = MutableStateFlow(false)
         duration = durationStr,
         resolution = resolutionStr,
         isAudio = isAudio,
-        tvgLogo = item.artworkUri.orEmpty(),
+        tvgLogo = book?.book?.coverUri ?: item.artworkUri.orEmpty(),
         networkConnectionId = item.networkSource?.connectionId,
         networkPath = item.networkSource?.relativePath.orEmpty(),
       )
@@ -6194,7 +6328,7 @@ val isBrightnessSliderShown = MutableStateFlow(false)
 
         _playlistItems.value = updatedItems
 
-        if (forceMetadata) {
+        if (forceMetadata && PlaybackSession.state.value.currentItem?.audiobook == null) {
           // Load metadata only when the playlist sheet is actually in use.
           loadPlaylistMetadataAsync(updatedItems)
         }

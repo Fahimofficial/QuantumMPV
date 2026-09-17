@@ -2357,4 +2357,9 @@
   <string name="audiobook_save_failed">再生状況を保存できませんでした。</string>
   <string name="audiobook_play_failed">この本を開けませんでした。ファイルにアクセスできるか確認してください。</string>
   <string name="audiobook_retry">再試行</string>
+  <string name="playback_bookmarks_empty">ブックマークやチャプターはありません</string>
+  <string name="playback_bookmark_update_failed">ブックマークを更新できませんでした。</string>
+  <string name="audiobook_no_text">歌詞や書き起こしは提供されていません</string>
+  <string name="player_seek_backward">%1$s戻る</string>
+  <string name="player_seek_forward">%1$s進む</string>
 </resources>

@@ -13,13 +13,10 @@ import com.quantummpv.app.ui.player.PlaybackSession
 
 import android.widget.Toast
 import androidx.activity.compose.BackHandler
-import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
-import androidx.compose.animation.scaleIn
-import androidx.compose.animation.scaleOut
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.layout.Arrangement
@@ -31,10 +28,12 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBars
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.shape.CircleShape
@@ -62,12 +61,14 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.scale
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.quantummpv.app.R
 import com.quantummpv.app.preferences.PlayerPreferences
@@ -299,6 +300,9 @@ private fun FrameReviewOverlay(
   val pixelsPerFrame = with(density) { FrameSwipeDistancePerFrame.toPx() }
   var accumulatedDrag by remember { mutableFloatStateOf(0f) }
   var requestedFrameDelta by remember { mutableIntStateOf(0) }
+  var frameDeltaVisible by remember { mutableStateOf(false) }
+  var frameDeltaRevision by remember { mutableIntStateOf(0) }
+  var sliderStartFrame by remember { mutableIntStateOf(0) }
   var isScrubbing by remember { mutableStateOf(false) }
   var userSliderFrame by remember { mutableIntStateOf(0) }
   var settlingFrame by remember { mutableStateOf<Int?>(null) }
@@ -330,6 +334,19 @@ private fun FrameReviewOverlay(
       settlingFrame = null
     }
   }
+  LaunchedEffect(frameDeltaRevision, isScrubbing, isFrameStepping, isSeeking) {
+    if (!isScrubbing && !isFrameStepping && !isSeeking) {
+      delay(1_500L)
+      frameDeltaVisible = false
+    }
+  }
+
+  fun showFrameDelta(delta: Int) {
+    requestedFrameDelta = delta
+    frameDeltaVisible = delta != 0
+    frameDeltaRevision++
+  }
+
   BackHandler(onBack = onDismissRequest)
 
   Box(
@@ -345,6 +362,7 @@ private fun FrameReviewOverlay(
               onDragStart = {
                 accumulatedDrag = 0f
                 requestedFrameDelta = 0
+                frameDeltaVisible = false
                 isScrubbing = true
               },
               onDragCancel = {
@@ -361,7 +379,7 @@ private fun FrameReviewOverlay(
                 val steps = (accumulatedDrag / pixelsPerFrame).toInt()
                 if (steps != 0) {
                   accumulatedDrag -= steps * pixelsPerFrame
-                  requestedFrameDelta += steps
+                  showFrameDelta(requestedFrameDelta + steps)
                   settlingFrame = null
                   haptic.tick()
                   onFrameSteps(steps)
@@ -411,45 +429,6 @@ private fun FrameReviewOverlay(
       }
     }
 
-    AnimatedVisibility(
-      visible = isScrubbing || (isFrameStepping && requestedFrameDelta != 0),
-      modifier = Modifier.align(Alignment.Center),
-      enter = fadeIn() + scaleIn(initialScale = 0.9f),
-      exit = fadeOut() + scaleOut(targetScale = 0.9f),
-    ) {
-      Surface(
-        shape = MaterialTheme.shapes.extraLarge,
-        color = MaterialTheme.colorScheme.inverseSurface.copy(alpha = 0.9f),
-        contentColor = MaterialTheme.colorScheme.inverseOnSurface,
-        tonalElevation = 6.dp,
-      ) {
-        Column(
-          modifier = Modifier.padding(horizontal = 24.dp, vertical = 14.dp),
-          horizontalAlignment = Alignment.CenterHorizontally,
-          verticalArrangement = Arrangement.spacedBy(2.dp),
-        ) {
-          Text(
-            text = String.format(Locale.US, "%+d", requestedFrameDelta),
-            style = MaterialTheme.typography.headlineSmall,
-            fontWeight = FontWeight.Bold,
-          )
-          Text(
-            text =
-              if (totalFrames > 0) {
-                "${stringResource(R.string.ui_frame)} $displayedFrame / $totalFrames"
-              } else {
-                "${stringResource(R.string.ui_frame)} $displayedFrame"
-              },
-            style = MaterialTheme.typography.bodyMedium,
-          )
-          Text(
-            text = displayedTimestamp,
-            style = MaterialTheme.typography.labelMedium,
-          )
-        }
-      }
-    }
-
     Surface(
       modifier =
         Modifier
@@ -488,22 +467,25 @@ private fun FrameReviewOverlay(
                 currentFrame = displayedFrame,
                 totalFrames = totalFrames,
                 timestamp = displayedTimestamp,
+                frameDelta = requestedFrameDelta,
+                showFrameDelta = frameDeltaVisible,
+                modifier = Modifier.weight(1f),
               )
-              Spacer(Modifier.weight(1f))
               ControlButtons(
                 onPreviousFrame = {
                   settlingFrame = null
-                  requestedFrameDelta = 0
+                  showFrameDelta(if (actualFrame > 0) -1 else 0)
                   onFrameSteps(-1)
                 },
                 onPlayPause = {
                   settlingFrame = null
+                  frameDeltaVisible = false
                   onPlayPause()
                 },
                 isPaused = isPaused,
                 onNextFrame = {
                   settlingFrame = null
-                  requestedFrameDelta = 0
+                  showFrameDelta(if (actualFrame < lastFrame) 1 else 0)
                   onFrameSteps(1)
                 },
                 onSnapshot = onSnapshot,
@@ -525,6 +507,8 @@ private fun FrameReviewOverlay(
                 currentFrame = displayedFrame,
                 totalFrames = totalFrames,
                 timestamp = displayedTimestamp,
+                frameDelta = requestedFrameDelta,
+                showFrameDelta = frameDeltaVisible,
               )
               IncludeSubsToggle(
                 includeSubs = includeSubtitles,
@@ -538,17 +522,18 @@ private fun FrameReviewOverlay(
                 ControlButtons(
                   onPreviousFrame = {
                     settlingFrame = null
-                    requestedFrameDelta = 0
+                    showFrameDelta(if (actualFrame > 0) -1 else 0)
                     onFrameSteps(-1)
                   },
                   onPlayPause = {
                     settlingFrame = null
+                    frameDeltaVisible = false
                     onPlayPause()
                   },
                   isPaused = isPaused,
                   onNextFrame = {
                     settlingFrame = null
-                    requestedFrameDelta = 0
+                    showFrameDelta(if (actualFrame < lastFrame) 1 else 0)
                     onFrameSteps(1)
                   },
                   onSnapshot = onSnapshot,
@@ -566,11 +551,15 @@ private fun FrameReviewOverlay(
             val targetFrame = newValue.roundToInt().coerceIn(0, lastFrame)
             val targetChanged = !isSeeking || targetFrame != userSliderFrame
             if (!isSeeking) {
+              sliderStartFrame = displayedFrame
               isSeeking = true
               settlingFrame = null
             }
             userSliderFrame = targetFrame
-            if (targetChanged) onSeekToFrame(targetFrame, false)
+            if (targetChanged) {
+              showFrameDelta(targetFrame - sliderStartFrame)
+              onSeekToFrame(targetFrame, false)
+            }
           },
           onValueChangeFinished = {
             if (!isSeeking) return@Slider
@@ -623,8 +612,12 @@ private fun FrameInfoDisplay(
   currentFrame: Int,
   totalFrames: Int,
   timestamp: String,
+  frameDelta: Int,
+  showFrameDelta: Boolean,
+  modifier: Modifier = Modifier,
 ) {
   Column(
+    modifier = modifier,
     verticalArrangement = Arrangement.spacedBy(MaterialTheme.spacing.extraSmall),
   ) {
     Row(
@@ -647,7 +640,27 @@ private fun FrameInfoDisplay(
           },
         style = MaterialTheme.typography.bodyMedium,
         color = MaterialTheme.colorScheme.onSurface,
+        maxLines = 1,
+        overflow = TextOverflow.Ellipsis,
+        modifier = Modifier.weight(1f, fill = false),
       )
+      Box(Modifier.width(64.dp).heightIn(min = 24.dp), contentAlignment = Alignment.CenterStart) {
+        androidx.compose.animation.AnimatedVisibility(visible = showFrameDelta, enter = fadeIn(), exit = fadeOut()) {
+          val darkSurface = MaterialTheme.colorScheme.surfaceContainerHigh.luminance() < 0.5f
+          Text(
+            text = String.format(Locale.US, "%+d", frameDelta),
+            style = MaterialTheme.typography.labelLarge,
+            fontWeight = FontWeight.Bold,
+            color = if (frameDelta > 0) {
+              if (darkSurface) Color(0xFF81C784) else Color(0xFF1B5E20)
+            } else {
+              if (darkSurface) Color(0xFFEF9A9A) else Color(0xFFB71C1C)
+            },
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+          )
+        }
+      }
     }
     Row(
       horizontalArrangement = Arrangement.spacedBy(MaterialTheme.spacing.extraSmall),
@@ -664,6 +677,9 @@ private fun FrameInfoDisplay(
         text = timestamp,
         style = MaterialTheme.typography.bodyMedium,
         color = MaterialTheme.colorScheme.onSurface,
+        maxLines = 1,
+        overflow = TextOverflow.Ellipsis,
+        modifier = Modifier.weight(1f, fill = false),
       )
     }
   }

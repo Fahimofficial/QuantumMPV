@@ -65,23 +65,6 @@ data class AudiobookChapterEntity(
   val title: String,
 )
 
-@Entity(
-  tableName = "audiobook_bookmarks",
-  foreignKeys = [
-    ForeignKey(entity = AudiobookEntity::class, parentColumns = ["id"], childColumns = ["bookId"], onDelete = ForeignKey.CASCADE),
-    ForeignKey(entity = AudiobookTrackEntity::class, parentColumns = ["id"], childColumns = ["trackId"], onDelete = ForeignKey.CASCADE),
-  ],
-  indices = [Index(value = ["bookId"]), Index(value = ["trackId"])],
-)
-data class AudiobookBookmarkEntity(
-  @PrimaryKey(autoGenerate = true) val id: Long = 0,
-  val bookId: Long,
-  val trackId: Long,
-  val positionMs: Long,
-  val title: String,
-  val createdAt: Long = System.currentTimeMillis(),
-)
-
 data class Audiobook(
   @Embedded val book: AudiobookEntity,
   @Relation(parentColumn = "id", entityColumn = "bookId") val tracks: List<AudiobookTrackEntity>,
@@ -100,4 +83,33 @@ data class Audiobook(
     return orderedTracks.takeWhile { it.id != trackId }.sumOf { it.durationMs.coerceAtLeast(0) } +
       positionMs.coerceIn(0, track.durationMs.coerceAtLeast(0))
   }
+
+  fun resolvePosition(positionMs: Long): Pair<AudiobookTrackEntity, Long>? {
+    val ordered = orderedTracks
+    var remaining = positionMs.coerceIn(0, durationMs)
+    ordered.forEachIndexed { index, track ->
+      val duration = track.durationMs.coerceAtLeast(0)
+      if (remaining < duration || index == ordered.lastIndex) return track to remaining.coerceAtMost(duration)
+      remaining -= duration
+    }
+    return null
+  }
+
+  fun chapterTimeline(stored: List<AudiobookChapterEntity>): List<AudiobookChapter> {
+    var offset = 0L
+    return orderedTracks.flatMap { track ->
+      val duration = track.durationMs.coerceAtLeast(0)
+      val chapters = stored.filter { it.trackId == track.id && it.startMs in 0 until duration && it.endMs > it.startMs }
+        .sortedBy { it.startMs }.ifEmpty { listOf(AudiobookChapterEntity(track.id, 0, duration, track.title)) }
+      val result = chapters.map { chapter ->
+        AudiobookChapter(track.id, chapter.startMs, chapter.endMs.coerceAtMost(duration), offset, chapter.title.ifBlank { track.title })
+      }
+      offset += duration
+      result
+    }
+  }
+}
+
+data class AudiobookChapter(val trackId: Long, val startMs: Long, val endMs: Long, val bookOffsetMs: Long, val title: String) {
+  val bookStartMs: Long get() = bookOffsetMs + startMs
 }

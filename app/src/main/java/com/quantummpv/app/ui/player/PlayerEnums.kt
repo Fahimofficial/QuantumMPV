@@ -150,6 +150,9 @@ enum class Sheets {
   Lyrics,
   Scopes,
   PostProcessingConfig,
+  BookmarkEditor,
+  AudiobookRewind,
+  AudiobookSleepTimer,
 }
 
 enum class Panels {

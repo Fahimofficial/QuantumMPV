@@ -18,7 +18,8 @@ import androidx.compose.animation.slideOutVertically
 import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.basicMarquee
-import androidx.compose.foundation.clickable
+import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.height
@@ -32,23 +33,27 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.quantummpv.app.preferences.AppearancePreferences
+import com.quantummpv.app.R
 import com.quantummpv.app.ui.theme.AppShapeScale
 import com.quantummpv.app.ui.theme.spacing
 import dev.vivvvek.seeker.Segment
 import `is`.xyz.mpv.Utils
 import org.koin.compose.koinInject
 
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 fun CurrentChapter(
   chapter: Segment,
   modifier: Modifier = Modifier,
   onClick: () -> Unit = {},
+  onLongClick: () -> Unit = {},
 ) {
   Surface(
     modifier =
@@ -56,7 +61,8 @@ fun CurrentChapter(
         .height(45.dp)
         .widthIn(max = 220.dp)
         .clip(AppShapeScale.full)
-        .clickable(onClick = onClick),
+        .combinedClickable(onClick = onClick, onLongClick = onLongClick,
+          onLongClickLabel = stringResource(R.string.audiobook_add_bookmark)),
     shape = AppShapeScale.full,
     color =
       MaterialTheme.colorScheme.surfaceContainer.copy(

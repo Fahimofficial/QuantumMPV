@@ -115,6 +115,13 @@ fun RenderPlayerButton(
     val controlColor =
       if (compact) androidx.compose.material3.LocalContentColor.current else defaultControlColor
     val clickEvent = LocalPlayerButtonsClickEvent.current
+    val bookmarkHaptics = com.quantummpv.app.ui.utils.rememberAppHaptics()
+    val addPlaybackBookmark = {
+      if (viewModel.preparePlaybackBookmark()) {
+        bookmarkHaptics.confirm()
+        onOpenSheet(Sheets.BookmarkEditor)
+      }
+    }
     val advancedPreferences = koinInject<AdvancedPreferences>()
     val playerPreferences = koinInject<PlayerPreferences>()
     val statisticsPage by advancedPreferences.enabledStatisticsPage.collectAsState()
@@ -204,6 +211,9 @@ fun RenderPlayerButton(
       ControlsButton(
         Icons.RoundedFilled.Bookmarks,
         onClick = { onOpenSheet(Sheets.Chapters) },
+        onLongClick = addPlaybackBookmark,
+        onLongClickLabel = stringResource(R.string.audiobook_add_bookmark),
+        title = stringResource(R.string.btn_label_bookmarks),
         color = if (hideBackground) controlColor else MaterialTheme.colorScheme.onSurface,
         modifier = Modifier.size(buttonSize),
       )
@@ -772,28 +782,22 @@ fun RenderPlayerButton(
     }
 
     PlayerButton.CURRENT_CHAPTER -> {
-      if (isPortrait) {
-      } else if (compact) {
-        if (chapters.getOrNull(currentChapter ?: 0) != null) {
-          ControlsButton(
-            icon = Icons.RoundedFilled.Bookmarks,
-            onClick = { onOpenSheet(Sheets.Chapters) },
-            modifier = Modifier.size(buttonSize),
-          )
-        }
+      val chapter = currentChapter?.let(chapters::getOrNull)
+      if (isPortrait || compact || chapter == null) {
+        ControlsButton(
+          icon = Icons.RoundedFilled.Bookmarks,
+          onClick = { onOpenSheet(Sheets.Chapters) },
+          onLongClick = addPlaybackBookmark,
+          onLongClickLabel = stringResource(R.string.audiobook_add_bookmark),
+          title = stringResource(R.string.btn_label_bookmarks),
+          modifier = Modifier.size(buttonSize),
+        )
       } else {
-        AnimatedVisibility(
-          chapters.getOrNull(currentChapter ?: 0) != null,
-          enter = fadeIn(),
-          exit = fadeOut(),
-        ) {
-          chapters.getOrNull(currentChapter ?: 0)?.let { chapter ->
-            CurrentChapter(
-              chapter = chapter,
-              onClick = { onOpenSheet(Sheets.Chapters) },
-            )
-          }
-        }
+        CurrentChapter(
+          chapter = chapter,
+          onClick = { onOpenSheet(Sheets.Chapters) },
+          onLongClick = addPlaybackBookmark,
+        )
       }
     }
 

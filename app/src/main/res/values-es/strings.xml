@@ -2361,4 +2361,9 @@ Reinicia la aplicación para que se apliquen todos los cambios.</string>
   <string name="audiobook_save_failed">No se pudo guardar el progreso.</string>
   <string name="audiobook_play_failed">No se pudo abrir este libro. Comprueba que sus archivos sigan siendo accesibles.</string>
   <string name="audiobook_retry">Reintentar</string>
+  <string name="playback_bookmarks_empty">No hay marcadores ni capítulos</string>
+  <string name="playback_bookmark_update_failed">No se pudieron actualizar los marcadores.</string>
+  <string name="audiobook_no_text">No hay letras ni transcripción adjuntas</string>
+  <string name="player_seek_backward">Retroceder %1$s</string>
+  <string name="player_seek_forward">Avanzar %1$s</string>
 </resources>
