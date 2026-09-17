@@ -884,6 +884,22 @@ val MIGRATION_23_24 =
     }
   }
 
+val MIGRATION_24_25 =
+  object : Migration(24, 25) {
+    override fun migrate(db: SupportSQLiteDatabase) {
+      db.execSQL("""CREATE TABLE IF NOT EXISTS `audiobookshelf_servers` (
+        `id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+        `name` TEXT NOT NULL,
+        `serverUrl` TEXT NOT NULL,
+        `username` TEXT NOT NULL,
+        `token` TEXT NOT NULL,
+        `userId` TEXT NOT NULL,
+        `activeLibraryId` TEXT,
+        `lastConnected` INTEGER NOT NULL
+      )""")
+    }
+  }
+
 val DatabaseModule =
   module {
     single<Json> {
@@ -923,6 +939,7 @@ val DatabaseModule =
           MIGRATION_21_22,
           MIGRATION_22_23,
           MIGRATION_23_24,
+          MIGRATION_24_25,
         ).build()
     }
 
@@ -1028,6 +1045,24 @@ val DatabaseModule =
 
     single {
       com.quantummpv.app.repository.NavidromeRepository(
+        dao = get(),
+        client = get(),
+      )
+    }
+
+    single {
+      get<MpvRxDatabase>().audiobookshelfServerDao()
+    }
+
+    single {
+      com.quantummpv.app.data.audiobookshelf.AudiobookshelfClient(
+        httpClient = get(),
+        json = get(),
+      )
+    }
+
+    single {
+      com.quantummpv.app.repository.AudiobookshelfRepository(
         dao = get(),
         client = get(),
       )

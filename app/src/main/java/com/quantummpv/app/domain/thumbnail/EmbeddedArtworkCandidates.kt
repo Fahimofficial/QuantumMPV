@@ -75,11 +75,15 @@ internal object EmbeddedArtworkResolver {
           "content", "android.resource" ->
             context.contentResolver.openInputStream(uri)?.use { input -> BitmapFactory.decodeStream(input) }
           "http", "https" -> {
+            val token = uri.getQueryParameter("token")
             val connection = (java.net.URL(artworkUri).openConnection() as java.net.HttpURLConnection).apply {
               connectTimeout = 8000
               readTimeout = 8000
               instanceFollowRedirects = true
               setRequestProperty("User-Agent", "Mozilla/5.0 (Android) mpvRx")
+              if (!token.isNullOrBlank()) {
+                setRequestProperty("Authorization", "Bearer $token")
+              }
             }
             connection.inputStream.use { input ->
               BitmapFactory.decodeStream(input)

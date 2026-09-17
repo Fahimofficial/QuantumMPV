@@ -15,6 +15,7 @@ import androidx.room.TypeConverters
 import com.quantummpv.app.database.converters.NetworkProtocolConverter
 import com.quantummpv.app.database.converters.NetworkStreamEntryTypeConverter
 import com.quantummpv.app.database.dao.AudiobookDao
+import com.quantummpv.app.database.dao.AudiobookshelfServerDao
 import com.quantummpv.app.database.dao.DirectoryScanDao
 import com.quantummpv.app.database.dao.DownloadItemDao
 import com.quantummpv.app.database.dao.NetworkConnectionDao
@@ -27,6 +28,7 @@ import com.quantummpv.app.database.dao.SecureMediaDao
 import com.quantummpv.app.database.dao.VideoMetadataDao
 import com.quantummpv.app.database.dao.JellyfinServerDao
 import com.quantummpv.app.database.dao.NavidromeServerDao
+import com.quantummpv.app.database.entities.AudiobookshelfServerEntity
 import com.quantummpv.app.database.entities.DirectoryScanEntity
 import com.quantummpv.app.database.entities.AudiobookEntity
 import com.quantummpv.app.database.entities.AudiobookTrackEntity
@@ -62,8 +64,9 @@ import com.quantummpv.app.domain.network.NetworkConnection
     AudiobookTrackEntity::class,
     AudiobookChapterEntity::class,
     PlaybackBookmarkEntity::class,
+    AudiobookshelfServerEntity::class,
   ],
-  version = 24,
+  version = 25,
   exportSchema = true,
 )
 @TypeConverters(NetworkProtocolConverter::class, NetworkStreamEntryTypeConverter::class)
@@ -93,4 +96,6 @@ abstract class MpvRxDatabase : RoomDatabase() {
   abstract fun audiobookDao(): AudiobookDao
 
   abstract fun playbackBookmarkDao(): PlaybackBookmarkDao
+
+  abstract fun audiobookshelfServerDao(): AudiobookshelfServerDao
 }

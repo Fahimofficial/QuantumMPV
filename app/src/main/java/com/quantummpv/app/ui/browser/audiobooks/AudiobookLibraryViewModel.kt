@@ -17,13 +17,16 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import org.koin.core.context.GlobalContext
 
 class AudiobookLibraryViewModel(application: Application) : AndroidViewModel(application) {
   private val dao = GlobalContext.get().get<AudiobookDao>()
-  val library = dao.observeLibrary().stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), null)
+  val library = dao.observeLibrary()
+    .map { list -> list.filter { !it.book.sourceKey.startsWith("abs:") } }
+    .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), null)
   private val _progress = MutableStateFlow<Pair<Int, Int>?>(null)
   val progress = _progress.asStateFlow()
   private val _error = MutableStateFlow<String?>(null)

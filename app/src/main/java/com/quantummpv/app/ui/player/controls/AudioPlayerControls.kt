@@ -563,17 +563,33 @@ private fun CoverArtCardImage(
   artworkUrl: String? = null,
   contentScale: ContentScale = ContentScale.Crop,
 ) {
-  val imageBitmap = remember(bitmap) { bitmap?.asImageBitmap() }
+  val context = LocalContext.current
+  val client = org.koin.compose.koinInject<okhttp3.OkHttpClient>()
+  var remoteBitmap by remember(artworkUrl) {
+    mutableStateOf<Bitmap?>(
+      artworkUrl?.let { com.quantummpv.app.presentation.components.RemoteImageLoader.getFromMemory(it) }
+    )
+  }
+
+  LaunchedEffect(artworkUrl) {
+    if (artworkUrl.isNullOrBlank() || (!artworkUrl.startsWith("http://", ignoreCase = true) && !artworkUrl.startsWith("https://", ignoreCase = true))) {
+      remoteBitmap = null
+      return@LaunchedEffect
+    }
+    if (remoteBitmap == null) {
+      remoteBitmap = withContext(Dispatchers.IO) {
+        com.quantummpv.app.presentation.components.RemoteImageLoader.load(context, client, artworkUrl)
+          ?: com.quantummpv.app.domain.thumbnail.EmbeddedArtworkResolver.decodeArtworkUri(context, artworkUrl)
+      }
+    }
+  }
+
+  val finalBitmap = bitmap ?: remoteBitmap
+  val imageBitmap = remember(finalBitmap) { finalBitmap?.asImageBitmap() }
+
   if (imageBitmap != null) {
     Image(
       bitmap = imageBitmap,
-      contentDescription = null,
-      contentScale = contentScale,
-      modifier = Modifier.fillMaxSize(),
-    )
-  } else if (!artworkUrl.isNullOrBlank() && (artworkUrl.startsWith("http://", ignoreCase = true) || artworkUrl.startsWith("https://", ignoreCase = true))) {
-    RemoteImage(
-      url = artworkUrl,
       contentDescription = null,
       contentScale = contentScale,
       modifier = Modifier.fillMaxSize(),
