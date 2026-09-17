@@ -61,6 +61,11 @@ class BrowserPreferences(
   val musicSortField = preferenceStore.getEnum("music_sort_field", MusicSortField.TITLE)
   val musicSortOrder = preferenceStore.getEnum("music_sort_order", MusicSortOrder.ASCENDING)
 
+  // Audiobook view mode and sorting preferences
+  val audiobookSortType = preferenceStore.getEnum("audiobook_sort_type", AudiobookSortType.Title)
+  val audiobookSortOrder = preferenceStore.getEnum("audiobook_sort_order", SortOrder.Ascending)
+  val audiobookLayoutMode = preferenceStore.getEnum("audiobook_layout_mode", MediaLayoutMode.LIST)
+
   // Network sorting preferences
   val networkSortType = preferenceStore.getEnum("network_sort_type", NetworkSortType.Title)
   val networkSortOrder = preferenceStore.getEnum("network_sort_order", SortOrder.Ascending)
@@ -219,6 +224,30 @@ enum class NetworkSortType {
         Title -> "Title"
         Date -> "Date"
         Size -> "Size"
+      }
+}
+
+/**
+ * Audiobook sorting options
+ */
+enum class AudiobookSortType {
+  Title,
+  Author,
+  Duration,
+  Progress,
+  LastPlayed,
+  DateAdded,
+  ;
+
+  val displayName: String
+    get() =
+      when (this) {
+        Title -> "Title"
+        Author -> "Author"
+        Duration -> "Duration"
+        Progress -> "Progress"
+        LastPlayed -> "Recent"
+        DateAdded -> "Date Added"
       }
 }
 

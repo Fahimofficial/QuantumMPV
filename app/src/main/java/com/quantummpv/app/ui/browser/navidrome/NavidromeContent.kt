@@ -390,6 +390,10 @@ fun NavidromeContent(
                 }
               }
             }
+            com.quantummpv.app.ui.browser.audiobooks.AudiobookIconButton(
+              Icons.RoundedFilled.MenuBook,
+              stringResource(R.string.audiobooks_title),
+            ) { backstack.navigateTo(com.quantummpv.app.ui.browser.audiobooks.AudiobookLibraryScreen) }
           },
           postSearchActions = {
             IconButton(

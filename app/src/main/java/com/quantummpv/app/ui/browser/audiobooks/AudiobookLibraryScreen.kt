@@ -25,6 +25,9 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.grid.GridCells
+import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
+import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -68,6 +71,7 @@ import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -75,13 +79,23 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import com.quantummpv.app.R
 import com.quantummpv.app.database.entities.Audiobook
 import com.quantummpv.app.database.entities.AudiobookEntity
+import com.quantummpv.app.preferences.AudiobookSortType
+import com.quantummpv.app.preferences.BrowserPreferences
+import com.quantummpv.app.preferences.MediaLayoutMode
+import com.quantummpv.app.preferences.SortOrder
+import com.quantummpv.app.preferences.preference.collectAsState
 import com.quantummpv.app.presentation.Screen
+import com.quantummpv.app.ui.browser.components.BrowserTopBar
+import com.quantummpv.app.ui.browser.dialogs.AudiobookSortDialog
 import com.quantummpv.app.ui.icons.AppIcon
 import com.quantummpv.app.ui.icons.Icon
 import com.quantummpv.app.ui.icons.Icons
 import com.quantummpv.app.ui.player.AudiobookPlayback
 import com.quantummpv.app.ui.player.PlaybackSession
+import com.quantummpv.app.ui.browser.LocalNavigationBarHeight
+import com.quantummpv.app.ui.preferences.PreferencesScreen
 import com.quantummpv.app.ui.utils.LocalBackStack
+import com.quantummpv.app.ui.utils.navigateTo
 import com.quantummpv.app.ui.utils.popSafely
 import com.quantummpv.app.ui.utils.rememberAppHaptics
 import kotlinx.coroutines.CancellationException
@@ -89,6 +103,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.Serializable
+import org.koin.compose.koinInject
 
 @Serializable
 object AudiobookLibraryScreen : Screen {
@@ -103,6 +118,11 @@ object AudiobookLibraryScreen : Screen {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     val haptics = rememberAppHaptics()
+    val browserPreferences = koinInject<BrowserPreferences>()
+    val sortType by browserPreferences.audiobookSortType.collectAsState()
+    val sortOrder by browserPreferences.audiobookSortOrder.collectAsState()
+    val layoutMode by browserPreferences.audiobookLayoutMode.collectAsState()
+    var isSortMenuExpanded by remember { mutableStateOf(false) }
     var query by rememberSaveable { mutableStateOf("") }
     var filter by rememberSaveable { mutableStateOf(0) }
     var search by rememberSaveable { mutableStateOf(false) }
@@ -116,8 +136,8 @@ object AudiobookLibraryScreen : Screen {
     val folder = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocumentTree()) { uri ->
       if (uri != null) model.importFiles(emptyList(), uri)
     }
-    val visible = remember(books, query, filter) {
-      books.orEmpty().filter { book ->
+    val visible = remember(books, query, filter, sortType, sortOrder) {
+      val filtered = books.orEmpty().filter { book ->
         val matches = when (filter) {
           1 -> book.book.progressMs > 0 && !book.book.finished
           2 -> book.book.finished
@@ -126,6 +146,19 @@ object AudiobookLibraryScreen : Screen {
         }
         matches && listOf(book.book.title, book.book.author, book.book.narrator, book.book.series)
           .any { it.contains(query, ignoreCase = true) }
+      }
+      val comparator = when (sortType) {
+        AudiobookSortType.Title -> compareBy<Audiobook, String>(String.CASE_INSENSITIVE_ORDER) { it.book.title }
+        AudiobookSortType.Author -> compareBy<Audiobook, String>(String.CASE_INSENSITIVE_ORDER) { it.book.author }
+        AudiobookSortType.Duration -> compareBy { it.durationMs }
+        AudiobookSortType.Progress -> compareBy { it.progress }
+        AudiobookSortType.LastPlayed -> compareBy { it.book.lastPlayedAt }
+        AudiobookSortType.DateAdded -> compareBy { it.book.addedAt }
+      }
+      if (sortOrder == SortOrder.Descending) {
+        filtered.sortedWith(comparator.reversed())
+      } else {
+        filtered.sortedWith(comparator)
       }
     }
     fun play(book: Audiobook, restart: Boolean = false) {
@@ -145,44 +178,75 @@ object AudiobookLibraryScreen : Screen {
       }
     }
     BackHandler(search) { search = false; query = "" }
+    val navBarHeight = LocalNavigationBarHeight.current.takeIf { it > 0.dp } ?: 88.dp
     Scaffold(
       containerColor = com.quantummpv.app.ui.theme.wallpaperAwareBackgroundColor(),
       topBar = {
-        TopAppBar(
-          title = { Text(stringResource(R.string.audiobooks_title), maxLines = 1, overflow = TextOverflow.Ellipsis) },
-          navigationIcon = {
-            IconButton(onClick = { backStack.popSafely() }) { Icon(Icons.RoundedFilled.ArrowBack, stringResource(R.string.generic_cancel)) }
-          },
-          actions = {
-            AudiobookIconButton(Icons.RoundedFilled.Search, stringResource(R.string.audiobook_search)) { search = !search }
+        BrowserTopBar(
+          title = stringResource(R.string.audiobooks_title),
+          isInSelectionMode = false,
+          selectedCount = 0,
+          totalCount = visible.size,
+          onBackClick = { backStack.popSafely() },
+          onCancelSelection = { },
+          onSortClick = { isSortMenuExpanded = true },
+          onSearchClick = { search = !search },
+          onSettingsClick = { backStack.navigateTo(PreferencesScreen) },
+          additionalActions = {
             Box {
               AudiobookIconButton(Icons.RoundedFilled.Add, stringResource(R.string.audiobook_import_files), importing == null) { importMenu = true }
               DropdownMenu(importMenu, onDismissRequest = { importMenu = false }) {
-                DropdownMenuItem(text = { Text(stringResource(R.string.audiobook_import_files)) },
-                  leadingIcon = { Icon(Icons.RoundedFilled.Add, null) }, onClick = { importMenu = false; files.launch(arrayOf("*/*")) })
-                DropdownMenuItem(text = { Text(stringResource(R.string.audiobook_import_folder)) },
-                  leadingIcon = { Icon(Icons.RoundedFilled.FolderOpen, null) }, onClick = { importMenu = false; folder.launch(null) })
+                DropdownMenuItem(
+                  text = { Text(stringResource(R.string.audiobook_import_files)) },
+                  leadingIcon = { Icon(Icons.RoundedFilled.Add, null) },
+                  onClick = { importMenu = false; files.launch(arrayOf("*/*")) }
+                )
+                DropdownMenuItem(
+                  text = { Text(stringResource(R.string.audiobook_import_folder)) },
+                  leadingIcon = { Icon(Icons.RoundedFilled.FolderOpen, null) },
+                  onClick = { importMenu = false; folder.launch(null) }
+                )
               }
             }
           },
         )
       },
     ) { padding ->
-      Column(Modifier.fillMaxSize().padding(padding), horizontalAlignment = Alignment.CenterHorizontally) {
-        if (search) OutlinedTextField(query, onValueChange = { query = it }, singleLine = true,
-          placeholder = { Text(stringResource(R.string.audiobook_search)) },
-          modifier = Modifier.widthIn(max = 1000.dp).fillMaxWidth().padding(horizontal = 16.dp))
-        Row(Modifier.widthIn(max = 1000.dp).fillMaxWidth().horizontalScroll(rememberScrollState()).padding(horizontal = 16.dp),
-          horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+      Column(Modifier.fillMaxSize().padding(padding)) {
+        if (search) {
+          OutlinedTextField(
+            value = query,
+            onValueChange = { query = it },
+            singleLine = true,
+            placeholder = { Text(stringResource(R.string.audiobook_search)) },
+            modifier = Modifier
+              .fillMaxWidth()
+              .padding(horizontal = 16.dp, vertical = 8.dp)
+          )
+        }
+        Row(
+          modifier = Modifier
+            .fillMaxWidth()
+            .horizontalScroll(rememberScrollState())
+            .padding(horizontal = 16.dp, vertical = 4.dp),
+          horizontalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
           listOf(R.string.audiobook_all, R.string.audiobook_in_progress, R.string.audiobook_finished, R.string.audiobook_not_started)
             .forEachIndexed { index, label ->
-              FilterChip(selected = filter == index, onClick = {
-                if (filter != index) { filter = index; haptics.selection(true) }
-              }, label = { Text(stringResource(label)) })
+              FilterChip(
+                selected = filter == index,
+                onClick = {
+                  if (filter != index) {
+                    filter = index
+                    haptics.selection(true)
+                  }
+                },
+                label = { Text(stringResource(label)) }
+              )
             }
         }
         importing?.let { progress ->
-          Column(Modifier.widthIn(max = 1000.dp).fillMaxWidth().padding(horizontal = 16.dp)) {
+          Column(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp)) {
             if (progress.second > 0) LinearProgressIndicator(progress = { progress.first.toFloat() / progress.second }, modifier = Modifier.fillMaxWidth())
             else LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
             Row(verticalAlignment = Alignment.CenterVertically) {
@@ -193,8 +257,8 @@ object AudiobookLibraryScreen : Screen {
           }
         }
         when {
-          books == null -> Box(Modifier.weight(1f), contentAlignment = Alignment.Center) { CircularProgressIndicator() }
-          visible.isEmpty() -> Column(Modifier.weight(1f).padding(24.dp), verticalArrangement = Arrangement.Center,
+          books == null -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { CircularProgressIndicator() }
+          visible.isEmpty() -> Column(Modifier.fillMaxSize().padding(24.dp), verticalArrangement = Arrangement.Center,
             horizontalAlignment = Alignment.CenterHorizontally) {
             Icon(Icons.RoundedFilled.MenuBook, null, modifier = Modifier.size(64.dp), tint = MaterialTheme.colorScheme.secondary)
             Text(stringResource(R.string.audiobook_empty), modifier = Modifier.padding(16.dp), style = MaterialTheme.typography.titleMedium)
@@ -205,16 +269,110 @@ object AudiobookLibraryScreen : Screen {
               TextButton(onClick = { folder.launch(null) }, enabled = importing == null) { Text(stringResource(R.string.audiobook_import_folder)) }
             }
           }
-          else -> LazyColumn(Modifier.widthIn(max = 1000.dp).fillMaxWidth().weight(1f),
-            contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 8.dp, bottom = 96.dp),
-            verticalArrangement = Arrangement.spacedBy(8.dp)) {
+          layoutMode == MediaLayoutMode.GRID -> LazyVerticalGrid(
+            columns = GridCells.Adaptive(minSize = 145.dp),
+            modifier = Modifier.fillMaxSize(),
+            contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 12.dp, bottom = navBarHeight + 16.dp),
+            verticalArrangement = Arrangement.spacedBy(14.dp),
+            horizontalArrangement = Arrangement.spacedBy(14.dp)
+          ) {
             items(visible, key = { it.book.id }) { book ->
-              Surface(shape = RoundedCornerShape(8.dp), color = MaterialTheme.colorScheme.surfaceContainer,
-                modifier = Modifier.fillMaxWidth().clickable { detailsId = book.book.id }) {
-                Row(Modifier.padding(12.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                  AudiobookArtwork(book.book.coverUri, Modifier.size(76.dp).clip(RoundedCornerShape(4.dp)))
+              Surface(
+                shape = RoundedCornerShape(12.dp),
+                color = MaterialTheme.colorScheme.surfaceContainer,
+                modifier = Modifier
+                  .fillMaxWidth()
+                  .clickable { detailsId = book.book.id }
+              ) {
+                Column(Modifier.fillMaxWidth().padding(8.dp)) {
+                  Box(
+                    Modifier
+                      .fillMaxWidth()
+                      .aspectRatio(1f)
+                      .clip(RoundedCornerShape(8.dp))
+                  ) {
+                    AudiobookArtwork(book.book.coverUri, Modifier.fillMaxSize())
+                    if (book.progress > 0f) {
+                      LinearProgressIndicator(
+                        progress = { book.progress },
+                        modifier = Modifier
+                          .align(Alignment.BottomCenter)
+                          .fillMaxWidth()
+                          .height(4.dp)
+                      )
+                    }
+                  }
+                  Spacer(Modifier.height(8.dp))
+                  Text(
+                    book.book.title,
+                    style = MaterialTheme.typography.titleSmall,
+                    fontWeight = FontWeight.Bold,
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis
+                  )
+                  if (book.book.author.isNotBlank()) {
+                    Text(
+                      book.book.author,
+                      style = MaterialTheme.typography.bodySmall,
+                      maxLines = 1,
+                      overflow = TextOverflow.Ellipsis,
+                      color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                  }
+                  Spacer(Modifier.height(4.dp))
+                  Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                  ) {
+                    Text(
+                      if (book.book.finished) stringResource(R.string.audiobook_finished)
+                      else stringResource(
+                        R.string.audiobook_remaining,
+                        bookTime(((book.durationMs - book.book.progressMs).coerceAtLeast(0) / book.book.playbackSpeed).toLong())
+                      ),
+                      style = MaterialTheme.typography.labelSmall,
+                      color = MaterialTheme.colorScheme.secondary,
+                      maxLines = 1,
+                      overflow = TextOverflow.Ellipsis,
+                      modifier = Modifier.weight(1f, fill = false)
+                    )
+                    IconButton(
+                      onClick = { play(book) },
+                      enabled = !opening,
+                      modifier = Modifier.size(28.dp)
+                    ) {
+                      Icon(
+                        Icons.RoundedFilled.PlayArrow,
+                        contentDescription = stringResource(R.string.audiobook_continue),
+                        modifier = Modifier.size(20.dp),
+                        tint = MaterialTheme.colorScheme.primary
+                      )
+                    }
+                  }
+                }
+              }
+            }
+          }
+          else -> LazyColumn(
+            modifier = Modifier.fillMaxSize(),
+            contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 8.dp, bottom = navBarHeight + 16.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp)
+          ) {
+            items(visible, key = { it.book.id }) { book ->
+              Surface(
+                shape = RoundedCornerShape(10.dp),
+                color = MaterialTheme.colorScheme.surfaceContainer,
+                modifier = Modifier.fillMaxWidth().clickable { detailsId = book.book.id }
+              ) {
+                Row(
+                  Modifier.padding(12.dp),
+                  verticalAlignment = Alignment.CenterVertically,
+                  horizontalArrangement = Arrangement.spacedBy(14.dp)
+                ) {
+                  AudiobookArtwork(book.book.coverUri, Modifier.size(76.dp).clip(RoundedCornerShape(6.dp)))
                   Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                    Text(book.book.title, style = MaterialTheme.typography.titleMedium, maxLines = 2, overflow = TextOverflow.Ellipsis)
+                    Text(book.book.title, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold, maxLines = 2, overflow = TextOverflow.Ellipsis)
                     if (book.book.author.isNotBlank()) Text(book.book.author, style = MaterialTheme.typography.bodyMedium,
                       maxLines = 1, overflow = TextOverflow.Ellipsis, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     Text(if (book.book.finished) stringResource(R.string.audiobook_finished) else {
@@ -229,6 +387,18 @@ object AudiobookLibraryScreen : Screen {
           }
         }
       }
+    }
+    if (isSortMenuExpanded) {
+      AudiobookSortDialog(
+        isOpen = isSortMenuExpanded,
+        onDismiss = { isSortMenuExpanded = false },
+        sortType = sortType,
+        sortOrder = sortOrder,
+        layoutMode = layoutMode,
+        onSortTypeChange = { browserPreferences.audiobookSortType.set(it) },
+        onSortOrderChange = { browserPreferences.audiobookSortOrder.set(it) },
+        onLayoutModeChange = { browserPreferences.audiobookLayoutMode.set(it) },
+      )
     }
     books?.firstOrNull { it.book.id == detailsId }?.let { book ->
       ModalBottomSheet(onDismissRequest = { detailsId = null }) {

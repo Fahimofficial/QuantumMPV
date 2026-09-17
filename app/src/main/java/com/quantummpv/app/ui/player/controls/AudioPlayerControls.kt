@@ -2075,7 +2075,7 @@ fun AudioPlayerControls(
             Box(contentAlignment = Alignment.Center, modifier = Modifier.fillMaxSize()) {
               Icon(
                 imageVector = Icons.RoundedFilled.QueueMusic,
-                contentDescription = "Playlist",
+                contentDescription = if (isAudiobook) stringResource(R.string.audiobook_chapters) else stringResource(R.string.player_up_next_title),
                 tint = MaterialTheme.colorScheme.onSurface,
                 modifier = Modifier.size(24.dp),
               )
@@ -2315,6 +2315,8 @@ private fun DualPaneSidePanel(
   playlist: List<PlaylistItem>,
   initialLyricsActive: Boolean = false,
 ) {
+  val playbackState by PlaybackSession.state.collectAsStateWithLifecycle()
+  val isAudiobook = playbackState.currentItem?.audiobook != null
   var selectedTab by remember(initialLyricsActive) { mutableIntStateOf(if (initialLyricsActive) 1 else 0) }
 
   Column(
@@ -2332,7 +2334,12 @@ private fun DualPaneSidePanel(
       androidx.compose.material3.FilterChip(
         selected = selectedTab == 0,
         onClick = { selectedTab = 0 },
-        label = { Text(stringResource(R.string.player_up_next_title), fontWeight = FontWeight.Bold) },
+        label = {
+          Text(
+            text = if (isAudiobook) stringResource(R.string.audiobook_chapters) else stringResource(R.string.player_up_next_title),
+            fontWeight = FontWeight.Bold,
+          )
+        },
         colors = androidx.compose.material3.FilterChipDefaults.filterChipColors(
           selectedContainerColor = MaterialTheme.colorScheme.primaryContainer,
           selectedLabelColor = MaterialTheme.colorScheme.onPrimaryContainer,
