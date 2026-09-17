@@ -77,8 +77,12 @@ fun ChaptersSheet(
     ) {
       LazyColumn(state = listState) {
         item {
-          Text(stringResource(R.string.btn_label_bookmarks), Modifier.padding(horizontal = MaterialTheme.spacing.medium, vertical = MaterialTheme.spacing.small),
-            style = MaterialTheme.typography.titleMedium)
+          val isAudiobook = com.quantummpv.app.ui.player.PlaybackSession.state.collectAsStateWithLifecycle().value.currentItem?.audiobook != null
+          Text(
+            text = stringResource(if (isAudiobook) R.string.audiobook_chapters else R.string.btn_label_bookmarks),
+            modifier = Modifier.padding(horizontal = MaterialTheme.spacing.medium, vertical = MaterialTheme.spacing.small),
+            style = MaterialTheme.typography.titleMedium,
+          )
         }
         if (chapters.isEmpty()) item {
           Text(stringResource(R.string.playback_bookmarks_empty), Modifier.padding(MaterialTheme.spacing.medium),
