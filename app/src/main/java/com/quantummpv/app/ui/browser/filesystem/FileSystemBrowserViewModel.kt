@@ -25,6 +25,7 @@ import com.quantummpv.app.ui.player.PlaybackIdentity
 import com.quantummpv.app.utils.media.MediaLibraryEvents
 import com.quantummpv.app.utils.media.MetadataRetrieval
 import com.quantummpv.app.utils.media.PlaybackStateEvents
+import com.quantummpv.app.utils.media.PlaybackStateOps
 import com.quantummpv.app.utils.permission.PermissionUtils.StorageOps
 import com.quantummpv.app.utils.sort.SortUtils
 import com.quantummpv.app.utils.storage.FileTypeUtils
@@ -598,7 +599,7 @@ class FileSystemBrowserViewModel(
 
       val videoAge = currentTime - (video.dateModified * 1000L)
       val isWithinNewWindow = thresholdMillis == 0L || videoAge <= thresholdMillis
-      if (showNewLabels && !isWatched && isWithinNewWindow) {
+      if (showNewLabels && !isWatched && (playbackState?.newLabelOverride ?: isWithinNewWindow)) {
         newIds += video.id
       }
     }
@@ -614,38 +615,7 @@ class FileSystemBrowserViewModel(
 
   fun setWatched(video: Video, watched: Boolean) {
     viewModelScope.launch(Dispatchers.IO) {
-      val durationSeconds = (video.duration / 1000L).coerceAtMost(Int.MAX_VALUE.toLong()).toInt()
-      val identifiers =
-        linkedSetOf(
-          PlaybackIdentity.forLocalPath(video.path),
-          PlaybackIdentity.forUri(video.uri.toString()),
-          PlaybackIdentity.forUri(video.path),
-          PlaybackIdentity.forUri("file://${video.path}"),
-        )
-      val existing = playbackStateRepository.getAllPlaybackStates().firstNotNullOfOrNull { state ->
-        if (state.mediaTitle in identifiers) state else null
-      }
-      playbackStateRepository.upsert(
-        (existing ?: com.quantummpv.app.database.entities.PlaybackStateEntity(
-          mediaTitle = PlaybackIdentity.forLocalPath(video.path),
-          lastPosition = 0,
-          playbackSpeed = 1.0,
-          sid = -1,
-          secondarySid = -1,
-          subDelay = 0,
-          subSpeed = 1.0,
-          aid = -1,
-          audioDelay = 0,
-          timeRemaining = durationSeconds,
-          hasBeenWatched = false,
-        )).copy(
-          mediaTitle = PlaybackIdentity.forLocalPath(video.path),
-          lastPosition = 0,
-          timeRemaining = if (watched) 0 else durationSeconds,
-          hasBeenWatched = watched,
-        ),
-      )
-      PlaybackStateEvents.notifyChanged(PlaybackIdentity.forLocalPath(video.path))
+      PlaybackStateOps.setWatched(video, watched)
     }
   }
 }

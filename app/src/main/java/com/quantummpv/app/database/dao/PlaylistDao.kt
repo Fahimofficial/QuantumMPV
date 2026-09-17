@@ -170,6 +170,15 @@ interface PlaylistDao {
     position: Long,
   )
 
+  @Query("UPDATE PlaylistItemEntity SET lastPosition = 0, lastPlayedAt = 0, playCount = 0 WHERE filePath = :filePath")
+  suspend fun clearPlayHistoryForFile(filePath: String)
+
+  @Query("UPDATE PlaylistItemEntity SET lastPlayedAt = :timestamp WHERE filePath = :filePath")
+  suspend fun markFileLastPlayed(filePath: String, timestamp: Long)
+
+  @Query("UPDATE PlaylistItemEntity SET lastPosition = 0 WHERE filePath = :filePath")
+  suspend fun clearResumePositionForFile(filePath: String)
+
   @Query(
     """
     SELECT * FROM PlaylistItemEntity 

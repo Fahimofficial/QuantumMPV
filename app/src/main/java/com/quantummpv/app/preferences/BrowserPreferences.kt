@@ -25,6 +25,19 @@ import com.quantummpv.app.ui.browser.music.MusicViewMode
 /**
  * Preferences for the video browser (folder and video lists)
  */
+enum class VideoSwipeAction {
+  None,
+  ToggleWatched,
+  AddToPlaylist,
+  PlayNext,
+  AddToQueue,
+  Delete,
+  MarkNew,
+  LastPlayed,
+  Finished,
+  ClearHistory,
+}
+
 class BrowserPreferences(
   preferenceStore: PreferenceStore,
   context: android.content.Context,
@@ -40,6 +53,8 @@ class BrowserPreferences(
   // Video sorting preferences
   val videoSortType = preferenceStore.getEnum("video_sort_type", VideoSortType.Title)
   val videoSortOrder = preferenceStore.getEnum("video_sort_order", SortOrder.Ascending)
+  val videoSwipeRight = preferenceStore.getEnum("video_swipe_right", VideoSwipeAction.ToggleWatched)
+  val videoSwipeLeft = preferenceStore.getEnum("video_swipe_left", VideoSwipeAction.AddToPlaylist)
 
   // Music view mode and sorting preferences
   val musicViewMode = preferenceStore.getEnum("music_view_mode", MusicViewMode.GRID)

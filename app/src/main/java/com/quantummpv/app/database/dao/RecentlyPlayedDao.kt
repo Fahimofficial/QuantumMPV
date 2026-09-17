@@ -27,6 +27,9 @@ interface RecentlyPlayedDao {
   @Query("SELECT * FROM RecentlyPlayedEntity WHERE filePath = :filePath LIMIT 1")
   suspend fun getByFilePath(filePath: String): RecentlyPlayedEntity?
 
+  @Query("UPDATE RecentlyPlayedEntity SET timestamp = :timestamp, launchSource = 'normal' WHERE filePath = :filePath")
+  suspend fun markLastPlayed(filePath: String, timestamp: Long)
+
   // Existing history rows keep their id when they are replayed, while timestamp is refreshed.
   // Recency must therefore be ordered by timestamp (with id only as a deterministic tie-breaker)
   // or the browser can keep highlighting an older row as the current/recently played video.

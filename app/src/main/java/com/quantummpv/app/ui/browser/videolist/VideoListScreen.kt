@@ -94,6 +94,7 @@ import com.quantummpv.app.ui.browser.components.BrowserTopBar
 import com.quantummpv.app.ui.browser.components.ExpressiveScrollBar
 import com.quantummpv.app.ui.browser.components.fastScrollGlyph
 import com.quantummpv.app.ui.browser.dialogs.AddToPlaylistDialog
+import com.quantummpv.app.ui.browser.components.rememberVideoSwipeActions
 import com.quantummpv.app.ui.browser.dialogs.DeleteConfirmationDialog
 import com.quantummpv.app.ui.browser.dialogs.FileOperationProgressDialog
 import com.quantummpv.app.ui.browser.dialogs.FolderPickerDialog
@@ -826,6 +827,8 @@ internal fun VideoListContent(
   isFabExpanded: Boolean = false,
   onFabExpandedChange: (Boolean) -> Unit = {},
 ) {
+  val swipeScope = rememberCoroutineScope()
+  val swipeActions = rememberVideoSwipeActions { swipeScope.launch { onRefresh() } }
   val thumbnailRepository = koinInject<ThumbnailRepository>()
   val gesturePreferences = koinInject<GesturePreferences>()
   val browserPreferences = koinInject<BrowserPreferences>()
@@ -858,6 +861,8 @@ internal fun VideoListContent(
   val showDurationField by browserPreferences.showDurationField.collectAsState()
   val centerGridTitles by browserPreferences.centerGridTitles.collectAsState()
   val thumbnailQuality by browserPreferences.thumbnailQuality.collectAsState()
+  val swipeLeft by browserPreferences.videoSwipeLeft.collectAsState()
+  val swipeRight by browserPreferences.videoSwipeRight.collectAsState()
   val manualGridColumnsEnabled by browserPreferences.manualGridColumnsEnabled.collectAsState()
   val videoGridColumnsPortrait by browserPreferences.videoGridColumnsPortrait.collectAsState()
   val videoGridColumnsLandscape by browserPreferences.videoGridColumnsLandscape.collectAsState()
@@ -879,6 +884,8 @@ internal fun VideoListContent(
       showDurationField,
       centerGridTitles,
       thumbnailQuality,
+      swipeLeft,
+      swipeRight,
     ) {
       VideoCardUiConfig(
         unlimitedNameLines = unlimitedNameLines,
@@ -895,6 +902,8 @@ internal fun VideoListContent(
         showDurationField = showDurationField,
         centerGridTitles = centerGridTitles,
         thumbnailQuality = thumbnailQuality,
+        swipeLeft = swipeLeft,
+        swipeRight = swipeRight,
       )
     }
 
@@ -1238,6 +1247,7 @@ internal fun VideoListContent(
                           { onVideoClick(videoWithInfo.video) }
                         },
                       isGridMode = false,
+                      onSwipeAction = swipeActions.video.takeUnless { selectionManager.isInSelectionMode },
                       showSubtitleIndicator = showSubtitleIndicator,
                       allowThumbnailGeneration = false,
                       allowThumbnailLoading = allowThumbnailLoading,

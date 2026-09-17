@@ -26,7 +26,6 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
-import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -59,6 +58,7 @@ import com.quantummpv.app.domain.thumbnail.ThumbnailRepository
 import com.quantummpv.app.preferences.AppearancePreferences
 import com.quantummpv.app.preferences.BrowserPreferences
 import com.quantummpv.app.preferences.ThumbnailQuality
+import com.quantummpv.app.preferences.VideoSwipeAction
 import com.quantummpv.app.preferences.preference.collectAsState
 import com.quantummpv.app.ui.icons.Icon
 import com.quantummpv.app.ui.icons.Icons
@@ -88,6 +88,8 @@ data class VideoCardUiConfig(
   val showDurationField: Boolean = true,
   val centerGridTitles: Boolean = false,
   val thumbnailQuality: ThumbnailQuality = ThumbnailQuality.High,
+  val swipeLeft: VideoSwipeAction = VideoSwipeAction.AddToPlaylist,
+  val swipeRight: VideoSwipeAction = VideoSwipeAction.ToggleWatched,
 )
 
 /** Hoist this once per screen and pass the result to every card rather than collecting per item. */
@@ -110,6 +112,8 @@ fun rememberVideoCardUiConfig(): VideoCardUiConfig {
   val showDurationFieldConfig by browserPreferences.showDurationField.collectAsState()
   val centerGridTitles by browserPreferences.centerGridTitles.collectAsState()
   val thumbnailQuality by browserPreferences.thumbnailQuality.collectAsState()
+  val swipeLeft by browserPreferences.videoSwipeLeft.collectAsState()
+  val swipeRight by browserPreferences.videoSwipeRight.collectAsState()
 
   return remember(
     unlimitedNameLines,
@@ -126,6 +130,8 @@ fun rememberVideoCardUiConfig(): VideoCardUiConfig {
     showDurationFieldConfig,
     centerGridTitles,
     thumbnailQuality,
+    swipeLeft,
+    swipeRight,
   ) {
     VideoCardUiConfig(
       unlimitedNameLines = unlimitedNameLines,
@@ -142,6 +148,8 @@ fun rememberVideoCardUiConfig(): VideoCardUiConfig {
       showDurationField = showDurationFieldConfig,
       centerGridTitles = centerGridTitles,
       thumbnailQuality = thumbnailQuality,
+      swipeLeft = swipeLeft,
+      swipeRight = swipeRight,
     )
   }
 }
@@ -169,6 +177,7 @@ fun VideoCard(
   allowThumbnailGeneration: Boolean = true,
   allowThumbnailLoading: Boolean = true,
   uiConfig: VideoCardUiConfig? = null,
+  onSwipeAction: ((Video, Boolean, VideoSwipeAction) -> Unit)? = null,
 ) {
   // Screens hoist this once and pass it down; collecting per card would register a dozen
   // preference observers for every visible item in a grid.
@@ -182,7 +191,6 @@ fun VideoCard(
   val showProgressBar = resolvedUiConfig.showProgressBar
   val showDateChip = resolvedUiConfig.showDateChip
   val showUnplayedOldVideoLabel = resolvedUiConfig.showUnplayedOldVideoLabel
-  val unplayedOldVideoDays = resolvedUiConfig.unplayedOldVideoDays
   val showDurationField = resolvedUiConfig.showDurationField
   val displayName =
     if (resolvedUiConfig.showExtensionField) {
@@ -203,7 +211,13 @@ fun VideoCard(
 
   val cardShape = AppShapeScale.large
 
-  Card(
+  VideoSwipeSurface(
+    identity = video.path,
+    leftAction = resolvedUiConfig.swipeLeft,
+    rightAction = resolvedUiConfig.swipeRight,
+    isWatched = isWatched,
+    enabled = !isGridMode && !isSelected && !video.isAudio && video.path.startsWith('/'),
+    onAction = onSwipeAction?.let { action -> { swipe -> action(video, isWatched, swipe) } },
     modifier =
       modifier
         .then(
@@ -349,32 +363,20 @@ fun VideoCard(
               )
             }
 
-            // Show "NEW" label for recently added unplayed videos if enabled (top-left corner)
-            // Like MX Player: show NEW for videos added within threshold days that haven't been played
             if (showUnplayedOldVideoLabel && isOldAndUnplayed && !showSelectionBadge) {
-              // Check if video is recently modified (within threshold days)
-              val currentTime = System.currentTimeMillis()
-              val videoAge = currentTime - (video.dateModified * 1000) // dateModified is in seconds
-              val thresholdMillis = unplayedOldVideoDays * 24L * 60L * 60L * 1000L
-
-              if (unplayedOldVideoDays == 0 || videoAge <= thresholdMillis) {
-                Box(
-                  modifier =
-                    Modifier
-                      .align(Alignment.TopStart)
-                      .padding(6.dp)
-                      .cardOverlay(containerColor = Color(0xFFD32F2F))
-                      .padding(horizontal = 8.dp, vertical = 3.dp),
-                ) {
-                  Text(
-                    text = stringResource(R.string.video_label_new),
-                    style =
-                      MaterialTheme.typography.labelSmall.copy(
-                        fontWeight = FontWeight.Bold,
-                      ),
-                    color = Color.White,
-                  )
-                }
+              Box(
+                modifier =
+                  Modifier
+                    .align(Alignment.TopStart)
+                    .padding(6.dp)
+                    .cardOverlay(containerColor = Color(0xFFD32F2F))
+                    .padding(horizontal = 8.dp, vertical = 3.dp),
+              ) {
+                Text(
+                  text = stringResource(R.string.video_label_new),
+                  style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold),
+                  color = Color.White,
+                )
               }
             }
 
@@ -680,32 +682,20 @@ fun VideoCard(
               )
             }
 
-            // Show "NEW" label for recently added unplayed videos if enabled (top-left corner)
-            // Like MX Player: show NEW for videos added within threshold days that haven't been played
             if (showUnplayedOldVideoLabel && isOldAndUnplayed && !showSelectionBadge) {
-              // Check if video is recently modified (within threshold days)
-              val currentTime = System.currentTimeMillis()
-              val videoAge = currentTime - (video.dateModified * 1000) // dateModified is in seconds
-              val thresholdMillis = unplayedOldVideoDays * 24L * 60L * 60L * 1000L
-
-              if (unplayedOldVideoDays == 0 || videoAge <= thresholdMillis) {
-                Box(
-                  modifier =
-                    Modifier
-                      .align(Alignment.TopStart)
-                      .padding(6.dp)
-                      .cardOverlay(containerColor = Color(0xFFD32F2F))
-                      .padding(horizontal = 8.dp, vertical = 3.dp),
-                ) {
-                  Text(
-                    text = stringResource(R.string.video_label_new),
-                    style =
-                      MaterialTheme.typography.labelSmall.copy(
-                        fontWeight = FontWeight.Bold,
-                      ),
-                    color = Color.White,
-                  )
-                }
+              Box(
+                modifier =
+                  Modifier
+                    .align(Alignment.TopStart)
+                    .padding(6.dp)
+                    .cardOverlay(containerColor = Color(0xFFD32F2F))
+                    .padding(horizontal = 8.dp, vertical = 3.dp),
+              ) {
+                Text(
+                  text = stringResource(R.string.video_label_new),
+                  style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold),
+                  color = Color.White,
+                )
               }
             }
 

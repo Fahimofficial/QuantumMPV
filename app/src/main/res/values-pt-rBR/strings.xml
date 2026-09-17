@@ -2279,4 +2279,25 @@ Reinicie o aplicativo para que todas as alterações entrem em vigor.</string>
   <string name="ytdlp_install_failed">Não foi possível instalar o yt-dlp. Verifique sua conexão e tente novamente.</string>
   <string name="ytdlp_install_prompt_subtitle">Este link precisa do yt-dlp para ser reproduzido. Instale agora ou configure depois nas configurações.</string>
   <string name="ytdlp_installing">Instalando yt-dlp…</string>
+  <string name="video_swipe_play_next">Reproduzir em seguida</string>
+  <string name="video_swipe_add_queue">Adicionar à fila</string>
+  <string name="pref_video_swipe_title">Deslizamentos em vídeos e pastas</string>
+  <string name="pref_video_swipe_right">Deslizar para a direita</string>
+  <string name="pref_video_swipe_left">Deslizar para a esquerda</string>
+  <string name="pref_video_swipe_choose_right">Ação ao deslizar para a direita</string>
+  <string name="pref_video_swipe_choose_left">Ação ao deslizar para a esquerda</string>
+  <string name="pref_video_swipe_toggle_watched">Marcar como assistido / não assistido</string>
+  <string name="pref_video_swipe_change">Alterar</string>
+  <string name="video_swipe_delete_title">Excluir vídeos?</string>
+  <string name="video_swipe_delete_message">Excluir \"%1$s\" permanentemente? Esta ação não pode ser desfeita.</string>
+  <string name="video_swipe_delete_folder_message">Excluir permanentemente os vídeos de \"%2$s\" e suas subpastas? Total: %1$d. Os outros arquivos e pastas serão mantidos. Esta ação não pode ser desfeita.</string>
+  <string name="video_swipe_delete_result">Excluídos: %1$d. Falhas ou cancelamentos: %2$d.</string>
+  <string name="video_swipe_loading">Buscando vídeos</string>
+  <string name="video_swipe_folder_videos">Pasta e subpastas</string>
+  <string name="video_swipe_folder_empty">Nenhum vídeo encontrado nesta pasta</string>
+  <string name="video_swipe_mark_new">Novo</string>
+  <string name="video_swipe_last_played">Última reprodução</string>
+  <string name="video_swipe_finished">Assistido por completo</string>
+  <string name="video_swipe_clear_history">Limpar marcações e histórico</string>
+  <string name="video_swipe_recent_disabled">As reproduções recentes estão desativadas nas configurações</string>
 </resources>

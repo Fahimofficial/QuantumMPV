@@ -78,6 +78,8 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.quantummpv.app.R
+import com.quantummpv.app.ui.browser.components.rememberVideoSwipeActions
+import com.quantummpv.app.ui.browser.components.rememberSwipePlaybackInfo
 import com.quantummpv.app.domain.media.model.Video
 import com.quantummpv.app.domain.media.model.VideoFolder
 import com.quantummpv.app.domain.thumbnail.ThumbnailRepository
@@ -513,6 +515,7 @@ object RecentlyPlayedScreen : Screen {
               }
             } else {
               RecentItemsContent(
+                onChanged = {},
                 recentItems = pageItems,
                 selectionManager = selectionManager,
                 onVideoClick = { video ->
@@ -636,7 +639,12 @@ private fun RecentItemsContent(
   isAudioTab: Boolean = false,
   listState: LazyListState,
   gridState: LazyGridState,
+  onChanged: () -> Unit,
 ) {
+  val swipeActions = rememberVideoSwipeActions(onChanged = onChanged)
+  val swipePlaybackInfo = rememberSwipePlaybackInfo(
+    recentItems.filterIsInstance<RecentlyPlayedItem.VideoItem>().map { it.video },
+  )
   val gesturePreferences = koinInject<GesturePreferences>()
   val browserPreferences = koinInject<com.quantummpv.app.preferences.BrowserPreferences>()
   val appearancePreferences = koinInject<AppearancePreferences>()
@@ -659,6 +667,8 @@ private fun RecentItemsContent(
   val showDurationField by browserPreferences.showDurationField.collectAsState()
   val centerGridTitles by browserPreferences.centerGridTitles.collectAsState()
   val thumbnailQuality by browserPreferences.thumbnailQuality.collectAsState()
+  val swipeLeft by browserPreferences.videoSwipeLeft.collectAsState()
+  val swipeRight by browserPreferences.videoSwipeRight.collectAsState()
   val manualGridColumnsEnabled by browserPreferences.manualGridColumnsEnabled.collectAsState()
   val videoGridColumnsPortrait by browserPreferences.videoGridColumnsPortrait.collectAsState()
   val videoGridColumnsLandscape by browserPreferences.videoGridColumnsLandscape.collectAsState()
@@ -714,6 +724,8 @@ private fun RecentItemsContent(
       showDurationField,
       centerGridTitles,
       thumbnailQuality,
+      swipeLeft,
+      swipeRight,
     ) {
       VideoCardUiConfig(
         unlimitedNameLines = unlimitedNameLines,
@@ -730,6 +742,8 @@ private fun RecentItemsContent(
         showDurationField = showDurationField,
         centerGridTitles = centerGridTitles,
         thumbnailQuality = thumbnailQuality,
+        swipeLeft = swipeLeft,
+        swipeRight = swipeRight,
       )
     }
 
@@ -823,6 +837,8 @@ private fun RecentItemsContent(
               is RecentlyPlayedItem.VideoItem -> {
                 VideoCard(
                   video = item.video,
+                  isWatched = swipePlaybackInfo[item.video.path]?.isWatched == true,
+                  isOldAndUnplayed = swipePlaybackInfo[item.video.path]?.isOldAndUnplayed == true,
                   progressPercentage = null,
                   isSelected = selectionManager.isSelected(item),
                   onClick = {
@@ -972,6 +988,10 @@ private fun RecentItemsContent(
                       }
                     },
                   isGridMode = false,
+                  onSwipeAction =
+                    swipeActions.video.takeUnless { selectionManager.isInSelectionMode || isInSelectionMode },
+                  isWatched = swipePlaybackInfo[item.video.path]?.isWatched == true,
+                  isOldAndUnplayed = swipePlaybackInfo[item.video.path]?.isOldAndUnplayed == true,
                   thumbnailWidthPx = if (isAudioTab) with(density) { musicCoverArtSize.dp.roundToPx() } else null,
                   thumbnailHeightPx = if (isAudioTab) with(density) { musicCoverArtSize.dp.roundToPx() } else null,
                   showSubtitleIndicator = showSubtitleIndicator,

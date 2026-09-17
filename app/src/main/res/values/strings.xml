@@ -2307,4 +2307,25 @@
   <string name="pp_on">Post-processing on</string>
   <string name="pp_off">Post-processing off</string>
   <string name="oss_kmp_vibrate_description">Haptic feedback library by WonDDak (jmseb3).</string>
+  <string name="video_swipe_play_next">Play next</string>
+  <string name="video_swipe_add_queue">Add to queue</string>
+  <string name="pref_video_swipe_title">Video and folder swipe actions</string>
+  <string name="pref_video_swipe_right">Right swipe</string>
+  <string name="pref_video_swipe_left">Left swipe</string>
+  <string name="pref_video_swipe_choose_right">Use right swipe for</string>
+  <string name="pref_video_swipe_choose_left">Use left swipe for</string>
+  <string name="pref_video_swipe_toggle_watched">Mark watched / unwatched</string>
+  <string name="pref_video_swipe_change">Change</string>
+  <string name="video_swipe_delete_title">Delete videos?</string>
+  <string name="video_swipe_delete_message">Permanently delete \"%1$s\"? This cannot be undone.</string>
+  <string name="video_swipe_delete_folder_message">Permanently delete %1$d videos in \"%2$s\" and its subfolders? Other files and folders will be kept. This cannot be undone.</string>
+  <string name="video_swipe_delete_result">Deleted: %1$d. Failed or cancelled: %2$d.</string>
+  <string name="video_swipe_loading">Collecting videos</string>
+  <string name="video_swipe_folder_videos">Folder and subfolders</string>
+  <string name="video_swipe_folder_empty">No videos found in this folder</string>
+  <string name="video_swipe_mark_new">New</string>
+  <string name="video_swipe_last_played">Last played</string>
+  <string name="video_swipe_finished">Finished</string>
+  <string name="video_swipe_clear_history">Clear marks and history</string>
+  <string name="video_swipe_recent_disabled">Recently Played is disabled in settings</string>
 </resources>

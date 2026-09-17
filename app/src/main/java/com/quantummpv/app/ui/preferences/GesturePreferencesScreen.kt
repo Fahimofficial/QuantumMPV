@@ -130,6 +130,13 @@ object GesturePreferencesScreen : Screen {
               )
               PreferenceDivider()
 
+              me.zhanghai.compose.preference.Preference(
+                title = { Text(stringResource(R.string.pref_video_swipe_title)) },
+                onClick = { backstack.add(VideoSwipePreferencesScreen) },
+                modifier = Modifier.settingsSearchTarget(R.string.pref_video_swipe_title),
+              )
+              PreferenceDivider()
+
               val brightnessGesture by playerPreferences.brightnessGesture.collectAsState()
               SwitchPreference(
                 modifier = Modifier.settingsSearchTarget(R.string.pref_player_gestures_brightness),

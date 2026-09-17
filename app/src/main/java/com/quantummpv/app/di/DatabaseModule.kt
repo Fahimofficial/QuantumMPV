@@ -826,6 +826,13 @@ val MIGRATION_19_21 =
     }
   }
 
+val MIGRATION_21_22 =
+  object : Migration(21, 22) {
+    override fun migrate(db: SupportSQLiteDatabase) {
+      db.execSQL("ALTER TABLE `PlaybackStateEntity` ADD COLUMN `newLabelOverride` INTEGER")
+    }
+  }
+
 val DatabaseModule =
   module {
     single<Json> {
@@ -862,6 +869,7 @@ val DatabaseModule =
           MIGRATION_19_20,
           MIGRATION_20_21,
           MIGRATION_19_21,
+          MIGRATION_21_22,
         ).build()
     }
 

@@ -14,7 +14,6 @@ import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
-import com.quantummpv.app.database.entities.PlaybackStateEntity
 import com.quantummpv.app.domain.media.model.Video
 import com.quantummpv.app.domain.playbackstate.repository.PlaybackStateRepository
 import com.quantummpv.app.preferences.AppearancePreferences
@@ -24,9 +23,9 @@ import com.quantummpv.app.ui.browser.base.BaseBrowserViewModel
 import com.quantummpv.app.ui.browser.videolist.VideoWithPlaybackInfo
 import com.quantummpv.app.ui.browser.videolist.buildVideoWithPlaybackInfo
 import com.quantummpv.app.ui.browser.videolist.videoPlaybackIdentifiers
-import com.quantummpv.app.ui.player.PlaybackIdentity
 import com.quantummpv.app.utils.media.MetadataRetrieval
 import com.quantummpv.app.utils.media.PlaybackStateEvents
+import com.quantummpv.app.utils.media.PlaybackStateOps
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -158,32 +157,7 @@ class MediaLibraryViewModel(
 
   fun setWatched(video: Video, watched: Boolean) {
     viewModelScope.launch(Dispatchers.IO) {
-      val durationSeconds = (video.duration / 1000L).coerceAtMost(Int.MAX_VALUE.toLong()).toInt()
-      val identifiers = videoPlaybackIdentifiers(video)
-      val existing = playbackStateRepository.getAllPlaybackStates().firstNotNullOfOrNull { state ->
-        if (state.mediaTitle in identifiers) state else null
-      }
-      playbackStateRepository.upsert(
-        (existing ?: PlaybackStateEntity(
-          mediaTitle = PlaybackIdentity.forLocalPath(video.path),
-          lastPosition = 0,
-          playbackSpeed = 1.0,
-          sid = -1,
-          secondarySid = -1,
-          subDelay = 0,
-          subSpeed = 1.0,
-          aid = -1,
-          audioDelay = 0,
-          timeRemaining = durationSeconds,
-          hasBeenWatched = false,
-        )).copy(
-          mediaTitle = PlaybackIdentity.forLocalPath(video.path),
-          lastPosition = 0,
-          timeRemaining = if (watched) 0 else durationSeconds,
-          hasBeenWatched = watched,
-        ),
-      )
-      PlaybackStateEvents.notifyChanged(PlaybackIdentity.forLocalPath(video.path))
+      PlaybackStateOps.setWatched(video, watched)
     }
   }
 

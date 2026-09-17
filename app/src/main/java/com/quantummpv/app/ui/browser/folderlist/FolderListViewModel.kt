@@ -313,7 +313,8 @@ class FolderListViewModel(
                         playbackState == null
                       }
 
-                    isRecent && isUnplayed
+                    playbackState?.hasBeenWatched != true &&
+                      (playbackState?.newLabelOverride ?: (isRecent && isUnplayed))
                   }
 
                 FolderWithNewCount(folder, newCount)

@@ -69,22 +69,21 @@ object MediaFileRepository : KoinComponent {
       minimumAudioDurationSeconds = browserPreferences.minimumAudioDurationSeconds.get(),
     )
 
-  private suspend fun getTreeViewNewBadgeParams(): Triple<Boolean, Int, Set<String>> {
+  private data class TreeViewNewBadgeParams(
+    val showNewLabels: Boolean,
+    val thresholdDays: Int,
+    val playedMediaTitles: Set<String>,
+    val newLabelOverrides: Map<String, Boolean>,
+  )
+
+  private suspend fun getTreeViewNewBadgeParams(): TreeViewNewBadgeParams {
     val showNewLabels = appearancePreferences.showUnplayedOldVideoLabel.get()
     val thresholdDays = appearancePreferences.unplayedOldVideoDays.get()
-    val playedMediaTitles =
-      if (showNewLabels) {
-        playbackStateRepository
-          .getAllPlaybackStates()
-          // Only treat a video as "played" (and drop its NEW badge) once it has
-          // actually been watched to the threshold. Threshold 0 keeps the badge.
-          .filter { it.hasBeenWatched }
-          .mapTo(mutableSetOf()) { it.mediaTitle }
-      } else {
-        emptySet()
-      }
+    val states = if (showNewLabels) playbackStateRepository.getAllPlaybackStates() else emptyList()
+    val playedMediaTitles = states.filter { it.hasBeenWatched }.mapTo(mutableSetOf()) { it.mediaTitle }
+    val overrides = states.mapNotNull { state -> state.newLabelOverride?.let { state.mediaTitle to it } }.toMap()
 
-    return Triple(showNewLabels, thresholdDays, playedMediaTitles)
+    return TreeViewNewBadgeParams(showNewLabels, thresholdDays, playedMediaTitles, overrides)
   }
 
   /**
@@ -629,7 +628,7 @@ object MediaFileRepository : KoinComponent {
 
         // Get folders using TreeViewScanner (instant from cache)
         val scanOptions = currentScanOptions()
-        val (showNewLabels, thresholdDays, playedMediaTitles) = getTreeViewNewBadgeParams()
+        val (showNewLabels, thresholdDays, playedMediaTitles, newLabelOverrides) = getTreeViewNewBadgeParams()
         val folders =
           TreeViewScanner.getFoldersInDirectory(
             context = context,
@@ -640,6 +639,7 @@ object MediaFileRepository : KoinComponent {
             showNewLabels = showNewLabels,
             thresholdDays = thresholdDays,
             maxAutoFlattenLevels = browserPreferences.treeFlattenDepth.get().maxLevels,
+            newLabelOverrides = newLabelOverrides,
           )
         folders.forEach { folderData ->
           items.add(
@@ -692,7 +692,7 @@ object MediaFileRepository : KoinComponent {
       val roots = mutableListOf<FileSystemItem.Folder>()
 
       try {
-        val (showNewLabels, thresholdDays, playedMediaTitles) = getTreeViewNewBadgeParams()
+        val (showNewLabels, thresholdDays, playedMediaTitles, newLabelOverrides) = getTreeViewNewBadgeParams()
 
         // Primary storage (internal)
         val primaryStorage = Environment.getExternalStorageDirectory()
@@ -709,6 +709,7 @@ object MediaFileRepository : KoinComponent {
               playedMediaTitles,
               showNewLabels,
               thresholdDays,
+              newLabelOverrides,
             )
 
           roots.add(
@@ -744,6 +745,7 @@ object MediaFileRepository : KoinComponent {
                   playedMediaTitles,
                   showNewLabels,
                   thresholdDays,
+                  newLabelOverrides,
                 )
 
               roots.add(

@@ -22,7 +22,6 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
-import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
@@ -53,6 +52,7 @@ import com.quantummpv.app.domain.media.model.VideoFolder
 import com.quantummpv.app.domain.thumbnail.ThumbnailRepository
 import com.quantummpv.app.preferences.AppearancePreferences
 import com.quantummpv.app.preferences.BrowserPreferences
+import com.quantummpv.app.preferences.VideoSwipeAction
 import com.quantummpv.app.preferences.preference.collectAsState
 import com.quantummpv.app.ui.icons.AppIcon
 import com.quantummpv.app.ui.icons.Icon
@@ -85,6 +85,7 @@ fun FolderCard(
   isDualPane: Boolean = false,
   isActive: Boolean = false,
   isAudioOnly: Boolean = false,
+  onSwipeAction: ((VideoFolder, VideoSwipeAction) -> Unit)? = null,
 ) {
   val appearancePreferences = koinInject<AppearancePreferences>()
   val browserPreferences = koinInject<BrowserPreferences>()
@@ -98,6 +99,8 @@ fun FolderCard(
   val showFolderThumbnails by browserPreferences.showFolderThumbnails.collectAsState()
   val thumbnailQuality by browserPreferences.thumbnailQuality.collectAsState()
   val includeAudio by browserPreferences.includeAudioBrowser.collectAsState()
+  val swipeLeft by browserPreferences.videoSwipeLeft.collectAsState()
+  val swipeRight by browserPreferences.videoSwipeRight.collectAsState()
   val context = androidx.compose.ui.platform.LocalContext.current
   val thumbnailRepository = koinInject<ThumbnailRepository>()
   var thumbnailSize by remember { mutableStateOf(IntSize.Zero) }
@@ -160,7 +163,13 @@ fun FolderCard(
 
   val cardShape = AppShapeScale.large
 
-  Card(
+  VideoSwipeSurface(
+    identity = folder.path,
+    leftAction = swipeLeft,
+    rightAction = swipeRight,
+    isWatched = null,
+    enabled = !isGridMode && !isSelected && !isAudioOnly && folder.path.startsWith('/'),
+    onAction = onSwipeAction?.let { action -> { swipe -> action(folder, swipe) } },
     modifier =
       modifier
         .fillMaxWidth()

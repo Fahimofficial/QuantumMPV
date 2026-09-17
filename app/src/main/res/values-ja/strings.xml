@@ -2275,4 +2275,25 @@
   <string name="ytdlp_install_failed">yt-dlp をインストールできませんでした。接続を確認して、もう一度お試しください。</string>
   <string name="ytdlp_install_prompt_subtitle">このリンクの再生には yt-dlp が必要です。今すぐインストールするか、後で設定から構成してください。</string>
   <string name="ytdlp_installing">yt-dlp をインストール中…</string>
+  <string name="video_swipe_play_next">次に再生</string>
+  <string name="video_swipe_add_queue">キューに追加</string>
+  <string name="pref_video_swipe_title">動画とフォルダーのスワイプ操作</string>
+  <string name="pref_video_swipe_right">右スワイプ</string>
+  <string name="pref_video_swipe_left">左スワイプ</string>
+  <string name="pref_video_swipe_choose_right">右スワイプの操作</string>
+  <string name="pref_video_swipe_choose_left">左スワイプの操作</string>
+  <string name="pref_video_swipe_toggle_watched">視聴済み / 未視聴にする</string>
+  <string name="pref_video_swipe_change">変更</string>
+  <string name="video_swipe_delete_title">動画を削除しますか？</string>
+  <string name="video_swipe_delete_message">「%1$s」を完全に削除しますか？この操作は元に戻せません。</string>
+  <string name="video_swipe_delete_folder_message">「%2$s」とそのサブフォルダー内の動画 %1$d 件を完全に削除しますか？他のファイルやフォルダーは残ります。この操作は元に戻せません。</string>
+  <string name="video_swipe_delete_result">削除：%1$d 件。失敗またはキャンセル：%2$d 件。</string>
+  <string name="video_swipe_loading">動画を検索中</string>
+  <string name="video_swipe_folder_videos">フォルダーとサブフォルダー</string>
+  <string name="video_swipe_folder_empty">このフォルダーに動画が見つかりません</string>
+  <string name="video_swipe_mark_new">新着</string>
+  <string name="video_swipe_last_played">最後に再生</string>
+  <string name="video_swipe_finished">視聴完了</string>
+  <string name="video_swipe_clear_history">マークと再生履歴を消去</string>
+  <string name="video_swipe_recent_disabled">設定で最近の再生履歴が無効になっています</string>
 </resources>

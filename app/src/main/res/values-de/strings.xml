@@ -2279,4 +2279,25 @@ Bitte starten Sie die App neu, damit alle Änderungen wirksam werden.</string>
   <string name="ytdlp_install_failed">yt-dlp konnte nicht installiert werden. Prüfe die Verbindung und versuche es erneut.</string>
   <string name="ytdlp_install_prompt_subtitle">Zum Abspielen dieses Links wird yt-dlp benötigt. Jetzt installieren oder später in den Einstellungen konfigurieren.</string>
   <string name="ytdlp_installing">yt-dlp wird installiert…</string>
+  <string name="video_swipe_play_next">Als Nächstes abspielen</string>
+  <string name="video_swipe_add_queue">Zur Warteschlange hinzufügen</string>
+  <string name="pref_video_swipe_title">Wischaktionen für Videos und Ordner</string>
+  <string name="pref_video_swipe_right">Nach rechts wischen</string>
+  <string name="pref_video_swipe_left">Nach links wischen</string>
+  <string name="pref_video_swipe_choose_right">Aktion beim Wischen nach rechts</string>
+  <string name="pref_video_swipe_choose_left">Aktion beim Wischen nach links</string>
+  <string name="pref_video_swipe_toggle_watched">Als gesehen / ungesehen markieren</string>
+  <string name="pref_video_swipe_change">Ändern</string>
+  <string name="video_swipe_delete_title">Videos löschen?</string>
+  <string name="video_swipe_delete_message">\"%1$s\" endgültig löschen? Dies kann nicht rückgängig gemacht werden.</string>
+  <string name="video_swipe_delete_folder_message">Videos in \"%2$s\" und seinen Unterordnern endgültig löschen? Anzahl: %1$d. Andere Dateien und Ordner bleiben erhalten. Dies kann nicht rückgängig gemacht werden.</string>
+  <string name="video_swipe_delete_result">Gelöscht: %1$d. Fehlgeschlagen oder abgebrochen: %2$d.</string>
+  <string name="video_swipe_loading">Videos werden ermittelt</string>
+  <string name="video_swipe_folder_videos">Ordner und Unterordner</string>
+  <string name="video_swipe_folder_empty">Keine Videos in diesem Ordner gefunden</string>
+  <string name="video_swipe_mark_new">Neu</string>
+  <string name="video_swipe_last_played">Zuletzt abgespielt</string>
+  <string name="video_swipe_finished">Vollständig angesehen</string>
+  <string name="video_swipe_clear_history">Markierungen und Verlauf löschen</string>
+  <string name="video_swipe_recent_disabled">Zuletzt abgespielt ist in den Einstellungen deaktiviert</string>
 </resources>

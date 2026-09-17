@@ -2287,4 +2287,25 @@
   <string name="ytdlp_install_failed">Не удалось установить yt-dlp. Проверьте соединение и повторите попытку.</string>
   <string name="ytdlp_install_prompt_subtitle">Для воспроизведения этой ссылки нужен yt-dlp. Установите его сейчас или настройте позже в настройках.</string>
   <string name="ytdlp_installing">Установка yt-dlp…</string>
+  <string name="video_swipe_play_next">Воспроизвести следующим</string>
+  <string name="video_swipe_add_queue">Добавить в очередь</string>
+  <string name="pref_video_swipe_title">Смахивания видео и папок</string>
+  <string name="pref_video_swipe_right">Смахивание вправо</string>
+  <string name="pref_video_swipe_left">Смахивание влево</string>
+  <string name="pref_video_swipe_choose_right">Действие при смахивании вправо</string>
+  <string name="pref_video_swipe_choose_left">Действие при смахивании влево</string>
+  <string name="pref_video_swipe_toggle_watched">Отметить просмотренным / непросмотренным</string>
+  <string name="pref_video_swipe_change">Изменить</string>
+  <string name="video_swipe_delete_title">Удалить видео?</string>
+  <string name="video_swipe_delete_message">Удалить \"%1$s\" безвозвратно? Это действие нельзя отменить.</string>
+  <string name="video_swipe_delete_folder_message">Безвозвратно удалить видео из \"%2$s\" и её подпапок? Количество: %1$d. Остальные файлы и папки сохранятся. Это действие нельзя отменить.</string>
+  <string name="video_swipe_delete_result">Удалено: %1$d. Ошибки или отмены: %2$d.</string>
+  <string name="video_swipe_loading">Поиск видео</string>
+  <string name="video_swipe_folder_videos">Папка и подпапки</string>
+  <string name="video_swipe_folder_empty">В этой папке видео не найдены</string>
+  <string name="video_swipe_mark_new">Новое</string>
+  <string name="video_swipe_last_played">Последнее воспроизведение</string>
+  <string name="video_swipe_finished">Просмотрено полностью</string>
+  <string name="video_swipe_clear_history">Удалить отметки и историю</string>
+  <string name="video_swipe_recent_disabled">История недавних воспроизведений отключена в настройках</string>
 </resources>

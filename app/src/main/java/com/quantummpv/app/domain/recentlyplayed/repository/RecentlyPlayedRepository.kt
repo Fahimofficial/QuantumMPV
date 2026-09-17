@@ -27,6 +27,8 @@ interface RecentlyPlayedRepository {
 
   suspend fun getLastPlayed(): RecentlyPlayedEntity?
 
+  suspend fun markLastPlayed(filePath: String, timestamp: Long)
+
   fun observeLastPlayed(): Flow<RecentlyPlayedEntity?>
 
   suspend fun getLastPlayedForHighlight(): RecentlyPlayedEntity?

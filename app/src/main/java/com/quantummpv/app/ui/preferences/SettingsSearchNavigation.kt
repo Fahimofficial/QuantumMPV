@@ -119,6 +119,7 @@ private val settingsSearchListAnchors: Map<Screen, List<SettingsSearchListAnchor
       listOf(
         SettingsSearchListAnchor(titleRes = R.string.pref_gesture, itemIndex = 0),
         SettingsSearchListAnchor(titleRes = R.string.pref_haptic_feedback_title, itemIndex = 1),
+        SettingsSearchListAnchor(titleRes = R.string.pref_video_swipe_title, itemIndex = 1),
         SettingsSearchListAnchor(titleRes = R.string.pref_player_gestures_brightness, itemIndex = 1),
         SettingsSearchListAnchor(titleRes = R.string.pref_player_gestures_volume, itemIndex = 1),
         SettingsSearchListAnchor(titleRes = R.string.pref_player_gestures_pinch_to_zoom, itemIndex = 1),
@@ -134,6 +135,11 @@ private val settingsSearchListAnchors: Map<Screen, List<SettingsSearchListAnchor
         SettingsSearchListAnchor(titleRes = R.string.pref_gesture_media_previous, itemIndex = 5),
         SettingsSearchListAnchor(titleRes = R.string.pref_gesture_media_play, itemIndex = 5),
         SettingsSearchListAnchor(titleRes = R.string.pref_gesture_media_next, itemIndex = 5),
+      ),
+    VideoSwipePreferencesScreen to
+      listOf(
+        SettingsSearchListAnchor(titleRes = R.string.pref_video_swipe_right, itemIndex = 0),
+        SettingsSearchListAnchor(titleRes = R.string.pref_video_swipe_left, itemIndex = 1),
       ),
     DecoderPreferencesScreen to
       listOf(

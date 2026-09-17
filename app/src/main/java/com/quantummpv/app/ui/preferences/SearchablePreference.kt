@@ -476,6 +476,30 @@ object SearchablePreferences {
       )
       add(
         SearchablePreference(
+          titleRes = R.string.pref_video_swipe_title,
+          keywords = listOf("swipe", "left", "right", "video", "folder", "watched", "queue", "delete"),
+          category = "Gestures",
+          screen = GesturePreferencesScreen,
+        ),
+      )
+      add(
+        SearchablePreference(
+          titleRes = R.string.pref_video_swipe_right,
+          keywords = listOf("swipe", "video", "folder", "action"),
+          category = "Gestures",
+          screen = VideoSwipePreferencesScreen,
+        ),
+      )
+      add(
+        SearchablePreference(
+          titleRes = R.string.pref_video_swipe_left,
+          keywords = listOf("swipe", "video", "folder", "action"),
+          category = "Gestures",
+          screen = VideoSwipePreferencesScreen,
+        ),
+      )
+      add(
+        SearchablePreference(
           titleRes = R.string.pref_player_gestures_brightness,
           keywords = listOf("brightness", "gesture", "swipe", "display", "control"),
           category = "Gestures",

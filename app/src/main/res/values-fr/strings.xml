@@ -2279,4 +2279,25 @@ Veuillez redémarrer l’application pour appliquer toutes les modifications.</s
   <string name="ytdlp_install_failed">Impossible d\'installer yt-dlp. Vérifiez votre connexion et réessayez.</string>
   <string name="ytdlp_install_prompt_subtitle">La lecture de ce lien nécessite yt-dlp. Installez-le maintenant ou configurez-le plus tard dans les paramètres.</string>
   <string name="ytdlp_installing">Installation de yt-dlp…</string>
+  <string name="video_swipe_play_next">Lire ensuite</string>
+  <string name="video_swipe_add_queue">Ajouter à la file d\'attente</string>
+  <string name="pref_video_swipe_title">Balayages des vidéos et dossiers</string>
+  <string name="pref_video_swipe_right">Balayage vers la droite</string>
+  <string name="pref_video_swipe_left">Balayage vers la gauche</string>
+  <string name="pref_video_swipe_choose_right">Action du balayage vers la droite</string>
+  <string name="pref_video_swipe_choose_left">Action du balayage vers la gauche</string>
+  <string name="pref_video_swipe_toggle_watched">Marquer comme vu / non vu</string>
+  <string name="pref_video_swipe_change">Modifier</string>
+  <string name="video_swipe_delete_title">Supprimer les vidéos ?</string>
+  <string name="video_swipe_delete_message">Supprimer définitivement \"%1$s\" ? Cette action est irréversible.</string>
+  <string name="video_swipe_delete_folder_message">Supprimer définitivement les vidéos de \"%2$s\" et de ses sous-dossiers ? Nombre : %1$d. Les autres fichiers et dossiers seront conservés. Cette action est irréversible.</string>
+  <string name="video_swipe_delete_result">Supprimés : %1$d. Échecs ou annulations : %2$d.</string>
+  <string name="video_swipe_loading">Recherche des vidéos</string>
+  <string name="video_swipe_folder_videos">Dossier et sous-dossiers</string>
+  <string name="video_swipe_folder_empty">Aucune vidéo trouvée dans ce dossier</string>
+  <string name="video_swipe_mark_new">Nouveau</string>
+  <string name="video_swipe_last_played">Dernière lecture</string>
+  <string name="video_swipe_finished">Vu entièrement</string>
+  <string name="video_swipe_clear_history">Effacer les marques et l\'historique</string>
+  <string name="video_swipe_recent_disabled">Les lectures récentes sont désactivées dans les paramètres</string>
 </resources>

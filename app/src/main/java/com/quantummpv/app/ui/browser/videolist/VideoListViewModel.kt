@@ -24,6 +24,7 @@ import com.quantummpv.app.ui.player.PlaybackIdentity
 import com.quantummpv.app.utils.media.MediaLibraryEvents
 import com.quantummpv.app.utils.media.MetadataRetrieval
 import com.quantummpv.app.utils.media.PlaybackStateEvents
+import com.quantummpv.app.utils.media.PlaybackStateOps
 import com.quantummpv.app.utils.storage.FolderViewScanner
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
@@ -84,7 +85,7 @@ internal fun buildVideoWithPlaybackInfo(
     video = video,
     timeRemaining = playbackState?.timeRemaining?.toLong(),
     progressPercentage = progressValue?.takeIf { it in 0.01f..0.99f },
-    isOldAndUnplayed = !isWatched && isWithinNewLabelWindow,
+    isOldAndUnplayed = !isWatched && (playbackState?.newLabelOverride ?: isWithinNewLabelWindow),
     isWatched = isWatched,
   )
 }
@@ -279,20 +280,6 @@ class VideoListViewModel(
     _videosWereDeletedOrMoved.value = true
   }
 
-  /**
-   * PlayerActivity persists new playback rows with PlaybackIdentity.forUri(...). Older app
-   * versions used the display filename. Read the v2 key first and retain legacy fallbacks so
-   * existing histories continue to work without a destructive database migration.
-   */
-  private suspend fun findPlaybackState(video: Video): PlaybackStateEntity? {
-    for (identifier in videoPlaybackIdentifiers(video)) {
-      playbackStateRepository.getVideoDataByTitle(identifier)?.let { return it }
-    }
-    return null
-  }
-
-  private fun canonicalPlaybackIdentifier(video: Video): String = PlaybackIdentity.forLocalPath(video.path)
-
   private suspend fun loadPlaybackInfo(videos: List<Video>) {
     val playbackByIdentifier = playbackStateRepository.getAllPlaybackStates().associateBy { it.mediaTitle }
     val watchedThreshold = browserPreferences.watchedThreshold.get()
@@ -368,43 +355,14 @@ class VideoListViewModel(
     }
 
     viewModelScope.launch(Dispatchers.IO) {
-      val durationSeconds = (video.duration / 1000L).coerceAtMost(Int.MAX_VALUE.toLong()).toInt()
-      val canonicalIdentifier = canonicalPlaybackIdentifier(video)
       runCatching {
-        val existing = findPlaybackState(video)
-        playbackStateRepository.upsert(
-          (existing ?: emptyPlaybackState(video, durationSeconds)).copy(
-            mediaTitle = canonicalIdentifier,
-            lastPosition = 0,
-            timeRemaining = if (watched) 0 else durationSeconds,
-            hasBeenWatched = watched,
-          ),
-        )
-        PlaybackStateEvents.notifyChanged(canonicalIdentifier)
+        PlaybackStateOps.setWatched(video, watched)
       }.onFailure { error ->
         Log.e(tag, "Failed to update watched state for ${video.displayName}", error)
         loadPlaybackInfo(_videos.value)
       }
     }
   }
-
-  private fun emptyPlaybackState(
-    video: Video,
-    durationSeconds: Int,
-  ): PlaybackStateEntity =
-    PlaybackStateEntity(
-      mediaTitle = canonicalPlaybackIdentifier(video),
-      lastPosition = 0,
-      playbackSpeed = 1.0,
-      sid = -1,
-      secondarySid = -1,
-      subDelay = 0,
-      subSpeed = 1.0,
-      aid = -1,
-      audioDelay = 0,
-      timeRemaining = durationSeconds,
-      hasBeenWatched = false,
-    )
 
   private fun triggerMediaScan() {
     try {

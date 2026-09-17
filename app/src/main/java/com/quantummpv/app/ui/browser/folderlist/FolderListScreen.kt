@@ -89,6 +89,9 @@ import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.quantummpv.app.BuildConfig
 import com.quantummpv.app.R
+import com.quantummpv.app.preferences.VideoSwipeAction
+import com.quantummpv.app.ui.browser.components.rememberVideoSwipeActions
+import com.quantummpv.app.ui.browser.components.rememberSwipePlaybackInfo
 import com.quantummpv.app.domain.browser.FileSystemItem
 import com.quantummpv.app.domain.media.model.Video
 import com.quantummpv.app.domain.media.model.VideoFolder
@@ -838,6 +841,8 @@ object FolderListScreen : Screen {
                     // Show search results
                     SearchResultsContent(
                       searchResults = searchResults,
+                      onChanged = { viewModel.refresh() },
+                      audioOnly = audioOnly,
                       navigationBarHeight = navigationBarHeight,
                       onFolderClick = { folder ->
                         if (isDualPaneActive) {
@@ -1222,6 +1227,8 @@ private fun FolderListContent(
   selectedFolderBucketId: String? = null,
   audioOnly: Boolean = false,
 ) {
+  val swipeScope = rememberCoroutineScope()
+  val swipeActions = rememberVideoSwipeActions { swipeScope.launch { onRefresh() } }
   val isGridMode = mediaLayoutMode == MediaLayoutMode.GRID
   val showLoading = isLoading && !hasCompletedInitialLoad
   val showEmpty = folders.isEmpty() && hasCompletedInitialLoad && !foldersWereDeleted
@@ -1282,6 +1289,7 @@ private fun FolderListContent(
         )
       } else {
         ListContent(
+          onFolderSwipe = swipeActions.folder.takeUnless { selectionManager.isInSelectionMode || audioOnly },
           folders = folders,
           foldersWithNewCount = foldersWithNewCount,
           pinnedFolderPaths = pinnedFolderPaths,
@@ -1419,6 +1427,7 @@ private fun ListContent(
   onTogglePin: (VideoFolder) -> Unit,
   selectedFolderBucketId: String? = null,
   audioOnly: Boolean = false,
+  onFolderSwipe: ((VideoFolder, VideoSwipeAction) -> Unit)? = null,
 ) {
   val configuration = androidx.compose.ui.platform.LocalConfiguration.current
   val isTablet = configuration.smallestScreenWidthDp >= 600
@@ -1463,6 +1472,7 @@ private fun ListContent(
             },
           newVideoCount = newCount,
           isGridMode = false,
+          onSwipeAction = onFolderSwipe,
           isPinned = folder.path in pinnedFolderPaths,
           onPinClick =
             if (!selectionManager.isInSelectionMode) {
@@ -1523,7 +1533,10 @@ private fun SearchResultsContent(
   onFolderClick: (com.quantummpv.app.domain.media.model.VideoFolder) -> Unit,
   onVideoClick: (com.quantummpv.app.domain.media.model.Video) -> Unit,
   mediaLayoutMode: com.quantummpv.app.preferences.MediaLayoutMode,
+  onChanged: () -> Unit,
+  audioOnly: Boolean,
 ) {
+  val swipeActions = rememberVideoSwipeActions(onChanged = onChanged)
   val folders =
     searchResults.filterIsInstance<FileSystemItem.Folder>().map { folder ->
       com.quantummpv.app.domain.media.model.VideoFolder(
@@ -1537,6 +1550,7 @@ private fun SearchResultsContent(
       )
     }
   val videos = searchResults.filterIsInstance<FileSystemItem.VideoFile>().map { it.video }
+  val swipePlaybackInfo = rememberSwipePlaybackInfo(videos)
   val browserPreferences = koinInject<BrowserPreferences>()
   val appearancePreferences = koinInject<AppearancePreferences>()
   val showVideoThumbnails by browserPreferences.showVideoThumbnails.collectAsState()
@@ -1554,6 +1568,8 @@ private fun SearchResultsContent(
   val showDurationField by browserPreferences.showDurationField.collectAsState()
   val centerGridTitles by browserPreferences.centerGridTitles.collectAsState()
   val thumbnailQuality by browserPreferences.thumbnailQuality.collectAsState()
+  val swipeLeft by browserPreferences.videoSwipeLeft.collectAsState()
+  val swipeRight by browserPreferences.videoSwipeRight.collectAsState()
   val videoCardUiConfig =
     remember(
       unlimitedNameLines,
@@ -1570,6 +1586,8 @@ private fun SearchResultsContent(
       showDurationField,
       centerGridTitles,
       thumbnailQuality,
+      swipeLeft,
+      swipeRight,
     ) {
       VideoCardUiConfig(
         unlimitedNameLines = unlimitedNameLines,
@@ -1586,6 +1604,8 @@ private fun SearchResultsContent(
         showDurationField = showDurationField,
         centerGridTitles = centerGridTitles,
         thumbnailQuality = thumbnailQuality,
+        swipeLeft = swipeLeft,
+        swipeRight = swipeRight,
       )
     }
 
@@ -1640,6 +1660,8 @@ private fun SearchResultsContent(
             val video = videos[index]
             VideoCard(
               video = video,
+              isWatched = swipePlaybackInfo[video.path]?.isWatched == true,
+              isOldAndUnplayed = swipePlaybackInfo[video.path]?.isOldAndUnplayed == true,
               isSelected = false,
               onClick = { onVideoClick(video) },
               onLongClick = {},
@@ -1677,6 +1699,7 @@ private fun SearchResultsContent(
             onThumbClick = { onFolderClick(folder) },
             newVideoCount = 0,
             isGridMode = false,
+            onSwipeAction = swipeActions.folder.takeUnless { audioOnly },
           )
         }
 
@@ -1693,6 +1716,9 @@ private fun SearchResultsContent(
             onLongClick = {},
             onThumbClick = { onVideoClick(video) },
             isGridMode = false,
+            onSwipeAction = swipeActions.video.takeUnless { audioOnly },
+            isWatched = swipePlaybackInfo[video.path]?.isWatched == true,
+            isOldAndUnplayed = swipePlaybackInfo[video.path]?.isOldAndUnplayed == true,
             showSubtitleIndicator = showSubtitleIndicator,
             uiConfig = videoCardUiConfig,
           )

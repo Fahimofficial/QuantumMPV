@@ -2275,4 +2275,25 @@
   <string name="ytdlp_install_failed">无法安装 yt-dlp。请检查网络连接后重试。</string>
   <string name="ytdlp_install_prompt_subtitle">播放此链接需要 yt-dlp。你可以立即安装，也可以稍后在设置中配置。</string>
   <string name="ytdlp_installing">正在安装 yt-dlp…</string>
+  <string name="video_swipe_play_next">接下来播放</string>
+  <string name="video_swipe_add_queue">添加到队列</string>
+  <string name="pref_video_swipe_title">视频和文件夹滑动操作</string>
+  <string name="pref_video_swipe_right">向右滑动</string>
+  <string name="pref_video_swipe_left">向左滑动</string>
+  <string name="pref_video_swipe_choose_right">向右滑动时执行</string>
+  <string name="pref_video_swipe_choose_left">向左滑动时执行</string>
+  <string name="pref_video_swipe_toggle_watched">标记为已观看 / 未观看</string>
+  <string name="pref_video_swipe_change">更改</string>
+  <string name="video_swipe_delete_title">删除视频？</string>
+  <string name="video_swipe_delete_message">永久删除“%1$s”？此操作无法撤销。</string>
+  <string name="video_swipe_delete_folder_message">永久删除“%2$s”及其子文件夹中的 %1$d 个视频？其他文件和文件夹将保留。此操作无法撤销。</string>
+  <string name="video_swipe_delete_result">已删除：%1$d。失败或已取消：%2$d。</string>
+  <string name="video_swipe_loading">正在查找视频</string>
+  <string name="video_swipe_folder_videos">文件夹及其子文件夹</string>
+  <string name="video_swipe_folder_empty">此文件夹中未找到视频</string>
+  <string name="video_swipe_mark_new">新视频</string>
+  <string name="video_swipe_last_played">最后播放</string>
+  <string name="video_swipe_finished">已看完</string>
+  <string name="video_swipe_clear_history">清除标记和观看历史</string>
+  <string name="video_swipe_recent_disabled">设置中已禁用最近播放记录</string>
 </resources>

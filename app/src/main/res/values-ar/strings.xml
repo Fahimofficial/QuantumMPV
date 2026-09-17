@@ -2293,4 +2293,25 @@
   <string name="ytdlp_install_failed">تعذر تثبيت yt-dlp. تحقق من الاتصال وحاول مجددًا.</string>
   <string name="ytdlp_install_prompt_subtitle">يتطلب تشغيل هذا الرابط yt-dlp. ثبّته الآن أو اضبطه لاحقًا من الإعدادات.</string>
   <string name="ytdlp_installing">جارٍ تثبيت yt-dlp…</string>
+  <string name="video_swipe_play_next">تشغيل تاليًا</string>
+  <string name="video_swipe_add_queue">إضافة إلى قائمة الانتظار</string>
+  <string name="pref_video_swipe_title">إجراءات سحب الفيديوهات والمجلدات</string>
+  <string name="pref_video_swipe_right">السحب إلى اليمين</string>
+  <string name="pref_video_swipe_left">السحب إلى اليسار</string>
+  <string name="pref_video_swipe_choose_right">إجراء السحب إلى اليمين</string>
+  <string name="pref_video_swipe_choose_left">إجراء السحب إلى اليسار</string>
+  <string name="pref_video_swipe_toggle_watched">تحديد كمُشاهد / غير مُشاهد</string>
+  <string name="pref_video_swipe_change">تغيير</string>
+  <string name="video_swipe_delete_title">حذف الفيديوهات؟</string>
+  <string name="video_swipe_delete_message">هل تريد حذف \"%1$s\" نهائيًا؟ لا يمكن التراجع عن هذا الإجراء.</string>
+  <string name="video_swipe_delete_folder_message">هل تريد حذف الفيديوهات في \"%2$s\" ومجلداته الفرعية نهائيًا؟ العدد: %1$d. ستبقى الملفات والمجلدات الأخرى. لا يمكن التراجع عن هذا الإجراء.</string>
+  <string name="video_swipe_delete_result">المحذوفة: %1$d. الفاشلة أو الملغاة: %2$d.</string>
+  <string name="video_swipe_loading">جارٍ جمع الفيديوهات</string>
+  <string name="video_swipe_folder_videos">المجلد ومجلداته الفرعية</string>
+  <string name="video_swipe_folder_empty">لم يتم العثور على فيديوهات في هذا المجلد</string>
+  <string name="video_swipe_mark_new">جديد</string>
+  <string name="video_swipe_last_played">آخر تشغيل</string>
+  <string name="video_swipe_finished">مُشاهد بالكامل</string>
+  <string name="video_swipe_clear_history">مسح العلامات وسجل المشاهدة</string>
+  <string name="video_swipe_recent_disabled">سجل آخر تشغيل معطّل في الإعدادات</string>
 </resources>

@@ -2183,4 +2183,25 @@
   <string name="ytdlp_install_failed">yt-dlp इंस्टॉल नहीं हो सका। अपना कनेक्शन जाँचें और फिर कोशिश करें।</string>
   <string name="ytdlp_install_prompt_subtitle">इस लिंक को चलाने के लिए yt-dlp चाहिए। इसे अभी इंस्टॉल करें या बाद में सेटिंग से कॉन्फ़िगर करें।</string>
   <string name="ytdlp_installing">yt-dlp इंस्टॉल हो रहा है…</string>
+  <string name="video_swipe_play_next">अगला चलाएँ</string>
+  <string name="video_swipe_add_queue">कतार में जोड़ें</string>
+  <string name="pref_video_swipe_title">वीडियो और फ़ोल्डर की स्वाइप कार्रवाइयाँ</string>
+  <string name="pref_video_swipe_right">दाईं ओर स्वाइप</string>
+  <string name="pref_video_swipe_left">बाईं ओर स्वाइप</string>
+  <string name="pref_video_swipe_choose_right">दाईं ओर स्वाइप करने पर कार्रवाई</string>
+  <string name="pref_video_swipe_choose_left">बाईं ओर स्वाइप करने पर कार्रवाई</string>
+  <string name="pref_video_swipe_toggle_watched">देखा गया / नहीं देखा गया चिह्नित करें</string>
+  <string name="pref_video_swipe_change">बदलें</string>
+  <string name="video_swipe_delete_title">वीडियो हटाएँ?</string>
+  <string name="video_swipe_delete_message">\"%1$s\" को स्थायी रूप से हटाएँ? इस कार्रवाई को वापस नहीं लिया जा सकता।</string>
+  <string name="video_swipe_delete_folder_message">\"%2$s\" और उसके सबफ़ोल्डर के वीडियो स्थायी रूप से हटाएँ? कुल: %1$d। अन्य फ़ाइलें और फ़ोल्डर बने रहेंगे। इस कार्रवाई को वापस नहीं लिया जा सकता।</string>
+  <string name="video_swipe_delete_result">हटाए गए: %1$d। विफल या रद्द: %2$d।</string>
+  <string name="video_swipe_loading">वीडियो खोजे जा रहे हैं</string>
+  <string name="video_swipe_folder_videos">फ़ोल्डर और सबफ़ोल्डर</string>
+  <string name="video_swipe_folder_empty">इस फ़ोल्डर में कोई वीडियो नहीं मिला</string>
+  <string name="video_swipe_mark_new">नया</string>
+  <string name="video_swipe_last_played">अंतिम बार चलाया गया</string>
+  <string name="video_swipe_finished">पूरा देखा गया</string>
+  <string name="video_swipe_clear_history">चिह्न और देखने का इतिहास हटाएँ</string>
+  <string name="video_swipe_recent_disabled">सेटिंग में हाल ही में चलाए गए आइटम का इतिहास बंद है</string>
 </resources>
