@@ -9,6 +9,9 @@
 
 package com.quantummpv.app.ui.player.controls.components.sheets
 
+import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.snap
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -20,6 +23,8 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.selection.selectable
+import androidx.compose.foundation.selection.toggleable
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.FilledTonalIconButton
@@ -42,6 +47,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -53,7 +59,9 @@ import com.quantummpv.app.ui.player.TrackNode
 import com.quantummpv.app.ui.player.controls.components.rememberTvInitialFocusRequester
 import com.quantummpv.app.ui.player.controls.components.tvFocusHighlight
 import com.quantummpv.app.ui.player.controls.components.tvInitialFocus
+import com.quantummpv.app.ui.theme.AppMotion
 import com.quantummpv.app.ui.theme.spacing
+import com.quantummpv.app.ui.utils.rememberAppHaptics
 import com.quantummpv.app.utils.device.DeviceFormFactor
 import kotlinx.collections.immutable.ImmutableList
 import kotlinx.collections.immutable.toImmutableList
@@ -519,13 +527,17 @@ fun SubtitlesSheet(
               }
             }
             is SubtitleItem.Off -> {
+              val haptics = rememberAppHaptics()
               Row(
                 modifier =
                   Modifier
                     .fillMaxWidth()
                     .tvInitialFocus(initialFocusRequester)
                     .tvFocusHighlight()
-                    .clickable(onClick = onDisableSubtitles)
+                    .selectable(selected = subtitlesOff, role = Role.RadioButton) {
+                      onDisableSubtitles()
+                      if (!subtitlesOff) haptics.selection(false)
+                    }
                     .padding(horizontal = MaterialTheme.spacing.medium, vertical = MaterialTheme.spacing.extraSmall),
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(MaterialTheme.spacing.smaller),
@@ -533,7 +545,7 @@ fun SubtitlesSheet(
                 if (isTelevision) {
                   RadioButton(selected = subtitlesOff, onClick = null)
                 } else {
-                  Checkbox(checked = subtitlesOff, onCheckedChange = { onDisableSubtitles() })
+                  Checkbox(checked = subtitlesOff, onCheckedChange = null)
                 }
                 Text(
                   stringResource(R.string.player_sheets_off),
@@ -576,12 +588,22 @@ fun SubtitleTrackRow(
   modifier: Modifier = Modifier,
 ) {
   val isTelevision = DeviceFormFactor.isTelevision(LocalContext.current)
+  val haptics = rememberAppHaptics()
+  val containerColor by animateColorAsState(
+    targetValue = MaterialTheme.colorScheme.primaryContainer.copy(alpha = if (isSelected) 0.35f else 0f),
+    animationSpec = AppMotion.spatial(AppMotion.Effect.Color, snap()),
+    label = "subtitleTrackSelection",
+  )
   Row(
     modifier =
       modifier
         .fillMaxWidth()
+        .background(containerColor, MaterialTheme.shapes.medium)
         .tvFocusHighlight()
-        .clickable(onClick = onToggle)
+        .toggleable(value = isSelected, role = Role.Checkbox) { selected ->
+          onToggle()
+          haptics.selection(selected)
+        }
         .padding(horizontal = MaterialTheme.spacing.medium, vertical = MaterialTheme.spacing.extraSmall),
     verticalAlignment = Alignment.CenterVertically,
     horizontalArrangement = Arrangement.spacedBy(MaterialTheme.spacing.smaller),
@@ -589,7 +611,7 @@ fun SubtitleTrackRow(
     if (isTelevision) {
       RadioButton(selected = isSelected, onClick = null)
     } else {
-      Checkbox(checked = isSelected, onCheckedChange = { onToggle() })
+      Checkbox(checked = isSelected, onCheckedChange = null)
     }
     Text(title, fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal, modifier = Modifier.weight(1f))
 

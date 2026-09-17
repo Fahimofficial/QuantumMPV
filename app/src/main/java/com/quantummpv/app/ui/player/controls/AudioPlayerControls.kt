@@ -130,12 +130,10 @@ import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.toArgb
-import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
-import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -178,6 +176,7 @@ import com.quantummpv.app.ui.player.visualizer.VisualizerPalette
 import com.quantummpv.app.ui.player.visualizer.rememberAudioVisualizerFeatures
 import com.quantummpv.app.ui.theme.fontFamilyForText
 import com.quantummpv.app.ui.utils.isMpvOptionOwnedByConfig
+import com.quantummpv.app.ui.utils.rememberAppHaptics
 
 import com.quantummpv.app.utils.media.fileExtension
 import kotlinx.collections.immutable.persistentListOf
@@ -1243,7 +1242,7 @@ fun AudioPlayerControls(
 
     val animatableOffsetX = remember { Animatable(0f) }
     val coroutineScope = rememberCoroutineScope()
-    val haptic = LocalHapticFeedback.current
+    val haptic = rememberAppHaptics()
     var activeCoverOverride by remember { mutableStateOf<Bitmap?>(null) }
 
     LaunchedEffect(currentItem?.stableId, albumArtBitmap) {
@@ -1359,7 +1358,7 @@ fun AudioPlayerControls(
                       val dragVal = animatableOffsetX.value
                       coroutineScope.launch {
                         if (dragVal < -threshold) {
-                          haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                          haptic.pickup()
                           animatableOffsetX.animateTo(
                             targetValue = -stride,
                             animationSpec = spring(stiffness = Spring.StiffnessMediumLow, dampingRatio = 0.85f),
@@ -1372,7 +1371,7 @@ fun AudioPlayerControls(
                             runCatching { PlaybackSession.command("playlist-next") }
                           }
                         } else if (dragVal > threshold) {
-                          haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                          haptic.pickup()
                           animatableOffsetX.animateTo(
                             targetValue = stride,
                             animationSpec = spring(stiffness = Spring.StiffnessMediumLow, dampingRatio = 0.85f),

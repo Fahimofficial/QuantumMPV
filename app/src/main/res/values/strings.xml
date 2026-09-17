@@ -2306,4 +2306,5 @@
   <string name="pp_desc_film">Film grain and corner vignette.</string>
   <string name="pp_on">Post-processing on</string>
   <string name="pp_off">Post-processing off</string>
+  <string name="oss_kmp_vibrate_description">Haptic feedback library by WonDDak (jmseb3).</string>
 </resources>

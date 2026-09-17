@@ -95,6 +95,8 @@ import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.semantics.selected
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
@@ -146,6 +148,8 @@ import com.quantummpv.app.ui.player.controls.components.MiniAudioVisualizer
 import com.quantummpv.app.ui.browser.folderlist.FolderListScreen
 import com.quantummpv.app.ui.browser.playlist.PlaylistDetailScreen
 import com.quantummpv.app.ui.browser.selection.rememberSelectionManager
+import com.quantummpv.app.ui.browser.cards.SelectionIndicator
+import com.quantummpv.app.ui.browser.cards.animatedSelectionColor
 import com.quantummpv.app.ui.player.PlaybackSession
 import com.quantummpv.app.ui.components.InlineSearchBar
 import com.quantummpv.app.ui.icons.Icon
@@ -1616,20 +1620,22 @@ private fun SongGridCard(
   onClick: () -> Unit,
   onLongClick: () -> Unit
 ) {
+  val selectionColor = animatedSelectionColor(
+    selected = isSelected,
+    selectedColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.6f),
+    unselectedColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = if (isPlaying) 0.35f else 0f),
+  )
   Card(
     modifier = Modifier
       .fillMaxWidth()
       .clip(AppShapeScale.large)
       .tvFocusHighlight(AppShapeScale.large, focusedScale = 1.03f)
       .tvContextMenu(onLongClick)
+      .semantics { selected = isSelected }
       .combinedClickable(onClick = onClick, onLongClick = onLongClick),
     shape = AppShapeScale.large,
     colors = CardDefaults.cardColors(
-      containerColor = when {
-        isSelected -> MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.6f)
-        isPlaying -> MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.35f)
-        else -> Color.Transparent
-      }
+      containerColor = selectionColor
     )
   ) {
     Column(
@@ -1650,21 +1656,7 @@ private fun SongGridCard(
           contentDescription = null,
           modifier = Modifier.fillMaxSize()
         )
-        if (isSelected) {
-          Box(
-            modifier = Modifier
-              .fillMaxSize()
-              .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.45f)),
-            contentAlignment = Alignment.Center
-          ) {
-            Icon(
-              imageVector = Icons.RoundedFilled.CheckCircle,
-              contentDescription = "Selected",
-              tint = Color.White,
-              modifier = Modifier.size(36.dp)
-            )
-          }
-        } else if (isPlaying) {
+        if (isPlaying && !isSelected) {
           val paused by PlaybackSession.propBoolean["pause"].collectAsState()
           val isPlaybackActive = paused != true
           Box(
@@ -1681,6 +1673,7 @@ private fun SongGridCard(
             )
           }
         }
+        SelectionIndicator(isSelected, Modifier.align(Alignment.TopEnd).padding(6.dp))
       }
 
       Spacer(modifier = Modifier.height(6.dp))
@@ -1813,10 +1806,11 @@ private fun AlbumGridCard(
       .clip(AppShapeScale.large)
       .tvFocusHighlight(AppShapeScale.large, focusedScale = 1.03f)
       .tvContextMenu(onLongClick)
+      .semantics { selected = isSelected }
       .combinedClickable(onClick = onClick, onLongClick = onLongClick),
     shape = AppShapeScale.large,
     colors = CardDefaults.cardColors(
-      containerColor = if (isSelected) MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.6f) else Color.Transparent
+      containerColor = animatedSelectionColor(isSelected, MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.6f))
     )
   ) {
     Column(
@@ -1837,21 +1831,7 @@ private fun AlbumGridCard(
           contentDescription = null,
           modifier = Modifier.fillMaxSize()
         )
-        if (isSelected) {
-          Box(
-            modifier = Modifier
-              .fillMaxSize()
-              .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.45f)),
-            contentAlignment = Alignment.Center
-          ) {
-            Icon(
-              imageVector = Icons.RoundedFilled.CheckCircle,
-              contentDescription = "Selected",
-              tint = Color.White,
-              modifier = Modifier.size(36.dp)
-            )
-          }
-        }
+        SelectionIndicator(isSelected, Modifier.align(Alignment.TopEnd).padding(6.dp))
       }
 
       Spacer(modifier = Modifier.height(6.dp))
@@ -1906,9 +1886,10 @@ private fun AlbumListCard(
       .clip(AppShapeScale.large)
       .tvFocusHighlight(AppShapeScale.large, focusedScale = 1.03f)
       .tvContextMenu(onLongClick)
+      .semantics { selected = isSelected }
       .combinedClickable(onClick = onClick, onLongClick = onLongClick),
     shape = AppShapeScale.large,
-    color = if (isSelected) MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.6f) else Color.Transparent
+    color = animatedSelectionColor(isSelected, MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.6f))
   ) {
     Row(
       modifier = Modifier
@@ -1928,21 +1909,7 @@ private fun AlbumListCard(
           contentDescription = null,
           modifier = Modifier.fillMaxSize()
         )
-        if (isSelected) {
-          Box(
-            modifier = Modifier
-              .fillMaxSize()
-              .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.45f)),
-            contentAlignment = Alignment.Center
-          ) {
-            Icon(
-              imageVector = Icons.RoundedFilled.CheckCircle,
-              contentDescription = "Selected",
-              tint = Color.White,
-              modifier = Modifier.size(24.dp)
-            )
-          }
-        }
+        SelectionIndicator(isSelected, Modifier.align(Alignment.TopEnd).padding(4.dp))
       }
 
       Spacer(modifier = Modifier.width(14.dp))
@@ -2042,10 +2009,11 @@ private fun ArtistGridCard(
       .clip(AppShapeScale.large)
       .tvFocusHighlight(AppShapeScale.large, focusedScale = 1.03f)
       .tvContextMenu(onLongClick)
+      .semantics { selected = isSelected }
       .combinedClickable(onClick = onClick, onLongClick = onLongClick),
     shape = AppShapeScale.large,
     colors = CardDefaults.cardColors(
-      containerColor = if (isSelected) MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.6f) else Color.Transparent
+      containerColor = animatedSelectionColor(isSelected, MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.6f))
     )
   ) {
     Column(
@@ -2063,22 +2031,7 @@ private fun ArtistGridCard(
           modifier = Modifier.fillMaxSize(),
           iconSize = 60.dp
         )
-        if (isSelected) {
-          Box(
-            modifier = Modifier
-              .fillMaxSize()
-              .clip(CircleShape)
-              .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.45f)),
-            contentAlignment = Alignment.Center
-          ) {
-            Icon(
-              imageVector = Icons.RoundedFilled.CheckCircle,
-              contentDescription = "Selected",
-              tint = Color.White,
-              modifier = Modifier.size(36.dp)
-            )
-          }
-        }
+        SelectionIndicator(isSelected, Modifier.align(Alignment.TopEnd).padding(6.dp))
       }
 
       Spacer(modifier = Modifier.height(8.dp))
@@ -2119,9 +2072,10 @@ private fun ArtistListCard(
       .clip(AppShapeScale.large)
       .tvFocusHighlight(AppShapeScale.large, focusedScale = 1.03f)
       .tvContextMenu(onLongClick)
+      .semantics { selected = isSelected }
       .combinedClickable(onClick = onClick, onLongClick = onLongClick),
     shape = AppShapeScale.large,
-    color = if (isSelected) MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.6f) else Color.Transparent
+    color = animatedSelectionColor(isSelected, MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.6f))
   ) {
     Row(
       modifier = Modifier
@@ -2138,22 +2092,7 @@ private fun ArtistListCard(
           artistName = artist.name,
           modifier = Modifier.fillMaxSize()
         )
-        if (isSelected) {
-          Box(
-            modifier = Modifier
-              .fillMaxSize()
-              .clip(CircleShape)
-              .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.45f)),
-            contentAlignment = Alignment.Center
-          ) {
-            Icon(
-              imageVector = Icons.RoundedFilled.CheckCircle,
-              contentDescription = "Selected",
-              tint = Color.White,
-              modifier = Modifier.size(24.dp)
-            )
-          }
-        }
+        SelectionIndicator(isSelected, Modifier.align(Alignment.TopEnd).padding(4.dp))
       }
 
       Spacer(modifier = Modifier.width(14.dp))
@@ -2369,10 +2308,14 @@ private fun MusicPlaylistCard(
         .clip(AppShapeScale.large)
         .tvFocusHighlight(AppShapeScale.large, focusedScale = 1.03f)
         .tvContextMenu(onLongClick)
+        .semantics { selected = isSelected }
         .combinedClickable(onClick = onClick, onLongClick = onLongClick),
       shape = AppShapeScale.large,
       colors = CardDefaults.cardColors(
-        containerColor = if (isSelected) MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.6f) else Color.Transparent
+        containerColor = animatedSelectionColor(
+          isSelected,
+          MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.6f),
+        )
       )
     ) {
       Column(
@@ -2386,21 +2329,7 @@ private fun MusicPlaylistCard(
             isFavorites = isFavorites,
             modifier = Modifier.fillMaxWidth()
           )
-          if (isSelected) {
-            Box(
-              modifier = Modifier
-                .fillMaxSize()
-                .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.45f)),
-              contentAlignment = Alignment.Center
-            ) {
-              Icon(
-                imageVector = Icons.RoundedFilled.CheckCircle,
-                contentDescription = "Selected",
-                tint = Color.White,
-                modifier = Modifier.size(36.dp)
-              )
-            }
-          }
+          SelectionIndicator(isSelected, Modifier.align(Alignment.TopEnd).padding(6.dp))
         }
 
         Spacer(modifier = Modifier.height(6.dp))
@@ -2428,8 +2357,9 @@ private fun MusicPlaylistCard(
         .clip(AppShapeScale.large)
         .tvFocusHighlight(AppShapeScale.large, focusedScale = 1.03f)
         .tvContextMenu(onLongClick)
+        .semantics { selected = isSelected }
         .combinedClickable(onClick = onClick, onLongClick = onLongClick),
-      color = if (isSelected) MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.5f) else Color.Transparent
+      color = animatedSelectionColor(isSelected, MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.5f))
     ) {
       Row(
         modifier = Modifier
@@ -2443,21 +2373,7 @@ private fun MusicPlaylistCard(
             isFavorites = isFavorites,
             modifier = Modifier.fillMaxSize()
           )
-          if (isSelected) {
-            Box(
-              modifier = Modifier
-                .fillMaxSize()
-                .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.45f)),
-              contentAlignment = Alignment.Center
-            ) {
-              Icon(
-                imageVector = Icons.RoundedFilled.CheckCircle,
-                contentDescription = "Selected",
-                tint = Color.White,
-                modifier = Modifier.size(24.dp)
-              )
-            }
-          }
+          SelectionIndicator(isSelected, Modifier.align(Alignment.TopEnd).padding(4.dp))
         }
 
         Spacer(modifier = Modifier.width(14.dp))

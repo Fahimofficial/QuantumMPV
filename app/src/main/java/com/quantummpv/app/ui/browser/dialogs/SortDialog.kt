@@ -9,7 +9,9 @@
 
 package com.quantummpv.app.ui.browser.dialogs
 
+import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.animateContentSize
+import androidx.compose.animation.core.snap
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -30,6 +32,8 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.layout.wrapContentHeight
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.selection.selectable
+import androidx.compose.foundation.selection.selectableGroup
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AlertDialog
@@ -55,8 +59,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.hapticfeedback.HapticFeedbackType
-import androidx.compose.ui.platform.LocalHapticFeedback
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -69,7 +72,9 @@ import com.quantummpv.app.ui.player.controls.components.tvFocusHighlight
 import com.quantummpv.app.ui.player.controls.components.rememberTvInitialFocusRequester
 import com.quantummpv.app.ui.player.controls.components.tvFocusGroup
 import com.quantummpv.app.ui.player.controls.components.tvInitialFocus
+import com.quantummpv.app.ui.theme.AppMotion
 import com.quantummpv.app.ui.theme.AppShapeScale
+import com.quantummpv.app.ui.utils.rememberAppHaptics
 import kotlin.math.roundToInt
 
 @OptIn(ExperimentalLayoutApi::class)
@@ -97,6 +102,7 @@ fun SortDialog(
 ) {
   if (!isOpen) return
 
+  val haptics = rememberAppHaptics()
   var isFieldsExpanded by rememberSaveable { mutableStateOf(false) }
 
   val (ascLabel, descLabel) = getLabelForType(sortType, sortOrderAsc)
@@ -146,7 +152,13 @@ fun SortDialog(
               viewModeSelector.options.forEachIndexed { index, option ->
                 SegmentedButton(
                   selected = option.isSelected,
-                  onClick = { if (enableViewModeOptions) option.onClick() },
+                  onClick = {
+                    if (enableViewModeOptions && !option.isSelected) {
+                      option.onClick()
+                      haptics.selection(true)
+                    }
+                  },
+                  enabled = enableViewModeOptions,
                   shape = SegmentedButtonDefaults.itemShape(index = index, count = viewModeSelector.options.size),
                   colors = themedSegmentedButtonColors(),
                 ) {
@@ -165,7 +177,13 @@ fun SortDialog(
               val isFirstSelected = layoutModeSelector.isFirstOptionSelected
               SegmentedButton(
                 selected = isFirstSelected,
-                onClick = { if (enableLayoutModeOptions) layoutModeSelector.onViewModeChange(true) },
+                onClick = {
+                  if (enableLayoutModeOptions && !isFirstSelected) {
+                    layoutModeSelector.onViewModeChange(true)
+                    haptics.selection(true)
+                  }
+                },
+                enabled = enableLayoutModeOptions,
                 shape = SegmentedButtonDefaults.itemShape(index = 0, count = 2),
                 colors = themedSegmentedButtonColors(),
                 icon = {
@@ -180,7 +198,13 @@ fun SortDialog(
               }
               SegmentedButton(
                 selected = !isFirstSelected,
-                onClick = { if (enableLayoutModeOptions) layoutModeSelector.onViewModeChange(false) },
+                onClick = {
+                  if (enableLayoutModeOptions && isFirstSelected) {
+                    layoutModeSelector.onViewModeChange(false)
+                    haptics.selection(true)
+                  }
+                },
+                enabled = enableLayoutModeOptions,
                 shape = SegmentedButtonDefaults.itemShape(index = 1, count = 2),
                 colors = themedSegmentedButtonColors(),
                 icon = {
@@ -324,18 +348,30 @@ private fun SortTypeSelector(
   icons: List<AppIcon>,
   modifier: Modifier = Modifier,
 ) {
+  val haptics = rememberAppHaptics()
   val initialFocusRequester = rememberTvInitialFocusRequester(types.isNotEmpty(), requestKey = sortType)
   Row(
     modifier =
       modifier
         .fillMaxWidth()
         .tvFocusGroup()
+        .selectableGroup()
         .horizontalScroll(rememberScrollState()),
     horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.CenterHorizontally),
     verticalAlignment = Alignment.CenterVertically,
   ) {
     types.forEachIndexed { index, type ->
       val selected = sortType == type
+      val containerColor by animateColorAsState(
+        targetValue =
+          if (selected) {
+            MaterialTheme.colorScheme.primaryContainer
+          } else {
+            MaterialTheme.colorScheme.surfaceContainerHighest
+          },
+        animationSpec = AppMotion.spatial(AppMotion.Effect.Color, snap()),
+        label = "sortSelectionColor",
+      )
       Column(
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.spacedBy(2.dp),
@@ -346,17 +382,18 @@ private fun SortTypeSelector(
             Modifier
               .size(64.dp)
               .clip(AppShapeScale.large)
-              .background(
-                color =
-                  if (selected) {
-                    MaterialTheme.colorScheme.primaryContainer
-                  } else {
-                    MaterialTheme.colorScheme.surfaceContainerHighest
-                  },
-              ).then(if (selected) Modifier.tvInitialFocus(initialFocusRequester) else Modifier)
+              .background(containerColor)
+              .then(if (selected) Modifier.tvInitialFocus(initialFocusRequester) else Modifier)
               .tvFocusHighlight(AppShapeScale.large, focusedScale = 1.04f)
-              .clickable(
-                onClick = { onSortTypeChange(type) },
+              .selectable(
+                selected = selected,
+                role = Role.RadioButton,
+                onClick = {
+                  if (!selected) {
+                    onSortTypeChange(type)
+                    haptics.selection(true)
+                  }
+                },
                 interactionSource = remember { MutableInteractionSource() },
                 indication = ripple(bounded = true),
               ),
@@ -398,6 +435,7 @@ private fun SortOrderSelector(
   descLabel: String,
   modifier: Modifier = Modifier,
 ) {
+  val haptics = rememberAppHaptics()
   val options = listOf(ascLabel, descLabel)
   val selectedIndex = if (sortOrderAsc) 0 else 1
 
@@ -407,7 +445,12 @@ private fun SortOrderSelector(
     options.forEachIndexed { index, label ->
       SegmentedButton(
         selected = index == selectedIndex,
-        onClick = { onSortOrderChange(index == 0) },
+        onClick = {
+          if (index != selectedIndex) {
+            onSortOrderChange(index == 0)
+            haptics.selection(true)
+          }
+        },
         shape = SegmentedButtonDefaults.itemShape(index = index, count = options.size),
         colors = themedSegmentedButtonColors(),
         icon = {
@@ -447,7 +490,7 @@ private fun GridColumnsNextSection(
 ) {
   if (folderGridColumnSelector == null && videoGridColumnSelector == null) return
 
-  val haptic = LocalHapticFeedback.current
+  val haptic = rememberAppHaptics()
 
   HorizontalDivider(modifier = Modifier.padding(top = 10.dp))
 
@@ -483,7 +526,7 @@ private fun GridColumnsNextSection(
             val newValue = it.roundToInt()
             if (newValue != folderGridColumnSelector.currentValue) {
               folderGridColumnSelector.onValueChange(newValue)
-              haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+              haptic.tick()
             }
           },
           valueRange = folderGridColumnSelector.valueRange,
@@ -518,7 +561,7 @@ private fun GridColumnsNextSection(
             val newValue = it.roundToInt()
             if (newValue != videoGridColumnSelector.currentValue) {
               videoGridColumnSelector.onValueChange(newValue)
-              haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+              haptic.tick()
             }
           },
           valueRange = videoGridColumnSelector.valueRange,
@@ -548,7 +591,7 @@ private fun GridColumnsNextSection(
         val newValue = it.roundToInt()
         if (newValue != selector.currentValue) {
           selector.onValueChange(newValue)
-          haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+          haptic.tick()
         }
       },
       valueRange = selector.valueRange,

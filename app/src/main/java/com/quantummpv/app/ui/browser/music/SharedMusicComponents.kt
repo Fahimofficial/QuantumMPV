@@ -49,6 +49,8 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.selected
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
@@ -56,6 +58,8 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.quantummpv.app.R
 import com.quantummpv.app.presentation.components.RemoteImage
+import com.quantummpv.app.ui.browser.cards.SelectionIndicator
+import com.quantummpv.app.ui.browser.cards.animatedSelectionColor
 import com.quantummpv.app.ui.icons.AppIcon
 import com.quantummpv.app.ui.icons.Icon
 import com.quantummpv.app.ui.icons.Icons
@@ -92,6 +96,7 @@ fun SharedMusicTrackListItem(
       .padding(horizontal = 8.dp, vertical = 3.dp)
       .clip(AppShapeScale.large)
       .tvContextMenu(onLongClick)
+      .semantics { selected = isSelected }
       .then(
         if (onLongClick != null) {
           Modifier.combinedClickable(onClick = onClick, onLongClick = onLongClick)
@@ -100,11 +105,11 @@ fun SharedMusicTrackListItem(
         }
       ),
     shape = AppShapeScale.large,
-    color = when {
-      isSelected -> MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.6f)
-      isPlaying -> MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.35f)
-      else -> Color.Transparent
-    },
+    color = animatedSelectionColor(
+      selected = isSelected,
+      selectedColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.6f),
+      unselectedColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = if (isPlaying) 0.35f else 0f),
+    ),
   ) {
     Row(
       modifier = Modifier
@@ -146,22 +151,7 @@ fun SharedMusicTrackListItem(
           }
         }
 
-        if (isSelected) {
-          Box(
-            modifier = Modifier
-              .fillMaxSize()
-              .then(if (isCircular) Modifier.clip(CircleShape) else Modifier)
-              .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.45f)),
-            contentAlignment = Alignment.Center,
-          ) {
-            Icon(
-              imageVector = Icons.RoundedFilled.CheckCircle,
-              contentDescription = "Selected",
-              tint = Color.White,
-              modifier = Modifier.size(24.dp),
-            )
-          }
-        } else if (isPlaying) {
+        if (isPlaying && !isSelected) {
           val paused by PlaybackSession.propBoolean["pause"].collectAsState()
           val isPlaybackActive = paused != true
           Box(
@@ -178,6 +168,10 @@ fun SharedMusicTrackListItem(
             )
           }
         }
+        SelectionIndicator(
+          selected = isSelected,
+          modifier = Modifier.align(if (isCircular) Alignment.Center else Alignment.TopEnd).padding(4.dp),
+        )
       }
 
       Spacer(modifier = Modifier.width(14.dp))

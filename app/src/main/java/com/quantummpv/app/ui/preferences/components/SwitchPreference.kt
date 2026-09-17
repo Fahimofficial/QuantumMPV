@@ -9,21 +9,23 @@
 
 package com.quantummpv.app.ui.preferences.components
 
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.selection.toggleable
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ProvideTextStyle
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.unit.dp
 import com.quantummpv.app.ui.components.IconSwitch
 import com.quantummpv.app.ui.player.controls.components.tvFocusHighlight
+import com.quantummpv.app.ui.utils.rememberAppHaptics
 
 @Composable
 fun SwitchPreference(
@@ -38,12 +40,18 @@ fun SwitchPreference(
   switchModifier: Modifier = Modifier,
   modifier: Modifier = Modifier,
 ) {
+  val haptics = rememberAppHaptics()
   Row(
     modifier =
       modifier
         .fillMaxWidth()
         .tvFocusHighlight(MaterialTheme.shapes.medium, enabled = enabled, focusedScale = 1.01f)
-        .clickable(enabled = enabled) { onValueChange(!value) }
+        .toggleable(value = value, enabled = enabled, role = Role.Switch) { checked ->
+          if (checked != value) {
+            onValueChange(checked)
+            haptics.selection(checked)
+          }
+        }
         .padding(horizontal = 16.dp, vertical = 12.dp),
     verticalAlignment = Alignment.CenterVertically,
   ) {
@@ -74,7 +82,7 @@ fun SwitchPreference(
 
     IconSwitch(
       checked = value,
-      onCheckedChange = onValueChange,
+      onCheckedChange = null,
       enabled = enabled,
       modifier = switchModifier,
     )

@@ -11,6 +11,9 @@ package com.quantummpv.app.ui.player.controls.components.sheets
 
 import com.quantummpv.app.ui.player.PlaybackSession
 
+import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.snap
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -22,6 +25,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.selection.selectable
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -33,8 +37,8 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontWeight
 import com.quantummpv.app.R
@@ -48,8 +52,9 @@ import com.quantummpv.app.ui.player.TrackNode
 import com.quantummpv.app.ui.player.controls.components.rememberTvInitialFocusRequester
 import com.quantummpv.app.ui.player.controls.components.tvFocusHighlight
 import com.quantummpv.app.ui.player.controls.components.tvInitialFocus
+import com.quantummpv.app.ui.theme.AppMotion
 import com.quantummpv.app.ui.theme.spacing
-import com.quantummpv.app.utils.device.DeviceFormFactor
+import com.quantummpv.app.ui.utils.rememberAppHaptics
 import kotlinx.collections.immutable.ImmutableList
 import org.koin.compose.koinInject
 
@@ -220,20 +225,30 @@ fun AudioTrackRow(
   enabled: Boolean = true,
   details: String? = null,
 ) {
-  val isTelevision = DeviceFormFactor.isTelevision(LocalContext.current)
+  val haptics = rememberAppHaptics()
+  val reducedMotion = AppMotion.playerReducedMotion()
+  val containerColor by animateColorAsState(
+    targetValue = MaterialTheme.colorScheme.primaryContainer.copy(alpha = if (isSelected) 0.35f else 0f),
+    animationSpec = if (reducedMotion) snap() else AppMotion.Effect.Color,
+    label = "audioTrackSelection",
+  )
   Row(
     modifier =
       modifier
         .fillMaxWidth()
+        .background(containerColor, MaterialTheme.shapes.medium)
         .tvFocusHighlight(enabled = enabled)
-        .clickable(enabled = enabled, onClick = onClick)
+        .selectable(selected = isSelected, enabled = enabled, role = Role.RadioButton) {
+          onClick()
+          if (!isSelected) haptics.selection(true)
+        }
         .padding(horizontal = MaterialTheme.spacing.medium, vertical = MaterialTheme.spacing.extraSmall),
     verticalAlignment = Alignment.CenterVertically,
     horizontalArrangement = Arrangement.spacedBy(MaterialTheme.spacing.smaller),
   ) {
     RadioButton(
       selected = isSelected,
-      onClick = if (isTelevision) null else onClick,
+      onClick = null,
       enabled = enabled,
     )
     Column(modifier = Modifier.weight(1f)) {

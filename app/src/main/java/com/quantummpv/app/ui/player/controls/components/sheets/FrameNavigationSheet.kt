@@ -62,12 +62,10 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.scale
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
-import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -80,6 +78,7 @@ import com.quantummpv.app.ui.player.screenshot.ScreenshotSaver
 import com.quantummpv.app.ui.player.screenshot.ScreenshotSettings
 import com.quantummpv.app.ui.player.controls.components.tvFocusHighlight
 import com.quantummpv.app.ui.theme.spacing
+import com.quantummpv.app.ui.utils.rememberAppHaptics
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
@@ -296,7 +295,7 @@ private fun FrameReviewOverlay(
   val configuration = LocalConfiguration.current
   val isLandscape = configuration.screenWidthDp > configuration.screenHeightDp
   val density = LocalDensity.current
-  val haptic = LocalHapticFeedback.current
+  val haptic = rememberAppHaptics()
   val pixelsPerFrame = with(density) { FrameSwipeDistancePerFrame.toPx() }
   var accumulatedDrag by remember { mutableFloatStateOf(0f) }
   var requestedFrameDelta by remember { mutableIntStateOf(0) }
@@ -364,7 +363,7 @@ private fun FrameReviewOverlay(
                   accumulatedDrag -= steps * pixelsPerFrame
                   requestedFrameDelta += steps
                   settlingFrame = null
-                  haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                  haptic.tick()
                   onFrameSteps(steps)
                 }
               },

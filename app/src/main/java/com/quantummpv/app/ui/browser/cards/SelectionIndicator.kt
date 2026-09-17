@@ -21,9 +21,13 @@ import com.quantummpv.app.ui.icons.Icons
 import com.quantummpv.app.ui.theme.AppMotion
 
 @Composable
-internal fun animatedSelectionColor(selected: Boolean): Color {
+internal fun animatedSelectionColor(
+  selected: Boolean,
+  selectedColor: Color = MaterialTheme.colorScheme.tertiary.copy(alpha = 0.3f),
+  unselectedColor: Color = selectedColor.copy(alpha = 0f),
+): Color {
   val color by animateColorAsState(
-    targetValue = MaterialTheme.colorScheme.tertiary.copy(alpha = if (selected) 0.3f else 0f),
+    targetValue = if (selected) selectedColor else unselectedColor,
     animationSpec = AppMotion.spatial(AppMotion.Effect.Color, snap()),
     label = "selectionTint",
   )

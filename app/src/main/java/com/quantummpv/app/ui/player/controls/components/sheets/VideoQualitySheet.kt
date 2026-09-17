@@ -9,18 +9,23 @@
 
 package com.quantummpv.app.ui.player.controls.components.sheets
 
-import androidx.compose.foundation.clickable
+import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.snap
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.selection.selectable
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.quantummpv.app.R
@@ -28,6 +33,8 @@ import com.quantummpv.app.presentation.components.PlayerSheet
 import com.quantummpv.app.ui.icons.Icon
 import com.quantummpv.app.ui.icons.Icons
 import com.quantummpv.app.ui.player.TrackNode
+import com.quantummpv.app.ui.theme.AppMotion
+import com.quantummpv.app.ui.utils.rememberAppHaptics
 
 @Composable
 fun VideoQualitySheet(
@@ -37,6 +44,7 @@ fun VideoQualitySheet(
   onDismissRequest: () -> Unit,
 ) {
   PlayerSheet(onDismissRequest) {
+    val haptics = rememberAppHaptics()
     Column(modifier = Modifier.fillMaxWidth()) {
       Row(
         modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 16.dp),
@@ -65,6 +73,11 @@ fun VideoQualitySheet(
 
       LazyColumn(contentPadding = PaddingValues(bottom = 24.dp)) {
         items(tracks, key = TrackNode::id) { track ->
+          val containerColor by animateColorAsState(
+            targetValue = MaterialTheme.colorScheme.primaryContainer.copy(alpha = if (track.isSelected) 0.35f else 0f),
+            animationSpec = AppMotion.spatial(AppMotion.Effect.Color, snap()),
+            label = "videoQualitySelection",
+          )
           Row(
             modifier =
               Modifier
@@ -76,8 +89,10 @@ fun VideoQualitySheet(
               modifier =
                 Modifier
                   .weight(1f)
-                  .clickable {
+                  .background(containerColor, MaterialTheme.shapes.medium)
+                  .selectable(selected = track.isSelected, role = Role.RadioButton) {
                     onSelect(track)
+                    if (!track.isSelected) haptics.selection(true)
                     onDismissRequest()
                   }.padding(vertical = 6.dp),
               verticalAlignment = Alignment.CenterVertically,

@@ -884,6 +884,13 @@ private val OPEN_SOURCE_LIBRARIES =
       url = "https://github.com/TutorialsAndroid/crashx",
     ),
     OpenSourceLibrary(
+      name = "Kmp-Vibrate",
+      artifact = "io.github.jmseb3:vibrate",
+      descriptionRes = R.string.oss_kmp_vibrate_description,
+      license = "Apache-2.0",
+      url = "https://github.com/jmseb3/Kmp-Vibrate",
+    ),
+    OpenSourceLibrary(
       name = "Navigation 3",
       artifact = "androidx.navigation3:navigation3-runtime",
       descriptionRes = R.string.oss_navigation_3_description,

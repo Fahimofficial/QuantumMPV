@@ -53,10 +53,8 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.graphicsLayer
-import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalDensity
-import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -73,6 +71,7 @@ import com.quantummpv.app.ui.player.controls.components.tvFocusHighlight
 import com.quantummpv.app.ui.player.controls.components.panels.DraggablePanel
 import com.quantummpv.app.ui.theme.controlColor
 import com.quantummpv.app.ui.theme.spacing
+import com.quantummpv.app.ui.utils.rememberAppHaptics
 
 @Composable
 internal fun PlayerControlDrawer(
@@ -139,7 +138,7 @@ private fun PlayerControlEdgeHandle(
   modifier: Modifier = Modifier,
 ) {
   val density = LocalDensity.current
-  val haptic = LocalHapticFeedback.current
+  val haptic = rememberAppHaptics()
   val interactionSource = remember { MutableInteractionSource() }
   val thresholdPx = with(density) { EdgePullThreshold.toPx() }
   val maxPullPx = with(density) { EdgePullMaximum.toPx() }
@@ -189,7 +188,7 @@ private fun PlayerControlEdgeHandle(
                   (pullDistancePx + directedDelta * resistance).coerceIn(0f, maxPullPx)
                 if (!thresholdReached && pullDistancePx >= thresholdPx) {
                   thresholdReached = true
-                  haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                  haptic.tick()
                   onOpen()
                 } else if (thresholdReached && pullDistancePx < thresholdPx * 0.82f) {
                   thresholdReached = false

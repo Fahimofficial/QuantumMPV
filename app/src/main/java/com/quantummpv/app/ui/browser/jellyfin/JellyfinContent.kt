@@ -931,7 +931,7 @@ fun JellyfinContent(
                   onTabSelected = viewModel::setMusicTab,
                   onItemClick = { item ->
                     if (selectionManager.isInSelectionMode) {
-                      selectionManager.toggle(item)
+                      selectionManager.toggleFromUser(item)
                     } else if (item.type == "MusicArtist" || item.type == "Artist" || item.type == "AlbumArtist" || item.type == "MusicAlbum" || item.type == "Album" || item.type == "Playlist") {
                       viewModel.openDetail(item)
                     } else if (item.isFolder || item.type == "CollectionFolder") {
@@ -1005,7 +1005,7 @@ fun JellyfinContent(
                             server = server,
                             onPlay = {
                               if (selectionManager.isInSelectionMode) {
-                                selectionManager.toggle(item)
+                                selectionManager.toggleFromUser(item)
                               } else {
                                 viewModel.playItem(context, item)
                               }
@@ -1026,7 +1026,7 @@ fun JellyfinContent(
                             server = server,
                             onClick = {
                               if (selectionManager.isInSelectionMode) {
-                                selectionManager.toggle(item)
+                                selectionManager.toggleFromUser(item)
                               } else if (item.isFolder || item.isSeries || item.isSeason || item.type == "CollectionFolder") {
                                 viewModel.navigateToItem(item)
                               } else if (item.isVideo) {
@@ -1109,7 +1109,7 @@ fun JellyfinContent(
                           server = server,
                           onClick = {
                             if (selectionManager.isInSelectionMode) {
-                              selectionManager.toggle(item)
+                              selectionManager.toggleFromUser(item)
                             } else if (item.isFolder || item.isSeason || item.type == "CollectionFolder") {
                               viewModel.navigateToItem(item)
                             } else if (item.isSeries || item.isVideo) {

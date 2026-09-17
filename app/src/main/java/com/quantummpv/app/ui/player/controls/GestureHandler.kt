@@ -56,12 +56,10 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.scale
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
-import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.layout
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
-import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
@@ -250,7 +248,6 @@ fun GestureHandler(
   val currentMPVVolume by PlaybackSession.propInt["volume"].collectAsState()
   val currentBrightness by viewModel.currentBrightness.collectAsState()
   val volumeBoostingCap = audioPreferences.volumeBoostCap.get()
-  val haptics = LocalHapticFeedback.current
   val actionHaptics = com.quantummpv.app.ui.utils.rememberAppHaptics()
   val volumeHaptics = com.quantummpv.app.ui.utils.rememberAdjustmentHaptics(
     0f, 100f + volumeBoostingCap, landmarks = listOf(100f),
@@ -580,7 +577,7 @@ fun GestureHandler(
                       longPressTriggered = true
                       isSubtitleHoldActive = true
                       longPressTriggeredDuringTouch = true
-                      haptics.performHapticFeedback(HapticFeedbackType.LongPress)
+                      actionHaptics.pickup()
                       originalSubtitlePosition = PlaybackSession.getPropertyInt("sub-pos") ?: subtitlesPreferences.subPos.get()
                       lastSubtitlePosition = originalSubtitlePosition
                       viewModel.playerUpdate.update {
@@ -597,7 +594,7 @@ fun GestureHandler(
                       longPressTriggered = true
                       isLongPressing = true
                       longPressTriggeredDuringTouch = true
-                      haptics.performHapticFeedback(HapticFeedbackType.LongPress)
+                      actionHaptics.pickup()
                       originalSpeed = playbackSpeed ?: 1f
                       // Ramp speed up incrementally to avoid audio filter stutter
                       val startSpeed = originalSpeed
@@ -768,7 +765,7 @@ fun GestureHandler(
 
                           if (deltaY < -speedLockThreshold && !isSpeedLocked) {
                             isSpeedLocked = true
-                            haptics.performHapticFeedback(HapticFeedbackType.LongPress)
+                            actionHaptics.pickup()
                             viewModel.playerUpdate.update {
                               PlayerUpdates.ShowText(context.getString(R.string.player_speed_gesture_locked))
                             }
@@ -777,7 +774,7 @@ fun GestureHandler(
                             isDynamicSpeedControlActive = false
                             originalSpeed = playerPreferences.defaultSpeed.get()
                             PlaybackSession.setPropertyFloat("speed", originalSpeed)
-                            haptics.performHapticFeedback(HapticFeedbackType.LongPress)
+                            actionHaptics.pickup()
                             viewModel.playerUpdate.update {
                               PlayerUpdates.ShowText(context.getString(R.string.player_speed_gesture_restored))
                             }
@@ -1245,7 +1242,7 @@ fun GestureHandler(
                       val isForward = if (isSwipeSubtitlesInverted) deltaX < 0 else deltaX > 0
                       val direction = if (isForward) "1" else "-1"
                       PlaybackSession.command("sub-seek", direction)
-                      haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                      actionHaptics.tick()
                       viewModel.playerUpdate.update {
                         PlayerUpdates.ShowText(
                           context.getString(
