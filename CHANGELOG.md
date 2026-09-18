@@ -1,6 +1,10 @@
 # Changelog
 
 These notes are written in plain English and focus on what changed for real use.
+## 1.1.0-preview.9
+
+- **Build correction**: Restored the AMOLED appearance switch declaration after removing the live preview section.
+
 ## 1.1.0-preview.8
 
 - **Simplified appearance**: Removed the live appearance preview and animated Home background.

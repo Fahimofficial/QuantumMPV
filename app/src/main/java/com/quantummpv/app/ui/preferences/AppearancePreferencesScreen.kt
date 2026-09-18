@@ -319,7 +319,8 @@ object AppearancePreferencesScreen : Screen {
 
                   PreferenceDivider()
 
-                 modifier = Modifier.settingsSearchTarget(R.string.pref_appearance_amoled_mode_title),
+                  SwitchPreference(
+                    modifier = Modifier.settingsSearchTarget(R.string.pref_appearance_amoled_mode_title),
                     value = amoledMode,
                     onValueChange = { newValue ->
                       if (themeTransition?.isAnimating != true) {
