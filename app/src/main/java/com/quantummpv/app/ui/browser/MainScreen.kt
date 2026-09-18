@@ -77,7 +77,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.clipToBounds
-import androidx.compose.ui.draw.drawWithCache
+import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.graphicsLayer
@@ -806,20 +806,19 @@ private fun AnimatedHomeBackdrop(content: @Composable () -> Unit) {
     modifier =
       Modifier
         .fillMaxSize()
-        .drawWithCache {
+        .drawWithContent {
+          drawContent()
           val radius = size.minDimension * 0.58f
-          onDrawBehind {
-            drawCircle(
-              color = colors.primary.copy(alpha = 0.045f),
-              radius = radius,
-              center = Offset(size.width * (0.12f + 0.22f * phase), size.height * 0.12f),
-            )
-            drawCircle(
-              color = colors.tertiary.copy(alpha = 0.035f),
-              radius = radius * 0.82f,
-              center = Offset(size.width * (0.88f - 0.18f * phase), size.height * 0.88f),
-            )
-          }
+          drawCircle(
+            color = colors.primary.copy(alpha = 0.085f),
+            radius = radius,
+            center = Offset(size.width * (0.12f + 0.22f * phase), size.height * 0.12f),
+          )
+          drawCircle(
+            color = colors.tertiary.copy(alpha = 0.065f),
+            radius = radius * 0.82f,
+            center = Offset(size.width * (0.88f - 0.18f * phase), size.height * 0.88f),
+          )
         },
   ) {
     content()
