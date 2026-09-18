@@ -110,6 +110,7 @@ object PlaybackSession : MPVLib.EventObserver {
       "time-remaining",
       "percent-pos",
     )
+  private val AUDIO_SUBTITLE_TRACK_PROPERTIES = setOf("aid", "sid", "secondary-sid")
 
   private enum class EndFileReason {
     EOF,
@@ -132,10 +133,7 @@ object PlaybackSession : MPVLib.EventObserver {
     val registration: NetworkStreamRegistration? = null,
   )
 
-  /**
-   * Video decoding is intentionally disabled while Android has no render surface. Keep the track
-   * id process-wide so Activity recreation (for example notification re-entry) cannot lose it.
-   */
+  /** Keeps a hardware-decoded track across the loss and replacement of its Android Surface. */
   private data class SuspendedVideoTrack(
     val id: Int,
     val generation: Long,
@@ -406,7 +404,9 @@ object PlaybackSession : MPVLib.EventObserver {
   fun setVideoOutput(videoOutput: String) {
     desiredVideoOutput = videoOutput
     withCore(Unit, allowInitializing = true) {
-      MPVLib.setOptionString("vo", videoOutput)
+      // Track selection does not require an Android Surface, but a GPU video output does.
+      // bindSurface() performs the real null -> configured output transition later.
+      MPVLib.setOptionString("vo", if (_state.value.surfaceAttached) videoOutput else "null")
     }
   }
 
@@ -835,10 +835,9 @@ object PlaybackSession : MPVLib.EventObserver {
         if (!MpvConfigOverridePolicy.isOwnedByMpvConf("speed")) MPVLib.setPropertyDouble("speed", speedBeforeAudiobook!!.toDouble())
         speedBeforeAudiobook = null
       }
-      val videoSelection = resolvedItem.videoSelection(_state.value.surfaceAttached)
-      // A preceding surface detach may have left the outgoing file at vid=no. Select video in the
-      // load command only when Android has already attached a valid render Surface; otherwise
-      // bindSurface() enables it after the native window exists.
+      val videoSelection = resolvedItem.videoSelection()
+      // Select the track during demuxer initialization. Video output remains `vo=null` until a
+      // Surface is attached, so cold starts do not need a post-load track reselect.
       val selectVideoForNewFile = videoSelection == PlaybackVideoSelection.IMMEDIATE
 
       // An OUTPUT Ambient shader bakes the previous video's aspect ratio into its GLSL. Because the
@@ -866,7 +865,7 @@ object PlaybackSession : MPVLib.EventObserver {
       pendingPositionRestoreOverride = positionRestoreOverride?.let { generation to it }
       initialPositionGeneration = generation.takeIf { initialPosition != null } ?: 0L
       val holdForPositionRestore = pendingPositionRestoreGeneration == generation
-      deferredVideoSelectionGeneration = generation.takeIf { videoSelection == PlaybackVideoSelection.DEFERRED }
+      deferredVideoSelectionGeneration = null
       updateState {
         it.copy(
           phase = PlaybackPhase.LOADING,
@@ -1034,6 +1033,9 @@ object PlaybackSession : MPVLib.EventObserver {
   ) {
     if (MpvConfigOverridePolicy.isOwnedByMpvConf(property)) return
     withCore(Unit) {
+      if (property in AUDIO_SUBTITLE_TRACK_PROPERTIES && MPVLib.getPropertyInt(property) == value) {
+        return@withCore
+      }
       MPVLib.setPropertyInt(property, value)
       if (property == "vid" && value > 0) {
         suspendedVideoTrack = null
@@ -1174,6 +1176,9 @@ object PlaybackSession : MPVLib.EventObserver {
   ) {
     if (MpvConfigOverridePolicy.isOwnedByMpvConf(property)) return
     withCore(Unit) {
+      if (property in AUDIO_SUBTITLE_TRACK_PROPERTIES && MPVLib.getPropertyString(property) == value) {
+        return@withCore
+      }
       if (property == "vid") {
         if (value == "no" && _state.value.phase in setOf(PlaybackPhase.READY, PlaybackPhase.BACKGROUND)) {
           val activeVid = MPVLib.getPropertyInt("vid") ?: -1

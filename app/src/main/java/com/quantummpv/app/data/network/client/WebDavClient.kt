@@ -48,7 +48,7 @@ class WebDavClient(
   private data class RangedResponse(
     val response: Response,
     val start: Long,
-    val endInclusive: Long,
+    val endInclusive: Long?,
     val totalLength: Long?,
   )
 
@@ -263,27 +263,7 @@ class WebDavClient(
     withContext(Dispatchers.IO) {
       require(offset >= 0L) { "Stream offset must not be negative" }
       try {
-        if (offset > 0L) {
-          return@withContext getRangedFileStream(NetworkPath.from(path), offset)
-        }
-
-        // A per-call OkHttpSardine leaks its own OkHttpClient and applies a 10s read timeout
-        // that kills healthy long-running media bodies; the shared ranged client does neither.
-        val requestBuilder =
-          Request
-            .Builder()
-            .url(buildUrl(NetworkPath.from(path).value))
-            .get()
-            .header("Accept-Encoding", "identity")
-        if (!connection.isAnonymous) {
-          requestBuilder.header("Authorization", Credentials.basic(connection.username, connection.password))
-        }
-        val response = rangeHttpClient.newCall(requestBuilder.build()).execute()
-        if (!response.isSuccessful) {
-          response.close()
-          throw IOException("WebDAV request failed with HTTP ${response.code}")
-        }
-        Result.success(response.body.byteStream())
+        getRangedFileStream(NetworkPath.from(path), offset)
       } catch (cancellation: CancellationException) {
         throw cancellation
       } catch (error: Exception) {
@@ -307,7 +287,7 @@ class WebDavClient(
         private var current = initial
         private var stream = current.response.body.byteStream()
         private var position = current.start
-        private var bytesRemaining = current.endInclusive - current.start + 1L
+        private var bytesRemaining = current.endInclusive?.let { it - current.start + 1L }
         private var totalLength = current.totalLength
         private var closed = false
 
@@ -339,18 +319,19 @@ class WebDavClient(
               }
               current = next
               stream = next.response.body.byteStream()
-              bytesRemaining = next.endInclusive - next.start + 1L
+              bytesRemaining = next.endInclusive?.let { it - next.start + 1L }
               totalLength = next.totalLength ?: completeLength
             }
 
-            val toRead = minOf(len.toLong(), bytesRemaining).toInt()
+            val toRead = bytesRemaining?.let { minOf(len.toLong(), it).toInt() } ?: len
             val count = stream.read(b, off, toRead)
             if (count > 0) {
               position += count
-              bytesRemaining -= count
+              bytesRemaining = bytesRemaining?.minus(count)
               return count
             }
             if (count == 0) continue
+            if (bytesRemaining == null) return -1
             throw IOException("WebDAV range response ended before its declared Content-Range")
           }
         }
@@ -359,7 +340,9 @@ class WebDavClient(
           if (closed) {
             0
           } else {
-            minOf(stream.available().toLong(), bytesRemaining, Int.MAX_VALUE.toLong()).toInt()
+            bytesRemaining
+              ?.let { minOf(stream.available().toLong(), it, Int.MAX_VALUE.toLong()).toInt() }
+              ?: stream.available()
           }
 
         override fun close() {
@@ -402,7 +385,7 @@ class WebDavClient(
 
     // Some DAV servers ignore Range and reply 200 with the full body. Consuming up to the offset
     // keeps seeking functional there; slow for deep seeks, but strictly better than failing.
-    if (response.code == 200 && bodyLength > offset) {
+    if (response.code == 200 && (bodyLength < 0L || bodyLength >= offset)) {
       try {
         skipExactly(response.body.byteStream(), offset)
       } catch (error: Exception) {
@@ -412,8 +395,8 @@ class WebDavClient(
       return RangedResponse(
         response = response,
         start = offset,
-        endInclusive = bodyLength - 1L,
-        totalLength = bodyLength,
+        endInclusive = bodyLength.takeIf { it >= 0L }?.minus(1L),
+        totalLength = bodyLength.takeIf { it >= 0L },
       )
     }
 

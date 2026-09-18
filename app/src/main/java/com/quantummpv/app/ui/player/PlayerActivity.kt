@@ -463,6 +463,7 @@ class PlayerActivity :
 
   @Volatile private var playWhenFileLoaded = false
   private var pendingVideoParamRefreshRequiresShaderReload = false
+  private var pendingBackgroundThumbnailKey: String? = null
   private var lastBackgroundThumbnailKey: String? = null
   private var lastBackgroundThumbnail: Bitmap? = null
   private var currentPlayableUri: String? = null // Store current URI for notification re-entry
@@ -4990,16 +4991,20 @@ class PlayerActivity :
       }
     }
 
-    // Always restore subtitle and audio tracks from saved state
-    // User's manual selection has highest priority
-    if (state.sid > 0) {
-      player.sid = state.sid
-      Log.d(TAG, "Restored primary subtitle track: ${state.sid} (user selection)")
+    // Restore explicit selections as well as "off" so mpv's pre-load language choice cannot
+    // override a saved manual choice.
+    val restoredSid = state.sid.takeIf { it > 0 } ?: -1
+    if (player.sid != restoredSid) {
+      player.sid = restoredSid
+      if (restoredSid > 0) Log.d(TAG, "Restored primary subtitle track: $restoredSid (user selection)")
     }
 
-    if (state.secondarySid > 0) {
-      player.secondarySid = state.secondarySid
-      Log.d(TAG, "Restored secondary subtitle track: ${state.secondarySid} (user selection)")
+    val restoredSecondarySid = state.secondarySid.takeIf { it > 0 } ?: -1
+    if (player.secondarySid != restoredSecondarySid) {
+      player.secondarySid = restoredSecondarySid
+      if (restoredSecondarySid > 0) {
+        Log.d(TAG, "Restored secondary subtitle track: $restoredSecondarySid (user selection)")
+      }
     }
 
     applySubtitleLayout(
@@ -5009,7 +5014,7 @@ class PlayerActivity :
       screenHeight = player.height.takeIf { it > 0 }?.toFloat(),
     )
 
-    if (restoreAudioTrack && state.aid > 0) {
+    if (restoreAudioTrack && state.aid > 0 && player.aid != state.aid) {
       player.aid = state.aid
       Log.d(TAG, "Restored audio track: ${state.aid} (user selection)")
     }
@@ -7361,63 +7366,74 @@ private suspend fun restorePlaybackPosition(state: PlaybackStateEntity?) {
     service.setPlaylistInfo(isAudio = isCurrentPlaybackAudio())
     service.setChapters(viewModel.chapters.value.map { ChapterNode(time = it.start, title = it.name) })
 
-    if (!updateThumbnail || thumbnailKey.isBlank()) return
-    if (thumbnailKey == lastBackgroundThumbnailKey && cachedThumbnail != null) return
+    if (!updateThumbnail || !isReady || thumbnailKey.isBlank()) return
+    if (thumbnailKey == lastBackgroundThumbnailKey || thumbnailKey == pendingBackgroundThumbnailKey) return
 
     backgroundServiceSyncJob?.cancel()
+    pendingBackgroundThumbnailKey = thumbnailKey
     backgroundServiceSyncJob =
       lifecycleScope.launch {
-        delay(150)
-        val generatedThumbnail =
-          withContext(Dispatchers.IO) {
-            com.quantummpv.app.domain.thumbnail.EmbeddedArtworkResolver.decodeArtworkUri(
-              this@PlayerActivity,
-              currentQueueItem?.artworkUri,
-            ) ?: runCatching { PlaybackSession.grabThumbnail(480) }.getOrNull() ?: runCatching {
-              val uriStr = currentPlayableUri
-              if (!uriStr.isNullOrBlank()) {
-                val parsedUri = Uri.parse(uriStr)
-                val cleanPath =
-                  when (parsedUri.scheme) {
-                    null, "file" -> parsedUri.path ?: uriStr
-                    "content" -> null
-                    // Probing a remote/proxied URL opens a second upstream stream that competes
-                    // with live playback and audibly stalls it during Mini Player handoffs.
-                    else -> return@runCatching null
+        try {
+          delay(150)
+          val generatedThumbnail =
+            withContext(Dispatchers.IO) {
+              com.quantummpv.app.domain.thumbnail.EmbeddedArtworkResolver.decodeArtworkUri(
+                this@PlayerActivity,
+                currentQueueItem?.artworkUri,
+              ) ?: runCatching { PlaybackSession.grabThumbnail(480) }.getOrNull() ?: runCatching {
+                val uriStr = currentPlayableUri
+                if (!uriStr.isNullOrBlank()) {
+                  val parsedUri = Uri.parse(uriStr)
+                  val cleanPath =
+                    when (parsedUri.scheme) {
+                      null, "file" -> parsedUri.path ?: uriStr
+                      "content" -> null
+                      // Probing a remote/proxied URL opens a second upstream stream that competes
+                      // with live playback and audibly stalls it during Mini Player handoffs.
+                      else -> return@runCatching null
+                    }
+                  val retriever = android.media.MediaMetadataRetriever()
+                  try {
+                    if (cleanPath != null) {
+                      retriever.setDataSource(cleanPath)
+                    } else {
+                      retriever.setDataSource(this@PlayerActivity, parsedUri)
+                    }
+                    com.quantummpv.app.domain.thumbnail.EmbeddedArtworkResolver.decodeEmbeddedArtwork(
+                      cleanPath,
+                      retriever,
+                    )
+                  } finally {
+                    retriever.release()
                   }
-                val retriever = android.media.MediaMetadataRetriever()
-                if (cleanPath != null) {
-                  retriever.setDataSource(cleanPath)
                 } else {
-                  retriever.setDataSource(this@PlayerActivity, parsedUri)
+                  null
                 }
-                val art = com.quantummpv.app.domain.thumbnail.EmbeddedArtworkResolver.decodeEmbeddedArtwork(cleanPath, retriever)
-                retriever.release()
-                art
-              } else {
-                null
-              }
-            }.getOrNull()
-          }
+              }.getOrNull()
+            }
 
-        if (!ownsPlaybackSession() || !mpvInitialized || player.isExiting || isFinishing) return@launch
-        if (thumbnailKey != buildBackgroundThumbnailKey()) return@launch
+          if (!ownsPlaybackSession() || !mpvInitialized || player.isExiting || isFinishing) return@launch
+          if (thumbnailKey != buildBackgroundThumbnailKey()) return@launch
 
-        lastBackgroundThumbnailKey = thumbnailKey
-        lastBackgroundThumbnail = generatedThumbnail
-        mediaPlaybackService?.setMediaInfo(
-          title = title,
-          artist = artist,
-          thumbnail = generatedThumbnail,
-          uri = currentDurableMediaUri(),
-          identifier = notificationIdentifier,
-        )
+          lastBackgroundThumbnailKey = thumbnailKey
+          lastBackgroundThumbnail = generatedThumbnail
+          mediaPlaybackService?.setMediaInfo(
+            title = title,
+            artist = artist,
+            thumbnail = generatedThumbnail,
+            uri = currentDurableMediaUri(),
+            identifier = notificationIdentifier,
+          )
+        } finally {
+          if (pendingBackgroundThumbnailKey == thumbnailKey) pendingBackgroundThumbnailKey = null
+        }
       }
   }
 
   private fun buildBackgroundThumbnailKey(): String {
     if (mediaIdentifier.isBlank()) return ""
-    return "$mediaIdentifier|$playlistIndex"
+    val artworkUri = PlaybackSession.queue.value.currentItem?.artworkUri.orEmpty()
+    return "$mediaIdentifier|$playlistIndex|$artworkUri"
   }
 
   /**

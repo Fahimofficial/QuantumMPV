@@ -45,6 +45,9 @@ import org.koin.core.component.KoinComponent
 import org.koin.core.component.inject
 import kotlin.reflect.KProperty
 
+private fun String.toMpvLanguageList(): String =
+  split(',').map(String::trim).filter(String::isNotEmpty).joinToString(",")
+
 class MPVView(
   context: Context,
   attributes: AttributeSet,
@@ -475,9 +478,9 @@ class MPVView(
     )
 
   private fun setupAudioOptions() {
-    // Disable MPV's automatic audio selection
-    // App will handle track selection manually via TrackSelector to respect user choices
-    PlaybackSession.setOptionString("alang", "")
+    // Let mpv resolve the common case during demuxer initialization. TrackSelector still applies
+    // title-based commentary/description filtering after load when mpv's choice needs correction.
+    PlaybackSession.setOptionString("alang", audioPreferences.preferredLanguages.get().toMpvLanguageList())
     PlaybackSession.setOptionString("audio-display", "embedded-first")
     PlaybackSession.setOptionString("audio-delay", (audioPreferences.defaultAudioDelay.get() / 1000.0).toString())
     PlaybackSession.setOptionString("audio-pitch-correction", audioPreferences.audioPitchCorrection.get().toString())
@@ -488,9 +491,13 @@ class MPVView(
 
   // Setup
   private fun setupSubtitlesOptions() {
-    // Disable MPV's automatic subtitle selection
-    // App will handle track selection manually via TrackSelector to respect user choices
-    PlaybackSession.setOptionString("slang", "")
+    // Resolve preferred languages before packet reads begin, but preserve the global subtitle-off
+    // preference. TrackSelector remains responsible for title/forced/hearing-impaired filtering.
+    val preferredSubtitleLanguages =
+      subtitlesPreferences.preferredLanguages.get().toMpvLanguageList()
+        .takeIf { subtitlesPreferences.autoEnableSubtitles.get() }
+        .orEmpty()
+    PlaybackSession.setOptionString("slang", preferredSubtitleLanguages)
     PlaybackSession.setOptionString("sub-auto", "no")
     PlaybackSession.setOptionString("sub-file-paths", "")
     PlaybackSession.setOptionString("subs-fallback", "no")

@@ -129,15 +129,14 @@ internal fun PlaybackItem.isDefinitelyAudioOnly(): Boolean =
 internal enum class PlaybackVideoSelection {
   DISABLED,
   IMMEDIATE,
-  DEFERRED,
 }
 
-internal fun PlaybackItem.videoSelection(surfaceAttached: Boolean): PlaybackVideoSelection =
+internal fun PlaybackItem.videoSelection(): PlaybackVideoSelection =
   when (declaredMediaKind()) {
     DeclaredPlaybackMediaKind.AUDIO -> PlaybackVideoSelection.DISABLED
     DeclaredPlaybackMediaKind.VIDEO,
     DeclaredPlaybackMediaKind.UNKNOWN,
-    -> if (surfaceAttached) PlaybackVideoSelection.IMMEDIATE else PlaybackVideoSelection.DEFERRED
+    -> PlaybackVideoSelection.IMMEDIATE
   }
 
 data class PlaybackQueueState(
