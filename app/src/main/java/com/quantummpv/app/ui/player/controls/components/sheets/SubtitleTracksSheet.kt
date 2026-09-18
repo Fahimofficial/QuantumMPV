@@ -602,27 +602,12 @@ fun SubtitleTrackRow(
     } else {
       Checkbox(checked = isSelected, onCheckedChange = null)
     }
-    Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-      Text(
-        text = title,
-        style = MaterialTheme.typography.bodyLarge,
-        fontWeight = if (isSelected) FontWeight.SemiBold else FontWeight.Normal,
-      )
-      if (selectionIndicator != null) {
-        Surface(
-          shape = CircleShape,
-          color = MaterialTheme.colorScheme.primaryContainer,
-          contentColor = MaterialTheme.colorScheme.onPrimaryContainer,
-        ) {
-          Text(
-            text = selectionIndicator,
-            style = MaterialTheme.typography.labelMedium,
-            fontWeight = FontWeight.Bold,
-            modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
-          )
-        }
-      }
-    }
+    Text(
+      text = title,
+      modifier = Modifier.weight(1f),
+      style = MaterialTheme.typography.bodyLarge,
+      fontWeight = if (isSelected) FontWeight.SemiBold else FontWeight.Normal,
+    )
 
     if (isCurrentlyTranslating) {
       androidx.compose.material3.CircularProgressIndicator(
@@ -641,6 +626,20 @@ fun SubtitleTrackRow(
         )
       }
       PlayerSheetAction(Icons.RoundedFilled.Delete, stringResource(R.string.ui_remove), onRemove)
+    }
+    if (selectionIndicator != null) {
+      Surface(
+        shape = CircleShape,
+        color = MaterialTheme.colorScheme.primaryContainer,
+        contentColor = MaterialTheme.colorScheme.onPrimaryContainer,
+      ) {
+        Text(
+          text = selectionIndicator,
+          style = MaterialTheme.typography.labelMedium,
+          fontWeight = FontWeight.Bold,
+          modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+        )
+      }
     }
   }
 }

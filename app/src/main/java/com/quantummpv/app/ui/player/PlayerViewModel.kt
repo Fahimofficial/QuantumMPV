@@ -4442,7 +4442,10 @@ val isBrightnessSliderShown = MutableStateFlow(false)
     val wasOff = primarySid <= 0 && secondarySid <= 0
 
     when {
-      id == primarySid -> setTrackSelectionId("sid", null)
+      id == primarySid -> {
+        setTrackSelectionId("secondary-sid", null)
+        setTrackSelectionId("sid", secondarySid.takeIf { it > 0 })
+      }
       id == secondarySid -> setTrackSelectionId("secondary-sid", null)
       primarySid <= 0 -> setTrackSelectionId("sid", id)
       secondarySid <= 0 -> setTrackSelectionId("secondary-sid", id)

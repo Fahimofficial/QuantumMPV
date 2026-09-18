@@ -395,7 +395,7 @@ object YtdlpManager {
     }
 
     // Files to copy from assets/ytdl/ to filesDir/ytdl/
-    val ytdlFiles = arrayOf("setup.py", "wrapper", "python313.zip")
+    val ytdlFiles = arrayOf("setup.py", "python313.zip")
     var copied = true
     for (name in ytdlFiles) {
       copied = copyAssetFile(context, "ytdl/$name", File(ytdlDir, name), onLog) && copied
@@ -404,6 +404,7 @@ object YtdlpManager {
     // cacert.pem goes to filesDir/
     copied = copyAssetFile(context, "cacert.pem", File(context.filesDir, "cacert.pem"), onLog) && copied
 
+    copyAssetFile(context, "ytdl/wrapper", File(ytdlDir, "wrapper"), onLog)
     // Set executable permission on wrapper (just in case it's used)
     File(ytdlDir, "wrapper").setExecutable(true)
     return copied
@@ -657,11 +658,7 @@ object YtdlpManager {
 
   fun isInstalled(context: Context): Boolean {
     val ytDlp = File(getYtdlDir(context), "yt-dlp")
-    return runCatching {
-      java.util.zip.ZipFile(ytDlp).use { archive ->
-        archive.getEntry("__main__.py") != null && archive.getEntry("yt_dlp/__init__.py") != null
-      }
-    }.getOrDefault(false)
+    return ytDlp.isFile && ytDlp.length() > 0L
   }
 
   private fun readInstallationInfo(context: Context): YtdlpInstallationInfo {

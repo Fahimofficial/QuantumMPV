@@ -13,6 +13,7 @@ import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -36,6 +37,7 @@ import com.quantummpv.app.ui.theme.spacing
 import com.quantummpv.app.ui.utils.LocalBackStack
 import com.quantummpv.app.ui.utils.currentMpvConfigOverrideOptions
 import com.quantummpv.app.ui.utils.popSafely
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.launch
 import kotlinx.serialization.Serializable
 import me.zhanghai.compose.preference.ProvidePreferenceLocals
@@ -53,6 +55,7 @@ object YtdlpSettingsScreen : Screen {
     val settingsHighlight =
       rememberSettingsSearchHighlight(YtdlpSettingsScreen, scrollState, MaterialTheme.colorScheme.primary)
     var isRunning by remember { mutableStateOf(false) }
+    var operationError by remember { mutableStateOf<String?>(null) }
 
     val ytdlPreferences = koinInject<YtdlPreferences>()
     val configOwnedOptions = currentMpvConfigOverrideOptions()
@@ -66,11 +69,24 @@ object YtdlpSettingsScreen : Screen {
       YtdlpManager.refreshInstallationInfo(context)
     }
 
-    fun runOperation(operation: suspend () -> Unit) {
+    fun runOperation(operation: suspend ((String) -> Unit) -> Boolean) {
+      if (isRunning) return
+      isRunning = true
+      operationError = null
       scope.launch {
-        isRunning = true
+        val output = StringBuilder()
         try {
-          operation()
+          val succeeded = operation { message ->
+            output.append(message)
+            if (output.length > 8_192) output.delete(0, output.length - 8_192)
+          }
+          if (!succeeded) {
+            operationError = output.toString().trim().ifBlank { context.getString(R.string.generic_unknown_error) }
+          }
+        } catch (cancelled: CancellationException) {
+          throw cancelled
+        } catch (error: Exception) {
+          operationError = error.message ?: context.getString(R.string.generic_unknown_error)
         } finally {
           isRunning = false
         }
@@ -127,6 +143,18 @@ object YtdlpSettingsScreen : Screen {
             modifier = Modifier.padding(horizontal = 16.dp),
           )
 
+          operationError?.let { error ->
+            Column(
+              modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp),
+              verticalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+              Text(stringResource(R.string.ytdlp_install_failed), color = MaterialTheme.colorScheme.error)
+              SelectionContainer {
+                Text(error, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+              }
+            }
+          }
+
           PreferenceSectionHeader(
             title = stringResource(R.string.ui_release_channel),
             modifier = Modifier.settingsSearchTarget(R.string.ui_yt_dlp_manager),
@@ -139,11 +167,11 @@ object YtdlpSettingsScreen : Screen {
             ) {
               Button(
                 onClick = {
-                  runOperation {
+                  runOperation { onLog ->
                     if (installationInfo?.channel == YtdlpReleaseChannel.STABLE) {
-                      YtdlpManager.runUpdate(context) {}
+                      YtdlpManager.runUpdate(context, onLog)
                     } else {
-                      YtdlpManager.runInstall(context) {}
+                      YtdlpManager.runInstall(context, onLog)
                     }
                   }
                 },
@@ -158,7 +186,7 @@ object YtdlpSettingsScreen : Screen {
 
               OutlinedButton(
                 onClick = {
-                  runOperation { YtdlpManager.runUpdateToNightly(context) {} }
+                  runOperation { onLog -> YtdlpManager.runUpdateToNightly(context, onLog) }
                 },
                 enabled = !isRunning && isInstalled,
                 modifier = Modifier.fillMaxWidth(),
