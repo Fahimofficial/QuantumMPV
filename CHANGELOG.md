@@ -1,6 +1,12 @@
 # Changelog
 
 These notes are written in plain English and focus on what changed for real use.
+## 1.1.0-preview.8
+
+- **Simplified appearance**: Removed the live appearance preview and animated Home background.
+- **Solid default preserved**: The existing solid card and navigation appearance remains unchanged unless users explicitly enable the glass options.
+- **Focused customization**: Retained the independent opt-in Glass-style cards and Glass bottom navigation switches.
+
 ## 1.1.0-preview.7
 
 - **Build fix**: Corrected the glass-card preference wiring for the About libraries screen.

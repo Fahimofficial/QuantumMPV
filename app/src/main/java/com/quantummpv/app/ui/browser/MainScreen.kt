@@ -11,17 +11,12 @@ package com.quantummpv.app.ui.browser
 
 import android.annotation.SuppressLint
 import android.content.res.Configuration
-import android.os.PowerManager
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.EnterTransition
 import androidx.compose.animation.ExitTransition
 import androidx.compose.animation.core.FastOutSlowInEasing
-import androidx.compose.animation.core.LinearEasing
-import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.animateFloat
-import androidx.compose.animation.core.infiniteRepeatable
-import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.snap
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.core.animateFloatAsState
@@ -77,9 +72,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.clipToBounds
-import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.layout.layout
@@ -115,7 +108,6 @@ import com.quantummpv.app.ui.player.controls.components.rememberTvInitialFocusRe
 import com.quantummpv.app.ui.player.controls.components.tvFocusHighlight
 import com.quantummpv.app.ui.player.controls.components.tvInitialFocus
 import com.quantummpv.app.ui.player.NavigationAnimStyle
-import com.quantummpv.app.ui.theme.LocalMotionPolicy
 import com.quantummpv.app.ui.utils.navigationDurationMillis
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.cancelAndJoin
@@ -186,10 +178,7 @@ object MainScreen : Screen {
     val showPlaylistsTab by appearancePreferences.showPlaylistsTab.collectAsState()
     val showNetworkTab by appearancePreferences.showNetworkTab.collectAsState()
     val showJellyfinTab by appearancePreferences.showJellyfinTab.collectAsState()
-    val animatedHomeBackground by appearancePreferences.animatedHomeBackground.collectAsState()
     val glassBottomNavigation by appearancePreferences.glassBottomNavigation.collectAsState()
-    val reduceMotion = LocalMotionPolicy.current.reduceMotion
-    val powerManager = context.getSystemService(PowerManager::class.java)
     val hideNavigationBar = NavigationBarState.shouldHideNavigationBar
     val isPermissionDenied = NavigationBarState.isPermissionDenied
     val isDualPaneFolderSelected = NavigationBarState.isDualPaneFolderSelected
@@ -368,16 +357,7 @@ object MainScreen : Screen {
             ) { page ->
               val tab = visibleTabs.getOrNull(page) ?: return@NavigationPager
               when (tab) {
-                MainTab.HOME ->
-                  if (
-                    animatedHomeBackground &&
-                      !reduceMotion &&
-                      powerManager?.isPowerSaveMode != true
-                  ) {
-                    AnimatedHomeBackdrop { FolderListScreen.Content() }
-                  } else {
-                    FolderListScreen.Content()
-                  }
+                MainTab.HOME -> FolderListScreen.Content()
                 MainTab.MUSIC -> {
                   if (musicSourceProvider == MusicSourceProvider.JELLYFIN) {
                     val jellyfinUiState by jellyfinViewModel.uiState.collectAsStateWithLifecycle()
@@ -796,44 +776,6 @@ private fun ExpressivePillNavigationBar(
         }
       }
     }
-  }
-}
-
-@Composable
-private fun AnimatedHomeBackdrop(content: @Composable () -> Unit) {
-  val transition = rememberInfiniteTransition(label = "home-backdrop")
-  val phase by
-    transition.animateFloat(
-      initialValue = 0f,
-      targetValue = 1f,
-      animationSpec =
-        infiniteRepeatable(
-          animation = tween(durationMillis = 18_000, easing = LinearEasing),
-          repeatMode = RepeatMode.Reverse,
-        ),
-      label = "home-backdrop-phase",
-    )
-  val colors = MaterialTheme.colorScheme
-
-  Box(
-    modifier =
-      Modifier
-        .fillMaxSize()
-        .drawBehind {
-          val radius = size.minDimension * 0.58f
-          drawCircle(
-            color = colors.primary.copy(alpha = 0.028f),
-            radius = radius,
-            center = Offset(size.width * (0.12f + 0.22f * phase), size.height * 0.12f),
-          )
-          drawCircle(
-            color = colors.tertiary.copy(alpha = 0.022f),
-            radius = radius * 0.82f,
-            center = Offset(size.width * (0.88f - 0.18f * phase), size.height * 0.88f),
-          )
-        },
-  ) {
-    content()
   }
 }
 

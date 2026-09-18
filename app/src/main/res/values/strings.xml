@@ -68,12 +68,6 @@
   <string name="pref_appearance_nav_style_fade">Fade</string>
   <string name="pref_appearance_nav_style_none">None (Instant)</string>
   <string name="pref_appearance_theme_picker_label">App Theme</string>
-  <string name="pref_appearance_animated_home_background_title">Animated home background</string>
-  <string name="pref_appearance_animated_home_background_summary">Show a subtle slow accent animation behind the Home screen. Automatically pauses with reduced motion or battery saver.</string>
-  <string name="pref_appearance_personalization_title">Personalization</string>
-  <string name="pref_appearance_preview_title">Live appearance preview</string>
-  <string name="pref_appearance_preview_card">Card</string>
-  <string name="pref_appearance_preview_nav">Navigation</string>
   <string name="pref_appearance_glass_cards_title">Glass-style cards</string>
   <string name="pref_appearance_glass_cards_summary">Use subtle translucent surfaces and soft borders for settings cards. Off keeps the solid card style.</string>
   <string name="pref_appearance_glass_navigation_title">Glass bottom navigation</string>

@@ -12,7 +12,6 @@ package com.quantummpv.app.ui.preferences
 import android.widget.Toast
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -23,12 +22,9 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
-import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
@@ -41,13 +37,11 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import androidx.compose.foundation.shape.RoundedCornerShape
 import com.quantummpv.app.R
 import com.quantummpv.app.domain.thumbnail.ThumbnailRepository
 import com.quantummpv.app.preferences.AppearancePreferences
@@ -302,86 +296,6 @@ object AppearancePreferencesScreen : Screen {
                   )
 
                   PreferenceDivider()
-
-                  val animatedHomeBackground by preferences.animatedHomeBackground.collectAsState()
-                  SwitchPreference(
-                    modifier = Modifier.settingsSearchTarget(R.string.pref_appearance_animated_home_background_title),
-                    value = animatedHomeBackground,
-                    onValueChange = preferences.animatedHomeBackground::set,
-                    title = {
-                      Text(
-                        text = stringResource(R.string.pref_appearance_animated_home_background_title),
-                      )
-                    },
-                    summary = {
-                      Text(
-                        text = stringResource(R.string.pref_appearance_animated_home_background_summary),
-                        color = MaterialTheme.colorScheme.outline,
-                      )
-                    },
-                  )
-
-                  PreferenceDivider()
-                  Text(
-                    text = stringResource(R.string.pref_appearance_personalization_title),
-                    style = MaterialTheme.typography.titleSmall,
-                    fontWeight = FontWeight.SemiBold,
-                    modifier = Modifier.padding(horizontal = 20.dp, vertical = 12.dp),
-                  )
-                  Card(
-                    modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp),
-                    shape = RoundedCornerShape(18.dp),
-                    colors =
-                      CardDefaults.cardColors(
-                        containerColor =
-                          if (glassCards) {
-                            MaterialTheme.colorScheme.surfaceContainerLow.copy(alpha = 0.72f)
-                          } else {
-                            MaterialTheme.colorScheme.surfaceContainerLow
-                          },
-                      ),
-                    border =
-                      BorderStroke(
-                        width = 1.dp,
-                        color = MaterialTheme.colorScheme.primary.copy(alpha = 0.32f),
-                      ),
-                  ) {
-                    Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                      Text(
-                        text = stringResource(R.string.pref_appearance_preview_title),
-                        style = MaterialTheme.typography.labelLarge,
-                        color = MaterialTheme.colorScheme.onSurface,
-                      )
-                      Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        Surface(
-                          modifier = Modifier.weight(1f),
-                          shape = RoundedCornerShape(12.dp),
-                          color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = if (glassCards) 0.72f else 1f),
-                          border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.32f)),
-                        ) {
-                          Text(
-                            text = stringResource(R.string.pref_appearance_preview_card),
-                            modifier = Modifier.padding(12.dp),
-                            style = MaterialTheme.typography.labelMedium,
-                            color = MaterialTheme.colorScheme.onPrimaryContainer,
-                          )
-                        }
-                        Surface(
-                          modifier = Modifier.weight(1f),
-                          shape = RoundedCornerShape(50),
-                          color = MaterialTheme.colorScheme.surfaceContainerHigh.copy(alpha = if (glassBottomNavigation) 0.78f else 1f),
-                          border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.42f)),
-                        ) {
-                          Text(
-                            text = stringResource(R.string.pref_appearance_preview_nav),
-                            modifier = Modifier.padding(12.dp),
-                            style = MaterialTheme.typography.labelMedium,
-                            color = MaterialTheme.colorScheme.onSurface,
-                          )
-                        }
-                      }
-                    }
-                  }
                   SwitchPreference(
                     modifier = Modifier.settingsSearchTarget(R.string.pref_appearance_glass_cards_title),
                     value = glassCards,
@@ -405,8 +319,7 @@ object AppearancePreferencesScreen : Screen {
 
                   PreferenceDivider()
 
-                  SwitchPreference(
-                    modifier = Modifier.settingsSearchTarget(R.string.pref_appearance_amoled_mode_title),
+                 modifier = Modifier.settingsSearchTarget(R.string.pref_appearance_amoled_mode_title),
                     value = amoledMode,
                     onValueChange = { newValue ->
                       if (themeTransition?.isAnimating != true) {
