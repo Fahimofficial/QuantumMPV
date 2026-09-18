@@ -20,7 +20,7 @@ val activeAbis =
     listOf("arm64-v8a", "armeabi-v7a") + x86Abis
   }
 val universalOnlyDistributions = setOf("noVulkan", "fongmi")
-val releaseVersionCode = 260
+  val releaseVersionCode = 261
 val versionCodeBandSize = 10_000
 val stableVersionCode = releaseVersionCode * versionCodeBandSize + (versionCodeBandSize - 1)
 val previewVersionCode =

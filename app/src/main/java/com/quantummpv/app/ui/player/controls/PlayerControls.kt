@@ -360,9 +360,10 @@ fun PlayerControls(
   val currentPlaybackItem = playbackQueue.currentItem
   val useAudioPlayer =
     when (currentPlaybackItem?.declaredMediaKind()) {
+      null -> activity?.isCurrentMediaKnownAudio() == true
       DeclaredPlaybackMediaKind.VIDEO -> false
       DeclaredPlaybackMediaKind.AUDIO -> true
-      else -> isAudioOnly || activity?.isCurrentMediaKnownAudio() == true
+      DeclaredPlaybackMediaKind.UNKNOWN -> isAudioOnly || activity?.isCurrentMediaKnownAudio() == true
     }
   if (useAudioPlayer) {
     val audioBook by com.quantummpv.app.ui.player.AudiobookPlayback.book.collectAsState()
