@@ -1,6 +1,11 @@
 # Changelog
 
 These notes are written in plain English and focus on what changed for real use.
+## 1.1.0-preview.5
+
+- **Modern glass cards**: Settings cards now use low-opacity theme-aware surfaces with soft outline borders for a cleaner glass-style appearance.
+- **About card consistency**: About library cards use the same translucent surface and border treatment while retaining the subtle support-card shimmer.
+- **Visible Home backdrop**: The opt-in animated Home accent renders above Home content surfaces while remaining subtle and battery-friendly.
 
 ## 1.1.0-preview.2
 
@@ -15,11 +20,6 @@ This preview adds optional appearance personalization while keeping the default 
 ## 1.1.0-preview.3
 
 - **Visible Home backdrop**: Improved the opt-in animation rendering so its subtle accent motion remains visible above Home content surfaces.
-
-## 1.1.0-preview.4
-
-- **Modern glass cards**: Settings cards now use low-opacity theme-aware surfaces with soft outline borders for a cleaner glass-style appearance.
-- **About card consistency**: About library cards use the same translucent surface and border treatment while retaining the subtle support-card shimmer.
 
 ## Initial release 1.0.0
 
