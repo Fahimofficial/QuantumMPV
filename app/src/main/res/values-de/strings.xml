@@ -2281,7 +2281,7 @@ Bitte starten Sie die App neu, damit alle Änderungen wirksam werden.</string>
   <string name="ytdlp_installing">yt-dlp wird installiert…</string>
   <string name="video_swipe_play_next">Als Nächstes abspielen</string>
   <string name="video_swipe_add_queue">Zur Warteschlange hinzufügen</string>
-  <string name="pref_video_swipe_title">Wischaktionen für Videos und Ordner</string>
+  <string name="pref_video_swipe_title">Wischaktionen für Videos, Audio und Ordner</string>
   <string name="pref_video_swipe_right">Nach rechts wischen</string>
   <string name="pref_video_swipe_left">Nach links wischen</string>
   <string name="pref_video_swipe_choose_right">Aktion beim Wischen nach rechts</string>
@@ -2375,4 +2375,8 @@ Bitte starten Sie die App neu, damit alle Änderungen wirksam werden.</string>
   <string name="audiobook_source_audiobookshelf_desc">Hörbücher von deinem Audiobookshelf-Server streamen</string>
   <string name="audiobook_source_local">Lokale Hörbücher</string>
   <string name="pref_audiobookshelf_no_server">Kein Audiobookshelf-Server verbunden</string>
+  <string name="audio_swipe_delete_title">Audiodateien löschen?</string>
+  <string name="audio_swipe_delete_folder_message">%1$d Audiodateien in %2$s und dessen Unterordnern dauerhaft löschen? Andere Dateien und Ordner bleiben erhalten. Dies kann nicht rückgängig gemacht werden.</string>
+  <string name="audio_swipe_loading">Audiodateien werden gesammelt</string>
+  <string name="audio_swipe_folder_empty">Keine Audiodateien in diesem Ordner gefunden</string>
 </resources>

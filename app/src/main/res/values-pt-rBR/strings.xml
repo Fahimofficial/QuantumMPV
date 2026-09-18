@@ -2281,7 +2281,7 @@ Reinicie o aplicativo para que todas as alterações entrem em vigor.</string>
   <string name="ytdlp_installing">Instalando yt-dlp…</string>
   <string name="video_swipe_play_next">Reproduzir em seguida</string>
   <string name="video_swipe_add_queue">Adicionar à fila</string>
-  <string name="pref_video_swipe_title">Deslizamentos em vídeos e pastas</string>
+  <string name="pref_video_swipe_title">Deslizamentos em vídeos, áudio e pastas</string>
   <string name="pref_video_swipe_right">Deslizar para a direita</string>
   <string name="pref_video_swipe_left">Deslizar para a esquerda</string>
   <string name="pref_video_swipe_choose_right">Ação ao deslizar para a direita</string>
@@ -2375,4 +2375,8 @@ Reinicie o aplicativo para que todas as alterações entrem em vigor.</string>
   <string name="audiobook_source_audiobookshelf_desc">Transmitir audiolivros do seu servidor Audiobookshelf</string>
   <string name="audiobook_source_local">Audiolivros locais</string>
   <string name="pref_audiobookshelf_no_server">Nenhum servidor Audiobookshelf conectado</string>
+  <string name="audio_swipe_delete_title">Excluir arquivos de áudio?</string>
+  <string name="audio_swipe_delete_folder_message">Excluir permanentemente %1$d arquivos de áudio de %2$s e suas subpastas? Outros arquivos e pastas serão mantidos. Esta ação não pode ser desfeita.</string>
+  <string name="audio_swipe_loading">Reunindo arquivos de áudio</string>
+  <string name="audio_swipe_folder_empty">Nenhum arquivo de áudio encontrado nesta pasta</string>
 </resources>

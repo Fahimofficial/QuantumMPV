@@ -57,8 +57,12 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.quantummpv.app.R
+import com.quantummpv.app.preferences.BrowserPreferences
+import com.quantummpv.app.preferences.VideoSwipeAction
+import com.quantummpv.app.preferences.preference.collectAsState
 import com.quantummpv.app.presentation.components.RemoteImage
 import com.quantummpv.app.ui.browser.cards.SelectionIndicator
+import com.quantummpv.app.ui.browser.cards.VideoSwipeSurface
 import com.quantummpv.app.ui.browser.cards.animatedSelectionColor
 import com.quantummpv.app.ui.icons.AppIcon
 import com.quantummpv.app.ui.icons.Icon
@@ -68,6 +72,7 @@ import com.quantummpv.app.ui.player.controls.components.tvContextMenu
 import com.quantummpv.app.ui.player.PlaybackSession
 import com.quantummpv.app.ui.player.controls.components.MiniAudioVisualizer
 import com.quantummpv.app.ui.theme.AppShapeScale
+import org.koin.compose.koinInject
 
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
@@ -89,8 +94,20 @@ fun SharedMusicTrackListItem(
   onClick: () -> Unit,
   onLongClick: (() -> Unit)? = null,
   modifier: Modifier = Modifier,
+  swipeIdentity: String = title,
+  isWatched: Boolean? = null,
+  onSwipeAction: ((VideoSwipeAction) -> Unit)? = null,
 ) {
-  Surface(
+  val preferences = koinInject<BrowserPreferences>()
+  val leftAction by preferences.videoSwipeLeft.collectAsState()
+  val rightAction by preferences.videoSwipeRight.collectAsState()
+  VideoSwipeSurface(
+    identity = swipeIdentity,
+    leftAction = leftAction,
+    rightAction = rightAction,
+    isWatched = isWatched,
+    enabled = !isSelected && onSwipeAction != null,
+    onAction = onSwipeAction,
     modifier = modifier
       .fillMaxWidth()
       .padding(horizontal = 8.dp, vertical = 3.dp)
@@ -105,10 +122,13 @@ fun SharedMusicTrackListItem(
         }
       ),
     shape = AppShapeScale.large,
-    color = animatedSelectionColor(
-      selected = isSelected,
-      selectedColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.6f),
-      unselectedColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = if (isPlaying) 0.35f else 0f),
+    colors = CardDefaults.cardColors(
+      containerColor = animatedSelectionColor(
+        selected = isSelected,
+        selectedColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.6f),
+        unselectedColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = if (isPlaying) 0.35f else 0f),
+      ),
+      contentColor = MaterialTheme.colorScheme.onSurface,
     ),
   ) {
     Row(

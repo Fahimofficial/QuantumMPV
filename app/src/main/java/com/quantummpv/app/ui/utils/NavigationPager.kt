@@ -57,10 +57,11 @@ internal fun NavigationPager(
   beyondViewportPageCount: Int = 1,
   userScrollEnabled: Boolean = true,
   key: ((Int) -> Any)? = null,
+  allowNestedSwipes: Boolean = false,
   content: @Composable PagerScope.(Int) -> Unit,
 ) {
   val isNestedPager = LocalNavigationPagerPresent.current
-  val ownsHorizontalSwipes = userScrollEnabled && !isNestedPager
+  val ownsHorizontalSwipes = userScrollEnabled && (!isNestedPager || allowNestedSwipes)
   val nestedScrollConnection = if (ownsHorizontalSwipes) {
     PagerDefaults.pageNestedScrollConnection(state, Orientation.Horizontal)
   } else {

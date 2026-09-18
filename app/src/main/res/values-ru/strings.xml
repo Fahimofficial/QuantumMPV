@@ -2289,7 +2289,7 @@
   <string name="ytdlp_installing">Установка yt-dlp…</string>
   <string name="video_swipe_play_next">Воспроизвести следующим</string>
   <string name="video_swipe_add_queue">Добавить в очередь</string>
-  <string name="pref_video_swipe_title">Смахивания видео и папок</string>
+  <string name="pref_video_swipe_title">Смахивания видео, аудио и папок</string>
   <string name="pref_video_swipe_right">Смахивание вправо</string>
   <string name="pref_video_swipe_left">Смахивание влево</string>
   <string name="pref_video_swipe_choose_right">Действие при смахивании вправо</string>
@@ -2383,4 +2383,8 @@
   <string name="audiobook_source_audiobookshelf_desc">Слушать аудиокниги с вашего сервера Audiobookshelf</string>
   <string name="audiobook_source_local">Локальные аудиокниги</string>
   <string name="pref_audiobookshelf_no_server">Нет подключенного сервера Audiobookshelf</string>
+  <string name="audio_swipe_delete_title">Удалить аудиофайлы?</string>
+  <string name="audio_swipe_delete_folder_message">Безвозвратно удалить %1$d аудиофайлов из %2$s и вложенных папок? Остальные файлы и папки будут сохранены. Это действие нельзя отменить.</string>
+  <string name="audio_swipe_loading">Сбор аудиофайлов</string>
+  <string name="audio_swipe_folder_empty">В этой папке нет аудиофайлов</string>
 </resources>

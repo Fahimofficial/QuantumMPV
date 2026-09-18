@@ -168,7 +168,7 @@ fun FolderCard(
     leftAction = swipeLeft,
     rightAction = swipeRight,
     isWatched = null,
-    enabled = !isGridMode && !isSelected && !isAudioOnly && folder.path.startsWith('/'),
+    enabled = !isGridMode && !isSelected && folder.path.startsWith('/'),
     onAction = onSwipeAction?.let { action -> { swipe -> action(folder, swipe) } },
     modifier =
       modifier

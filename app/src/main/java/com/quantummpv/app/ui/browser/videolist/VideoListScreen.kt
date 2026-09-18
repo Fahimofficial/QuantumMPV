@@ -810,7 +810,7 @@ internal fun VideoListContent(
   onFabExpandedChange: (Boolean) -> Unit = {},
 ) {
   val swipeScope = rememberCoroutineScope()
-  val swipeActions = rememberVideoSwipeActions { swipeScope.launch { onRefresh() } }
+  val swipeActions = rememberVideoSwipeActions(audioOnly = isAudio) { swipeScope.launch { onRefresh() } }
   val thumbnailRepository = koinInject<ThumbnailRepository>()
   val gesturePreferences = koinInject<GesturePreferences>()
   val browserPreferences = koinInject<BrowserPreferences>()

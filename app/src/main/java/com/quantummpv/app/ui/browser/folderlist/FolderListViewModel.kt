@@ -14,6 +14,7 @@ import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
+import com.quantummpv.app.domain.media.model.Video
 import com.quantummpv.app.domain.media.model.VideoFolder
 import com.quantummpv.app.domain.playbackstate.repository.PlaybackStateRepository
 import com.quantummpv.app.preferences.AppearancePreferences
@@ -23,10 +24,13 @@ import com.quantummpv.app.ui.browser.base.BaseBrowserViewModel
 import com.quantummpv.app.ui.player.PlaybackIdentity
 import com.quantummpv.app.utils.media.MediaLibraryEvents
 import com.quantummpv.app.utils.media.MetadataRetrieval
+import com.quantummpv.app.utils.media.PlaybackStateEvents
 import com.quantummpv.app.utils.permission.PermissionUtils.StorageOps
 import com.quantummpv.app.utils.storage.FolderViewScanner
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -36,7 +40,9 @@ import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.drop
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.merge
+import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import org.koin.core.component.KoinComponent
@@ -91,8 +97,8 @@ class FolderListViewModel(
 
   // Track the current scan job to prevent concurrent scans
   private var currentScanJob: Job? = null
-  private var newCountJob: Job? = null
   private var cacheWriteJob: Job? = null
+  private val folderContentRevision = MutableStateFlow(0L)
 
     companion object {
     private const val TAG = "FolderListViewModel"
@@ -171,11 +177,31 @@ class FolderListViewModel(
         previousFolderCount = filteredFolders.size
 
         _videoFolders.value = filteredFolders
-        // Calculate new video counts for each folder
-        calculateNewVideoCounts(filteredFolders)
 
         // Save to cache for next app launch (save unfiltered list)
         saveFoldersToCache(_allVideoFolders.value)
+      }
+    }
+
+    viewModelScope.launch(Dispatchers.IO) {
+      val folderVideos = mutableMapOf<VideoFolder, List<Video>>()
+      var cachedRevision = -1L
+      val badgeInputs =
+        combine(
+          _videoFolders,
+          appearancePreferences.showUnplayedOldVideoLabel.changes(),
+          appearancePreferences.unplayedOldVideoDays.changes(),
+          browserPreferences.watchedThreshold.changes(),
+          folderContentRevision,
+        ) { _, _, _, _, revision -> revision }
+
+      merge(badgeInputs, PlaybackStateEvents.changes.map { folderContentRevision.value }).collectLatest { revision ->
+        if (cachedRevision != revision) {
+          folderVideos.clear()
+          cachedRevision = revision
+        }
+        delay(400)
+        calculateNewVideoCounts(_videoFolders.value, folderVideos)
       }
     }
   }
@@ -258,78 +284,77 @@ class FolderListViewModel(
       emptyList()
     }
 
-  private fun calculateNewVideoCounts(folders: List<VideoFolder>) {
-    newCountJob?.cancel()
-    newCountJob =
-      viewModelScope.launch(Dispatchers.IO) {
-        delay(400)
-        try {
-          val showLabel = appearancePreferences.showUnplayedOldVideoLabel.get()
-          if (!showLabel) {
-            // If feature is disabled, just return folders with 0 count
-            _foldersWithNewCount.value = folders.map { FolderWithNewCount(it, 0) }
-            return@launch
-          }
+  private suspend fun calculateNewVideoCounts(
+    folders: List<VideoFolder>,
+    folderVideos: MutableMap<VideoFolder, List<Video>>,
+  ) {
+    folderVideos.keys.retainAll(folders.toSet())
+    try {
+      val showLabel = appearancePreferences.showUnplayedOldVideoLabel.get()
+      if (!showLabel) {
+        folderVideos.clear()
+        _foldersWithNewCount.value = folders.map { FolderWithNewCount(it, 0) }
+        return
+      }
 
-          val thresholdDays = appearancePreferences.unplayedOldVideoDays.get()
-          val thresholdMillis = thresholdDays * 24 * 60 * 60 * 1000L
-          val watchedThreshold = browserPreferences.watchedThreshold.get()
-          val currentTime = System.currentTimeMillis()
+      val thresholdDays = appearancePreferences.unplayedOldVideoDays.get()
+      val thresholdMillis = thresholdDays * 24 * 60 * 60 * 1000L
+      val watchedThreshold = browserPreferences.watchedThreshold.get()
+      val currentTime = System.currentTimeMillis()
 
-          val foldersWithCounts =
-            folders.map { folder ->
-              try {
-                // MediaStore can lag behind files copied by other apps. Merge this known folder's
-                // direct filesystem entries so its NEW count does not require a manual refresh.
-                val videos =
-                  com.quantummpv.app.repository.MediaFileRepository
-                    .getVideosInFolder(
-                      context = getApplication(),
-                      bucketId = folder.bucketId,
-                      forceFileSystemCheck = true,
-                    )
-
-                // Count new unplayed videos
-                val newCount =
-                  videos.count { video ->
-                    // Check if video was modified within threshold days
-                    val videoAge = currentTime - (video.dateModified * 1000)
-                    val isRecent = videoAge <= thresholdMillis
-
-                    // A video counts as "unplayed" until it has been watched to the
-                    // configured threshold. Threshold 0 ("Infinitely") keeps it unplayed.
-                    val playbackState = playbackStateRepository.getVideoDataByTitle(PlaybackIdentity.forLocalPath(video.path))
-                      ?: playbackStateRepository.getVideoDataByTitle(PlaybackIdentity.forUri(video.uri.toString()))
-                      ?: playbackStateRepository.getVideoDataByTitle(PlaybackIdentity.forUri(video.path))
-                      ?: playbackStateRepository.getVideoDataByTitle(PlaybackIdentity.forUri("file://${video.path}"))
-                    val isUnplayed =
-                      if (playbackState != null && video.duration > 0) {
-                        val durationSeconds = video.duration / 1000
-                        val watched = durationSeconds - playbackState.timeRemaining.toLong()
-                        val progressValue =
-                          (watched.toFloat() / durationSeconds.toFloat()).coerceIn(0f, 1f)
-                        watchedThreshold <= 0 || progressValue < (watchedThreshold / 100f)
-                      } else {
-                        playbackState == null
-                      }
-
-                    playbackState?.hasBeenWatched != true &&
-                      (playbackState?.newLabelOverride ?: (isRecent && isUnplayed))
-                  }
-
-                FolderWithNewCount(folder, newCount)
-              } catch (e: Exception) {
-                Log.e(TAG, "Error counting new videos for folder ${folder.name}", e)
-                FolderWithNewCount(folder, 0)
-              }
+      val foldersWithCounts =
+        folders.map { folder ->
+          try {
+            val videos = folderVideos[folder] ?: MediaFileRepository.getVideosInFolder(
+              context = getApplication(),
+              bucketId = folder.bucketId,
+              forceFileSystemCheck = true,
+            ).also {
+              currentCoroutineContext().ensureActive()
+              folderVideos[folder] = it
             }
 
-          _foldersWithNewCount.value = foldersWithCounts
-        } catch (e: Exception) {
-          Log.e(TAG, "Error calculating new video counts", e)
-          _foldersWithNewCount.value = folders.map { FolderWithNewCount(it, 0) }
+            val newCount =
+              videos.count { video ->
+                val videoAge = currentTime - (video.dateModified * 1000)
+                val isRecent = videoAge <= thresholdMillis
+
+                val playbackState = playbackStateRepository.getVideoDataByTitle(PlaybackIdentity.forLocalPath(video.path))
+                  ?: playbackStateRepository.getVideoDataByTitle(PlaybackIdentity.forUri(video.uri.toString()))
+                  ?: playbackStateRepository.getVideoDataByTitle(PlaybackIdentity.forUri(video.path))
+                  ?: playbackStateRepository.getVideoDataByTitle(PlaybackIdentity.forUri("file://${video.path}"))
+                val isUnplayed =
+                  if (playbackState != null && video.duration > 0) {
+                    val durationSeconds = video.duration / 1000
+                    val watched = durationSeconds - playbackState.timeRemaining.toLong()
+                    val progressValue =
+                      (watched.toFloat() / durationSeconds.toFloat()).coerceIn(0f, 1f)
+                    watchedThreshold <= 0 || progressValue < (watchedThreshold / 100f)
+                  } else {
+                    playbackState == null
+                  }
+
+                playbackState?.hasBeenWatched != true &&
+                  (playbackState?.newLabelOverride ?: (isRecent && isUnplayed))
+              }
+
+            FolderWithNewCount(folder, newCount)
+          } catch (cancellation: CancellationException) {
+            throw cancellation
+          } catch (e: Exception) {
+            Log.e(TAG, "Error counting new videos for folder ${folder.name}", e)
+            FolderWithNewCount(folder, 0)
+          }
         }
-      }
+
+      currentCoroutineContext().ensureActive()
+      _foldersWithNewCount.value = foldersWithCounts
+    } catch (cancellation: CancellationException) {
+      throw cancellation
+    } catch (e: Exception) {
+      Log.e(TAG, "Error calculating new video counts", e)
+      _foldersWithNewCount.value = folders.map { FolderWithNewCount(it, 0) }
+    }
   }
 
   override fun refresh() {
@@ -365,14 +390,6 @@ class FolderListViewModel(
     }
   }
 
-  /**
-   * Recalculate new video counts without refreshing the entire folder list
-   * Useful when returning to the screen after playing videos
-   */
-  fun recalculateNewVideoCounts() {
-    calculateNewVideoCounts(_videoFolders.value)
-  }
-
   suspend fun renameFolder(
     folder: VideoFolder,
     newName: String,
@@ -387,6 +404,7 @@ class FolderListViewModel(
   /** Publishes MediaStore immediately, then merges indexed .nomedia folders in the background. */
   private fun loadVideoFolders(forceFileSystemCheck: Boolean = false) {
     currentScanJob?.cancel()
+    folderContentRevision.update { it + 1 }
 
     if (audioOnly) {
       currentScanJob =

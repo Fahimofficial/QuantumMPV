@@ -2185,7 +2185,7 @@
   <string name="ytdlp_installing">yt-dlp इंस्टॉल हो रहा है…</string>
   <string name="video_swipe_play_next">अगला चलाएँ</string>
   <string name="video_swipe_add_queue">कतार में जोड़ें</string>
-  <string name="pref_video_swipe_title">वीडियो और फ़ोल्डर की स्वाइप कार्रवाइयाँ</string>
+  <string name="pref_video_swipe_title">वीडियो, ऑडियो और फ़ोल्डर की स्वाइप कार्रवाइयाँ</string>
   <string name="pref_video_swipe_right">दाईं ओर स्वाइप</string>
   <string name="pref_video_swipe_left">बाईं ओर स्वाइप</string>
   <string name="pref_video_swipe_choose_right">दाईं ओर स्वाइप करने पर कार्रवाई</string>
@@ -2279,4 +2279,8 @@
   <string name="audiobook_source_audiobookshelf_desc">अपने Audiobookshelf सर्वर से ऑडियोबुक्स स्ट्रीम करें</string>
   <string name="audiobook_source_local">लोकल ऑडियोबुक्स</string>
   <string name="pref_audiobookshelf_no_server">कोई Audiobookshelf सर्वर कनेक्ट नहीं है</string>
+  <string name="audio_swipe_delete_title">ऑडियो फ़ाइलें मिटाएँ?</string>
+  <string name="audio_swipe_delete_folder_message">%2$s और उसके सबफ़ोल्डर की %1$d ऑडियो फ़ाइलें स्थायी रूप से मिटाएँ? अन्य फ़ाइलें और फ़ोल्डर रखे जाएँगे। इसे पूर्ववत नहीं किया जा सकता।</string>
+  <string name="audio_swipe_loading">ऑडियो फ़ाइलें एकत्र की जा रही हैं</string>
+  <string name="audio_swipe_folder_empty">इस फ़ोल्डर में कोई ऑडियो फ़ाइल नहीं मिली</string>
 </resources>

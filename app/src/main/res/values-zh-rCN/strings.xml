@@ -2277,7 +2277,7 @@
   <string name="ytdlp_installing">正在安装 yt-dlp…</string>
   <string name="video_swipe_play_next">接下来播放</string>
   <string name="video_swipe_add_queue">添加到队列</string>
-  <string name="pref_video_swipe_title">视频和文件夹滑动操作</string>
+  <string name="pref_video_swipe_title">视频、音频和文件夹滑动操作</string>
   <string name="pref_video_swipe_right">向右滑动</string>
   <string name="pref_video_swipe_left">向左滑动</string>
   <string name="pref_video_swipe_choose_right">向右滑动时执行</string>
@@ -2371,4 +2371,8 @@
   <string name="audiobook_source_audiobookshelf_desc">从 Audiobookshelf 服务器串流有声书</string>
   <string name="audiobook_source_local">本地有声书</string>
   <string name="pref_audiobookshelf_no_server">未连接 Audiobookshelf 服务器</string>
+  <string name="audio_swipe_delete_title">删除音频文件？</string>
+  <string name="audio_swipe_delete_folder_message">永久删除 %2$s 及其子文件夹中的 %1$d 个音频文件？其他文件和文件夹将保留。此操作无法撤销。</string>
+  <string name="audio_swipe_loading">正在收集音频文件</string>
+  <string name="audio_swipe_folder_empty">此文件夹中未找到音频文件</string>
 </resources>

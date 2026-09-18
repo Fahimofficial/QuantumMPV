@@ -468,6 +468,7 @@ object NetworkStreamingScreen : Screen {
               .fillMaxSize(),
           userScrollEnabled = true,
           beyondViewportPageCount = 1,
+          allowNestedSwipes = true,
         ) { page ->
           when (NetworkTab.entries[page]) {
             NetworkTab.LOCAL_NETWORK -> {

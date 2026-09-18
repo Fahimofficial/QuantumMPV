@@ -62,7 +62,6 @@ import androidx.compose.material3.animateFloatingActionButton
 import androidx.compose.material3.rememberTooltipState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
-import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.derivedStateOf
@@ -84,8 +83,6 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
-import androidx.lifecycle.Lifecycle
-import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.quantummpv.app.BuildConfig
 import com.quantummpv.app.R
@@ -174,7 +171,6 @@ object FolderListScreen : Screen {
     val context = LocalContext.current
     val backstack = LocalBackStack.current
     val coroutineScope = rememberCoroutineScope()
-    val lifecycleOwner = androidx.lifecycle.compose.LocalLifecycleOwner.current
 
     // ViewModels and preferences
     val viewModel: FolderListViewModel =
@@ -508,18 +504,6 @@ object FolderListScreen : Screen {
       onPauseOrDispose {
         if (isNavigationPageActive) navBarState.isDualPaneFolderSelected = false
       }
-    }
-
-    // Lifecycle observer for refresh
-    DisposableEffect(lifecycleOwner) {
-      val observer =
-        LifecycleEventObserver { _, event ->
-          if (event == Lifecycle.Event.ON_RESUME) {
-            viewModel.recalculateNewVideoCounts()
-          }
-        }
-      lifecycleOwner.lifecycle.addObserver(observer)
-      onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
     }
 
     // Optimized back handler for immediate response
@@ -1228,7 +1212,7 @@ private fun FolderListContent(
   audioOnly: Boolean = false,
 ) {
   val swipeScope = rememberCoroutineScope()
-  val swipeActions = rememberVideoSwipeActions { swipeScope.launch { onRefresh() } }
+  val swipeActions = rememberVideoSwipeActions(audioOnly = audioOnly) { swipeScope.launch { onRefresh() } }
   val isGridMode = mediaLayoutMode == MediaLayoutMode.GRID
   val showLoading = isLoading && !hasCompletedInitialLoad
   val showEmpty = folders.isEmpty() && hasCompletedInitialLoad && !foldersWereDeleted
@@ -1289,7 +1273,7 @@ private fun FolderListContent(
         )
       } else {
         ListContent(
-          onFolderSwipe = swipeActions.folder.takeUnless { selectionManager.isInSelectionMode || audioOnly },
+          onFolderSwipe = swipeActions.folder.takeUnless { selectionManager.isInSelectionMode },
           folders = folders,
           foldersWithNewCount = foldersWithNewCount,
           pinnedFolderPaths = pinnedFolderPaths,
@@ -1536,7 +1520,7 @@ private fun SearchResultsContent(
   onChanged: () -> Unit,
   audioOnly: Boolean,
 ) {
-  val swipeActions = rememberVideoSwipeActions(onChanged = onChanged)
+  val swipeActions = rememberVideoSwipeActions(audioOnly = audioOnly, onChanged = onChanged)
   val folders =
     searchResults.filterIsInstance<FileSystemItem.Folder>().map { folder ->
       com.quantummpv.app.domain.media.model.VideoFolder(
@@ -1699,7 +1683,7 @@ private fun SearchResultsContent(
             onThumbClick = { onFolderClick(folder) },
             newVideoCount = 0,
             isGridMode = false,
-            onSwipeAction = swipeActions.folder.takeUnless { audioOnly },
+                onSwipeAction = swipeActions.folder,
           )
         }
 
@@ -1716,7 +1700,7 @@ private fun SearchResultsContent(
             onLongClick = {},
             onThumbClick = { onVideoClick(video) },
             isGridMode = false,
-            onSwipeAction = swipeActions.video.takeUnless { audioOnly },
+                onSwipeAction = swipeActions.video,
             isWatched = swipePlaybackInfo[video.path]?.isWatched == true,
             isOldAndUnplayed = swipePlaybackInfo[video.path]?.isOldAndUnplayed == true,
             showSubtitleIndicator = showSubtitleIndicator,

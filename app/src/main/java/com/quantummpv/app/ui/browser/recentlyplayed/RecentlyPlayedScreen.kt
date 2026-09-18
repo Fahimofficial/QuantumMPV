@@ -490,6 +490,7 @@ object RecentlyPlayedScreen : Screen {
           NavigationPager(
             state = pagerState,
             modifier = Modifier.fillMaxSize(),
+            allowNestedSwipes = true,
           ) { page ->
             val pageType = MediaLibraryType.entries.getOrNull(page) ?: MediaLibraryType.Video
             val pageIsAudio = pageType == MediaLibraryType.Audio

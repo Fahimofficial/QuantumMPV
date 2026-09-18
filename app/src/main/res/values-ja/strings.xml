@@ -2277,7 +2277,7 @@
   <string name="ytdlp_installing">yt-dlp をインストール中…</string>
   <string name="video_swipe_play_next">次に再生</string>
   <string name="video_swipe_add_queue">キューに追加</string>
-  <string name="pref_video_swipe_title">動画とフォルダーのスワイプ操作</string>
+  <string name="pref_video_swipe_title">動画・音声・フォルダーのスワイプ操作</string>
   <string name="pref_video_swipe_right">右スワイプ</string>
   <string name="pref_video_swipe_left">左スワイプ</string>
   <string name="pref_video_swipe_choose_right">右スワイプの操作</string>
@@ -2371,4 +2371,8 @@
   <string name="audiobook_source_audiobookshelf_desc">Audiobookshelfサーバーからオーディオブックをストリーミング</string>
   <string name="audiobook_source_local">ローカルオーディオブック</string>
   <string name="pref_audiobookshelf_no_server">Audiobookshelfサーバーが接続されていません</string>
+  <string name="audio_swipe_delete_title">音声ファイルを削除しますか？</string>
+  <string name="audio_swipe_delete_folder_message">%2$s とそのサブフォルダー内の音声ファイル %1$d 件を完全に削除しますか？他のファイルとフォルダーは保持されます。この操作は取り消せません。</string>
+  <string name="audio_swipe_loading">音声ファイルを収集中</string>
+  <string name="audio_swipe_folder_empty">このフォルダーに音声ファイルがありません</string>
 </resources>

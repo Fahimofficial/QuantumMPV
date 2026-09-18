@@ -95,6 +95,7 @@ internal fun rememberSwipePlaybackInfo(videos: List<Video>): Map<String, VideoWi
 @Composable
 internal fun rememberVideoSwipeActions(
   onDeleted: suspend (List<Video>) -> Unit = {},
+  audioOnly: Boolean = false,
   onChanged: () -> Unit,
 ): VideoSwipeActions {
   val context = LocalContext.current
@@ -113,7 +114,7 @@ internal fun rememberVideoSwipeActions(
   if (collecting) {
     AlertDialog(
       onDismissRequest = { scanJob?.cancel() },
-      title = { Text(stringResource(R.string.video_swipe_loading)) },
+      title = { Text(stringResource(if (audioOnly) R.string.audio_swipe_loading else R.string.video_swipe_loading)) },
       text = {
         Row(horizontalArrangement = Arrangement.spacedBy(16.dp), verticalAlignment = Alignment.CenterVertically) {
           CircularProgressIndicator(Modifier.size(24.dp))
@@ -127,14 +128,19 @@ internal fun rememberVideoSwipeActions(
   }
 
   deleteTarget?.let { target ->
+    val isAudio = target.videos.all { it.isAudio }
     AlertDialog(
       onDismissRequest = { if (!busy) deleteTarget = null },
       icon = { Icon(Icons.RoundedFilled.Delete, null, tint = MaterialTheme.colorScheme.error) },
-      title = { Text(stringResource(R.string.video_swipe_delete_title)) },
+      title = { Text(stringResource(if (isAudio) R.string.audio_swipe_delete_title else R.string.video_swipe_delete_title)) },
       text = {
         Text(
           if (target.folderName != null) {
-            stringResource(R.string.video_swipe_delete_folder_message, target.videos.size, target.folderName)
+            stringResource(
+              if (isAudio) R.string.audio_swipe_delete_folder_message else R.string.video_swipe_delete_folder_message,
+              target.videos.size,
+              target.folderName,
+            )
           } else {
             stringResource(R.string.video_swipe_delete_message, target.videos.single().displayName)
           },
@@ -253,7 +259,7 @@ internal fun rememberVideoSwipeActions(
   return VideoSwipeActions(
     video = { video, _, action ->
       if (!busy && !collecting && deleteTarget == null && playlistTarget == null &&
-        !video.isAudio && video.path.startsWith('/')) {
+        video.path.startsWith('/')) {
         perform(SwipeTarget(listOf(video)), action)
       }
     },
@@ -274,16 +280,20 @@ internal fun rememberVideoSwipeActions(
                 .onFail { _, error -> throw error }
                 .filter { file ->
                   coroutineContext.ensureActive()
-                  file.isFile && !Files.isSymbolicLink(file.toPath()) && FileTypeUtils.isVideoFile(file)
+                  file.isFile && !Files.isSymbolicLink(file.toPath()) &&
+                    (if (audioOnly) FileTypeUtils.isAudioFile(file) else FileTypeUtils.isVideoFile(file))
                 }.toList()
-              val resolved = MediaFileRepository.getVideosFromFiles(context, files).filterNot { it.isAudio }
+              val resolved = MediaFileRepository.getVideosFromFiles(context, files).let { videos ->
+                if (audioOnly) videos.map { it.copy(isAudio = true) } else videos.filterNot { it.isAudio }
+              }
               coroutineContext.ensureActive()
               check(resolved.size == files.size)
               resolved.distinctBy { it.path }.sortedBy { it.path.lowercase() }
             }
             currentCoroutineContext().ensureActive()
             if (videos.isEmpty()) {
-              Toast.makeText(context, R.string.video_swipe_folder_empty, Toast.LENGTH_SHORT).show()
+              Toast.makeText(context, if (audioOnly) R.string.audio_swipe_folder_empty else R.string.video_swipe_folder_empty,
+                Toast.LENGTH_SHORT).show()
             } else {
               perform(SwipeTarget(videos, folder.name), action)
             }

@@ -216,7 +216,7 @@ fun VideoCard(
     leftAction = resolvedUiConfig.swipeLeft,
     rightAction = resolvedUiConfig.swipeRight,
     isWatched = isWatched,
-    enabled = !isGridMode && !isSelected && !video.isAudio && video.path.startsWith('/'),
+    enabled = !isGridMode && !isSelected && video.path.startsWith('/'),
     onAction = onSwipeAction?.let { action -> { swipe -> action(video, isWatched, swipe) } },
     modifier =
       modifier

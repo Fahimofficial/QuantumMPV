@@ -2295,7 +2295,7 @@
   <string name="ytdlp_installing">جارٍ تثبيت yt-dlp…</string>
   <string name="video_swipe_play_next">تشغيل تاليًا</string>
   <string name="video_swipe_add_queue">إضافة إلى قائمة الانتظار</string>
-  <string name="pref_video_swipe_title">إجراءات سحب الفيديوهات والمجلدات</string>
+  <string name="pref_video_swipe_title">إجراءات سحب الفيديوهات والصوتيات والمجلدات</string>
   <string name="pref_video_swipe_right">السحب إلى اليمين</string>
   <string name="pref_video_swipe_left">السحب إلى اليسار</string>
   <string name="pref_video_swipe_choose_right">إجراء السحب إلى اليمين</string>
@@ -2389,4 +2389,8 @@
   <string name="audiobook_source_audiobookshelf_desc">تشغيل الكتب الصوتية من خادم Audiobookshelf</string>
   <string name="audiobook_source_local">الكتب الصوتية المحلية</string>
   <string name="pref_audiobookshelf_no_server">لا يوجد خادم Audiobookshelf متصل</string>
+  <string name="audio_swipe_delete_title">حذف الملفات الصوتية؟</string>
+  <string name="audio_swipe_delete_folder_message">هل تريد حذف %1$d من الملفات الصوتية نهائيًا من %2$s ومجلداته الفرعية؟ ستبقى الملفات والمجلدات الأخرى. لا يمكن التراجع عن هذا الإجراء.</string>
+  <string name="audio_swipe_loading">جارٍ جمع الملفات الصوتية</string>
+  <string name="audio_swipe_folder_empty">لم يتم العثور على ملفات صوتية في هذا المجلد</string>
 </resources>

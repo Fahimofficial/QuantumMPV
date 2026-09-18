@@ -2031,6 +2031,20 @@ val isBrightnessSliderShown = MutableStateFlow(false)
       }
     }
 
+    viewModelScope.launch(playbackStateDispatcher) {
+      combine(
+        playerPreferences.autoSkipIntro.changes(),
+        playerPreferences.autoSkipOutro.changes(),
+      ) { intro, outro -> intro to outro }
+        .distinctUntilChanged()
+        .collect {
+          val phase = PlaybackSession.state.value.phase
+          if (!_isMpvCoreReady.value || (phase != PlaybackPhase.READY && phase != PlaybackPhase.BACKGROUND)) return@collect
+          val position = PlaybackSession.getPropertyDouble("time-pos") ?: return@collect
+          maybeAutoSkipIntro(position)
+        }
+    }
+
     // Single adaptive polling loop for playback position.
     //  1. An event-driven collect on PlaybackSession.propInt["time-pos"]
     //  2. This polling loop via PlaybackSession.getPropertyDouble("time-pos")
@@ -3674,29 +3688,26 @@ val isBrightnessSliderShown = MutableStateFlow(false)
           segment !in skippedSegments
       }
 
+    val autoSkipEnabled =
+      when (activeSegment?.type) {
+        SkipSegmentType.INTRO, SkipSegmentType.RECAP -> playerPreferences.autoSkipIntro.get()
+        SkipSegmentType.OUTRO, SkipSegmentType.CREDITS, SkipSegmentType.PREVIEW -> playerPreferences.autoSkipOutro.get()
+        null -> false
+      }
+    val manualSegment = activeSegment?.takeUnless { autoSkipEnabled }
     val showChip =
-      activeSegment != null &&
-        (positionSeconds - activeSegment.startSeconds) < AUTO_SHOW_SKIP_CHIP_DURATION
-    if (_currentSkippableSegment.value != activeSegment) {
-      _currentSkippableSegment.value = activeSegment
+      manualSegment != null &&
+        (positionSeconds - manualSegment.startSeconds) < AUTO_SHOW_SKIP_CHIP_DURATION
+    if (_currentSkippableSegment.value != manualSegment) {
+      _currentSkippableSegment.value = manualSegment
     }
     if (_showSkipChipAuto.value != showChip) {
       _showSkipChipAuto.value = showChip
     }
 
-    if (paused == true || activeSegment == null) return
-    val autoSkipEnabled =
-      when (activeSegment.type) {
-        SkipSegmentType.INTRO -> playerPreferences.autoSkipIntro.get()
-        SkipSegmentType.RECAP -> playerPreferences.autoSkipIntro.get()
-        SkipSegmentType.OUTRO -> playerPreferences.autoSkipOutro.get()
-        SkipSegmentType.CREDITS -> playerPreferences.autoSkipOutro.get()
-        SkipSegmentType.PREVIEW -> playerPreferences.autoSkipOutro.get()
-      }
-    if (!autoSkipEnabled) return
+    if (paused == true || activeSegment == null || !autoSkipEnabled) return
 
     skippedSegments += activeSegment
-    _showSkipChipAuto.value = false
     seekPastSkipSegment(activeSegment, auto = true)
   }
 

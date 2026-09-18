@@ -2318,7 +2318,7 @@
   <string name="oss_kmp_vibrate_description">Haptic feedback library by WonDDak (jmseb3).</string>
   <string name="video_swipe_play_next">Play next</string>
   <string name="video_swipe_add_queue">Add to queue</string>
-  <string name="pref_video_swipe_title">Video and folder swipe actions</string>
+  <string name="pref_video_swipe_title">Video, audio and folder swipe actions</string>
   <string name="pref_video_swipe_right">Right swipe</string>
   <string name="pref_video_swipe_left">Left swipe</string>
   <string name="pref_video_swipe_choose_right">Use right swipe for</string>
@@ -2405,4 +2405,8 @@
   <string name="audiobook_no_text">No supplied lyrics or transcript</string>
   <string name="player_seek_backward">Seek back %1$s</string>
   <string name="player_seek_forward">Seek forward %1$s</string>
+  <string name="audio_swipe_delete_title">Delete audio?</string>
+  <string name="audio_swipe_delete_folder_message">Permanently delete %1$d audio files in %2$s and its subfolders? Other files and folders will be kept. This cannot be undone.</string>
+  <string name="audio_swipe_loading">Collecting audio files</string>
+  <string name="audio_swipe_folder_empty">No audio files found in this folder</string>
 </resources>
