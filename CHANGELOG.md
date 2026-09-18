@@ -2,6 +2,16 @@
 
 These notes are written in plain English and focus on what changed for real use.
 
+## 1.1.0-preview.2
+
+This preview adds optional appearance personalization while keeping the default experience unchanged.
+
+### Appearance personalization
+
+- **Animated Home background**: Added an opt-in, subtle accent animation behind the Home screen.
+- **Battery-friendly behavior**: The animation is slow and lightweight, and automatically pauses during Android Battery Saver or reduced-motion mode.
+- **Home-only scope**: The effect is limited to the Home tab and does not interfere with playback, downloads, or other screens.
+
 ## Initial release 1.0.0
 
 This current-code release includes the main QuantumMPV features and the latest About-screen visual improvements.

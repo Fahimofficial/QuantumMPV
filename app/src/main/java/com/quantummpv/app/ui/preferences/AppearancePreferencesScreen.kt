@@ -281,6 +281,26 @@ object AppearancePreferencesScreen : Screen {
 
                   PreferenceDivider()
 
+                  val animatedHomeBackground by preferences.animatedHomeBackground.collectAsState()
+                  SwitchPreference(
+                    modifier = Modifier.settingsSearchTarget(R.string.pref_appearance_animated_home_background_title),
+                    value = animatedHomeBackground,
+                    onValueChange = preferences.animatedHomeBackground::set,
+                    title = {
+                      Text(
+                        text = stringResource(R.string.pref_appearance_animated_home_background_title),
+                      )
+                    },
+                    summary = {
+                      Text(
+                        text = stringResource(R.string.pref_appearance_animated_home_background_summary),
+                        color = MaterialTheme.colorScheme.outline,
+                      )
+                    },
+                  )
+
+                  PreferenceDivider()
+
                   SwitchPreference(
                     modifier = Modifier.settingsSearchTarget(R.string.pref_appearance_amoled_mode_title),
                     value = amoledMode,
