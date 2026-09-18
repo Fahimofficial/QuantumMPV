@@ -1,6 +1,10 @@
 # Changelog
 
 These notes are written in plain English and focus on what changed for real use.
+## 1.1.0-preview.7
+
+- **Build fix**: Corrected the glass-card preference wiring for the About libraries screen.
+
 ## 1.1.0-preview.6
 
 - **Opt-in glass cards**: Added a Glass-style cards switch; the default remains the existing solid settings-card appearance.

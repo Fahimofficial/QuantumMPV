@@ -151,8 +151,6 @@ object AboutScreen : Screen {
     val settingsHighlight =
       rememberSettingsSearchHighlight(AboutScreen, settingsScrollState, MaterialTheme.colorScheme.primary)
     val showUpiQr = remember { mutableStateOf(false) }
-    val appearancePreferences = koinInject<AppearancePreferences>()
-    val glassCards by appearancePreferences.glassCards.collectPreferenceAsState()
 
     // Conditionally initialize update feature based on build config
     val updateViewModel: UpdateViewModel? =
@@ -851,6 +849,8 @@ object LibrariesScreen : Screen {
   override fun Content() {
     val context = LocalContext.current
     val backstack = LocalBackStack.current
+    val appearancePreferences = koinInject<AppearancePreferences>()
+    val glassCards by appearancePreferences.glassCards.collectPreferenceAsState()
     Scaffold(
       topBar = {
         TopAppBar(
