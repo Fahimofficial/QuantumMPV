@@ -16,6 +16,11 @@ This preview adds optional appearance personalization while keeping the default 
 
 - **Visible Home backdrop**: Improved the opt-in animation rendering so its subtle accent motion remains visible above Home content surfaces.
 
+## 1.1.0-preview.4
+
+- **Modern glass cards**: Settings cards now use low-opacity theme-aware surfaces with soft outline borders for a cleaner glass-style appearance.
+- **About card consistency**: About library cards use the same translucent surface and border treatment while retaining the subtle support-card shimmer.
+
 ## Initial release 1.0.0
 
 This current-code release includes the main QuantumMPV features and the latest About-screen visual improvements.
