@@ -2194,6 +2194,8 @@
   <string name="wallpaper_save_failed">无法保存壁纸，请重新选择图片。</string>
   <string name="pref_haptic_feedback_title">触觉反馈</string>
   <string name="pref_haptic_feedback_summary">选择、拖动和调整控件时提供触觉反馈。遵循系统设置。</string>
+  <string name="pref_nested_tab_swipes_title">滑动切换内部标签页</string>
+  <string name="pref_nested_tab_swipes_summary">允许在音乐、网络和最近播放中左右滑动切换标签页。主导航和列表项的滑动操作不受影响。</string>
   <string name="oss_kmp_vibrate_description">由 WonDDak (jmseb3) 开发的触觉反馈库。</string>
   <string name="ambient_style_youtube">YouTube</string>
   <string name="ambient_youtube_auto_hint">YouTube 模式完全自动运行：将当前画面柔和模糊地投射到黑边区域，形成与 YouTube 氛围模式类似的光效。</string>

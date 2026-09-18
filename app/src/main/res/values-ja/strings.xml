@@ -2192,6 +2192,8 @@
   <string name="wallpaper_save_failed">壁紙を保存できませんでした。画像を選び直してください。</string>
   <string name="pref_haptic_feedback_title">触覚フィードバック</string>
   <string name="pref_haptic_feedback_summary">選択、ドラッグ、コントロールの調整時に触覚で反応します。システム設定に従います。</string>
+  <string name="pref_nested_tab_swipes_title">内部タブ間のスワイプ</string>
+  <string name="pref_nested_tab_swipes_summary">音楽・ネットワーク・履歴内での左右スワイプを有効にします。メイン画面の切り替えや項目のスワイプ操作は変更されません。</string>
   <string name="oss_kmp_vibrate_description">WonDDak (jmseb3) による触覚フィードバックライブラリ。</string>
   <string name="ambient_style_youtube">YouTube</string>
   <string name="ambient_youtube_auto_hint">YouTube モードは完全自動です。YouTube のアンビエントモードのように、現在のフレームをぼかして投影し、帯状の余白を柔らかく照らします。</string>

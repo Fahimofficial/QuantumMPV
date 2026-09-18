@@ -2196,6 +2196,8 @@ Reinicia la aplicación para que se apliquen todos los cambios.</string>
   <string name="wallpaper_save_failed">No se pudo guardar el fondo. Vuelve a seleccionar la imagen.</string>
   <string name="pref_haptic_feedback_title">Respuesta háptica</string>
   <string name="pref_haptic_feedback_summary">Respuesta táctil al seleccionar, arrastrar y ajustar controles. Respeta los ajustes del sistema.</string>
+  <string name="pref_nested_tab_swipes_title">Deslizar entre pestañas internas</string>
+  <string name="pref_nested_tab_swipes_summary">Permitir deslizamientos a izquierda/derecha dentro de Música, Red y Recientes. La navegación principal y las acciones de deslizamiento de los elementos no cambian.</string>
   <string name="oss_kmp_vibrate_description">Biblioteca de respuesta háptica de WonDDak (jmseb3).</string>
   <string name="ambient_style_youtube">YouTube</string>
   <string name="ambient_youtube_auto_hint">El modo YouTube es totalmente automático: las franjas se iluminan con una proyección suave y desenfocada del fotograma actual, como en el modo ambiente de YouTube.</string>

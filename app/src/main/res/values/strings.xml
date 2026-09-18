@@ -2281,6 +2281,8 @@
   <string name="wallpaper_save_failed">Could not save the wallpaper. Please choose the image again.</string>
   <string name="pref_haptic_feedback_title">Haptic feedback</string>
   <string name="pref_haptic_feedback_summary">Tactile feedback for selection, dragging, and control adjustments. Respects system settings.</string>
+  <string name="pref_nested_tab_swipes_title">Swipe between inner tabs</string>
+  <string name="pref_nested_tab_swipes_summary">Enable left/right swipes inside Music, Network and Recents. Main navigation and item swipe actions are unchanged.</string>
 
   <!-- Post-Processing Effects -->
   <string name="btn_label_post_processing">Post-Processing</string>

@@ -2210,6 +2210,8 @@
   <string name="wallpaper_save_failed">تعذر حفظ الخلفية. يرجى اختيار الصورة مرة أخرى.</string>
   <string name="pref_haptic_feedback_title">استجابة لمسية</string>
   <string name="pref_haptic_feedback_summary">استجابة لمسية للتحديد والسحب وضبط عناصر التحكم. تراعي إعدادات النظام.</string>
+  <string name="pref_nested_tab_swipes_title">السحب بين علامات التبويب الداخلية</string>
+  <string name="pref_nested_tab_swipes_summary">تفعيل السحب لليسار واليمين داخل الموسيقى والشبكة والعناصر الأخيرة. لا تتغير إجراءات السحب للتنقل الرئيسي أو للعناصر.</string>
   <string name="oss_kmp_vibrate_description">مكتبة استجابة لمسية من WonDDak (jmseb3).</string>
   <string name="ambient_style_youtube">YouTube</string>
   <string name="ambient_youtube_auto_hint">يعمل وضع YouTube تلقائيًا بالكامل: تُضاء الأشرطة بإسقاط ناعم وضبابي للإطار الحالي، كما في وضع الإضاءة المحيطة في YouTube.</string>

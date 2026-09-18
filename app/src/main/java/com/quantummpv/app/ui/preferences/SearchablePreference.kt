@@ -484,6 +484,14 @@ object SearchablePreferences {
       )
       add(
         SearchablePreference(
+          titleRes = R.string.pref_nested_tab_swipes_title,
+          keywords = listOf("swipe", "nested", "inner", "tabs", "navigation", "music", "network", "recents"),
+          category = "Gestures",
+          screen = GesturePreferencesScreen,
+        ),
+      )
+      add(
+        SearchablePreference(
           titleRes = R.string.pref_video_swipe_right,
           keywords = listOf("swipe", "video", "folder", "action"),
           category = "Gestures",

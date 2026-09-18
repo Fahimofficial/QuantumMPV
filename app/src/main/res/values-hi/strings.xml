@@ -2100,6 +2100,8 @@
   <string name="wallpaper_save_failed">वॉलपेपर सहेजा नहीं जा सका। कृपया चित्र फिर से चुनें।</string>
   <string name="pref_haptic_feedback_title">हैप्टिक फ़ीडबैक</string>
   <string name="pref_haptic_feedback_summary">चयन, खींचने और नियंत्रण समायोजन पर स्पर्श प्रतिक्रिया। सिस्टम सेटिंग का पालन करता है।</string>
+  <string name="pref_nested_tab_swipes_title">अंदरूनी टैब के बीच स्वाइप करें</string>
+  <string name="pref_nested_tab_swipes_summary">संगीत, नेटवर्क और हाल के आइटम में बाएँ/दाएँ स्वाइप चालू करें। मुख्य नेविगेशन और आइटम की स्वाइप कार्रवाइयाँ नहीं बदलेंगी।</string>
   <string name="oss_kmp_vibrate_description">WonDDak (jmseb3) की हैप्टिक फ़ीडबैक लाइब्रेरी।</string>
   <string name="ambient_style_youtube">YouTube</string>
   <string name="ambient_youtube_auto_hint">YouTube मोड पूरी तरह स्वचालित है। YouTube के एम्बिएंट मोड की तरह, मौजूदा फ़्रेम का हल्का धुंधला प्रक्षेपण खाली पट्टियों को रोशन करता है।</string>

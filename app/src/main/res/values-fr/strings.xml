@@ -2196,6 +2196,8 @@ Veuillez redémarrer l’application pour appliquer toutes les modifications.</s
   <string name="wallpaper_save_failed">Impossible de sauvegarder le fond. Veuillez sélectionner à nouveau l’image.</string>
   <string name="pref_haptic_feedback_title">Retour haptique</string>
   <string name="pref_haptic_feedback_summary">Retour tactile lors de la sélection, du déplacement et des réglages. Respecte les paramètres du système.</string>
+  <string name="pref_nested_tab_swipes_title">Balayer entre les onglets internes</string>
+  <string name="pref_nested_tab_swipes_summary">Activer le balayage gauche/droite dans Musique, Réseau et Récents. La navigation principale et les actions de balayage des éléments restent inchangées.</string>
   <string name="oss_kmp_vibrate_description">Bibliothèque de retour haptique de WonDDak (jmseb3).</string>
   <string name="ambient_style_youtube">YouTube</string>
   <string name="ambient_youtube_auto_hint">Le mode YouTube est entièrement automatique : les bandes sont éclairées par une projection douce et floutée de l\'image actuelle, comme dans le mode ambiant de YouTube.</string>

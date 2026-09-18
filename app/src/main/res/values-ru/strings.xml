@@ -2204,6 +2204,8 @@
   <string name="wallpaper_save_failed">Не удалось сохранить обои. Выберите изображение ещё раз.</string>
   <string name="pref_haptic_feedback_title">Тактильный отклик</string>
   <string name="pref_haptic_feedback_summary">Отклик при выборе, перетаскивании и настройке элементов управления. Учитывает настройки системы.</string>
+  <string name="pref_nested_tab_swipes_title">Свайпы между внутренними вкладками</string>
+  <string name="pref_nested_tab_swipes_summary">Разрешить свайпы влево/вправо внутри разделов «Музыка», «Сеть» и «Недавние». Основная навигация и действия с элементами при свайпе не изменятся.</string>
   <string name="oss_kmp_vibrate_description">Библиотека тактильного отклика от WonDDak (jmseb3).</string>
   <string name="ambient_style_youtube">YouTube</string>
   <string name="ambient_youtube_auto_hint">Режим YouTube работает полностью автоматически: полосы подсвечиваются мягкой размытой проекцией текущего кадра, как в фоновой подсветке YouTube.</string>

@@ -137,6 +137,16 @@ object GesturePreferencesScreen : Screen {
               )
               PreferenceDivider()
 
+              val nestedTabSwipesEnabled by preferences.nestedTabSwipesEnabled.collectAsState()
+              SwitchPreference(
+                modifier = Modifier.settingsSearchTarget(R.string.pref_nested_tab_swipes_title),
+                value = nestedTabSwipesEnabled,
+                onValueChange = preferences.nestedTabSwipesEnabled::set,
+                title = { Text(stringResource(R.string.pref_nested_tab_swipes_title)) },
+                summary = { Text(stringResource(R.string.pref_nested_tab_swipes_summary)) },
+              )
+              PreferenceDivider()
+
               val brightnessGesture by playerPreferences.brightnessGesture.collectAsState()
               SwitchPreference(
                 modifier = Modifier.settingsSearchTarget(R.string.pref_player_gestures_brightness),

@@ -2196,6 +2196,8 @@ Reinicie o aplicativo para que todas as alterações entrem em vigor.</string>
   <string name="wallpaper_save_failed">Não foi possível salvar o papel de parede. Selecione a imagem novamente.</string>
   <string name="pref_haptic_feedback_title">Resposta tátil</string>
   <string name="pref_haptic_feedback_summary">Resposta tátil ao selecionar, arrastar e ajustar controles. Respeita as configurações do sistema.</string>
+  <string name="pref_nested_tab_swipes_title">Deslizar entre abas internas</string>
+  <string name="pref_nested_tab_swipes_summary">Ativar deslizes para a esquerda/direita em Música, Rede e Recentes. A navegação principal e as ações de deslizar itens permanecem inalteradas.</string>
   <string name="oss_kmp_vibrate_description">Biblioteca de feedback tátil de WonDDak (jmseb3).</string>
   <string name="ambient_style_youtube">YouTube</string>
   <string name="ambient_youtube_auto_hint">O modo YouTube é totalmente automático: as faixas são iluminadas por uma projeção suave e desfocada do quadro atual, como no modo ambiente do YouTube.</string>
