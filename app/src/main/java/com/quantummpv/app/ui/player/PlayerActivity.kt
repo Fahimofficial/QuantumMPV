@@ -4718,9 +4718,9 @@ class PlayerActivity :
 
     PlaybackSession.setPropertyString("blend-subtitles", blendMode)
 
+    PlaybackSession.setPropertyInt("sub-font-size", fontSize)
     for (prefix in listOf("sub-", "secondary-sub-")) {
       PlaybackSession.setPropertyString("${prefix}font", font)
-      PlaybackSession.setPropertyInt("${prefix}font-size", fontSize)
       PlaybackSession.setPropertyBoolean("${prefix}bold", bold)
       PlaybackSession.setPropertyBoolean("${prefix}italic", italic)
       PlaybackSession.setPropertyString("${prefix}justify", justify)

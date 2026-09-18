@@ -151,7 +151,6 @@ enum class MpvConfigOverride(
         "secondary-sub-delay",
         "secondary-sub-speed",
         "secondary-sub-font",
-        "secondary-sub-font-size",
         "secondary-sub-bold",
         "secondary-sub-italic",
         "secondary-sub-justify",

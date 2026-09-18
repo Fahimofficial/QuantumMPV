@@ -565,8 +565,8 @@ class MPVView(
       }
     PlaybackSession.setOptionString("blend-subtitles", blendMode)
 
+    PlaybackSession.setOptionString("sub-font-size", fontSize)
     for ((prefix, pos) in listOf("sub-" to subPos.toString(), "secondary-sub-" to secondarySubPos.toString())) {
-      PlaybackSession.setOptionString("${prefix}font-size", fontSize)
       PlaybackSession.setOptionString("${prefix}bold", bold)
       PlaybackSession.setOptionString("${prefix}italic", italic)
       PlaybackSession.setOptionString("${prefix}justify", justify)

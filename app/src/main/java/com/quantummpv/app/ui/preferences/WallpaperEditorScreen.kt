@@ -77,7 +77,7 @@ import org.koin.compose.koinInject
 
 @Serializable
 data class WallpaperEditorScreen(
-  val sourceUri: String,
+  val sourceUri: String = "",
 ) : Screen {
   @OptIn(ExperimentalMaterial3Api::class)
   @Composable
@@ -85,10 +85,11 @@ data class WallpaperEditorScreen(
     val context = LocalContext.current
     val backStack = LocalBackStack.current
     val preferences = koinInject<AppearancePreferences>()
+    val resolvedSource = remember(sourceUri) { sourceUri.ifBlank { preferences.customWallpaperUri.get() } }
     val scope = rememberCoroutineScope()
     var isSaving by remember { mutableStateOf(false) }
     BackHandler(enabled = isSaving) { }
-    val isEditingCurrent = sourceUri == preferences.customWallpaperUri.get()
+    val isEditingCurrent = sourceUri.isBlank() || sourceUri == preferences.customWallpaperUri.get()
     var zoom by rememberSaveable(sourceUri) {
       mutableStateOf(if (isEditingCurrent) preferences.customWallpaperZoom.get() else 1f)
     }
@@ -108,8 +109,8 @@ data class WallpaperEditorScreen(
       mutableStateOf(if (isEditingCurrent) preferences.customWallpaperAlpha.get() else 1f)
     }
     val bitmap =
-      produceState<Bitmap?>(initialValue = null, sourceUri) {
-        val loaded = withContext(Dispatchers.IO) { loadWallpaperBitmap(context, sourceUri) }
+      produceState<Bitmap?>(initialValue = null, resolvedSource) {
+        val loaded = withContext(Dispatchers.IO) { loadWallpaperBitmap(context, resolvedSource) }
         value = loaded
       }.value
     DisposableEffect(bitmap) {
@@ -140,7 +141,7 @@ data class WallpaperEditorScreen(
                 isSaving = true
                 scope.launch {
                   try {
-                    val savedUri = saveWallpaperCopy(context, sourceUri)
+                    val savedUri = saveWallpaperCopy(context, resolvedSource)
                     preferences.customWallpaperZoom.set(zoom)
                     preferences.customWallpaperOffsetX.set(offsetX)
                     preferences.customWallpaperOffsetY.set(offsetY)

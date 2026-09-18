@@ -85,7 +85,7 @@ fun SubtitleSettingsTypographyCard(
   val italicOptions = setOf("sub-italic", "secondary-sub-italic")
   val justifyOptions = setOf("sub-ass-justify", "sub-justify", "secondary-sub-justify")
   val fontOptions = setOf("sub-font", "secondary-sub-font")
-  val fontSizeOptions = setOf("sub-font-size", "secondary-sub-font-size")
+  val fontSizeOptions = setOf("sub-font-size")
   val borderStyleOptions = setOf("sub-border-style", "secondary-sub-border-style")
   val borderSizeOptions =
     setOf("sub-border-size", "sub-outline-size", "secondary-sub-border-size", "secondary-sub-outline-size")
@@ -266,7 +266,6 @@ fun SubtitleSettingsTypographyCard(
         onChange = {
           preferences.fontSize.set(it)
           PlaybackSession.setPropertyInt("sub-font-size", it)
-          PlaybackSession.setPropertyInt("secondary-sub-font-size", it)
         },
         enabled = !ownsAny(fontSizeOptions),
       ) {
@@ -338,12 +337,12 @@ fun resetTypography(preferences: SubtitlesPreferences) {
   val shadowOffset = preferences.shadowOffset.deleteAndGet()
   val borderStyle = preferences.borderStyle.deleteAndGet().value
 
+  PlaybackSession.setPropertyInt("sub-font-size", fontSize)
   for (prefix in listOf("sub-", "secondary-sub-")) {
     PlaybackSession.setPropertyBoolean("${prefix}bold", bold)
     PlaybackSession.setPropertyBoolean("${prefix}italic", italic)
     PlaybackSession.setPropertyString("${prefix}justify", justify)
     PlaybackSession.setPropertyString("${prefix}font", font)
-    PlaybackSession.setPropertyInt("${prefix}font-size", fontSize)
     PlaybackSession.setPropertyInt("${prefix}border-size", borderSize)
     PlaybackSession.setPropertyInt("${prefix}outline-size", borderSize)
     PlaybackSession.setPropertyInt("${prefix}shadow-offset", shadowOffset)

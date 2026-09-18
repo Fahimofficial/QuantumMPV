@@ -24,6 +24,9 @@ import com.quantummpv.app.domain.network.XtreamPlaybackUri
 import com.quantummpv.app.preferences.MpvConfigOverridePolicy
 import `is`.xyz.mpv.MPVLib
 import `is`.xyz.mpv.MPVNode
+import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -288,6 +291,10 @@ object PlaybackSession : MPVLib.EventObserver {
           // headers may temporarily override it, but must not leak into the next item.
           defaultUserAgent = MPVLib.getPropertyString("user-agent")
           postInitOptions()
+          MPVLib.getPropertyString("vo")
+            ?.takeIf { it.isNotBlank() && it != "null" }
+            ?.let { desiredVideoOutput = it }
+          MPVLib.setPropertyString("vo", "null")
           MPVLib.setOptionString("force-window", "no")
           MPVLib.setOptionString("idle", "yes")
           MPVLib.addObserver(this)
@@ -884,6 +891,11 @@ object PlaybackSession : MPVLib.EventObserver {
       MPVLib.setPropertyString("http-header-fields", headerFields)
       MPVLib.setPropertyString("force-media-title", "")
 
+      if (!_state.value.surfaceAttached) {
+        MPVLib.setPropertyString("vo", "null")
+        MPVLib.setOptionString("force-window", "no")
+      }
+
       // Disable the outgoing track only once this replacement request owns the native lock. Doing
       // it during asynchronous URI preparation can blank playback even when that work is cancelled.
       MPVLib.setPropertyString("vid", "no")
@@ -997,6 +1009,17 @@ object PlaybackSession : MPVLib.EventObserver {
     }
 
   fun commandNode(vararg command: String): MPVNode? = withCore(null) { MPVLib.commandNode(*command) }
+
+  internal fun removeVideoFilter(label: String) {
+    val removal = arrayOf("vf", "remove", "@$label")
+    if (MpvConfigOverridePolicy.shouldSuppress(removal)) return
+    withCore(Unit) {
+      val filters = MPVLib.getPropertyNode("vf")?.toObject<List<JsonObject>>(Json).orEmpty()
+      if (filters.any { (it["label"] as? JsonPrimitive)?.content == label }) {
+        MPVLib.command(*removal)
+      }
+    }
+  }
 
   fun observeProperty(
     property: String,

@@ -329,7 +329,7 @@ object AppearancePreferencesScreen : Screen {
                     Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
                       Text(stringResource(R.string.pref_appearance_custom_wallpaper_title), style = MaterialTheme.typography.titleMedium)
                       Text(stringResource(R.string.pref_appearance_custom_wallpaper_summary), color = MaterialTheme.colorScheme.outline, style = MaterialTheme.typography.bodySmall)
-                      if (customWallpaperUri.isNotBlank()) {
+                      if (customWallpaperUri.isNotBlank() && !customWallpaperUri.startsWith("data:", ignoreCase = true)) {
                         Text(customWallpaperUri.substringAfterLast('/'), style = MaterialTheme.typography.bodySmall, maxLines = 1)
                       }
                       Row(
@@ -349,7 +349,7 @@ object AppearancePreferencesScreen : Screen {
                         }
                         if (customWallpaperUri.isNotBlank()) {
                           OutlinedButton(
-                            onClick = { backstack.navigateTo(WallpaperEditorScreen(customWallpaperUri)) },
+                            onClick = { backstack.navigateTo(WallpaperEditorScreen()) },
                             modifier = Modifier.weight(1f),
                             contentPadding = PaddingValues(horizontal = 8.dp),
                           ) {

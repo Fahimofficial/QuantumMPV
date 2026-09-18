@@ -173,24 +173,23 @@ suspend fun saveWallpaperCopy(
   context: android.content.Context,
   sourceUri: String,
 ): String = withContext(Dispatchers.IO) {
-  val directory = java.io.File(context.filesDir, "wallpapers")
-  check(directory.isDirectory || directory.mkdirs())
-  val uri = Uri.parse(sourceUri)
-  val sourceFile = if (uri.scheme.equals("file", ignoreCase = true)) uri.path?.let { java.io.File(it) } else null
-  if (sourceFile != null && sourceFile.parentFile?.canonicalFile == directory.canonicalFile && sourceFile.isFile) {
-    return@withContext sourceUri
+  val bitmap = requireNotNull(loadWallpaperBitmap(context, sourceUri)) {
+    context.getString(com.quantummpv.app.R.string.wallpaper_save_failed)
   }
-  val destination = java.io.File.createTempFile("wallpaper_", ".image", directory)
   try {
-    val input = sourceFile?.inputStream() ?: context.contentResolver.openInputStream(uri)
-    requireNotNull(input).use { source ->
-      destination.outputStream().use { output -> source.copyTo(output) }
+    if (sourceUri.startsWith(WALLPAPER_DATA_PREFIX)) return@withContext sourceUri
+    val output = java.io.ByteArrayOutputStream()
+    android.util.Base64OutputStream(output, android.util.Base64.NO_WRAP).use { encodedStream ->
+      check(bitmap.compress(Bitmap.CompressFormat.PNG, 100, encodedStream)) {
+        context.getString(com.quantummpv.app.R.string.wallpaper_save_failed)
+      }
     }
-    check(destination.length() > 0)
-    Uri.fromFile(destination).toString()
-  } catch (error: Exception) {
-    destination.delete()
-    throw error
+    require(output.size() <= MAX_WALLPAPER_ENCODED_LENGTH) {
+      context.getString(com.quantummpv.app.R.string.wallpaper_save_failed)
+    }
+    WALLPAPER_DATA_PREFIX + output.toString(Charsets.US_ASCII.name())
+  } finally {
+    bitmap.recycle()
   }
 }
 
@@ -200,8 +199,23 @@ fun loadWallpaperBitmap(
 ): Bitmap? =
   runCatching {
     val uri = Uri.parse(wallpaperUri)
+    if (uri.scheme.equals("file", ignoreCase = true)) {
+      val file = uri.path?.let { java.io.File(it) }?.takeIf { it.isFile && it.canRead() } ?: return@runCatching null
+      if (file.length() == 0L) return@runCatching null
+    }
+    val imageBytes = if (uri.scheme.equals("data", ignoreCase = true)) {
+      val header = wallpaperUri.substringBefore(',')
+      if (!header.startsWith("data:image/", ignoreCase = true) || !header.endsWith(";base64", ignoreCase = true)) {
+        return@runCatching null
+      }
+      val encoded = wallpaperUri.substringAfter(',', "")
+      if (encoded.isEmpty() || encoded.length > MAX_WALLPAPER_ENCODED_LENGTH) return@runCatching null
+      android.util.Base64.decode(encoded, android.util.Base64.DEFAULT)
+    } else null
     fun decode(options: BitmapFactory.Options): Bitmap? =
-      if (uri.scheme.equals("file", ignoreCase = true)) {
+      if (imageBytes != null) {
+        BitmapFactory.decodeByteArray(imageBytes, 0, imageBytes.size, options)
+      } else if (uri.scheme.equals("file", ignoreCase = true)) {
         BitmapFactory.decodeFile(uri.path, options)
       } else {
         context.contentResolver.openInputStream(uri)?.use { stream ->
@@ -211,6 +225,7 @@ fun loadWallpaperBitmap(
 
     val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
     decode(bounds)
+    if (bounds.outWidth <= 0 || bounds.outHeight <= 0) return@runCatching null
     var sampleSize = 1
     while (maxOf(bounds.outWidth, bounds.outHeight) / sampleSize > MAX_WALLPAPER_DIMENSION_PX) {
       sampleSize *= 2
@@ -218,5 +233,7 @@ fun loadWallpaperBitmap(
     decode(BitmapFactory.Options().apply { inSampleSize = sampleSize })
   }.getOrNull()
 
+private const val WALLPAPER_DATA_PREFIX = "data:image/png;base64,"
+private const val MAX_WALLPAPER_ENCODED_LENGTH = 40 * 1024 * 1024
 private const val MAX_WALLPAPER_DIMENSION_PX = 2560
 private const val WALLPAPER_RECYCLE_DELAY_MS = 120L

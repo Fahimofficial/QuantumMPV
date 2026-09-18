@@ -5272,7 +5272,7 @@ val isBrightnessSliderShown = MutableStateFlow(false)
 
     var hwdecBackup: String? = null
     try {
-      PlaybackSession.command("vf", "remove", "@$AUTO_CROP_FILTER_LABEL")
+      PlaybackSession.removeVideoFilter(AUTO_CROP_FILTER_LABEL)
       val activeHwdec = PlaybackSession.getPropertyString("hwdec-current").orEmpty()
       val needsSoftwareFrames =
         activeHwdec.isNotBlank() &&
@@ -5316,7 +5316,7 @@ val isBrightnessSliderShown = MutableStateFlow(false)
       if (!PlaybackSession.isCurrentGeneration(generation)) return AutoCropAnalysisResult.Unavailable
       return metadata?.toAutoCropResult(sourceWidth, sourceHeight) ?: detectAutoCropFromCurrentFrames(generation)
     } finally {
-      PlaybackSession.command("vf", "remove", "@$AUTO_CROP_FILTER_LABEL")
+      PlaybackSession.removeVideoFilter(AUTO_CROP_FILTER_LABEL)
       val backup = hwdecBackup
       if (backup != null && PlaybackSession.getPropertyString("hwdec") == "no") {
         PlaybackSession.setPropertyString("hwdec", backup)
@@ -5502,7 +5502,7 @@ val isBrightnessSliderShown = MutableStateFlow(false)
   }
 
   private fun clearAutoCropProperty() {
-    PlaybackSession.command("vf", "remove", "@$AUTO_CROP_FILTER_LABEL")
+    PlaybackSession.removeVideoFilter(AUTO_CROP_FILTER_LABEL)
     PlaybackSession.setPropertyString("video-crop", "")
     autoCropApplied = false
   }
@@ -5512,7 +5512,7 @@ val isBrightnessSliderShown = MutableStateFlow(false)
     autoCropJob = null
     autoCropReadinessJob?.cancel()
     autoCropReadinessJob = null
-    PlaybackSession.command("vf", "remove", "@$AUTO_CROP_FILTER_LABEL")
+    PlaybackSession.removeVideoFilter(AUTO_CROP_FILTER_LABEL)
   }
 
   private fun refreshStretchAspectAfterCropChange() {
