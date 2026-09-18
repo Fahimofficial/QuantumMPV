@@ -14,23 +14,23 @@ import com.quantummpv.app.ui.player.PlaybackSession
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.snap
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.selection.selectable
+import androidx.compose.foundation.selection.toggleable
 import androidx.compose.material3.FilterChip
-import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.RadioButton
+import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -39,25 +39,26 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
-import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.dp
 import com.quantummpv.app.R
 import com.quantummpv.app.preferences.AudioChannels
 import com.quantummpv.app.preferences.AudioPreferences
 import com.quantummpv.app.preferences.preference.collectAsState
 import com.quantummpv.app.presentation.components.PlayerSheet
-import com.quantummpv.app.ui.icons.Icon
+import com.quantummpv.app.presentation.components.PlayerSheetAction
+import com.quantummpv.app.presentation.components.PlayerSheetSectionHeader
 import com.quantummpv.app.ui.icons.Icons
 import com.quantummpv.app.ui.player.TrackNode
 import com.quantummpv.app.ui.player.controls.components.rememberTvInitialFocusRequester
 import com.quantummpv.app.ui.player.controls.components.tvFocusHighlight
 import com.quantummpv.app.ui.player.controls.components.tvInitialFocus
 import com.quantummpv.app.ui.theme.AppMotion
-import com.quantummpv.app.ui.theme.spacing
 import com.quantummpv.app.ui.utils.rememberAppHaptics
 import kotlinx.collections.immutable.ImmutableList
 import org.koin.compose.koinInject
 
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 fun AudioTracksSheet(
   tracks: ImmutableList<TrackNode>,
@@ -82,27 +83,39 @@ fun AudioTracksSheet(
       tracks.partition { track -> track.external != true }
     }
 
-  PlayerSheet(onDismissRequest) {
-    Column(modifier) {
-      AddTrackRow(
-        stringResource(R.string.player_sheets_add_ext_audio),
-        onAddAudioTrack,
-        actions = {
-          if (onOpenEqualizerSheet != null) {
-            IconButton(onClick = onOpenEqualizerSheet, enabled = equalizerControlEnabled) {
-              Icon(Icons.RoundedFilled.Equalizer, stringResource(R.string.btn_label_equalizer))
-            }
-          }
-          IconButton(onClick = onOpenDelayPanel, enabled = delayControlEnabled) {
-            Icon(Icons.RoundedFilled.AvTimer, null)
-          }
-        },
-      )
-
-      LazyColumn {
+  PlayerSheet(
+    onDismissRequest = onDismissRequest,
+    title = stringResource(R.string.ui_audio_tab),
+  ) {
+      LazyColumn(
+        modifier = modifier.fillMaxWidth(),
+        contentPadding = PaddingValues(bottom = 8.dp),
+      ) {
+        item(key = "add_audio_track") {
+          AddTrackRow(
+            title = stringResource(R.string.player_sheets_add_ext_audio),
+            onClick = onAddAudioTrack,
+            actions = {
+              if (onOpenEqualizerSheet != null) {
+                PlayerSheetAction(
+                  icon = Icons.RoundedFilled.Equalizer,
+                  label = stringResource(R.string.btn_label_equalizer),
+                  onClick = onOpenEqualizerSheet,
+                  enabled = equalizerControlEnabled,
+                )
+              }
+              PlayerSheetAction(
+                icon = Icons.RoundedFilled.AvTimer,
+                label = stringResource(R.string.player_sheets_audio_delay_card_title),
+                onClick = onOpenDelayPanel,
+                enabled = delayControlEnabled,
+              )
+            },
+          )
+        }
         if (embeddedTracks.isNotEmpty()) {
           item(key = "embedded_audio_tracks_header") {
-            AudioTrackSectionHeader(stringResource(R.string.player_sheets_embedded_audio_tracks))
+            PlayerSheetSectionHeader(stringResource(R.string.player_sheets_embedded_audio_tracks))
           }
         }
         items(embeddedTracks, key = { it.id }) {
@@ -116,7 +129,7 @@ fun AudioTracksSheet(
         }
         if (externalTracks.isNotEmpty()) {
           item(key = "external_audio_tracks_header") {
-            AudioTrackSectionHeader(stringResource(R.string.player_sheets_external_audio_tracks))
+            PlayerSheetSectionHeader(stringResource(R.string.player_sheets_external_audio_tracks))
           }
         }
         items(externalTracks, key = { it.id }) {
@@ -129,23 +142,13 @@ fun AudioTracksSheet(
           )
         }
         item {
-          Column(
-            modifier =
-              Modifier
-                .fillMaxWidth()
-                .padding(MaterialTheme.spacing.medium),
-          ) {
-            Spacer(modifier = Modifier.height(MaterialTheme.spacing.medium))
-            Text(
-              text = stringResource(id = R.string.pref_audio_channels),
-              style = MaterialTheme.typography.titleMedium,
-              color = MaterialTheme.colorScheme.primary,
-            )
-            Spacer(modifier = Modifier.height(MaterialTheme.spacing.smaller))
-            LazyRow(
-              horizontalArrangement = Arrangement.spacedBy(MaterialTheme.spacing.smaller),
+          Column(modifier = Modifier.fillMaxWidth()) {
+            PlayerSheetSectionHeader(stringResource(R.string.pref_audio_channels))
+            FlowRow(
+              modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp),
+              horizontalArrangement = Arrangement.spacedBy(8.dp),
             ) {
-              items(AudioChannels.entries, key = { it.name }) {
+              AudioChannels.entries.forEach {
                 FilterChip(
                   selected = audioChannels == it,
                   enabled = if (it == AudioChannels.ReverseStereo) reverseStereoEnabled else audioChannelsEnabled,
@@ -166,54 +169,35 @@ fun AudioTracksSheet(
             val volumeNormalization by audioPreferences.volumeNormalization.collectAsState()
             val drcEnabled by audioPreferences.drcEnabled.collectAsState()
 
-            Spacer(modifier = Modifier.height(MaterialTheme.spacing.medium))
-            Text(
-              text = stringResource(id = R.string.pref_audio_effects),
-              style = MaterialTheme.typography.titleMedium,
-              color = MaterialTheme.colorScheme.primary,
-            )
-            Spacer(modifier = Modifier.height(MaterialTheme.spacing.smaller))
-            LazyRow(
-              horizontalArrangement = Arrangement.spacedBy(MaterialTheme.spacing.smaller),
+            PlayerSheetSectionHeader(stringResource(R.string.pref_audio_effects))
+            Row(
+              modifier = Modifier.fillMaxWidth().heightIn(min = 56.dp)
+                .toggleable(value = volumeNormalization, enabled = audioEffectsEnabled, role = Role.Switch,
+                  onValueChange = audioPreferences.volumeNormalization::set)
+                .padding(horizontal = 20.dp, vertical = 8.dp),
+              horizontalArrangement = Arrangement.spacedBy(16.dp),
+              verticalAlignment = Alignment.CenterVertically,
             ) {
-              item {
-                FilterChip(
-                  selected = volumeNormalization,
-                  enabled = audioEffectsEnabled,
-                  onClick = { audioPreferences.volumeNormalization.set(!volumeNormalization) },
-                  label = { Text(text = stringResource(id = R.string.pref_audio_volume_normalization_title)) },
-                  leadingIcon = null,
-                )
-              }
-              item {
-                FilterChip(
-                  selected = drcEnabled,
-                  enabled = audioEffectsEnabled,
-                  onClick = { audioPreferences.drcEnabled.set(!drcEnabled) },
-                  label = { Text(text = stringResource(id = R.string.pref_audio_drc_title)) },
-                  leadingIcon = null,
-                )
-              }
+              Text(stringResource(R.string.pref_audio_volume_normalization_title), modifier = Modifier.weight(1f),
+                style = MaterialTheme.typography.bodyLarge)
+              Switch(checked = volumeNormalization, onCheckedChange = null, enabled = audioEffectsEnabled)
+            }
+            Row(
+              modifier = Modifier.fillMaxWidth().heightIn(min = 56.dp)
+                .toggleable(value = drcEnabled, enabled = audioEffectsEnabled, role = Role.Switch,
+                  onValueChange = audioPreferences.drcEnabled::set)
+                .padding(horizontal = 20.dp, vertical = 8.dp),
+              horizontalArrangement = Arrangement.spacedBy(16.dp),
+              verticalAlignment = Alignment.CenterVertically,
+            ) {
+              Text(stringResource(R.string.pref_audio_drc_title), modifier = Modifier.weight(1f),
+                style = MaterialTheme.typography.bodyLarge)
+              Switch(checked = drcEnabled, onCheckedChange = null, enabled = audioEffectsEnabled)
             }
           }
         }
       }
-    }
   }
-}
-
-@Composable
-private fun AudioTrackSectionHeader(title: String) {
-  Text(
-    text = title,
-    modifier =
-      Modifier
-        .fillMaxWidth()
-        .padding(horizontal = MaterialTheme.spacing.medium, vertical = MaterialTheme.spacing.extraSmall),
-    style = MaterialTheme.typography.labelLarge,
-    color = MaterialTheme.colorScheme.primary,
-    fontWeight = FontWeight.Bold,
-  )
 }
 
 @Composable
@@ -236,26 +220,28 @@ fun AudioTrackRow(
     modifier =
       modifier
         .fillMaxWidth()
+        .heightIn(min = 56.dp)
+        .padding(horizontal = 8.dp, vertical = 2.dp)
         .background(containerColor, MaterialTheme.shapes.medium)
         .tvFocusHighlight(enabled = enabled)
         .selectable(selected = isSelected, enabled = enabled, role = Role.RadioButton) {
           onClick()
           if (!isSelected) haptics.selection(true)
         }
-        .padding(horizontal = MaterialTheme.spacing.medium, vertical = MaterialTheme.spacing.extraSmall),
+        .padding(horizontal = 12.dp, vertical = 10.dp),
     verticalAlignment = Alignment.CenterVertically,
-    horizontalArrangement = Arrangement.spacedBy(MaterialTheme.spacing.smaller),
+    horizontalArrangement = Arrangement.spacedBy(12.dp),
   ) {
     RadioButton(
       selected = isSelected,
       onClick = null,
       enabled = enabled,
     )
-    Column(modifier = Modifier.weight(1f)) {
+    Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
       Text(
         title,
-        fontWeight = if (isSelected) FontWeight.ExtraBold else FontWeight.Normal,
-        fontStyle = if (isSelected) FontStyle.Italic else FontStyle.Normal,
+        style = MaterialTheme.typography.bodyLarge,
+        fontWeight = if (isSelected) FontWeight.SemiBold else FontWeight.Normal,
       )
       details?.let { value ->
         Text(

@@ -9,28 +9,29 @@
 
 package com.quantummpv.app.ui.player.controls.components.sheets
 
-import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.SheetValue
 import androidx.compose.material3.Text
 import androidx.compose.material3.rememberBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
+import com.quantummpv.app.R
+import com.quantummpv.app.presentation.components.PlayerSheetDragHandle
+import com.quantummpv.app.presentation.components.PlayerSheetHeader
 
 data class AudioPropertyItem(
   val label: String,
@@ -53,42 +54,32 @@ fun AudioPropertiesSheet(
   ModalBottomSheet(
     onDismissRequest = onDismissRequest,
     sheetState = sheetState,
-    containerColor = MaterialTheme.colorScheme.surfaceContainer,
-    dragHandle = null,
+    containerColor = MaterialTheme.colorScheme.surface,
+    sheetMaxWidth = 640.dp,
+    dragHandle = { PlayerSheetDragHandle() },
     modifier = modifier,
   ) {
+    PlayerSheetHeader(stringResource(R.string.ui_media_info))
     Column(
       modifier =
         Modifier
           .fillMaxWidth()
+          .weight(1f, fill = false)
           .verticalScroll(rememberScrollState())
-          .padding(start = 24.dp, end = 24.dp, top = 24.dp, bottom = 48.dp),
+          .padding(start = 20.dp, end = 20.dp, bottom = 16.dp),
     ) {
-      Text(
-        text = "AUDIO PROPERTIES",
-        style = MaterialTheme.typography.labelMedium,
-        color = MaterialTheme.colorScheme.onSurfaceVariant,
-        letterSpacing = 2.sp,
-        fontWeight = FontWeight.SemiBold,
-      )
-
-      Spacer(modifier = Modifier.height(16.dp))
-
       properties.forEachIndexed { index, prop ->
         Column(
           modifier =
             Modifier
               .fillMaxWidth()
-              .clip(RoundedCornerShape(12.dp))
-              .background(MaterialTheme.colorScheme.surfaceContainerHigh.copy(alpha = 0.5f))
-              .padding(horizontal = 16.dp, vertical = 12.dp),
+              .padding(vertical = 12.dp),
         ) {
           Text(
-            text = prop.label.uppercase(),
-            style = MaterialTheme.typography.labelSmall,
-            color = MaterialTheme.colorScheme.primary,
-            fontWeight = FontWeight.Bold,
-            letterSpacing = 1.sp,
+            text = prop.label,
+            style = MaterialTheme.typography.labelMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            fontWeight = FontWeight.SemiBold,
           )
           Spacer(modifier = Modifier.height(4.dp))
           Text(
@@ -100,7 +91,7 @@ fun AudioPropertiesSheet(
           )
         }
         if (index < properties.lastIndex) {
-          Spacer(modifier = Modifier.height(8.dp))
+          HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
         }
       }
     }

@@ -10,11 +10,13 @@
 package com.quantummpv.app.ui.player.controls.components.sheets
 
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.lazy.items
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.unit.dp
 import com.quantummpv.app.BuildConfig
 import com.quantummpv.app.R
 import com.quantummpv.app.presentation.components.PlayerSheet
@@ -36,8 +38,8 @@ fun DecodersSheet(
       buildSupportsMediaCodecVulkan = BuildConfig.MPV_SUPPORTS_MEDIACODEC_VULKAN,
     )
 
-  PlayerSheet(onDismissRequest) {
-    LazyColumn {
+  PlayerSheet(onDismissRequest, title = stringResource(R.string.btn_label_decoder)) {
+    LazyColumn(contentPadding = PaddingValues(bottom = 8.dp)) {
       items(Decoder.entries.minusElement(Decoder.Auto), key = { it.name }) { decoder ->
         AudioTrackRow(
           title = stringResource(R.string.player_sheets_decoder_formatted, decoder.title, decoder.value),

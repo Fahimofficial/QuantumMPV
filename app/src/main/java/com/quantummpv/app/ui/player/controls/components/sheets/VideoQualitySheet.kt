@@ -16,7 +16,6 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.selection.selectable
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Text
@@ -30,7 +29,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.quantummpv.app.R
 import com.quantummpv.app.presentation.components.PlayerSheet
-import com.quantummpv.app.ui.icons.Icon
+import com.quantummpv.app.presentation.components.PlayerSheetAction
 import com.quantummpv.app.ui.icons.Icons
 import com.quantummpv.app.ui.player.TrackNode
 import com.quantummpv.app.ui.theme.AppMotion
@@ -43,35 +42,10 @@ fun VideoQualitySheet(
   onDownload: ((TrackNode) -> Unit)? = null,
   onDismissRequest: () -> Unit,
 ) {
-  PlayerSheet(onDismissRequest) {
+  PlayerSheet(onDismissRequest, title = stringResource(R.string.player_video_quality)) {
     val haptics = rememberAppHaptics()
     Column(modifier = Modifier.fillMaxWidth()) {
-      Row(
-        modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 16.dp),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(12.dp),
-      ) {
-        Icon(
-          imageVector = Icons.RoundedFilled.Hd,
-          contentDescription = stringResource(R.string.player_video_quality_button),
-          modifier = Modifier.size(24.dp),
-          tint = MaterialTheme.colorScheme.primary,
-        )
-        Column {
-          Text(
-            text = stringResource(R.string.player_video_quality),
-            style = MaterialTheme.typography.titleLarge,
-            fontWeight = FontWeight.Bold,
-          )
-          Text(
-            text = stringResource(R.string.player_video_quality_summary),
-            style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-          )
-        }
-      }
-
-      LazyColumn(contentPadding = PaddingValues(bottom = 24.dp)) {
+      LazyColumn(contentPadding = PaddingValues(bottom = 8.dp)) {
         items(tracks, key = TrackNode::id) { track ->
           val containerColor by animateColorAsState(
             targetValue = MaterialTheme.colorScheme.primaryContainer.copy(alpha = if (track.isSelected) 0.35f else 0f),
@@ -82,7 +56,8 @@ fun VideoQualitySheet(
             modifier =
               Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 16.dp, vertical = 4.dp),
+                .heightIn(min = 56.dp)
+                .padding(horizontal = 8.dp, vertical = 2.dp),
             verticalAlignment = Alignment.CenterVertically,
           ) {
             Row(
@@ -94,7 +69,7 @@ fun VideoQualitySheet(
                     onSelect(track)
                     if (!track.isSelected) haptics.selection(true)
                     onDismissRequest()
-                  }.padding(vertical = 6.dp),
+                  }.padding(horizontal = 12.dp, vertical = 10.dp),
               verticalAlignment = Alignment.CenterVertically,
             ) {
               RadioButton(
@@ -102,11 +77,11 @@ fun VideoQualitySheet(
                 onClick = null,
               )
               Spacer(Modifier.width(12.dp))
-              Column(modifier = Modifier.weight(1f)) {
+              Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
                 Text(
                   text = qualityLabel(track),
                   style = MaterialTheme.typography.bodyLarge,
-                  fontWeight = if (track.isSelected) FontWeight.Bold else FontWeight.Medium,
+                  fontWeight = if (track.isSelected) FontWeight.SemiBold else FontWeight.Normal,
                 )
                 qualityDetails(track)?.let { details ->
                   Text(
@@ -118,13 +93,7 @@ fun VideoQualitySheet(
               }
             }
             if (onDownload != null) {
-              IconButton(onClick = { onDownload(track) }) {
-                Icon(
-                  imageVector = Icons.RoundedFilled.Download,
-                  contentDescription = stringResource(R.string.downloads_download),
-                  tint = MaterialTheme.colorScheme.primary,
-                )
-              }
+              PlayerSheetAction(Icons.RoundedFilled.Download, stringResource(R.string.downloads_download), { onDownload(track) })
             }
           }
         }

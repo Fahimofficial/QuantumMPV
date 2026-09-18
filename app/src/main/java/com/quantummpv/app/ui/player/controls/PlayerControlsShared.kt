@@ -210,6 +210,7 @@ fun RenderPlayerButton(
     PlayerButton.BOOKMARKS_CHAPTERS -> {
       ControlsButton(
         Icons.RoundedFilled.Bookmarks,
+        enabled = chapters.isNotEmpty(),
         onClick = { onOpenSheet(Sheets.Chapters) },
         onLongClick = addPlaybackBookmark,
         onLongClickLabel = stringResource(R.string.audiobook_add_bookmark),
@@ -786,6 +787,7 @@ fun RenderPlayerButton(
       if (isPortrait || compact || chapter == null) {
         ControlsButton(
           icon = Icons.RoundedFilled.Bookmarks,
+          enabled = chapters.isNotEmpty(),
           onClick = { onOpenSheet(Sheets.Chapters) },
           onLongClick = addPlaybackBookmark,
           onLongClickLabel = stringResource(R.string.audiobook_add_bookmark),

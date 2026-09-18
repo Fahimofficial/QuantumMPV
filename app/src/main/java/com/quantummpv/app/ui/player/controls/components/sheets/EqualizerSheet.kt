@@ -44,9 +44,9 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.scale
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.TransformOrigin
 import androidx.compose.ui.graphics.graphicsLayer
@@ -56,6 +56,9 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.Constraints
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.quantummpv.app.R
+import com.quantummpv.app.presentation.components.PlayerSheetDragHandle
+import com.quantummpv.app.presentation.components.PlayerSheetHeader
 import com.quantummpv.app.ui.player.controls.components.tvFocusHighlight
 import com.quantummpv.app.ui.player.controls.components.rememberTvInitialFocusRequester
 import com.quantummpv.app.ui.player.controls.components.tvFocusGroup
@@ -129,42 +132,27 @@ fun EqualizerSheet(
   ModalBottomSheet(
     onDismissRequest = onDismissRequest,
     sheetState = sheetState,
-    containerColor = MaterialTheme.colorScheme.surfaceContainer,
-    dragHandle = null,
+    containerColor = MaterialTheme.colorScheme.surface,
+    sheetMaxWidth = 640.dp,
+    dragHandle = { PlayerSheetDragHandle() },
     modifier = modifier.tvFocusGroup(),
   ) {
+    PlayerSheetHeader(stringResource(R.string.btn_label_equalizer)) {
+      IconSwitch(
+        checked = state.isEnabled,
+        onCheckedChange = onEnabledChanged,
+        modifier = Modifier.tvInitialFocus(initialFocusRequester)
+          .tvFocusHighlight(RoundedCornerShape(12.dp), focusedScale = 1.04f),
+      )
+    }
     Column(
       modifier =
         Modifier
           .fillMaxWidth()
+          .weight(1f, fill = false)
           .verticalScroll(rememberScrollState())
-          .padding(start = 24.dp, end = 24.dp, top = 24.dp, bottom = 48.dp),
+          .padding(start = 20.dp, end = 20.dp, top = 8.dp, bottom = 16.dp),
     ) {
-      Row(
-        modifier = Modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.SpaceBetween,
-        verticalAlignment = Alignment.CenterVertically,
-      ) {
-        Text(
-          text = "EQUALIZER",
-          style = MaterialTheme.typography.labelMedium,
-          color = MaterialTheme.colorScheme.onSurfaceVariant,
-          letterSpacing = 2.sp,
-          fontWeight = FontWeight.SemiBold,
-        )
-        IconSwitch(
-          checked = state.isEnabled,
-          onCheckedChange = onEnabledChanged,
-          modifier =
-            Modifier
-              .tvInitialFocus(initialFocusRequester)
-              .tvFocusHighlight(RoundedCornerShape(12.dp), focusedScale = 1.04f)
-              .scale(0.8f),
-        )
-      }
-
-      Spacer(modifier = Modifier.height(16.dp))
-
       val presetsToShow =
         if (state.currentPreset == EqualizerPreset.CUSTOM) {
           listOf(EqualizerPreset.CUSTOM) + EqualizerPreset.MUSIC
@@ -192,7 +180,7 @@ fun EqualizerSheet(
         }
       }
 
-      Spacer(modifier = Modifier.height(32.dp))
+      Spacer(modifier = Modifier.height(20.dp))
 
       Row(
         modifier =
@@ -231,7 +219,7 @@ fun EqualizerSheet(
             } else {
               MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.38f)
             },
-          letterSpacing = 2.sp,
+          letterSpacing = 0.sp,
           fontWeight = FontWeight.SemiBold,
         )
         Text(

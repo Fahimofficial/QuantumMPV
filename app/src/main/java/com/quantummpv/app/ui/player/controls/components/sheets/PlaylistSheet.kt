@@ -325,11 +325,7 @@ fun PlaylistSheet(
   val screenWidth = LocalConfiguration.current.screenWidthDp.dp
   val sheetWidth =
     if (isListMode) {
-      if (LocalConfiguration.current.orientation == android.content.res.Configuration.ORIENTATION_LANDSCAPE) {
-        640.dp
-      } else {
-        420.dp
-      }
+      640.dp
     } else {
       screenWidth * 0.85f
     }
@@ -340,9 +336,10 @@ fun PlaylistSheet(
     onDismissRequest = onDismissRequest,
     modifier = Modifier.fillMaxWidth(),
     customMaxWidth = sheetWidth,
-    customMaxHeight = if (isPortrait) LocalConfiguration.current.screenHeightDp.dp * 0.5f else null,
+    customMaxHeight = if (isPortrait) LocalConfiguration.current.screenHeightDp.dp * 0.75f else null,
     isSwipeActive = isSwipeActive,
     swipeOffset = swipeOffset,
+    title = stringResource(R.string.ui_playlist),
   ) {
     Surface(
       modifier = Modifier.fillMaxWidth(),
@@ -376,9 +373,8 @@ fun PlaylistSheet(
           verticalAlignment = Alignment.CenterVertically,
           horizontalArrangement = Arrangement.SpaceBetween,
         ) {
-          Row(
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(MaterialTheme.spacing.smaller),
+          Column(
+            verticalArrangement = Arrangement.spacedBy(4.dp),
             modifier = Modifier.weight(1f),
           ) {
             if (currentItem != null) {
@@ -391,11 +387,6 @@ fun PlaylistSheet(
                     fontWeight = FontWeight.Bold,
                     color = accentColor,
                   ),
-              )
-              Text(
-                text = "•",
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
               )
             }
             Text(

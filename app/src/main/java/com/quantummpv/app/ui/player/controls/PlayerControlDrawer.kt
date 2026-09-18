@@ -271,7 +271,7 @@ private fun PlayerControlPanelHeader(onDismissRequest: () -> Unit) {
     verticalAlignment = Alignment.CenterVertically,
   ) {
     Text(
-      text = stringResource(R.string.player_sheets_more_title),
+      text = stringResource(R.string.pref_player_controls_drawer_title),
       style = MaterialTheme.typography.titleLarge,
       fontWeight = FontWeight.SemiBold,
       modifier = Modifier.weight(1f),

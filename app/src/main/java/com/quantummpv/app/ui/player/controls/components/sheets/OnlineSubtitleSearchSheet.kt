@@ -39,6 +39,7 @@ import androidx.compose.ui.unit.sp
 import com.quantummpv.app.R
 import com.quantummpv.app.preferences.AiPreferences
 import com.quantummpv.app.presentation.components.PlayerSheet
+import com.quantummpv.app.presentation.components.PlayerSheetAction
 import com.quantummpv.app.presentation.components.RemoteImage
 import com.quantummpv.app.repository.ai.AiService
 import com.quantummpv.app.repository.subtitle.OnlineSubtitle
@@ -118,8 +119,7 @@ fun OnlineSubtitleSearchSheet(
       list.toImmutableList()
     }
 
-  PlayerSheet(onDismissRequest) {
-    Column(modifier) {
+  PlayerSheet(onDismissRequest, title = stringResource(R.string.pref_subtitles_search_online)) {
       val keyboardController = LocalSoftwareKeyboardController.current
       val context = LocalContext.current
       val mediaInfo = remember(mediaTitle) { MediaInfoParser.parse(mediaTitle) }
@@ -191,16 +191,21 @@ fun OnlineSubtitleSearchSheet(
         }
       }
 
-      Column(
-        modifier = Modifier.padding(top = MaterialTheme.spacing.medium),
+      LazyColumn(
+        modifier = modifier.fillMaxWidth(),
+        contentPadding = androidx.compose.foundation.layout.PaddingValues(bottom = 8.dp),
       ) {
+        item(key = "subtitle_search_controls") {
+        Column(
+          modifier = Modifier.padding(horizontal = 20.dp, vertical = 8.dp),
+          verticalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
         // Detected info chip
         if (detectedInfo.isNotBlank() && mediaInfo.title.isNotBlank()) {
           Row(
             modifier =
               Modifier
                 .fillMaxWidth()
-                .padding(horizontal = MaterialTheme.spacing.medium)
                 .padding(bottom = 4.dp),
             verticalAlignment = Alignment.CenterVertically,
           ) {
@@ -215,63 +220,32 @@ fun OnlineSubtitleSearchSheet(
               text = detectedInfo,
               style = MaterialTheme.typography.labelSmall,
               color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
-              maxLines = 1,
-              modifier = Modifier.basicMarquee(),
+              maxLines = 2,
+              overflow = TextOverflow.Ellipsis,
+              modifier = Modifier.weight(1f),
             )
           }
         }
 
-        Row(
-          modifier =
-            Modifier
-              .fillMaxWidth()
-              .padding(horizontal = MaterialTheme.spacing.medium, vertical = MaterialTheme.spacing.extraSmall),
-          verticalAlignment = Alignment.CenterVertically,
-          horizontalArrangement = Arrangement.spacedBy(MaterialTheme.spacing.small),
-        ) {
           OutlinedTextField(
             value = searchQuery,
             onValueChange = {
               searchQuery = it
             },
-            modifier = Modifier.weight(1f),
+            modifier = Modifier.fillMaxWidth(),
             placeholder = { Text(stringResource(R.string.pref_subtitles_search_online)) },
             leadingIcon = {
-              IconButton(onClick = {
-                searchQuery = mediaInfo.title
-                onSearchMedia(mediaInfo.title)
-              }) {
-                Icon(Icons.RoundedFilled.AutoFixHigh, null, tint = MaterialTheme.colorScheme.primary)
-              }
+              Icon(Icons.RoundedFilled.Search, contentDescription = null)
             },
             trailingIcon = {
-              Row(verticalAlignment = Alignment.CenterVertically) {
                 if (searchQuery.isNotEmpty()) {
                   IconButton(onClick = {
                     searchQuery = ""
                     onClearMediaSelection()
                   }) {
-                    Icon(Icons.RoundedFilled.Close, null)
+                    Icon(Icons.RoundedFilled.Close, stringResource(R.string.ui_remove))
                   }
                 }
-                if (aiPreferences.enabled.get() && aiPreferences.subtitleFormatWithAi.get()) {
-                  if (isAiFormatting) {
-                    CircularProgressIndicator(modifier = Modifier.size(20.dp), strokeWidth = 2.dp)
-                    Spacer(Modifier.width(4.dp))
-                  } else {
-                    IconButton(onClick = { formatWithAi() }) {
-                      Icon(Icons.RoundedFilled.AutoAwesome, "Format with AI", tint = MaterialTheme.colorScheme.tertiary)
-                    }
-                  }
-                }
-                if (isSearching || isDownloading || isSearchingMedia) {
-                  CircularProgressIndicator(modifier = Modifier.size(24.dp), strokeWidth = 2.dp)
-                  Spacer(Modifier.width(8.dp))
-                }
-                IconButton(onClick = { runSearch() }) {
-                  Icon(Icons.RoundedFilled.Search, null, tint = MaterialTheme.colorScheme.primary)
-                }
-              }
             },
             singleLine = true,
             keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
@@ -285,6 +259,29 @@ fun OnlineSubtitleSearchSheet(
                 unfocusedIndicatorColor = MaterialTheme.colorScheme.outline.copy(alpha = 0.5f),
               ),
           )
+
+          Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.End,
+            verticalAlignment = Alignment.CenterVertically,
+          ) {
+            PlayerSheetAction(Icons.RoundedFilled.AutoFixHigh, stringResource(R.string.generic_reset), {
+              searchQuery = mediaInfo.title
+              onSearchMedia(mediaInfo.title)
+            })
+            if (aiPreferences.enabled.get() && aiPreferences.subtitleFormatWithAi.get()) {
+              if (isAiFormatting) {
+                CircularProgressIndicator(modifier = Modifier.size(24.dp), strokeWidth = 2.dp)
+              } else {
+                PlayerSheetAction(Icons.RoundedFilled.AutoAwesome, stringResource(R.string.pref_ai_search_title), { formatWithAi() })
+              }
+            }
+            if (isSearching || isDownloading || isSearchingMedia) {
+              CircularProgressIndicator(modifier = Modifier.size(24.dp), strokeWidth = 2.dp)
+              Spacer(Modifier.width(12.dp))
+            }
+            PlayerSheetAction(Icons.RoundedFilled.Search, stringResource(R.string.settings_search_title), { runSearch() })
+          }
 
           if (showWyzieSelection && selectedTvShow != null) {
             SeriesSelectionControls(
@@ -301,13 +298,14 @@ fun OnlineSubtitleSearchSheet(
         }
       }
       if (isSearching) {
+        item(key = "subtitle_search_progress") {
         LinearProgressIndicator(
           modifier = Modifier.fillMaxWidth().padding(horizontal = MaterialTheme.spacing.medium).height(2.dp),
           color = MaterialTheme.colorScheme.primary,
         )
+        }
       }
 
-      LazyColumn {
         // Autocomplete Results - Horizontal Scrollable
         if (showWyzieSelection && mediaSearchResults.isNotEmpty()) {
           item(key = "tmdb_results") {
@@ -408,7 +406,6 @@ fun OnlineSubtitleSearchSheet(
             }
           }
         }
-      }
     }
   }
 }

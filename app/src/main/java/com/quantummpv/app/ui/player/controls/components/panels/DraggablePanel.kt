@@ -13,18 +13,20 @@ package com.quantummpv.app.ui.player.controls.components.panels
 
 import android.content.res.Configuration
 import androidx.compose.foundation.BorderStroke
-import androidx.compose.foundation.background
 import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.offset
-import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.MaterialTheme
@@ -46,8 +48,8 @@ import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
+import com.quantummpv.app.presentation.components.PlayerSheetDragHandle
 import com.quantummpv.app.ui.player.controls.panelCardsColors
-import com.quantummpv.app.ui.theme.AppShapeScale
 import kotlin.math.roundToInt
 
 /**
@@ -75,7 +77,7 @@ fun DraggablePanel(
   val isPortrait = configuration.orientation == Configuration.ORIENTATION_PORTRAIT
 
   BoxWithConstraints(
-    modifier = modifier.fillMaxSize(),
+    modifier = modifier.fillMaxSize().windowInsetsPadding(WindowInsets.safeDrawing).padding(12.dp),
     contentAlignment = if (isPortrait) Alignment.Center else Alignment.CenterEnd,
   ) {
     val density = LocalDensity.current
@@ -87,14 +89,13 @@ fun DraggablePanel(
     val maxOffset = 0f
     val minOffset = -freeSpace
 
-    // In portrait, cap panel height to 50% of available height
-    val panelMaxHeight = if (isPortrait) maxHeight * 0.5f else maxHeight
+    val panelMaxHeight = if (isPortrait) maxHeight * 0.85f else maxHeight
 
     val colors = panelCardsColors()
     Surface(
       modifier =
         Modifier
-          .offset { IntOffset(offsetX.roundToInt(), 0) }
+          .offset { IntOffset(offsetX.coerceIn(minOffset, maxOffset).roundToInt(), 0) }
           .onSizeChanged { panelWidth = it.width }
           .widthIn(max = 380.dp)
           .heightIn(max = panelMaxHeight),
@@ -105,13 +106,13 @@ fun DraggablePanel(
       shadowElevation = shadowElevation,
       border = border,
     ) {
-      Column {
+      Column(Modifier.fillMaxWidth().padding(bottom = 12.dp)) {
         // Drag Handle & Indicator
         Box(
           modifier =
             Modifier
               .fillMaxWidth()
-              .height(18.dp) // Good touch target size
+              .height(48.dp)
               .pointerInput(maxOffset, minOffset) {
                 detectDragGestures { change, dragAmount ->
                   change.consume()
@@ -121,16 +122,7 @@ fun DraggablePanel(
               },
           contentAlignment = Alignment.Center,
         ) {
-          Box(
-            modifier =
-              Modifier
-                .width(32.dp)
-                .height(4.dp)
-                .background(
-                  color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f),
-                  shape = AppShapeScale.extraSmall,
-                ),
-          )
+          PlayerSheetDragHandle()
         }
 
         // Fixed header (if provided) - stays constant
@@ -140,7 +132,7 @@ fun DraggablePanel(
 
         // Scrollable content
         Column(
-          modifier = Modifier.verticalScroll(rememberScrollState()),
+          modifier = Modifier.fillMaxWidth().weight(1f, fill = false).verticalScroll(rememberScrollState()),
         ) {
           content()
         }

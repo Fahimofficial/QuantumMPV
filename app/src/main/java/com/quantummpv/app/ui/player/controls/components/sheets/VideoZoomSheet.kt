@@ -38,7 +38,6 @@ import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.scale
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import com.quantummpv.app.R
@@ -72,7 +71,7 @@ fun VideoZoomSheet(
     if (zoomControlEnabled) currentOnSetVideoZoom(zoom)
   }
 
-  PlayerSheet(onDismissRequest = onDismissRequest) {
+  PlayerSheet(onDismissRequest = onDismissRequest, title = stringResource(R.string.btn_label_zoom)) {
     ZoomVideoSheet(
       zoom = zoom,
       defaultZoom = defaultZoom,
@@ -122,8 +121,8 @@ private fun ZoomVideoSheet(
       modifier
         .fillMaxWidth()
         .verticalScroll(rememberScrollState())
-        .padding(vertical = MaterialTheme.spacing.medium),
-    verticalArrangement = Arrangement.spacedBy(MaterialTheme.spacing.small),
+        .padding(vertical = 8.dp),
+      verticalArrangement = Arrangement.spacedBy(16.dp),
   ) {
     // Zoom slider with +/- buttons
     Row(
@@ -140,14 +139,14 @@ private fun ZoomVideoSheet(
           onZoomChange(newZoom)
         },
         enabled = zoomControlEnabled,
-        modifier = Modifier.size(36.dp),
+        modifier = Modifier.size(48.dp),
       ) {
         Icon(
           Icons.RoundedFilled.Remove,
           contentDescription =
             androidx.compose.ui.res
               .stringResource(com.quantummpv.app.R.string.ui_decrease_zoom),
-          modifier = Modifier.size(18.dp),
+          modifier = Modifier.size(24.dp),
         )
       }
 
@@ -168,14 +167,14 @@ private fun ZoomVideoSheet(
           onZoomChange(newZoom)
         },
         enabled = zoomControlEnabled,
-        modifier = Modifier.size(36.dp),
+        modifier = Modifier.size(48.dp),
       ) {
         Icon(
           Icons.RoundedFilled.Add,
           contentDescription =
             androidx.compose.ui.res
               .stringResource(com.quantummpv.app.R.string.ui_increase_zoom),
-          modifier = Modifier.size(18.dp),
+          modifier = Modifier.size(24.dp),
         )
       }
     }
@@ -200,7 +199,6 @@ private fun ZoomVideoSheet(
         IconSwitch(
           checked = panAndZoomEnabled,
           onCheckedChange = onPanAndZoomToggle,
-          modifier = Modifier.scale(0.8f),
           enabled = panControlEnabled,
         )
         Spacer(modifier = Modifier.width(8.dp))

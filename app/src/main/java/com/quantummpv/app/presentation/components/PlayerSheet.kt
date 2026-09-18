@@ -12,7 +12,6 @@
 package com.quantummpv.app.presentation.components
 
 import android.annotation.SuppressLint
-import android.content.res.Configuration.ORIENTATION_LANDSCAPE
 import android.content.res.Configuration.ORIENTATION_PORTRAIT
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.core.animateFloatAsState
@@ -31,19 +30,36 @@ import androidx.compose.foundation.gestures.anchoredDraggable
 import androidx.compose.foundation.gestures.animateTo
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.WindowInsetsSides
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.ime
 import androidx.compose.foundation.layout.imePadding
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.only
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.sizeIn
 import androidx.compose.foundation.layout.systemBars
 import androidx.compose.foundation.layout.windowInsetsPadding
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.shape.ZeroCornerSize
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.PlainTooltip
 import androidx.compose.material3.Surface
+import androidx.compose.material3.Text
+import androidx.compose.material3.TooltipAnchorPosition
+import androidx.compose.material3.TooltipBox
+import androidx.compose.material3.TooltipDefaults
+import androidx.compose.material3.rememberTooltipState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
@@ -65,10 +81,15 @@ import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.semantics.heading
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.Velocity
 import androidx.compose.ui.unit.dp
+import com.quantummpv.app.ui.icons.AppIcon
+import com.quantummpv.app.ui.icons.Icon
 import com.quantummpv.app.ui.player.controls.components.tvFocusGroup
 import com.quantummpv.app.ui.theme.AppMotion
 import com.quantummpv.app.ui.theme.LocalMotionPolicy
@@ -89,6 +110,8 @@ fun PlayerSheet(
   surfaceColor: Color? = null,
   isSwipeActive: Boolean = false,
   swipeOffset: Float = 0f,
+  title: String? = null,
+  actions: @Composable RowScope.() -> Unit = {},
   content: @Composable () -> Unit,
 ) {
   val scope = rememberCoroutineScope()
@@ -105,13 +128,7 @@ fun PlayerSheet(
   }
   val density = LocalDensity.current
   val latestOnDismissRequest by rememberUpdatedState(onDismissRequest)
-  val maxWidth =
-    customMaxWidth
-      ?: if (LocalConfiguration.current.orientation == ORIENTATION_LANDSCAPE) {
-        640.dp
-      } else {
-        420.dp
-      }
+  val maxWidth = customMaxWidth ?: 640.dp
   val isImeVisible = WindowInsets.ime.getBottom(density) > 0
   val maxHeight =
     customMaxHeight ?: when {
@@ -194,6 +211,7 @@ fun PlayerSheet(
       modifier =
         Modifier
           .sizeIn(maxWidth = maxWidth, maxHeight = maxHeight)
+          .fillMaxWidth()
           .clickable(
             interactionSource = remember { MutableInteractionSource() },
             indication = null,
@@ -228,7 +246,18 @@ fun PlayerSheet(
           onBack = internalOnDismissRequest,
         )
         CompositionLocalProvider(LocalMotionPolicy provides MotionPolicy(reduceMotion = reducedMotion)) {
-          content()
+          Column(
+            modifier = Modifier.fillMaxWidth().navigationBarsPadding().padding(bottom = 12.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+          ) {
+            PlayerSheetDragHandle()
+            if (title != null) {
+              PlayerSheetHeader(title = title, actions = actions)
+            }
+            Box(Modifier.fillMaxWidth().weight(1f, fill = false)) {
+              content()
+            }
+          }
         }
       },
     )
@@ -287,6 +316,70 @@ fun PlayerSheet(
             latestOnDismissRequest()
           }
         }
+    }
+  }
+}
+
+@Composable
+fun PlayerSheetDragHandle() {
+  Box(Modifier.fillMaxWidth().padding(vertical = 12.dp), contentAlignment = Alignment.Center) {
+    Box(
+      Modifier.size(width = 32.dp, height = 4.dp)
+        .background(MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f), RoundedCornerShape(2.dp)),
+    )
+  }
+}
+
+@Composable
+fun PlayerSheetHeader(
+  title: String,
+  modifier: Modifier = Modifier,
+  actions: @Composable RowScope.() -> Unit = {},
+) {
+  Row(
+    modifier = modifier.fillMaxWidth().heightIn(min = 60.dp).padding(start = 20.dp, end = 12.dp, bottom = 12.dp),
+    verticalAlignment = Alignment.CenterVertically,
+  ) {
+    Text(
+      text = title,
+      modifier = Modifier.weight(1f).padding(end = 8.dp).semantics { heading() },
+      style = MaterialTheme.typography.titleLarge,
+      fontWeight = FontWeight.SemiBold,
+      color = MaterialTheme.colorScheme.onSurface,
+    )
+    actions()
+  }
+}
+
+@Composable
+fun PlayerSheetSectionHeader(
+  title: String,
+  modifier: Modifier = Modifier,
+) {
+  Text(
+    text = title,
+    modifier = modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 12.dp).semantics { heading() },
+    style = MaterialTheme.typography.labelLarge,
+    fontWeight = FontWeight.SemiBold,
+    color = MaterialTheme.colorScheme.onSurfaceVariant,
+  )
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun PlayerSheetAction(
+  icon: AppIcon,
+  label: String,
+  onClick: () -> Unit,
+  enabled: Boolean = true,
+) {
+  TooltipBox(
+    positionProvider = TooltipDefaults.rememberTooltipPositionProvider(TooltipAnchorPosition.Above),
+    tooltip = { PlainTooltip { Text(label) } },
+    state = rememberTooltipState(),
+  ) {
+    IconButton(onClick = onClick, enabled = enabled, modifier = Modifier.size(48.dp)) {
+      Icon(icon, contentDescription = label, modifier = Modifier.size(24.dp))
     }
   }
 }

@@ -34,14 +34,11 @@ internal fun AudiobookSheet(sheet: Sheets, onChapterEnd: () -> Unit, onDismiss: 
   val timer by AudiobookPlayback.timer.collectAsStateWithLifecycle()
   val ready = state.phase in setOf(PlaybackPhase.READY, PlaybackPhase.BACKGROUND)
   val haptics = rememberAppHaptics()
-  PlayerSheet(onDismissRequest = onDismiss) {
-      LazyColumn(contentPadding = PaddingValues(bottom = 20.dp)) {
-        item {
-          Text(stringResource(when (sheet) {
-            Sheets.AudiobookRewind -> R.string.audiobook_smart_rewind
-            else -> R.string.audiobook_sleep_timer
-          }), modifier = Modifier.padding(20.dp), style = MaterialTheme.typography.titleMedium)
-        }
+  PlayerSheet(onDismissRequest = onDismiss, title = stringResource(when (sheet) {
+    Sheets.AudiobookRewind -> R.string.audiobook_smart_rewind
+    else -> R.string.audiobook_sleep_timer
+  })) {
+      LazyColumn(contentPadding = PaddingValues(bottom = 8.dp)) {
         when (sheet) {
           Sheets.AudiobookRewind -> items(listOf(0, 5, 10, 15, 30)) { seconds ->
             BookSettingOption(

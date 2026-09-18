@@ -9,20 +9,17 @@
 
 package com.quantummpv.app.ui.player.controls.components.sheets
 
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.dp
 import com.quantummpv.app.R
 import com.quantummpv.app.preferences.AudioVisualizerStyle
 import com.quantummpv.app.presentation.components.PlayerSheet
-import com.quantummpv.app.ui.theme.spacing
 
 @Composable
 fun VisualizerStyleSheet(
@@ -31,30 +28,20 @@ fun VisualizerStyleSheet(
   onDismissRequest: () -> Unit,
   modifier: Modifier = Modifier,
 ) {
-  PlayerSheet(onDismissRequest) {
-    Column(modifier = modifier) {
-      Text(
-        text = stringResource(R.string.pref_audio_visualizer_style_title),
-        style = MaterialTheme.typography.titleMedium,
-        fontWeight = FontWeight.Bold,
-        color = MaterialTheme.colorScheme.onSurface,
-        modifier =
-          Modifier.padding(
-            horizontal = MaterialTheme.spacing.medium,
-            vertical = MaterialTheme.spacing.small,
-          ),
-      )
-      LazyColumn {
-        items(AudioVisualizerStyle.entries, key = { it.name }) { style ->
-          AudioTrackRow(
-            title = stringResource(style.title),
-            isSelected = selectedStyle == style,
-            onClick = {
-              onSelectStyle(style)
-              onDismissRequest()
-            },
-          )
-        }
+  PlayerSheet(onDismissRequest, title = stringResource(R.string.pref_audio_visualizer_style_title)) {
+    LazyColumn(
+      modifier = modifier.fillMaxWidth(),
+      contentPadding = PaddingValues(bottom = 8.dp),
+    ) {
+      items(AudioVisualizerStyle.entries, key = { it.name }) { style ->
+        AudioTrackRow(
+          title = stringResource(style.title),
+          isSelected = selectedStyle == style,
+          onClick = {
+            onSelectStyle(style)
+            onDismissRequest()
+          },
+        )
       }
     }
   }

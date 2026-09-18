@@ -9,11 +9,14 @@
 
 package com.quantummpv.app.ui.player.controls.components.sheets
 
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
@@ -35,7 +38,6 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -65,25 +67,16 @@ fun ChaptersSheet(
   LaunchedEffect(currentChapter, chapters) {
     val index = if (currentChapter != null) chapters.indexOf(currentChapter) else -1
     if (index >= 0) {
-      listState.scrollToItem(index + 1)
+      listState.scrollToItem(index)
     }
   }
 
-  PlayerSheet(onDismissRequest) {
-    Column(
-      modifier =
-        modifier
-          .padding(vertical = MaterialTheme.spacing.medium),
-    ) {
-      LazyColumn(state = listState) {
-        item {
-          val isAudiobook = com.quantummpv.app.ui.player.PlaybackSession.state.collectAsStateWithLifecycle().value.currentItem?.audiobook != null
-          Text(
-            text = stringResource(if (isAudiobook) R.string.audiobook_chapters else R.string.btn_label_bookmarks),
-            modifier = Modifier.padding(horizontal = MaterialTheme.spacing.medium, vertical = MaterialTheme.spacing.small),
-            style = MaterialTheme.typography.titleMedium,
-          )
-        }
+  val isAudiobook = com.quantummpv.app.ui.player.PlaybackSession.state.collectAsStateWithLifecycle().value.currentItem?.audiobook != null
+  PlayerSheet(
+    onDismissRequest,
+    title = stringResource(if (isAudiobook) R.string.audiobook_chapters else R.string.btn_label_bookmarks),
+  ) {
+      LazyColumn(modifier = modifier.fillMaxWidth(), state = listState, contentPadding = PaddingValues(bottom = 8.dp)) {
         if (chapters.isEmpty()) item {
           Text(stringResource(R.string.playback_bookmarks_empty), Modifier.padding(MaterialTheme.spacing.medium),
             style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
@@ -98,7 +91,6 @@ fun ChaptersSheet(
           )
         }
       }
-    }
   }
 }
 
@@ -115,27 +107,26 @@ fun ChapterTrack(
     modifier =
       modifier
         .fillMaxWidth()
+        .heightIn(min = 56.dp)
+        .padding(horizontal = 8.dp, vertical = 2.dp)
+        .background(MaterialTheme.colorScheme.primaryContainer.copy(alpha = if (selected) 0.35f else 0f), MaterialTheme.shapes.medium)
         .clickable(onClick = onClick)
-        .padding(vertical = MaterialTheme.spacing.smaller, horizontal = MaterialTheme.spacing.medium),
-    horizontalArrangement = Arrangement.SpaceBetween,
+        .padding(vertical = 10.dp, horizontal = 12.dp),
+    horizontalArrangement = Arrangement.spacedBy(12.dp),
     verticalAlignment = Alignment.CenterVertically,
   ) {
-    Text(
-      stringResource(R.string.player_sheets_track_title_wo_lang, index + 1, chapter.name),
-      fontStyle = if (selected) FontStyle.Italic else FontStyle.Normal,
-      fontWeight = if (selected) FontWeight.ExtraBold else FontWeight.Normal,
-      color = if (selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface,
-      maxLines = 1,
-      modifier = Modifier.weight(1f),
-      overflow = TextOverflow.Ellipsis,
-    )
-    Text(
-      Utils.prettyTime(chapter.start.toInt()),
-      fontStyle = if (selected) FontStyle.Italic else FontStyle.Normal,
-      fontWeight = if (selected) FontWeight.ExtraBold else FontWeight.Normal,
-      color = if (selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface,
-      modifier = Modifier.padding(start = MaterialTheme.spacing.small),
-    )
+    Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+      Text(
+        stringResource(R.string.player_sheets_track_title_wo_lang, index + 1, chapter.name),
+        style = MaterialTheme.typography.bodyLarge,
+        fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Normal,
+        color = MaterialTheme.colorScheme.onSurface,
+        maxLines = 2,
+        overflow = TextOverflow.Ellipsis,
+      )
+      Text(Utils.prettyTime(chapter.start.toInt()), style = MaterialTheme.typography.labelMedium,
+        color = MaterialTheme.colorScheme.onSurfaceVariant)
+    }
     trailingContent()
   }
 }
@@ -154,9 +145,8 @@ internal fun PlaybackBookmarkEditor(viewModel: PlayerViewModel, onSaved: () -> U
   var failed by remember(bookmark) { mutableStateOf(false) }
   val scope = rememberCoroutineScope()
   val haptics = rememberAppHaptics()
-  PlayerSheet(onDismissRequest = { if (!saving) onDismiss() }) {
-    Column(Modifier.fillMaxWidth().verticalScroll(rememberScrollState()).padding(20.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-      Text(stringResource(R.string.audiobook_bookmark_name), style = MaterialTheme.typography.titleMedium)
+  PlayerSheet(onDismissRequest = { if (!saving) onDismiss() }, title = stringResource(R.string.audiobook_bookmark_name)) {
+    Column(Modifier.fillMaxWidth().verticalScroll(rememberScrollState()).padding(horizontal = 20.dp, vertical = 8.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
       Text(Utils.prettyTime((viewModel.bookmarkPositionMs(bookmark) / 1000).toInt()),
         style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.onSurfaceVariant)
       OutlinedTextField(name, { name = it }, modifier = Modifier.fillMaxWidth(), enabled = !saving, maxLines = 3,

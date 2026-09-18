@@ -21,9 +21,9 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.SegmentedButton
 import androidx.compose.material3.SegmentedButtonDefaults
@@ -38,11 +38,11 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.unit.dp
 import com.quantummpv.app.R
 import com.quantummpv.app.presentation.components.PlayerSheet
+import com.quantummpv.app.presentation.components.PlayerSheetAction
 import com.quantummpv.app.ui.components.themedSegmentedButtonColors
 import com.quantummpv.app.ui.icons.Icon
 import com.quantummpv.app.ui.icons.Icons
@@ -65,34 +65,22 @@ fun ScopesSheet(
   val state by viewModel.mediaScopesUiState.collectAsState()
   val tabs = MediaScopeTab.entries
 
-  PlayerSheet(onDismissRequest) {
+  PlayerSheet(
+    onDismissRequest,
+    title = stringResource(R.string.scopes_title),
+    actions = {
+      PlayerSheetAction(Icons.RoundedFilled.ZoomOutMap, stringResource(R.string.scopes_expand), {
+        viewModel.toggleMediaScopesExpanded()
+        onDismissRequest()
+      })
+      PlayerSheetAction(Icons.RoundedFilled.Close, stringResource(R.string.ui_close), onDismissRequest)
+    },
+  ) {
     Column(
-      modifier = modifier.fillMaxWidth().padding(MaterialTheme.spacing.medium),
+      modifier = modifier.fillMaxWidth().verticalScroll(rememberScrollState())
+        .padding(horizontal = MaterialTheme.spacing.medium, vertical = MaterialTheme.spacing.small),
       verticalArrangement = Arrangement.spacedBy(MaterialTheme.spacing.medium),
     ) {
-      Row(
-        modifier = Modifier.fillMaxWidth(),
-        verticalAlignment = Alignment.CenterVertically,
-      ) {
-        Text(
-          text = stringResource(R.string.scopes_title),
-          style = MaterialTheme.typography.titleLarge,
-          fontWeight = FontWeight.Bold,
-          modifier = Modifier.weight(1f),
-        )
-        IconButton(
-          onClick = {
-            viewModel.toggleMediaScopesExpanded()
-            onDismissRequest()
-          },
-        ) {
-          Icon(Icons.RoundedFilled.ZoomOutMap, stringResource(R.string.scopes_expand))
-        }
-        IconButton(onClick = onDismissRequest) {
-          Icon(Icons.RoundedFilled.Close, stringResource(R.string.ui_close))
-        }
-      }
-
       SingleChoiceSegmentedButtonRow(modifier = Modifier.fillMaxWidth()) {
         tabs.forEachIndexed { index, tab ->
           SegmentedButton(
