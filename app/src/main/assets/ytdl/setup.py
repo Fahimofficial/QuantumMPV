@@ -1,4 +1,4 @@
-import sys, os, urllib.request
+import sys, os, urllib.request, zipfile
 
 # Argument 1: Native Library Directory (passed from Java)
 native_lib_dir = sys.argv[1] if len(sys.argv) > 1 else ""
@@ -27,6 +27,11 @@ try:
     urllib.request.urlretrieve(url, download_name)
     if not os.path.isfile(download_name) or os.path.getsize(download_name) == 0:
         raise IOError("Downloaded yt-dlp file is empty")
+    with zipfile.ZipFile(download_name) as archive:
+        if not {"__main__.py", "yt_dlp/__init__.py"}.issubset(archive.namelist()):
+            raise IOError("Downloaded file is not a yt-dlp application")
+        if archive.testzip() is not None:
+            raise IOError("Downloaded yt-dlp archive is corrupted")
     os.replace(download_name, name)
     print("Download successful.")
 except Exception as e:

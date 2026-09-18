@@ -380,48 +380,58 @@ object YtdlpManager {
 
   suspend fun copyAssets(context: Context) =
     withContext(Dispatchers.IO) {
-      val ytdlDir = getYtdlDir(context)
-
-      // Clean up old potentially problematic scripts from multiple possible locations
-      listOf("youtube-dl", "youtube-dl.sh").forEach { name ->
-        File(context.filesDir, name).delete()
-        File(ytdlDir, name).delete()
+      installMutex.withLock {
+        runtimeAssetsPrepared = copyRuntimeAssets(context)
       }
-
-      // Files to copy from assets/ytdl/ to filesDir/ytdl/
-      val ytdlFiles = arrayOf("setup.py", "wrapper", "python313.zip")
-      for (name in ytdlFiles) {
-        copyAssetFile(context, "ytdl/$name", File(ytdlDir, name))
-      }
-
-      // cacert.pem goes to filesDir/
-      copyAssetFile(context, "cacert.pem", File(context.filesDir, "cacert.pem"))
-
-      // Set executable permission on wrapper (just in case it's used)
-      File(ytdlDir, "wrapper").setExecutable(true)
     }
+
+  private fun copyRuntimeAssets(context: Context, onLog: (String) -> Unit = {}): Boolean {
+    val ytdlDir = getYtdlDir(context)
+
+    // Clean up old potentially problematic scripts from multiple possible locations
+    listOf("youtube-dl", "youtube-dl.sh").forEach { name ->
+      File(context.filesDir, name).delete()
+      File(ytdlDir, name).delete()
+    }
+
+    // Files to copy from assets/ytdl/ to filesDir/ytdl/
+    val ytdlFiles = arrayOf("setup.py", "wrapper", "python313.zip")
+    var copied = true
+    for (name in ytdlFiles) {
+      copied = copyAssetFile(context, "ytdl/$name", File(ytdlDir, name), onLog) && copied
+    }
+
+    // cacert.pem goes to filesDir/
+    copied = copyAssetFile(context, "cacert.pem", File(context.filesDir, "cacert.pem"), onLog) && copied
+
+    // Set executable permission on wrapper (just in case it's used)
+    File(ytdlDir, "wrapper").setExecutable(true)
+    return copied
+  }
 
   private fun copyAssetFile(
     context: Context,
     assetPath: String,
     outFile: File,
+    onLog: (String) -> Unit,
   ): Boolean {
+    val temporaryFile = File(outFile.parentFile, "${outFile.name}.tmp")
     return try {
       context.assets.open(assetPath).use { input ->
-        val size = input.available().toLong()
-        if (outFile.exists() && outFile.length() == size) {
-          Log.v(TAG, "Skipping copy: $assetPath (exists same size)")
-          return true
+        FileOutputStream(temporaryFile).use { output ->
+          if (input.copyTo(output) == 0L) throw IOException("Bundled asset is empty: $assetPath")
+          output.fd.sync()
         }
-        FileOutputStream(outFile).use { output ->
-          input.copyTo(output)
-        }
+        if (!temporaryFile.renameTo(outFile)) throw IOException("Could not replace bundled asset: $assetPath")
         Log.d(TAG, "Copied asset: $assetPath")
         true
       }
     } catch (e: IOException) {
       Log.e(TAG, "Failed to copy asset: $assetPath", e)
+      onLog("$assetPath: ${e.message}\n")
       false
+    } finally {
+      temporaryFile.delete()
     }
   }
 
@@ -639,13 +649,7 @@ object YtdlpManager {
     onLog: (String) -> Unit,
   ): Boolean {
     if (!runtimeAssetsPrepared) {
-      copyAssets(context)
-      runtimeAssetsPrepared =
-        listOf(
-          File(getYtdlDir(context), "setup.py"),
-          File(getYtdlDir(context), "python313.zip"),
-          File(context.filesDir, "cacert.pem"),
-        ).all { file -> file.isFile && file.length() > 0L }
+      runtimeAssetsPrepared = copyRuntimeAssets(context, onLog)
     }
     if (!runtimeAssetsPrepared) onLog("Failed to prepare the bundled yt-dlp runtime assets.\n")
     return runtimeAssetsPrepared
@@ -653,7 +657,11 @@ object YtdlpManager {
 
   fun isInstalled(context: Context): Boolean {
     val ytDlp = File(getYtdlDir(context), "yt-dlp")
-    return ytDlp.isFile && ytDlp.length() > 0L
+    return runCatching {
+      java.util.zip.ZipFile(ytDlp).use { archive ->
+        archive.getEntry("__main__.py") != null && archive.getEntry("yt_dlp/__init__.py") != null
+      }
+    }.getOrDefault(false)
   }
 
   private fun readInstallationInfo(context: Context): YtdlpInstallationInfo {
@@ -818,7 +826,7 @@ object YtdlpManager {
       }
     }
 
-  private fun startPythonProcess(
+  internal fun startPythonProcess(
     command: List<String>,
     context: Context,
   ): Process {
@@ -834,7 +842,10 @@ object YtdlpManager {
     env.remove("YTDL_SCRIPT")
     env["YTDL_PYTHON"] = File(nativeLibDir, "libpython.so").absolutePath
     env["PYTHONHOME"] = ytdlDir
-    env["PYTHONPATH"] = "$ytdlDir/python313.zip"
+    env["PYTHONPATH"] = "$ytdlDir/python313.zip:$ytdlDir:$nativeLibDir"
+    env["HOME"] = context.filesDir.absolutePath
+    env["XDG_CACHE_HOME"] = context.cacheDir.absolutePath
+    env["TMPDIR"] = context.cacheDir.absolutePath
     env["SSL_CERT_FILE"] = File(context.filesDir, "cacert.pem").absolutePath
     env["LD_LIBRARY_PATH"] = nativeLibDir
     return processBuilder.start()

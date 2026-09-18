@@ -82,7 +82,6 @@ import androidx.compose.material3.animateFloatingActionButton
 import androidx.compose.material3.rememberBottomSheetState
 import androidx.compose.material3.rememberTooltipState
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.derivedStateOf
@@ -162,8 +161,6 @@ import com.quantummpv.app.ui.utils.navigateTo
 import com.quantummpv.app.ui.utils.rememberTabNavigation
 import com.quantummpv.app.utils.media.MediaUtils
 import com.quantummpv.app.utils.permission.PermissionUtils
-import androidx.lifecycle.Lifecycle
-import androidx.lifecycle.LifecycleEventObserver
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -340,36 +337,10 @@ fun MusicLibraryContent(
   val pagerState = rememberPagerState(initialPage = initialPageIndex) { visibleTabs.size }
   val navigateTab = rememberTabNavigation(pagerState)
 
-  val lifecycleOwner = androidx.lifecycle.compose.LocalLifecycleOwner.current
-
-  // Handle storage permission so onPermissionGranted triggers an immediate scan on first launch
   val permissionState = PermissionUtils.handleStoragePermission(
     audioOnly = true,
     onPermissionGranted = { musicViewModel.scanLibrary(context) },
   )
-
-  // Rescan on resume if library is currently empty (e.g. after granting permissions)
-  DisposableEffect(lifecycleOwner) {
-    val observer = LifecycleEventObserver { _, event ->
-      if (event == Lifecycle.Event.ON_RESUME) {
-        if (songs.isEmpty() || musicViewModel.songs.value.isEmpty()) {
-          musicViewModel.scanLibrary(context)
-        }
-      }
-    }
-    lifecycleOwner.lifecycle.addObserver(observer)
-    onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
-  }
-
-  LaunchedEffect(Unit) {
-    musicViewModel.scanLibrary(context)
-  }
-
-  LaunchedEffect(selectedTab) {
-    if (songs.isEmpty() && !isLoading) {
-      musicViewModel.scanLibrary(context)
-    }
-  }
 
   LaunchedEffect(pagerState, visibleTabs) {
     if (visibleTabs.isEmpty()) return@LaunchedEffect

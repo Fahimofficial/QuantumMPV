@@ -488,15 +488,6 @@ private fun SeekbarContent(
   val touchAreaHeight = if (isPortrait) 64.dp else 52.dp
   val seekerState = rememberSeekerState()
   val seekerInteractionSource = remember { MutableInteractionSource() }
-  val seekHaptics = com.quantummpv.app.ui.utils.rememberAppHaptics()
-  var seekStartPosition by remember { mutableStateOf<Float?>(null) }
-  LaunchedEffect(seekerInteractionSource) {
-    seekerInteractionSource.interactions.collect { interaction ->
-      if (interaction is androidx.compose.foundation.interaction.DragInteraction.Cancel) {
-        seekStartPosition = null
-      }
-    }
-  }
   val isSeekerPressed by seekerInteractionSource.collectIsPressedAsState()
   val isSeekerDragged by seekerInteractionSource.collectIsDraggedAsState()
   val isVisuallyInteracting = isUserInteracting || isSeekerPressed || isSeekerDragged
@@ -762,7 +753,6 @@ private fun SeekbarContent(
         ),
       onValueChange = { newPosition ->
         val targetPosition = newPosition.coerceIn(0f, safeDuration)
-        if (seekStartPosition == null) seekStartPosition = safeCommittedPosition
         onUserInteractionChange(true)
         latestInteractionPosition = targetPosition
         onUserPositionChange(targetPosition)
@@ -770,13 +760,10 @@ private fun SeekbarContent(
       },
       onValueChangeFinished = {
         val targetPosition = latestInteractionPosition.coerceIn(0f, safeDuration)
-        val initialPosition = seekStartPosition
-        seekStartPosition = null
         scope.launch {
           animatedPosition.snapTo(targetPosition)
           onUserPositionChange(targetPosition)
           onValueChangeFinished(targetPosition)
-          if (initialPosition != null && initialPosition.toInt() != targetPosition.toInt()) seekHaptics.confirm()
           onUserInteractionChange(false)
         }
       },

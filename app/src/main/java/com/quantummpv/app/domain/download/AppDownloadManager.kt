@@ -261,6 +261,7 @@ class AppDownloadManager(
             ),
           )
         }
+        notifyCompletedMedia(context, finalFile)
       }.onFailure { error ->
         when {
           error is CancelledDownloadException || id in cancelledIds -> {
@@ -391,6 +392,22 @@ class AppDownloadManager(
 
   companion object {
     private const val TAG = "AppDownloadManager"
+
+    internal fun notifyCompletedMedia(context: Context, file: File) {
+      fun notifyLibraryChanged() {
+        com.quantummpv.app.repository.MediaFileRepository.clearCache()
+        com.quantummpv.app.utils.media.MediaLibraryEvents.notifyChanged()
+      }
+
+      runCatching {
+        android.media.MediaScannerConnection.scanFile(context, arrayOf(file.absolutePath), null) { _, _ ->
+          notifyLibraryChanged()
+        }
+      }.onFailure { error ->
+        Log.w(TAG, "Could not index downloaded media", error)
+        notifyLibraryChanged()
+      }
+    }
     private const val PART_SUFFIX = ".part"
     private const val PROGRESS_INTERVAL_MS = 750L
     private const val DB_WRITE_INTERVAL_MS = 1_500L

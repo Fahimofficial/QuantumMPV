@@ -48,7 +48,6 @@ import androidx.compose.material3.TooltipDefaults
 import androidx.compose.material3.animateFloatingActionButton
 import androidx.compose.material3.rememberTooltipState
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.derivedStateOf
@@ -70,8 +69,6 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
-import androidx.lifecycle.Lifecycle
-import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.quantummpv.app.R
 import com.quantummpv.app.database.repository.SecureFolderRepository
@@ -151,7 +148,6 @@ data class VideoListScreen(
     val appearancePreferences = koinInject<com.quantummpv.app.preferences.AppearancePreferences>()
     val showQuickPlayFab by appearancePreferences.showQuickPlayFab.collectAsState()
     val playerPreferences = koinInject<PlayerPreferences>()
-    val lifecycleOwner = androidx.lifecycle.compose.LocalLifecycleOwner.current
     val navigationBarHeight = com.quantummpv.app.ui.browser.LocalNavigationBarHeight.current
 
     // ViewModel
@@ -332,20 +328,6 @@ data class VideoListScreen(
     // Predictive back: Only intercept when in selection mode
     BackHandler(enabled = selectionManager.isInSelectionMode) {
       selectionManager.clear()
-    }
-
-    // Listen for lifecycle resume events and refresh videos when coming into focus
-    DisposableEffect(lifecycleOwner) {
-      val observer =
-        LifecycleEventObserver { _, event ->
-          if (event == Lifecycle.Event.ON_RESUME) {
-            viewModel.refresh()
-          }
-        }
-      lifecycleOwner.lifecycle.addObserver(observer)
-      onDispose {
-        lifecycleOwner.lifecycle.removeObserver(observer)
-      }
     }
 
     Scaffold(

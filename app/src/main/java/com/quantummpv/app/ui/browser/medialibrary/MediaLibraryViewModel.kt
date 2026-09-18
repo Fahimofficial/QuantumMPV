@@ -58,6 +58,11 @@ class MediaLibraryViewModel(
   init {
     loadData()
     viewModelScope.launch(Dispatchers.IO) {
+      com.quantummpv.app.utils.media.MediaLibraryEvents.changes.collectLatest {
+        loadData()
+      }
+    }
+    viewModelScope.launch(Dispatchers.IO) {
       PlaybackStateEvents.changes.collectLatest { mediaIdentifier ->
         if (_videos.value.isNotEmpty()) updatePlaybackInfo(mediaIdentifier)
       }

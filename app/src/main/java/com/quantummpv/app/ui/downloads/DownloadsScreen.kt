@@ -17,11 +17,16 @@ import android.os.Build
 import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.Image
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
@@ -47,11 +52,17 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.ImageBitmap
+import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -62,7 +73,10 @@ import com.quantummpv.app.domain.download.AppDownload
 import com.quantummpv.app.domain.download.AppDownloadManager
 import com.quantummpv.app.domain.download.AppDownloadStatus
 import com.quantummpv.app.domain.download.YtdlpDownloadEngine
+import com.quantummpv.app.domain.thumbnail.ThumbnailRepository
 import com.quantummpv.app.presentation.Screen
+import com.quantummpv.app.presentation.components.RemoteImage
+import com.quantummpv.app.repository.MediaFileRepository
 import com.quantummpv.app.ui.browser.states.EmptyState
 import com.quantummpv.app.ui.icons.Icon
 import com.quantummpv.app.ui.icons.Icons
@@ -192,6 +206,8 @@ object DownloadsScreen : Screen {
             CompletedRow(
               title = job.title,
               subtitle = job.outputFile?.let { File(it).name }.orEmpty(),
+              posterUrl = job.posterUrl,
+              mediaPath = job.outputFile,
               playable = job.outputFile?.let { File(it).isFile } == true,
               onPlay = {
                 job.outputFile?.let { path ->
@@ -206,6 +222,8 @@ object DownloadsScreen : Screen {
           items(completedDownloads, key = { "dl_done_${it.id}" }) { download ->
             CompletedRow(
               title = download.displayTitle,
+              posterUrl = download.entity.posterUrl,
+              mediaPath = download.file.absolutePath,
               subtitle = buildString {
                 append(download.entity.fileName)
                 if (download.entity.totalBytes > 0) {
@@ -328,6 +346,106 @@ private fun DownloadLocationCard(
 }
 
 @Composable
+private fun DownloadThumbnail(posterUrl: String?, mediaPath: String?) {
+  val context = LocalContext.current
+  val repository = koinInject<ThumbnailRepository>()
+  val density = LocalDensity.current
+  val widthPx = with(density) { 88.dp.roundToPx() }
+  val heightPx = (widthPx * 9f / 16f).toInt().coerceAtLeast(1)
+  val localThumbnail by produceState<ImageBitmap?>(null, mediaPath, widthPx, heightPx) {
+    val file = mediaPath?.let(::File)?.takeIf(File::isFile)
+    val video = file?.let { MediaFileRepository.getVideosFromFiles(context, listOf(it)).firstOrNull() }
+    value = video?.let { repository.getThumbnail(it, widthPx, heightPx)?.asImageBitmap() }
+  }
+  Box(
+    modifier = Modifier.width(88.dp).aspectRatio(16f / 9f)
+      .clip(RoundedCornerShape(8.dp))
+      .background(MaterialTheme.colorScheme.surfaceContainerHighest),
+    contentAlignment = Alignment.Center,
+  ) {
+    Icon(
+      Icons.RoundedFilled.FileDownload,
+      contentDescription = null,
+      tint = MaterialTheme.colorScheme.onSurfaceVariant,
+      modifier = Modifier.size(24.dp),
+    )
+    localThumbnail?.let { bitmap ->
+      Image(
+        bitmap = bitmap,
+        contentDescription = null,
+        modifier = Modifier.fillMaxSize(),
+        contentScale = ContentScale.Crop,
+      )
+    }
+    posterUrl?.takeIf(String::isNotBlank)?.let { url ->
+      RemoteImage(
+        url = url,
+        contentDescription = null,
+        modifier = Modifier.fillMaxSize(),
+        contentScale = ContentScale.Crop,
+      )
+    }
+  }
+}
+
+@Composable
+private fun DownloadMediaRow(
+  title: String,
+  subtitle: String,
+  posterUrl: String?,
+  mediaPath: String? = null,
+  isError: Boolean = false,
+  progress: Float? = null,
+  indeterminate: Boolean = false,
+  actions: @Composable RowScope.() -> Unit,
+) {
+  Card(
+    modifier = Modifier.fillMaxWidth(),
+    shape = RoundedCornerShape(8.dp),
+    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerLow),
+  ) {
+    Column(
+      modifier = Modifier.fillMaxWidth().padding(12.dp),
+      verticalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+      Row(
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(12.dp),
+      ) {
+        DownloadThumbnail(posterUrl, mediaPath)
+        Text(
+          text = title,
+          modifier = Modifier.weight(1f),
+          style = MaterialTheme.typography.titleSmall,
+          fontWeight = FontWeight.SemiBold,
+          maxLines = 2,
+          overflow = TextOverflow.Ellipsis,
+        )
+      }
+      Row(verticalAlignment = Alignment.CenterVertically) {
+        Text(
+          text = subtitle,
+          modifier = Modifier.weight(1f),
+          style = MaterialTheme.typography.bodySmall,
+          color = if (isError) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurfaceVariant,
+          maxLines = if (isError) 4 else 2,
+          overflow = TextOverflow.Ellipsis,
+        )
+        actions()
+      }
+      if (indeterminate) {
+        LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
+      } else if (progress != null) {
+        LinearProgressIndicator(
+          progress = { progress.coerceIn(0f, 1f) },
+          modifier = Modifier.fillMaxWidth(),
+        )
+      }
+    }
+  }
+}
+
+@Composable
 private fun ActiveDownloadRow(
   download: AppDownload,
   speedBytesPerSec: Long,
@@ -335,48 +453,22 @@ private fun ActiveDownloadRow(
   onCancel: () -> Unit,
 ) {
   val status = download.status
-  Card(
-    shape = RoundedCornerShape(14.dp),
-    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerLow),
+  DownloadMediaRow(
+    title = download.displayTitle,
+    subtitle = downloadStatusLine(download, speedBytesPerSec),
+    posterUrl = download.entity.posterUrl,
+    isError = status == AppDownloadStatus.FAILED,
+    progress = (download.entity.progress / 100f).takeIf { status == AppDownloadStatus.RUNNING },
+    indeterminate = status == AppDownloadStatus.QUEUED ||
+      status == AppDownloadStatus.RUNNING && download.entity.totalBytes <= 0,
   ) {
-    Column(modifier = Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 10.dp)) {
-      Row(verticalAlignment = Alignment.CenterVertically) {
-        Column(modifier = Modifier.weight(1f)) {
-          Text(
-            text = download.displayTitle,
-            style = MaterialTheme.typography.bodyMedium,
-            fontWeight = FontWeight.SemiBold,
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis,
-          )
-          Text(
-            text = downloadStatusLine(download, speedBytesPerSec),
-            style = MaterialTheme.typography.bodySmall,
-            color =
-              if (status == AppDownloadStatus.FAILED) {
-                MaterialTheme.colorScheme.error
-              } else {
-                MaterialTheme.colorScheme.onSurfaceVariant
-              },
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis,
-          )
-        }
-        if (status == AppDownloadStatus.FAILED || status == AppDownloadStatus.CANCELLED) {
-          IconButton(onClick = onRetry) {
-            Icon(Icons.RoundedFilled.Refresh, contentDescription = stringResource(R.string.downloads_retry))
-          }
-        }
-        IconButton(onClick = onCancel) {
-          Icon(Icons.RoundedFilled.Close, contentDescription = stringResource(R.string.downloads_cancel))
-        }
+    if (status == AppDownloadStatus.FAILED || status == AppDownloadStatus.CANCELLED) {
+      IconButton(onClick = onRetry) {
+        Icon(Icons.RoundedFilled.Refresh, contentDescription = stringResource(R.string.downloads_retry))
       }
-      if (status == AppDownloadStatus.RUNNING || status == AppDownloadStatus.QUEUED) {
-        LinearProgressIndicator(
-          progress = { (download.entity.progress / 100f).coerceIn(0f, 1f) },
-          modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
-        )
-      }
+    }
+    IconButton(onClick = onCancel) {
+      Icon(Icons.RoundedFilled.Close, contentDescription = stringResource(R.string.downloads_cancel))
     }
   }
 }
@@ -388,54 +480,28 @@ private fun YtdlpJobRow(
   onRetry: () -> Unit,
   onRemove: () -> Unit,
 ) {
-  Card(
-    shape = RoundedCornerShape(14.dp),
-    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerLow),
+  DownloadMediaRow(
+    title = job.title,
+    subtitle = ytdlpStatusLine(job),
+    posterUrl = job.posterUrl,
+    isError = job.state == YtdlpDownloadEngine.JobState.FAILED,
+    progress = (job.progressPercent / 100f).takeIf { job.state == YtdlpDownloadEngine.JobState.RUNNING },
+    indeterminate = job.state == YtdlpDownloadEngine.JobState.QUEUED ||
+      job.state == YtdlpDownloadEngine.JobState.RUNNING && job.progressPercent <= 0f,
   ) {
-    Column(modifier = Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 10.dp)) {
-      Row(verticalAlignment = Alignment.CenterVertically) {
-        Column(modifier = Modifier.weight(1f)) {
-          Text(
-            text = job.title,
-            style = MaterialTheme.typography.bodyMedium,
-            fontWeight = FontWeight.SemiBold,
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis,
-          )
-          Text(
-            text = ytdlpStatusLine(job),
-            style = MaterialTheme.typography.bodySmall,
-            color =
-              if (job.state == YtdlpDownloadEngine.JobState.FAILED) {
-                MaterialTheme.colorScheme.error
-              } else {
-                MaterialTheme.colorScheme.onSurfaceVariant
-              },
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis,
-          )
+    when (job.state) {
+      YtdlpDownloadEngine.JobState.FAILED, YtdlpDownloadEngine.JobState.CANCELLED -> {
+        IconButton(onClick = onRetry) {
+          Icon(Icons.RoundedFilled.Refresh, contentDescription = stringResource(R.string.downloads_retry))
         }
-        when (job.state) {
-          YtdlpDownloadEngine.JobState.FAILED, YtdlpDownloadEngine.JobState.CANCELLED -> {
-            IconButton(onClick = onRetry) {
-              Icon(Icons.RoundedFilled.Refresh, contentDescription = stringResource(R.string.downloads_retry))
-            }
-            IconButton(onClick = onRemove) {
-              Icon(Icons.RoundedFilled.Close, contentDescription = stringResource(R.string.downloads_remove_entry))
-            }
-          }
-          else -> {
-            IconButton(onClick = onCancel) {
-              Icon(Icons.RoundedFilled.Close, contentDescription = stringResource(R.string.downloads_cancel))
-            }
-          }
+        IconButton(onClick = onRemove) {
+          Icon(Icons.RoundedFilled.Close, contentDescription = stringResource(R.string.downloads_remove_entry))
         }
       }
-      if (job.state == YtdlpDownloadEngine.JobState.RUNNING) {
-        LinearProgressIndicator(
-          progress = { (job.progressPercent / 100f).coerceIn(0f, 1f) },
-          modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
-        )
+      else -> {
+        IconButton(onClick = onCancel) {
+          Icon(Icons.RoundedFilled.Close, contentDescription = stringResource(R.string.downloads_cancel))
+        }
       }
     }
   }
@@ -445,48 +511,27 @@ private fun YtdlpJobRow(
 private fun CompletedRow(
   title: String,
   subtitle: String,
+  posterUrl: String?,
+  mediaPath: String?,
   playable: Boolean,
   onPlay: () -> Unit,
   onDelete: () -> Unit,
 ) {
-  Card(
-    shape = RoundedCornerShape(14.dp),
-    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerLow),
+  DownloadMediaRow(
+    title = title,
+    subtitle = subtitle,
+    posterUrl = posterUrl,
+    mediaPath = mediaPath,
   ) {
-    Row(
-      modifier = Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 10.dp),
-      verticalAlignment = Alignment.CenterVertically,
-    ) {
-      Column(modifier = Modifier.weight(1f)) {
-        Text(
-          text = title,
-          style = MaterialTheme.typography.bodyMedium,
-          fontWeight = FontWeight.SemiBold,
-          maxLines = 1,
-          overflow = TextOverflow.Ellipsis,
-        )
-        if (subtitle.isNotBlank()) {
-          Text(
-            text = subtitle,
-            style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis,
-          )
-        }
-      }
-      if (playable) {
-        IconButton(onClick = onPlay) {
-          Icon(
-            Icons.RoundedFilled.PlayArrow,
-            contentDescription = stringResource(R.string.downloads_play),
-            tint = MaterialTheme.colorScheme.primary,
-          )
-        }
-      }
-      IconButton(onClick = onDelete) {
-        Icon(Icons.RoundedFilled.Delete, contentDescription = stringResource(R.string.downloads_delete_file))
-      }
+    IconButton(onClick = onPlay, enabled = playable) {
+      Icon(
+        Icons.RoundedFilled.PlayArrow,
+        contentDescription = stringResource(R.string.downloads_play),
+        tint = if (playable) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.38f),
+      )
+    }
+    IconButton(onClick = onDelete) {
+      Icon(Icons.RoundedFilled.Delete, contentDescription = stringResource(R.string.downloads_delete_file))
     }
   }
 }

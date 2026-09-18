@@ -1242,7 +1242,6 @@ fun GestureHandler(
                       val isForward = if (isSwipeSubtitlesInverted) deltaX < 0 else deltaX > 0
                       val direction = if (isForward) "1" else "-1"
                       PlaybackSession.command("sub-seek", direction)
-                      actionHaptics.tick()
                       viewModel.playerUpdate.update {
                         PlayerUpdates.ShowText(
                           context.getString(
@@ -1334,7 +1333,6 @@ fun GestureHandler(
             if (hasStartedSeeking) {
               pendingSeekPosition?.let { target ->
                 viewModel.seekTo(target.toInt())
-                if (target.toInt() != initialVideoPosition.toInt()) actionHaptics.confirm()
               }
               coroutineScope.launch {
                 delay(300)

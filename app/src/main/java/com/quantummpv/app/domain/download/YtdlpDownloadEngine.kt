@@ -10,10 +10,12 @@
 package com.quantummpv.app.domain.download
 
 import android.content.Context
+import android.net.Uri
 import android.util.Log
 import com.quantummpv.app.network.AndroidCookieJar
 import com.quantummpv.app.preferences.YtdlPreferences
 import com.quantummpv.app.ui.player.ytdlp.YtdlpManager
+import com.quantummpv.app.utils.media.HttpUtils
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -45,6 +47,7 @@ class YtdlpDownloadEngine(
     val directory: String,
     val formatSelector: String? = null,
     val mergeSeparateStreams: Boolean = false,
+    val posterUrl: String? = null,
     val state: JobState = JobState.QUEUED,
     val progressPercent: Float = 0f,
     val detail: String = "",
@@ -74,6 +77,7 @@ class YtdlpDownloadEngine(
     directory: File,
     formatSelector: String? = null,
     mergeSeparateStreams: Boolean = false,
+    posterUrl: String? = null,
   ): Int {
     val id = nextId.getAndIncrement()
     if (!directory.exists()) directory.mkdirs()
@@ -87,6 +91,7 @@ class YtdlpDownloadEngine(
           directory = directory.absolutePath,
           formatSelector = formatSelector?.trim()?.takeIf(String::isNotBlank),
           mergeSeparateStreams = mergeSeparateStreams,
+          posterUrl = posterUrl,
         )
     }
     YtdlpDownloadService.start(context)
@@ -145,13 +150,60 @@ class YtdlpDownloadEngine(
     id: Int,
     onJobUpdate: (Job) -> Unit,
   ) {
-    val job = currentJob(id) ?: return
+    val queuedJob = currentJob(id) ?: return
     cancelRequested = false
     activeJobId = id
 
-    val ready = YtdlpManager.ensureRuntimeInstalled(context)
+    try {
+      if (queuedJob.posterUrl.isNullOrBlank() && HttpUtils.isYouTubeUrl(Uri.parse(queuedJob.url))) {
+        HttpUtils.fetchYouTubeMetadata(queuedJob.url)?.let { metadata ->
+          updateJob(id) {
+            it.copy(title = metadata.title.takeIf(String::isNotBlank) ?: it.title, posterUrl = metadata.thumbnailUrl)
+          }
+          currentJob(id)?.let(onJobUpdate)
+        }
+      }
+    } catch (error: CancellationException) {
+      activeJobId = -1
+      throw error
+    }
+    val job = currentJob(id)
+    if (cancelRequested || job == null) {
+      activeJobId = -1
+      updateJob(id) { it.copy(state = JobState.CANCELLED, detail = "") }
+      currentJob(id)?.let(onJobUpdate)
+      return
+    }
+
+    val runtimeOutput = StringBuilder()
+    val ready =
+      try {
+        YtdlpManager.ensureRuntimeInstalled(context) { message ->
+          runtimeOutput.append(message)
+          if (runtimeOutput.length > 8_192) runtimeOutput.delete(0, runtimeOutput.length - 8_192)
+        }
+      } catch (error: Exception) {
+        if (error is CancellationException) {
+          activeJobId = -1
+          throw error
+        }
+        runtimeOutput.append(error.message ?: error.javaClass.simpleName)
+        false
+      }
+    if (cancelRequested || currentJob(id) == null) {
+      activeJobId = -1
+      updateJob(id) { it.copy(state = JobState.CANCELLED, detail = "") }
+      currentJob(id)?.let(onJobUpdate)
+      return
+    }
     if (!ready) {
-      updateJob(id) { it.copy(state = JobState.FAILED, error = "yt-dlp runtime is not installed") }
+      activeJobId = -1
+      updateJob(id) {
+        it.copy(
+          state = JobState.FAILED,
+          error = runtimeOutput.toString().trim().ifBlank { "yt-dlp runtime is not installed" },
+        )
+      }
       currentJob(id)?.let(onJobUpdate)
       return
     }
@@ -173,14 +225,17 @@ class YtdlpDownloadEngine(
         formatSelector = job.formatSelector,
       )
     val observedArtifacts = linkedSetOf<String>()
+    val errorOutput = ArrayDeque<String>()
     var destination: String? = null
     var printedOutput: String? = null
 
     val result =
       withContext(Dispatchers.IO) {
         runCatching {
+          if (cancelRequested) return@runCatching -1
           val process = startProcess(command)
           activeProcess = process
+          if (cancelRequested) process.destroyForcibly()
           BufferedReader(InputStreamReader(process.inputStream)).useLines { lines ->
             lines.forEach { line ->
               parseDestination(line)?.let { path ->
@@ -195,6 +250,9 @@ class YtdlpDownloadEngine(
               if (progress != null) {
                 updateJob(id) { it.copy(progressPercent = progress.first, detail = progress.second) }
                 currentJob(id)?.let(onJobUpdate)
+              } else if (line.isNotBlank()) {
+                errorOutput.addLast(line.take(2_048))
+                if (errorOutput.size > 8) errorOutput.removeFirst()
               }
             }
           }
@@ -253,6 +311,7 @@ class YtdlpDownloadEngine(
                   artifactFiles = it.artifactFiles + artifacts,
                 )
               }
+              AppDownloadManager.notifyCompletedMedia(context, resolved)
             }.onFailure { error ->
               updateJob(id) {
                 it.copy(
@@ -269,7 +328,8 @@ class YtdlpDownloadEngine(
             updateJob(id) {
               it.copy(
                 state = JobState.FAILED,
-                error = "yt-dlp exited with code $exitCode",
+                error = errorOutput.lastOrNull { line -> line.startsWith("ERROR:", ignoreCase = true) }
+                  ?: errorOutput.joinToString("\n").ifBlank { "yt-dlp exited with code $exitCode" },
                 artifactFiles = it.artifactFiles + observedArtifacts,
               )
             }
@@ -279,8 +339,8 @@ class YtdlpDownloadEngine(
         Log.e(TAG, "yt-dlp download failed", error)
         updateJob(id) {
           it.copy(
-            state = JobState.FAILED,
-            error = error.message ?: "Unknown error",
+            state = if (cancelRequested) JobState.CANCELLED else JobState.FAILED,
+            error = if (cancelRequested) null else error.message ?: "Unknown error",
             artifactFiles = it.artifactFiles + observedArtifacts,
           )
         }
@@ -355,27 +415,14 @@ class YtdlpDownloadEngine(
         ?.let { quickJs ->
           add("--js-runtimes")
           add("quickjs:${quickJs.absolutePath}")
+          add("--remote-components")
+          add("ejs:github")
         }
       add("--")
       add(url)
     }
 
-  private fun startProcess(command: List<String>): Process {
-    val processBuilder =
-      ProcessBuilder(command)
-        .directory(YtdlpManager.getYtdlDir(context))
-        .redirectErrorStream(true)
-    val env = processBuilder.environment()
-    val ytdlDir = YtdlpManager.getYtdlDir(context).absolutePath
-    val nativeLibDir = context.applicationInfo.nativeLibraryDir
-    env.remove("YTDL_SCRIPT")
-    env["YTDL_PYTHON"] = File(nativeLibDir, "libpython.so").absolutePath
-    env["PYTHONHOME"] = ytdlDir
-    env["PYTHONPATH"] = "$ytdlDir/python313.zip"
-    env["SSL_CERT_FILE"] = File(context.filesDir, "cacert.pem").absolutePath
-    env["LD_LIBRARY_PATH"] = nativeLibDir
-    return processBuilder.start()
-  }
+  private fun startProcess(command: List<String>): Process = YtdlpManager.startPythonProcess(command, context)
 
   private fun findNewestOutput(job: Job): String? {
     return File(job.directory)

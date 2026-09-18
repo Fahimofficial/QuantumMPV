@@ -224,8 +224,14 @@ object PermissionUtils {
         }
       }
 
+    var previouslyGranted by androidx.compose.runtime.saveable.rememberSaveable(audioOnly) {
+      androidx.compose.runtime.mutableStateOf(effectivePermissionState.status == PermissionStatus.Granted)
+    }
     LaunchedEffect(effectivePermissionState.status) {
-      if (effectivePermissionState.status == PermissionStatus.Granted) {
+      val isGranted = effectivePermissionState.status == PermissionStatus.Granted
+      val becameGranted = isGranted && !previouslyGranted
+      previouslyGranted = isGranted
+      if (becameGranted) {
         onPermissionGranted()
       }
     }
