@@ -1,6 +1,14 @@
 # Changelog
 
 These notes are written in plain English and focus on what changed for real use.
+## 1.1.0-preview.6
+
+- **Opt-in glass cards**: Added a Glass-style cards switch; the default remains the existing solid settings-card appearance.
+- **Opt-in glass navigation**: Added an independent Glass bottom navigation switch with contrast-preserving tint and border treatment.
+- **Live appearance preview**: Added a small preview for cards and navigation so changes can be evaluated before leaving Appearance settings.
+- **Reset appearance**: Added a confirmation-protected action to restore the default theme, solid surfaces, and disabled animation.
+- **Faint Home animation**: Reduced the optional animated Home background to a low-opacity, background-only accent effect.
+
 ## 1.1.0-preview.5
 
 - **Modern glass cards**: Settings cards now use low-opacity theme-aware surfaces with soft outline borders for a cleaner glass-style appearance.

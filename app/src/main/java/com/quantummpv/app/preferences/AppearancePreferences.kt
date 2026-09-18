@@ -49,6 +49,8 @@ class AppearancePreferences(
   val appTheme = preferenceStore.getEnum("app_theme", AppTheme.Dynamic)
   val amoledMode = preferenceStore.getBoolean("amoled_mode", false)
   val animatedHomeBackground = preferenceStore.getBoolean("animated_home_background", false)
+  val glassCards = preferenceStore.getBoolean("glass_cards", false)
+  val glassBottomNavigation = preferenceStore.getBoolean("glass_bottom_navigation", false)
   val useSystemFont = preferenceStore.getBoolean("use_system_font", false)
   val unlimitedNameLines = preferenceStore.getBoolean("unlimited_name_lines", false)
   val hidePlayerButtonsBackground = preferenceStore.getBoolean("hide_player_buttons_background", false)
@@ -66,6 +68,17 @@ class AppearancePreferences(
   val showJellyfinTab = preferenceStore.getBoolean("show_jellyfin_tab", false)
   val showQuickPlayFab = preferenceStore.getBoolean("show_quick_play_fab", true)
   val quickPlayFabDirect = preferenceStore.getBoolean("quick_play_fab_direct", false)
+
+  fun resetAppearance() {
+    darkMode.set(DarkMode.System)
+    appTheme.set(AppTheme.Dynamic)
+    amoledMode.set(false)
+    animatedHomeBackground.set(false)
+    glassCards.set(false)
+    glassBottomNavigation.set(false)
+    useSystemFont.set(false)
+    unlimitedNameLines.set(false)
+  }
 
   val topLeftControls =
     preferenceStore.getString(

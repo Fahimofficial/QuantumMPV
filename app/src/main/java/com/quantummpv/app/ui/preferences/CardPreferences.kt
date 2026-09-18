@@ -26,10 +26,14 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import com.quantummpv.app.ui.theme.LocalEmphasizedTypography
+import com.quantummpv.app.preferences.AppearancePreferences
+import com.quantummpv.app.preferences.preference.collectAsState
+import org.koin.compose.koinInject
 
 /**
  * A card container for grouping related preferences, mimicking modern Android settings UI.
@@ -37,8 +41,11 @@ import com.quantummpv.app.ui.theme.LocalEmphasizedTypography
 @Composable
 fun PreferenceCard(
   modifier: Modifier = Modifier,
+  emphasis: Boolean = false,
   content: @Composable ColumnScope.() -> Unit,
 ) {
+  val appearancePreferences = koinInject<AppearancePreferences>()
+  val glassCards by appearancePreferences.glassCards.collectAsState()
   Card(
     modifier =
       modifier
@@ -47,13 +54,22 @@ fun PreferenceCard(
     shape = MaterialTheme.shapes.extraLargeIncreased,
     colors =
       CardDefaults.cardColors(
-        containerColor = MaterialTheme.colorScheme.surfaceContainerLow.copy(alpha = 0.78f),
+        containerColor =
+          if (glassCards) {
+            MaterialTheme.colorScheme.surfaceContainerLow.copy(alpha = 0.72f)
+          } else {
+            MaterialTheme.colorScheme.surfaceContainerLow
+          },
       ),
     border =
-      BorderStroke(
-        width = 1.dp,
-        color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.42f),
-      ),
+      if (glassCards || emphasis) {
+        BorderStroke(
+          width = 1.dp,
+          color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.42f),
+        )
+      } else {
+        null
+      },
     elevation =
       CardDefaults.cardElevation(
         defaultElevation = 0.dp,

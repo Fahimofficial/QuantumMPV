@@ -12,6 +12,7 @@ package com.quantummpv.app.ui.preferences
 import android.widget.Toast
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -22,10 +23,14 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -36,11 +41,13 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.compose.foundation.shape.RoundedCornerShape
 import com.quantummpv.app.R
 import com.quantummpv.app.domain.thumbnail.ThumbnailRepository
 import com.quantummpv.app.preferences.AppearancePreferences
@@ -99,12 +106,15 @@ object AppearancePreferencesScreen : Screen {
     val appTheme by preferences.appTheme.collectAsState()
     var pendingThumbnailMode by remember { mutableStateOf<ThumbnailMode?>(null) }
     var isThemeSectionExpanded by rememberSaveable { mutableStateOf(true) }
+    var showResetAppearanceDialog by remember { mutableStateOf(false) }
     val storedThumbnailMode by browserPreferences.thumbnailMode.collectAsState()
     val thumbnailQuality by browserPreferences.thumbnailQuality.collectAsState()
     val thumbnailFramePosition by browserPreferences.thumbnailFramePosition.collectAsState()
     val dualPaneForTablet by browserPreferences.dualPaneForTablet.collectAsState()
     val treeFlattenDepth by browserPreferences.treeFlattenDepth.collectAsState()
     val thumbnailCacheClearedMessage = stringResource(R.string.pref_thumbnail_cache_cleared)
+    val glassCards by preferences.glassCards.collectAsState()
+    val glassBottomNavigation by preferences.glassBottomNavigation.collectAsState()
 
     val thumbnailMode = storedThumbnailMode
 
@@ -153,6 +163,18 @@ object AppearancePreferencesScreen : Screen {
           }
         },
         onCancel = { pendingThumbnailMode = null },
+      )
+    }
+
+    if (showResetAppearanceDialog) {
+      ConfirmDialog(
+        title = stringResource(R.string.pref_appearance_reset_title),
+        subtitle = stringResource(R.string.pref_appearance_reset_summary),
+        onConfirm = {
+          showResetAppearanceDialog = false
+          preferences.resetAppearance()
+        },
+        onCancel = { showResetAppearanceDialog = false },
       )
     }
 
@@ -298,6 +320,88 @@ object AppearancePreferencesScreen : Screen {
                       )
                     },
                   )
+
+                  PreferenceDivider()
+                  Text(
+                    text = stringResource(R.string.pref_appearance_personalization_title),
+                    style = MaterialTheme.typography.titleSmall,
+                    fontWeight = FontWeight.SemiBold,
+                    modifier = Modifier.padding(horizontal = 20.dp, vertical = 12.dp),
+                  )
+                  Card(
+                    modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp),
+                    shape = RoundedCornerShape(18.dp),
+                    colors =
+                      CardDefaults.cardColors(
+                        containerColor =
+                          if (glassCards) {
+                            MaterialTheme.colorScheme.surfaceContainerLow.copy(alpha = 0.72f)
+                          } else {
+                            MaterialTheme.colorScheme.surfaceContainerLow
+                          },
+                      ),
+                    border =
+                      BorderStroke(
+                        width = 1.dp,
+                        color = MaterialTheme.colorScheme.primary.copy(alpha = 0.32f),
+                      ),
+                  ) {
+                    Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                      Text(
+                        text = stringResource(R.string.pref_appearance_preview_title),
+                        style = MaterialTheme.typography.labelLarge,
+                        color = MaterialTheme.colorScheme.onSurface,
+                      )
+                      Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Surface(
+                          modifier = Modifier.weight(1f),
+                          shape = RoundedCornerShape(12.dp),
+                          color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = if (glassCards) 0.72f else 1f),
+                          border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.32f)),
+                        ) {
+                          Text(
+                            text = stringResource(R.string.pref_appearance_preview_card),
+                            modifier = Modifier.padding(12.dp),
+                            style = MaterialTheme.typography.labelMedium,
+                            color = MaterialTheme.colorScheme.onPrimaryContainer,
+                          )
+                        }
+                        Surface(
+                          modifier = Modifier.weight(1f),
+                          shape = RoundedCornerShape(50),
+                          color = MaterialTheme.colorScheme.surfaceContainerHigh.copy(alpha = if (glassBottomNavigation) 0.78f else 1f),
+                          border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.42f)),
+                        ) {
+                          Text(
+                            text = stringResource(R.string.pref_appearance_preview_nav),
+                            modifier = Modifier.padding(12.dp),
+                            style = MaterialTheme.typography.labelMedium,
+                            color = MaterialTheme.colorScheme.onSurface,
+                          )
+                        }
+                      }
+                    }
+                  }
+                  SwitchPreference(
+                    modifier = Modifier.settingsSearchTarget(R.string.pref_appearance_glass_cards_title),
+                    value = glassCards,
+                    onValueChange = preferences.glassCards::set,
+                    title = { Text(stringResource(R.string.pref_appearance_glass_cards_title)) },
+                    summary = { Text(stringResource(R.string.pref_appearance_glass_cards_summary), color = MaterialTheme.colorScheme.outline) },
+                  )
+                  SwitchPreference(
+                    modifier = Modifier.settingsSearchTarget(R.string.pref_appearance_glass_navigation_title),
+                    value = glassBottomNavigation,
+                    onValueChange = preferences.glassBottomNavigation::set,
+                    title = { Text(stringResource(R.string.pref_appearance_glass_navigation_title)) },
+                    summary = { Text(stringResource(R.string.pref_appearance_glass_navigation_summary), color = MaterialTheme.colorScheme.outline) },
+                  )
+                  TextButton(
+                    onClick = { showResetAppearanceDialog = true },
+                    modifier = Modifier.padding(horizontal = 12.dp),
+                  ) {
+                    Text(stringResource(R.string.pref_appearance_reset_button))
+                  }
 
                   PreferenceDivider()
 

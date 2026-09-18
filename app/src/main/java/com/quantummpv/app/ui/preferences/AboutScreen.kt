@@ -86,6 +86,8 @@ import androidx.core.net.toUri
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.quantummpv.app.BuildConfig
 import com.quantummpv.app.R
+import com.quantummpv.app.preferences.AppearancePreferences
+import com.quantummpv.app.preferences.preference.collectAsState as collectPreferenceAsState
 import com.quantummpv.app.domain.update.AppUpdateChannel
 import com.quantummpv.app.presentation.Screen
 import com.quantummpv.app.presentation.crash.CrashActivity.Companion.collectDeviceInfo
@@ -100,6 +102,7 @@ import com.quantummpv.app.ui.update.UpdateViewModel
 import java.util.Locale
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.serialization.Serializable
+import org.koin.compose.koinInject
 
 private fun Modifier.aboutLiquidShimmer(
   fraction: Float,
@@ -148,6 +151,8 @@ object AboutScreen : Screen {
     val settingsHighlight =
       rememberSettingsSearchHighlight(AboutScreen, settingsScrollState, MaterialTheme.colorScheme.primary)
     val showUpiQr = remember { mutableStateOf(false) }
+    val appearancePreferences = koinInject<AppearancePreferences>()
+    val glassCards by appearancePreferences.glassCards.collectPreferenceAsState()
 
     // Conditionally initialize update feature based on build config
     val updateViewModel: UpdateViewModel? =
@@ -420,6 +425,7 @@ object AboutScreen : Screen {
         // Support / Donation Section
         PreferenceSectionHeader(title = stringResource(R.string.pref_section_support))
         PreferenceCard(
+          emphasis = true,
           modifier =
             Modifier.aboutLiquidShimmer(
               fraction = fraction,
@@ -903,13 +909,22 @@ object LibrariesScreen : Screen {
                 },
             colors =
               CardDefaults.cardColors(
-                containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.52f),
+                containerColor =
+                  if (glassCards) {
+                    MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.52f)
+                  } else {
+                    MaterialTheme.colorScheme.surfaceVariant
+                  },
               ),
             border =
-              BorderStroke(
-                width = 1.dp,
-                color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.42f),
-              ),
+              if (glassCards) {
+                BorderStroke(
+                  width = 1.dp,
+                  color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.42f),
+                )
+              } else {
+                null
+              },
             shape = RoundedCornerShape(18.dp),
           ) {
             Column(

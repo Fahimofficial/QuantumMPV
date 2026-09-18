@@ -77,7 +77,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.clipToBounds
-import androidx.compose.ui.draw.drawWithContent
+import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.graphicsLayer
@@ -187,6 +187,7 @@ object MainScreen : Screen {
     val showNetworkTab by appearancePreferences.showNetworkTab.collectAsState()
     val showJellyfinTab by appearancePreferences.showJellyfinTab.collectAsState()
     val animatedHomeBackground by appearancePreferences.animatedHomeBackground.collectAsState()
+    val glassBottomNavigation by appearancePreferences.glassBottomNavigation.collectAsState()
     val reduceMotion = LocalMotionPolicy.current.reduceMotion
     val powerManager = context.getSystemService(PowerManager::class.java)
     val hideNavigationBar = NavigationBarState.shouldHideNavigationBar
@@ -311,6 +312,7 @@ object MainScreen : Screen {
         selectedTab = selectedTab,
         onTabSelected = onTabSelected,
         pagerState = pagerState,
+        glass = glassBottomNavigation,
         modifier = modifier,
       )
     }
@@ -603,6 +605,7 @@ object MainScreen : Screen {
               selectedTab = selectedTab,
               onTabSelected = onTabSelected,
               pagerState = pagerState,
+              glass = glassBottomNavigation,
               modifier = Modifier
                 .layout { measurable, constraints ->
                   val margin = 16.dp.roundToPx()
@@ -637,6 +640,7 @@ private fun ExpressivePillNavigationBar(
   onTabSelected: (MainScreen.MainTab) -> Unit,
   modifier: Modifier = Modifier,
   pagerState: PagerState? = null,
+  glass: Boolean = false,
 ) {
   if (visibleTabs.isEmpty()) return
   val haptics = LocalHapticFeedback.current
@@ -687,14 +691,23 @@ private fun ExpressivePillNavigationBar(
   Surface(
     modifier = modifier,
     shape = CircleShape,
-    color = MaterialTheme.colorScheme.surfaceContainerHigh,
-    tonalElevation = 6.dp,
-    shadowElevation = 8.dp,
+    color =
+      if (glass) {
+        MaterialTheme.colorScheme.surfaceContainerHigh.copy(alpha = 0.78f)
+      } else {
+        MaterialTheme.colorScheme.surfaceContainerHigh
+      },
+    tonalElevation = if (glass) 2.dp else 6.dp,
+    shadowElevation = if (glass) 5.dp else 8.dp,
     border =
-      BorderStroke(
-        width = 1.dp,
-        color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.25f),
-      ),
+      if (glass) {
+        BorderStroke(
+          width = 1.dp,
+          color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.48f),
+        )
+      } else {
+        null
+      },
   ) {
     Box(
       modifier =
@@ -806,16 +819,15 @@ private fun AnimatedHomeBackdrop(content: @Composable () -> Unit) {
     modifier =
       Modifier
         .fillMaxSize()
-        .drawWithContent {
-          drawContent()
+        .drawBehind {
           val radius = size.minDimension * 0.58f
           drawCircle(
-            color = colors.primary.copy(alpha = 0.085f),
+            color = colors.primary.copy(alpha = 0.028f),
             radius = radius,
             center = Offset(size.width * (0.12f + 0.22f * phase), size.height * 0.12f),
           )
           drawCircle(
-            color = colors.tertiary.copy(alpha = 0.065f),
+            color = colors.tertiary.copy(alpha = 0.022f),
             radius = radius * 0.82f,
             center = Offset(size.width * (0.88f - 0.18f * phase), size.height * 0.88f),
           )
