@@ -2286,6 +2286,8 @@
   <string name="pref_video_swipe_choose_left">向左滑动时执行</string>
   <string name="pref_video_swipe_toggle_watched">标记为已观看 / 未观看</string>
   <string name="pref_video_swipe_change">更改</string>
+  <string name="pref_video_swipe_zone_width">滑动区域宽度</string>
+  <string name="pref_video_swipe_zone_percent">滑动区域：%1$d%%</string>
   <string name="video_swipe_delete_title">删除视频？</string>
   <string name="video_swipe_delete_message">永久删除“%1$s”？此操作无法撤销。</string>
   <string name="video_swipe_delete_folder_message">永久删除“%2$s”及其子文件夹中的 %1$d 个视频？其他文件和文件夹将保留。此操作无法撤销。</string>

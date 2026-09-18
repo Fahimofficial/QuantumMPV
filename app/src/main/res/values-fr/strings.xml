@@ -2290,6 +2290,8 @@ Veuillez redémarrer l’application pour appliquer toutes les modifications.</s
   <string name="pref_video_swipe_choose_left">Action du balayage vers la gauche</string>
   <string name="pref_video_swipe_toggle_watched">Marquer comme vu / non vu</string>
   <string name="pref_video_swipe_change">Modifier</string>
+  <string name="pref_video_swipe_zone_width">Largeur de la zone de balayage</string>
+  <string name="pref_video_swipe_zone_percent">Zone de balayage : %1$d%%</string>
   <string name="video_swipe_delete_title">Supprimer les vidéos ?</string>
   <string name="video_swipe_delete_message">Supprimer définitivement \"%1$s\" ? Cette action est irréversible.</string>
   <string name="video_swipe_delete_folder_message">Supprimer définitivement les vidéos de \"%2$s\" et de ses sous-dossiers ? Nombre : %1$d. Les autres fichiers et dossiers seront conservés. Cette action est irréversible.</string>

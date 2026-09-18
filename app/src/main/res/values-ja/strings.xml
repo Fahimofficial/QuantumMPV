@@ -2286,6 +2286,8 @@
   <string name="pref_video_swipe_choose_left">左スワイプの操作</string>
   <string name="pref_video_swipe_toggle_watched">視聴済み / 未視聴にする</string>
   <string name="pref_video_swipe_change">変更</string>
+  <string name="pref_video_swipe_zone_width">スワイプ範囲の幅</string>
+  <string name="pref_video_swipe_zone_percent">スワイプ範囲: %1$d%%</string>
   <string name="video_swipe_delete_title">動画を削除しますか？</string>
   <string name="video_swipe_delete_message">「%1$s」を完全に削除しますか？この操作は元に戻せません。</string>
   <string name="video_swipe_delete_folder_message">「%2$s」とそのサブフォルダー内の動画 %1$d 件を完全に削除しますか？他のファイルやフォルダーは残ります。この操作は元に戻せません。</string>

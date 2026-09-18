@@ -2290,6 +2290,8 @@ Reinicia la aplicación para que se apliquen todos los cambios.</string>
   <string name="pref_video_swipe_choose_left">Acción al deslizar a la izquierda</string>
   <string name="pref_video_swipe_toggle_watched">Marcar como visto / no visto</string>
   <string name="pref_video_swipe_change">Cambiar</string>
+  <string name="pref_video_swipe_zone_width">Ancho de la zona de deslizamiento</string>
+  <string name="pref_video_swipe_zone_percent">Zona de deslizamiento: %1$d%%</string>
   <string name="video_swipe_delete_title">¿Eliminar vídeos?</string>
   <string name="video_swipe_delete_message">¿Eliminar \"%1$s\" de forma permanente? Esta acción no se puede deshacer.</string>
   <string name="video_swipe_delete_folder_message">¿Eliminar de forma permanente los vídeos de \"%2$s\" y sus subcarpetas? Total: %1$d. Los demás archivos y carpetas se conservarán. Esta acción no se puede deshacer.</string>

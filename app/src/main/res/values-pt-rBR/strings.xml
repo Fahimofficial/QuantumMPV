@@ -2290,6 +2290,8 @@ Reinicie o aplicativo para que todas as alterações entrem em vigor.</string>
   <string name="pref_video_swipe_choose_left">Ação ao deslizar para a esquerda</string>
   <string name="pref_video_swipe_toggle_watched">Marcar como assistido / não assistido</string>
   <string name="pref_video_swipe_change">Alterar</string>
+  <string name="pref_video_swipe_zone_width">Largura da área de deslize</string>
+  <string name="pref_video_swipe_zone_percent">Área de deslize: %1$d%%</string>
   <string name="video_swipe_delete_title">Excluir vídeos?</string>
   <string name="video_swipe_delete_message">Excluir \"%1$s\" permanentemente? Esta ação não pode ser desfeita.</string>
   <string name="video_swipe_delete_folder_message">Excluir permanentemente os vídeos de \"%2$s\" e suas subpastas? Total: %1$d. Os outros arquivos e pastas serão mantidos. Esta ação não pode ser desfeita.</string>

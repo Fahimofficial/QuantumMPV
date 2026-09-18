@@ -2327,6 +2327,8 @@
   <string name="pref_video_swipe_choose_left">Use left swipe for</string>
   <string name="pref_video_swipe_toggle_watched">Mark watched / unwatched</string>
   <string name="pref_video_swipe_change">Change</string>
+  <string name="pref_video_swipe_zone_width">Swipe zone width</string>
+  <string name="pref_video_swipe_zone_percent">Swipe zone: %1$d%%</string>
   <string name="video_swipe_delete_title">Delete videos?</string>
   <string name="video_swipe_delete_message">Permanently delete \"%1$s\"? This cannot be undone.</string>
   <string name="video_swipe_delete_folder_message">Permanently delete %1$d videos in \"%2$s\" and its subfolders? Other files and folders will be kept. This cannot be undone.</string>

@@ -44,6 +44,8 @@ class BrowserPreferences(
 ) {
   companion object {
     internal const val ONBOARDING_COMPLETED_KEY = "onboarding_completed"
+    internal const val DEFAULT_VIDEO_SWIPE_ZONE_PERCENT = 25
+    internal val VIDEO_SWIPE_ZONE_RANGE = 1..50
   }
 
   // Folder sorting preferences
@@ -55,6 +57,8 @@ class BrowserPreferences(
   val videoSortOrder = preferenceStore.getEnum("video_sort_order", SortOrder.Ascending)
   val videoSwipeRight = preferenceStore.getEnum("video_swipe_right", VideoSwipeAction.ToggleWatched)
   val videoSwipeLeft = preferenceStore.getEnum("video_swipe_left", VideoSwipeAction.AddToPlaylist)
+  val videoSwipeRightZonePercent = preferenceStore.getInt("video_swipe_right_zone_percent", DEFAULT_VIDEO_SWIPE_ZONE_PERCENT)
+  val videoSwipeLeftZonePercent = preferenceStore.getInt("video_swipe_left_zone_percent", DEFAULT_VIDEO_SWIPE_ZONE_PERCENT)
 
   // Music view mode and sorting preferences
   val musicViewMode = preferenceStore.getEnum("music_view_mode", MusicViewMode.GRID)

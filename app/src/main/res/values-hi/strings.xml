@@ -2194,6 +2194,8 @@
   <string name="pref_video_swipe_choose_left">बाईं ओर स्वाइप करने पर कार्रवाई</string>
   <string name="pref_video_swipe_toggle_watched">देखा गया / नहीं देखा गया चिह्नित करें</string>
   <string name="pref_video_swipe_change">बदलें</string>
+  <string name="pref_video_swipe_zone_width">स्वाइप क्षेत्र की चौड़ाई</string>
+  <string name="pref_video_swipe_zone_percent">स्वाइप क्षेत्र: %1$d%%</string>
   <string name="video_swipe_delete_title">वीडियो हटाएँ?</string>
   <string name="video_swipe_delete_message">\"%1$s\" को स्थायी रूप से हटाएँ? इस कार्रवाई को वापस नहीं लिया जा सकता।</string>
   <string name="video_swipe_delete_folder_message">\"%2$s\" और उसके सबफ़ोल्डर के वीडियो स्थायी रूप से हटाएँ? कुल: %1$d। अन्य फ़ाइलें और फ़ोल्डर बने रहेंगे। इस कार्रवाई को वापस नहीं लिया जा सकता।</string>

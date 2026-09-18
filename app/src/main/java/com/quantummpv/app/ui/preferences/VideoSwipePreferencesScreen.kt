@@ -30,6 +30,7 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Slider
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
@@ -42,11 +43,18 @@ import androidx.compose.ui.AbsoluteAlignment
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.clearAndSetSemantics
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.stateDescription
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.quantummpv.app.R
@@ -63,9 +71,11 @@ import com.quantummpv.app.ui.icons.Icons
 import com.quantummpv.app.ui.theme.AppMotion
 import com.quantummpv.app.ui.utils.LocalBackStack
 import com.quantummpv.app.ui.utils.popSafely
+import com.quantummpv.app.ui.utils.rememberAdjustmentHaptics
 import com.quantummpv.app.ui.utils.rememberAppHaptics
 import kotlinx.serialization.Serializable
 import org.koin.compose.koinInject
+import kotlin.math.roundToInt
 
 @Serializable
 object VideoSwipePreferencesScreen : Screen {
@@ -75,6 +85,8 @@ object VideoSwipePreferencesScreen : Screen {
     val preferences = koinInject<BrowserPreferences>()
     val right by preferences.videoSwipeRight.collectAsState()
     val left by preferences.videoSwipeLeft.collectAsState()
+    val rightZonePercent by preferences.videoSwipeRightZonePercent.collectAsState()
+    val leftZonePercent by preferences.videoSwipeLeftZonePercent.collectAsState()
     val backStack = LocalBackStack.current
     val haptics = rememberAppHaptics()
     var editingRight by rememberSaveable { mutableStateOf<Boolean?>(null) }
@@ -103,6 +115,8 @@ object VideoSwipePreferencesScreen : Screen {
           SwipeDirectionPreference(
             right = true,
             action = right,
+            zonePercent = rightZonePercent,
+            onZonePercentChange = { preferences.videoSwipeRightZonePercent.set(it) },
             modifier = Modifier.settingsSearchTarget(R.string.pref_video_swipe_right),
             onChange = { editingRight = true },
           )
@@ -112,6 +126,8 @@ object VideoSwipePreferencesScreen : Screen {
           SwipeDirectionPreference(
             right = false,
             action = left,
+            zonePercent = leftZonePercent,
+            onZonePercentChange = { preferences.videoSwipeLeftZonePercent.set(it) },
             modifier = Modifier.settingsSearchTarget(R.string.pref_video_swipe_left),
             onChange = { editingRight = false },
           )
@@ -162,9 +178,24 @@ object VideoSwipePreferencesScreen : Screen {
 private fun SwipeDirectionPreference(
   right: Boolean,
   action: VideoSwipeAction,
+  zonePercent: Int,
+  onZonePercentChange: (Int) -> Unit,
   modifier: Modifier = Modifier,
   onChange: () -> Unit,
 ) {
+  val zoneRange = BrowserPreferences.VIDEO_SWIPE_ZONE_RANGE
+  val configuredZonePercent = zonePercent.coerceIn(zoneRange)
+  val zoneEnabled = action != VideoSwipeAction.None
+  val effectiveZonePercent = if (zoneEnabled) configuredZonePercent else 0
+  val zoneLabel = stringResource(R.string.pref_video_swipe_zone_width)
+  val zoneValue = stringResource(R.string.update_progress_percent, effectiveZonePercent)
+  val zoneSteps = zoneRange.last - zoneRange.first - 1
+  val haptics = rememberAdjustmentHaptics(
+    zoneRange.first.toFloat(),
+    zoneRange.last.toFloat(),
+    zoneSteps,
+    listOf(BrowserPreferences.DEFAULT_VIDEO_SWIPE_ZONE_PERCENT.toFloat()),
+  )
   Column(modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 20.dp)) {
     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
       Column(Modifier.weight(1f)) {
@@ -185,12 +216,34 @@ private fun SwipeDirectionPreference(
       }
     }
     Spacer(Modifier.height(16.dp))
-    SwipeActionPreview(right, action)
+    SwipeActionPreview(right, action, effectiveZonePercent)
+    Spacer(Modifier.height(16.dp))
+    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+      Text(zoneLabel, modifier = Modifier.weight(1f), style = MaterialTheme.typography.bodyMedium)
+      Text(zoneValue, style = MaterialTheme.typography.bodyMedium, maxLines = 1)
+    }
+    Slider(
+      value = configuredZonePercent.toFloat(),
+      onValueChange = { value ->
+        val updatedPercent = value.roundToInt().coerceIn(zoneRange)
+        if (updatedPercent != configuredZonePercent) {
+          onZonePercentChange(updatedPercent)
+          haptics.move(configuredZonePercent.toFloat(), updatedPercent.toFloat())
+        }
+      },
+      modifier = Modifier.fillMaxWidth().semantics {
+        contentDescription = zoneLabel
+        stateDescription = zoneValue
+      },
+      valueRange = zoneRange.first.toFloat()..zoneRange.last.toFloat(),
+      steps = zoneSteps,
+      enabled = zoneEnabled,
+    )
   }
 }
 
 @Composable
-private fun SwipeActionPreview(right: Boolean, action: VideoSwipeAction) {
+private fun SwipeActionPreview(right: Boolean, action: VideoSwipeAction, zonePercent: Int) {
   val density = LocalDensity.current
   val offset by animateFloatAsState(
     targetValue = if (action == VideoSwipeAction.None) 0f else with(density) { 76.dp.toPx() } * if (right) 1f else -1f,
@@ -202,40 +255,58 @@ private fun SwipeActionPreview(right: Boolean, action: VideoSwipeAction) {
     animationSpec = AppMotion.spatial(AppMotion.Effect.Color, snap()),
     label = "swipePreviewColor",
   )
-  Box(
-    Modifier.fillMaxWidth().height(88.dp).clip(RoundedCornerShape(8.dp))
-      .background(background).clearAndSetSemantics { },
-  ) {
-    Crossfade(
-      targetState = action,
-      animationSpec = AppMotion.spatial(AppMotion.Effect.Alpha, snap()),
-      modifier = Modifier
-        .align(if (right) AbsoluteAlignment.CenterLeft else AbsoluteAlignment.CenterRight)
-        .width(76.dp),
-      label = "swipePreviewAction",
-    ) { previewAction ->
-      Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
-        Icon(previewAction.icon(), null, tint = previewAction.contentColor(), modifier = Modifier.size(28.dp))
-      }
-    }
-    Row(
-      modifier = Modifier.fillMaxSize().graphicsLayer { translationX = offset }
-        .background(MaterialTheme.colorScheme.surfaceContainerLow).padding(16.dp),
-      verticalAlignment = Alignment.CenterVertically,
-      horizontalArrangement = Arrangement.spacedBy(16.dp),
+  val zoneColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.20f)
+  Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(8.dp))) {
+    Text(
+      text = stringResource(R.string.pref_video_swipe_zone_percent, zonePercent),
+      modifier = Modifier.fillMaxWidth()
+        .background(MaterialTheme.colorScheme.surfaceContainerHigh)
+        .drawBehind {
+          val zoneWidth = size.width * zonePercent / 100f
+          drawRect(
+            color = zoneColor,
+            topLeft = Offset(if (right) 0f else size.width - zoneWidth, 0f),
+            size = Size(zoneWidth, size.height),
+          )
+        }.padding(horizontal = 12.dp, vertical = 8.dp),
+      style = MaterialTheme.typography.labelLarge,
+      color = MaterialTheme.colorScheme.onSurface,
+      textAlign = if (right) TextAlign.Left else TextAlign.Right,
+    )
+    Box(
+      Modifier.fillMaxWidth().height(88.dp).background(background).clearAndSetSemantics { },
     ) {
-      Box(
-        Modifier.size(48.dp).background(MaterialTheme.colorScheme.surfaceContainerHighest, RoundedCornerShape(6.dp)),
-        contentAlignment = Alignment.Center,
-      ) {
-        Icon(Icons.RoundedFilled.PlayArrow, null, tint = MaterialTheme.colorScheme.onSurfaceVariant)
+      Crossfade(
+        targetState = action,
+        animationSpec = AppMotion.spatial(AppMotion.Effect.Alpha, snap()),
+        modifier = Modifier
+          .align(if (right) AbsoluteAlignment.CenterLeft else AbsoluteAlignment.CenterRight)
+          .width(76.dp),
+        label = "swipePreviewAction",
+      ) { previewAction ->
+        Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
+          Icon(previewAction.icon(), null, tint = previewAction.contentColor(), modifier = Modifier.size(28.dp))
+        }
       }
-      Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-        Box(Modifier.fillMaxWidth(0.85f).height(8.dp).background(MaterialTheme.colorScheme.outlineVariant))
+      Row(
+        modifier = Modifier.fillMaxSize().graphicsLayer { translationX = offset }
+          .background(MaterialTheme.colorScheme.surfaceContainerLow).padding(16.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(16.dp),
+      ) {
         Box(
-          Modifier.fillMaxWidth(0.55f).height(6.dp)
-            .background(MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)),
-        )
+          Modifier.size(48.dp).background(MaterialTheme.colorScheme.surfaceContainerHighest, RoundedCornerShape(6.dp)),
+          contentAlignment = Alignment.Center,
+        ) {
+          Icon(Icons.RoundedFilled.PlayArrow, null, tint = MaterialTheme.colorScheme.onSurfaceVariant)
+        }
+        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+          Box(Modifier.fillMaxWidth(0.85f).height(8.dp).background(MaterialTheme.colorScheme.outlineVariant))
+          Box(
+            Modifier.fillMaxWidth(0.55f).height(6.dp)
+              .background(MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)),
+          )
+        }
       }
     }
   }

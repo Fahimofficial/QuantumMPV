@@ -2298,6 +2298,8 @@
   <string name="pref_video_swipe_choose_left">Действие при смахивании влево</string>
   <string name="pref_video_swipe_toggle_watched">Отметить просмотренным / непросмотренным</string>
   <string name="pref_video_swipe_change">Изменить</string>
+  <string name="pref_video_swipe_zone_width">Ширина области смахивания</string>
+  <string name="pref_video_swipe_zone_percent">Область смахивания: %1$d%%</string>
   <string name="video_swipe_delete_title">Удалить видео?</string>
   <string name="video_swipe_delete_message">Удалить \"%1$s\" безвозвратно? Это действие нельзя отменить.</string>
   <string name="video_swipe_delete_folder_message">Безвозвратно удалить видео из \"%2$s\" и её подпапок? Количество: %1$d. Остальные файлы и папки сохранятся. Это действие нельзя отменить.</string>

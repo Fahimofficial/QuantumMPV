@@ -2290,6 +2290,8 @@ Bitte starten Sie die App neu, damit alle Änderungen wirksam werden.</string>
   <string name="pref_video_swipe_choose_left">Aktion beim Wischen nach links</string>
   <string name="pref_video_swipe_toggle_watched">Als gesehen / ungesehen markieren</string>
   <string name="pref_video_swipe_change">Ändern</string>
+  <string name="pref_video_swipe_zone_width">Breite des Wischbereichs</string>
+  <string name="pref_video_swipe_zone_percent">Wischbereich: %1$d%%</string>
   <string name="video_swipe_delete_title">Videos löschen?</string>
   <string name="video_swipe_delete_message">\"%1$s\" endgültig löschen? Dies kann nicht rückgängig gemacht werden.</string>
   <string name="video_swipe_delete_folder_message">Videos in \"%2$s\" und seinen Unterordnern endgültig löschen? Anzahl: %1$d. Andere Dateien und Ordner bleiben erhalten. Dies kann nicht rückgängig gemacht werden.</string>

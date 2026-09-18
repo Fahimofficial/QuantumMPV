@@ -493,7 +493,7 @@ object SearchablePreferences {
       add(
         SearchablePreference(
           titleRes = R.string.pref_video_swipe_right,
-          keywords = listOf("swipe", "video", "folder", "action"),
+          keywords = listOf("swipe", "video", "folder", "action", "zone", "width", "edge", "percentage"),
           category = "Gestures",
           screen = VideoSwipePreferencesScreen,
         ),
@@ -501,7 +501,7 @@ object SearchablePreferences {
       add(
         SearchablePreference(
           titleRes = R.string.pref_video_swipe_left,
-          keywords = listOf("swipe", "video", "folder", "action"),
+          keywords = listOf("swipe", "video", "folder", "action", "zone", "width", "edge", "percentage"),
           category = "Gestures",
           screen = VideoSwipePreferencesScreen,
         ),

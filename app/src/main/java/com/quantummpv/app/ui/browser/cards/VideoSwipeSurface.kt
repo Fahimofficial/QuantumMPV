@@ -49,7 +49,9 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.quantummpv.app.R
+import com.quantummpv.app.preferences.BrowserPreferences
 import com.quantummpv.app.preferences.VideoSwipeAction
+import com.quantummpv.app.preferences.preference.collectAsState
 import com.quantummpv.app.ui.icons.AppIcon
 import com.quantummpv.app.ui.icons.Icon
 import com.quantummpv.app.ui.icons.Icons
@@ -57,6 +59,7 @@ import com.quantummpv.app.ui.theme.AppMotion
 import com.quantummpv.app.ui.utils.rememberAppHaptics
 import com.quantummpv.app.utils.device.DeviceFormFactor
 import kotlinx.coroutines.flow.collect
+import org.koin.compose.koinInject
 import kotlin.math.abs
 
 @StringRes
@@ -129,6 +132,11 @@ internal fun VideoSwipeSurface(
     Card(modifier = modifier, shape = shape, colors = colors, content = content)
     return
   }
+  val preferences = koinInject<BrowserPreferences>()
+  val rightZonePercent by preferences.videoSwipeRightZonePercent.collectAsState()
+  val leftZonePercent by preferences.videoSwipeLeftZonePercent.collectAsState()
+  val rightSwipeZoneFraction = rightZonePercent.coerceIn(BrowserPreferences.VIDEO_SWIPE_ZONE_RANGE) / 100f
+  val leftSwipeZoneFraction = leftZonePercent.coerceIn(BrowserPreferences.VIDEO_SWIPE_ZONE_RANGE) / 100f
   val haptics = rememberAppHaptics()
   val reducedMotion = AppMotion.shouldReduceMotion()
   val isTelevision = DeviceFormFactor.isTelevision(LocalContext.current)
@@ -152,7 +160,7 @@ internal fun VideoSwipeSurface(
     label = "videoSwipeOffset",
   )
 
-  LaunchedEffect(canSwipe, leftAction, rightAction, identity, rowWidth) {
+  LaunchedEffect(canSwipe, leftAction, rightAction, identity, rowWidth, leftSwipeZoneFraction, rightSwipeZoneFraction) {
     dragOffset = 0f
     dragging = false
     thresholdReached = false
@@ -185,18 +193,21 @@ internal fun VideoSwipeSurface(
     modifier = modifier
       .onSizeChanged { rowWidth = it.width }
       .semantics { customActions = accessibilityActions }
-      .pointerInput(identity, canSwipe, isTelevision, rowWidth, leftAction, rightAction, travel, threshold) {
+      .pointerInput(
+        identity, canSwipe, isTelevision, rowWidth, leftAction, rightAction,
+        travel, threshold, leftSwipeZoneFraction, rightSwipeZoneFraction,
+      ) {
         if (!canSwipe || isTelevision || rowWidth <= 0) return@pointerInput
-        val leftEdge = rowWidth * 0.25f
-        val rightEdge = rowWidth * 0.75f
+        val leftEdge = rowWidth * rightSwipeZoneFraction
+        val rightEdge = rowWidth * (1f - leftSwipeZoneFraction)
         val touchSlop = viewConfiguration.touchSlop
 
         awaitEachGesture {
           val down = awaitFirstDown(requireUnconsumed = false)
           val startX = down.position.x
-          val isEdgeZone = startX <= leftEdge || startX >= rightEdge
-          if (!isEdgeZone) {
-            // Started in the middle zone: leave horizontal drag unconsumed for tab pager sliding
+          val canStartRightSwipe = rightAction != VideoSwipeAction.None && startX < leftEdge
+          val canStartLeftSwipe = leftAction != VideoSwipeAction.None && startX >= rightEdge
+          if (!canStartRightSwipe && !canStartLeftSwipe) {
             return@awaitEachGesture
           }
 
@@ -221,7 +232,11 @@ internal fun VideoSwipeSurface(
             totalDeltaY += deltaY
 
             if (!dragStarted) {
+              if (change.isConsumed) break
               if (abs(totalDeltaX) > touchSlop && abs(totalDeltaX) > abs(totalDeltaY)) {
+                if ((totalDeltaX > 0f && !canStartRightSwipe) || (totalDeltaX < 0f && !canStartLeftSwipe)) {
+                  break
+                }
                 dragStarted = true
                 dragging = true
                 thresholdReached = false
@@ -234,8 +249,8 @@ internal fun VideoSwipeSurface(
               }
             } else {
               change.consume()
-              val minimum = if (leftAction == VideoSwipeAction.None) 0f else -travel
-              val maximum = if (rightAction == VideoSwipeAction.None) 0f else travel
+              val minimum = if (canStartLeftSwipe) -travel else 0f
+              val maximum = if (canStartRightSwipe) travel else 0f
               dragOffset = (dragOffset + deltaX).coerceIn(minimum, maximum)
 
               if (!thresholdReached && threshold > 0f && abs(dragOffset) >= threshold) {
