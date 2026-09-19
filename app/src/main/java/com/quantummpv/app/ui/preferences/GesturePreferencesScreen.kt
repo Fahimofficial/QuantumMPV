@@ -239,7 +239,7 @@ object GesturePreferencesScreen : Screen {
                 value = holdSpeedSliderValue,
                 onValueChange = { playerPreferences.holdForMultipleSpeed.set(snapHoldSpeedBoost(it).toFixed(2)) },
                 title = { Text(stringResource(R.string.pref_player_gestures_hold_for_multiple_speed)) },
-                valueRange = 0f..4f,
+                valueRange = 0f..8f,
                 summary = {
                   Text(
                     if (holdSpeedSliderValue == 0f) {
@@ -252,6 +252,18 @@ object GesturePreferencesScreen : Screen {
                 },
                 onSliderValueChange = { playerPreferences.holdForMultipleSpeed.set(snapHoldSpeedBoost(it).toFixed(2)) },
                 sliderValue = holdSpeedSliderValue,
+              )
+
+              PreferenceDivider()
+
+              val rememberHoldSpeed by playerPreferences.rememberHoldSpeed.collectAsState()
+              SwitchPreference(
+                modifier = Modifier.settingsSearchTarget(R.string.pref_player_gestures_remember_hold_speed),
+                value = rememberHoldSpeed,
+                enabled = holdSpeedSliderValue != 0f,
+                onValueChange = { playerPreferences.rememberHoldSpeed.set(it) },
+                title = { Text(stringResource(R.string.pref_player_gestures_remember_hold_speed)) },
+                summary = { Text(stringResource(R.string.pref_player_gestures_remember_hold_speed_summary)) },
               )
             }
           }
@@ -604,7 +616,8 @@ object GesturePreferencesScreen : Screen {
   }
 }
 
-private val holdSpeedBoostValues = listOf(0.5f, 1f, 1.5f, 2f, 2.5f, 3f, 3.5f, 4f)
+private val holdSpeedBoostValues =
+  listOf(0.5f, 1f, 1.5f, 2f, 2.5f, 3f, 3.5f, 4f, 4.5f, 5f, 5.5f, 6f, 6.5f, 7f, 7.5f, 8f)
 
 private fun snapHoldSpeedBoost(value: Float): Float =
   if (value < 0.25f) {
