@@ -31,6 +31,8 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import com.quantummpv.app.ui.theme.LocalEmphasizedTypography
+import com.quantummpv.app.ui.theme.glassBorderColor
+import com.quantummpv.app.ui.theme.glassContainerColor
 import com.quantummpv.app.preferences.AppearancePreferences
 import com.quantummpv.app.preferences.preference.collectAsState
 import org.koin.compose.koinInject
@@ -57,8 +59,8 @@ fun PreferenceCard(
     colors =
       CardDefaults.cardColors(
         containerColor =
-          if (glassEnabled) {
-            MaterialTheme.colorScheme.surfaceContainerLow.copy(alpha = 0.72f)
+            if (glassEnabled) {
+            glassContainerColor(MaterialTheme.colorScheme.surfaceContainerLow)
           } else {
             MaterialTheme.colorScheme.surfaceContainerLow
           },
@@ -67,7 +69,7 @@ fun PreferenceCard(
       if (glassEnabled || emphasis) {
         BorderStroke(
           width = 1.dp,
-          color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.42f),
+          color = glassBorderColor(),
         )
       } else {
         null

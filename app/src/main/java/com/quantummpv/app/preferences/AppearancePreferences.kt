@@ -51,6 +51,8 @@ class AppearancePreferences(
   val glassUi = preferenceStore.getBoolean("glass_ui", false)
   val glassCards = preferenceStore.getBoolean("glass_cards", false)
   val glassBottomNavigation = preferenceStore.getBoolean("glass_bottom_navigation", false)
+  val glassStrength = preferenceStore.getFloat("glass_strength", 0.55f)
+  val reduceTransparency = preferenceStore.getBoolean("reduce_transparency", false)
   val useSystemFont = preferenceStore.getBoolean("use_system_font", false)
   val unlimitedNameLines = preferenceStore.getBoolean("unlimited_name_lines", false)
   val hidePlayerButtonsBackground = preferenceStore.getBoolean("hide_player_buttons_background", false)
@@ -76,6 +78,8 @@ class AppearancePreferences(
     glassUi.set(false)
     glassCards.set(false)
     glassBottomNavigation.set(false)
+    glassStrength.set(0.55f)
+    reduceTransparency.set(false)
     useSystemFont.set(false)
     unlimitedNameLines.set(false)
   }

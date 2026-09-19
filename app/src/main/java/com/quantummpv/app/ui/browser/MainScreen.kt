@@ -108,6 +108,8 @@ import com.quantummpv.app.ui.player.controls.components.rememberTvInitialFocusRe
 import com.quantummpv.app.ui.player.controls.components.tvFocusHighlight
 import com.quantummpv.app.ui.player.controls.components.tvInitialFocus
 import com.quantummpv.app.ui.player.NavigationAnimStyle
+import com.quantummpv.app.ui.theme.glassBorderColor
+import com.quantummpv.app.ui.theme.glassContainerColor
 import com.quantummpv.app.ui.utils.navigationDurationMillis
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.cancelAndJoin
@@ -675,7 +677,7 @@ private fun ExpressivePillNavigationBar(
     shape = CircleShape,
     color =
       if (glass) {
-        MaterialTheme.colorScheme.surfaceContainerHigh.copy(alpha = 0.78f)
+        glassContainerColor(MaterialTheme.colorScheme.surfaceContainerHigh)
       } else {
         MaterialTheme.colorScheme.surfaceContainerHigh
       },
@@ -685,7 +687,7 @@ private fun ExpressivePillNavigationBar(
       if (glass) {
         BorderStroke(
           width = 1.dp,
-          color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.48f),
+          color = glassBorderColor(),
         )
       } else {
         null

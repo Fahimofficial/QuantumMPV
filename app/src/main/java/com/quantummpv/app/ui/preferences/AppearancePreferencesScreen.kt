@@ -64,6 +64,7 @@ import com.quantummpv.app.ui.preferences.components.SwitchPreference
 import com.quantummpv.app.ui.preferences.components.ThemePicker
 import com.quantummpv.app.ui.theme.DarkMode
 import com.quantummpv.app.ui.theme.LocalThemeTransitionState
+import com.quantummpv.app.ui.theme.LiquidGlassPreview
 import com.quantummpv.app.ui.utils.LocalBackStack
 import com.quantummpv.app.ui.utils.LocalShowSettingsBackArrow
 import com.quantummpv.app.ui.utils.popSafely
@@ -110,6 +111,8 @@ object AppearancePreferencesScreen : Screen {
     val glassUi by preferences.glassUi.collectAsState()
     val glassCards by preferences.glassCards.collectAsState()
     val glassBottomNavigation by preferences.glassBottomNavigation.collectAsState()
+    val glassStrength by preferences.glassStrength.collectAsState()
+    val reduceTransparency by preferences.reduceTransparency.collectAsState()
 
     val thumbnailMode = storedThumbnailMode
 
@@ -317,6 +320,34 @@ object AppearancePreferencesScreen : Screen {
                     onValueChange = preferences.glassBottomNavigation::set,
                     title = { Text(stringResource(R.string.pref_appearance_glass_navigation_title)) },
                     summary = { Text(stringResource(R.string.pref_appearance_glass_navigation_summary), color = MaterialTheme.colorScheme.outline) },
+                  )
+                  LiquidGlassPreview(modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp))
+                  SliderPreference(
+                    modifier = Modifier.settingsSearchTarget(R.string.pref_appearance_glass_strength_title),
+                    value = glassStrength,
+                    sliderValue = glassStrength,
+                    onValueChange = { preferences.glassStrength.set(it) },
+                    onSliderValueChange = { preferences.glassStrength.set(it) },
+                    title = { Text(stringResource(R.string.pref_appearance_glass_strength_title)) },
+                    valueRange = 0f..1f,
+                    valueSteps = 9,
+                    summary = {
+                      Text(
+                        stringResource(
+                          R.string.pref_appearance_glass_strength_summary,
+                          (glassStrength * 100).roundToInt(),
+                        ),
+                        color = MaterialTheme.colorScheme.outline,
+                      )
+                    },
+                    enabled = glassUi || glassCards || glassBottomNavigation,
+                  )
+                  SwitchPreference(
+                    modifier = Modifier.settingsSearchTarget(R.string.pref_appearance_reduce_transparency_title),
+                    value = reduceTransparency,
+                    onValueChange = preferences.reduceTransparency::set,
+                    title = { Text(stringResource(R.string.pref_appearance_reduce_transparency_title)) },
+                    summary = { Text(stringResource(R.string.pref_appearance_reduce_transparency_summary), color = MaterialTheme.colorScheme.outline) },
                   )
                   TextButton(
                     onClick = { showResetAppearanceDialog = true },
