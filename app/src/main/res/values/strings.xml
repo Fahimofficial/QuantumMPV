@@ -233,6 +233,8 @@
   <string name="pref_player_gestures_horizontal_swipe_sensitivity">Horizontal swipe sensitivity</string>
   <string name="pref_player_gestures_horizontal_swipe_sensitivity_summary">Adjust how much distance is covered per swipe</string>
   <string name="pref_player_gestures_hold_for_multiple_speed">Hold for multi - x speed</string>
+  <string name="pref_player_gestures_remember_hold_speed">Remember last hold speed</string>
+  <string name="pref_player_gestures_remember_hold_speed_summary">Start the next long-press speed boost from the speed you last dragged to, instead of always resetting to the value above</string>
   <string name="pref_player_controls">Controls</string>
   <string name="pref_player_controls_allow_gestures_in_panels">Allow gestures in panels</string>
   <string name="pref_player_controls_display_volume_as_percentage">Display volume as percentage</string>

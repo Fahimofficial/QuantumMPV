@@ -120,7 +120,7 @@ fun PlaybackSpeedSheet(
             val snapped = (it * 20).roundToInt() / 20f
             onSpeedChange(snapped)
           },
-          valueRange = 0.1f..4.0f,
+          valueRange = 0.1f..8.0f,
           enabled = speedControlEnabled,
           modifier =
             Modifier
@@ -129,7 +129,7 @@ fun PlaybackSpeedSheet(
         )
 
         RepeatingIconButton(
-          onClick = { onSpeedChange((speed + 0.05f).coerceAtMost(4.0f)) },
+          onClick = { onSpeedChange((speed + 0.05f).coerceAtMost(8.0f)) },
           enabled = speedControlEnabled,
           modifier = Modifier.size(40.dp),
         ) {
@@ -145,7 +145,10 @@ fun PlaybackSpeedSheet(
       ) {
         val defaultPresets =
           remember {
-            listOf(0.25f, 0.5f, 0.75f, 1.0f, 1.25f, 1.5f, 1.75f, 2.0f, 2.5f, 3.0f, 3.5f, 4.0f)
+            listOf(
+              0.25f, 0.5f, 0.75f, 1.0f, 1.25f, 1.5f, 1.75f, 2.0f, 2.5f, 3.0f, 3.5f, 4.0f,
+              5.0f, 6.0f, 7.0f, 8.0f,
+            )
           }
 
         LazyRow(

@@ -98,7 +98,8 @@ import kotlin.math.pow
 import kotlin.math.roundToInt
 import kotlin.math.sqrt
 
-private val holdSpeedPresets = listOf(0.5f, 1f, 1.5f, 2f, 2.5f, 3f, 3.5f, 4f)
+private val holdSpeedPresets =
+  listOf(0.5f, 1f, 1.5f, 2f, 2.5f, 3f, 3.5f, 4f, 4.5f, 5f, 5.5f, 6f, 6.5f, 7f, 7.5f, 8f)
 private const val SPEED_HOLD_INTENT_THRESHOLD_MS = 250L
 
 private enum class GestureOwner {
@@ -203,6 +204,7 @@ fun GestureHandler(
     viewModel.hideSeekBar()
   }
   val multipleSpeedGesture by playerPreferences.holdForMultipleSpeed.collectAsState()
+  val rememberHoldSpeed by playerPreferences.rememberHoldSpeed.collectAsState()
   val brightnessGesture by playerPreferences.brightnessGesture.collectAsState()
   val volumeGesture by playerPreferences.volumeGesture.collectAsState()
   val swapVolumeAndBrightness by playerPreferences.swapVolumeAndBrightness.collectAsState()
@@ -967,6 +969,11 @@ fun GestureHandler(
               isLongPressing = false
               isDynamicSpeedControlActive = false
               hasSwipedEnough = false
+              if (rememberHoldSpeed) {
+                // Remember the speed reached during this hold so the next long-press
+                // starts from there instead of always resetting to the configured value.
+                playerPreferences.holdForMultipleSpeed.set(lastAppliedSpeed)
+              }
               if (!isSpeedLocked) {
                 // Ramp speed back down incrementally to avoid audio filter stutter
                 val currentSpeed = PlaybackSession.getPropertyFloat("speed") ?: multipleSpeedGesture
