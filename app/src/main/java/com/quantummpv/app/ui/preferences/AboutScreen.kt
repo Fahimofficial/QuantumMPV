@@ -86,8 +86,6 @@ import androidx.core.net.toUri
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.quantummpv.app.BuildConfig
 import com.quantummpv.app.R
-import com.quantummpv.app.preferences.AppearancePreferences
-import com.quantummpv.app.preferences.preference.collectAsState as collectPreferenceAsState
 import com.quantummpv.app.domain.update.AppUpdateChannel
 import com.quantummpv.app.presentation.Screen
 import com.quantummpv.app.presentation.crash.CrashActivity.Companion.collectDeviceInfo
@@ -849,10 +847,6 @@ object LibrariesScreen : Screen {
   override fun Content() {
     val context = LocalContext.current
     val backstack = LocalBackStack.current
-    val appearancePreferences = koinInject<AppearancePreferences>()
-    val glassUi by appearancePreferences.glassUi.collectPreferenceAsState()
-    val glassCards by appearancePreferences.glassCards.collectPreferenceAsState()
-    val glassEnabled = glassUi || glassCards
     Scaffold(
       topBar = {
         TopAppBar(
@@ -911,22 +905,8 @@ object LibrariesScreen : Screen {
                 },
             colors =
               CardDefaults.cardColors(
-                containerColor =
-                  if (glassEnabled) {
-                    MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.52f)
-                  } else {
-                    MaterialTheme.colorScheme.surfaceVariant
-                  },
+                containerColor = MaterialTheme.colorScheme.surfaceVariant,
               ),
-            border =
-              if (glassEnabled) {
-                BorderStroke(
-                  width = 1.dp,
-                  color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.42f),
-                )
-              } else {
-                null
-              },
             shape = RoundedCornerShape(18.dp),
           ) {
             Column(

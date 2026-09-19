@@ -68,16 +68,8 @@
   <string name="pref_appearance_nav_style_fade">Fade</string>
   <string name="pref_appearance_nav_style_none">None (Instant)</string>
   <string name="pref_appearance_theme_picker_label">App Theme</string>
-  <string name="pref_appearance_glass_ui_title">Liquid Glass UI</string>
-  <string name="pref_appearance_glass_ui_summary">Enable the glass treatment across cards, navigation, and app surfaces. Video stays sharp.</string>
-  <string name="pref_appearance_glass_cards_title">Glass-style cards</string>
-  <string name="pref_appearance_glass_cards_summary">Use subtle translucent surfaces and soft borders for settings cards. Off keeps the solid card style.</string>
   <string name="pref_appearance_glass_navigation_title">Glass bottom navigation</string>
   <string name="pref_appearance_glass_navigation_summary">Use a translucent surface and soft border for the bottom navigation bar.</string>
-  <string name="pref_appearance_glass_strength_title">Glass strength</string>
-  <string name="pref_appearance_glass_strength_summary">Controls color bloom and surface transparency: %1$d%% strength.</string>
-  <string name="pref_appearance_reduce_transparency_title">Reduce transparency</string>
-  <string name="pref_appearance_reduce_transparency_summary">Use more opaque glass surfaces for improved readability and accessibility.</string>
   <string name="pref_appearance_reset_button">Reset appearance</string>
   <string name="pref_appearance_reset_title">Reset appearance settings?</string>
   <string name="pref_appearance_reset_summary">Restore the default theme, solid cards, solid navigation, and disable the animated Home background.</string>

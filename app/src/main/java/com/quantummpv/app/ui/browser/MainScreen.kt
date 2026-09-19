@@ -16,8 +16,10 @@ import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.EnterTransition
 import androidx.compose.animation.ExitTransition
 import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.snap
+import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.fadeIn
@@ -180,9 +182,7 @@ object MainScreen : Screen {
     val showPlaylistsTab by appearancePreferences.showPlaylistsTab.collectAsState()
     val showNetworkTab by appearancePreferences.showNetworkTab.collectAsState()
     val showJellyfinTab by appearancePreferences.showJellyfinTab.collectAsState()
-    val glassUi by appearancePreferences.glassUi.collectAsState()
     val glassBottomNavigation by appearancePreferences.glassBottomNavigation.collectAsState()
-    val glassNavigationEnabled = glassUi || glassBottomNavigation
     val hideNavigationBar = NavigationBarState.shouldHideNavigationBar
     val isPermissionDenied = NavigationBarState.isPermissionDenied
     val isDualPaneFolderSelected = NavigationBarState.isDualPaneFolderSelected
@@ -305,7 +305,7 @@ object MainScreen : Screen {
         selectedTab = selectedTab,
         onTabSelected = onTabSelected,
         pagerState = pagerState,
-        glass = glassNavigationEnabled,
+        glass = glassBottomNavigation,
         modifier = modifier,
       )
     }
@@ -589,7 +589,7 @@ object MainScreen : Screen {
               selectedTab = selectedTab,
               onTabSelected = onTabSelected,
               pagerState = pagerState,
-              glass = glassNavigationEnabled,
+              glass = glassBottomNavigation,
               modifier = Modifier
                 .layout { measurable, constraints ->
                   val margin = 16.dp.roundToPx()
@@ -717,6 +717,14 @@ private fun ExpressivePillNavigationBar(
         visibleTabs.forEachIndexed { index, tab ->
           key(tab) {
             val activeFraction = (1f - kotlin.math.abs(position - index)).coerceIn(0f, 1f)
+            val navBounceScale by animateFloatAsState(
+              targetValue = if (tab == selectedTab) 1f else 0.96f,
+              animationSpec = spring(
+                dampingRatio = Spring.DampingRatioMediumBouncy,
+                stiffness = Spring.StiffnessMediumLow,
+              ),
+              label = "bottomNavigationBounce",
+            )
             val label =
               when (tab) {
                 MainScreen.MainTab.HOME -> stringResource(R.string.ui_home)
@@ -753,7 +761,12 @@ private fun ExpressivePillNavigationBar(
               contentAlignment = Alignment.Center,
             ) {
               Row(
-                modifier = Modifier.padding(horizontal = 8.dp),
+                modifier = Modifier
+                  .graphicsLayer {
+                    scaleX = navBounceScale
+                    scaleY = navBounceScale
+                  }
+                  .padding(horizontal = 8.dp),
                 horizontalArrangement = Arrangement.Center,
                 verticalAlignment = Alignment.CenterVertically,
               ) {

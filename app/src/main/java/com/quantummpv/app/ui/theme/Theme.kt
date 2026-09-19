@@ -279,9 +279,6 @@ fun MpvrxTheme(
   val preferences = koinInject<AppearancePreferences>()
   val darkMode by preferences.darkMode.collectAsState()
   val amoledMode by preferences.amoledMode.collectAsState()
-  val glassUi by preferences.glassUi.collectAsState()
-  val glassStrength by preferences.glassStrength.collectAsState()
-  val reduceTransparency by preferences.reduceTransparency.collectAsState()
   val appTheme by preferences.appTheme.collectAsState()
   val useSystemFont by preferences.useSystemFont.collectAsState()
   val darkTheme = isSystemInDarkTheme()
@@ -326,9 +323,6 @@ fun MpvrxTheme(
     LocalEmphasizedTypography provides AppEmphasizedTypography,
     LocalDarkAppColorScheme provides darkColorScheme,
     LocalAppTheme provides appTheme,
-    LocalGlassUi provides glassUi,
-    LocalGlassStrength provides glassStrength,
-    LocalReduceTransparency provides reduceTransparency,
   ) {
     ThemeTransitionContent {
       MaterialExpressiveTheme(
@@ -336,13 +330,7 @@ fun MpvrxTheme(
         typography = if (useSystemFont || localeNeedsSystemFont) SystemTypography else AppTypography,
         shapes = AppShapes,
         motionScheme = MotionScheme.expressive(),
-        content = {
-          if (glassUi) {
-            GlassBackdrop(content = { content() })
-          } else {
-            content()
-          }
-        },
+        content = content,
       )
     }
   }

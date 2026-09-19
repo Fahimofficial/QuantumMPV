@@ -1,15 +1,11 @@
 # Changelog
 
 These notes are written in plain English and focus on what changed for real use.
-## 1.1.0-preview.11 — Liquid Glass improvements
+## 1.1.0-preview.12 — Focused navigation polish
 
-- **Master Liquid Glass Toggle**: Enable the treatment across app surfaces from **Settings → Appearance**.
-- **Unified Glass Coverage**: The master switch activates the existing glass cards and glass bottom navigation together.
-- **Tinted Backdrop**: Adds restrained theme-colored highlights behind translucent surfaces without blurring video playback.
-- **Granular Controls Preserved**: Card and bottom-navigation toggles remain available for users who want partial glass styling.
-- **Visible Strength Control**: Adjust the glass bloom and transparency from subtle to strong with a live preview.
-- **Accessibility Fallback**: Reduce transparency makes glass surfaces more opaque for readability and low-contrast environments.
-- **Glass Preview**: Appearance settings now show representative cards and focused controls before the feature is applied elsewhere.
+- **Focused Liquid Glass**: Kept Liquid Glass as an opt-in treatment for the bottom navigation only.
+- **Solid defaults preserved**: Removed the app-wide backdrop, glass preference cards, strength slider, transparency fallback, and live preview.
+- **Spring tab bounce**: Selected bottom-navigation items now use a small, performant bounce when selection changes, while respecting the existing navigation animation setting.
 
 ## 1.1.0-preview.9
 
