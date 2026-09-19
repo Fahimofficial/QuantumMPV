@@ -107,6 +107,7 @@ object AppearancePreferencesScreen : Screen {
     val dualPaneForTablet by browserPreferences.dualPaneForTablet.collectAsState()
     val treeFlattenDepth by browserPreferences.treeFlattenDepth.collectAsState()
     val thumbnailCacheClearedMessage = stringResource(R.string.pref_thumbnail_cache_cleared)
+    val glassUi by preferences.glassUi.collectAsState()
     val glassCards by preferences.glassCards.collectAsState()
     val glassBottomNavigation by preferences.glassBottomNavigation.collectAsState()
 
@@ -296,6 +297,13 @@ object AppearancePreferencesScreen : Screen {
                   )
 
                   PreferenceDivider()
+                  SwitchPreference(
+                    modifier = Modifier.settingsSearchTarget(R.string.pref_appearance_glass_ui_title),
+                    value = glassUi,
+                    onValueChange = preferences.glassUi::set,
+                    title = { Text(stringResource(R.string.pref_appearance_glass_ui_title)) },
+                    summary = { Text(stringResource(R.string.pref_appearance_glass_ui_summary), color = MaterialTheme.colorScheme.outline) },
+                  )
                   SwitchPreference(
                     modifier = Modifier.settingsSearchTarget(R.string.pref_appearance_glass_cards_title),
                     value = glassCards,

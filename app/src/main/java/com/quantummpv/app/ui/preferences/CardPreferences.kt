@@ -45,7 +45,9 @@ fun PreferenceCard(
   content: @Composable ColumnScope.() -> Unit,
 ) {
   val appearancePreferences = koinInject<AppearancePreferences>()
+  val glassUi by appearancePreferences.glassUi.collectAsState()
   val glassCards by appearancePreferences.glassCards.collectAsState()
+  val glassEnabled = glassUi || glassCards
   Card(
     modifier =
       modifier
@@ -55,14 +57,14 @@ fun PreferenceCard(
     colors =
       CardDefaults.cardColors(
         containerColor =
-          if (glassCards) {
+          if (glassEnabled) {
             MaterialTheme.colorScheme.surfaceContainerLow.copy(alpha = 0.72f)
           } else {
             MaterialTheme.colorScheme.surfaceContainerLow
           },
       ),
     border =
-      if (glassCards || emphasis) {
+      if (glassEnabled || emphasis) {
         BorderStroke(
           width = 1.dp,
           color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.42f),

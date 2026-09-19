@@ -178,7 +178,9 @@ object MainScreen : Screen {
     val showPlaylistsTab by appearancePreferences.showPlaylistsTab.collectAsState()
     val showNetworkTab by appearancePreferences.showNetworkTab.collectAsState()
     val showJellyfinTab by appearancePreferences.showJellyfinTab.collectAsState()
+    val glassUi by appearancePreferences.glassUi.collectAsState()
     val glassBottomNavigation by appearancePreferences.glassBottomNavigation.collectAsState()
+    val glassNavigationEnabled = glassUi || glassBottomNavigation
     val hideNavigationBar = NavigationBarState.shouldHideNavigationBar
     val isPermissionDenied = NavigationBarState.isPermissionDenied
     val isDualPaneFolderSelected = NavigationBarState.isDualPaneFolderSelected
@@ -301,7 +303,7 @@ object MainScreen : Screen {
         selectedTab = selectedTab,
         onTabSelected = onTabSelected,
         pagerState = pagerState,
-        glass = glassBottomNavigation,
+        glass = glassNavigationEnabled,
         modifier = modifier,
       )
     }
@@ -585,7 +587,7 @@ object MainScreen : Screen {
               selectedTab = selectedTab,
               onTabSelected = onTabSelected,
               pagerState = pagerState,
-              glass = glassBottomNavigation,
+              glass = glassNavigationEnabled,
               modifier = Modifier
                 .layout { measurable, constraints ->
                   val margin = 16.dp.roundToPx()

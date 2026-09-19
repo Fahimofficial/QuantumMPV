@@ -68,6 +68,8 @@
   <string name="pref_appearance_nav_style_fade">Fade</string>
   <string name="pref_appearance_nav_style_none">None (Instant)</string>
   <string name="pref_appearance_theme_picker_label">App Theme</string>
+  <string name="pref_appearance_glass_ui_title">Liquid Glass UI</string>
+  <string name="pref_appearance_glass_ui_summary">Enable the glass treatment across cards, navigation, and app surfaces. Video stays sharp.</string>
   <string name="pref_appearance_glass_cards_title">Glass-style cards</string>
   <string name="pref_appearance_glass_cards_summary">Use subtle translucent surfaces and soft borders for settings cards. Off keeps the solid card style.</string>
   <string name="pref_appearance_glass_navigation_title">Glass bottom navigation</string>

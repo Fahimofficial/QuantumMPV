@@ -850,7 +850,9 @@ object LibrariesScreen : Screen {
     val context = LocalContext.current
     val backstack = LocalBackStack.current
     val appearancePreferences = koinInject<AppearancePreferences>()
+    val glassUi by appearancePreferences.glassUi.collectPreferenceAsState()
     val glassCards by appearancePreferences.glassCards.collectPreferenceAsState()
+    val glassEnabled = glassUi || glassCards
     Scaffold(
       topBar = {
         TopAppBar(
@@ -910,14 +912,14 @@ object LibrariesScreen : Screen {
             colors =
               CardDefaults.cardColors(
                 containerColor =
-                  if (glassCards) {
+                  if (glassEnabled) {
                     MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.52f)
                   } else {
                     MaterialTheme.colorScheme.surfaceVariant
                   },
               ),
             border =
-              if (glassCards) {
+              if (glassEnabled) {
                 BorderStroke(
                   width = 1.dp,
                   color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.42f),
