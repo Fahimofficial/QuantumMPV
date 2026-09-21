@@ -74,15 +74,14 @@ class MpvRxDatabaseMigrationTest {
       .query(
         "SELECT token, authMode, username, password, lastConnected " +
           "FROM navidrome_servers WHERE name = 'Legacy'",
-      )
-      .use { cursor ->
-      assertTrue(cursor.moveToFirst())
-      assertEquals("", cursor.getString(cursor.getColumnIndexOrThrow("token")))
-      assertEquals("CREDENTIALS", cursor.getString(cursor.getColumnIndexOrThrow("authMode")))
-      assertEquals("alice", cursor.getString(cursor.getColumnIndexOrThrow("username")))
-      assertEquals("secret", cursor.getString(cursor.getColumnIndexOrThrow("password")))
-      assertEquals(123L, cursor.getLong(cursor.getColumnIndexOrThrow("lastConnected")))
-    }
+      ).use { cursor ->
+        assertTrue(cursor.moveToFirst())
+        assertEquals("", cursor.getString(cursor.getColumnIndexOrThrow("token")))
+        assertEquals("CREDENTIALS", cursor.getString(cursor.getColumnIndexOrThrow("authMode")))
+        assertEquals("alice", cursor.getString(cursor.getColumnIndexOrThrow("username")))
+        assertEquals("secret", cursor.getString(cursor.getColumnIndexOrThrow("password")))
+        assertEquals(123L, cursor.getLong(cursor.getColumnIndexOrThrow("lastConnected")))
+      }
     database.close()
   }
 
