@@ -278,9 +278,11 @@ dependencies {
   implementation(libs.kotlinx.serialization.json)
   implementation(libs.okhttp)
   implementation(libs.jsoup)
+  // Playback stays on libmpv. Media3 provides the Android media integration surface only:
+  // session/controller types plus the clip export pipeline (transformer).
   implementation(libs.androidx.media3.common)
+  implementation(libs.androidx.media3.session)
   implementation(libs.androidx.media3.exoplayer)
-  implementation(libs.androidx.media3.ui)
   implementation(libs.androidx.media3.effect)
   implementation(libs.androidx.media3.transformer)
   implementation(platform(libs.sora.editor.bom))
