@@ -21,6 +21,7 @@ import androidx.media3.common.util.UnstableApi
 import androidx.media3.session.MediaSession
 import androidx.media3.session.SessionCommand
 import androidx.media3.session.SessionCommands
+import androidx.media3.session.SessionError
 import androidx.media3.session.SessionResult
 import com.google.common.util.concurrent.Futures
 import com.google.common.util.concurrent.ListenableFuture
@@ -160,7 +161,9 @@ class MpvMedia3SessionManager(
       args: Bundle,
     ): ListenableFuture<SessionResult> {
       if (!host.canApplyTransportCommands()) {
-        return Futures.immediateFuture(SessionResult(SessionResult.RESULT_ERROR_INVALID_STATE))
+        // SessionError is the current error-code space; the legacy SessionResult.RESULT_ERROR_*
+        // constants are no longer accepted and fail Android lint.
+        return Futures.immediateFuture(SessionResult(SessionError.ERROR_INVALID_STATE))
       }
       host.onCustomSessionAction(customCommand.customAction)
       return Futures.immediateFuture(SessionResult(SessionResult.RESULT_SUCCESS))
