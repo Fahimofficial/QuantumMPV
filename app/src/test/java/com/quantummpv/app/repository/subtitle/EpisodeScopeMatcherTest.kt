@@ -9,7 +9,7 @@
 
 package com.quantummpv.app.repository.subtitle
 
-import kotlin.test.Test
+import org.junit.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertTrue
 
