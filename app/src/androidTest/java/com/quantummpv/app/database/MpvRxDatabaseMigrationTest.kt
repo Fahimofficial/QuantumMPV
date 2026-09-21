@@ -17,12 +17,13 @@ import org.junit.runner.RunWith
 @RunWith(AndroidJUnit4::class)
 class MpvRxDatabaseMigrationTest {
   @get:Rule
-  val helper = MigrationTestHelper(
-    InstrumentationRegistry.getInstrumentation(),
-    MpvRxDatabase::class.java,
-    emptyList(),
-    FrameworkSQLiteOpenHelperFactory(),
-  )
+  val helper =
+    MigrationTestHelper(
+      InstrumentationRegistry.getInstrumentation(),
+      MpvRxDatabase::class.java,
+      emptyList(),
+      FrameworkSQLiteOpenHelperFactory(),
+    )
 
   @Test
   fun migrate19To21ThroughSequentialMigrations() {
@@ -47,7 +48,8 @@ class MpvRxDatabaseMigrationTest {
     val database = helper.createDatabase(TEST_DATABASE_YTDLP, 21)
     MIGRATION_21_22.migrate(database)
     database.execSQL(
-      "INSERT INTO ytdlp_download_jobs (id, url, title, directory, state, progressPercent, detail, createdAt, updatedAt) " +
+      "INSERT INTO ytdlp_download_jobs (id, url, title, directory, state, progressPercent, detail, " +
+        "createdAt, updatedAt) " +
         "VALUES (7, 'https://example.com/video', 'Example', '/downloads', 'QUEUED', 0.0, '', 1, 1)",
     )
     database.query("SELECT state, url FROM ytdlp_download_jobs WHERE id = 7").use { cursor ->
@@ -68,10 +70,12 @@ class MpvRxDatabaseMigrationTest {
     )
     MIGRATION_20_21.migrate(database)
 
-    database.query(
-      "SELECT token, authMode, username, password, lastConnected " +
-        "FROM navidrome_servers WHERE name = 'Legacy'",
-    ).use { cursor ->
+    database
+      .query(
+        "SELECT token, authMode, username, password, lastConnected " +
+          "FROM navidrome_servers WHERE name = 'Legacy'",
+      )
+      .use { cursor ->
       assertTrue(cursor.moveToFirst())
       assertEquals("", cursor.getString(cursor.getColumnIndexOrThrow("token")))
       assertEquals("CREDENTIALS", cursor.getString(cursor.getColumnIndexOrThrow("authMode")))
