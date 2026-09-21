@@ -26,9 +26,6 @@ import android.graphics.Bitmap
 import android.media.AudioAttributes
 import android.media.AudioFocusRequest
 import android.media.AudioManager
-import android.media.MediaMetadata
-import android.media.session.MediaSession
-import android.media.session.PlaybackState
 import android.net.Uri
 import android.os.Build
 import android.os.Bundle
@@ -96,6 +93,7 @@ import com.quantummpv.app.preferences.AudioPlayerOrientation
 import com.quantummpv.app.preferences.AudioPreferences
 import com.quantummpv.app.preferences.BrowserPreferences
 import com.quantummpv.app.preferences.DecoderPreferences
+import com.quantummpv.app.preferences.GesturePreferences
 import com.quantummpv.app.preferences.MpvConfigOverridePolicy
 import com.quantummpv.app.preferences.PlayerPreferences
 import com.quantummpv.app.preferences.SubtitlesPreferences
@@ -108,6 +106,9 @@ import com.quantummpv.app.ui.cast.CastPlaybackController
 import com.quantummpv.app.ui.player.controls.PlayerControls
 import com.quantummpv.app.ui.player.components.VideoAmbientBackground
 import com.quantummpv.app.ui.player.components.rememberVideoAmbientFrame
+import com.quantummpv.app.ui.player.media3.MpvMedia3SessionHost
+import com.quantummpv.app.ui.player.media3.MpvMedia3SessionManager
+import com.quantummpv.app.ui.player.media3.MpvMedia3SeekDirection
 import com.quantummpv.app.ui.player.ytdlp.YtdlpManager
 import com.quantummpv.app.ui.theme.MpvrxTheme
 import com.quantummpv.app.ui.torrent.TorrentSelectionActivity
@@ -259,6 +260,11 @@ class PlayerActivity :
    * Preferences for advanced settings.
    */
   private val advancedPreferences: AdvancedPreferences by inject()
+
+  /**
+   * Gesture preferences, used to advertise the same seek step the double-tap gesture uses.
+   */
+  private val gesturePreferences: GesturePreferences by inject()
 
   /**
    * Preferences for browser settings.
@@ -474,22 +480,17 @@ class PlayerActivity :
    */
   private var serviceBound = false
 
-  // ==================== MediaSession ====================
+  // ==================== Media3 session ====================
 
   /**
-   * MediaSession for integration with system media controls, Android Auto, and Wear OS.
+   * The Media3 session that exposes this Activity's libmpv playback to Android while the Activity
+   * owns the session.
+   *
+   * Created in [setupMediaSession] and released in [releaseMediaSession]. libmpv remains the playback
+   * engine; the session and its adapter only publish transport, metadata, and queue state to system
+   * media controls, Bluetooth buttons, and other MediaController clients.
    */
-  private lateinit var mediaSession: MediaSession
-
-  /**
-   * Tracks whether MediaSession has been successfully initialized.
-   */
-  private var mediaSessionInitialized = false
-
-  /**
-   * Builder for MediaSession playback states.
-   */
-  private lateinit var playbackStateBuilder: PlaybackState.Builder
+  private var media3Session: MpvMedia3SessionManager? = null
 
   // ==================== Audio Focus ====================
 
@@ -3919,7 +3920,7 @@ class PlayerActivity :
     } else {
       window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
     }
-    updateMediaSessionPlaybackState(!isPaused)
+    refreshMediaSession()
     runCatching {
       if (isInPictureInPictureMode) {
         pipHelper.updatePictureInPictureParams()
@@ -4418,11 +4419,7 @@ class PlayerActivity :
       }
     }
 
-    updateMediaSessionMetadata(
-      title = fileName,
-      durationMs = (PlaybackSession.getPropertyDouble("duration")?.times(1000))?.toLong() ?: 0L,
-    )
-    updateMediaSessionPlaybackState(isPlaying = true)
+    refreshMediaSession(updateContentIntent = true)
     syncBackgroundPlaybackService(updateThumbnail = true)
 
     // Asynchronously fetch better filename from HTTP headers for network streams
@@ -4492,12 +4489,7 @@ class PlayerActivity :
             PlaybackSession.setPropertyString("force-media-title", betterFilename)
             viewModel.setMediaTitle(betterFilename)
 
-            // Update media session
-            val durationMs = (PlaybackSession.getPropertyDouble("duration")?.times(1000))?.toLong() ?: 0L
-            updateMediaSessionMetadata(
-              title = betterFilename,
-              durationMs = durationMs,
-            )
+            refreshMediaSession(updateContentIntent = true)
 
             syncBackgroundPlaybackService(updateThumbnail = true)
           }
@@ -6349,139 +6341,154 @@ private suspend fun restorePlaybackPosition(state: PlaybackStateEntity?) {
    * Called when finishing the activity to return to normal Android UI.
    */
 
-  // ==================== MediaSession ====================
+  // ==================== Media3 session ====================
 
   /**
-   * Initializes MediaSession for integration with system media controls.
-   * Supports Android Auto, Wear OS, Bluetooth controls, and notification controls.
+   * The Activity side of the Media3 boundary.
+   *
+   * Every hook maps onto the same [viewModel] operation the in-app player UI already uses, so an
+   * external controller can never reach behavior QuantumMPV does not expose, and every ownership
+   * decision stays in this Activity. libmpv is never bypassed: there is no ExoPlayer path and no
+   * second playback pipeline behind this interface.
+   */
+  private val mediaSessionHost =
+    object : MpvMedia3SessionHost {
+      /** Transport commands only mean something while this Activity owns the libmpv session. */
+      override fun canApplyTransportCommands(): Boolean = mpvInitialized && ownsPlaybackSession()
+
+      /** The same interval the double-tap gesture uses, so controllers seek like the UI does. */
+      override fun seekIncrementMillis(): Long = gesturePreferences.doubleTapToSeekDuration.get().toLong() * 1000L
+
+      /**
+       * The foreground session publishes the metadata the platform session published: no artwork.
+       * The notification thumbnail stays owned by [MediaPlaybackService], which already encodes it.
+       */
+      override fun currentArtworkBytes(): ByteArray? = null
+
+      /**
+       * This session has no favorite or close surface of its own, so it advertises no custom
+       * actions; the notification keeps being the only place those actions exist.
+       */
+      override fun availableCustomActions(): List<String> = emptyList()
+
+      override fun onPlayRequested() {
+        runIfActivePlaybackOwner { viewModel.unpause() }
+      }
+
+      override fun onPauseRequested() {
+        runIfActivePlaybackOwner { viewModel.pause() }
+      }
+
+      override fun onStopRequested() {
+        runIfActivePlaybackOwner { stopPlaybackForExternalController() }
+      }
+
+      override fun onSkipToNextRequested() {
+        if (ownsPlaybackSession()) playNextQueueItem()
+      }
+
+      override fun onSkipToPreviousRequested() {
+        if (ownsPlaybackSession()) playPreviousQueueItem()
+      }
+
+      override fun onSeekToItemRequested(index: Int) {
+        if (ownsPlaybackSession()) playQueueItem(index)
+      }
+
+      override fun onSeekToPositionRequested(positionMs: Long) {
+        runIfActivePlaybackOwner { viewModel.seekTo((positionMs / 1000L).toInt()) }
+      }
+
+      /** Media3's seek steps reuse the configured gesture, so both paths move the same amount. */
+      override fun onIncrementalSeekRequested(direction: Int) {
+        if (direction == MpvMedia3SeekDirection.BACK) {
+          runIfActivePlaybackOwner { viewModel.handleLeftDoubleTap() }
+        } else {
+          runIfActivePlaybackOwner { viewModel.handleRightDoubleTap() }
+        }
+      }
+
+      /** Playback speed is a real libmpv property, so a controller request is applied verbatim. */
+      override fun onSetPlaybackSpeedRequested(speed: Float) {
+        val resolvedSpeed = speed.takeIf { it.isFinite() && it > 0f } ?: return
+        runIfActivePlaybackOwner { PlaybackSession.setPropertyDouble("speed", resolvedSpeed.toDouble()) }
+      }
+
+      override fun onSetShuffleRequested(enabled: Boolean) {
+        if (!ownsPlaybackSession()) return
+        PlaybackSession.setShuffleEnabled(enabled)
+      }
+
+      /** Unreachable while [availableCustomActions] is empty; kept so the contract stays total. */
+      override fun onCustomSessionAction(action: String) = Unit
+
+      /**
+       * Media buttons delivered to the session keep the Activity's own key policy instead of being
+       * rewritten into generic transport commands.
+       */
+      override fun onMediaButtonIntent(intent: Intent): Boolean {
+        if (intent.action != Intent.ACTION_MEDIA_BUTTON) return false
+        val event = intent.getParcelableExtra(Intent.EXTRA_KEY_EVENT) as? KeyEvent ?: return false
+        if (event.action != KeyEvent.ACTION_DOWN || event.repeatCount > 0) return true
+        when (event.keyCode) {
+          KeyEvent.KEYCODE_MEDIA_PLAY -> onPlayRequested()
+          KeyEvent.KEYCODE_MEDIA_PAUSE -> onPauseRequested()
+          KeyEvent.KEYCODE_MEDIA_PLAY_PAUSE,
+          KeyEvent.KEYCODE_HEADSETHOOK,
+          -> runIfActivePlaybackOwner { viewModel.handleMediaPlayPause() }
+          KeyEvent.KEYCODE_MEDIA_NEXT -> runIfActivePlaybackOwner { viewModel.handleMediaNext() }
+          KeyEvent.KEYCODE_MEDIA_PREVIOUS -> runIfActivePlaybackOwner { viewModel.handleMediaPrevious() }
+          else -> return false
+        }
+        return true
+      }
+    }
+
+  /**
+   * Initializes the Media3 session that exposes this Activity's libmpv playback to Android.
+   *
+   * System media controls, lock-screen controls, Bluetooth buttons, Android Auto and other
+   * MediaController clients talk to this session, and the session talks to libmpv through the
+   * adapter. Nothing is started here: while the background service runs it keeps ownership of the
+   * session, and this Activity only publishes it when it owns playback itself.
    */
   private fun setupMediaSession() {
     runCatching {
-      mediaSession =
-        MediaSession(this, TAG).apply {
-          setCallback(
-            object : MediaSession.Callback() {
-              override fun onPlay() {
-                runIfActivePlaybackOwner {
-                  viewModel.unpause()
-                  updateMediaSessionPlaybackState(isPlaying = true)
-                }
-              }
-
-              override fun onPause() {
-                runIfActivePlaybackOwner {
-                  viewModel.pause()
-                  updateMediaSessionPlaybackState(isPlaying = false)
-                }
-              }
-
-              override fun onSeekTo(pos: Long) {
-                runIfActivePlaybackOwner {
-                  viewModel.seekTo((pos / 1000).toInt())
-                  updateMediaSessionPlaybackState(isPlaying = viewModel.paused == false)
-                }
-              }
-
-              override fun onSkipToNext() {
-                if (ownsPlaybackSession()) playNextQueueItem()
-              }
-
-              override fun onSkipToPrevious() {
-                if (ownsPlaybackSession()) playPreviousQueueItem()
-              }
-
-              override fun onStop() {
-                runIfActivePlaybackOwner {
-                  if (fileName.isNotBlank()) saveVideoPlaybackState(fileName, immediate = true)
-                  torrentStreamingEngine.stopStream()
-                  PlaybackSession.stop(clearQueue = false)
-                  mediaSession.setPlaybackState(
-                    PlaybackState.Builder().setState(PlaybackState.STATE_STOPPED, 0L, 0f).build(),
-                  )
-                }
-              }
-            },
-          )
-          isActive = shouldPublishActivityMediaSession() && !MediaPlaybackService.isNotificationOwnerReady()
-        }
-      playbackStateBuilder = PlaybackState.Builder()
-      mediaSessionInitialized = true
-      updateMediaSessionPlaybackState(isPlaying = PlaybackSession.getPropertyBoolean("pause") == false)
+      val session = MpvMedia3SessionManager(this, mediaSessionHost)
+      media3Session = session
+      session.setSessionActivity(buildActivityMediaSessionContentIntent())
+      session.setPublishing(shouldPublishActivityMediaSession() && !MediaPlaybackService.isNotificationOwnerReady())
+      session.refresh()
       lifecycleScope.launch {
         advancedPreferences.notificationStyle.changes().drop(1).collect {
           setActivityMediaSessionActive(!MediaPlaybackService.isNotificationOwnerReady())
         }
       }
     }.onFailure { e ->
-      Log.e(TAG, "Failed to initialize MediaSession", e)
-      mediaSessionInitialized = false
+      Log.e(TAG, "Failed to initialize Media3 session", e)
+      media3Session = null
     }
   }
 
   /**
-   * Updates MediaSession playback state (playing/paused).
+   * Republishes libmpv state to Android media controllers.
    *
-   * @param isPlaying true if currently playing, false if paused
+   * libmpv stays the source of truth: callers only report that something changed and the adapter
+   * re-reads playback state, position, duration, metadata and the queue by itself.
+   *
+   * @param updateContentIntent also repoints the notification and session tap target at the item
+   *   that is playing now.
    */
-  private fun updateMediaSessionPlaybackState(isPlaying: Boolean) {
-    if (!mediaSessionInitialized) return
+  private fun refreshMediaSession(updateContentIntent: Boolean = false) {
+    val session = media3Session ?: return
     if (Looper.myLooper() != Looper.getMainLooper()) {
-      runOnUiThread { updateMediaSessionPlaybackState(isPlaying) }
+      runOnUiThread { refreshMediaSession(updateContentIntent) }
       return
     }
     runCatching {
-      val phase = PlaybackSession.state.value.phase
-      val state =
-        when (phase) {
-          PlaybackPhase.LOADING, PlaybackPhase.INITIALIZING -> PlaybackState.STATE_BUFFERING
-          PlaybackPhase.IDLE, PlaybackPhase.STOPPING -> PlaybackState.STATE_STOPPED
-          PlaybackPhase.ERROR -> PlaybackState.STATE_ERROR
-          PlaybackPhase.UNINITIALIZED -> PlaybackState.STATE_NONE
-          PlaybackPhase.READY, PlaybackPhase.BACKGROUND ->
-            if (isPlaying) PlaybackState.STATE_PLAYING else PlaybackState.STATE_PAUSED
-        }
-      val positionMs = (viewModel.pos ?: 0) * 1000L
-      var actions = 0L
-      if (state != PlaybackState.STATE_STOPPED && state != PlaybackState.STATE_NONE && state != PlaybackState.STATE_ERROR) {
-        actions = PlaybackState.ACTION_PLAY_PAUSE or PlaybackState.ACTION_STOP or PlaybackState.ACTION_SEEK_TO
-        actions = actions or if (isPlaying) PlaybackState.ACTION_PAUSE else PlaybackState.ACTION_PLAY
-        if (PlaybackSession.hasPrevious()) actions = actions or PlaybackState.ACTION_SKIP_TO_PREVIOUS
-        if (PlaybackSession.hasNext()) actions = actions or PlaybackState.ACTION_SKIP_TO_NEXT
-      }
-      mediaSession.setPlaybackState(
-        playbackStateBuilder
-          .setActions(actions)
-          .setState(state, positionMs, if (state == PlaybackState.STATE_PLAYING) 1.0f else 0f)
-          .build(),
-      )
-    }.onFailure { e -> Log.e(TAG, "Error updating playback state", e) }
-  }
-
-  /**
-   * Updates MediaSession metadata (title, duration, etc.).
-   *
-   * @param title The media title
-   * @param durationMs The media duration in milliseconds
-   */
-  private fun updateMediaSessionMetadata(
-    title: String,
-    durationMs: Long,
-  ) {
-    if (!mediaSessionInitialized) return
-    if (Looper.myLooper() != Looper.getMainLooper()) {
-      runOnUiThread { updateMediaSessionMetadata(title, durationMs) }
-      return
-    }
-    runCatching {
-      val metadata =
-        MediaMetadata
-          .Builder()
-          .putString(MediaMetadata.METADATA_KEY_TITLE, title)
-          .putLong(MediaMetadata.METADATA_KEY_DURATION, durationMs)
-          .build()
-      mediaSession.setMetadata(metadata)
-      mediaSession.setSessionActivity(buildActivityMediaSessionContentIntent())
-    }.onFailure { e -> Log.e(TAG, "Error updating metadata", e) }
+      if (updateContentIntent) session.setSessionActivity(buildActivityMediaSessionContentIntent())
+      session.refresh()
+    }.onFailure { e -> Log.e(TAG, "Error updating Media3 session", e) }
   }
 
   private fun buildActivityMediaSessionContentIntent(): PendingIntent {
@@ -6519,27 +6526,33 @@ private suspend fun restorePlaybackPosition(state: PlaybackStateEntity?) {
       ?: true
 
   /**
-   * Releases MediaSession resources.
-   * Called during activity cleanup.
+   * Releases this Activity's Media3 session.
+   *
+   * libmpv belongs to [PlaybackSession] and keeps running, so releasing only withdraws the
+   * Android-facing surface this Activity published.
    */
   private fun releaseMediaSession() {
-    if (!mediaSessionInitialized) return
-    runCatching {
-      mediaSession.isActive = false
-      mediaSession.release()
-    }.onFailure { e -> Log.e(TAG, "Error releasing MediaSession", e) }
-    mediaSessionInitialized = false
+    val session = media3Session ?: return
+    media3Session = null
+    runCatching { session.release() }.onFailure { e -> Log.e(TAG, "Error releasing Media3 session", e) }
   }
 
   private fun setActivityMediaSessionActive(active: Boolean) {
-    val resolvedActive = active && shouldPublishActivityMediaSession()
-    if (!mediaSessionInitialized || mediaSession.isActive == resolvedActive) return
+    val session = media3Session ?: return
     runCatching {
-      mediaSession.isActive = resolvedActive
-      if (resolvedActive) {
-        updateMediaSessionPlaybackState(isPlaying = PlaybackSession.getPropertyBoolean("pause") == false)
-      }
-    }.onFailure { error -> Log.e(TAG, "Error changing Activity MediaSession ownership", error) }
+      val resolvedActive = active && shouldPublishActivityMediaSession()
+      session.setPublishing(resolvedActive)
+      if (resolvedActive) refreshMediaSession()
+    }.onFailure { error -> Log.e(TAG, "Error changing Activity Media3 session ownership", error) }
+  }
+
+  /**
+   * Stops playback for an external controller, the way the previous session's stop command did.
+   */
+  private fun stopPlaybackForExternalController() {
+    if (fileName.isNotBlank()) saveVideoPlaybackState(fileName, immediate = true)
+    torrentStreamingEngine.stopStream()
+    PlaybackSession.stop(clearQueue = false)
   }
 
   // ==================== Background Playback Service ====================
@@ -7159,13 +7172,9 @@ private suspend fun restorePlaybackPosition(state: PlaybackStateEntity?) {
     lifecycleScope.launch(Dispatchers.IO) {
       kotlinx.coroutines.delay(100) // Wait for MPV to load the file
       if (!isCurrentMediaRequest(requestGeneration)) return@launch
-      val durationMs = (PlaybackSession.getPropertyDouble("duration")?.times(1000))?.toLong() ?: 0L
       withContext(Dispatchers.Main) {
         if (!isCurrentMediaRequest(requestGeneration)) return@withContext
-        updateMediaSessionMetadata(
-          title = fileName,
-          durationMs = durationMs,
-        )
+        refreshMediaSession(updateContentIntent = true)
         syncBackgroundPlaybackService(updateThumbnail = true)
         // Refresh playlist items to update the currently playing indicator
         viewModel.refreshPlaylistItems()
