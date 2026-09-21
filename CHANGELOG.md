@@ -1,6 +1,40 @@
 # Changelog
 
 These notes are written in plain English and focus on what changed for real use.
+
+## 1.1.0
+
+The first stable QuantumMPV release since 1.0.0. It rolls the 1.1.0 preview work into one
+signed build, catches up with the upstream **mpvRx v2.5.0 and v2.6.0** releases, and adds
+emulator and static-analysis coverage to CI.
+
+### Upstream sync (mpvRx v2.5.0 → v2.6.0)
+
+- **Merged upstream v2.5.0 and v2.6.0** on a dedicated sync branch, resolving conflicts in
+  favor of QuantumMPV branding, the `com.quantummpv.app` application ID, updater asset
+  names, Jellyfin HTTP safeguards, and Room database migrations.
+- **1.x line preserved**: upstream's 2.x version numbers are never adopted; QuantumMPV keeps
+  its own 1.x release sequence.
+
+### Tests and CI
+
+- **Instrumented tests on emulators**: a new `Instrumented tests` workflow runs the Android
+  instrumentation suite on API 30 and API 34 emulators for every pull request.
+- **Unit tests**: added coverage for subtitle title matching, intent subtitle load policy,
+  and episode scope matching.
+- **Static analysis**: added a ktlint + detekt workflow so Kotlin style and code-quality
+  issues surface in CI.
+- **Changelog hygiene**: trimmed this file to QuantumMPV history, keeping the older upstream
+  notes available in git history.
+
+### Appearance (1.1.0 preview roll-up)
+
+- **Focused Liquid Glass**: kept Liquid Glass as an opt-in treatment for the bottom
+  navigation only, with solid defaults preserved and a small, performant spring bounce when
+  the selected tab changes.
+- **Opt-in glass preferences**: Glass-style cards and Glass bottom navigation remain
+  independent, opt-in switches; the default appearance stays solid.
+
 ## 1.1.0-preview.12 — Focused navigation polish
 
 - **Focused Liuid Glass**: Kept Liquid Glass as an opt-in treatment for the bottom navigation only.

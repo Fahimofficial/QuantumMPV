@@ -379,6 +379,47 @@ For help, reproducible bug reports, or feature suggestions, start with the [supp
 
 ---
 
+## Releases & versions
+
+QuantumMPV ships its own **1.x release line**. Stable builds are published on the
+[Releases](https://github.com/Fahimofficial/QuantumMPV/releases) page; previews use
+`-preview.N` tags on the same page.
+
+### Download the right APK
+
+Each release publishes one APK per architecture plus a universal package, named
+`QuantumMPV-<architecture>-<version>.apk`. For the stable `v1.1.0` release, pick the row
+that matches your device:
+
+| Your device | Install this file |
+|---|---|
+| Most modern phones (64-bit ARM) | `QuantumMPV-arm64-v8a-v1.1.0.apk` |
+| Older 32-bit ARM devices | `QuantumMPV-armeabi-v7a-v1.1.0.apk` |
+| 64-bit Intel/AMD tablets or TV boxes | `QuantumMPV-x86_64-v1.1.0.apk` |
+| 32-bit Intel/AMD devices | `QuantumMPV-x86-v1.1.0.apk` |
+| Not sure, or any supported device | `QuantumMPV-universal-v1.1.0.apk` |
+
+Alternative native profiles are also published per stable release:
+
+| Profile | Install this file |
+|---|---|
+| FongMi MediaCodec/Vulkan/Dolby Vision backend | `QuantumMPV-fongmi-v1.1.0.apk` |
+| OpenGL-only, for devices without stable Vulkan | `QuantumMPV-no-vulkan-v1.1.0.apk` |
+
+Every release includes a `checksums.txt` with SHA-256 hashes for all assets. Only install
+APKs published on this repository's Releases page, and verify the checksum if you have any
+doubt about a mirror. QuantumMPV does not distribute builds anywhere else.
+
+### Upstream lineage
+
+QuantumMPV is an independent continuation and rebrand of the
+[mpvRx](https://github.com/Riteshp2001/mpvRx) codebase, maintained by **FAHIM**. It tracks
+upstream quality fixes while keeping its own application ID (`com.quantummpv.app`), branding,
+updater asset names, and **1.x version sequence** — upstream's 2.x version numbers are never
+adopted. See [CITATION.md](CITATION.md) for upstream and library credits.
+
+---
+
 ## Build
 
 ### Requirements
