@@ -88,9 +88,9 @@ class MpvMedia3Player(
     val playlist = playlistFor(queueState, snapshot.durationMs)
     val playbackState = playbackStateFor(snapshot.playbackState, playlist.isEmpty())
 
-    val stateBuilder =
-      SimpleBasePlayer.State.Builder()
-        .setAvailableCommands(commandsFor(snapshot.capabilities))
+    val stateBuilder = SimpleBasePlayer.State.Builder()
+    stateBuilder
+      .setAvailableCommands(commandsFor(snapshot.capabilities))
         .setPlayWhenReady(snapshot.playWhenReady, Player.PLAY_WHEN_READY_CHANGE_REASON_USER_REQUEST)
         .setIsLoading(snapshot.isLoading && playbackState == Player.STATE_BUFFERING)
         .setPlaybackState(playbackState)
@@ -272,8 +272,7 @@ class MpvMedia3Player(
           .setMediaId(item.stableId)
           .setMediaMetadata(metadata)
           .build(),
-      )
-      .setMediaMetadata(metadata)
+      ).setMediaMetadata(metadata)
       .setDurationUs(durationMs.toMicrosOrTimeUnset())
       .setIsSeekable(durationMs > 0L)
       .build()
@@ -284,11 +283,10 @@ class MpvMedia3Player(
     durationMs: Long,
     artworkBytes: ByteArray?,
   ): MediaMetadata {
+    val mpvTitle = PlaybackSession.propString[PROPERTY_TITLE].value
     val title =
       item.title?.let(FileTypeUtils::stripExtension)?.takeIf(String::isNotBlank)
-        ?: PlaybackSession.propString[PROPERTY_TITLE].value
-          ?.let(FileTypeUtils::stripExtension)
-          ?.takeIf(String::isNotBlank)
+        ?: mpvTitle?.let(FileTypeUtils::stripExtension)?.takeIf(String::isNotBlank)
         ?: context.getString(R.string.player_unknown_video)
     val artist =
       item.artist?.takeIf(String::isNotBlank)
