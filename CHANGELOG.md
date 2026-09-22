@@ -1,6 +1,12 @@
 # Changelog
 
 These notes are written in plain English and focus on what changed for real use.
+## Unreleased
+
+- **Playback classification**: Hardened audio/video selection so an empty or still-loading queue cannot reuse stale audio controls, and unknown media is classified only after the active libmpv session is ready.
+- **Quality gate**: Made detekt blocking while retaining always-run reporting; ktlint remains advisory while existing formatting findings are reduced.
+- **Upstream synchronization**: Confirmed the v2.5.0 settings-restore safeguard is already present and ported the relevant v2.6.0 media-classification and version-code safeguards without importing unrelated upstream product changes.
+
 ## 1.1.0-preview.12 — Focused navigation polish
 
 - **Focused Liuid Glass**: Kept Liquid Glass as an opt-in treatment for the bottom navigation only.

@@ -25,10 +25,6 @@ jobs:
     name: ktlint + detekt
     runs-on: ubuntu-latest
     timeout-minutes: 30
-    # Non-blocking while the baseline is being tuned. To turn this job into a required
-    # quality gate, drop this line and remove `continue-on-error` from the ktlint and
-    # detekt steps once both suites report clean on master.
-    continue-on-error: true
 
     steps:
       - name: Check out source
@@ -58,7 +54,6 @@ jobs:
       - name: detekt
         id: detekt
         if: ${{ always() }}
-        continue-on-error: true
         run: |
           mkdir -p app/build/reports/detekt
           java -jar /tmp/detekt-cli.jar --input app/src --config config/detekt/detekt.yml --report txt:app/build/reports/detekt/detekt.txt
