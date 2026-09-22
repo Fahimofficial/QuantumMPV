@@ -25,8 +25,9 @@ jobs:
     name: ktlint + detekt
     runs-on: ubuntu-latest
     timeout-minutes: 30
-    # Non-blocking while the baseline is being tuned; remove this line once the
-    # job is green on master to make it a required quality gate.
+    # Non-blocking while the baseline is being tuned. To turn this job into a required
+    # quality gate, drop this line and remove `continue-on-error` from the ktlint and
+    # detekt steps once both suites report clean on master.
     continue-on-error: true
 
     steps:
@@ -43,16 +44,33 @@ jobs:
       - name: Make Gradle wrapper executable
         run: chmod +x ./gradlew
 
+      # Both steps keep going so a single run always reports ktlint *and* detekt findings
+      # instead of stopping at the first tool that has anything to say.
       - name: ktlint
+        id: ktlint
+        continue-on-error: true
         run: ./gradlew :app:ktlintCheck ktlintKotlinScriptCheck --stacktrace --no-daemon --max-workers=1
 
       - name: Download detekt CLI
+        if: ${{ always() }}
         run: curl -fsSL -o /tmp/detekt-cli.jar https://github.com/detekt/detekt/releases/download/v1.23.8/detekt-cli-1.23.8-all.jar
 
       - name: detekt
+        id: detekt
+        if: ${{ always() }}
+        continue-on-error: true
         run: |
           mkdir -p app/build/reports/detekt
           java -jar /tmp/detekt-cli.jar --input app/src --config config/detekt/detekt.yml --report txt:app/build/reports/detekt/detekt.txt
+
+      - name: Summarise findings
+        if: ${{ always() }}
+        run: |
+          echo "ktlint: ${{ steps.ktlint.outcome }}"
+          echo "detekt: ${{ steps.detekt.outcome }}"
+          if [ -f app/build/reports/detekt/detekt.txt ]; then
+            echo "detekt findings: $(grep -c '^[^ ]' app/build/reports/detekt/detekt.txt || true)"
+          fi
 
       - name: Upload reports
         if: ${{ always() }}
