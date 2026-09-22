@@ -32,12 +32,12 @@ emulator and static-analysis coverage to CI.
 - **Focused Liquid Glass**: kept Liquid Glass as an opt-in treatment for the bottom
   navigation only, with solid defaults preserved and a small, performant spring bounce when
   the selected tab changes.
-- **Opt-in glass preferences**: Glass-style cards and Glass bottom navigation remain
-  independent, opt-in switches; the default appearance stays solid.
+- **Opt-in Glass navigation**: Liquid Glass is limited to an independent bottom-navigation
+  switch; cards and other app surfaces retain the solid default appearance.
 
 ## 1.1.0-preview.12 — Focused navigation polish
 
-- **Focused Liuid Glass**: Kept Liquid Glass as an opt-in treatment for the bottom navigation only.
+- **Focused Liquid Glass**: Kept Liquid Glass as an opt-in treatment for the bottom navigation only.
 - **Solid defaults preserved**: Removed the app-wide backdrop, glass preference cards, strength slider, transparency fallback, and live preview.
 - **Spring tab bounce**: Selected bottom-navigation items now use a small, performant bounce when selection changes, while respecting the existing navigation animation setting.
 
