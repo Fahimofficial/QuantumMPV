@@ -31,17 +31,13 @@ import android.os.Build
 import android.os.IBinder
 import android.os.SystemClock
 import android.support.v4.media.MediaBrowserCompat
-import android.support.v4.media.MediaDescriptionCompat
-import android.support.v4.media.MediaMetadataCompat
-import android.support.v4.media.session.MediaSessionCompat
-import android.support.v4.media.session.PlaybackStateCompat
 import android.util.Log
+import android.view.KeyEvent
 import androidx.core.app.NotificationCompat
 import androidx.core.app.ServiceCompat
 import androidx.core.content.ContextCompat
 import androidx.core.graphics.ColorUtils
 import androidx.media.MediaBrowserServiceCompat
-import androidx.media.session.MediaButtonReceiver
 import com.quantummpv.app.R
 import com.quantummpv.app.database.entities.PlaybackStateEntity
 import com.quantummpv.app.database.repository.PlaylistRepository
@@ -54,6 +50,8 @@ import com.quantummpv.app.preferences.BrowserPreferences
 import com.quantummpv.app.preferences.GesturePreferences
 import com.quantummpv.app.preferences.PlayerPreferences
 import com.quantummpv.app.ui.icons.Icons
+import com.quantummpv.app.ui.player.media3.MpvMedia3SessionHost
+import com.quantummpv.app.ui.player.media3.MpvMedia3SessionManager
 import com.quantummpv.app.utils.media.PlaybackStateEvents
 import com.quantummpv.app.utils.storage.FileTypeUtils
 import `is`.xyz.mpv.MPVLib
@@ -74,6 +72,7 @@ import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 import org.koin.core.component.KoinComponent
 import org.koin.core.component.inject
+import java.io.ByteArrayOutputStream
 import java.lang.ref.WeakReference
 import java.util.Locale
 import kotlin.math.abs
@@ -97,7 +96,10 @@ class MediaPlaybackService :
     private const val PLAYBACK_STATE_SAVE_INTERVAL_MS = 5000L
     private const val PROGRESS_NOTIFICATION_UPDATE_INTERVAL_MS = 2000L
     private const val MEDIA_NOTIFICATION_UPDATE_INTERVAL_MS = 1000L
-    private const val MAX_MEDIA_SESSION_QUEUE_ITEMS = 200
+    private const val MILLIS_PER_SECOND = 1000L
+    // Published session artwork is downscaled and re-encoded to stay within Media3's expectations.
+    private const val ARTWORK_MAX_DIMENSION = 512
+    private const val ARTWORK_JPEG_QUALITY = 85
     private const val VIDEO_CONTENT_INTENT_REQUEST_CODE = 1100
     private const val AUDIO_CONTENT_INTENT_REQUEST_CODE = 1101
     private val DEFAULT_ACCENT_COLOR = Color.rgb(214, 220, 228)
@@ -219,7 +221,12 @@ class MediaPlaybackService :
   }
 
   private val binder = MediaPlaybackBinder()
-  private lateinit var mediaSession: MediaSessionCompat
+
+  /**
+   * Media3 provides only the Android-facing session; libmpv stays the playback engine. See
+   * [MpvMedia3SessionManager] for the boundary this service keeps.
+   */
+  private lateinit var mediaSession: MpvMedia3SessionManager
   private val playerPreferences: PlayerPreferences by inject()
   private val advancedPreferences: AdvancedPreferences by inject()
   private val audioPreferences: AudioPreferences by inject()
@@ -236,8 +243,12 @@ class MediaPlaybackService :
   private var activeArtworkUri: String? = null
   private var paused = false
   private var playbackSpeed = 1.0f
-  private var activeQueueItemId: Long = MediaSessionCompat.QueueItem.UNKNOWN_ID.toLong()
-  private var publishedQueueIndexes: Map<Long, Int> = emptyMap()
+
+  // Encoded artwork handed to Media3. The decoded Bitmap stays private to this service so no
+  // artwork URI (and therefore no provider credential) is published to external controllers.
+  @Volatile
+  private var artworkBytes: ByteArray? = null
+  private var artworkBytesJob: Job? = null
 
   // Playlist state — mirrored from PlayerActivity so the notification intent can restore it
   private var notificationIsAudio: Boolean = false
@@ -332,6 +343,107 @@ class MediaPlaybackService :
       }
     }
 
+  /**
+   * The Media3 integration layer's view of this service.
+   *
+   * Every hook maps onto a private method the player UI and the notification actions already use,
+   * so external controllers cannot reach behavior QuantumMPV does not expose, and every ownership,
+   * audio-focus, and gesture-policy decision stays in this service.
+   */
+  private val media3Host =
+    object : MpvMedia3SessionHost {
+      override fun canApplyTransportCommands(): Boolean = canHandleTransportAction()
+
+      override fun seekIncrementMillis(): Long =
+        gesturePreferences.doubleTapToSeekDuration.get().toLong() * MILLIS_PER_SECOND
+
+      override fun currentArtworkBytes(): ByteArray? = artworkBytes
+
+      override fun onPlayRequested() {
+        handleMediaPlayAction(shouldPlay = true)
+      }
+
+      override fun onPauseRequested() {
+        handleMediaPlayAction(shouldPlay = false)
+      }
+
+      override fun onStopRequested() {
+        if (!canHandleTransportAction()) return
+        stopPlaybackAndService()
+      }
+
+      override fun onSkipToNextRequested() {
+        playNextFromSession()
+      }
+
+      override fun onSkipToPreviousRequested() {
+        playPreviousFromSession()
+      }
+
+      override fun onSeekToItemRequested(index: Int) {
+        if (!canHandleTransportAction()) return
+        schedulePlaybackStateSave(force = true)
+        PlaybackSession.playQueueItem(index)?.let(::applySessionItem)
+      }
+
+      override fun onSeekToPositionRequested(positionMs: Long) {
+        if (!canHandleTransportAction()) return
+        val duration = sanitizedDurationMs()
+        val resolvedPosition = positionMs.coerceIn(0L, duration.takeIf { it > 0L } ?: Long.MAX_VALUE)
+        currentPositionSeconds = resolvedPosition / MILLIS_PER_SECOND.toDouble()
+        PlaybackSession.setPropertyDouble("time-pos", currentPositionSeconds)
+        refreshTransportControls()
+      }
+
+      override fun onIncrementalSeekRequested(direction: Int) {
+        if (!canHandleTransportAction()) return
+        seekByConfiguredInterval(direction)
+      }
+
+      /** Playback speed is a real libmpv property, so a controller request is applied verbatim. */
+      override fun onSetPlaybackSpeedRequested(speed: Float) {
+        if (!canHandleTransportAction()) return
+        val resolvedSpeed = speed.takeIf { it.isFinite() && it > 0f } ?: return
+        PlaybackSession.setPropertyDouble("speed", resolvedSpeed.toDouble())
+        refreshTransportControls()
+      }
+
+      override fun onSetShuffleRequested(enabled: Boolean) {
+        if (!canHandleDetachedTransport()) return
+        PlaybackSession.setShuffleEnabled(enabled)
+      }
+
+      override fun onCustomSessionAction(action: String) {
+        if (!canHandleTransportAction()) return
+        when (action) {
+          MpvMedia3SessionManager.CUSTOM_ACTION_FAVORITE -> toggleCurrentMediaNotificationFavorite()
+          MpvMedia3SessionManager.CUSTOM_ACTION_CLOSE -> stopPlaybackAndService(force = true)
+        }
+      }
+
+      /**
+       * Media buttons stay inside QuantumMPV's own handling so the user's configured media-button
+       * gestures keep working instead of Media3 turning every button into a transport command.
+       */
+      override fun onMediaButtonIntent(intent: Intent): Boolean {
+        if (intent.action != Intent.ACTION_MEDIA_BUTTON) return false
+        val event = intent.getParcelableExtra(Intent.EXTRA_KEY_EVENT) as? KeyEvent ?: return false
+        if (event.action != KeyEvent.ACTION_DOWN || event.repeatCount > 0) return true
+        when (event.keyCode) {
+          KeyEvent.KEYCODE_MEDIA_PLAY -> handleMediaPlayAction(shouldPlay = true)
+          KeyEvent.KEYCODE_MEDIA_PAUSE -> handleMediaPlayAction(shouldPlay = false)
+          KeyEvent.KEYCODE_MEDIA_PLAY_PAUSE,
+          KeyEvent.KEYCODE_HEADSETHOOK,
+          -> togglePlaybackFromNotification()
+          KeyEvent.KEYCODE_MEDIA_NEXT -> handleMediaNextAction()
+          KeyEvent.KEYCODE_MEDIA_PREVIOUS -> handleMediaPreviousAction()
+          KeyEvent.KEYCODE_MEDIA_STOP -> stopPlaybackAndService()
+          else -> return false
+        }
+        return true
+      }
+    }
+
   inner class MediaPlaybackBinder : Binder() {
     fun getService() = this@MediaPlaybackService
   }
@@ -340,7 +452,7 @@ class MediaPlaybackService :
 
   private fun deactivateMediaSession() {
     foregroundReady = false
-    if (::mediaSession.isInitialized) mediaSession.isActive = false
+    if (::mediaSession.isInitialized) mediaSession.setPublishing(false)
   }
 
   override fun onCreate() {
@@ -470,7 +582,7 @@ class MediaPlaybackService :
           stopPlaybackAndService(force = true)
           return START_NOT_STICKY
         }
-        else -> MediaButtonReceiver.handleIntent(mediaSession, it)
+        else -> mediaSession.handleMediaButtonIntent(it)
       }
 
       val title = it.getStringExtra("media_title")
@@ -541,7 +653,7 @@ class MediaPlaybackService :
 
     if (!startForegroundNotification()) {
       foregroundReady = false
-      mediaSession.isActive = false
+      mediaSession.setPublishing(false)
       stopSelf(startId)
       return START_NOT_STICKY
     }
@@ -626,7 +738,55 @@ class MediaPlaybackService :
     thumbnail = ownedCopy
     if (lastPaletteThumbnail === previous) lastPaletteThumbnail = null
     previous?.takeIf { it !== ownedCopy && !it.isRecycled }?.recycle()
-    return previous !== ownedCopy
+    val changed = previous !== ownedCopy
+    if (changed) publishArtworkBytes(ownedCopy)
+    return changed
+  }
+
+  /**
+   * Publishes the current artwork to Media3 as encoded bytes, off the main thread.
+   *
+   * Controllers receive image data instead of the item's artwork URI, so provider credentials
+   * cannot leak through the media session.
+   */
+  private fun publishArtworkBytes(source: Bitmap?) {
+    artworkBytesJob?.cancel()
+    artworkBytesJob = null
+    if (source == null) {
+      artworkBytes = null
+      updateMediaSessionPlaybackState()
+      return
+    }
+    artworkBytesJob =
+      serviceScope.launch {
+        val encoded = withContext(Dispatchers.IO) { encodeArtwork(source) }
+        artworkBytes = encoded
+        updateMediaSessionPlaybackState()
+      }
+  }
+
+  private fun encodeArtwork(source: Bitmap): ByteArray? {
+    val scaled = scaledArtwork(source) ?: return null
+    return try {
+      ByteArrayOutputStream().use { stream ->
+        scaled.compress(Bitmap.CompressFormat.JPEG, ARTWORK_JPEG_QUALITY, stream)
+        stream.toByteArray()
+      }
+    } catch (_: Exception) {
+      null
+    } finally {
+      if (scaled !== source && !scaled.isRecycled) scaled.recycle()
+    }
+  }
+
+  private fun scaledArtwork(source: Bitmap): Bitmap? {
+    if (source.isRecycled) return null
+    val largestDimension = maxOf(source.width, source.height)
+    if (largestDimension <= ARTWORK_MAX_DIMENSION) return source
+    val scale = ARTWORK_MAX_DIMENSION.toFloat() / largestDimension
+    val width = (source.width * scale).toInt().coerceAtLeast(1)
+    val height = (source.height * scale).toInt().coerceAtLeast(1)
+    return runCatching { Bitmap.createScaledBitmap(source, width, height, true) }.getOrNull()
   }
 
   fun setPlaylistInfo(isAudio: Boolean) {
@@ -878,13 +1038,8 @@ class MediaPlaybackService :
 
   private fun syncQueueState(queueState: PlaybackQueueState) {
     if (!::mediaSession.isInitialized) return
-    publishMediaSessionQueue(queueState)
-    // Repeat mode remains a player/queue feature, but is intentionally not published through
-    // MediaSession so the Media notification cannot expose Repeat / Repeat One / Repeat All.
-    mediaSession.setShuffleMode(
-      if (queueState.shuffleEnabled) PlaybackStateCompat.SHUFFLE_MODE_ALL else PlaybackStateCompat.SHUFFLE_MODE_NONE,
-    )
-
+    // The queue reaches Media3 through the adapter's timeline, and repeat mode stays a player/queue
+    // feature so the Media notification cannot expose Repeat / Repeat One / Repeat All.
     val currentItem = queueState.currentItem
     val currentTitle =
       currentItem?.title?.let { FileTypeUtils.stripExtension(it) }.orEmpty().ifBlank {
@@ -902,57 +1057,6 @@ class MediaPlaybackService :
       refreshTransportControls()
     }
   }
-
-  private fun publishMediaSessionQueue(queueState: PlaybackQueueState) {
-    if (queueState.items.isEmpty()) {
-      publishedQueueIndexes = emptyMap()
-      activeQueueItemId = MediaSessionCompat.QueueItem.UNKNOWN_ID.toLong()
-      mediaSession.setQueue(emptyList<MediaSessionCompat.QueueItem>())
-      return
-    }
-
-    val halfWindow = MAX_MEDIA_SESSION_QUEUE_ITEMS / 2
-    val firstIndex =
-      (queueState.currentIndex - halfWindow)
-        .coerceAtLeast(0)
-        .coerceAtMost((queueState.items.size - MAX_MEDIA_SESSION_QUEUE_ITEMS).coerceAtLeast(0))
-    val lastExclusive = (firstIndex + MAX_MEDIA_SESSION_QUEUE_ITEMS).coerceAtMost(queueState.items.size)
-    val usedIds = mutableSetOf<Long>()
-    val indexesById = LinkedHashMap<Long, Int>(lastExclusive - firstIndex)
-    val published =
-      (firstIndex until lastExclusive).map { index ->
-        val item = queueState.items[index]
-        var queueId = stableQueueId(item)
-        if (queueId == MediaSessionCompat.QueueItem.UNKNOWN_ID.toLong()) queueId = 0L
-        while (!usedIds.add(queueId)) {
-          queueId++
-          if (queueId == MediaSessionCompat.QueueItem.UNKNOWN_ID.toLong()) queueId++
-        }
-        indexesById[queueId] = index
-        MediaSessionCompat.QueueItem(
-          MediaDescriptionCompat
-            .Builder()
-            .setMediaId(item.stableId)
-            .setTitle(item.title?.takeIf { it.isNotBlank() } ?: getString(R.string.player_unknown_video))
-            .setSubtitle(item.artist?.takeIf { it.isNotBlank() })
-            .build(),
-          queueId,
-        )
-      }
-
-    publishedQueueIndexes = indexesById
-    activeQueueItemId = indexesById.entries.firstOrNull { it.value == queueState.currentIndex }?.key
-      ?: MediaSessionCompat.QueueItem.UNKNOWN_ID.toLong()
-    mediaSession.setQueue(published)
-  }
-
-  private fun stableQueueId(item: PlaybackItem): Long =
-    item.stableId
-      .substringAfterLast(':')
-      .take(16)
-      .toULongOrNull(16)
-      ?.toLong()
-      ?: item.stableId.hashCode().toLong()
 
   private fun refreshTransportControls() {
     updateMediaSessionPlaybackState()
@@ -975,13 +1079,7 @@ class MediaPlaybackService :
     torrentStreamingEngine.stopStream()
     PlaybackSession.stop(clearQueue = true)
     paused = true
-    mediaSession.setPlaybackState(
-      PlaybackStateCompat
-        .Builder()
-        .setActions(0L)
-        .setState(PlaybackStateCompat.STATE_STOPPED, sanitizedPositionMs(), 0f, SystemClock.elapsedRealtime())
-        .build(),
-    )
+    updateMediaSessionPlaybackState()
     abandonAudioOwnership()
     stopForegroundNotification()
     stopSelf()
@@ -1029,83 +1127,17 @@ class MediaPlaybackService :
     }
   }
 
+  /**
+   * Creates the Media3 session that replaces the legacy `MediaSessionCompat`.
+   *
+   * Transport commands no longer arrive as a long list of session callbacks; Media3 drives
+   * [com.quantummpv.app.ui.player.media3.MpvMedia3Player], and that adapter consults [media3Host]
+   * for every ownership, audio focus, and gesture-policy decision it must respect.
+   */
   private fun setupMediaSession() {
-    mediaSession =
-      MediaSessionCompat(this, TAG).apply {
-        setCallback(
-          object : MediaSessionCompat.Callback() {
-            override fun onPlay() {
-              if (!canHandleTransportAction()) return
-              Log.d(TAG, "onPlay called")
-              handleMediaPlayAction(shouldPlay = true)
-            }
-
-            override fun onPause() {
-              if (!canHandleTransportAction()) return
-              Log.d(TAG, "onPause called")
-              handleMediaPlayAction(shouldPlay = false)
-            }
-
-            override fun onStop() {
-              if (!canHandleTransportAction()) return
-              Log.d(TAG, "onStop called")
-              stopPlaybackAndService()
-            }
-
-            override fun onSkipToNext() {
-              if (!canHandleTransportAction()) return
-              Log.d(TAG, "onSkipToNext called")
-              playNextFromSession()
-            }
-
-            override fun onSkipToPrevious() {
-              if (!canHandleTransportAction()) return
-              Log.d(TAG, "onSkipToPrevious called")
-              playPreviousFromSession()
-            }
-
-            override fun onSkipToQueueItem(id: Long) {
-              if (!canHandleTransportAction()) return
-              val index = publishedQueueIndexes[id] ?: return
-              schedulePlaybackStateSave(force = true)
-              PlaybackSession.playQueueItem(index)?.let(::applySessionItem)
-            }
-
-            override fun onSeekTo(pos: Long) {
-              if (!canHandleTransportAction()) return
-              Log.d(TAG, "onSeekTo called: $pos")
-              val duration = sanitizedDurationMs()
-              val resolvedPosition = pos.coerceIn(0L, duration.takeIf { it > 0L } ?: Long.MAX_VALUE)
-              currentPositionSeconds = resolvedPosition / 1000.0
-              PlaybackSession.setPropertyDouble("time-pos", currentPositionSeconds)
-              refreshTransportControls()
-            }
-
-            override fun onSetShuffleMode(shuffleMode: Int) {
-              if (!canHandleDetachedTransport()) return
-              when (shuffleMode) {
-                PlaybackStateCompat.SHUFFLE_MODE_NONE -> PlaybackSession.setShuffleEnabled(false)
-                PlaybackStateCompat.SHUFFLE_MODE_ALL -> PlaybackSession.setShuffleEnabled(true)
-              }
-            }
-
-            override fun onCustomAction(
-              action: String?,
-              extras: android.os.Bundle?,
-            ) {
-              if (!canHandleTransportAction()) return
-              when (action) {
-                ACTION_NOTIFICATION_MEDIA_FAVORITE -> toggleCurrentMediaNotificationFavorite()
-                ACTION_NOTIFICATION_CLOSE -> stopPlaybackAndService(force = true)
-              }
-            }
-          },
-        )
-
-        setPlaybackToLocal(AudioManager.STREAM_MUSIC)
-        isActive = false
-      }
-    sessionToken = mediaSession.sessionToken
+    mediaSession = MpvMedia3SessionManager(this, media3Host)
+    mediaSession.setSessionActivity(buildContentIntent())
+    sessionToken = mediaSession.mediaStyleToken
   }
 
   private fun canHandleDetachedTransport(): Boolean =
@@ -1132,80 +1164,37 @@ class MediaPlaybackService :
    */
   private fun syncMediaSessionVisibility() {
     if (!::mediaSession.isInitialized) return
-    mediaSession.isActive = foregroundReady && currentNotificationStyle() == NotificationStyle.Media
+    mediaSession.setPublishing(foregroundReady && currentNotificationStyle() == NotificationStyle.Media)
   }
 
+  /**
+   * Repoints the session at the current item.
+   *
+   * The metadata itself is read from libmpv by the adapter on every state read, so publication here
+   * is limited to the notification tap target plus one refresh.
+   */
   private fun updateMediaSessionMetadata() {
+    if (!::mediaSession.isInitialized) return
     try {
-      val title = mediaTitle.ifBlank { getString(R.string.player_unknown_video) }
-      val metadataBuilder =
-        MediaMetadataCompat
-          .Builder()
-          .putString(MediaMetadataCompat.METADATA_KEY_MEDIA_ID, mediaIdentifier)
-          .putString(MediaMetadataCompat.METADATA_KEY_TITLE, title)
-          .putString(MediaMetadataCompat.METADATA_KEY_ARTIST, mediaArtist)
-          .putString(MediaMetadataCompat.METADATA_KEY_DISPLAY_TITLE, title)
-          .putLong(MediaMetadataCompat.METADATA_KEY_DURATION, sanitizedDurationMs())
-
-      thumbnail?.let {
-        metadataBuilder.putBitmap(MediaMetadataCompat.METADATA_KEY_ALBUM_ART, it)
-        metadataBuilder.putBitmap(MediaMetadataCompat.METADATA_KEY_DISPLAY_ICON, it)
-      }
-      mediaSession.setMetadata(metadataBuilder.build())
       mediaSession.setSessionActivity(buildContentIntent())
+      mediaSession.refresh()
     } catch (e: Exception) {
       Log.e(TAG, "Error updating MediaSession metadata", e)
     }
   }
 
+  /**
+   * Republishes libmpv state to Media3.
+   *
+   * Available commands, playback state, metadata, and the queue are all derived from the live
+   * libmpv session by the adapter, so the previous hand-built action and queue publication is no
+   * longer needed. The advertised surface is decided by
+   * [com.quantummpv.app.ui.player.media3.MpvMedia3CommandPolicy] instead.
+   */
   private fun updateMediaSessionPlaybackState() {
+    if (!::mediaSession.isInitialized) return
     try {
-      val duration = sanitizedDurationMs()
-      var actions =
-        PlaybackStateCompat.ACTION_PLAY_PAUSE or
-          PlaybackStateCompat.ACTION_STOP
-      actions = actions or if (paused) PlaybackStateCompat.ACTION_PLAY else PlaybackStateCompat.ACTION_PAUSE
-      if (duration > 0L) actions = actions or PlaybackStateCompat.ACTION_SEEK_TO
-      if (PlaybackSession.hasPrevious()) actions = actions or PlaybackStateCompat.ACTION_SKIP_TO_PREVIOUS
-      if (PlaybackSession.hasNext()) actions = actions or PlaybackStateCompat.ACTION_SKIP_TO_NEXT
-
-      val state =
-        when (PlaybackSession.state.value.phase) {
-          PlaybackPhase.LOADING, PlaybackPhase.INITIALIZING -> PlaybackStateCompat.STATE_BUFFERING
-          PlaybackPhase.UNINITIALIZED -> PlaybackStateCompat.STATE_NONE
-          PlaybackPhase.IDLE, PlaybackPhase.STOPPING -> PlaybackStateCompat.STATE_STOPPED
-          PlaybackPhase.ERROR -> PlaybackStateCompat.STATE_ERROR
-          PlaybackPhase.READY, PlaybackPhase.BACKGROUND ->
-            if (paused) PlaybackStateCompat.STATE_PAUSED else PlaybackStateCompat.STATE_PLAYING
-        }
-      if (
-        state == PlaybackStateCompat.STATE_STOPPED ||
-        state == PlaybackStateCompat.STATE_NONE ||
-        state == PlaybackStateCompat.STATE_ERROR
-      ) {
-        actions = 0L
-      }
-      val stateSpeed = if (state == PlaybackStateCompat.STATE_PLAYING) playbackSpeed else 0f
-      val stateBuilder =
-        PlaybackStateCompat
-          .Builder()
-          .setActions(actions)
-          .setActiveQueueItemId(activeQueueItemId)
-          .setState(state, sanitizedPositionMs(), stateSpeed, SystemClock.elapsedRealtime())
-      if (actions != 0L && currentNotificationStyle() == NotificationStyle.Media) {
-        val favoriteLabel = favoriteActionLabel()
-        stateBuilder.addCustomAction(
-          PlaybackStateCompat.CustomAction
-            .Builder(ACTION_NOTIFICATION_MEDIA_FAVORITE, favoriteLabel, favoriteActionIcon())
-            .build(),
-        )
-        stateBuilder.addCustomAction(
-          PlaybackStateCompat.CustomAction
-            .Builder(ACTION_NOTIFICATION_CLOSE, getString(R.string.notification_close), Icons.Platform.Close)
-            .build(),
-        )
-      }
-      mediaSession.setPlaybackState(stateBuilder.build())
+      mediaSession.refresh()
     } catch (e: Exception) {
       Log.e(TAG, "Error updating MediaSession playback state", e)
     }
@@ -1541,7 +1530,7 @@ class MediaPlaybackService :
       .setStyle(
         androidx.media.app.NotificationCompat
           .MediaStyle()
-          .setMediaSession(mediaSession.sessionToken)
+          .setMediaSession(mediaSession.mediaStyleToken)
           .setShowActionsInCompactView(1, 2, 3),
       ).setProgress(maximum, position, maximum <= 0)
       .setPriority(NotificationCompat.PRIORITY_LOW)
@@ -1564,7 +1553,7 @@ class MediaPlaybackService :
 
   private fun stopForegroundNotification() {
     foregroundReady = false
-    if (::mediaSession.isInitialized) mediaSession.isActive = false
+    if (::mediaSession.isInitialized) mediaSession.setPublishing(false)
     runCatching {
       if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
         stopForeground(STOP_FOREGROUND_REMOVE)
@@ -1905,10 +1894,9 @@ class MediaPlaybackService :
       .onFailure { error -> Log.e(TAG, "Error canceling playback service work", error) }
     if (::mediaSession.isInitialized) {
       runCatching {
-        mediaSession.setCallback(null)
-        mediaSession.isActive = false
+        mediaSession.setPublishing(false)
       }.onFailure { error ->
-        Log.e(TAG, "Error disabling MediaSession callbacks", error)
+        Log.e(TAG, "Error disabling MediaSession publication", error)
       }
     }
   }
@@ -1945,7 +1933,6 @@ class MediaPlaybackService :
       }
 
       try {
-        mediaSession.isActive = false
         mediaSession.release()
       } catch (e: Exception) {
         Log.e(TAG, "Error releasing media session", e)

@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  SPDX-License-Identifier: AGPL-3.0-or-later
+
+  Strings surfaced to Android's media ecosystem through the Media3 session.
+-->
+<resources>
+  <!--
+    Shown to external controllers instead of the raw libmpv error, which can contain
+    authenticated URLs, cookies, or filesystem paths.
+  -->
+  <string name="media_session_playback_error" translatable="false">Playback failed</string>
+</resources>
