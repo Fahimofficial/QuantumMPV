@@ -60,7 +60,18 @@ jobs:
           force-avd-creation: false
           emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none
           disable-animations: true
-          script: ./gradlew :app:connectedStandardDebugAndroidTest --stacktrace --no-daemon --max-workers=1
+          script: |
+            for attempt in 1 2 3; do
+              echo "Instrumented test attempt ${attempt}/3"
+              if ./gradlew :app:connectedStandardDebugAndroidTest --stacktrace --no-daemon --max-workers=1 $(if [ "$attempt" -gt 1 ]; then echo --refresh-dependencies; fi); then
+                exit 0
+              fi
+              if [ "$attempt" -lt 3 ]; then
+                echo "Gradle test attempt ${attempt} failed; retrying after dependency/cache refresh."
+                sleep 15
+              fi
+            done
+            exit 1
 
       - name: Upload test reports
         if: ${{ always() }}
