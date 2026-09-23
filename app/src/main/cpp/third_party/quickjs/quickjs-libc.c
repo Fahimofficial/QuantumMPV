@@ -83,6 +83,11 @@ typedef sig_t sighandler_t;
 extern char **environ;
 #endif
 
+#if defined(__linux__) || defined(__GLIBC__)
+typedef void (*sighandler_t)(int);
+extern char **environ;
+#endif
+
 #endif /* _WIN32 */
 
 #include "cutils.h"
@@ -96,6 +101,12 @@ extern char **environ;
 
 #ifndef S_IFBLK
 #define S_IFBLK 0
+#endif
+
+#if !defined(_WIN32)
+#include <sys/socket.h>
+#include <netinet/in.h>
+#include <arpa/inet.h>
 #endif
 
 #ifndef S_IFIFO
@@ -115,7 +126,6 @@ extern char **environ;
 #endif
 
 /* TODO:
-   - add socket calls
 */
 
 typedef struct {
@@ -2007,6 +2017,112 @@ JSModuleDef *js_init_module_std(JSContext *ctx, const char *module_name)
 
 /**********************************************************/
 /* 'os' object */
+
+
+#if !defined(_WIN32)
+static JSValue js_os_socket(JSContext *ctx, JSValueConst this_val,
+                            int argc, JSValueConst *argv)
+{
+    int domain, type, protocol, fd;
+    if (JS_ToInt32(ctx, &domain, argv[0])) return JS_EXCEPTION;
+    if (JS_ToInt32(ctx, &type, argv[1])) return JS_EXCEPTION;
+    if (JS_ToInt32(ctx, &protocol, argv[2])) return JS_EXCEPTION;
+
+    fd = js_get_errno(socket(domain, type, protocol));
+    return JS_NewInt32(ctx, fd);
+}
+#endif
+
+
+#if !defined(_WIN32)
+static JSValue js_os_bind(JSContext *ctx, JSValueConst this_val,
+                          int argc, JSValueConst *argv)
+{
+    int fd, port, ret;
+    const char *ip_str;
+    struct sockaddr_in addr;
+
+    if (JS_ToInt32(ctx, &fd, argv[0])) return JS_EXCEPTION;
+    ip_str = JS_ToCString(ctx, argv[1]);
+    if (!ip_str) return JS_EXCEPTION;
+    if (JS_ToInt32(ctx, &port, argv[2])) {
+        JS_FreeCString(ctx, ip_str);
+        return JS_EXCEPTION;
+    }
+
+    memset(&addr, 0, sizeof(addr));
+    addr.sin_family = AF_INET;
+    addr.sin_port = htons(port);
+    if (inet_pton(AF_INET, ip_str, &addr.sin_addr) <= 0) {
+        JS_FreeCString(ctx, ip_str);
+        return JS_ThrowTypeError(ctx, "invalid IP address");
+    }
+    JS_FreeCString(ctx, ip_str);
+
+    ret = js_get_errno(bind(fd, (struct sockaddr *)&addr, sizeof(addr)));
+    return JS_NewInt32(ctx, ret);
+}
+#endif
+
+
+#if !defined(_WIN32)
+static JSValue js_os_listen(JSContext *ctx, JSValueConst this_val,
+                            int argc, JSValueConst *argv)
+{
+    int fd, backlog, ret;
+
+    if (JS_ToInt32(ctx, &fd, argv[0])) return JS_EXCEPTION;
+    if (JS_ToInt32(ctx, &backlog, argv[1])) return JS_EXCEPTION;
+
+    ret = js_get_errno(listen(fd, backlog));
+    return JS_NewInt32(ctx, ret);
+}
+#endif
+
+
+#if !defined(_WIN32)
+static JSValue js_os_accept(JSContext *ctx, JSValueConst this_val,
+                            int argc, JSValueConst *argv)
+{
+    int fd, ret;
+
+    if (JS_ToInt32(ctx, &fd, argv[0])) return JS_EXCEPTION;
+
+    ret = js_get_errno(accept(fd, NULL, NULL));
+    return JS_NewInt32(ctx, ret);
+}
+#endif
+
+
+#if !defined(_WIN32)
+static JSValue js_os_connect(JSContext *ctx, JSValueConst this_val,
+                             int argc, JSValueConst *argv)
+{
+    int fd, port, ret;
+    const char *ip_str;
+    struct sockaddr_in addr;
+
+    if (JS_ToInt32(ctx, &fd, argv[0])) return JS_EXCEPTION;
+    ip_str = JS_ToCString(ctx, argv[1]);
+    if (!ip_str) return JS_EXCEPTION;
+    if (JS_ToInt32(ctx, &port, argv[2])) {
+        JS_FreeCString(ctx, ip_str);
+        return JS_EXCEPTION;
+    }
+
+    memset(&addr, 0, sizeof(addr));
+    addr.sin_family = AF_INET;
+    addr.sin_port = htons(port);
+    if (inet_pton(AF_INET, ip_str, &addr.sin_addr) <= 0) {
+        JS_FreeCString(ctx, ip_str);
+        return JS_ThrowTypeError(ctx, "invalid IP address");
+    }
+    JS_FreeCString(ctx, ip_str);
+
+    ret = js_get_errno(connect(fd, (struct sockaddr *)&addr, sizeof(addr)));
+    return JS_NewInt32(ctx, ret);
+}
+#endif
 
 static JSValue js_os_open(JSContext *ctx, JSValueConst this_val,
                           int argc, JSValueConst *argv)
@@ -4393,6 +4509,15 @@ void js_std_set_worker_new_context_func(JSContext *(*func)(JSRuntime *rt))
 #define OS_FLAG(x) JS_PROP_INT32_DEF(#x, x, JS_PROP_CONFIGURABLE )
 
 static const JSCFunctionListEntry js_os_funcs[] = {
+#if !defined(_WIN32)
+    JS_CFUNC_DEF("socket", 3, js_os_socket ),
+    JS_CFUNC_DEF("bind", 3, js_os_bind ),
+    JS_CFUNC_DEF("listen", 2, js_os_listen ),
+    JS_CFUNC_DEF("accept", 1, js_os_accept ),
+    JS_CFUNC_DEF("connect", 3, js_os_connect ),
+    OS_FLAG(AF_INET),
+    OS_FLAG(SOCK_STREAM),
+#endif
     JS_CFUNC_DEF("open", 2, js_os_open ),
     OS_FLAG(O_RDONLY),
     OS_FLAG(O_WRONLY),
