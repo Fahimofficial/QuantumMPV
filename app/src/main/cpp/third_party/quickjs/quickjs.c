@@ -8306,9 +8306,6 @@ static void build_backtrace(JSContext *ctx, JSValueConst error_val,
                     dbuf_printf(&dbuf, ":%d:%d", line_num1, col_num1);
                 dbuf_putc(&dbuf, ')');
             } else if (b) {
-                // FIXME(bnoordhuis) Missing `sf->cur_pc = pc` in bytecode
-                // handler in JS_CallInternal. Almost never user observable
-                // except with intercepting JS proxies that throw exceptions.
                 dbuf_printf(&dbuf, " (missing)");
             } else {
                 dbuf_printf(&dbuf, " (native)");
@@ -18168,6 +18165,8 @@ static JSValue JS_CallInternal(JSContext *caller_ctx, JSValueConst func_obj,
     for(;;) {
         int call_argc;
         JSValue *call_argv;
+
+        sf->cur_pc = pc;
 
         SWITCH(pc) {
         CASE(OP_push_i32):
