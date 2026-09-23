@@ -20,7 +20,7 @@
      { JS_ATOM_RegExp, js_regexp_finalizer, NULL },                              /* JS_CLASS_REGEXP */
 @@ -6551,6 +6553,7 @@
  }
-
+ 
  typedef struct JSCFunctionDataRecord {
 +    JSContext *realm;
      JSCFunctionData *func;
@@ -28,7 +28,7 @@
      uint8_t data_len;
 @@ -6563,6 +6566,7 @@
      int i;
-
+ 
      if (s) {
 +        JS_FreeContext(s->realm);
          for(i = 0; i < s->data_len; i++) {
@@ -36,7 +36,7 @@
          }
 @@ -6577,6 +6581,7 @@
      int i;
-
+ 
      if (s) {
 +        mark_func(rt, &s->realm->header);
          for(i = 0; i < s->data_len; i++) {
@@ -63,7 +63,7 @@
      s->magic = magic;
 @@ -6693,6 +6699,7 @@
  }
-
+ 
  typedef struct JSCClosureRecord {
 +    JSContext *realm;
      JSCClosure *func;
@@ -71,16 +71,16 @@
      uint16_t magic;
 @@ -6704,6 +6711,7 @@
      JSCClosureRecord *s = JS_GetOpaque(val, JS_CLASS_C_CLOSURE);
-
+ 
      if (s) {
 +        JS_FreeContext(s->realm);
          if (s->opaque_finalize)
             s->opaque_finalize(s->opaque);
-
+ 
 @@ -6711,6 +6719,15 @@
      }
  }
-
+ 
 +static void js_c_closure_mark(JSRuntime *rt, JSValueConst val,
 +                              JS_MarkFunc *mark_func)
 +{
