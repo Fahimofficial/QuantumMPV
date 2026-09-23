@@ -10742,40 +10742,59 @@ retry:
         }
     }
 
-    // TODO(bnoordhuis) return JSProperty slot and update in place
-    // when plain property (not is_exotic/setter/etc.) to avoid
-    // calling find_own_property() thrice?
-    ret = JS_GetOwnPropertyFlagsInternal(ctx, &desc_flags, p, prop);
-    if (ret < 0)
-        goto fail;
-
-    if (ret) {
-        if (desc_flags & JS_PROP_GETSET) {
-            ret = JS_ThrowTypeErrorOrFalse(ctx, flags, "setter is forbidden");
-            goto done;
-        } else if (!(desc_flags & JS_PROP_WRITABLE) ||
-                   p->class_id == JS_CLASS_MODULE_NS) {
-        read_only_prop:
-            ret = JS_ThrowTypeErrorReadOnly(ctx, flags, prop);
+    if (likely(!p->is_exotic)) {
+        prs = find_own_property(&pr, p, prop);
+        if (prs) {
+            if (unlikely((prs->flags & JS_PROP_TMASK) == JS_PROP_GETSET)) {
+                ret = JS_ThrowTypeErrorOrFalse(ctx, flags, "setter is forbidden");
+                goto done;
+            } else if (unlikely(!(prs->flags & JS_PROP_WRITABLE) ||
+                                p->class_id == JS_CLASS_MODULE_NS)) {
+            read_only_prop:
+                ret = JS_ThrowTypeErrorReadOnly(ctx, flags, prop);
+                goto done;
+            } else if (unlikely(prs->flags & JS_PROP_TMASK)) {
+                ret = JS_DefineProperty(ctx, this_obj, prop, val,
+                                        JS_UNDEFINED, JS_UNDEFINED,
+                                        JS_PROP_HAS_VALUE);
+            } else {
+                set_value(ctx, &pr->u.value, val);
+                ret = 1;
+            }
             goto done;
         }
-        ret = JS_DefineProperty(ctx, this_obj, prop, val,
-                                JS_UNDEFINED, JS_UNDEFINED,
-                                JS_PROP_HAS_VALUE);
     } else {
-        if (unlikely(!p->extensible)) {
-            ret = JS_ThrowTypeErrorOrFalse(ctx, flags, "object is not extensible");
+        ret = JS_GetOwnPropertyFlagsInternal(ctx, &desc_flags, p, prop);
+        if (ret < 0)
+            goto fail;
+
+        if (ret) {
+            if (desc_flags & JS_PROP_GETSET) {
+                ret = JS_ThrowTypeErrorOrFalse(ctx, flags, "setter is forbidden");
+                goto done;
+            } else if (!(desc_flags & JS_PROP_WRITABLE) ||
+                       p->class_id == JS_CLASS_MODULE_NS) {
+                goto read_only_prop;
+            }
+            ret = JS_DefineProperty(ctx, this_obj, prop, val,
+                                    JS_UNDEFINED, JS_UNDEFINED,
+                                    JS_PROP_HAS_VALUE);
             goto done;
         }
-    generic_create_prop:
-        ret = JS_CreateProperty(ctx, p, prop, val, JS_UNDEFINED, JS_UNDEFINED,
-                                flags |
-                                JS_PROP_HAS_VALUE |
-                                JS_PROP_HAS_ENUMERABLE |
-                                JS_PROP_HAS_WRITABLE |
-                                JS_PROP_HAS_CONFIGURABLE |
-                                JS_PROP_C_W_E);
     }
+
+    if (unlikely(!p->extensible)) {
+        ret = JS_ThrowTypeErrorOrFalse(ctx, flags, "object is not extensible");
+        goto done;
+    }
+generic_create_prop:
+    ret = JS_CreateProperty(ctx, p, prop, val, JS_UNDEFINED, JS_UNDEFINED,
+                            flags |
+                            JS_PROP_HAS_VALUE |
+                            JS_PROP_HAS_ENUMERABLE |
+                            JS_PROP_HAS_WRITABLE |
+                            JS_PROP_HAS_CONFIGURABLE |
+                            JS_PROP_C_W_E);
 
 done:
     JS_FreeValue(ctx, val);
