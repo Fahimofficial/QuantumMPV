@@ -3723,11 +3723,18 @@ JSAtom JS_NewAtomLen(JSContext *ctx, const char *str, size_t len)
     JSValue val;
 
     if (len == 0 || !is_digit(*str)) {
-        // TODO(chqrlie): this does not work if `str` has UTF-8 encoded contents
-        // bug example: `({ "\u00c3\u00a9": 1 }).\u00e9` evaluates to `1`.
-        JSAtom atom = __JS_FindAtom(ctx->rt, str, len, JS_ATOM_TYPE_STRING);
-        if (atom)
-            return atom;
+        int is_pure_ascii = 1;
+        for (size_t i = 0; i < len; i++) {
+            if ((uint8_t)str[i] >= 0x80) {
+                is_pure_ascii = 0;
+                break;
+            }
+        }
+        if (is_pure_ascii) {
+            JSAtom atom = __JS_FindAtom(ctx->rt, str, len, JS_ATOM_TYPE_STRING);
+            if (atom)
+                return atom;
+        }
     }
     val = JS_NewStringLen(ctx, str, len);
     if (JS_IsException(val))
