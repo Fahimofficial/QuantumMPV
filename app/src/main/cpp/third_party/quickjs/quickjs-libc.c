@@ -2049,6 +2049,10 @@ static JSValue js_os_bind(JSContext *ctx, JSValueConst this_val,
         JS_FreeCString(ctx, ip_str);
         return JS_EXCEPTION;
     }
+    if (port < 0 || port > 65535) {
+        JS_FreeCString(ctx, ip_str);
+        return JS_ThrowRangeError(ctx, "invalid port");
+    }
 
     memset(&addr, 0, sizeof(addr));
     addr.sin_family = AF_INET;
@@ -2108,6 +2112,10 @@ static JSValue js_os_connect(JSContext *ctx, JSValueConst this_val,
     if (JS_ToInt32(ctx, &port, argv[2])) {
         JS_FreeCString(ctx, ip_str);
         return JS_EXCEPTION;
+    }
+    if (port < 0 || port > 65535) {
+        JS_FreeCString(ctx, ip_str);
+        return JS_ThrowRangeError(ctx, "invalid port");
     }
 
     memset(&addr, 0, sizeof(addr));
