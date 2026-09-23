@@ -103,7 +103,7 @@ extern char **environ;
 #define S_IFBLK 0
 #endif
 
-#if !defined(_WIN32)
+#if !defined(_WIN32) && !defined(__wasi__)
 #include <sys/socket.h>
 #include <netinet/in.h>
 #include <arpa/inet.h>
@@ -2019,7 +2019,7 @@ JSModuleDef *js_init_module_std(JSContext *ctx, const char *module_name)
 /* 'os' object */
 
 
-#if !defined(_WIN32)
+#if !defined(_WIN32) && !defined(__wasi__)
 static JSValue js_os_socket(JSContext *ctx, JSValueConst this_val,
                             int argc, JSValueConst *argv)
 {
@@ -2034,7 +2034,7 @@ static JSValue js_os_socket(JSContext *ctx, JSValueConst this_val,
 #endif
 
 
-#if !defined(_WIN32)
+#if !defined(_WIN32) && !defined(__wasi__)
 static JSValue js_os_bind(JSContext *ctx, JSValueConst this_val,
                           int argc, JSValueConst *argv)
 {
@@ -2069,7 +2069,7 @@ static JSValue js_os_bind(JSContext *ctx, JSValueConst this_val,
 #endif
 
 
-#if !defined(_WIN32)
+#if !defined(_WIN32) && !defined(__wasi__)
 static JSValue js_os_listen(JSContext *ctx, JSValueConst this_val,
                             int argc, JSValueConst *argv)
 {
@@ -2084,7 +2084,7 @@ static JSValue js_os_listen(JSContext *ctx, JSValueConst this_val,
 #endif
 
 
-#if !defined(_WIN32)
+#if !defined(_WIN32) && !defined(__wasi__)
 static JSValue js_os_accept(JSContext *ctx, JSValueConst this_val,
                             int argc, JSValueConst *argv)
 {
@@ -2098,7 +2098,7 @@ static JSValue js_os_accept(JSContext *ctx, JSValueConst this_val,
 #endif
 
 
-#if !defined(_WIN32)
+#if !defined(_WIN32) && !defined(__wasi__)
 static JSValue js_os_connect(JSContext *ctx, JSValueConst this_val,
                              int argc, JSValueConst *argv)
 {
@@ -4517,7 +4517,7 @@ void js_std_set_worker_new_context_func(JSContext *(*func)(JSRuntime *rt))
 #define OS_FLAG(x) JS_PROP_INT32_DEF(#x, x, JS_PROP_CONFIGURABLE )
 
 static const JSCFunctionListEntry js_os_funcs[] = {
-#if !defined(_WIN32)
+#if !defined(_WIN32) && !defined(__wasi__)
     JS_CFUNC_DEF("socket", 3, js_os_socket ),
     JS_CFUNC_DEF("bind", 3, js_os_bind ),
     JS_CFUNC_DEF("listen", 2, js_os_listen ),
