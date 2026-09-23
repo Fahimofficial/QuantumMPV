@@ -23,7 +23,7 @@ class NavBackStackExtensionsTest {
 
   @Test
   fun `popSafely returns false and does not mutate when stack is empty`() {
-    val stack = NavBackStack<TestScreen>(emptyList())
+    val stack = NavBackStack(emptyList<TestScreen>())
 
     val result = stack.popSafely()
 
@@ -33,7 +33,7 @@ class NavBackStackExtensionsTest {
 
   @Test
   fun `popSafely returns false and does not mutate when stack has one element`() {
-    val stack = NavBackStack<TestScreen>(listOf(TestScreen(1)))
+    val stack = NavBackStack(listOf(TestScreen(1)))
 
     val result = stack.popSafely()
 
@@ -43,7 +43,7 @@ class NavBackStackExtensionsTest {
 
   @Test
   fun `popSafely returns true and removes last element when stack has multiple elements`() {
-    val stack = NavBackStack<TestScreen>(listOf(TestScreen(1), TestScreen(2), TestScreen(3)))
+    val stack = NavBackStack(listOf(TestScreen(1), TestScreen(2), TestScreen(3)))
 
     val result = stack.popSafely()
 
