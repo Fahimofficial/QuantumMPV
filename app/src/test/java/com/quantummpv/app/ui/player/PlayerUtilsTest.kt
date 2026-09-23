@@ -48,19 +48,29 @@ class PlayerUtilsTest {
     val validUnicodeExpected = "{\"key\": \"valid \\u1234 unicode\"}"
     assertEquals(validUnicodeExpected, sanitizeJsonString(validUnicode))
 
-    // Incomplete unicode escape at the end of the string, e.g., \u123 (length < 5 after \)
-    // Note: The function checks `i + 5 < jsonString.length`, meaning after `\`, it checks if there's an `u` + 4 more chars.
-    // However, if the entire `jsonString` ends with `\u123"}` it evaluates `i + 5 < jsonString.length`.
-    // Wait, `"{"key": "\u123"}"` length is 18.
-    // `\` is at index 10. `10 + 5 = 15`. `15 < 18` is true. So it treats it as valid.
-    // To make it incomplete, we need `\u` to be at the very end of the string:
-    val incompleteUnicode = "{\"key\": \"\\u12\"}" // len = 17. \ at 10. 10+5=15 < 17 is TRUE.
-
+    // Incomplete unicode escape at the end of the string.
     val reallyIncompleteUnicode = "{\"k\":\"\\u\"}"
-    // len: {"k":"\u"} -> 1+3+2+1+1+1+2 = 11? `{"k":"\u"}`
-    // `\` is at index 7. `7 + 5 = 12`. 12 < 11 is FALSE.
     val reallyIncompleteUnicodeExpected = "{\"k\":\"\\\\u\"}"
     assertEquals(reallyIncompleteUnicodeExpected, sanitizeJsonString(reallyIncompleteUnicode))
+  }
+
+  @Test
+  fun sanitizeJsonString_unicodeBoundaryCase() {
+    // A unicode escape that is cut off exactly at the boundary (length check)
+    // E.g. "\u12" (only 2 hex chars after 'u')
+    // Length is evaluated as `i + 5 < jsonString.length`.
+    val boundaryUnicode = "{\"k\":\"\\u12\"}"
+    // According to the function's logic `char == '\\'` -> `nextChar == 'u'` -> `i + 5 < jsonString.length`.
+    // In `"{"k":"\u12"}"`: length = 12.
+    // Index of '\' is 6. `6 + 5 = 11`. 11 < 12 is true. So it's considered valid.
+    val boundaryUnicodeExpected = "{\"k\":\"\\u12\"}"
+    assertEquals(boundaryUnicodeExpected, sanitizeJsonString(boundaryUnicode))
+
+    val boundaryUnicode2 = "{\"k\":\"\\u1\"}"
+    // In `"{"k":"\u1"}"`: length = 11.
+    // Index of '\' is 6. `6 + 5 = 11`. 11 < 11 is false! So it's considered invalid.
+    val boundaryUnicodeExpected2 = "{\"k\":\"\\\\u1\"}"
+    assertEquals(boundaryUnicodeExpected2, sanitizeJsonString(boundaryUnicode2))
   }
 
   @Test
