@@ -48,6 +48,7 @@ class SecureFolderRepository(
     private const val BUFFER_SIZE = 8 * 1024 // 8KB, matches CopyPasteOps
     private const val SECURE_DIR_NAME = "secure_media"
     private const val MAX_FILENAME_ATTEMPTS = 1000
+    private const val FLUSH_CHUNK_SIZE = 50
   }
 
   data class SecureOperationProgress(
@@ -239,6 +240,13 @@ class SecureFolderRepository(
               // doesn't show as hidden anymore; the orphaned secure copy is harmless.
             }
             dbRowsToDelete += entity.id
+            if (dbRowsToDelete.size >= FLUSH_CHUNK_SIZE) {
+              val chunk = dbRowsToDelete.toList()
+              withContext(NonCancellable) {
+                dao.deleteByIds(chunk)
+              }
+              dbRowsToDelete.clear()
+            }
 
             triggerMediaScan(context, restoreTarget.absolutePath)
             succeeded += entity.id
@@ -254,9 +262,11 @@ class SecureFolderRepository(
         }
       } finally {
         if (dbRowsToDelete.isNotEmpty()) {
+          val remaining = dbRowsToDelete.toList()
           withContext(NonCancellable) {
-            dao.deleteByIds(dbRowsToDelete)
+            dao.deleteByIds(remaining)
           }
+          dbRowsToDelete.clear()
         }
       }
 
@@ -305,6 +315,13 @@ class SecureFolderRepository(
 
             if (deleted) {
               dbRowsToDelete += entity.id
+              if (dbRowsToDelete.size >= FLUSH_CHUNK_SIZE) {
+                val chunk = dbRowsToDelete.toList()
+                withContext(NonCancellable) {
+                  dao.deleteByIds(chunk)
+                }
+                dbRowsToDelete.clear()
+              }
               succeeded += entity.id
             } else {
               // Rollback: keep the DB row so the user can retry instead of losing the entry
@@ -322,9 +339,11 @@ class SecureFolderRepository(
         }
       } finally {
         if (dbRowsToDelete.isNotEmpty()) {
+          val remaining = dbRowsToDelete.toList()
           withContext(NonCancellable) {
-            dao.deleteByIds(dbRowsToDelete)
+            dao.deleteByIds(remaining)
           }
+          dbRowsToDelete.clear()
         }
       }
 
@@ -346,6 +365,33 @@ class SecureFolderRepository(
   fun observeCount() = dao.observeCount()
 
   suspend fun getAll(): List<SecureMediaEntity> = dao.getAll()
+
+  /**
+   * Cleans up any DB rows that point to files that no longer exist in the secure folder.
+   * This is useful if the app was killed while a batch restore/delete operation was in progress.
+   */
+  suspend fun reconcile() =
+    withContext(Dispatchers.IO) {
+      try {
+        val allEntities = dao.getAll()
+        val toDelete = mutableListOf<Long>()
+        for (entity in allEntities) {
+          if (!File(entity.secureFilePath).exists()) {
+            toDelete.add(entity.id)
+          }
+        }
+        if (toDelete.isNotEmpty()) {
+          Log.d(TAG, "Reconciling secure media: removing ${toDelete.size} orphaned db entries")
+          // Delete in chunks to be safe with large DB sizes
+          toDelete.chunked(FLUSH_CHUNK_SIZE).forEach { chunk ->
+            dao.deleteByIds(chunk)
+          }
+          MediaLibraryEvents.notifyChanged()
+        }
+      } catch (e: Exception) {
+        Log.e(TAG, "Failed to reconcile secure media", e)
+      }
+    }
 
   suspend fun getByIds(ids: List<Long>): List<SecureMediaEntity> = dao.getByIds(ids)
 
