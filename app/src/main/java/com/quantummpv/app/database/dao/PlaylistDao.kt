@@ -18,6 +18,7 @@ import androidx.room.Transaction
 import androidx.room.Update
 import com.quantummpv.app.database.entities.PlaylistEntity
 import com.quantummpv.app.database.entities.PlaylistItemEntity
+import com.quantummpv.app.database.entities.PlaylistItemPositionUpdate
 import kotlinx.coroutines.flow.Flow
 
 @Dao
@@ -142,14 +143,18 @@ interface PlaylistDao {
     newPosition: Int,
   )
 
+  @Update(entity = PlaylistItemEntity::class)
+  suspend fun updateItemPositions(updates: List<PlaylistItemPositionUpdate>)
+
   @Transaction
   suspend fun reorderPlaylistItems(
     playlistId: Int,
     newOrder: List<Int>,
   ) {
-    newOrder.forEachIndexed { index, itemId ->
-      updateItemPosition(itemId, index)
+    val updates = newOrder.mapIndexed { index, itemId ->
+      PlaylistItemPositionUpdate(id = itemId, position = index)
     }
+    updateItemPositions(updates)
   }
 
   @Query("SELECT MAX(position) FROM PlaylistItemEntity WHERE playlistId = :playlistId")
