@@ -7783,7 +7783,7 @@ void JS_ComputeMemoryUsage(JSRuntime *rt, JSMemoryUsage *s)
             {
                 if (p->u.generator_data) {
                     s->memory_used_count++;
-                    s->memory_used_size += sizeof(int) + sizeof(JSAsyncFunctionState);
+                    s->memory_used_size += sizeof(int) + sizeof(struct JSAsyncFunctionState);
                 }
             }
             break;
@@ -7915,7 +7915,7 @@ void JS_ComputeMemoryUsage(JSRuntime *rt, JSMemoryUsage *s)
             {
                 if (p->u.async_generator_data) {
                     s->memory_used_count++;
-                    s->memory_used_size += sizeof(void*) + sizeof(int) + sizeof(JSAsyncFunctionState) + sizeof(struct list_head);
+                    s->memory_used_size += sizeof(void*) + sizeof(int) + sizeof(struct JSAsyncFunctionState) + sizeof(struct list_head);
                 }
             }
             break;
