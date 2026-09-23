@@ -6570,8 +6570,6 @@ static void js_c_function_data_finalizer(JSRuntime *rt, JSValueConst val)
         for(i = 0; i < s->data_len; i++) {
             JS_FreeValueRT(rt, s->data[i]);
         }
-        if (s->realm)
-            JS_FreeContext(s->realm);
         js_free_rt(rt, s);
     }
 }
@@ -6584,7 +6582,7 @@ static void js_c_function_data_mark(JSRuntime *rt, JSValueConst val,
 
     if (s) {
         if (s->realm)
-            mark_func(rt, &s->realm->header);
+            JS_MarkContext(rt, s->realm, mark_func);
         for(i = 0; i < s->data_len; i++) {
             JS_MarkValue(rt, s->data[i], mark_func);
         }
@@ -6652,7 +6650,7 @@ JSValue JS_NewCFunctionData2(JSContext *ctx, JSCFunctionData *func,
         JS_FreeValue(ctx, func_obj);
         return JS_EXCEPTION;
     }
-    s->realm = JS_DupContext(ctx);
+    s->realm = ctx;
     s->func = func;
     s->length = length;
     s->data_len = data_len;
@@ -6718,8 +6716,6 @@ static void js_c_closure_finalizer(JSRuntime *rt, JSValueConst val)
         if (s->opaque_finalize)
            s->opaque_finalize(s->opaque);
 
-        if (s->realm)
-            JS_FreeContext(s->realm);
         js_free_rt(rt, s);
     }
 }
@@ -6731,7 +6727,7 @@ static void js_c_closure_mark(JSRuntime *rt, JSValueConst val,
 
     if (s) {
         if (s->realm)
-            mark_func(rt, &s->realm->header);
+            JS_MarkContext(rt, s->realm, mark_func);
     }
 }
 
@@ -6793,7 +6789,7 @@ JSValue JS_NewCClosure(JSContext *ctx, JSCClosure *func, const char *name,
         JS_FreeValue(ctx, func_obj);
         return JS_EXCEPTION;
     }
-    s->realm = JS_DupContext(ctx);
+    s->realm = ctx;
     s->func = func;
     s->length = length;
     s->magic = magic;
@@ -21021,6 +21017,24 @@ static JSContext *JS_GetFunctionRealm(JSContext *ctx, JSValueConst func_obj)
         {
             JSBoundFunction *bf = p->u.bound_function;
             realm = JS_GetFunctionRealm(ctx, bf->func_obj);
+        }
+        break;
+    case JS_CLASS_C_FUNCTION_DATA:
+        {
+            JSCFunctionDataRecord *fd = p->u.opaque;
+            if (fd && fd->realm)
+                realm = fd->realm;
+            else
+                realm = ctx;
+        }
+        break;
+    case JS_CLASS_C_CLOSURE:
+        {
+            JSCClosureRecord *cr = p->u.opaque;
+            if (cr && cr->realm)
+                realm = cr->realm;
+            else
+                realm = ctx;
         }
         break;
     default:
