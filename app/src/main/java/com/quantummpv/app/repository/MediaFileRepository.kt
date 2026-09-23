@@ -23,6 +23,7 @@ import com.quantummpv.app.domain.playbackstate.repository.PlaybackStateRepositor
 import com.quantummpv.app.preferences.AppearancePreferences
 import com.quantummpv.app.preferences.BrowserPreferences
 import com.quantummpv.app.preferences.FoldersPreferences
+import com.quantummpv.app.utils.FormatUtils
 import com.quantummpv.app.utils.media.MediaInfoOps
 import com.quantummpv.app.utils.storage.FileTypeUtils
 import com.quantummpv.app.utils.storage.FolderViewScanner
@@ -284,7 +285,7 @@ object MediaFileRepository : KoinComponent {
                   duration = durationMs,
                   durationFormatted = formatDuration(durationMs),
                   size = cursor.getLong(sizeColumn),
-                  sizeFormatted = formatFileSize(cursor.getLong(sizeColumn)),
+                  sizeFormatted = FormatUtils.formatFileSize(cursor.getLong(sizeColumn)),
                   dateModified = cursor.getLong(dateColumn),
                   dateAdded = cursor.getLong(dateColumn),
                   mimeType = FileTypeUtils.getMimeTypeFromExtension(file.extension.lowercase()),
@@ -478,7 +479,7 @@ object MediaFileRepository : KoinComponent {
       duration = duration,
       durationFormatted = formatDuration(duration),
       size = size,
-      sizeFormatted = formatFileSize(size),
+      sizeFormatted = FormatUtils.formatFileSize(size),
       dateModified = dateModified,
       dateAdded = dateModified,
       mimeType = mimeType,
@@ -538,7 +539,7 @@ object MediaFileRepository : KoinComponent {
       duration = duration,
       durationFormatted = formatDuration(duration),
       size = size,
-      sizeFormatted = formatFileSize(size),
+      sizeFormatted = FormatUtils.formatFileSize(size),
       dateModified = dateModified,
       dateAdded = dateModified,
       mimeType = mimeType,
@@ -781,18 +782,6 @@ object MediaFileRepository : KoinComponent {
       minutes > 0 -> String.format(Locale.getDefault(), "%d:%02d", minutes, secs)
       else -> "${secs}s"
     }
-  }
-
-  private fun formatFileSize(bytes: Long): String {
-    if (bytes <= 0) return "0 B"
-    val units = arrayOf("B", "KB", "MB", "GB", "TB")
-    val digitGroups = (log10(bytes.toDouble()) / log10(1024.0)).toInt()
-    return String.format(
-      Locale.getDefault(),
-      "%.1f %s",
-      bytes / 1024.0.pow(digitGroups.toDouble()),
-      units[digitGroups],
-    )
   }
 
   private fun formatResolution(
