@@ -519,7 +519,7 @@ fun FolderCard(
 
               if (showTotalSizeChip && folder.totalSize > 0) {
                 Text(
-                  formatFileSize(folder.totalSize),
+                  com.quantummpv.app.utils.media.MediaUtils.formatFileSize(folder.totalSize),
                   style = MaterialTheme.typography.labelSmall,
                   modifier =
                     Modifier
@@ -579,14 +579,6 @@ private fun formatDuration(durationMs: Long): String {
     minutes > 0 -> "${minutes}m"
     else -> "${secs}s"
   }
-}
-
-private fun formatFileSize(bytes: Long): String {
-  if (bytes <= 0) return "0 B"
-  val units = arrayOf("B", "KB", "MB", "GB", "TB")
-  val digitGroups = (kotlin.math.log10(bytes.toDouble()) / kotlin.math.log10(1024.0)).toInt()
-  val value = bytes / 1024.0.pow(digitGroups.toDouble())
-  return String.format(java.util.Locale.getDefault(), "%.1f %s", value, units[digitGroups])
 }
 
 // Hoisted because a card formats a date on every recomposition and SimpleDateFormat construction

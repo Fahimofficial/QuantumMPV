@@ -236,7 +236,7 @@ fun NetworkVideoCard(
         ) {
           if (showSizeChip && file.size > 0) {
             Text(
-              formatFileSize(file.size),
+              com.quantummpv.app.utils.media.MediaUtils.formatFileSize(file.size),
               style = MaterialTheme.typography.labelSmall,
               modifier =
                 Modifier
@@ -327,7 +327,7 @@ fun NetworkVideoCard(
           ) {
             if (showSizeChip && file.size > 0) {
               Text(
-                formatFileSize(file.size),
+                com.quantummpv.app.utils.media.MediaUtils.formatFileSize(file.size),
                 style = MaterialTheme.typography.labelSmall,
                 modifier =
                   Modifier
@@ -358,14 +358,6 @@ fun NetworkVideoCard(
     }
   }
 }
-
-private fun formatFileSize(bytes: Long): String =
-  when {
-    bytes < 1024 -> "$bytes B"
-    bytes < 1024 * 1024 -> "${bytes / 1024} KB"
-    bytes < 1024 * 1024 * 1024 -> "${bytes / (1024 * 1024)} MB"
-    else -> String.format("%.2f GB", bytes / (1024.0 * 1024.0 * 1024.0))
-  }
 
 // Hoisted because a card formats a date on every recomposition and SimpleDateFormat construction
 // parses the pattern and clones a Calendar each time.

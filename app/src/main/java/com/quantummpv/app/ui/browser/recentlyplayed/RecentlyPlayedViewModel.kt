@@ -248,7 +248,7 @@ class RecentlyPlayedViewModel(
         duration = duration,
         durationFormatted = formatDuration(duration),
         size = size,
-        sizeFormatted = formatFileSize(size),
+        sizeFormatted = com.quantummpv.app.utils.media.MediaUtils.formatFileSize(size),
         dateModified = dateModified,
         dateAdded = dateAdded,
         mimeType = mimeType,
@@ -323,7 +323,7 @@ class RecentlyPlayedViewModel(
       duration = duration,
       durationFormatted = formatDuration(duration),
       size = size,
-      sizeFormatted = formatFileSize(size),
+      sizeFormatted = com.quantummpv.app.utils.media.MediaUtils.formatFileSize(size),
       dateModified = dateModified,
       dateAdded = dateAdded,
       mimeType = mimeType,
@@ -459,18 +459,6 @@ class RecentlyPlayedViewModel(
       minutes > 0 -> "${minutes}m ${secs}s"
       else -> "${secs}s"
     }
-  }
-
-  private fun formatFileSize(bytes: Long): String {
-    if (bytes <= 0) return "0 B"
-    val units = arrayOf("B", "KB", "MB", "GB", "TB")
-    val digitGroups = (kotlin.math.log10(bytes.toDouble()) / kotlin.math.log10(1024.0)).toInt()
-    return String.format(
-      java.util.Locale.getDefault(),
-      "%.1f %s",
-      bytes / 1024.0.pow(digitGroups.toDouble()),
-      units[digitGroups],
-    )
   }
 
   private fun formatResolution(

@@ -262,7 +262,7 @@ private fun ReleaseMetaRow(
     MetaItem(label = stringResource(R.string.update_release_date), value = formatDate(publishedAt))
     MetaItem(
       label = stringResource(R.string.update_size),
-      value = formatFileSize(sizeBytes, stringResource(R.string.update_unknown_size)),
+      value = if (sizeBytes <= 0) stringResource(R.string.update_unknown_size) else com.quantummpv.app.utils.media.MediaUtils.formatFileSize(sizeBytes),
     )
   }
 }
@@ -313,16 +313,6 @@ private fun DownloadProgressSection(progress: Float) {
     )
     Spacer(modifier = Modifier.height(8.dp))
   }
-}
-
-private fun formatFileSize(
-  size: Long,
-  unknownLabel: String,
-): String {
-  if (size <= 0) return unknownLabel
-  val units = arrayOf("B", "KB", "MB", "GB", "TB")
-  val digitGroups = (Math.log10(size.toDouble()) / Math.log10(1024.0)).toInt()
-  return String.format("%.1f %s", size / Math.pow(1024.0, digitGroups.toDouble()), units[digitGroups])
 }
 
 private fun formatDate(dateString: String): String {

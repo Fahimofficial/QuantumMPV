@@ -189,7 +189,7 @@ object VideoScanUtils : KoinComponent {
                 duration = duration,
                 durationFormatted = formatDuration(duration),
                 size = size,
-                sizeFormatted = formatFileSize(size),
+                sizeFormatted = com.quantummpv.app.utils.media.MediaUtils.formatFileSize(size),
                 dateModified = dateModified,
                 dateAdded = dateAdded,
                 mimeType = mimeType,
@@ -275,7 +275,7 @@ object VideoScanUtils : KoinComponent {
                 duration = duration,
                 durationFormatted = formatDuration(duration),
                 size = size,
-                sizeFormatted = formatFileSize(size),
+                sizeFormatted = com.quantummpv.app.utils.media.MediaUtils.formatFileSize(size),
                 dateModified = cursor.getLong(modifiedColumn),
                 dateAdded = cursor.getLong(addedColumn),
                 mimeType =
@@ -357,7 +357,7 @@ object VideoScanUtils : KoinComponent {
               duration = duration,
               durationFormatted = formatDuration(duration),
               size = resolvedSize,
-              sizeFormatted = formatFileSize(resolvedSize),
+              sizeFormatted = com.quantummpv.app.utils.media.MediaUtils.formatFileSize(resolvedSize),
               dateModified = dateModified,
               dateAdded = dateModified,
               mimeType = mimeType,
@@ -395,18 +395,6 @@ object VideoScanUtils : KoinComponent {
       minutes > 0 -> String.format(Locale.getDefault(), "%d:%02d", minutes, secs)
       else -> "${secs}s"
     }
-  }
-
-  private fun formatFileSize(bytes: Long): String {
-    if (bytes <= 0) return "0 B"
-    val units = arrayOf("B", "KB", "MB", "GB", "TB")
-    val digitGroups = (log10(bytes.toDouble()) / log10(1024.0)).toInt()
-    return String.format(
-      Locale.getDefault(),
-      "%.1f %s",
-      bytes / 1024.0.pow(digitGroups.toDouble()),
-      units[digitGroups],
-    )
   }
 
   private fun formatResolution(

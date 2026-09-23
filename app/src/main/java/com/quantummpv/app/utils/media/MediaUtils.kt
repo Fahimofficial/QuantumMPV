@@ -561,9 +561,14 @@ object MediaUtils {
 
   fun formatFileSize(bytes: Long): String {
     if (bytes <= 0) return "0 B"
-    val units = arrayOf("B", "KB", "MB", "GB")
-    val digitGroups = (kotlin.math.ln(bytes.toDouble()) / kotlin.math.ln(1024.0)).toInt().coerceIn(0, units.size - 1)
-    return "${java.text.DecimalFormat("#,##0.#").format(bytes / 1024.0.pow(digitGroups))} ${units[digitGroups]}"
+    val units = arrayOf("B", "KB", "MB", "GB", "TB")
+    val digitGroups = (kotlin.math.log10(bytes.toDouble()) / kotlin.math.log10(1024.0)).toInt().coerceIn(0, units.size - 1)
+    return String.format(
+      java.util.Locale.getDefault(),
+      "%.1f %s",
+      bytes / 1024.0.pow(digitGroups.toDouble()),
+      units[digitGroups],
+    )
   }
 
   fun formatRelativeTime(epochMillis: Long): String {
