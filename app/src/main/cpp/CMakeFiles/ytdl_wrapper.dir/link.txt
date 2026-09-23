@@ -1,0 +1,1 @@
+/usr/bin/cc CMakeFiles/ytdl_wrapper.dir/ytdl_wrapper.c.o -o libytdl.so

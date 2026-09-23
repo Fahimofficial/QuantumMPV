@@ -1,0 +1,4 @@
+/app/app/src/main/cpp/CMakeFiles/ytdl_wrapper.dir
+/app/app/src/main/cpp/CMakeFiles/qjs_runtime.dir
+/app/app/src/main/cpp/CMakeFiles/edit_cache.dir
+/app/app/src/main/cpp/CMakeFiles/rebuild_cache.dir

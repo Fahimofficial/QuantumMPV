@@ -41615,6 +41615,12 @@ static JSValue js_object_getOwnPropertySymbols(JSContext *ctx, JSValueConst this
                                    JS_GPN_SYMBOL_MASK, JS_ITERATOR_KIND_KEY);
 }
 
+typedef struct JSArrayIteratorData {
+    JSValue obj;
+    JSIteratorKindEnum kind;
+    uint32_t idx;
+} JSArrayIteratorData;
+
 static JSValue js_object_groupBy(JSContext *ctx, JSValueConst this_val,
                                  int argc, JSValueConst *argv)
 {
@@ -41656,7 +41662,13 @@ static JSValue js_object_groupBy(JSContext *ctx, JSValueConst this_val,
         if (iter_p->class_id == JS_CLASS_ARRAY_ITERATOR) {
             JSCFunctionType ft2 = { .iterator_next = js_array_iterator_next };
             if (JS_IsCFunction(ctx, next, ft2.generic, 0)) {
-                is_array_iterator = 1;
+                struct JSArrayIteratorData *it = iter_p->u.array_iterator_data;
+                if (it && it->kind == JS_ITERATOR_KIND_VALUE && it->idx == 0 && JS_VALUE_GET_PTR(it->obj) == JS_VALUE_GET_PTR(argv[0])) {
+                    is_array_iterator = 1;
+                    // advance the iterator index so it appears consumed if observed later.
+                    // But wait, the fast loop needs to update the idx as it goes!
+                    // If it bails out to the slow loop, the idx needs to be accurate!
+                }
             }
         }
     }
@@ -41674,6 +41686,12 @@ static JSValue js_object_groupBy(JSContext *ctx, JSValueConst this_val,
                 if (JS_IsException(v))
                     goto exception_close;
             }
+            
+            // Advance internal iterator index to reflect consumption in case
+            // the callback has access to the iterator object.
+            struct JSArrayIteratorData *it = JS_VALUE_GET_OBJ(iter)->u.array_iterator_data;
+            if (it) it->idx = idx + 1;
+
             args[0] = v;
             args[1] = js_int64(idx);
             k = JS_Call(ctx, cb, JS_UNDEFINED, 2, args);
@@ -44926,11 +44944,7 @@ exception:
     return ret;
 }
 
-typedef struct JSArrayIteratorData {
-    JSValue obj;
-    JSIteratorKindEnum kind;
-    uint32_t idx;
-} JSArrayIteratorData;
+
 
 static void js_array_iterator_finalizer(JSRuntime *rt, JSValueConst val)
 {
