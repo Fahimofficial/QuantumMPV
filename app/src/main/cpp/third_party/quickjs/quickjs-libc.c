@@ -137,6 +137,8 @@ typedef struct {
     int64_t timeout;
     int64_t delay;
     JSValue func;
+    int argc;
+    JSValue *argv;
 } JSOSTimer;
 
 typedef struct {
@@ -2442,8 +2444,13 @@ static uint64_t js__hrtime_ms(void)
 
 static void free_timer(JSRuntime *rt, JSOSTimer *th)
 {
+    int i;
     list_del(&th->link);
     JS_FreeValueRT(rt, th->func);
+    for (i = 0; i < th->argc; i++) {
+        JS_FreeValueRT(rt, th->argv[i]);
+    }
+    js_free_rt(rt, th->argv);
     js_free_rt(rt, th);
 }
 
@@ -2457,10 +2464,11 @@ static JSValue js_os_setTimeout(JSContext *ctx, JSValueConst this_val,
     int64_t delay;
     JSValueConst func;
     JSOSTimer *th;
+    int i;
 
     func = argv[0];
-    if (!JS_IsFunction(ctx, func))
-        return JS_ThrowTypeError(ctx, "not a function");
+    if (!JS_IsFunction(ctx, func) && !JS_IsString(func))
+        return JS_ThrowTypeError(ctx, "not a function or string");
     if (JS_ToInt64(ctx, &delay, argv[1]))
         return JS_EXCEPTION;
     if (delay < 1)
@@ -2475,6 +2483,23 @@ static JSValue js_os_setTimeout(JSContext *ctx, JSValueConst this_val,
     th->timeout = js__hrtime_ms() + delay;
     th->delay = delay;
     th->func = JS_DupValue(ctx, func);
+    
+    if (argc > 2) {
+        th->argc = argc - 2;
+        th->argv = js_mallocz(ctx, th->argc * sizeof(JSValue));
+        if (!th->argv) {
+            JS_FreeValue(ctx, th->func);
+            js_free(ctx, th);
+            return JS_EXCEPTION;
+        }
+        for (i = 0; i < th->argc; i++) {
+            th->argv[i] = JS_DupValue(ctx, argv[i + 2]);
+        }
+    } else {
+        th->argc = 0;
+        th->argv = NULL;
+    }
+
     list_add_tail(&th->link, &ts->os_timers);
     return JS_NewInt64(ctx, th->timer_id);
 }
@@ -2557,6 +2582,31 @@ static int call_handler(JSContext *ctx, JSValue func)
     return r;
 }
 
+static int call_timer_handler(JSContext *ctx, JSValue func, int argc, JSValue *argv)
+{
+    int r;
+    JSValue ret, func1;
+    
+    if (JS_IsString(func)) {
+        size_t len;
+        const char *str = JS_ToCStringLen(ctx, &len, func);
+        if (!str)
+            return -1;
+        ret = JS_Eval(ctx, str, len, "<timer>", JS_EVAL_TYPE_GLOBAL);
+        JS_FreeCString(ctx, str);
+    } else {
+        func1 = JS_DupValue(ctx, func);
+        ret = JS_Call(ctx, func1, JS_UNDEFINED, argc, argv);
+        JS_FreeValue(ctx, func1);
+    }
+    
+    r = 0;
+    if (JS_IsException(ret))
+        r = -1;
+    JS_FreeValue(ctx, ret);
+    return r;
+}
+
 static int js_os_run_timers(JSRuntime *rt, JSContext *ctx, JSThreadState *ts, int *min_delay)
 {
     JSValue func;
@@ -2564,6 +2614,8 @@ static int js_os_run_timers(JSRuntime *rt, JSContext *ctx, JSThreadState *ts, in
     int64_t cur_time, delay;
     struct list_head *el;
     int r;
+    int argc, i;
+    JSValue *argv;
 
     if (list_empty(&ts->os_timers)) {
         *min_delay = -1;
@@ -2581,12 +2633,31 @@ static int js_os_run_timers(JSRuntime *rt, JSContext *ctx, JSThreadState *ts, in
         } else {
             *min_delay = 0;
             func = JS_DupValueRT(rt, th->func);
+            argc = th->argc;
+            argv = js_malloc_rt(rt, argc * sizeof(JSValue));
+            if (argv) {
+                for (i = 0; i < argc; i++) {
+                    argv[i] = JS_DupValueRT(rt, th->argv[i]);
+                }
+            } else {
+                argc = 0; /* Fallback if allocation fails */
+            }
+
             if (th->repeats)
                 th->timeout = cur_time + th->delay;
             else
                 free_timer(rt, th);
-            r = call_handler(ctx, func);
+
+            r = call_timer_handler(ctx, func, argc, argv);
+            
+            for (i = 0; i < argc; i++) {
+                JS_FreeValueRT(rt, argv[i]);
+            }
+            if (argv) {
+                js_free_rt(rt, argv);
+            }
             JS_FreeValueRT(rt, func);
+            
             return r;
         }
     }
