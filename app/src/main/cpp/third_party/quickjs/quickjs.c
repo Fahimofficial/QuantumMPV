@@ -38,6 +38,16 @@
 #endif
 #if defined(_WIN32)
 #include <intrin.h>
+#include <windows.h>
+#include <wincrypt.h>
+#elif defined(__APPLE__) || defined(__OpenBSD__) || defined(__FreeBSD__) || defined(__NetBSD__) || defined(__DragonFly__)
+#include <stdlib.h>
+#else
+#include <unistd.h>
+#include <fcntl.h>
+#if defined(__linux__) || defined(__ANDROID__)
+#include <sys/syscall.h>
+#endif
 #endif
 #include <time.h>
 #include <math.h>
@@ -2849,6 +2859,40 @@ void JS_FreeRuntime(JSRuntime *rt)
         abort();
 }
 
+static uint64_t js_generate_random_state(void)
+{
+    uint64_t state = 0;
+#if defined(_WIN32)
+    HCRYPTPROV hProvider;
+    if (CryptAcquireContext(&hProvider, NULL, NULL, PROV_RSA_FULL, CRYPT_VERIFYCONTEXT)) {
+        CryptGenRandom(hProvider, sizeof(state), (BYTE *)&state);
+        CryptReleaseContext(hProvider, 0);
+    }
+#elif defined(__APPLE__) || defined(__OpenBSD__) || defined(__FreeBSD__) || defined(__NetBSD__) || defined(__DragonFly__)
+    arc4random_buf(&state, sizeof(state));
+#else
+    /* Fallback for Linux / POSIX */
+    #if defined(__linux__) || defined(__ANDROID__)
+    #if defined(SYS_getrandom)
+    long ret = syscall(SYS_getrandom, &state, sizeof(state), 0);
+    if (ret == sizeof(state)) {
+        return state;
+    }
+    #endif
+    #endif
+
+    int fd = open("/dev/urandom", O_RDONLY);
+    if (fd >= 0) {
+        (void)read(fd, &state, sizeof(state));
+        close(fd);
+    }
+#endif
+    if (state == 0) {
+        state = js__gettimeofday_us();
+    }
+    return state;
+}
+
 JSContext *JS_NewContextRaw(JSRuntime *rt)
 {
     JSContext *ctx;
@@ -2880,8 +2924,7 @@ JSContext *JS_NewContextRaw(JSRuntime *rt)
     ctx->error_prepare_stack = JS_UNDEFINED;
     ctx->error_stack_trace_limit = js_int32(10);
     init_list_head(&ctx->loaded_modules);
-    // TODO(bnoordhuis) use getrandom() etc.
-    ctx->random_state = js__gettimeofday_us();
+    ctx->random_state = js_generate_random_state();
     // the state must be non zero
     if (ctx->random_state == 0)
         ctx->random_state = 1;
