@@ -1538,6 +1538,8 @@ static JSValue js_call_c_function_data(JSContext *ctx, JSValueConst func_obj,
                                        JSValueConst this_val,
                                        int argc, JSValueConst *argv, int flags);
 static void js_c_closure_finalizer(JSRuntime *rt, JSValueConst val);
+static void js_c_closure_mark(JSRuntime *rt, JSValueConst val,
+                              JS_MarkFunc *mark_func);
 static JSValue js_call_c_closure(JSContext *ctx, JSValueConst func_obj,
                                  JSValueConst this_val,
                                  int argc, JSValueConst *argv, int flags);
@@ -2231,7 +2233,7 @@ static JSClassShortDef const js_std_class_def[] = {
     { JS_ATOM_Function, js_bytecode_function_finalizer, js_bytecode_function_mark }, /* JS_CLASS_BYTECODE_FUNCTION */
     { JS_ATOM_Function, js_bound_function_finalizer, js_bound_function_mark }, /* JS_CLASS_BOUND_FUNCTION */
     { JS_ATOM_Function, js_c_function_data_finalizer, js_c_function_data_mark }, /* JS_CLASS_C_FUNCTION_DATA */
-    { JS_ATOM_Function, js_c_closure_finalizer, NULL},                           /* JS_CLASS_C_CLOSURE */
+    { JS_ATOM_Function, js_c_closure_finalizer, js_c_closure_mark},              /* JS_CLASS_C_CLOSURE */
     { JS_ATOM_GeneratorFunction, js_bytecode_function_finalizer, js_bytecode_function_mark },  /* JS_CLASS_GENERATOR_FUNCTION */
     { JS_ATOM_ForInIterator, js_for_in_iterator_finalizer, js_for_in_iterator_mark },      /* JS_CLASS_FOR_IN_ITERATOR */
     { JS_ATOM_RegExp, js_regexp_finalizer, NULL },                              /* JS_CLASS_REGEXP */
@@ -6551,6 +6553,7 @@ JSValue JS_NewCFunction2(JSContext *ctx, JSCFunction *func,
 }
 
 typedef struct JSCFunctionDataRecord {
+    JSContext *realm;
     JSCFunctionData *func;
     uint8_t length;
     uint8_t data_len;
@@ -6567,6 +6570,8 @@ static void js_c_function_data_finalizer(JSRuntime *rt, JSValueConst val)
         for(i = 0; i < s->data_len; i++) {
             JS_FreeValueRT(rt, s->data[i]);
         }
+        if (s->realm)
+            JS_FreeContext(s->realm);
         js_free_rt(rt, s);
     }
 }
@@ -6578,6 +6583,8 @@ static void js_c_function_data_mark(JSRuntime *rt, JSValueConst val,
     int i;
 
     if (s) {
+        if (s->realm)
+            mark_func(rt, &s->realm->header);
         for(i = 0; i < s->data_len; i++) {
             JS_MarkValue(rt, s->data[i], mark_func);
         }
@@ -6615,7 +6622,8 @@ static JSValue js_call_c_function_data(JSContext *ctx, JSValueConst func_obj,
     prev_sf = rt->current_stack_frame;
     sf->prev_frame = prev_sf;
     rt->current_stack_frame = sf;
-    // TODO(bnoordhuis) switch realms like js_call_c_function does
+    if (s->realm)
+        ctx = s->realm; /* change the current realm */
     sf->is_strict_mode = false;
     sf->is_constructor = (flags & JS_CALL_FLAG_CONSTRUCTOR) != 0;
     sf->cur_func = unsafe_unconst(func_obj);
@@ -6644,6 +6652,7 @@ JSValue JS_NewCFunctionData2(JSContext *ctx, JSCFunctionData *func,
         JS_FreeValue(ctx, func_obj);
         return JS_EXCEPTION;
     }
+    s->realm = JS_DupContext(ctx);
     s->func = func;
     s->length = length;
     s->data_len = data_len;
@@ -6693,6 +6702,7 @@ static void js_autoinit_mark(JSRuntime *rt, JSProperty *pr,
 }
 
 typedef struct JSCClosureRecord {
+    JSContext *realm;
     JSCClosure *func;
     uint16_t length;
     uint16_t magic;
@@ -6708,7 +6718,20 @@ static void js_c_closure_finalizer(JSRuntime *rt, JSValueConst val)
         if (s->opaque_finalize)
            s->opaque_finalize(s->opaque);
 
+        if (s->realm)
+            JS_FreeContext(s->realm);
         js_free_rt(rt, s);
+    }
+}
+
+static void js_c_closure_mark(JSRuntime *rt, JSValueConst val,
+                              JS_MarkFunc *mark_func)
+{
+    JSCClosureRecord *s = JS_GetOpaque(val, JS_CLASS_C_CLOSURE);
+
+    if (s) {
+        if (s->realm)
+            mark_func(rt, &s->realm->header);
     }
 }
 
@@ -6741,7 +6764,8 @@ static JSValue js_call_c_closure(JSContext *ctx, JSValueConst func_obj,
     prev_sf = rt->current_stack_frame;
     sf->prev_frame = prev_sf;
     rt->current_stack_frame = sf;
-    // TODO(bnoordhuis) switch realms like js_call_c_function does
+    if (s->realm)
+        ctx = s->realm; /* change the current realm */
     sf->is_strict_mode = false;
     sf->is_constructor = (flags & JS_CALL_FLAG_CONSTRUCTOR) != 0;
     sf->cur_func = unsafe_unconst(func_obj);
@@ -6769,6 +6793,7 @@ JSValue JS_NewCClosure(JSContext *ctx, JSCClosure *func, const char *name,
         JS_FreeValue(ctx, func_obj);
         return JS_EXCEPTION;
     }
+    s->realm = JS_DupContext(ctx);
     s->func = func;
     s->length = length;
     s->magic = magic;
