@@ -7793,23 +7793,143 @@ void JS_ComputeMemoryUsage(JSRuntime *rt, JSMemoryUsage *s)
         case JS_CLASS_FLOAT32_ARRAY:     /* u.typed_array / u.array */
         case JS_CLASS_FLOAT64_ARRAY:     /* u.typed_array / u.array */
         case JS_CLASS_DATAVIEW:          /* u.typed_array */
+            break;
         case JS_CLASS_MAP:               /* u.map_state */
         case JS_CLASS_SET:               /* u.map_state */
         case JS_CLASS_WEAKMAP:           /* u.map_state */
         case JS_CLASS_WEAKSET:           /* u.map_state */
+            {
+                JSMapState *map_state = p->u.map_state;
+                if (map_state) {
+                    s->memory_used_count += 2; /* map_state + hash_table */
+                    s->memory_used_size += sizeof(*map_state) +
+                        map_state->hash_size * sizeof(map_state->hash_table[0]);
+                    struct list_head *el;
+                    list_for_each(el, &map_state->records) {
+                        JSMapRecord *mr = list_entry(el, JSMapRecord, link);
+                        s->memory_used_count++;
+                        s->memory_used_size += sizeof(*mr);
+                        if (map_state->is_weak) {
+                            s->memory_used_count++;
+                            s->memory_used_size += sizeof(JSWeakRefRecord);
+                        }
+                        compute_value_size(mr->key, hp);
+                        compute_value_size(mr->value, hp);
+                    }
+                }
+            }
+            break;
         case JS_CLASS_MAP_ITERATOR:      /* u.map_iterator_data */
         case JS_CLASS_SET_ITERATOR:      /* u.map_iterator_data */
+            {
+                JSMapIteratorData *it = p->u.map_iterator_data;
+                if (it) {
+                    s->memory_used_count++;
+                    s->memory_used_size += sizeof(*it);
+                    compute_value_size(it->obj, hp);
+                }
+            }
+            break;
         case JS_CLASS_ARRAY_ITERATOR:    /* u.array_iterator_data */
         case JS_CLASS_STRING_ITERATOR:   /* u.array_iterator_data */
+            {
+                JSArrayIteratorData *it = p->u.array_iterator_data;
+                if (it) {
+                    s->memory_used_count++;
+                    s->memory_used_size += sizeof(*it);
+                    compute_value_size(it->obj, hp);
+                }
+            }
+            break;
         case JS_CLASS_PROXY:             /* u.proxy_data */
+            {
+                JSProxyData *pd = p->u.proxy_data;
+                if (pd) {
+                    s->memory_used_count++;
+                    s->memory_used_size += sizeof(*pd);
+                    compute_value_size(pd->target, hp);
+                    compute_value_size(pd->handler, hp);
+                }
+            }
+            break;
         case JS_CLASS_PROMISE:           /* u.promise_data */
+            {
+                JSPromiseData *pd = p->u.promise_data;
+                if (pd) {
+                    s->memory_used_count++;
+                    s->memory_used_size += sizeof(*pd);
+                    compute_value_size(pd->promise_result, hp);
+                    for(i = 0; i < 2; i++) {
+                        struct list_head *el;
+                        list_for_each(el, &pd->promise_reactions[i]) {
+                            JSPromiseReactionData *rd = list_entry(el, JSPromiseReactionData, link);
+                            s->memory_used_count++;
+                            s->memory_used_size += sizeof(*rd);
+                            compute_value_size(rd->resolving_funcs[0], hp);
+                            compute_value_size(rd->resolving_funcs[1], hp);
+                            compute_value_size(rd->handler, hp);
+                        }
+                    }
+                }
+            }
+            break;
         case JS_CLASS_PROMISE_RESOLVE_FUNCTION:  /* u.promise_function_data */
         case JS_CLASS_PROMISE_REJECT_FUNCTION:   /* u.promise_function_data */
+            {
+                JSPromiseFunctionData *pfd = p->u.promise_function_data;
+                if (pfd) {
+                    s->memory_used_count++;
+                    s->memory_used_size += sizeof(*pfd);
+                    compute_value_size(pfd->promise, hp);
+                    if (pfd->presolved) {
+                        double ref_count = pfd->presolved->ref_count;
+                        s->memory_used_count += 1 / ref_count;
+                        s->memory_used_size += sizeof(*pfd->presolved) / ref_count;
+                    }
+                }
+            }
+            break;
         case JS_CLASS_ASYNC_FUNCTION_RESOLVE:    /* u.async_function_data */
         case JS_CLASS_ASYNC_FUNCTION_REJECT:     /* u.async_function_data */
+            {
+                JSAsyncFunctionData *afd = p->u.async_function_data;
+                if (afd) {
+                    s->memory_used_count++;
+                    s->memory_used_size += sizeof(*afd);
+                    compute_value_size(afd->resolving_funcs[0], hp);
+                    compute_value_size(afd->resolving_funcs[1], hp);
+                }
+            }
+            break;
         case JS_CLASS_ASYNC_FROM_SYNC_ITERATOR:  /* u.async_from_sync_iterator_data */
+            {
+                JSAsyncFromSyncIteratorData *afd = p->u.async_from_sync_iterator_data;
+                if (afd) {
+                    s->memory_used_count++;
+                    s->memory_used_size += sizeof(*afd);
+                    compute_value_size(afd->sync_iter, hp);
+                    compute_value_size(afd->next_method, hp);
+                }
+            }
+            break;
         case JS_CLASS_ASYNC_GENERATOR:   /* u.async_generator_data */
-            /* TODO */
+            {
+                JSAsyncGeneratorData *agd = p->u.async_generator_data;
+                if (agd) {
+                    s->memory_used_count++;
+                    s->memory_used_size += sizeof(*agd);
+                    struct list_head *el;
+                    list_for_each(el, &agd->queue) {
+                        JSAsyncGeneratorRequest *req = list_entry(el, JSAsyncGeneratorRequest, link);
+                        s->memory_used_count++;
+                        s->memory_used_size += sizeof(*req);
+                        compute_value_size(req->result.resolving_funcs[0], hp);
+                        compute_value_size(req->result.resolving_funcs[1], hp);
+                        compute_value_size(req->args[0], hp);
+                    }
+                }
+            }
+            break;
         default:
             /* XXX: class definition should have an opaque block size */
             if (p->u.opaque) {
