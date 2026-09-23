@@ -41663,11 +41663,11 @@ static JSValue js_object_groupBy(JSContext *ctx, JSValueConst this_val,
             JSCFunctionType ft2 = { .iterator_next = js_array_iterator_next };
             if (JS_IsCFunction(ctx, next, ft2.generic, 0)) {
                 struct JSArrayIteratorData *it = iter_p->u.array_iterator_data;
+                // Only enter the direct array fast path when the input uses the built-in values iterator
+                // and the created iterator is guaranteed to be fresh, unexposed, positioned at zero,
+                // and backed by the same ordinary array as argv[0].
                 if (it && it->kind == JS_ITERATOR_KIND_VALUE && it->idx == 0 && JS_VALUE_GET_PTR(it->obj) == JS_VALUE_GET_PTR(argv[0])) {
                     is_array_iterator = 1;
-                    // advance the iterator index so it appears consumed if observed later.
-                    // But wait, the fast loop needs to update the idx as it goes!
-                    // If it bails out to the slow loop, the idx needs to be accurate!
                 }
             }
         }
