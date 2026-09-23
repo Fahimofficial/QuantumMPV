@@ -7780,13 +7780,6 @@ void JS_ComputeMemoryUsage(JSRuntime *rt, JSMemoryUsage *s)
             }
             break;
         case JS_CLASS_GENERATOR:         /* u.generator_data */
-            {
-                if (p->u.generator_data) {
-                    s->memory_used_count++;
-                    s->memory_used_size += sizeof(int) + sizeof(JSAsyncFunctionState);
-                }
-            }
-            break;
         case JS_CLASS_UINT8C_ARRAY:      /* u.typed_array / u.array */
         case JS_CLASS_INT8_ARRAY:        /* u.typed_array / u.array */
         case JS_CLASS_UINT8_ARRAY:       /* u.typed_array / u.array */
@@ -7800,6 +7793,7 @@ void JS_ComputeMemoryUsage(JSRuntime *rt, JSMemoryUsage *s)
         case JS_CLASS_FLOAT32_ARRAY:     /* u.typed_array / u.array */
         case JS_CLASS_FLOAT64_ARRAY:     /* u.typed_array / u.array */
         case JS_CLASS_DATAVIEW:          /* u.typed_array */
+            break;
         case JS_CLASS_MAP:               /* u.map_state */
         case JS_CLASS_SET:               /* u.map_state */
         case JS_CLASS_WEAKMAP:           /* u.map_state */
@@ -7875,8 +7869,30 @@ void JS_ComputeMemoryUsage(JSRuntime *rt, JSMemoryUsage *s)
         case JS_CLASS_ASYNC_FUNCTION_REJECT:     /* u.async_function_data */
             {
                 if (p->u.async_function_data) {
-                    s->memory_used_count++;
-                    s->memory_used_size += sizeof(void*) + 2*sizeof(JSValue) + sizeof(bool) + sizeof(int);
+                    JSAsyncFunctionData *afd = p->u.async_function_data;
+                    double ref_count = js_rc(&afd->header)->ref_count;
+                    s->memory_used_count += 1 / ref_count;
+                    s->memory_used_size += sizeof(*afd) / ref_count;
+
+                    if (afd->func_state.frame.arg_buf) {
+                        /* active frame allocation size */
+                        int arg_count = afd->func_state.frame.js_arg_count;
+                        s->memory_used_count += 1 / ref_count;
+                        s->memory_used_size += (arg_count * sizeof(JSValue)) / ref_count;
+                        
+                        /* count retained values */
+                        if (afd->func_state.frame.cur_sp) {
+                            for (JSValue *sp = afd->func_state.frame.arg_buf; sp < afd->func_state.frame.cur_sp; sp++) {
+                                JSMemoryUsage_helper tmp_hp = *hp; 
+                                JSMemoryUsage_helper start_hp = *hp;
+                                compute_value_size(*sp, &tmp_hp);
+                                s->memory_used_count += (tmp_hp.memory_used_count - start_hp.memory_used_count) / ref_count;
+                                s->memory_used_size += (tmp_hp.memory_used_size - start_hp.memory_used_size) / ref_count;
+                                s->js_func_size += (tmp_hp.js_func_size - start_hp.js_func_size) / ref_count;
+                                *hp = tmp_hp; /* accumulate total visited tracking */
+                            }
+                        }
+                    }
                 }
             }
             break;
@@ -7892,7 +7908,7 @@ void JS_ComputeMemoryUsage(JSRuntime *rt, JSMemoryUsage *s)
             {
                 if (p->u.async_generator_data) {
                     s->memory_used_count++;
-                    s->memory_used_size += sizeof(void*) + 2 * sizeof(int) + sizeof(struct list_head);
+                    s->memory_used_size += sizeof(void*) + sizeof(int) + sizeof(JSAsyncFunctionState) + sizeof(struct list_head);
                 }
             }
             break;
