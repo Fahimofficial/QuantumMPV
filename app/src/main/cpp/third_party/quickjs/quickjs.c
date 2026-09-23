@@ -7780,6 +7780,13 @@ void JS_ComputeMemoryUsage(JSRuntime *rt, JSMemoryUsage *s)
             }
             break;
         case JS_CLASS_GENERATOR:         /* u.generator_data */
+            {
+                if (p->u.generator_data) {
+                    s->memory_used_count++;
+                    s->memory_used_size += sizeof(int) + sizeof(JSAsyncFunctionState);
+                }
+            }
+            break;
         case JS_CLASS_UINT8C_ARRAY:      /* u.typed_array / u.array */
         case JS_CLASS_INT8_ARRAY:        /* u.typed_array / u.array */
         case JS_CLASS_UINT8_ARRAY:       /* u.typed_array / u.array */
@@ -7876,7 +7883,7 @@ void JS_ComputeMemoryUsage(JSRuntime *rt, JSMemoryUsage *s)
 
                     if (afd->func_state.frame.arg_buf) {
                         /* active frame allocation size */
-                        int arg_count = afd->func_state.frame.js_arg_count;
+                        int arg_count = afd->func_state.frame.arg_count;
                         s->memory_used_count += 1 / ref_count;
                         s->memory_used_size += (arg_count * sizeof(JSValue)) / ref_count;
                         
