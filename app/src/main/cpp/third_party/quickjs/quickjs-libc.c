@@ -2634,13 +2634,23 @@ static int js_os_run_timers(JSRuntime *rt, JSContext *ctx, JSThreadState *ts, in
             *min_delay = 0;
             func = JS_DupValueRT(rt, th->func);
             argc = th->argc;
-            argv = js_malloc_rt(rt, argc * sizeof(JSValue));
-            if (argv) {
+            
+            if (argc > 0) {
+                argv = js_malloc_rt(rt, argc * sizeof(JSValue));
+                if (!argv) {
+                    if (th->repeats)
+                        th->timeout = cur_time + th->delay;
+                    else
+                        free_timer(rt, th);
+                    JS_FreeValueRT(rt, func);
+                    JS_ThrowOutOfMemory(ctx);
+                    return -1;
+                }
                 for (i = 0; i < argc; i++) {
                     argv[i] = JS_DupValueRT(rt, th->argv[i]);
                 }
             } else {
-                argc = 0; /* Fallback if allocation fails */
+                argv = NULL;
             }
 
             if (th->repeats)
