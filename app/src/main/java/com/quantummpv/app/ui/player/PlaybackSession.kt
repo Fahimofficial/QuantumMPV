@@ -22,6 +22,7 @@ import com.quantummpv.app.data.network.proxy.XtreamStreamingProxy
 import com.quantummpv.app.domain.network.NetworkPlaybackUri
 import com.quantummpv.app.domain.network.XtreamPlaybackUri
 import com.quantummpv.app.preferences.MpvConfigOverridePolicy
+import com.quantummpv.app.utils.UrlSanitizer
 import `is`.xyz.mpv.MPVLib
 import `is`.xyz.mpv.MPVNode
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -281,7 +282,7 @@ object PlaybackSession : MPVLib.EventObserver {
           updateState {
             it.copy(
               phase = PlaybackPhase.ERROR,
-              error = error.message ?: error.javaClass.simpleName,
+              error = UrlSanitizer.sanitizeExceptionMessage(error.message) ?: error.javaClass.simpleName,
             )
           }
           throw error
@@ -832,7 +833,7 @@ object PlaybackSession : MPVLib.EventObserver {
         return@withLock false
       }
       desiredPaused = true
-      updateState { it.copy(phase = PlaybackPhase.ERROR, paused = true, error = message) }
+      updateState { it.copy(phase = PlaybackPhase.ERROR, paused = true, error = UrlSanitizer.sanitizeExceptionMessage(message)) }
       propBoolean.emit("pause", true)
       clearTimelinePropertiesLocked()
       true
@@ -1303,7 +1304,7 @@ object PlaybackSession : MPVLib.EventObserver {
                     (failedBeforeReady && reason !in setOf(EndFileReason.STOP, EndFileReason.QUIT))
                 val error =
                   if (isFailure) {
-                    parseEndFileError(data)
+                    UrlSanitizer.sanitizeExceptionMessage(parseEndFileError(data))
                       ?: "Playback ended before the media became ready (${reason.name.lowercase()})"
                   } else {
                     null

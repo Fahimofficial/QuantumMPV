@@ -131,20 +131,15 @@ object ServerUrlUtils {
       }
       candidates.distinct()
     } else {
-      // Hosted domain / FQDN: HTTPS first, then HTTP
+      // Hosted domain / FQDN: HTTPS first, then NO HTTP
       val candidates = mutableListOf<String>()
       if (hostWithPort != null) {
         candidates.add("https://$hostWithPort")
-        candidates.add("http://$hostWithPort")
       } else {
         candidates.add("https://$clean")
         if (defaultPort != null && defaultPort > 0) {
           val hostPart = if (host.contains(":") && !host.startsWith("[")) "[$host]" else host
           candidates.add("https://$hostPart:$defaultPort$path")
-          candidates.add("http://$clean")
-          candidates.add("http://$hostPart:$defaultPort$path")
-        } else {
-          candidates.add("http://$clean")
         }
       }
       candidates.distinct()

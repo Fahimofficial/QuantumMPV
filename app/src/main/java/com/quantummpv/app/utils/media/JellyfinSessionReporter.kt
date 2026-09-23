@@ -11,6 +11,7 @@ package com.quantummpv.app.utils.media
 
 import android.net.Uri
 import android.util.Log
+import com.quantummpv.app.utils.UrlSanitizer
 import com.quantummpv.app.network.SharedHttpClient
 import com.quantummpv.app.network.awaitResponse
 import kotlinx.coroutines.CancellationException
@@ -82,7 +83,7 @@ class JellyfinSessionReporter(
 
         Log.d(
           TAG,
-          "Created JellyfinSessionReporter: baseUrl=$baseUrl, itemId=$itemId, playSessionId=$playSessionId, mediaSourceId=$mediaSourceId",
+          "Created JellyfinSessionReporter: baseUrl=${UrlSanitizer.sanitize(baseUrl)}, itemId=$itemId, playSessionId=$playSessionId, mediaSourceId=$mediaSourceId",
         )
         return JellyfinSessionReporter(
           baseUrl = baseUrl,
@@ -195,9 +196,9 @@ class JellyfinSessionReporter(
 
       httpClient.newCall(request).awaitResponse().use { response ->
         if (response.isSuccessful) {
-          Log.d(TAG, "Successfully reported status to Jellyfin: $urlString")
+          Log.d(TAG, "Successfully reported status to Jellyfin: ${UrlSanitizer.sanitize(urlString)}")
         } else {
-          Log.e(TAG, "Failed to report status to Jellyfin: $urlString, response code: ${response.code}")
+          Log.e(TAG, "Failed to report status to Jellyfin: ${UrlSanitizer.sanitize(urlString)}, response code: ${response.code}")
         }
       }
     } catch (cancellation: CancellationException) {

@@ -38,6 +38,7 @@ import okhttp3.OkHttpClient
 import okhttp3.Request
 import okhttp3.RequestBody.Companion.toRequestBody
 import java.io.IOException
+import com.quantummpv.app.utils.UrlSanitizer
 import java.util.UUID
 
 class JellyfinClient(
@@ -198,7 +199,7 @@ class JellyfinClient(
           val result =
             httpClient.newCall(request).awaitResponse().use { response ->
               if (!response.isSuccessful) {
-                throw IOException("Authentication failed: HTTP ${response.code} ${response.message}")
+                throw IOException("Authentication failed: HTTP ${response.code} ${UrlSanitizer.sanitizeExceptionMessage(response.message)}")
               }
               val bodyStr = response.body.string()
               val root = json.parseToJsonElement(bodyStr).jsonObject
@@ -253,7 +254,7 @@ class JellyfinClient(
           val result =
             httpClient.newCall(request).awaitResponse().use { response ->
               if (!response.isSuccessful) {
-                throw IOException("Token validation failed: HTTP ${response.code} ${response.message}")
+                throw IOException("Token validation failed: HTTP ${response.code} ${UrlSanitizer.sanitizeExceptionMessage(response.message)}")
               }
               val bodyStr = response.body.string()
               val userObj = json.parseToJsonElement(bodyStr).jsonObject
@@ -1145,7 +1146,7 @@ class JellyfinClient(
 
         httpClient.newCall(request).awaitResponse().use { response ->
           if (!response.isSuccessful) {
-            return@withContext Result.failure(IOException("Create playlist failed: ${response.code} ${response.message}"))
+            return@withContext Result.failure(IOException("Create playlist failed: ${response.code} ${UrlSanitizer.sanitizeExceptionMessage(response.message)}"))
           }
           val bodyStr = response.body.string()
           val root = json.parseToJsonElement(bodyStr).jsonObject
@@ -1179,7 +1180,7 @@ class JellyfinClient(
 
         httpClient.newCall(request).awaitResponse().use { response ->
           if (!response.isSuccessful) {
-            return@withContext Result.failure(IOException("Add to playlist failed: ${response.code} ${response.message}"))
+            return@withContext Result.failure(IOException("Add to playlist failed: ${response.code} ${UrlSanitizer.sanitizeExceptionMessage(response.message)}"))
           }
           Result.success(Unit)
         }
@@ -1207,7 +1208,7 @@ class JellyfinClient(
 
         httpClient.newCall(request).awaitResponse().use { response ->
           if (!response.isSuccessful && response.code != 204) {
-            return@withContext Result.failure(IOException("Delete item failed: ${response.code} ${response.message}"))
+            return@withContext Result.failure(IOException("Delete item failed: ${response.code} ${UrlSanitizer.sanitizeExceptionMessage(response.message)}"))
           }
           Result.success(Unit)
         }

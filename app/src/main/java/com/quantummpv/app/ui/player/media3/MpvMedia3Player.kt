@@ -28,6 +28,7 @@ import com.quantummpv.app.ui.player.PlaybackQueueState
 import com.quantummpv.app.ui.player.PlaybackSession
 import com.quantummpv.app.ui.player.RepeatMode
 import com.quantummpv.app.utils.storage.FileTypeUtils
+import com.quantummpv.app.utils.UrlSanitizer
 
 /**
  * An `androidx.media3.common.Player` whose playback engine is the shared libmpv session.
@@ -264,13 +265,14 @@ class MpvMedia3Player(
     artworkBytes: ByteArray?,
   ): SimpleBasePlayer.MediaItemData {
     val metadata = mediaMetadataFor(item, durationMs, artworkBytes)
+    val safeId = UrlSanitizer.sanitize(item.stableId) ?: item.stableId
     return SimpleBasePlayer.MediaItemData
       // The index keeps the Media3 item UID unique even when the same file is queued twice.
-      .Builder("${item.stableId}#$index")
+      .Builder("$safeId#$index")
       .setMediaItem(
         MediaItem
           .Builder()
-          .setMediaId(item.stableId)
+          .setMediaId(safeId)
           .setMediaMetadata(metadata)
           .build(),
       ).setMediaMetadata(metadata)
