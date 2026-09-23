@@ -18637,6 +18637,9 @@ static JSValue JS_CallInternal(JSContext *caller_ctx, JSValueConst func_obj,
         CASE(OP_init_ctor):
             {
                 JSValue super, ret;
+                int idx;
+                idx = get_u16(pc);
+                pc += 2;
                 sf->cur_pc = pc;
                 if (JS_IsUndefined(new_target))
                     goto non_ctor_call;
@@ -18647,7 +18650,13 @@ static JSValue JS_CallInternal(JSContext *caller_ctx, JSValueConst func_obj,
                 JS_FreeValue(ctx, super);
                 if (JS_IsException(ret))
                     goto exception;
-                *sp++ = ret;
+                if (unlikely(!JS_IsUninitialized(var_buf[idx]))) {
+                    JS_FreeValue(ctx, ret);
+                    JS_ThrowReferenceError(caller_ctx,
+                                           "'this' can be initialized only once");
+                    goto exception;
+                }
+                set_value(ctx, &var_buf[idx], ret);
             }
             BREAK;
         CASE(OP_check_brand):
@@ -25365,6 +25374,8 @@ static int find_private_class_field(JSContext *ctx, JSFunctionDef *fd,
 /* initialize the class fields, called by the constructor. Note:
    super() can be called in an arrow function, so <this> and
    <class_fields_init> can be variable references */
+static int add_var_this(JSContext *ctx, JSFunctionDef *fd);
+
 static void emit_class_field_init(JSParseState *s)
 {
     int label_next;
@@ -25491,11 +25502,11 @@ static __exception int js_parse_class_default_ctor(JSParseState *s,
         fd->arguments_allowed = true;
         fd->has_arguments_binding = true;
         func_type = JS_PARSE_FUNC_DERIVED_CLASS_CONSTRUCTOR;
+        if (fd->this_var_idx < 0) {
+            fd->this_var_idx = add_var_this(s->ctx, fd);
+        }
         emit_op(s, OP_init_ctor);
-        // TODO(bnoordhuis) roll into OP_init_ctor
-        emit_op(s, OP_scope_put_var_init);
-        emit_atom(s, JS_ATOM_this);
-        emit_u16(s, 0);
+        emit_u16(s, fd->this_var_idx);
         emit_class_field_init(s);
     } else {
         func_type = JS_PARSE_FUNC_CLASS_CONSTRUCTOR;
