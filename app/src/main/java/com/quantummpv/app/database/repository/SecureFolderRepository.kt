@@ -289,7 +289,6 @@ class SecureFolderRepository(
           val deleted = !secureFile.exists() || secureFile.delete()
 
           if (deleted) {
-            dao.deleteById(entity.id)
             succeeded += entity.id
           } else {
             // Rollback: keep the DB row so the user can retry instead of losing the entry
@@ -301,6 +300,18 @@ class SecureFolderRepository(
           Log.e(TAG, "Failed to delete ${entity.fileName}: ${e.message}", e)
           failed += entity.id
         }
+      }
+
+      try {
+        if (succeeded.isNotEmpty()) {
+          dao.deleteByIds(succeeded)
+        }
+      } catch (e: Exception) {
+        Log.e(TAG, "Failed to batch delete from DB: ${e.message}", e)
+        // If DB batch deletion fails, all succeeded physical deletions are now orphaned
+        // Since we cannot restore physical files, we move everything to failed to alert the user
+        failed.addAll(succeeded)
+        succeeded.clear()
       }
 
       _progress.value = _progress.value.copy(isComplete = true, overallProgress = 1f)
@@ -336,7 +347,10 @@ class SecureFolderRepository(
       if (originalParent != null && (originalParent.exists() || originalParent.mkdirs())) {
         originalParent
       } else {
-        File(android.os.Environment.getExternalStoragePublicDirectory(android.os.Environment.DIRECTORY_MOVIES), "Restored")
+        File(
+          android.os.Environment.getExternalStoragePublicDirectory(android.os.Environment.DIRECTORY_MOVIES),
+          "Restored",
+        )
       }
     return uniqueFileIn(candidateDir, entity.fileName)
   }
