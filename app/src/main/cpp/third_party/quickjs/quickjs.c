@@ -38471,7 +38471,7 @@ typedef enum BCTagEnum {
     BC_TAG_SYMBOL,
 } BCTagEnum;
 
-#define BC_VERSION 27
+#define BC_VERSION 28
 
 typedef struct BCWriterState {
     JSContext *ctx;
@@ -39215,10 +39215,15 @@ static int JS_WriteObjectAtoms(BCWriterState *s)
     for(i = 0; i < s->idx_to_atom_count; i++) {
         JSAtom atom = s->idx_to_atom[i];
         if (__JS_AtomIsConst(atom)) {
-            bc_put_u8(s, 0 /* the type */);
             /* TODO(saghul): encoding for tagged integers and keyword-ish atoms could be
                more efficient. */
-            bc_put_u32(s, atom);
+            if (__JS_AtomIsTaggedInt(atom)) {
+                bc_put_u8(s, JS_ATOM_TYPE_PRIVATE);
+                bc_put_leb128(s, __JS_AtomToUInt32(atom));
+            } else {
+                bc_put_u8(s, 0 /* the type */);
+                bc_put_leb128(s, atom);
+            }
         } else {
             JSAtomStruct *p = rt->atom_array[atom];
             uint8_t type = p->atom_type;
@@ -40509,14 +40514,19 @@ static int JS_ReadObjectAtoms(BCReaderState *s)
             return -1;
         }
         if (type == 0) {
-            if (bc_get_u32(s, &atom))
+            if (bc_get_leb128(s, &atom))
                 return -1;
-            if (!__JS_AtomIsConst(atom)) {
+            if (!__JS_AtomIsConst(atom) || __JS_AtomIsTaggedInt(atom)) {
                 JS_ThrowInternalError(s->ctx, "out of range atom");
                 return -1;
             }
+        } else if (type == JS_ATOM_TYPE_PRIVATE) {
+            uint32_t v;
+            if (bc_get_leb128(s, &v))
+                return -1;
+            atom = __JS_AtomFromUInt32(v);
         } else {
-            if (type < JS_ATOM_TYPE_STRING || type >= JS_ATOM_TYPE_PRIVATE) {
+            if (type < JS_ATOM_TYPE_STRING || type > JS_ATOM_TYPE_PRIVATE) {
                 JS_ThrowInternalError(s->ctx, "invalid symbol type %d", type);
                 return -1;
             }
