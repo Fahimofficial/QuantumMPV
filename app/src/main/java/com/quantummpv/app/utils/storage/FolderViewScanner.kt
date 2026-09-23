@@ -293,7 +293,10 @@ object FolderViewScanner {
             cached[pathKey] = snapshot.entity
             indexUpdates[pathKey] = snapshot.entity
 
-            val currentChildKeys = snapshot.subdirectories.mapTo(hashSetOf()) { child -> scanEntryKey(child.absolutePath) }
+            val currentChildKeys =
+              snapshot.subdirectories.mapTo(
+                hashSetOf(),
+              ) { child -> scanEntryKey(child.absolutePath) }
             childrenByParent[pathKey]
               .orEmpty()
               .filterNot(currentChildKeys::contains)

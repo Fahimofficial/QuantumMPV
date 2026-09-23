@@ -13,7 +13,6 @@ package com.quantummpv.app.ui.browser.playlist
 
 import android.app.Application
 import android.widget.Toast
-import com.quantummpv.app.ui.utils.NavigationBackHandler as BackHandler
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
@@ -42,8 +41,6 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import com.quantummpv.app.R
 import com.quantummpv.app.domain.media.model.Video
 import com.quantummpv.app.domain.media.model.VideoFolder
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.withContext
 import com.quantummpv.app.preferences.BrowserPreferences
 import com.quantummpv.app.preferences.preference.collectAsState
 import com.quantummpv.app.presentation.Screen
@@ -61,9 +58,12 @@ import com.quantummpv.app.ui.icons.Icons
 import com.quantummpv.app.ui.utils.LocalBackStack
 import com.quantummpv.app.ui.utils.popSafely
 import com.quantummpv.app.utils.sort.SortUtils
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import kotlinx.serialization.Serializable
 import org.koin.compose.koinInject
+import com.quantummpv.app.ui.utils.NavigationBackHandler as BackHandler
 
 /**
  * In-app file picker for adding videos to a playlist: browse storage folders (same folder
@@ -106,9 +106,10 @@ data class PlaylistAddVideosScreen(
     val videoFolders by folderListViewModel.videoFolders.collectAsState()
     val folderSortType by browserPreferences.folderSortType.collectAsState()
     val folderSortOrder by browserPreferences.folderSortOrder.collectAsState()
-    val sortedFolders = remember(videoFolders, folderSortType, folderSortOrder) {
-      SortUtils.sortFolders(videoFolders, folderSortType, folderSortOrder)
-    }
+    val sortedFolders =
+      remember(videoFolders, folderSortType, folderSortOrder) {
+        SortUtils.sortFolders(videoFolders, folderSortType, folderSortOrder)
+      }
 
     var selectedFolder by remember { mutableStateOf<VideoFolder?>(null) }
     val folder = selectedFolder
@@ -133,10 +134,11 @@ data class PlaylistAddVideosScreen(
       }
     val videoSortType by browserPreferences.videoSortType.collectAsState()
     val videoSortOrder by browserPreferences.videoSortOrder.collectAsState()
-    val sortedVideos = remember(currentVideos, videoSortType, videoSortOrder, isAudio) {
-      val filtered = if (isAudio) currentVideos.filter { it.isAudio } else currentVideos
-      SortUtils.sortVideos(filtered, videoSortType, videoSortOrder)
-    }
+    val sortedVideos =
+      remember(currentVideos, videoSortType, videoSortOrder, isAudio) {
+        val filtered = if (isAudio) currentVideos.filter { it.isAudio } else currentVideos
+        SortUtils.sortVideos(filtered, videoSortType, videoSortOrder)
+      }
 
     // Selection manager for multi-select videos step
     val selectionManager =
@@ -156,11 +158,19 @@ data class PlaylistAddVideosScreen(
       scope.launch {
         playlistDetailViewModel.addVideosToPlaylist(videos)
         withContext(Dispatchers.Main) {
-          Toast.makeText(
-            context,
-            if (isAudio) "Added ${videos.size} songs to playlist" else context.getString(R.string.playlist_add_videos_success, videos.size),
-            Toast.LENGTH_SHORT,
-          ).show()
+          Toast
+            .makeText(
+              context,
+              if (isAudio) {
+                "Added ${videos.size} songs to playlist"
+              } else {
+                context.getString(
+                  R.string.playlist_add_videos_success,
+                  videos.size,
+                )
+              },
+              Toast.LENGTH_SHORT,
+            ).show()
           backstack.popSafely()
         }
       }
@@ -209,7 +219,16 @@ data class PlaylistAddVideosScreen(
               onClick = { addSelectedToPlaylist() },
               modifier = Modifier.fillMaxWidth().padding(16.dp),
             ) {
-              Text(if (isAudio) "Add $selectedCount Songs" else stringResource(R.string.playlist_add_videos_button, selectedCount))
+              Text(
+                if (isAudio) {
+                  "Add $selectedCount Songs"
+                } else {
+                  stringResource(
+                    R.string.playlist_add_videos_button,
+                    selectedCount,
+                  )
+                },
+              )
             }
           }
         }
@@ -220,7 +239,14 @@ data class PlaylistAddVideosScreen(
           EmptyState(
             icon = Icons.RoundedFilled.Folder,
             title = if (isAudio) "No music folders found" else stringResource(R.string.playlist_add_videos_empty_title),
-            message = if (isAudio) "No folders with songs available" else stringResource(R.string.playlist_add_videos_empty_message),
+            message =
+              if (isAudio) {
+                "No folders with songs available"
+              } else {
+                stringResource(
+                  R.string.playlist_add_videos_empty_message,
+                )
+              },
             modifier = Modifier.padding(padding),
           )
         } else {
@@ -242,7 +268,14 @@ data class PlaylistAddVideosScreen(
         EmptyState(
           icon = Icons.RoundedFilled.Folder,
           title = if (isAudio) "No songs found" else stringResource(R.string.playlist_add_videos_empty_title),
-          message = if (isAudio) "No songs available in this folder" else stringResource(R.string.playlist_add_videos_empty_message),
+          message =
+            if (isAudio) {
+              "No songs available in this folder"
+            } else {
+              stringResource(
+                R.string.playlist_add_videos_empty_message,
+              )
+            },
           modifier = Modifier.padding(padding),
         )
       } else {

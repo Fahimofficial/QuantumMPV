@@ -121,12 +121,17 @@ class AnthropicClient(
             }
           models += parsed.data
           if (!parsed.hasMore) break
-          val nextAfterId = parsed.lastId?.takeIf { it.isNotBlank() && it != afterId }
-            ?: throw IllegalStateException("Anthropic returned an invalid model pagination cursor")
+          val nextAfterId =
+            parsed.lastId?.takeIf { it.isNotBlank() && it != afterId }
+              ?: throw IllegalStateException("Anthropic returned an invalid model pagination cursor")
           afterId = nextAfterId
           page++
         }
-        if (page >= MAX_MODEL_PAGES) throw IllegalStateException("Anthropic model catalog exceeded $MAX_MODEL_PAGES pages")
+        if (page >=
+          MAX_MODEL_PAGES
+        ) {
+          throw IllegalStateException("Anthropic model catalog exceeded $MAX_MODEL_PAGES pages")
+        }
 
         models.map { model ->
           AiModelInfo(

@@ -68,8 +68,8 @@ import com.quantummpv.app.ui.icons.Icon
 import com.quantummpv.app.ui.icons.Icons
 import com.quantummpv.app.ui.preferences.components.SwitchPreference
 import com.quantummpv.app.ui.utils.LocalBackStack
-import com.quantummpv.app.ui.utils.navigateTo
 import com.quantummpv.app.ui.utils.LocalShowSettingsBackArrow
+import com.quantummpv.app.ui.utils.navigateTo
 import com.quantummpv.app.ui.utils.popSafely
 import com.quantummpv.app.utils.clipboard.SafeClipboard
 import com.quantummpv.app.utils.history.RecentlyPlayedOps

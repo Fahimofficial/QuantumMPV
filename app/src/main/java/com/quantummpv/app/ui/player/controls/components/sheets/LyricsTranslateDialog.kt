@@ -7,7 +7,6 @@ package com.quantummpv.app.ui.player.controls.components.sheets
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -19,14 +18,12 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.FilterChipDefaults
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.RadioButton
@@ -48,7 +45,6 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.quantummpv.app.R
 import com.quantummpv.app.data.lyrics.LyricsLanguageOptions
-import com.quantummpv.app.data.lyrics.SupportedLanguage
 import com.quantummpv.app.preferences.AudioPreferences
 import com.quantummpv.app.preferences.LyricsTranslationDisplayMode
 import com.quantummpv.app.preferences.preference.collectAsState
@@ -68,15 +64,16 @@ fun LyricsTranslateDialog(
   val state by viewModel.lyricsUiState.collectAsState()
   var searchQuery by remember { mutableStateOf("") }
 
-  val filteredLanguages = remember(searchQuery) {
-    if (searchQuery.isBlank()) {
-      LyricsLanguageOptions.ALL_LANGUAGES
-    } else {
-      LyricsLanguageOptions.ALL_LANGUAGES.filter {
-        it.displayName.contains(searchQuery, ignoreCase = true) || it.code.contains(searchQuery, ignoreCase = true)
+  val filteredLanguages =
+    remember(searchQuery) {
+      if (searchQuery.isBlank()) {
+        LyricsLanguageOptions.ALL_LANGUAGES
+      } else {
+        LyricsLanguageOptions.ALL_LANGUAGES.filter {
+          it.displayName.contains(searchQuery, ignoreCase = true) || it.code.contains(searchQuery, ignoreCase = true)
+        }
       }
     }
-  }
 
   AlertDialog(
     onDismissRequest = onDismiss,
@@ -111,19 +108,21 @@ fun LyricsTranslateDialog(
     },
     text = {
       Column(
-        modifier = Modifier
-          .fillMaxWidth()
-          .heightIn(max = 440.dp),
+        modifier =
+          Modifier
+            .fillMaxWidth()
+            .heightIn(max = 440.dp),
       ) {
         // Option to toggle off (original lyrics)
         Surface(
-          modifier = Modifier
-            .fillMaxWidth()
-            .clip(RoundedCornerShape(12.dp))
-            .clickable {
-              viewModel.showOriginalLyrics()
-              onDismiss()
-            },
+          modifier =
+            Modifier
+              .fillMaxWidth()
+              .clip(RoundedCornerShape(12.dp))
+              .clickable {
+                viewModel.showOriginalLyrics()
+                onDismiss()
+              },
           color = if (!state.isTranslationActive) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surfaceVariant,
           shape = RoundedCornerShape(12.dp),
         ) {
@@ -165,20 +164,22 @@ fun LyricsTranslateDialog(
             onClick = { audioPreferences.lyricsTranslationDisplayMode.set(LyricsTranslationDisplayMode.DualLine) },
             label = { Text("Dual-Line", fontWeight = FontWeight.Bold, fontSize = 12.sp) },
             modifier = Modifier.weight(1f),
-            colors = FilterChipDefaults.filterChipColors(
-              selectedContainerColor = MaterialTheme.colorScheme.primaryContainer,
-              selectedLabelColor = MaterialTheme.colorScheme.onPrimaryContainer,
-            ),
+            colors =
+              FilterChipDefaults.filterChipColors(
+                selectedContainerColor = MaterialTheme.colorScheme.primaryContainer,
+                selectedLabelColor = MaterialTheme.colorScheme.onPrimaryContainer,
+              ),
           )
           FilterChip(
             selected = displayMode == LyricsTranslationDisplayMode.Replace,
             onClick = { audioPreferences.lyricsTranslationDisplayMode.set(LyricsTranslationDisplayMode.Replace) },
             label = { Text("Replace Original", fontWeight = FontWeight.Bold, fontSize = 12.sp) },
             modifier = Modifier.weight(1f),
-            colors = FilterChipDefaults.filterChipColors(
-              selectedContainerColor = MaterialTheme.colorScheme.primaryContainer,
-              selectedLabelColor = MaterialTheme.colorScheme.onPrimaryContainer,
-            ),
+            colors =
+              FilterChipDefaults.filterChipColors(
+                selectedContainerColor = MaterialTheme.colorScheme.primaryContainer,
+                selectedLabelColor = MaterialTheme.colorScheme.onPrimaryContainer,
+              ),
           )
         }
 
@@ -198,27 +199,30 @@ fun LyricsTranslateDialog(
 
         // Language List
         LazyColumn(
-          modifier = Modifier
-            .fillMaxWidth()
-            .weight(1f, fill = false),
+          modifier =
+            Modifier
+              .fillMaxWidth()
+              .weight(1f, fill = false),
           verticalArrangement = Arrangement.spacedBy(4.dp),
         ) {
           items(filteredLanguages, key = { it.code }) { lang ->
             val isSelected = state.isTranslationActive && state.targetLanguage.equals(lang.code, ignoreCase = true)
             Row(
-              modifier = Modifier
-                .fillMaxWidth()
-                .clip(RoundedCornerShape(8.dp))
-                .clickable {
-                  audioPreferences.lyricsTargetLanguage.set(lang.code)
-                  viewModel.translateLyrics(lang.code)
-                  onDismiss()
-                }
-                .background(
-                  if (isSelected) MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.6f)
-                  else MaterialTheme.colorScheme.surface,
-                )
-                .padding(horizontal = 10.dp, vertical = 10.dp),
+              modifier =
+                Modifier
+                  .fillMaxWidth()
+                  .clip(RoundedCornerShape(8.dp))
+                  .clickable {
+                    audioPreferences.lyricsTargetLanguage.set(lang.code)
+                    viewModel.translateLyrics(lang.code)
+                    onDismiss()
+                  }.background(
+                    if (isSelected) {
+                      MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.6f)
+                    } else {
+                      MaterialTheme.colorScheme.surface
+                    },
+                  ).padding(horizontal = 10.dp, vertical = 10.dp),
               verticalAlignment = Alignment.CenterVertically,
             ) {
               RadioButton(

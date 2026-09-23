@@ -92,7 +92,7 @@ class FolderListViewModel(
   private var newCountJob: Job? = null
   private var cacheWriteJob: Job? = null
 
-    companion object {
+  companion object {
     private const val TAG = "FolderListViewModel"
     private const val MEDIA_LIBRARY_REFRESH_DEBOUNCE_MS = 750L
 
@@ -141,11 +141,12 @@ class FolderListViewModel(
     }
 
     // Filter folders based on blacklist (video vs audio scope)
-    val blacklistFlow = if (audioOnly) {
-      foldersPreferences.blacklistedAudioFolders.changes()
-    } else {
-      foldersPreferences.blacklistedFolders.changes()
-    }
+    val blacklistFlow =
+      if (audioOnly) {
+        foldersPreferences.blacklistedAudioFolders.changes()
+      } else {
+        foldersPreferences.blacklistedFolders.changes()
+      }
 
     viewModelScope.launch {
       combine(_allVideoFolders, blacklistFlow) { folders, blacklist ->
@@ -291,10 +292,11 @@ class FolderListViewModel(
 
                     // A video counts as "unplayed" until it has been watched to the
                     // configured threshold. Threshold 0 ("Infinitely") keeps it unplayed.
-                    val playbackState = playbackStateRepository.getVideoDataByTitle(PlaybackIdentity.forLocalPath(video.path))
-                      ?: playbackStateRepository.getVideoDataByTitle(PlaybackIdentity.forUri(video.uri.toString()))
-                      ?: playbackStateRepository.getVideoDataByTitle(PlaybackIdentity.forUri(video.path))
-                      ?: playbackStateRepository.getVideoDataByTitle(PlaybackIdentity.forUri("file://${video.path}"))
+                    val playbackState =
+                      playbackStateRepository.getVideoDataByTitle(PlaybackIdentity.forLocalPath(video.path))
+                        ?: playbackStateRepository.getVideoDataByTitle(PlaybackIdentity.forUri(video.uri.toString()))
+                        ?: playbackStateRepository.getVideoDataByTitle(PlaybackIdentity.forUri(video.path))
+                        ?: playbackStateRepository.getVideoDataByTitle(PlaybackIdentity.forUri("file://${video.path}"))
                     val isUnplayed =
                       if (playbackState != null && video.duration > 0) {
                         val durationSeconds = video.duration / 1000

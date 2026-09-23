@@ -387,7 +387,6 @@ fun YtdlpPanel(
           }
         }
       }
-
     }
   }
 }

@@ -172,7 +172,10 @@ object GesturePreferencesScreen : Screen {
 
               val swipeSubtitlesInvertDirection by preferences.swipeSubtitlesInvertDirection.collectAsState()
               SwitchPreference(
-                modifier = Modifier.settingsSearchTarget(R.string.pref_player_gestures_swipe_subtitles_invert_direction),
+                modifier =
+                  Modifier.settingsSearchTarget(
+                    R.string.pref_player_gestures_swipe_subtitles_invert_direction,
+                  ),
                 value = swipeSubtitlesInvertDirection,
                 onValueChange = preferences.swipeSubtitlesInvertDirection::set,
                 title = { Text(stringResource(R.string.pref_player_gestures_swipe_subtitles_invert_direction)) },

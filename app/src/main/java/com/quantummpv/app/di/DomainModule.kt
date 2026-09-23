@@ -91,10 +91,21 @@ val domainModule =
       com.quantummpv.app.domain.syncplay
         .SyncplayManager(androidContext())
     }
-    single { com.quantummpv.app.data.lyrics.LrcLibApiService(get()) }
-    single { com.quantummpv.app.data.lyrics.LyricsTranslationService(get()) }
-    single { com.quantummpv.app.repository.lyrics.LyricsRepository(androidContext(), get()) }
+    single {
+      com.quantummpv.app.data.lyrics
+        .LrcLibApiService(get())
+    }
+    single {
+      com.quantummpv.app.data.lyrics
+        .LyricsTranslationService(get())
+    }
+    single {
+      com.quantummpv.app.repository.lyrics
+        .LyricsRepository(androidContext(), get())
+    }
     single { TorrentStreamingEngine(androidContext()) }
-    single { com.quantummpv.app.repository.SeerrRepository(get(), get(), get()) }
+    single {
+      com.quantummpv.app.repository
+        .SeerrRepository(get(), get(), get())
+    }
   }
-

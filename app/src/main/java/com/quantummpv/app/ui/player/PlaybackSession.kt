@@ -30,7 +30,6 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.withTimeoutOrNull
-import java.util.ArrayDeque
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.CopyOnWriteArraySet
 import java.util.concurrent.atomic.AtomicLong
@@ -508,8 +507,8 @@ object PlaybackSession : MPVLib.EventObserver {
   }
 
   /**
-    * Destroys a core that must not be reused, including process shutdown and an unrecoverable
-    * initialization reset. Normal Activity launches reuse the process-wide core.
+   * Destroys a core that must not be reused, including process shutdown and an unrecoverable
+   * initialization reset. Normal Activity launches reuse the process-wide core.
    */
   fun destroy() {
     nativeLock.withLock {
@@ -657,7 +656,12 @@ object PlaybackSession : MPVLib.EventObserver {
     nativeLock.withLock {
       // Unresolved torrent episodes need the player screen's streaming engine; loading the raw
       // magnet/torrent source into mpv would fail and desync the queue.
-      if (_queue.value.items.getOrNull(index)?.requiresTorrentResolution() == true) return@withLock null
+      if (_queue.value.items
+          .getOrNull(index)
+          ?.requiresTorrentResolution() == true
+      ) {
+        return@withLock null
+      }
       val item = selectQueueItem(index) ?: return@withLock null
       load(item)
       item
@@ -826,7 +830,8 @@ object PlaybackSession : MPVLib.EventObserver {
   ): Boolean =
     nativeLock.withLock {
       val current = _state.value
-      if (!initialized || current.generation != expectedGeneration ||
+      if (!initialized ||
+        current.generation != expectedGeneration ||
         current.phase !in setOf(PlaybackPhase.LOADING, PlaybackPhase.ERROR)
       ) {
         return@withLock false
@@ -862,7 +867,10 @@ object PlaybackSession : MPVLib.EventObserver {
       if (pendingPositionRestoreOverride?.first == generation) pendingPositionRestoreOverride = null
       if (initialPositionGeneration == generation) initialPositionGeneration = 0L
       val current = _state.value
-      if (current.generation != generation || loadedGeneration != generation || current.phase != PlaybackPhase.LOADING) {
+      if (current.generation != generation ||
+        loadedGeneration != generation ||
+        current.phase != PlaybackPhase.LOADING
+      ) {
         return@withLock
       }
 
@@ -1065,7 +1073,10 @@ object PlaybackSession : MPVLib.EventObserver {
 
       // Some shader-stack managers replace the whole list instead of using change-list/remove.
       // If that replacement drops Ambient, restore the base video scale before the next frame.
-      if (property == "glsl-shaders" && activeAmbientShaderPaths.isNotEmpty() && !value.contains(AMBIENT_SHADER_PREFIX)) {
+      if (property == "glsl-shaders" &&
+        activeAmbientShaderPaths.isNotEmpty() &&
+        !value.contains(AMBIENT_SHADER_PREFIX)
+      ) {
         resetActiveAmbientScaleLocked()
         activeAmbientShaderPaths.clear()
       }

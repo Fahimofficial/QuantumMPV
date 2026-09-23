@@ -13,15 +13,7 @@ package com.quantummpv.app.ui.browser.networkstreaming
 
 import android.content.Context
 import android.content.SharedPreferences
-import com.quantummpv.app.ui.utils.NavigationBackHandler as BackHandler
-import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.animation.animateContentSize
-import androidx.compose.animation.expandVertically
-import androidx.compose.animation.fadeIn
-import androidx.compose.animation.fadeOut
-import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.background
-import androidx.compose.foundation.basicMarquee
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -29,16 +21,13 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import com.quantummpv.app.ui.utils.NavigationPager
 import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardActions
@@ -76,10 +65,8 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
-import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
@@ -95,16 +82,13 @@ import com.quantummpv.app.database.repository.NetworkStreamEntryRepository
 import com.quantummpv.app.domain.network.ConnectionStatus
 import com.quantummpv.app.domain.network.NetworkConnection
 import com.quantummpv.app.domain.torrent.TorrentStreamingEngine
-import com.quantummpv.app.domain.torrent.formatTorrentBytes
 import com.quantummpv.app.domain.torrent.isTorrentSource
 import com.quantummpv.app.domain.torrent.normalizeTorrentSource
-import com.quantummpv.app.preferences.YtdlPreferences
 import com.quantummpv.app.preferences.NetworkBookmarkPreferences
+import com.quantummpv.app.preferences.YtdlPreferences
 import com.quantummpv.app.preferences.preference.collectAsState
 import com.quantummpv.app.presentation.Screen
-import com.quantummpv.app.presentation.components.RemoteImage
 import com.quantummpv.app.repository.wyzie.WyzieSearchRepository
-import com.quantummpv.app.utils.media.MediaInfoParser
 import com.quantummpv.app.ui.browser.cards.NetworkConnectionCard
 import com.quantummpv.app.ui.browser.components.BrowserTopBar
 import com.quantummpv.app.ui.browser.dialogs.AddConnectionSheet
@@ -113,27 +97,32 @@ import com.quantummpv.app.ui.components.InlineSearchBar
 import com.quantummpv.app.ui.icons.AppIcon
 import com.quantummpv.app.ui.icons.Icon
 import com.quantummpv.app.ui.icons.Icons
-import com.quantummpv.app.ui.player.ytdlp.YtdlpInstallPromptDialog
 import com.quantummpv.app.ui.player.ytdlp.YtdlpInstallProgressDialog
+import com.quantummpv.app.ui.player.ytdlp.YtdlpInstallPromptDialog
 import com.quantummpv.app.ui.player.ytdlp.YtdlpManager
 import com.quantummpv.app.ui.preferences.YtdlpSettingsScreen
 import com.quantummpv.app.ui.torrent.TorrentSelectionInput
 import com.quantummpv.app.ui.torrent.TorrentSelectionScreen
 import com.quantummpv.app.ui.torrent.TorrentSelectionViewModel
 import com.quantummpv.app.ui.utils.LocalBackStack
+import com.quantummpv.app.ui.utils.NavigationPager
 import com.quantummpv.app.ui.utils.navigateTo
 import com.quantummpv.app.ui.utils.rememberTabNavigation
-import com.quantummpv.app.utils.media.SharedUrlExtractor
+import com.quantummpv.app.utils.media.MediaInfoParser
 import com.quantummpv.app.utils.media.MediaUtils
+import com.quantummpv.app.utils.media.SharedUrlExtractor
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
 import kotlinx.serialization.Serializable
 import org.koin.compose.koinInject
+import com.quantummpv.app.ui.utils.NavigationBackHandler as BackHandler
 
 private const val VIEWED_TORRENT_FILES_PREFS = "torrent_viewed_files"
 
-private enum class NetworkTab(val titleResId: Int) {
+private enum class NetworkTab(
+  val titleResId: Int,
+) {
   LOCAL_NETWORK(R.string.ui_local_network),
   MEDIA(R.string.ui_media),
   SYNC_PLAY(R.string.syncplay_title),
@@ -306,7 +295,13 @@ object NetworkStreamingScreen : Screen {
     val pagerState = rememberPagerState { NetworkTab.entries.size }
 
     val headerContainerColor =
-      if (MaterialTheme.colorScheme.background == Color.Black) Color.Black else MaterialTheme.colorScheme.surfaceContainer
+      if (MaterialTheme.colorScheme.background ==
+        Color.Black
+      ) {
+        Color.Black
+      } else {
+        MaterialTheme.colorScheme.surfaceContainer
+      }
 
     Scaffold(
       modifier = Modifier.fillMaxSize(),
@@ -491,7 +486,8 @@ object NetworkStreamingScreen : Screen {
                   )
                 },
                 onSaveToMedia = { entry ->
-                  val playableSource = normalizeTorrentSource(entry.canonicalSourceUri) ?: entry.canonicalSourceUri.trim()
+                  val playableSource =
+                    normalizeTorrentSource(entry.canonicalSourceUri) ?: entry.canonicalSourceUri.trim()
                   if (isTorrentSource(playableSource)) {
                     showTorrentPicker = true
                     torrentPickerViewModel.open(TorrentSelectionInput(source = playableSource, title = entry.fileName))
@@ -544,7 +540,8 @@ object NetworkStreamingScreen : Screen {
                 mediaGroups = filteredMediaGroups,
                 searchQuery = searchQuery,
                 onPlayMedia = { entry ->
-                  val playableSource = normalizeTorrentSource(entry.canonicalSourceUri) ?: entry.canonicalSourceUri.trim()
+                  val playableSource =
+                    normalizeTorrentSource(entry.canonicalSourceUri) ?: entry.canonicalSourceUri.trim()
                   if (isTorrentSource(playableSource)) {
                     MediaUtils.playFile(
                       source = entry.canonicalSourceUri,
@@ -710,7 +707,12 @@ private fun AddMediaDialog(
                   coroutineScope.launch {
                     val clipData = clipboard.getClipEntry()?.clipData
                     if (clipData != null && clipData.itemCount > 0) {
-                      val clip = clipData.getItemAt(0).coerceToText(context)?.toString()?.trim()
+                      val clip =
+                        clipData
+                          .getItemAt(0)
+                          .coerceToText(context)
+                          ?.toString()
+                          ?.trim()
                       if (!clip.isNullOrBlank()) inputUrl = clip
                     }
                   }
@@ -768,7 +770,9 @@ private fun LocalNetworkContent(
   onOpenBookmark: (ResolvedNetworkFolderBookmark) -> Unit,
   onManageBookmarks: () -> Unit,
 ) {
-  val navBarHeight = com.quantummpv.app.ui.browser.LocalNavigationBarHeight.current.takeIf { it > 0.dp } ?: 88.dp
+  val navBarHeight =
+    com.quantummpv.app.ui.browser.LocalNavigationBarHeight.current
+      .takeIf { it > 0.dp } ?: 88.dp
   LazyColumn(
     modifier = Modifier.fillMaxSize(),
     contentPadding = PaddingValues(start = 16.dp, top = 12.dp, end = 16.dp, bottom = navBarHeight + 16.dp),
@@ -846,21 +850,25 @@ private fun MediaContent(
     }
 
   var selectedDetailGroup by remember { mutableStateOf<MediaStreamGroup?>(null) }
-  val navBarHeight = com.quantummpv.app.ui.browser.LocalNavigationBarHeight.current.takeIf { it > 0.dp } ?: 88.dp
+  val navBarHeight =
+    com.quantummpv.app.ui.browser.LocalNavigationBarHeight.current
+      .takeIf { it > 0.dp } ?: 88.dp
 
   val heroGroups =
     remember(mediaGroups) {
-      mediaGroups.filter { !it.backdropUrl.isNullOrBlank() || !it.posterUrl.isNullOrBlank() }
+      mediaGroups
+        .filter { !it.backdropUrl.isNullOrBlank() || !it.posterUrl.isNullOrBlank() }
         .ifEmpty { mediaGroups }
     }
 
   val recentViewedFiles =
     remember(mediaGroups) {
-      mediaGroups.flatMap { group ->
-        val infoHash = group.infoHash
-        val viewed = if (infoHash != null) loadViewedFileIndices(viewedPreferences, infoHash) else emptySet()
-        group.files.filter { it.fileIndex in viewed || group.groupType != MediaGroupType.TORRENT }
-      }.sortedByDescending { it.updatedAt }
+      mediaGroups
+        .flatMap { group ->
+          val infoHash = group.infoHash
+          val viewed = if (infoHash != null) loadViewedFileIndices(viewedPreferences, infoHash) else emptySet()
+          group.files.filter { it.fileIndex in viewed || group.groupType != MediaGroupType.TORRENT }
+        }.sortedByDescending { it.updatedAt }
         .distinctBy { it.stableKey }
     }
 
@@ -931,7 +939,11 @@ private fun MediaContent(
                     entry = entry,
                     onClick = { onPlayWithHistory(entry, entry.infoHash) },
                     onLongClick = {
-                      val group = mediaGroups.find { it.infoHash == entry.infoHash || it.canonicalSourceUri == entry.canonicalSourceUri }
+                      val group =
+                        mediaGroups.find {
+                          it.infoHash == entry.infoHash ||
+                            it.canonicalSourceUri == entry.canonicalSourceUri
+                        }
                       if (group != null) selectedDetailGroup = group
                     },
                   )

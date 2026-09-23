@@ -30,88 +30,97 @@ data class LrcLibResponse(
 class LrcLibApiService(
   private val okHttpClient: OkHttpClient,
 ) {
-  private val json = Json {
-    ignoreUnknownKeys = true
-    isLenient = true
-  }
+  private val json =
+    Json {
+      ignoreUnknownKeys = true
+      isLenient = true
+    }
 
   suspend fun getLyrics(
     trackName: String,
     artistName: String,
     albumName: String? = null,
     duration: Int? = null,
-  ): LrcLibResponse? = withContext(Dispatchers.IO) {
-    try {
-      val urlBuilder = "https://lrclib.net/api/get".toHttpUrlOrNull()?.newBuilder()
-        ?: return@withContext null
+  ): LrcLibResponse? =
+    withContext(Dispatchers.IO) {
+      try {
+        val urlBuilder =
+          "https://lrclib.net/api/get".toHttpUrlOrNull()?.newBuilder()
+            ?: return@withContext null
 
-      urlBuilder.addQueryParameter("track_name", trackName)
-      urlBuilder.addQueryParameter("artist_name", artistName)
-      if (!albumName.isNullOrBlank()) {
-        urlBuilder.addQueryParameter("album_name", albumName)
-      }
-      if (duration != null && duration > 0) {
-        urlBuilder.addQueryParameter("duration", duration.toString())
-      }
+        urlBuilder.addQueryParameter("track_name", trackName)
+        urlBuilder.addQueryParameter("artist_name", artistName)
+        if (!albumName.isNullOrBlank()) {
+          urlBuilder.addQueryParameter("album_name", albumName)
+        }
+        if (duration != null && duration > 0) {
+          urlBuilder.addQueryParameter("duration", duration.toString())
+        }
 
-      val request = Request.Builder()
-        .url(urlBuilder.build())
-        .header("User-Agent", "mpvRx Music Player/1.0")
-        .get()
-        .build()
+        val request =
+          Request
+            .Builder()
+            .url(urlBuilder.build())
+            .header("User-Agent", "mpvRx Music Player/1.0")
+            .get()
+            .build()
 
-      okHttpClient.newCall(request).awaitResponse().use { response ->
-        if (!response.isSuccessful) return@withContext null
-        val bodyString = response.body.string()
-        json.decodeFromString<LrcLibResponse>(bodyString)
+        okHttpClient.newCall(request).awaitResponse().use { response ->
+          if (!response.isSuccessful) return@withContext null
+          val bodyString = response.body.string()
+          json.decodeFromString<LrcLibResponse>(bodyString)
+        }
+      } catch (cancellation: CancellationException) {
+        throw cancellation
+      } catch (e: Exception) {
+        Log.w("LrcLibApiService", "Error fetching lyrics from get endpoint: ${e.message}")
+        null
       }
-    } catch (cancellation: CancellationException) {
-      throw cancellation
-    } catch (e: Exception) {
-      Log.w("LrcLibApiService", "Error fetching lyrics from get endpoint: ${e.message}")
-      null
     }
-  }
 
   suspend fun searchLyrics(
     query: String? = null,
     trackName: String? = null,
     artistName: String? = null,
     albumName: String? = null,
-  ): List<LrcLibResponse> = withContext(Dispatchers.IO) {
-    try {
-      val urlBuilder = "https://lrclib.net/api/search".toHttpUrlOrNull()?.newBuilder()
-        ?: return@withContext emptyList()
+  ): List<LrcLibResponse> =
+    withContext(Dispatchers.IO) {
+      try {
+        val urlBuilder =
+          "https://lrclib.net/api/search".toHttpUrlOrNull()?.newBuilder()
+            ?: return@withContext emptyList()
 
-      if (!query.isNullOrBlank()) {
-        urlBuilder.addQueryParameter("q", query)
-      }
-      if (!trackName.isNullOrBlank()) {
-        urlBuilder.addQueryParameter("track_name", trackName)
-      }
-      if (!artistName.isNullOrBlank()) {
-        urlBuilder.addQueryParameter("artist_name", artistName)
-      }
-      if (!albumName.isNullOrBlank()) {
-        urlBuilder.addQueryParameter("album_name", albumName)
-      }
+        if (!query.isNullOrBlank()) {
+          urlBuilder.addQueryParameter("q", query)
+        }
+        if (!trackName.isNullOrBlank()) {
+          urlBuilder.addQueryParameter("track_name", trackName)
+        }
+        if (!artistName.isNullOrBlank()) {
+          urlBuilder.addQueryParameter("artist_name", artistName)
+        }
+        if (!albumName.isNullOrBlank()) {
+          urlBuilder.addQueryParameter("album_name", albumName)
+        }
 
-      val request = Request.Builder()
-        .url(urlBuilder.build())
-        .header("User-Agent", "mpvRx Music Player/1.0")
-        .get()
-        .build()
+        val request =
+          Request
+            .Builder()
+            .url(urlBuilder.build())
+            .header("User-Agent", "mpvRx Music Player/1.0")
+            .get()
+            .build()
 
-      okHttpClient.newCall(request).awaitResponse().use { response ->
-        if (!response.isSuccessful) return@withContext emptyList()
-        val bodyString = response.body.string()
-        json.decodeFromString<List<LrcLibResponse>>(bodyString)
+        okHttpClient.newCall(request).awaitResponse().use { response ->
+          if (!response.isSuccessful) return@withContext emptyList()
+          val bodyString = response.body.string()
+          json.decodeFromString<List<LrcLibResponse>>(bodyString)
+        }
+      } catch (cancellation: CancellationException) {
+        throw cancellation
+      } catch (e: Exception) {
+        Log.w("LrcLibApiService", "Error searching lyrics from search endpoint: ${e.message}")
+        emptyList()
       }
-    } catch (cancellation: CancellationException) {
-      throw cancellation
-    } catch (e: Exception) {
-      Log.w("LrcLibApiService", "Error searching lyrics from search endpoint: ${e.message}")
-      emptyList()
     }
-  }
 }

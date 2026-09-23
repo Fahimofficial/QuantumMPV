@@ -594,7 +594,9 @@ object MediaUtils {
       val cleanIso = isoString.trim()
       val date =
         if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) {
-          java.time.Instant.parse(cleanIso).toEpochMilli()
+          java.time.Instant
+            .parse(cleanIso)
+            .toEpochMilli()
         } else {
           val sdf = java.text.SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss", java.util.Locale.US)
           sdf.parse(cleanIso)?.time ?: return ""

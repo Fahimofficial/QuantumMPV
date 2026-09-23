@@ -178,7 +178,9 @@ data class MpvHelpScreen(
           onSearch = { keyboardController?.hide() },
           modifier = Modifier.padding(horizontal = 16.dp),
           inputFieldModifier = Modifier.focusRequester(focusRequester),
-          windowInsets = androidx.compose.foundation.layout.WindowInsets(0.dp),
+          windowInsets =
+            androidx.compose.foundation.layout
+              .WindowInsets(0.dp),
           placeholder = {
             Text(
               text =

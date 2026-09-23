@@ -69,6 +69,7 @@ import androidx.documentfile.provider.DocumentFile
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.lifecycleScope
 import androidx.lifecycle.repeatOnLifecycle
+import com.github.k1rakishou.fsaf.FileManager
 import com.quantummpv.app.R
 import com.quantummpv.app.database.entities.PlaybackStateEntity
 import com.quantummpv.app.database.entities.PlaylistEntity
@@ -78,8 +79,8 @@ import com.quantummpv.app.databinding.PlayerLayoutBinding
 import com.quantummpv.app.domain.anime4k.Anime4KManager
 import com.quantummpv.app.domain.network.NetworkPlaybackUri
 import com.quantummpv.app.domain.playbackstate.repository.PlaybackStateRepository
-import com.quantummpv.app.domain.torrent.TorrentStreamRequest
 import com.quantummpv.app.domain.torrent.TorrentStreamException
+import com.quantummpv.app.domain.torrent.TorrentStreamRequest
 import com.quantummpv.app.domain.torrent.TorrentStreamResult
 import com.quantummpv.app.domain.torrent.TorrentStreamingEngine
 import com.quantummpv.app.domain.torrent.canonicalInfoHash
@@ -103,12 +104,12 @@ import com.quantummpv.app.ui.browser.playlist.buildAllVideosPlaylistEntity
 import com.quantummpv.app.ui.browser.playlist.isAllVideosPlaylist
 import com.quantummpv.app.ui.cast.CastMediaSnapshot
 import com.quantummpv.app.ui.cast.CastPlaybackController
-import com.quantummpv.app.ui.player.controls.PlayerControls
 import com.quantummpv.app.ui.player.components.VideoAmbientBackground
 import com.quantummpv.app.ui.player.components.rememberVideoAmbientFrame
+import com.quantummpv.app.ui.player.controls.PlayerControls
+import com.quantummpv.app.ui.player.media3.MpvMedia3SeekDirection
 import com.quantummpv.app.ui.player.media3.MpvMedia3SessionHost
 import com.quantummpv.app.ui.player.media3.MpvMedia3SessionManager
-import com.quantummpv.app.ui.player.media3.MpvMedia3SeekDirection
 import com.quantummpv.app.ui.player.ytdlp.YtdlpManager
 import com.quantummpv.app.ui.theme.MpvrxTheme
 import com.quantummpv.app.ui.torrent.TorrentSelectionActivity
@@ -117,18 +118,16 @@ import com.quantummpv.app.utils.device.VulkanCapabilities
 import com.quantummpv.app.utils.history.RecentlyPlayedOps
 import com.quantummpv.app.utils.media.HttpUtils
 import com.quantummpv.app.utils.media.JellyfinSessionReporter
-import com.quantummpv.app.utils.media.MediaUtils
-import com.quantummpv.app.utils.media.fileExtension
-import com.quantummpv.app.utils.media.resolveSeekMode
 import com.quantummpv.app.utils.media.M3UParseResult
 import com.quantummpv.app.utils.media.M3UParser
+import com.quantummpv.app.utils.media.MediaUtils
 import com.quantummpv.app.utils.media.PlaybackStateEvents
 import com.quantummpv.app.utils.media.SharedUrlExtractor
 import com.quantummpv.app.utils.media.SubtitleOps
+import com.quantummpv.app.utils.media.fileExtension
 import com.quantummpv.app.utils.media.listTreeFilesSafely
 import com.quantummpv.app.utils.media.openPersistedTreeDocument
 import com.quantummpv.app.utils.storage.FileTypeUtils
-import com.github.k1rakishou.fsaf.FileManager
 import `is`.xyz.mpv.MPVLib
 import `is`.xyz.mpv.MPVNode
 import `is`.xyz.mpv.Utils
@@ -137,18 +136,18 @@ import kotlinx.coroutines.DelicateCoroutinesApi
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.drop
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.update
-import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
-import org.koin.android.ext.android.inject
 import okhttp3.OkHttpClient
+import org.koin.android.ext.android.inject
 import java.io.File
 import java.util.concurrent.atomic.AtomicBoolean
 import kotlin.math.abs
@@ -454,7 +453,9 @@ class PlayerActivity :
   private var mediaLoadJob: Job? = null
   private var playbackLoadRetryJob: Job? = null
   private var playbackLoadWatchdogJob: Job? = null
+
   @Volatile private var pendingMediaLoadRecovery: PendingMediaLoadRecovery? = null
+
   @Volatile private var mediaRequestGeneration = 0L
   private var eofAdvanceJob: Job? = null
 
@@ -645,7 +646,12 @@ class PlayerActivity :
     val setupResult = setupMPV()
     if (setupResult != null) {
       isUserFinishing = true
-      Toast.makeText(this, getString(R.string.toast_playback_load_failed) + ": " + setupResult, Toast.LENGTH_LONG).show()
+      Toast
+        .makeText(
+          this,
+          getString(R.string.toast_playback_load_failed) + ": " + setupResult,
+          Toast.LENGTH_LONG,
+        ).show()
       finish()
       return
     }
@@ -893,7 +899,6 @@ class PlayerActivity :
       this,
       callback,
     )
-
   }
 
   private fun applyPredictiveBackProgress(backEvent: BackEventCompat) {
@@ -977,7 +982,10 @@ class PlayerActivity :
     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
       runCatching {
         setPictureInPictureParams(
-          android.app.PictureInPictureParams.Builder().setAutoEnterEnabled(false).build(),
+          android.app.PictureInPictureParams
+            .Builder()
+            .setAutoEnterEnabled(false)
+            .build(),
         )
       }
     }
@@ -1028,11 +1036,12 @@ class PlayerActivity :
     } else {
       lastLockedControlsBackPressAtMs = now
       viewModel.showControls()
-      Toast.makeText(
-        this,
-        R.string.player_press_back_again_to_unlock,
-        Toast.LENGTH_SHORT,
-      ).show()
+      Toast
+        .makeText(
+          this,
+          R.string.player_press_back_again_to_unlock,
+          Toast.LENGTH_SHORT,
+        ).show()
     }
     return true
   }
@@ -1210,10 +1219,12 @@ class PlayerActivity :
             val scaleByWindow = subtitlesPreferences.scaleByWindow.get()
             val baseSubScale = subtitlesPreferences.subScale.get()
             val baseSubPos = subtitlesPreferences.subPos.get()
-            val w = player.width.takeIf { it > 0 }?.toFloat()
-              ?: resources.displayMetrics.widthPixels.toFloat()
-            val h = player.height.takeIf { it > 0 }?.toFloat()
-              ?: resources.displayMetrics.heightPixels.toFloat()
+            val w =
+              player.width.takeIf { it > 0 }?.toFloat()
+                ?: resources.displayMetrics.widthPixels.toFloat()
+            val h =
+              player.height.takeIf { it > 0 }?.toFloat()
+                ?: resources.displayMetrics.heightPixels.toFloat()
 
             if (scaleByWindow && (scale != 1f || panX != 0f || panY != 0f)) {
               val compensatedSubScale = (baseSubScale / scale).coerceIn(0.05f, 10f)
@@ -1285,12 +1296,13 @@ class PlayerActivity :
    * Initializes the Picture-in-Picture helper.
    */
   private fun setupPipHelper() {
-    pipHelper = MPVPipHelper(
-      activity = this,
-      mpvView = player,
-      isAudioPlayer = { viewModel.isAudioOnly.value || isCurrentMediaKnownAudio() },
-      isVideoLoaded = { isReady },
-    )
+    pipHelper =
+      MPVPipHelper(
+        activity = this,
+        mpvView = player,
+        isAudioPlayer = { viewModel.isAudioOnly.value || isCurrentMediaKnownAudio() },
+        isVideoLoaded = { isReady },
+      )
   }
 
   private fun setupCastPlayback() {
@@ -1493,11 +1505,12 @@ class PlayerActivity :
     val pipDismissalCommitted = handledPipDismissal
     pendingPipExitResolution = false
     val keepBackgroundPlaybackAlive =
-      ownsPlaybackSession && !pipDismissalCommitted && PlayerLifecyclePolicy.shouldKeepBackgroundPlaybackAliveOnDestroy(
-        backgroundPlaybackEnabled = playbackWasInitialized && isBackgroundPlaybackEnabled(),
-        backgroundPlaybackSessionActive = isBackgroundPlaybackSessionActive,
-      )
-
+      ownsPlaybackSession &&
+        !pipDismissalCommitted &&
+        PlayerLifecyclePolicy.shouldKeepBackgroundPlaybackAliveOnDestroy(
+          backgroundPlaybackEnabled = playbackWasInitialized && isBackgroundPlaybackEnabled(),
+          backgroundPlaybackSessionActive = isBackgroundPlaybackSessionActive,
+        )
 
     runCatching {
       mediaLoadJob?.cancel()
@@ -1603,7 +1616,10 @@ class PlayerActivity :
             val item = queueState.currentItem
             val queueChanged =
               playlist.size != queueState.items.size ||
-                playlist.indices.any { position -> playlist[position].toString() != queueState.items[position].originalUri }
+                playlist.indices.any { position ->
+                  playlist[position].toString() !=
+                    queueState.items[position].originalUri
+                }
             if (queueChanged) {
               syncPlaylistFromSession(queueState)
               viewModel.refreshPlaylistItems()
@@ -2196,11 +2212,11 @@ class PlayerActivity :
       )
     reusingPlaybackSessionOnLaunch =
       preparation in
-        setOf(
-          PlaybackLaunchPreparation.ATTACH_CURRENT_MEDIA,
-          PlaybackLaunchPreparation.REPLACE_CURRENT_MEDIA,
-          PlaybackLaunchPreparation.WAIT_FOR_STOP,
-        )
+      setOf(
+        PlaybackLaunchPreparation.ATTACH_CURRENT_MEDIA,
+        PlaybackLaunchPreparation.REPLACE_CURRENT_MEDIA,
+        PlaybackLaunchPreparation.WAIT_FOR_STOP,
+      )
     if (reusingPlaybackSessionOnLaunch) {
       MediaPlaybackService.prepareForActivityHandoff()
       if (preparation != PlaybackLaunchPreparation.WAIT_FOR_STOP) PlaybackSession.markForeground()
@@ -2351,9 +2367,10 @@ class PlayerActivity :
     if (!sourceIntent.getBooleanExtra(EXTRA_PREPARED_PLAYBACK_QUEUE, false)) return true
 
     return when (
-      val result = PreparedPlaybackLaunchStore.consume(
-        sourceIntent.getLongExtra(EXTRA_PREPARED_PLAYBACK_TOKEN, -1L),
-      )
+      val result =
+        PreparedPlaybackLaunchStore.consume(
+          sourceIntent.getLongExtra(EXTRA_PREPARED_PLAYBACK_TOKEN, -1L),
+        )
     ) {
       is PreparedPlaybackLaunchResult.Accepted -> {
         acceptedPreparedPlaybackLaunch = result.launch
@@ -2464,7 +2481,11 @@ class PlayerActivity :
   }
 
   private fun currentUserMpvAssetSelection(): String {
-    val selectedScripts = advancedPreferences.selectedLuaScripts.get().sorted().joinToString("\u0000")
+    val selectedScripts =
+      advancedPreferences.selectedLuaScripts
+        .get()
+        .sorted()
+        .joinToString("\u0000")
     val mpvConfig = advancedPreferences.mpvConf.get()
     val inputConfig = advancedPreferences.inputConf.get()
     return buildString {
@@ -2539,7 +2560,13 @@ class PlayerActivity :
     player.forceOpenGlFallback = true
     val fallbackAttempt = player.initializeSession(filesDir.path, cacheDir.path)
     fallbackAttempt.exceptionOrNull()?.let { error -> Log.e(TAG, "Failed to initialize MPV", error) }
-    return if (fallbackAttempt.isSuccess) null else fallbackAttempt.exceptionOrNull()?.message ?: fallbackAttempt.exceptionOrNull()?.toString() ?: "Unknown fallback error"
+    return if (fallbackAttempt.isSuccess) {
+      null
+    } else {
+      fallbackAttempt.exceptionOrNull()?.message
+        ?: fallbackAttempt.exceptionOrNull()?.toString()
+        ?: "Unknown fallback error"
+    }
   }
 
   /**
@@ -3211,17 +3238,19 @@ class PlayerActivity :
     }
   }
 
-  private fun isMiniPlayerEnabled(): Boolean {
-    return if (isCurrentPlaybackAudio()) {
+  private fun isMiniPlayerEnabled(): Boolean =
+    if (isCurrentPlaybackAudio()) {
       true
     } else {
       playerPreferences.enableVideoMiniPlayer.get()
     }
-  }
 
   private fun isBackgroundPlaybackEnabled(): Boolean =
-    if (isCurrentPlaybackAudio()) audioPreferences.audioBackgroundPlayback.get()
-    else audioPreferences.backgroundPlayback.get()
+    if (isCurrentPlaybackAudio()) {
+      audioPreferences.audioBackgroundPlayback.get()
+    } else {
+      audioPreferences.backgroundPlayback.get()
+    }
 
   private fun isCurrentPlaybackAudio(): Boolean =
     when (currentDeclaredMediaKind()) {
@@ -3231,7 +3260,9 @@ class PlayerActivity :
     }
 
   private fun currentDeclaredMediaKind(): DeclaredPlaybackMediaKind {
-    val sessionKind = PlaybackSession.state.value.currentItem?.declaredMediaKind()
+    val sessionKind =
+      PlaybackSession.state.value.currentItem
+        ?.declaredMediaKind()
     if (sessionKind != null && sessionKind != DeclaredPlaybackMediaKind.UNKNOWN) return sessionKind
 
     val source = intent.dataString ?: currentPlayableUri ?: fileName
@@ -3400,18 +3431,22 @@ class PlayerActivity :
       }
   }
 
-  private fun extractSubtitleUriList(extras: Bundle, key: String): List<Uri> {
+  private fun extractSubtitleUriList(
+    extras: Bundle,
+    key: String,
+  ): List<Uri> {
     val fromParcelableArray = runCatching { Utils.getParcelableArray<Uri>(extras, key).toList() }.getOrNull()
     if (!fromParcelableArray.isNullOrEmpty()) return fromParcelableArray
 
-    val fromParcelableList = runCatching {
-      if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-        extras.getParcelableArrayList(key, Uri::class.java)
-      } else {
-        @Suppress("DEPRECATION")
-        extras.getParcelableArrayList<Uri>(key)
-      }
-    }.getOrNull()
+    val fromParcelableList =
+      runCatching {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+          extras.getParcelableArrayList(key, Uri::class.java)
+        } else {
+          @Suppress("DEPRECATION")
+          extras.getParcelableArrayList<Uri>(key)
+        }
+      }.getOrNull()
     if (!fromParcelableList.isNullOrEmpty()) return fromParcelableList
 
     val fromStringArray = extras.getStringArray(key)?.mapNotNull { runCatching { Uri.parse(it) }.getOrNull() }
@@ -3423,7 +3458,10 @@ class PlayerActivity :
     return emptyList()
   }
 
-  private fun extractSubtitleStringArray(extras: Bundle, vararg keys: String): Array<String> {
+  private fun extractSubtitleStringArray(
+    extras: Bundle,
+    vararg keys: String,
+  ): Array<String> {
     for (key in keys) {
       extras.getStringArray(key)?.let { return it }
       extras.getStringArrayList(key)?.let { return it.toTypedArray() }
@@ -4349,7 +4387,11 @@ class PlayerActivity :
       // video dimensions are available
       lifecycleScope.launch {
         kotlinx.coroutines.delay(100)
-        if (PlaybackSession.isCurrentGeneration(loadGeneration) && mpvInitialized && !player.isExiting && !isFinishing) {
+        if (PlaybackSession.isCurrentGeneration(loadGeneration) &&
+          mpvInitialized &&
+          !player.isExiting &&
+          !isFinishing
+        ) {
           val aspect = player.getVideoOutAspect()
           Log.d(TAG, "handleFileLoaded - Video mode, aspect after delay: $aspect")
           if (aspect != null && aspect > 0) {
@@ -4918,43 +4960,43 @@ class PlayerActivity :
     viewModel.setVideoZoom(state.videoZoom)
   }
 
-private suspend fun restorePlaybackPosition(state: PlaybackStateEntity?) {
-  if (state == null || viewModel.isAudioOnly.value || isCurrentMediaKnownAudio()) return
+  private suspend fun restorePlaybackPosition(state: PlaybackStateEntity?) {
+    if (state == null || viewModel.isAudioOnly.value || isCurrentMediaKnownAudio()) return
 
-  val resumeMode = playerPreferences.resumePlaybackMode.get()
-  val hasValidSavedPosition = state.lastPosition > 3
-  if (!playerPreferences.savePositionOnQuit.get() || !hasValidSavedPosition) {
-    PlaybackSession.setPropertyInt("time-pos", 0)
-    return
-  }
+    val resumeMode = playerPreferences.resumePlaybackMode.get()
+    val hasValidSavedPosition = state.lastPosition > 3
+    if (!playerPreferences.savePositionOnQuit.get() || !hasValidSavedPosition) {
+      PlaybackSession.setPropertyInt("time-pos", 0)
+      return
+    }
 
-  when (resumeMode) {
-    ResumePlaybackMode.Always -> {
-      PlaybackSession.setPropertyInt("time-pos", state.lastPosition)
-      if (playerPreferences.showResumeIndicatorOverlay.get()) {
+    when (resumeMode) {
+      ResumePlaybackMode.Always -> {
+        PlaybackSession.setPropertyInt("time-pos", state.lastPosition)
+        if (playerPreferences.showResumeIndicatorOverlay.get()) {
+          withContext(Dispatchers.Main) {
+            viewModel.playerUpdate.value = PlayerUpdates.ResumedFrom(state.lastPosition)
+          }
+        }
+      }
+
+      ResumePlaybackMode.Ask -> {
+        PlaybackSession.setPropertyInt("time-pos", 0)
         withContext(Dispatchers.Main) {
-          viewModel.playerUpdate.value = PlayerUpdates.ResumedFrom(state.lastPosition)
+          viewModel.playerUpdate.value = PlayerUpdates.ResumeAvailable(state.lastPosition)
+        }
+      }
+
+      ResumePlaybackMode.Never -> {
+        PlaybackSession.setPropertyInt("time-pos", 0)
+        if (playerPreferences.showResumeIndicatorOverlay.get()) {
+          withContext(Dispatchers.Main) {
+            viewModel.playerUpdate.value = PlayerUpdates.StartedAfresh
+          }
         }
       }
     }
-
-    ResumePlaybackMode.Ask -> {
-      PlaybackSession.setPropertyInt("time-pos", 0)
-      withContext(Dispatchers.Main) {
-        viewModel.playerUpdate.value = PlayerUpdates.ResumeAvailable(state.lastPosition)
-      }
-    }
-
-    ResumePlaybackMode.Never -> {
-      PlaybackSession.setPropertyInt("time-pos", 0)
-      if (playerPreferences.showResumeIndicatorOverlay.get()) {
-        withContext(Dispatchers.Main) {
-          viewModel.playerUpdate.value = PlayerUpdates.StartedAfresh
-        }
-      }
-    }
   }
-}
 
 /**
    * Applies default settings when no saved state exists.
@@ -5033,7 +5075,10 @@ private suspend fun restorePlaybackPosition(state: PlaybackStateEntity?) {
           ?: intent.getStringExtra("torrent_media_title")
 
       val resolvedFileName =
-        if (fileName.isBlank() || fileName.equals("stream.mkv", ignoreCase = true) || fileName.equals("stream", ignoreCase = true)) {
+        if (fileName.isBlank() ||
+          fileName.equals("stream.mkv", ignoreCase = true) ||
+          fileName.equals("stream", ignoreCase = true)
+        ) {
           resolvedExplicitTitle ?: fileName
         } else {
           fileName
@@ -5221,7 +5266,9 @@ private suspend fun restorePlaybackPosition(state: PlaybackStateEntity?) {
     isBackgroundPlaybackSessionActive = false
     pendingBackgroundTransition = false
     handledPipDismissal = false
-    if (!isBackgroundPlaybackEnabled() && (serviceBound || mediaPlaybackService != null || MediaPlaybackService.isRunning())) {
+    if (!isBackgroundPlaybackEnabled() &&
+      (serviceBound || mediaPlaybackService != null || MediaPlaybackService.isRunning())
+    ) {
       endBackgroundPlayback()
     }
 
@@ -5335,7 +5382,8 @@ private suspend fun restorePlaybackPosition(state: PlaybackStateEntity?) {
               incomingOriginalUri == previouslyLoadedUri &&
               incomingTorrentFileIndex == previouslyLoadedTorrentFileIndex
           } else {
-            previouslyLoadedIdentifier.isNotBlank() && previouslyLoadedIdentifier == mediaIdentifier ||
+            previouslyLoadedIdentifier.isNotBlank() &&
+              previouslyLoadedIdentifier == mediaIdentifier ||
               (incomingOriginalUri != null && incomingOriginalUri == previouslyLoadedUri)
           }
 
@@ -5387,7 +5435,9 @@ private suspend fun restorePlaybackPosition(state: PlaybackStateEntity?) {
     val requestedMediaIdentifier = mediaIdentifier
     val requestedLegacyMediaIdentifier = legacyMediaIdentifier
     val requestedPlaylistIndex = playlistIndex
-    val requestedQueueItem = PlaybackSession.queue.value.items.getOrNull(requestedPlaylistIndex)
+    val requestedQueueItem =
+      PlaybackSession.queue.value.items
+        .getOrNull(requestedPlaylistIndex)
     val requestGeneration = mediaRequestGeneration
     val requestedSource = originalUri ?: extractUriFromIntent(sourceIntent)?.toString() ?: playableUri
     val requestedHeaders =
@@ -6932,16 +6982,12 @@ private suspend fun restorePlaybackPosition(state: PlaybackStateEntity?) {
   /**
    * Check if there's a next video in the playlist
    */
-  override fun hasNextQueueItem(): Boolean {
-    return PlaybackSession.hasNext()
-  }
+  override fun hasNextQueueItem(): Boolean = PlaybackSession.hasNext()
 
   /**
    * Check if there's a previous video in the playlist
    */
-  override fun hasPreviousQueueItem(): Boolean {
-    return PlaybackSession.hasPrevious()
-  }
+  override fun hasPreviousQueueItem(): Boolean = PlaybackSession.hasPrevious()
 
   /**
    * Called when shuffle is toggled on/off
@@ -7083,7 +7129,10 @@ private suspend fun restorePlaybackPosition(state: PlaybackStateEntity?) {
     PlaybackSession.selectQueueItem(index)
     // Torrent series entries carry their file index; the torrent branch of startMediaLoad reads
     // it from the intent to restart the stream on the right episode.
-    val queueTorrentFileIndex = PlaybackSession.queue.value.items.getOrNull(index)?.torrentFileIndex
+    val queueTorrentFileIndex =
+      PlaybackSession.queue.value.items
+        .getOrNull(index)
+        ?.torrentFileIndex
     if (queueTorrentFileIndex != null) {
       intent.putExtra("torrent_file_index", queueTorrentFileIndex)
     } else {
@@ -7245,7 +7294,11 @@ private suspend fun restorePlaybackPosition(state: PlaybackStateEntity?) {
                 } else {
                   retriever.setDataSource(this@PlayerActivity, parsedUri)
                 }
-                val art = com.quantummpv.app.domain.thumbnail.EmbeddedArtworkResolver.decodeEmbeddedArtwork(cleanPath, retriever)
+                val art =
+                  com.quantummpv.app.domain.thumbnail.EmbeddedArtworkResolver.decodeEmbeddedArtwork(
+                    cleanPath,
+                    retriever,
+                  )
                 retriever.release()
                 art
               } else {
@@ -7288,9 +7341,11 @@ private suspend fun restorePlaybackPosition(state: PlaybackStateEntity?) {
    * For m3u/m3u8 streams, only uses MPV's media-title when it looks valid.
    */
   fun getTitleForControls(): String {
-    PlaybackSession.queue.value.currentItem?.title?.takeIf {
-      PlaybackSession.queue.value.isExplicitQueue && it.isNotBlank()
-    }?.let { return it }
+    PlaybackSession.queue.value.currentItem
+      ?.title
+      ?.takeIf {
+        PlaybackSession.queue.value.isExplicitQueue && it.isNotBlank()
+      }?.let { return it }
 
     getExplicitIntentTitle()?.let { return it }
 
@@ -7504,16 +7559,20 @@ private suspend fun restorePlaybackPosition(state: PlaybackStateEntity?) {
         ?.let { infoHash -> PlaybackIdentity.forTorrent(infoHash, fileIndex) }
         ?: PlaybackIdentity.forUri("$source\u0000torrent-file:$fileIndex")
     }
-    return NetworkPlaybackUri.parse(source)
+    return NetworkPlaybackUri
+      .parse(source)
       ?.let { reference -> PlaybackIdentity.forNetwork(reference.connectionId, reference.path.value) }
       ?: PlaybackIdentity.forUri(source)
   }
 
   private fun currentDurableMediaUri(): String? =
-    PlaybackSession.queue.value.currentItem?.originalUri ?: currentPlayableUri
+    PlaybackSession.queue.value.currentItem
+      ?.originalUri ?: currentPlayableUri
 
   private fun currentNotificationMediaIdentifier(): String =
-    PlaybackSession.queue.value.currentItem?.stableId?.takeIf { it.isNotBlank() } ?: mediaIdentifier
+    PlaybackSession.queue.value.currentItem
+      ?.stableId
+      ?.takeIf { it.isNotBlank() } ?: mediaIdentifier
 
   /** Old keys remain readable once, then are copied to the v2 collision-resistant key. */
   private fun getLegacyMediaIdentifier(
@@ -7665,8 +7724,9 @@ private suspend fun restorePlaybackPosition(state: PlaybackStateEntity?) {
     @Suppress("UNUSED_PARAMETER") fileName: String,
   ): String =
     uri.resolveLocalPath(this)?.let(PlaybackIdentity::forLocalPath)
-      ?: NetworkPlaybackUri.parse(uri.toString())
-      ?.let { reference -> PlaybackIdentity.forNetwork(reference.connectionId, reference.path.value) }
+      ?: NetworkPlaybackUri
+        .parse(uri.toString())
+        ?.let { reference -> PlaybackIdentity.forNetwork(reference.connectionId, reference.path.value) }
       ?: PlaybackIdentity.forUri(uri.toString())
 
   private fun isRemotePlaybackUri(uri: Uri): Boolean =
@@ -7860,10 +7920,11 @@ private suspend fun restorePlaybackPosition(state: PlaybackStateEntity?) {
 
     val loadedPlaylist = playlistRepository.getPlaylistById(pid)
     val loadedItems = playlistRepository.getPlaylistItems(pid)
-    val items = loadedItems.map {
-      val path = M3UParser.normalizeLocalMediaReference(it.filePath)
-      Uri.parse(path).takeIf { uri -> !uri.scheme.isNullOrBlank() } ?: Uri.fromFile(File(path))
-    }
+    val items =
+      loadedItems.map {
+        val path = M3UParser.normalizeLocalMediaReference(it.filePath)
+        Uri.parse(path).takeIf { uri -> !uri.scheme.isNullOrBlank() } ?: Uri.fromFile(File(path))
+      }
     val requestedPath = sourceIntent.getStringExtra("local_media_path")
     val requestedUri = sourceIntent.dataString
     // A selected item starts loading before this Room query finishes, temporarily creating a

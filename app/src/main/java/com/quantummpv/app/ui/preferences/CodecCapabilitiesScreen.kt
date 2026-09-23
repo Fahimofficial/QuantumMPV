@@ -83,11 +83,16 @@ import com.quantummpv.app.utils.clipboard.SafeClipboard
 import kotlinx.serialization.Serializable
 
 enum class CodecFilter {
-  ALL, HARDWARE, SOFTWARE, VIDEO, AUDIO
+  ALL,
+  HARDWARE,
+  SOFTWARE,
+  VIDEO,
+  AUDIO,
 }
 
 enum class CodecMediaType {
-  VIDEO, AUDIO
+  VIDEO,
+  AUDIO,
 }
 
 data class CodecCapabilitiesInfo(
@@ -135,19 +140,21 @@ object CodecInspector {
         if (info.isEncoder) continue // Only inspect decoders used for playback
 
         val isHw = isHardwareDecoder(info)
-        val isVendor = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-          info.isVendor
-        } else {
-          !isSoftwareName(info.name)
-        }
+        val isVendor =
+          if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+            info.isVendor
+          } else {
+            !isSoftwareName(info.name)
+          }
         val isAlias = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) info.isAlias else false
 
         for (mime in info.supportedTypes) {
-          val mediaType = when {
-            mime.startsWith("video/", ignoreCase = true) -> CodecMediaType.VIDEO
-            mime.startsWith("audio/", ignoreCase = true) -> CodecMediaType.AUDIO
-            else -> continue
-          }
+          val mediaType =
+            when {
+              mime.startsWith("video/", ignoreCase = true) -> CodecMediaType.VIDEO
+              mime.startsWith("audio/", ignoreCase = true) -> CodecMediaType.AUDIO
+              else -> continue
+            }
 
           var maxRes: String? = null
           var minRes: String? = null
@@ -195,8 +202,8 @@ object CodecInspector {
                 val minH = videoCaps.supportedHeights.lower
                 val maxF = videoCaps.supportedFrameRates.upper.toInt()
 
-                maxRes = "${maxW}x${maxH} @ ${maxF}fps"
-                minRes = "${minW}x${minH}"
+                maxRes = "${maxW}x$maxH @ ${maxF}fps"
+                minRes = "${minW}x$minH"
                 maxFps = maxF
                 alignStr = "${videoCaps.widthAlignment}x${videoCaps.heightAlignment}"
 
@@ -280,7 +287,7 @@ object CodecInspector {
               maxInstances = maxInst,
               isHdrSupported = isHdr,
               alignment = alignStr,
-            )
+            ),
           )
         }
       }
@@ -289,17 +296,18 @@ object CodecInspector {
     }
 
     return results.sortedWith(
-      compareBy({ !it.isHardware }, { it.mediaType }, { it.formatName }, { it.name })
+      compareBy({ !it.isHardware }, { it.mediaType }, { it.formatName }, { it.name }),
     )
   }
 
   fun getKeyVideoCodecs(codecs: List<CodecCapabilitiesInfo>): List<KeyCodecStatus> {
-    val keyFormats = listOf(
-      "video/avc" to "H.264 / AVC",
-      "video/hevc" to "H.265 / HEVC",
-      "video/av01" to "AV1",
-      "video/x-vnd.on2.vp9" to "VP9",
-    )
+    val keyFormats =
+      listOf(
+        "video/avc" to "H.264 / AVC",
+        "video/hevc" to "H.265 / HEVC",
+        "video/av01" to "AV1",
+        "video/x-vnd.on2.vp9" to "VP9",
+      )
 
     return keyFormats.map { (mime, label) ->
       val matching = codecs.filter { it.mimeType.equals(mime, ignoreCase = true) }
@@ -323,11 +331,12 @@ object CodecInspector {
   private fun getSystemDefaultDecoder(mime: String): String? {
     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
       try {
-        val format = if (mime.startsWith("video/")) {
-          MediaFormat.createVideoFormat(mime, 1920, 1080)
-        } else {
-          MediaFormat.createAudioFormat(mime, 48000, 2)
-        }
+        val format =
+          if (mime.startsWith("video/")) {
+            MediaFormat.createVideoFormat(mime, 1920, 1080)
+          } else {
+            MediaFormat.createAudioFormat(mime, 48000, 2)
+          }
         val codecList = MediaCodecList(MediaCodecList.REGULAR_CODECS)
         return codecList.findDecoderForFormat(format)
       } catch (_: Exception) {
@@ -352,8 +361,8 @@ object CodecInspector {
       lower.contains("software")
   }
 
-  private fun getFormatName(mime: String): String {
-    return when (mime.lowercase()) {
+  private fun getFormatName(mime: String): String =
+    when (mime.lowercase()) {
       "video/avc" -> "H.264 / AVC"
       "video/hevc" -> "H.265 / HEVC"
       "video/av01" -> "AV1"
@@ -393,17 +402,28 @@ object CodecInspector {
       "audio/truehd" -> "Dolby TrueHD"
       "image/vnd.android.heic" -> "HEIC Image"
       "image/avif" -> "AVIF Image"
-      else -> mime.removePrefix("video/").removePrefix("audio/").removePrefix("image/").uppercase()
+      else ->
+        mime
+          .removePrefix("video/")
+          .removePrefix("audio/")
+          .removePrefix("image/")
+          .uppercase()
     }
-  }
 
-  private fun getProfileAndLevelName(mime: String, profile: Int, level: Int): String? {
+  private fun getProfileAndLevelName(
+    mime: String,
+    profile: Int,
+    level: Int,
+  ): String? {
     val pName = getProfileName(mime, profile) ?: "Profile $profile"
     val lName = getLevelName(mime, level)
     return if (lName != null) "$pName ($lName)" else pName
   }
 
-  private fun getProfileName(mime: String, profile: Int): String? {
+  private fun getProfileName(
+    mime: String,
+    profile: Int,
+  ): String? {
     if (mime.equals("video/hevc", ignoreCase = true)) {
       return when (profile) {
         MediaCodecInfo.CodecProfileLevel.HEVCProfileMain -> "Main"
@@ -438,7 +458,10 @@ object CodecInspector {
     return null
   }
 
-  private fun getLevelName(mime: String, level: Int): String? {
+  private fun getLevelName(
+    mime: String,
+    level: Int,
+  ): String? {
     if (mime.equals("video/hevc", ignoreCase = true)) {
       return when (level) {
         MediaCodecInfo.CodecProfileLevel.HEVCMainTierLevel1 -> "Level 1"
@@ -482,8 +505,8 @@ object CodecInspector {
   }
 
   @Suppress("DEPRECATION")
-  private fun getColorFormatName(format: Int): String {
-    return when (format) {
+  private fun getColorFormatName(format: Int): String =
+    when (format) {
       MediaCodecInfo.CodecCapabilities.COLOR_FormatYUV420Planar -> "YUV 420 Planar"
       MediaCodecInfo.CodecCapabilities.COLOR_FormatYUV420PackedPlanar -> "YUV 420 Packed Planar"
       MediaCodecInfo.CodecCapabilities.COLOR_FormatYUV420SemiPlanar -> "YUV 420 Semi-Planar (NV12)"
@@ -500,22 +523,25 @@ object CodecInspector {
       0x7F000789 -> "P010 (10-bit YUV)"
       else -> "0x${Integer.toHexString(format).uppercase()}"
     }
-  }
 
-  private fun formatBitrate(bps: Int): String {
-    return when {
+  private fun formatBitrate(bps: Int): String =
+    when {
       bps >= 1_000_000 -> "${bps / 1_000_000} Mbps"
       bps >= 1_000 -> "${bps / 1_000} kbps"
       else -> "$bps bps"
     }
-  }
 
-  private fun checkIsHdrProfile(mime: String, profile: Int): Boolean {
+  private fun checkIsHdrProfile(
+    mime: String,
+    profile: Int,
+  ): Boolean {
     if (mime.equals("video/hevc", ignoreCase = true)) {
       if (profile == MediaCodecInfo.CodecProfileLevel.HEVCProfileMain10) return true
       if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N &&
         profile == MediaCodecInfo.CodecProfileLevel.HEVCProfileMain10HDR10
-      ) return true
+      ) {
+        return true
+      }
     }
     if (mime.equals("video/av01", ignoreCase = true)) {
       if (profile == MediaCodecInfo.CodecProfileLevel.AV1ProfileMain10) return true
@@ -546,38 +572,45 @@ object CodecCapabilitiesScreen : Screen {
     val videoCount = remember(codecs) { codecs.count { it.mediaType == CodecMediaType.VIDEO } }
     val audioCount = remember(codecs) { codecs.count { it.mediaType == CodecMediaType.AUDIO } }
 
-    val filteredCodecs = remember(codecs, searchQuery, selectedFilter) {
-      codecs.filter { item ->
-        val matchesFilter = when (selectedFilter) {
-          CodecFilter.ALL -> true
-          CodecFilter.HARDWARE -> item.isHardware
-          CodecFilter.SOFTWARE -> !item.isHardware
-          CodecFilter.VIDEO -> item.mediaType == CodecMediaType.VIDEO
-          CodecFilter.AUDIO -> item.mediaType == CodecMediaType.AUDIO
-        }
+    val filteredCodecs =
+      remember(codecs, searchQuery, selectedFilter) {
+        codecs.filter { item ->
+          val matchesFilter =
+            when (selectedFilter) {
+              CodecFilter.ALL -> true
+              CodecFilter.HARDWARE -> item.isHardware
+              CodecFilter.SOFTWARE -> !item.isHardware
+              CodecFilter.VIDEO -> item.mediaType == CodecMediaType.VIDEO
+              CodecFilter.AUDIO -> item.mediaType == CodecMediaType.AUDIO
+            }
 
-        val matchesSearch = if (searchQuery.isBlank()) {
-          true
-        } else {
-          val query = searchQuery.lowercase().trim()
-          item.name.lowercase().contains(query) ||
-            item.mimeType.lowercase().contains(query) ||
-            item.formatName.lowercase().contains(query) ||
-            item.profilesAndLevels.any { it.lowercase().contains(query) } ||
-            item.features.any { it.lowercase().contains(query) }
-        }
+          val matchesSearch =
+            if (searchQuery.isBlank()) {
+              true
+            } else {
+              val query = searchQuery.lowercase().trim()
+              item.name.lowercase().contains(query) ||
+                item.mimeType.lowercase().contains(query) ||
+                item.formatName.lowercase().contains(query) ||
+                item.profilesAndLevels.any { it.lowercase().contains(query) } ||
+                item.features.any { it.lowercase().contains(query) }
+            }
 
-        matchesFilter && matchesSearch
+          matchesFilter && matchesSearch
+        }
       }
-    }
 
     val copiedToastMsg = stringResource(R.string.pref_codecs_report_copied)
 
     val copyReportToClipboard = {
       val sb = StringBuilder()
       sb.appendLine("=== mpvRx Hardware vs Software Codec Diagnostics ===")
-      sb.appendLine("Device: ${Build.MANUFACTURER} ${Build.MODEL} (Android ${Build.VERSION.RELEASE}, API ${Build.VERSION.SDK_INT})")
-      sb.appendLine("Decoders: $hwCount Hardware Accelerated, $swCount Software Fallback ($videoCount Video, $audioCount Audio)")
+      sb.appendLine(
+        "Device: ${Build.MANUFACTURER} ${Build.MODEL} (Android ${Build.VERSION.RELEASE}, API ${Build.VERSION.SDK_INT})",
+      )
+      sb.appendLine(
+        "Decoders: $hwCount Hardware Accelerated, $swCount Software Fallback ($videoCount Video, $audioCount Audio)",
+      )
       sb.appendLine()
       sb.appendLine("--- Core Video Formats ---")
       for (k in keyVideoCodecs) {
@@ -647,9 +680,10 @@ object CodecCapabilitiesScreen : Screen {
               )
             }
           },
-          colors = TopAppBarDefaults.topAppBarColors(
-            containerColor = MaterialTheme.colorScheme.surface,
-          ),
+          colors =
+            TopAppBarDefaults.topAppBarColors(
+              containerColor = MaterialTheme.colorScheme.surface,
+            ),
         )
       },
     ) { innerPadding ->
@@ -657,20 +691,22 @@ object CodecCapabilitiesScreen : Screen {
         rememberSettingsSearchList(CodecCapabilitiesScreen, MaterialTheme.colorScheme.primary)
       LazyColumn(
         state = settingsListState,
-        modifier = Modifier
-          .fillMaxSize()
-          .padding(innerPadding)
-          .padding(horizontal = 16.dp)
-          .then(settingsHighlight),
+        modifier =
+          Modifier
+            .fillMaxSize()
+            .padding(innerPadding)
+            .padding(horizontal = 16.dp)
+            .then(settingsHighlight),
         verticalArrangement = Arrangement.spacedBy(16.dp),
       ) {
         // Hero Diagnostics Summary Banner with Live Stat Pills
         item {
           Card(
             modifier = Modifier.fillMaxWidth(),
-            colors = CardDefaults.cardColors(
-              containerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
-            ),
+            colors =
+              CardDefaults.cardColors(
+                containerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
+              ),
             shape = RoundedCornerShape(20.dp),
           ) {
             Column(modifier = Modifier.padding(18.dp)) {
@@ -681,17 +717,19 @@ object CodecCapabilitiesScreen : Screen {
               ) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                   Box(
-                    modifier = Modifier
-                      .size(42.dp)
-                      .clip(CircleShape)
-                      .background(
-                        Brush.linearGradient(
-                          colors = listOf(
-                            MaterialTheme.colorScheme.primary,
-                            MaterialTheme.colorScheme.tertiary,
-                          )
-                        )
-                      ),
+                    modifier =
+                      Modifier
+                        .size(42.dp)
+                        .clip(CircleShape)
+                        .background(
+                          Brush.linearGradient(
+                            colors =
+                              listOf(
+                                MaterialTheme.colorScheme.primary,
+                                MaterialTheme.colorScheme.tertiary,
+                              ),
+                          ),
+                        ),
                     contentAlignment = Alignment.Center,
                   ) {
                     Icon(
@@ -789,7 +827,9 @@ object CodecCapabilitiesScreen : Screen {
               query = searchQuery,
               onQueryChange = { searchQuery = it },
               onSearch = {},
-              windowInsets = androidx.compose.foundation.layout.WindowInsets(0.dp),
+              windowInsets =
+                androidx.compose.foundation.layout
+                  .WindowInsets(0.dp),
               placeholder = { Text(stringResource(R.string.pref_codecs_search_placeholder)) },
               leadingIcon = {
                 Icon(
@@ -826,20 +866,22 @@ object CodecCapabilitiesScreen : Screen {
                 onClick = { selectedFilter = CodecFilter.HARDWARE },
                 label = { Text(stringResource(R.string.pref_codecs_filter_hardware, hwCount)) },
                 shape = RoundedCornerShape(12.dp),
-                colors = FilterChipDefaults.filterChipColors(
-                  selectedContainerColor = MaterialTheme.colorScheme.primaryContainer,
-                  selectedLabelColor = MaterialTheme.colorScheme.onPrimaryContainer,
-                ),
+                colors =
+                  FilterChipDefaults.filterChipColors(
+                    selectedContainerColor = MaterialTheme.colorScheme.primaryContainer,
+                    selectedLabelColor = MaterialTheme.colorScheme.onPrimaryContainer,
+                  ),
               )
               FilterChip(
                 selected = selectedFilter == CodecFilter.SOFTWARE,
                 onClick = { selectedFilter = CodecFilter.SOFTWARE },
                 label = { Text(stringResource(R.string.pref_codecs_filter_software, swCount)) },
                 shape = RoundedCornerShape(12.dp),
-                colors = FilterChipDefaults.filterChipColors(
-                  selectedContainerColor = MaterialTheme.colorScheme.tertiaryContainer,
-                  selectedLabelColor = MaterialTheme.colorScheme.onTertiaryContainer,
-                ),
+                colors =
+                  FilterChipDefaults.filterChipColors(
+                    selectedContainerColor = MaterialTheme.colorScheme.tertiaryContainer,
+                    selectedLabelColor = MaterialTheme.colorScheme.onTertiaryContainer,
+                  ),
               )
               FilterChip(
                 selected = selectedFilter == CodecFilter.VIDEO,
@@ -884,18 +926,21 @@ object CodecCapabilitiesScreen : Screen {
         if (filteredCodecs.isEmpty()) {
           item {
             Card(
-              modifier = Modifier
-                .fillMaxWidth()
-                .padding(vertical = 16.dp),
-              colors = CardDefaults.cardColors(
-                containerColor = MaterialTheme.colorScheme.surfaceContainerLow,
-              ),
+              modifier =
+                Modifier
+                  .fillMaxWidth()
+                  .padding(vertical = 16.dp),
+              colors =
+                CardDefaults.cardColors(
+                  containerColor = MaterialTheme.colorScheme.surfaceContainerLow,
+                ),
               shape = RoundedCornerShape(16.dp),
             ) {
               Box(
-                modifier = Modifier
-                  .fillMaxWidth()
-                  .padding(32.dp),
+                modifier =
+                  Modifier
+                    .fillMaxWidth()
+                    .padding(32.dp),
                 contentAlignment = Alignment.Center,
               ) {
                 Text(
@@ -1019,10 +1064,11 @@ private fun KeyCodecStatusCard(status: KeyCodecStatus) {
           if (status.isHdrSupported) {
             Spacer(modifier = Modifier.width(8.dp))
             Box(
-              modifier = Modifier
-                .clip(RoundedCornerShape(6.dp))
-                .background(MaterialTheme.colorScheme.secondaryContainer)
-                .padding(horizontal = 6.dp, vertical = 2.dp),
+              modifier =
+                Modifier
+                  .clip(RoundedCornerShape(6.dp))
+                  .background(MaterialTheme.colorScheme.secondaryContainer)
+                  .padding(horizontal = 6.dp, vertical = 2.dp),
             ) {
               Text(
                 text = stringResource(R.string.pref_codecs_hdr_tag),
@@ -1097,17 +1143,18 @@ private fun KeyCodecStatusCard(status: KeyCodecStatus) {
 }
 
 @Composable
-private fun borderStrokeForHw(isHw: Boolean) = if (isHw) {
-  androidx.compose.foundation.BorderStroke(
-    1.dp,
-    MaterialTheme.colorScheme.primary.copy(alpha = 0.25f)
-  )
-} else {
-  androidx.compose.foundation.BorderStroke(
-    1.dp,
-    MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)
-  )
-}
+private fun borderStrokeForHw(isHw: Boolean) =
+  if (isHw) {
+    androidx.compose.foundation.BorderStroke(
+      1.dp,
+      MaterialTheme.colorScheme.primary.copy(alpha = 0.25f),
+    )
+  } else {
+    androidx.compose.foundation.BorderStroke(
+      1.dp,
+      MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f),
+    )
+  }
 
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
@@ -1120,18 +1167,21 @@ private fun CodecDetailCard(codec: CodecCapabilitiesInfo) {
   )
 
   Card(
-    modifier = Modifier
-      .fillMaxWidth()
-      .animateContentSize()
-      .clickable { expanded = !expanded },
-    colors = CardDefaults.cardColors(
-      containerColor = MaterialTheme.colorScheme.surfaceContainerLow,
-    ),
+    modifier =
+      Modifier
+        .fillMaxWidth()
+        .animateContentSize()
+        .clickable { expanded = !expanded },
+    colors =
+      CardDefaults.cardColors(
+        containerColor = MaterialTheme.colorScheme.surfaceContainerLow,
+      ),
     shape = RoundedCornerShape(16.dp),
-    border = androidx.compose.foundation.BorderStroke(
-      1.dp,
-      MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f)
-    ),
+    border =
+      androidx.compose.foundation.BorderStroke(
+        1.dp,
+        MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f),
+      ),
   ) {
     Column(modifier = Modifier.padding(16.dp)) {
       Row(
@@ -1152,51 +1202,55 @@ private fun CodecDetailCard(codec: CodecCapabilitiesInfo) {
             )
 
             Box(
-              modifier = Modifier
-                .clip(CircleShape)
-                .background(
-                  if (codec.mediaType == CodecMediaType.VIDEO) {
-                    MaterialTheme.colorScheme.primary.copy(alpha = 0.15f)
-                  } else {
-                    MaterialTheme.colorScheme.secondary.copy(alpha = 0.15f)
-                  }
-                )
-                .padding(horizontal = 7.dp, vertical = 2.dp),
+              modifier =
+                Modifier
+                  .clip(CircleShape)
+                  .background(
+                    if (codec.mediaType == CodecMediaType.VIDEO) {
+                      MaterialTheme.colorScheme.primary.copy(alpha = 0.15f)
+                    } else {
+                      MaterialTheme.colorScheme.secondary.copy(alpha = 0.15f)
+                    },
+                  ).padding(horizontal = 7.dp, vertical = 2.dp),
             ) {
               Text(
                 text = codec.mediaType.name,
                 style = MaterialTheme.typography.labelSmall,
                 fontSize = 10.sp,
                 fontWeight = FontWeight.Black,
-                color = if (codec.mediaType == CodecMediaType.VIDEO) {
-                  MaterialTheme.colorScheme.primary
-                } else {
-                  MaterialTheme.colorScheme.secondary
-                },
+                color =
+                  if (codec.mediaType == CodecMediaType.VIDEO) {
+                    MaterialTheme.colorScheme.primary
+                  } else {
+                    MaterialTheme.colorScheme.secondary
+                  },
               )
             }
 
             Surface(
-              color = if (codec.isHardware) {
-                MaterialTheme.colorScheme.primaryContainer
-              } else {
-                MaterialTheme.colorScheme.tertiaryContainer
-              },
+              color =
+                if (codec.isHardware) {
+                  MaterialTheme.colorScheme.primaryContainer
+                } else {
+                  MaterialTheme.colorScheme.tertiaryContainer
+                },
               shape = RoundedCornerShape(12.dp),
             ) {
               Text(
-                text = if (codec.isHardware) {
-                  stringResource(R.string.pref_codecs_badge_hw_short)
-                } else {
-                  stringResource(R.string.pref_codecs_badge_sw_short)
-                },
+                text =
+                  if (codec.isHardware) {
+                    stringResource(R.string.pref_codecs_badge_hw_short)
+                  } else {
+                    stringResource(R.string.pref_codecs_badge_sw_short)
+                  },
                 style = MaterialTheme.typography.labelSmall,
                 fontWeight = FontWeight.Bold,
-                color = if (codec.isHardware) {
-                  MaterialTheme.colorScheme.onPrimaryContainer
-                } else {
-                  MaterialTheme.colorScheme.onTertiaryContainer
-                },
+                color =
+                  if (codec.isHardware) {
+                    MaterialTheme.colorScheme.onPrimaryContainer
+                  } else {
+                    MaterialTheme.colorScheme.onTertiaryContainer
+                  },
                 modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp),
               )
             }
@@ -1220,9 +1274,10 @@ private fun CodecDetailCard(codec: CodecCapabilitiesInfo) {
           imageVector = Icons.RoundedFilled.KeyboardArrowDown,
           contentDescription = "Toggle Details",
           tint = MaterialTheme.colorScheme.onSurfaceVariant,
-          modifier = Modifier
-            .size(24.dp)
-            .rotate(arrowRotation),
+          modifier =
+            Modifier
+              .size(24.dp)
+              .rotate(arrowRotation),
         )
       }
 
@@ -1248,10 +1303,11 @@ private fun CodecDetailCard(codec: CodecCapabilitiesInfo) {
       AnimatedVisibility(visible = expanded) {
         Column(modifier = Modifier.padding(top = 12.dp)) {
           Box(
-            modifier = Modifier
-              .fillMaxWidth()
-              .height(1.dp)
-              .background(MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)),
+            modifier =
+              Modifier
+                .fillMaxWidth()
+                .height(1.dp)
+                .background(MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)),
           )
 
           Spacer(modifier = Modifier.height(10.dp))

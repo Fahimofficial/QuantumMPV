@@ -25,8 +25,8 @@ import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 import okhttp3.OkHttpClient
 import okhttp3.Request
-import org.libtorrent4j.AnnounceEntry
 import org.libtorrent4j.AlertListener
+import org.libtorrent4j.AnnounceEntry
 import org.libtorrent4j.Priority
 import org.libtorrent4j.SessionHandle
 import org.libtorrent4j.SessionManager
@@ -315,8 +315,9 @@ class TorrentStreamingEngine(
     if (hasV2OnlyMagnet(source)) {
       throw streamError("BitTorrent v2-only torrents are not supported yet.")
     }
-    val normalized = normalizeTorrentSource(source)
-      ?: if (isMetadataUri(source)) source else throw streamError("Unsupported torrent source.")
+    val normalized =
+      normalizeTorrentSource(source)
+        ?: if (isMetadataUri(source)) source else throw streamError("Unsupported torrent source.")
 
     val cacheDir = File(appContext.cacheDir, "torrent_streaming/${UUID.randomUUID()}")
     if (!cacheDir.mkdirs() && !cacheDir.isDirectory) {
@@ -439,8 +440,9 @@ class TorrentStreamingEngine(
     startGeneration: Long,
   ): PreparedTorrent {
     val parsed = parseMagnet(source) ?: throw streamError("Magnet link does not contain a supported v1 info hash.")
-    val hash = runCatching { Sha1Hash.parseHex(parsed.infoHash) }.getOrNull()
-      ?: throw streamError("Magnet link contains an invalid v1 info hash.")
+    val hash =
+      runCatching { Sha1Hash.parseHex(parsed.infoHash) }.getOrNull()
+        ?: throw streamError("Magnet link contains an invalid v1 info hash.")
 
     _state.value = TorrentStreamingState.Connecting("Connecting to peers and fetching torrent metadata...")
     return monitorTorrentErrors(session) { failure ->
@@ -478,12 +480,14 @@ class TorrentStreamingEngine(
   ): PreparedTorrent {
     _state.value = TorrentStreamingState.Connecting("Reading torrent metadata...")
     val payload = readMetadata(source)
-    val endpoints = runCatching { extractTorrentMetadataEndpoints(payload) }.getOrElse {
-      throw streamError("The selected file contains invalid torrent metadata.")
-    }
-    val info = runCatching { TorrentInfo(payload) }.getOrElse {
-      throw streamError("The selected file is not valid torrent metadata.")
-    }
+    val endpoints =
+      runCatching { extractTorrentMetadataEndpoints(payload) }.getOrElse {
+        throw streamError("The selected file contains invalid torrent metadata.")
+      }
+    val info =
+      runCatching { TorrentInfo(payload) }.getOrElse {
+        throw streamError("The selected file is not valid torrent metadata.")
+      }
     if (!info.isValid) throw streamError("The selected file is not valid torrent metadata.")
     if (!info.hasV1()) throw streamError("BitTorrent v2-only torrents are not supported yet.")
     validateAndEnumerateFiles(info, cacheDir)
@@ -692,8 +696,9 @@ class TorrentStreamingEngine(
     val uri = Uri.parse(source)
     val input =
       when (uri.scheme?.lowercase()) {
-        "content" -> appContext.contentResolver.openInputStream(uri)
-          ?: throw streamError("Couldn't open the selected torrent metadata.")
+        "content" ->
+          appContext.contentResolver.openInputStream(uri)
+            ?: throw streamError("Couldn't open the selected torrent metadata.")
         "file" -> {
           val path = uri.path ?: throw streamError("Torrent metadata path is invalid.")
           FileInputStream(File(path))
@@ -705,9 +710,16 @@ class TorrentStreamingEngine(
   }
 
   private fun readRemoteMetadata(source: String): ByteArray {
-    val request = runCatching { Request.Builder().url(source).get().build() }.getOrElse {
-      throw streamError("Torrent metadata URL is invalid.")
-    }
+    val request =
+      runCatching {
+        Request
+          .Builder()
+          .url(source)
+          .get()
+          .build()
+      }.getOrElse {
+        throw streamError("Torrent metadata URL is invalid.")
+      }
     return try {
       httpClient.newCall(request).execute().use { response ->
         if (!response.isSuccessful) throw streamError("Couldn't download torrent metadata (HTTP ${response.code}).")
@@ -743,7 +755,10 @@ class TorrentStreamingEngine(
     cacheDir: File,
   ) {
     if (
-      path.isBlank() || path.length > 4096 || absolute || File(path).isAbsolute ||
+      path.isBlank() ||
+      path.length > 4096 ||
+      absolute ||
+      File(path).isAbsolute ||
       path.any { it == '\u0000' || it.isISOControl() } ||
       path.replace('\\', '/').split('/').any { it.isEmpty() || it == "." || it == ".." }
     ) {

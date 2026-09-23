@@ -70,15 +70,16 @@ class VideoMetadataCacheRepository(
       val cached = dao.getMetadata(path, dateModified, size)
       if (cached != null && !shouldRefreshCachedMetadata(file, cached)) {
         Log.d(TAG, "Cache hit for $displayName")
-        val metadata = MediaInfoOps.VideoMetadata(
-          sizeBytes = cached.size,
-          durationMs = cached.duration,
-          width = cached.width,
-          height = cached.height,
-          fps = cached.fps,
-          hasEmbeddedSubtitles = cached.hasEmbeddedSubtitles,
-          subtitleCodec = cached.subtitleCodec,
-        )
+        val metadata =
+          MediaInfoOps.VideoMetadata(
+            sizeBytes = cached.size,
+            durationMs = cached.duration,
+            width = cached.width,
+            height = cached.height,
+            fps = cached.fps,
+            hasEmbeddedSubtitles = cached.hasEmbeddedSubtitles,
+            subtitleCodec = cached.subtitleCodec,
+          )
         if (!includeVideoCodec) return@withContext metadata
 
         val codec = MediaInfoOps.extractVideoCodec(context, uri, displayName)
@@ -237,16 +238,18 @@ class VideoMetadataCacheRepository(
         missingCodec.chunked(PARALLEL_PROCESSING_LIMIT).forEach { batch ->
           coroutineScope {
             val codecResults =
-              batch.mapNotNull { path ->
-                val source = sourceByPath[path] ?: return@mapNotNull null
-                async {
-                  val codec = MediaInfoOps.extractVideoCodec(context, source.second, source.third)
-                  path to results.getValue(path).copy(
-                    videoCodec = codec.label,
-                    videoCodecMimeType = codec.mimeType,
-                  )
-                }
-              }.awaitAll()
+              batch
+                .mapNotNull { path ->
+                  val source = sourceByPath[path] ?: return@mapNotNull null
+                  async {
+                    val codec = MediaInfoOps.extractVideoCodec(context, source.second, source.third)
+                    path to
+                      results.getValue(path).copy(
+                        videoCodec = codec.label,
+                        videoCodecMimeType = codec.mimeType,
+                      )
+                  }
+                }.awaitAll()
             results.putAll(codecResults)
           }
         }

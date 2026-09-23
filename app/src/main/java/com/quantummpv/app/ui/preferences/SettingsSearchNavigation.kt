@@ -61,7 +61,10 @@ private val settingsSearchListAnchors: Map<Screen, List<SettingsSearchListAnchor
         SettingsSearchListAnchor(titleRes = R.string.pref_appearance_amoled_mode_title, itemIndex = 1),
         SettingsSearchListAnchor(titleRes = R.string.pref_appearance_system_font_title, itemIndex = 1),
         SettingsSearchListAnchor(titleRes = R.string.pref_appearance_unlimited_name_lines_title, itemIndex = 3),
-        SettingsSearchListAnchor(titleRes = R.string.pref_appearance_show_unplayed_old_video_label_title, itemIndex = 3),
+        SettingsSearchListAnchor(
+          titleRes = R.string.pref_appearance_show_unplayed_old_video_label_title,
+          itemIndex = 3,
+        ),
         SettingsSearchListAnchor(titleRes = R.string.pref_appearance_unplayed_old_video_days_title, itemIndex = 3),
         SettingsSearchListAnchor(titleRes = R.string.pref_appearance_auto_scroll_title, itemIndex = 3),
         SettingsSearchListAnchor(titleRes = R.string.pref_appearance_show_video_thumbnails_title, itemIndex = 5),
@@ -77,7 +80,10 @@ private val settingsSearchListAnchors: Map<Screen, List<SettingsSearchListAnchor
         SettingsSearchListAnchor(titleRes = R.string.pref_layout_bottom_right_controls, itemIndex = 1),
         SettingsSearchListAnchor(titleRes = R.string.pref_layout_bottom_left_controls, itemIndex = 1),
         SettingsSearchListAnchor(titleRes = R.string.pref_layout_portrait_bottom_controls, itemIndex = 3),
-        SettingsSearchListAnchor(titleRes = R.string.pref_appearance_hide_player_buttons_background_title, itemIndex = 7),
+        SettingsSearchListAnchor(
+          titleRes = R.string.pref_appearance_hide_player_buttons_background_title,
+          itemIndex = 7,
+        ),
         SettingsSearchListAnchor(
           titleRes = R.string.pref_appearance_force_dark_player_buttons_background_title,
           itemIndex = 7,
@@ -232,9 +238,7 @@ val SearchablePreference.searchTargetKey: String
   get() = (targetRes ?: titleRes)?.let { "res:$it" } ?: "text:${title.orEmpty()}"
 
 /** Scrolls to one concrete preference row and briefly highlights only that row. */
-fun Modifier.settingsSearchTarget(
-  key: String,
-): Modifier =
+fun Modifier.settingsSearchTarget(key: String): Modifier =
   composed {
     val requestedTarget by SettingsSearchNavigation.target.collectAsState()
     val isTarget = requestedTarget?.key == key

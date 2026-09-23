@@ -9,7 +9,6 @@
 
 package com.quantummpv.app.ui.player
 
-
 internal fun getTrackSelectionId(property: String): Int =
   runCatching { PlaybackSession.getPropertyString(property)?.toIntOrNull() ?: 0 }
     .getOrDefault(0)

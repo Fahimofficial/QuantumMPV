@@ -38,7 +38,7 @@ object MediaInfoOps {
         return "${file.absolutePath}|${file.length()}|${file.lastModified()}"
       }
     }
-    return "${uri}|$fileName"
+    return "$uri|$fileName"
   }
 
   /**
@@ -451,8 +451,12 @@ object MediaInfoOps {
         // Do not make a transient open/parse failure sticky. Successful metadata with at least one
         // useful field is safe to reuse for the remainder of this process.
         if (
-          metadata.sizeBytes > 0L || metadata.durationMs > 0L || metadata.width > 0 ||
-          metadata.height > 0 || metadata.fps > 0f || metadata.hasEmbeddedSubtitles
+          metadata.sizeBytes > 0L ||
+          metadata.durationMs > 0L ||
+          metadata.width > 0 ||
+          metadata.height > 0 ||
+          metadata.fps > 0f ||
+          metadata.hasEmbeddedSubtitles
         ) {
           synchronized(basicMetadataCache) {
             basicMetadataCache.put(cacheKey, metadata)
@@ -483,8 +487,9 @@ object MediaInfoOps {
 
       val descriptor =
         runCatching {
-          val pfd = context.contentResolver.openFileDescriptor(uri, "r")
-            ?: return@runCatching VideoCodecDescriptor("UNKNOWN", "")
+          val pfd =
+            context.contentResolver.openFileDescriptor(uri, "r")
+              ?: return@runCatching VideoCodecDescriptor("UNKNOWN", "")
           val fd = pfd.detachFd()
           val mediaInfo = MediaInfo()
           try {

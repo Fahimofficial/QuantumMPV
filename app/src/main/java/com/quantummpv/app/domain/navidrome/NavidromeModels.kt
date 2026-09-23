@@ -83,7 +83,9 @@ data class NavidromePlaylist(
   val songs: List<NavidromeSong> = emptyList(),
 )
 
-enum class NavidromeMusicTab(val title: String) {
+enum class NavidromeMusicTab(
+  val title: String,
+) {
   HOME("Home"),
   TRACKS("Tracks"),
   ALBUMS("Albums"),

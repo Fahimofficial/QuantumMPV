@@ -13,6 +13,8 @@ package com.quantummpv.app.ui.securefolder
 
 import android.widget.Toast
 import androidx.activity.compose.BackHandler
+import androidx.biometric.BiometricManager
+import androidx.biometric.BiometricPrompt
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.keyframes
@@ -80,6 +82,8 @@ import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
+import androidx.core.content.ContextCompat
+import androidx.fragment.app.FragmentActivity
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.quantummpv.app.R
 import com.quantummpv.app.presentation.Screen
@@ -91,10 +95,6 @@ import com.quantummpv.app.ui.theme.AppShapeScale
 import com.quantummpv.app.ui.utils.LocalBackStack
 import com.quantummpv.app.ui.utils.popSafely
 import com.quantummpv.app.ui.utils.replaceTop
-import androidx.biometric.BiometricManager
-import androidx.biometric.BiometricPrompt
-import androidx.core.content.ContextCompat
-import androidx.fragment.app.FragmentActivity
 import kotlinx.collections.immutable.persistentListOf
 import kotlinx.collections.immutable.toImmutableList
 import kotlinx.coroutines.launch
@@ -135,8 +135,12 @@ data object SecureFolderGateScreen : Screen {
 
     // Biometric authentication
     val biometricManager = BiometricManager.from(context)
-    val canAuthenticateBiometric = biometricManager.canAuthenticate(BiometricManager.Authenticators.BIOMETRIC_STRONG) == BiometricManager.BIOMETRIC_SUCCESS
-    val canAuthenticateDeviceCredential = biometricManager.canAuthenticate(BiometricManager.Authenticators.DEVICE_CREDENTIAL) == BiometricManager.BIOMETRIC_SUCCESS
+    val canAuthenticateBiometric =
+      biometricManager.canAuthenticate(BiometricManager.Authenticators.BIOMETRIC_STRONG) ==
+        BiometricManager.BIOMETRIC_SUCCESS
+    val canAuthenticateDeviceCredential =
+      biometricManager.canAuthenticate(BiometricManager.Authenticators.DEVICE_CREDENTIAL) ==
+        BiometricManager.BIOMETRIC_SUCCESS
     val isBiometricAvailable = canAuthenticateBiometric || canAuthenticateDeviceCredential
     val isBiometricEnabled = viewModel.isBiometricEnabled()
 
@@ -147,24 +151,34 @@ data object SecureFolderGateScreen : Screen {
       // flashes the numeric keyboard on whatever screen we've navigated to next. Hide it up front.
       keyboardController?.hide()
       val executor = ContextCompat.getMainExecutor(context)
-      val callback = object : BiometricPrompt.AuthenticationCallback() {
-        override fun onAuthenticationSucceeded(result: BiometricPrompt.AuthenticationResult) {
-          super.onAuthenticationSucceeded(result)
-          backstack.replaceTop(SecureFolderScreen)
+      val callback =
+        object : BiometricPrompt.AuthenticationCallback() {
+          override fun onAuthenticationSucceeded(result: BiometricPrompt.AuthenticationResult) {
+            super.onAuthenticationSucceeded(result)
+            backstack.replaceTop(SecureFolderScreen)
+          }
+
+          override fun onAuthenticationError(
+            errorCode: Int,
+            errString: CharSequence,
+          ) {
+            super.onAuthenticationError(errorCode, errString)
+          }
+
+          override fun onAuthenticationFailed() {
+            super.onAuthenticationFailed()
+          }
         }
-        override fun onAuthenticationError(errorCode: Int, errString: CharSequence) {
-          super.onAuthenticationError(errorCode, errString)
-        }
-        override fun onAuthenticationFailed() {
-          super.onAuthenticationFailed()
-        }
-      }
       val biometricPrompt = BiometricPrompt(fragmentActivity, executor, callback)
-      val promptInfoBuilder = BiometricPrompt.PromptInfo.Builder()
-        .setTitle(context.getString(R.string.secure_folder_title))
-        .setSubtitle(context.getString(R.string.secure_folder_enter_pin))
+      val promptInfoBuilder =
+        BiometricPrompt.PromptInfo
+          .Builder()
+          .setTitle(context.getString(R.string.secure_folder_title))
+          .setSubtitle(context.getString(R.string.secure_folder_enter_pin))
       if (canAuthenticateBiometric) {
-        promptInfoBuilder.setAllowedAuthenticators(BiometricManager.Authenticators.BIOMETRIC_STRONG or BiometricManager.Authenticators.DEVICE_CREDENTIAL)
+        promptInfoBuilder.setAllowedAuthenticators(
+          BiometricManager.Authenticators.BIOMETRIC_STRONG or BiometricManager.Authenticators.DEVICE_CREDENTIAL,
+        )
       } else {
         promptInfoBuilder.setAllowedAuthenticators(BiometricManager.Authenticators.DEVICE_CREDENTIAL)
       }
@@ -469,8 +483,7 @@ private fun PinDots(
             .background(
               color = if (filled) MaterialTheme.colorScheme.primary else Color.Transparent,
               shape = CircleShape,
-            )
-            .border(
+            ).border(
               width = 1.5.dp,
               color = MaterialTheme.colorScheme.outline,
               shape = CircleShape,
@@ -875,16 +888,15 @@ internal fun PinField(
       IconButton(onClick = onToggleShowPin) {
         Icon(
           if (showPin) Icons.RoundedFilled.VisibilityOff else Icons.RoundedFilled.Visibility,
-          contentDescription = if (showPin) {
-            stringResource(R.string.secure_folder_hide_pin)
-          } else {
-            stringResource(R.string.secure_folder_show_pin)
-          },
+          contentDescription =
+            if (showPin) {
+              stringResource(R.string.secure_folder_hide_pin)
+            } else {
+              stringResource(R.string.secure_folder_show_pin)
+            },
         )
       }
     },
     modifier = modifier.fillMaxWidth(),
   )
 }
-
-

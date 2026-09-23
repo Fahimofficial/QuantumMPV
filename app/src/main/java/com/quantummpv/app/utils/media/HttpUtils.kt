@@ -103,7 +103,8 @@ object HttpUtils {
     withContext(Dispatchers.IO) {
       var connection: HttpURLConnection? = null
       try {
-        val oEmbedUrl = "https://www.youtube.com/oembed?url=" + java.net.URLEncoder.encode(url, "UTF-8") + "&format=json"
+        val oEmbedUrl =
+          "https://www.youtube.com/oembed?url=" + java.net.URLEncoder.encode(url, "UTF-8") + "&format=json"
         connection = URL(oEmbedUrl).openConnection() as HttpURLConnection
         connection.requestMethod = "GET"
         connection.connectTimeout = CONNECTION_TIMEOUT

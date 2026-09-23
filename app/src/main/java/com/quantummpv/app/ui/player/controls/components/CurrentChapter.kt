@@ -37,12 +37,10 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import com.quantummpv.app.preferences.AppearancePreferences
 import com.quantummpv.app.ui.theme.AppShapeScale
 import com.quantummpv.app.ui.theme.spacing
 import dev.vivvvek.seeker.Segment
 import `is`.xyz.mpv.Utils
-import org.koin.compose.koinInject
 
 @Composable
 fun CurrentChapter(

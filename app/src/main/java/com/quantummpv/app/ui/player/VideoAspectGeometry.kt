@@ -43,8 +43,10 @@ internal object VideoAspectGeometry {
     pixelAspectRatio: Double,
     rotationDegrees: Int,
   ): Double? {
-    if (!dimensions.width.isFinite() || !dimensions.height.isFinite() ||
-      dimensions.width <= 0.0 || dimensions.height <= 0.0
+    if (!dimensions.width.isFinite() ||
+      !dimensions.height.isFinite() ||
+      dimensions.width <= 0.0 ||
+      dimensions.height <= 0.0
     ) {
       return null
     }
@@ -79,7 +81,8 @@ internal object VideoAspectGeometry {
 
   private fun currentCropDimensions(): VideoDimensions? {
     val match =
-      PlaybackSession.getPropertyString("video-crop")
+      PlaybackSession
+        .getPropertyString("video-crop")
         ?.let(cropDimensionsRegex::find)
         ?: return null
     val width = match.groupValues[1].toDoubleOrNull() ?: return null

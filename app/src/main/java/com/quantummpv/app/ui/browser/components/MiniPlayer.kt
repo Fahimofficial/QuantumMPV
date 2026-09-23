@@ -54,7 +54,6 @@ import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.collectAsState
-import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableFloatStateOf
@@ -78,6 +77,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.quantummpv.app.R
 import com.quantummpv.app.domain.thumbnail.EmbeddedArtworkResolver
 import com.quantummpv.app.preferences.PlayerPreferences
@@ -112,9 +112,12 @@ fun MiniPlayer(modifier: Modifier = Modifier) {
 
   val backstack = LocalBackStack.current
   val currentScreen = backstack.lastOrNull()
-  val isSettingsScreen = currentScreen != null &&
-    (currentScreen.javaClass.name.startsWith("com.quantummpv.app.ui.preferences") ||
-     currentScreen.javaClass.name.startsWith("com.quantummpv.app.ui.editor"))
+  val isSettingsScreen =
+    currentScreen != null &&
+      (
+        currentScreen.javaClass.name.startsWith("com.quantummpv.app.ui.preferences") ||
+          currentScreen.javaClass.name.startsWith("com.quantummpv.app.ui.editor")
+      )
 
   val currentItem = sessionState.currentItem
   val trackListNode by PlaybackSession.propNode["track-list"].collectAsStateWithLifecycle()
@@ -133,13 +136,15 @@ fun MiniPlayer(modifier: Modifier = Modifier) {
 
   val isMiniPlayerAllowed = isAudioOnlyItem || enableVideoMiniPlayer
 
-  val isMediaActive = isServiceRunning && currentItem != null &&
-    !isSettingsScreen &&
-    isMiniPlayerAllowed &&
-    sessionState.phase != PlaybackPhase.IDLE &&
-    sessionState.phase != PlaybackPhase.STOPPING &&
-    sessionState.phase != PlaybackPhase.UNINITIALIZED &&
-    sessionState.phase != PlaybackPhase.ERROR
+  val isMediaActive =
+    isServiceRunning &&
+      currentItem != null &&
+      !isSettingsScreen &&
+      isMiniPlayerAllowed &&
+      sessionState.phase != PlaybackPhase.IDLE &&
+      sessionState.phase != PlaybackPhase.STOPPING &&
+      sessionState.phase != PlaybackPhase.UNINITIALIZED &&
+      sessionState.phase != PlaybackPhase.ERROR
 
   // Keep the mini player alive while browser selection mode is active. Its outer
   // placement is lifted above the selection actions instead of hiding/overlapping.
@@ -214,67 +219,70 @@ private fun MiniPlayerContent(
   val density = LocalDensity.current
   val dismissThresholdPx = with(density) { 100.dp.toPx() }
 
-  val launchPlayer = remember(context) {
-    {
-      val intent = Intent(context, PlayerActivity::class.java).apply {
-        action = MediaPlaybackService.ACTION_OPEN_PLAYER
-        putExtra("is_audio", isAudioOnlyItem)
-        putExtra("internal_launch", true)
-        putExtra("launch_source", "mini_player")
-        flags = Intent.FLAG_ACTIVITY_SINGLE_TOP or Intent.FLAG_ACTIVITY_CLEAR_TOP
-      }
-      context.startActivity(intent)
-      if (context is Activity) {
-        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
-          context.overrideActivityTransition(Activity.OVERRIDE_TRANSITION_OPEN, R.anim.slide_in_up, 0)
-        } else {
-          @Suppress("DEPRECATION")
-          context.overridePendingTransition(R.anim.slide_in_up, 0)
+  val launchPlayer =
+    remember(context) {
+      {
+        val intent =
+          Intent(context, PlayerActivity::class.java).apply {
+            action = MediaPlaybackService.ACTION_OPEN_PLAYER
+            putExtra("is_audio", isAudioOnlyItem)
+            putExtra("internal_launch", true)
+            putExtra("launch_source", "mini_player")
+            flags = Intent.FLAG_ACTIVITY_SINGLE_TOP or Intent.FLAG_ACTIVITY_CLEAR_TOP
+          }
+        context.startActivity(intent)
+        if (context is Activity) {
+          if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
+            context.overrideActivityTransition(Activity.OVERRIDE_TRANSITION_OPEN, R.anim.slide_in_up, 0)
+          } else {
+            @Suppress("DEPRECATION")
+            context.overridePendingTransition(R.anim.slide_in_up, 0)
+          }
         }
       }
     }
-  }
 
-  val dismissPlayer = remember(context) {
-    {
-      context.startService(
-        Intent(context, MediaPlaybackService::class.java).setAction(
-          MediaPlaybackService.ACTION_NOTIFICATION_STOP,
-        ),
-      )
+  val dismissPlayer =
+    remember(context) {
+      {
+        context.startService(
+          Intent(context, MediaPlaybackService::class.java).setAction(
+            MediaPlaybackService.ACTION_NOTIFICATION_STOP,
+          ),
+        )
+      }
     }
-  }
 
   Surface(
-    modifier = Modifier
-      .offset { IntOffset(offsetX.roundToInt(), 0) }
-      .pointerInput(Unit) {
-        detectHorizontalDragGestures(
-          onDragEnd = {
-            if (abs(offsetX) > dismissThresholdPx) {
-              dismissPlayer()
-            } else {
+    modifier =
+      Modifier
+        .offset { IntOffset(offsetX.roundToInt(), 0) }
+        .pointerInput(Unit) {
+          detectHorizontalDragGestures(
+            onDragEnd = {
+              if (abs(offsetX) > dismissThresholdPx) {
+                dismissPlayer()
+              } else {
+                coroutineScope.launch {
+                  androidx.compose.animation.core.Animatable(offsetX).animateTo(0f) {
+                    offsetX = value
+                  }
+                }
+              }
+            },
+            onDragCancel = {
               coroutineScope.launch {
                 androidx.compose.animation.core.Animatable(offsetX).animateTo(0f) {
                   offsetX = value
                 }
               }
-            }
-          },
-          onDragCancel = {
-            coroutineScope.launch {
-              androidx.compose.animation.core.Animatable(offsetX).animateTo(0f) {
-                offsetX = value
-              }
-            }
-          },
-          onHorizontalDrag = { _, dragAmount ->
-            offsetX += dragAmount
-          },
-        )
-      }
-      .clip(RoundedCornerShape(20.dp))
-      .clickable { launchPlayer() },
+            },
+            onHorizontalDrag = { _, dragAmount ->
+              offsetX += dragAmount
+            },
+          )
+        }.clip(RoundedCornerShape(20.dp))
+        .clickable { launchPlayer() },
     color = MaterialTheme.colorScheme.surfaceContainerHigh.copy(alpha = 0.96f),
     tonalElevation = 8.dp,
     shadowElevation = 10.dp,
@@ -283,30 +291,33 @@ private fun MiniPlayerContent(
 
     if (isVideoMode) {
       // Calculate aspect ratio for video surface container
-      val aspect = videoAspectRaw?.toFloat()
-        ?: if ((videoWidth ?: 0L) > 0L && (videoHeight ?: 0L) > 0L) {
-          videoWidth!!.toFloat() / videoHeight!!.toFloat()
-        } else {
-          16f / 9f
-        }
+      val aspect =
+        videoAspectRaw?.toFloat()
+          ?: if ((videoWidth ?: 0L) > 0L && (videoHeight ?: 0L) > 0L) {
+            videoWidth!!.toFloat() / videoHeight!!.toFloat()
+          } else {
+            16f / 9f
+          }
 
       // Constrain aspect ratio between 0.5 (portrait) and 2.4 (ultrawide)
       val safeAspect = aspect.coerceIn(0.5f, 2.39f)
 
       Row(
-        modifier = Modifier
-          .fillMaxWidth()
-          .height(76.dp)
-          .padding(4.dp),
+        modifier =
+          Modifier
+            .fillMaxWidth()
+            .height(76.dp)
+            .padding(4.dp),
         verticalAlignment = Alignment.CenterVertically,
       ) {
         // Video MPV Surface View Container
         Box(
-          modifier = Modifier
-            .fillMaxHeight()
-            .aspectRatio(safeAspect)
-            .clip(RoundedCornerShape(14.dp))
-            .background(Color.Black),
+          modifier =
+            Modifier
+              .fillMaxHeight()
+              .aspectRatio(safeAspect)
+              .clip(RoundedCornerShape(14.dp))
+              .background(Color.Black),
           contentAlignment = Alignment.Center,
         ) {
           AndroidView(
@@ -316,34 +327,36 @@ private fun MiniPlayerContent(
                 // Render the video above the Compose window layers so the mini
                 // player's Surface/clip does not paint over the SurfaceView.
                 setZOrderMediaOverlay(true)
-                holder.addCallback(object : SurfaceHolder.Callback {
-                  override fun surfaceCreated(holder: SurfaceHolder) {
-                    val attached =
-                      PlaybackSession.bindSurface(
-                        surface = holder.surface,
-                        owner = this@apply,
-                        ownerIsActive = { MediaPlaybackService.isForegroundActive() },
-                      )
-                    if (attached) PlaybackSession.setPropertyBoolean("sub-visibility", false)
-                  }
-
-                  override fun surfaceChanged(
-                    holder: SurfaceHolder,
-                    format: Int,
-                    width: Int,
-                    height: Int,
-                  ) {
-                    if (holder.surface.isValid) {
-                      PlaybackSession.resizeSurface(width, height, owner = this@apply)
+                holder.addCallback(
+                  object : SurfaceHolder.Callback {
+                    override fun surfaceCreated(holder: SurfaceHolder) {
+                      val attached =
+                        PlaybackSession.bindSurface(
+                          surface = holder.surface,
+                          owner = this@apply,
+                          ownerIsActive = { MediaPlaybackService.isForegroundActive() },
+                        )
+                      if (attached) PlaybackSession.setPropertyBoolean("sub-visibility", false)
                     }
-                  }
 
-                  override fun surfaceDestroyed(holder: SurfaceHolder) {
-                    if (PlaybackSession.unbindSurface(this@apply)) {
-                      PlaybackSession.setPropertyBoolean("sub-visibility", true)
+                    override fun surfaceChanged(
+                      holder: SurfaceHolder,
+                      format: Int,
+                      width: Int,
+                      height: Int,
+                    ) {
+                      if (holder.surface.isValid) {
+                        PlaybackSession.resizeSurface(width, height, owner = this@apply)
+                      }
                     }
-                  }
-                })
+
+                    override fun surfaceDestroyed(holder: SurfaceHolder) {
+                      if (PlaybackSession.unbindSurface(this@apply)) {
+                        PlaybackSession.setPropertyBoolean("sub-visibility", true)
+                      }
+                    }
+                  },
+                )
               }
             },
           )
@@ -419,31 +432,33 @@ private fun MiniPlayerContent(
     } else {
       // Audio Mini Player View
       Row(
-        modifier = Modifier
-          .fillMaxWidth()
-          .drawBehind {
-            val dur = duration?.toFloat() ?: 0f
-            val pos = positionState.value?.toFloat() ?: 0f
-            val progressFraction = if (dur > 0f) (pos / dur).coerceIn(0f, 1f) else 0f
-            if (progressFraction > 0f) {
-              drawRect(
-                color = primaryContainerColor.copy(alpha = 0.35f),
-                size = Size(
-                  width = size.width * progressFraction,
-                  height = size.height,
-                ),
-              )
-            }
-          }
-          .padding(horizontal = 12.dp, vertical = 8.dp),
+        modifier =
+          Modifier
+            .fillMaxWidth()
+            .drawBehind {
+              val dur = duration?.toFloat() ?: 0f
+              val pos = positionState.value?.toFloat() ?: 0f
+              val progressFraction = if (dur > 0f) (pos / dur).coerceIn(0f, 1f) else 0f
+              if (progressFraction > 0f) {
+                drawRect(
+                  color = primaryContainerColor.copy(alpha = 0.35f),
+                  size =
+                    Size(
+                      width = size.width * progressFraction,
+                      height = size.height,
+                    ),
+                )
+              }
+            }.padding(horizontal = 12.dp, vertical = 8.dp),
         verticalAlignment = Alignment.CenterVertically,
       ) {
         // Music Cover Art
         Box(
-          modifier = Modifier
-            .size(48.dp)
-            .clip(RoundedCornerShape(10.dp))
-            .background(MaterialTheme.colorScheme.surfaceVariant),
+          modifier =
+            Modifier
+              .size(48.dp)
+              .clip(RoundedCornerShape(10.dp))
+              .background(MaterialTheme.colorScheme.surfaceVariant),
           contentAlignment = Alignment.Center,
         ) {
           val artworkImageBitmap = remember(coverArt) { coverArt?.asImageBitmap() }

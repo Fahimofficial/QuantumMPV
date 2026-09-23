@@ -71,14 +71,19 @@ fun matchesGlowPreset(
     closeTo(fadeCurve, preset.fadeCurve) &&
     closeTo(opacity, preset.opacity)
 
-private fun closeTo(left: Float, right: Float, tolerance: Float = 0.01f): Boolean = abs(left - right) <= tolerance
+private fun closeTo(
+  left: Float,
+  right: Float,
+  tolerance: Float = 0.01f,
+): Boolean = abs(left - right) <= tolerance
 
 private const val GOLDEN_ANGLE = 2.399963229728653
 
 private fun glslFloat(value: Double): String {
   val normalized = if (abs(value) < 0.0000005) 0.0 else value
   val formatted =
-    String.format(Locale.US, "%.8f", normalized)
+    String
+      .format(Locale.US, "%.8f", normalized)
       .trimEnd('0')
       .trimEnd('.')
   return if (formatted.contains('.')) formatted else "$formatted.0"
@@ -153,51 +158,51 @@ vec3 apply_warmth(vec3 rgb, float amount) {
  */
 private val GLSL_VIDEO_PROLOGUE =
   """
-    vec2 uv = HOOKED_pos;
-    vec2 video_uv = (uv - 0.5) * vec2(SCALE_X, SCALE_Y) + 0.5;
+  vec2 uv = HOOKED_pos;
+  vec2 video_uv = (uv - 0.5) * vec2(SCALE_X, SCALE_Y) + 0.5;
 
-    // Stay half a texel inside the decoded frame when sampling the video edge.
-    // Sampling exactly at 0/1 can pull in the texture border on some GPU/MPV paths,
-    // which shows up as a one-pixel black seam between the video and ambient fill.
-    vec2 half_texel = vec2(0.5) / HOOKED_size;
-    vec2 safe_min = half_texel;
-    vec2 safe_max = vec2(1.0) - half_texel;
+  // Stay half a texel inside the decoded frame when sampling the video edge.
+  // Sampling exactly at 0/1 can pull in the texture border on some GPU/MPV paths,
+  // which shows up as a one-pixel black seam between the video and ambient fill.
+  vec2 half_texel = vec2(0.5) / HOOKED_size;
+  vec2 safe_min = half_texel;
+  vec2 safe_max = vec2(1.0) - half_texel;
 
-    if (video_uv.x >= 0.0 && video_uv.x <= 1.0 &&
-        video_uv.y >= 0.0 && video_uv.y <= 1.0) {
-        return HOOKED_tex(clamp(video_uv, safe_min, safe_max));
-    }
+  if (video_uv.x >= 0.0 && video_uv.x <= 1.0 &&
+      video_uv.y >= 0.0 && video_uv.y <= 1.0) {
+      return HOOKED_tex(clamp(video_uv, safe_min, safe_max));
+  }
 
-    vec2 edge_origin = clamp(video_uv, safe_min, safe_max);
-    float edge_dist = length(video_uv - clamp(video_uv, 0.0, 1.0));
+  vec2 edge_origin = clamp(video_uv, safe_min, safe_max);
+  float edge_dist = length(video_uv - clamp(video_uv, 0.0, 1.0));
 
-    float jitter = rand(uv * HOOKED_size) * (PI * 2.0);
-    float jitter_s = sin(jitter);
-    float jitter_c = cos(jitter);
-    vec2 aspect_fix = vec2(HOOKED_size.y / HOOKED_size.x, 1.0);
+  float jitter = rand(uv * HOOKED_size) * (PI * 2.0);
+  float jitter_s = sin(jitter);
+  float jitter_c = cos(jitter);
+  vec2 aspect_fix = vec2(HOOKED_size.y / HOOKED_size.x, 1.0);
   """.trimIndent().prependIndent("    ")
 
 /** End of hook(): vignette, opacity, and the optional bezel blend. */
 private val GLSL_AMBIENT_EPILOGUE =
   """
-    float vig_r = length(uv - 0.5) * 2.0;
-    ambient_rgb *= mix(1.0, smoothstep(1.3, 0.1, vig_r), VIGNETTE_STR);
+  float vig_r = length(uv - 0.5) * 2.0;
+  ambient_rgb *= mix(1.0, smoothstep(1.3, 0.1, vig_r), VIGNETTE_STR);
 
-    vec4 ambient_out = vec4(ambient_rgb * OPACITY, 1.0);
+  vec4 ambient_out = vec4(ambient_rgb * OPACITY, 1.0);
 
-    // A zero bezel means a hard, gap-free handoff from video to ambience.
-    // The old max(BEZEL_DEPTH, 0.001) fallback forced a tiny transition even
-    // when bezel depth was disabled, which can become a visible ~1 px line.
-    if (BEZEL_DEPTH <= 0.0) {
-        return ambient_out;
-    }
+  // A zero bezel means a hard, gap-free handoff from video to ambience.
+  // The old max(BEZEL_DEPTH, 0.001) fallback forced a tiny transition even
+  // when bezel depth was disabled, which can become a visible ~1 px line.
+  if (BEZEL_DEPTH <= 0.0) {
+      return ambient_out;
+  }
 
-    vec2 outside_dist = max(max(-video_uv, video_uv - vec2(1.0)), vec2(0.0));
-    float dist_to_edge = max(outside_dist.x, outside_dist.y);
-    float bezel_alpha = smoothstep(0.0, BEZEL_DEPTH, dist_to_edge);
+  vec2 outside_dist = max(max(-video_uv, video_uv - vec2(1.0)), vec2(0.0));
+  float dist_to_edge = max(outside_dist.x, outside_dist.y);
+  float bezel_alpha = smoothstep(0.0, BEZEL_DEPTH, dist_to_edge);
 
-    vec4 edge_pixel = HOOKED_tex(edge_origin);
-    return mix(edge_pixel, ambient_out, bezel_alpha);
+  vec4 edge_pixel = HOOKED_tex(edge_origin);
+  return mix(edge_pixel, ambient_out, bezel_alpha);
   """.trimIndent().prependIndent("    ")
 
 object AmbientShaderBuilder {

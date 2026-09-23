@@ -13,16 +13,8 @@ package com.quantummpv.app.ui.browser.recentlyplayed
 
 import android.content.Intent
 import android.widget.Toast
-import com.quantummpv.app.ui.utils.NavigationBackHandler as BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
-import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.animation.fadeIn
-import androidx.compose.animation.fadeOut
-import androidx.compose.foundation.background
-import androidx.compose.foundation.gestures.detectTapGestures
-import com.quantummpv.app.ui.browser.fab.FabScrollHelper
-import com.quantummpv.app.ui.components.themedSegmentedButtonColors
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
@@ -38,7 +30,6 @@ import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.GridItemSpan
 import androidx.compose.foundation.lazy.grid.LazyGridState
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
-import com.quantummpv.app.ui.utils.NavigationPager
 import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -65,15 +56,13 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.setValue
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
-import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.stringResource
@@ -99,20 +88,24 @@ import com.quantummpv.app.ui.browser.cards.VideoCardUiConfig
 import com.quantummpv.app.ui.browser.components.BrowserTopBar
 import com.quantummpv.app.ui.browser.components.ExpressiveScrollBar
 import com.quantummpv.app.ui.browser.components.fastScrollGlyph
+import com.quantummpv.app.ui.browser.fab.FabScrollHelper
 import com.quantummpv.app.ui.browser.playlist.PlaylistDetailScreen
 import com.quantummpv.app.ui.browser.selection.rememberSelectionManager
 import com.quantummpv.app.ui.browser.sheets.PlayLinkSheet
 import com.quantummpv.app.ui.browser.states.EmptyState
+import com.quantummpv.app.ui.components.themedSegmentedButtonColors
 import com.quantummpv.app.ui.icons.Icon
 import com.quantummpv.app.ui.icons.Icons
 import com.quantummpv.app.ui.utils.LocalBackStack
+import com.quantummpv.app.ui.utils.NavigationPager
+import com.quantummpv.app.ui.utils.calculateResponsiveGridSpans
 import com.quantummpv.app.ui.utils.navigateTo
 import com.quantummpv.app.ui.utils.rememberTabNavigation
-import com.quantummpv.app.ui.utils.calculateResponsiveGridSpans
 import com.quantummpv.app.utils.media.MediaUtils
 import kotlinx.coroutines.launch
 import kotlinx.serialization.Serializable
 import org.koin.compose.koinInject
+import com.quantummpv.app.ui.utils.NavigationBackHandler as BackHandler
 
 private fun isRecentlyPlayedItemAudio(item: RecentlyPlayedItem): Boolean =
   when (item) {
@@ -192,7 +185,8 @@ object RecentlyPlayedScreen : Screen {
 
     // Handle back button during selection mode or FAB menu expanded
     // Synchronize NavigationBarState when selection mode changes
-    com.quantummpv.app.ui.browser.NavigationBarSelectionEffect(selectionManager.isInSelectionMode)
+    com.quantummpv.app.ui.browser
+      .NavigationBarSelectionEffect(selectionManager.isInSelectionMode)
 
     BackHandler(enabled = selectionManager.isInSelectionMode || isFabExpanded.value) {
       when {
@@ -277,7 +271,10 @@ object RecentlyPlayedScreen : Screen {
       },
       floatingActionButton = {
         val isFabShouldBeVisible =
-          showQuickPlayFab && !selectionManager.isInSelectionMode && isFabVisible.value && filteredRecentItems.isNotEmpty()
+          showQuickPlayFab &&
+            !selectionManager.isInSelectionMode &&
+            isFabVisible.value &&
+            filteredRecentItems.isNotEmpty()
 
         FloatingActionButtonMenu(
           modifier =
@@ -336,7 +333,13 @@ object RecentlyPlayedScreen : Screen {
               ) {
                 val imageVector by remember {
                   derivedStateOf {
-                    if (checkedProgress > 0.5f && !quickPlayFabDirect) Icons.RoundedFilled.Close else Icons.RoundedFilled.PlayArrow
+                    if (checkedProgress > 0.5f &&
+                      !quickPlayFabDirect
+                    ) {
+                      Icons.RoundedFilled.Close
+                    } else {
+                      Icons.RoundedFilled.PlayArrow
+                    }
                   }
                 }
                 Icon(
@@ -418,212 +421,212 @@ object RecentlyPlayedScreen : Screen {
             .fillMaxSize()
             .padding(padding),
       ) {
-      Column(
-        modifier = Modifier.fillMaxSize(),
-      ) {
-        if (enableRecentlyPlayed) {
-          SingleChoiceSegmentedButtonRow(
+        Column(
+          modifier = Modifier.fillMaxSize(),
+        ) {
+          if (enableRecentlyPlayed) {
+            SingleChoiceSegmentedButtonRow(
+              modifier =
+                Modifier
+                  .fillMaxWidth()
+                  .padding(horizontal = 16.dp, vertical = 8.dp),
+            ) {
+              MediaLibraryType.entries.forEachIndexed { index, type ->
+                SegmentedButton(
+                  selected = recentlyPlayedFilter == type,
+                  onClick = {
+                    if (recentlyPlayedFilter != type) {
+                      selectionManager.clear()
+                      recentlyPlayedFilter = type
+                    }
+                  },
+                  shape = SegmentedButtonDefaults.itemShape(index, MediaLibraryType.entries.size),
+                  colors = themedSegmentedButtonColors(),
+                ) {
+                  Text(
+                    text =
+                      if (type == MediaLibraryType.Audio) {
+                        stringResource(R.string.ui_audio_tab)
+                      } else {
+                        stringResource(R.string.ui_videos)
+                      },
+                  )
+                }
+              }
+            }
+          }
+
+          Box(
             modifier =
               Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 16.dp, vertical = 8.dp),
+                .weight(1f),
           ) {
-            MediaLibraryType.entries.forEachIndexed { index, type ->
-              SegmentedButton(
-                selected = recentlyPlayedFilter == type,
-                onClick = {
-                  if (recentlyPlayedFilter != type) {
-                    selectionManager.clear()
-                    recentlyPlayedFilter = type
-                  }
-                },
-                shape = SegmentedButtonDefaults.itemShape(index, MediaLibraryType.entries.size),
-                colors = themedSegmentedButtonColors(),
-              ) {
-                Text(
-                  text =
-                    if (type == MediaLibraryType.Audio) {
-                      stringResource(R.string.ui_audio_tab)
-                    } else {
-                      stringResource(R.string.ui_videos)
-                    },
-                )
+            when {
+              !enableRecentlyPlayed -> {
+                Box(
+                  modifier = Modifier.fillMaxSize(),
+                  contentAlignment = Alignment.Center,
+                ) {
+                  EmptyState(
+                    icon = Icons.RoundedFilled.History,
+                    title = stringResource(R.string.ui_recently_played_disabled),
+                    message = "Enable it in Advanced Settings to track your playback history",
+                  )
+                }
               }
-            }
-          }
-        }
 
-        Box(
-          modifier =
-            Modifier
-              .fillMaxWidth()
-              .weight(1f),
-        ) {
-        when {
-          !enableRecentlyPlayed -> {
-            Box(
-              modifier = Modifier.fillMaxSize(),
-              contentAlignment = Alignment.Center,
-            ) {
-            EmptyState(
-              icon = Icons.RoundedFilled.History,
-              title = stringResource(R.string.ui_recently_played_disabled),
-              message = "Enable it in Advanced Settings to track your playback history",
-            )
-          }
-        }
-
-        isLoading && recentItems.isEmpty() -> {
-          Box(
-            modifier = Modifier.fillMaxSize(),
-            contentAlignment = Alignment.Center,
-          ) {
-            CircularProgressIndicator(
-              modifier = Modifier.size(48.dp),
-              color = MaterialTheme.colorScheme.primary,
-            )
-          }
-        }
-
-        else -> {
-          NavigationPager(
-            state = pagerState,
-            modifier = Modifier.fillMaxSize(),
-          ) { page ->
-            val pageType = MediaLibraryType.entries.getOrNull(page) ?: MediaLibraryType.Video
-            val pageIsAudio = pageType == MediaLibraryType.Audio
-            val pageItems = if (pageIsAudio) audioItems else videoItems
-            val pageListState = if (pageIsAudio) audioListState else videoListState
-            val pageGridState = if (pageIsAudio) audioGridState else videoGridState
-
-            if (pageItems.isEmpty()) {
-              Box(
-                modifier = Modifier.fillMaxSize(),
-                contentAlignment = Alignment.Center,
-              ) {
-                EmptyState(
-                  icon = Icons.RoundedFilled.History,
-                  title =
-                    if (pageIsAudio) {
-                      stringResource(R.string.ui_no_audio_found)
-                    } else {
-                      stringResource(R.string.ui_no_recently_played_videos)
-                    },
-                  message = "Items you play will appear here",
-                )
+              isLoading && recentItems.isEmpty() -> {
+                Box(
+                  modifier = Modifier.fillMaxSize(),
+                  contentAlignment = Alignment.Center,
+                ) {
+                  CircularProgressIndicator(
+                    modifier = Modifier.size(48.dp),
+                    color = MaterialTheme.colorScheme.primary,
+                  )
+                }
               }
-            } else {
-              RecentItemsContent(
-                recentItems = pageItems,
-                selectionManager = selectionManager,
-                onVideoClick = { video ->
-                  coroutineScope.launch {
-                    val playableVideo = viewModel.resolvePlayableRecentVideo(video)
-                    if (playableVideo != null) {
-                      // Always play individual videos without creating a playlist.
-                      MediaUtils.playFile(playableVideo, context, "recently_played")
-                    } else {
-                      Toast
-                        .makeText(
-                          context,
-                          context.getString(com.quantummpv.app.R.string.ui_recent_file_no_longer_exists),
-                          Toast.LENGTH_SHORT,
-                        ).show()
+
+              else -> {
+                NavigationPager(
+                  state = pagerState,
+                  modifier = Modifier.fillMaxSize(),
+                ) { page ->
+                  val pageType = MediaLibraryType.entries.getOrNull(page) ?: MediaLibraryType.Video
+                  val pageIsAudio = pageType == MediaLibraryType.Audio
+                  val pageItems = if (pageIsAudio) audioItems else videoItems
+                  val pageListState = if (pageIsAudio) audioListState else videoListState
+                  val pageGridState = if (pageIsAudio) audioGridState else videoGridState
+
+                  if (pageItems.isEmpty()) {
+                    Box(
+                      modifier = Modifier.fillMaxSize(),
+                      contentAlignment = Alignment.Center,
+                    ) {
+                      EmptyState(
+                        icon = Icons.RoundedFilled.History,
+                        title =
+                          if (pageIsAudio) {
+                            stringResource(R.string.ui_no_audio_found)
+                          } else {
+                            stringResource(R.string.ui_no_recently_played_videos)
+                          },
+                        message = "Items you play will appear here",
+                      )
                     }
+                  } else {
+                    RecentItemsContent(
+                      recentItems = pageItems,
+                      selectionManager = selectionManager,
+                      onVideoClick = { video ->
+                        coroutineScope.launch {
+                          val playableVideo = viewModel.resolvePlayableRecentVideo(video)
+                          if (playableVideo != null) {
+                            // Always play individual videos without creating a playlist.
+                            MediaUtils.playFile(playableVideo, context, "recently_played")
+                          } else {
+                            Toast
+                              .makeText(
+                                context,
+                                context.getString(com.quantummpv.app.R.string.ui_recent_file_no_longer_exists),
+                                Toast.LENGTH_SHORT,
+                              ).show()
+                          }
+                        }
+                      },
+                      onPlaylistClick = { playlistItem ->
+                        // Navigate to playlist detail screen
+                        backStack.navigateTo(PlaylistDetailScreen(playlistItem.playlist.id))
+                      },
+                      modifier = Modifier,
+                      isInSelectionMode = selectionManager.isInSelectionMode,
+                      isAudioTab = pageIsAudio,
+                      listState = pageListState,
+                      gridState = pageGridState,
+                    )
                   }
-                },
-                onPlaylistClick = { playlistItem ->
-                  // Navigate to playlist detail screen
-                  backStack.navigateTo(PlaylistDetailScreen(playlistItem.playlist.id))
-                },
-                modifier = Modifier,
-                isInSelectionMode = selectionManager.isInSelectionMode,
-                isAudioTab = pageIsAudio,
-                listState = pageListState,
-                gridState = pageGridState,
-              )
+                }
+              }
             }
           }
         }
-      }
-      }
-      }
 
-      // Delete confirmation dialog
-      if (deleteDialogOpen.value && selectionManager.isInSelectionMode) {
-        // Remove selected items from history
-        val itemCount = selectionManager.selectedCount
-        val itemText = if (itemCount == 1) "item" else "items"
-        val deleteFiles = deleteFilesCheckbox.value
+        // Delete confirmation dialog
+        if (deleteDialogOpen.value && selectionManager.isInSelectionMode) {
+          // Remove selected items from history
+          val itemCount = selectionManager.selectedCount
+          val itemText = if (itemCount == 1) "item" else "items"
+          val deleteFiles = deleteFilesCheckbox.value
 
-        val title =
-          if (deleteFiles) {
-            "Delete $itemCount $itemText?"
-          } else {
-            "Remove $itemCount $itemText from history?"
-          }
-
-        val subtitle =
-          buildString {
+          val title =
             if (deleteFiles) {
-              append("This will permanently delete the original video file(s) from your device storage.\n\n")
-              append("This action cannot be undone.")
+              "Delete $itemCount $itemText?"
             } else {
-              append("This will remove the selected $itemText from your recently played list. ")
-              append("The original video files will not be deleted.")
+              "Remove $itemCount $itemText from history?"
             }
-          }
 
-        ConfirmDialog(
-          title = title,
-          subtitle = subtitle,
-          customContent = {
-            androidx.compose.foundation.layout.Row(
-              modifier = Modifier.fillMaxWidth(),
-              verticalAlignment = androidx.compose.ui.Alignment.CenterVertically,
-            ) {
-              androidx.compose.material3.Checkbox(
-                checked = deleteFilesCheckbox.value,
-                onCheckedChange = {
-                  deleteFilesCheckbox.value = it
-                },
-              )
-              androidx.compose.material3.Text(
-                text =
-                  androidx.compose.ui.res.stringResource(
-                    com.quantummpv.app.R.string.ui_also_delete_original_file_s,
-                  ),
-                modifier = Modifier.padding(start = 8.dp),
-                style = MaterialTheme.typography.bodyMedium,
-              )
+          val subtitle =
+            buildString {
+              if (deleteFiles) {
+                append("This will permanently delete the original video file(s) from your device storage.\n\n")
+                append("This action cannot be undone.")
+              } else {
+                append("This will remove the selected $itemText from your recently played list. ")
+                append("The original video files will not be deleted.")
+              }
             }
-          },
-          onConfirm = {
-            selectionManager.deleteSelected(deleteFilesCheckbox.value)
-            deleteDialogOpen.value = false
-            deleteFilesCheckbox.value = false
-          },
-          onCancel = {
-            deleteDialogOpen.value = false
-            deleteFilesCheckbox.value = false
-          },
+
+          ConfirmDialog(
+            title = title,
+            subtitle = subtitle,
+            customContent = {
+              androidx.compose.foundation.layout.Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = androidx.compose.ui.Alignment.CenterVertically,
+              ) {
+                androidx.compose.material3.Checkbox(
+                  checked = deleteFilesCheckbox.value,
+                  onCheckedChange = {
+                    deleteFilesCheckbox.value = it
+                  },
+                )
+                androidx.compose.material3.Text(
+                  text =
+                    androidx.compose.ui.res.stringResource(
+                      com.quantummpv.app.R.string.ui_also_delete_original_file_s,
+                    ),
+                  modifier = Modifier.padding(start = 8.dp),
+                  style = MaterialTheme.typography.bodyMedium,
+                )
+              }
+            },
+            onConfirm = {
+              selectionManager.deleteSelected(deleteFilesCheckbox.value)
+              deleteDialogOpen.value = false
+              deleteFilesCheckbox.value = false
+            },
+            onCancel = {
+              deleteDialogOpen.value = false
+              deleteFilesCheckbox.value = false
+            },
+          )
+        }
+
+        // Link dialog
+        PlayLinkSheet(
+          isOpen = showLinkDialog.value,
+          onDismiss = { showLinkDialog.value = false },
+          onPlayLink = { url -> MediaUtils.playFile(url, context, "play_link") },
+        )
+
+        FabScrollHelper.FabScrim(
+          visible = isFabExpanded.value && !quickPlayFabDirect,
+          onDismiss = { isFabExpanded.value = false },
         )
       }
-
-      // Link dialog
-      PlayLinkSheet(
-        isOpen = showLinkDialog.value,
-        onDismiss = { showLinkDialog.value = false },
-        onPlayLink = { url -> MediaUtils.playFile(url, context, "play_link") },
-      )
-
-      FabScrollHelper.FabScrim(
-        visible = isFabExpanded.value && !quickPlayFabDirect,
-        onDismiss = { isFabExpanded.value = false },
-      )
     }
   }
-}
 }
 
 @Composable

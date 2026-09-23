@@ -100,7 +100,12 @@ class UpdateManager(
 
   private suspend fun getLatestRelease(url: String): Release =
     withContext(Dispatchers.IO) {
-      val request = Request.Builder().url(url).header("Cache-Control", "no-cache").build()
+      val request =
+        Request
+          .Builder()
+          .url(url)
+          .header("Cache-Control", "no-cache")
+          .build()
       client.newCall(request).execute().use { response ->
         if (!response.isSuccessful) throw IOException("Unexpected code $response")
         val responseBody = response.body.string()
@@ -125,10 +130,13 @@ class UpdateManager(
   }
 
   private fun parsePreviewCommitCount(tagName: String): Int? =
-    PREVIEW_TAG_REGEX.find(tagName)?.groupValues?.getOrNull(1)?.toIntOrNull()
+    PREVIEW_TAG_REGEX
+      .find(tagName)
+      ?.groupValues
+      ?.getOrNull(1)
+      ?.toIntOrNull()
 
-  private fun ignoredVersionKey(channel: AppUpdateChannel): String =
-    "ignored_version_${channel.name.lowercase()}"
+  private fun ignoredVersionKey(channel: AppUpdateChannel): String = "ignored_version_${channel.name.lowercase()}"
 
   fun downloadUpdate(release: Release): Flow<Float> {
     // Return completed flow immediately if update feature is disabled

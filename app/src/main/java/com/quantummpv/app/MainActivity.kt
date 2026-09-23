@@ -9,23 +9,30 @@
 
 package com.quantummpv.app
 
+import android.app.Activity
 import android.content.Intent
 import android.content.pm.ActivityInfo
 import android.content.res.Configuration
 import android.os.Build
 import android.os.Bundle
 import android.util.Log
-import android.app.Activity
+import android.view.SurfaceHolder
+import android.view.SurfaceView
 import androidx.activity.ComponentActivity
 import androidx.activity.SystemBarStyle
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatActivity
-import androidx.lifecycle.Lifecycle
+import androidx.compose.foundation.background
 import androidx.compose.foundation.isSystemInDarkTheme
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.navigationBars
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -35,24 +42,23 @@ import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.viewinterop.AndroidView
+import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation3.runtime.NavBackStack
 import androidx.navigation3.runtime.rememberNavBackStack
-import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.WindowInsets
-import androidx.compose.foundation.layout.navigationBars
-import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.windowInsetsPadding
-import androidx.compose.ui.Alignment
-import androidx.compose.ui.unit.dp
 import com.quantummpv.app.preferences.AppearancePreferences
 import com.quantummpv.app.preferences.PlayerPreferences
 import com.quantummpv.app.preferences.preference.collectAsState
@@ -60,32 +66,26 @@ import com.quantummpv.app.presentation.Screen
 import com.quantummpv.app.ui.browser.MainScreen
 import com.quantummpv.app.ui.browser.NavigationBarState
 import com.quantummpv.app.ui.browser.components.MiniPlayer
-import com.quantummpv.app.ui.theme.DarkMode
-import com.quantummpv.app.ui.theme.MpvrxTheme
-import com.quantummpv.app.ui.theme.rememberThemeTransitionState
-import android.view.SurfaceHolder
-import android.view.SurfaceView
-import androidx.compose.foundation.background
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.setValue
-import androidx.compose.ui.viewinterop.AndroidView
 import com.quantummpv.app.ui.player.MPVPipHelper
+import com.quantummpv.app.ui.player.MediaPlaybackService
 import com.quantummpv.app.ui.player.PlaybackPhase
 import com.quantummpv.app.ui.player.PlaybackSession
 import com.quantummpv.app.ui.player.PlayerActivity
-import com.quantummpv.app.ui.player.MediaPlaybackService
 import com.quantummpv.app.ui.player.TrackNode
 import com.quantummpv.app.ui.player.toObject
+import com.quantummpv.app.ui.theme.DarkMode
+import com.quantummpv.app.ui.theme.MpvrxTheme
+import com.quantummpv.app.ui.theme.rememberThemeTransitionState
+import com.quantummpv.app.ui.update.UpdateSheet
+import com.quantummpv.app.ui.update.UpdateViewModel
 import com.quantummpv.app.ui.utils.LocalBackStack
 import com.quantummpv.app.ui.utils.ScreenNavDisplay
 import com.quantummpv.app.ui.utils.popSafely
-import com.quantummpv.app.utils.device.VulkanCapabilities
 import com.quantummpv.app.utils.device.DeviceFormFactor
+import com.quantummpv.app.utils.device.VulkanCapabilities
 import com.quantummpv.app.utils.media.fileExtension
 import com.quantummpv.app.utils.permission.PermissionUtils
 import com.quantummpv.app.utils.storage.FileTypeUtils
-import com.quantummpv.app.ui.update.UpdateSheet
-import com.quantummpv.app.ui.update.UpdateViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.first
 import kotlinx.serialization.json.Json
@@ -123,11 +123,12 @@ class MainActivity : AppCompatActivity() {
       requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE
     }
 
-    pipHelper = MPVPipHelper(
-      activity = this,
-      isAudioPlayer = { isCurrentMediaAudioOnly() },
-      isVideoLoaded = { isCurrentMediaVideoLoaded() },
-    )
+    pipHelper =
+      MPVPipHelper(
+        activity = this,
+        isAudioPlayer = { isCurrentMediaAudioOnly() },
+        isVideoLoaded = { isCurrentMediaVideoLoaded() },
+      )
 
     PermissionUtils.setMediaAccessLauncher(mediaAccessLauncher)
 
@@ -201,9 +202,10 @@ class MainActivity : AppCompatActivity() {
 
       if (isPipMode || isExpandingFromPip) {
         Box(
-          modifier = Modifier
-            .fillMaxSize()
-            .background(Color.Black),
+          modifier =
+            Modifier
+              .fillMaxSize()
+              .background(Color.Black),
           contentAlignment = Alignment.Center,
         ) {
           if (isPipMode) {
@@ -212,30 +214,32 @@ class MainActivity : AppCompatActivity() {
               factory = { viewContext ->
                 SurfaceView(viewContext).apply {
                   setZOrderMediaOverlay(true)
-                  holder.addCallback(object : SurfaceHolder.Callback {
-                    override fun surfaceCreated(holder: SurfaceHolder) {
-                      PlaybackSession.bindSurface(
-                        surface = holder.surface,
-                        owner = this@apply,
-                        ownerIsActive = { MediaPlaybackService.isForegroundActive() },
-                      )
-                    }
-
-                    override fun surfaceChanged(
-                      holder: SurfaceHolder,
-                      format: Int,
-                      width: Int,
-                      height: Int,
-                    ) {
-                      if (holder.surface.isValid) {
-                        PlaybackSession.resizeSurface(width, height, owner = this@apply)
+                  holder.addCallback(
+                    object : SurfaceHolder.Callback {
+                      override fun surfaceCreated(holder: SurfaceHolder) {
+                        PlaybackSession.bindSurface(
+                          surface = holder.surface,
+                          owner = this@apply,
+                          ownerIsActive = { MediaPlaybackService.isForegroundActive() },
+                        )
                       }
-                    }
 
-                    override fun surfaceDestroyed(holder: SurfaceHolder) {
-                      PlaybackSession.unbindSurface(this@apply)
-                    }
-                  })
+                      override fun surfaceChanged(
+                        holder: SurfaceHolder,
+                        format: Int,
+                        width: Int,
+                        height: Int,
+                      ) {
+                        if (holder.surface.isValid) {
+                          PlaybackSession.resizeSurface(width, height, owner = this@apply)
+                        }
+                      }
+
+                      override fun surfaceDestroyed(holder: SurfaceHolder) {
+                        PlaybackSession.unbindSurface(this@apply)
+                      }
+                    },
+                  )
                 }
               },
             )
@@ -305,11 +309,13 @@ class MainActivity : AppCompatActivity() {
     super.onUserLeaveHint()
     val isServiceRunning = MediaPlaybackService.isForegroundActive()
     val sessionState = PlaybackSession.state.value
-    val isMediaActive = isServiceRunning && sessionState.currentItem != null &&
-      NavigationBarState.isMiniPlayerVisible &&
-      sessionState.phase != PlaybackPhase.IDLE &&
-      sessionState.phase != PlaybackPhase.UNINITIALIZED &&
-      sessionState.phase != PlaybackPhase.ERROR
+    val isMediaActive =
+      isServiceRunning &&
+        sessionState.currentItem != null &&
+        NavigationBarState.isMiniPlayerVisible &&
+        sessionState.phase != PlaybackPhase.IDLE &&
+        sessionState.phase != PlaybackPhase.UNINITIALIZED &&
+        sessionState.phase != PlaybackPhase.ERROR
     if (
       playerPreferences.autoPiPOnNavigation.get() &&
       isMediaActive &&
@@ -371,13 +377,14 @@ class MainActivity : AppCompatActivity() {
       return
     }
 
-    val intent = Intent(this, PlayerActivity::class.java).apply {
-      action = MediaPlaybackService.ACTION_OPEN_PLAYER
-      putExtra("is_audio", isCurrentMediaAudioOnly())
-      putExtra("internal_launch", true)
-      putExtra("launch_source", "pip_maximize")
-      flags = Intent.FLAG_ACTIVITY_SINGLE_TOP or Intent.FLAG_ACTIVITY_CLEAR_TOP
-    }
+    val intent =
+      Intent(this, PlayerActivity::class.java).apply {
+        action = MediaPlaybackService.ACTION_OPEN_PLAYER
+        putExtra("is_audio", isCurrentMediaAudioOnly())
+        putExtra("internal_launch", true)
+        putExtra("launch_source", "pip_maximize")
+        flags = Intent.FLAG_ACTIVITY_SINGLE_TOP or Intent.FLAG_ACTIVITY_CLEAR_TOP
+      }
     try {
       startActivity(intent)
       if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
@@ -444,8 +451,6 @@ class MainActivity : AppCompatActivity() {
     }
   }
 
-
-
   private fun resolveIsDarkMode(
     darkMode: DarkMode,
     isSystemInDarkTheme: Boolean,
@@ -505,7 +510,8 @@ class MainActivity : AppCompatActivity() {
     // These flows are only fallback state for builds where the updater is compiled out. Remember
     // them once so navigator recompositions do not allocate three new StateFlow instances and
     // create fresh collectAsState subscriptions.
-    val fallbackUpdateState = remember { MutableStateFlow<UpdateViewModel.UpdateState>(UpdateViewModel.UpdateState.Idle) }
+    val fallbackUpdateState =
+      remember { MutableStateFlow<UpdateViewModel.UpdateState>(UpdateViewModel.UpdateState.Idle) }
     val fallbackIsDownloading = remember { MutableStateFlow(false) }
     val fallbackDownloadProgress = remember { MutableStateFlow(0f) }
     val updateState by (updateViewModel?.updateState ?: fallbackUpdateState).collectAsState()
@@ -562,38 +568,49 @@ class MainActivity : AppCompatActivity() {
                     start = 12.dp,
                     end = 12.dp,
                     bottom =
-                      (if (NavigationBarState.isNavBarVisible) {
-                        NavigationBarState.navigationBarClearance
-                      } else {
-                        12.dp
-                      }) +
-                        (if (NavigationBarState.isInSelectionMode) {
-                          NavigationBarState.selectionBarClearance
+                      (
+                        if (NavigationBarState.isNavBarVisible) {
+                          NavigationBarState.navigationBarClearance
                         } else {
-                          0.dp
-                        }),
+                          12.dp
+                        }
+                      ) +
+                        (
+                          if (NavigationBarState.isInSelectionMode) {
+                            NavigationBarState.selectionBarClearance
+                          } else {
+                            0.dp
+                          }
+                        ),
                   )
 
               // Landscape/tablet single-pane: sit on the right side of the nav bar,
               // which slides left when the mini player appears.
               else -> {
                 val isNavBarOnScreen = NavigationBarState.isNavBarVisible
-                val navBarLeft = if (NavigationBarState.navbarLeftOffset > 0.dp) NavigationBarState.navbarLeftOffset else 16.dp
+                val navBarLeft =
+                  if (NavigationBarState.navbarLeftOffset >
+                    0.dp
+                  ) {
+                    NavigationBarState.navbarLeftOffset
+                  } else {
+                    16.dp
+                  }
                 val navBarWidth = if (NavigationBarState.navbarWidth > 0.dp) NavigationBarState.navbarWidth else 320.dp
                 val startPadding = if (isNavBarOnScreen) (navBarLeft + navBarWidth + 12.dp) else 12.dp
-                val bottomPadding = if (NavigationBarState.isInSelectionMode) {
-                  NavigationBarState.selectionBarClearance
-                } else {
-                  12.dp
-                }
+                val bottomPadding =
+                  if (NavigationBarState.isInSelectionMode) {
+                    NavigationBarState.selectionBarClearance
+                  } else {
+                    12.dp
+                  }
 
                 Modifier
                   .align(Alignment.BottomStart)
                   .padding(
                     start = startPadding,
                     end = 12.dp,
-                  )
-                  .fillMaxWidth()
+                  ).fillMaxWidth()
                   .windowInsetsPadding(WindowInsets.navigationBars)
                   .padding(bottom = bottomPadding)
               }

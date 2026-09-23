@@ -346,7 +346,11 @@ class IntroDbRepository(
             else -> error("TheIntroDB lookup requires a TMDB or IMDb id")
           }
 
-          if (mediaType.equals("tv", ignoreCase = true) || mediaType.equals("series", ignoreCase = true) || season != null || episode != null) {
+          if (mediaType.equals("tv", ignoreCase = true) ||
+            mediaType.equals("series", ignoreCase = true) ||
+            season != null ||
+            episode != null
+          ) {
             if (season != null) urlBuilder.addQueryParameter("season", season.toString())
             if (episode != null) urlBuilder.addQueryParameter("episode", episode.toString())
           }
@@ -408,8 +412,9 @@ class IntroDbRepository(
         val request =
           Request
             .Builder()
-            .url("$ANISKIP_SKIP_TIMES_URL/$malId/$episode?types=op&types=ed&types=mixed-op&types=mixed-ed&types=recap&types=preview&episodeLength=0")
-            .header("User-Agent", MARKER_PROVIDER_USER_AGENT)
+            .url(
+              "$ANISKIP_SKIP_TIMES_URL/$malId/$episode?types=op&types=ed&types=mixed-op&types=mixed-ed&types=recap&types=preview&episodeLength=0",
+            ).header("User-Agent", MARKER_PROVIDER_USER_AGENT)
             .header("Accept", "application/json")
             .get()
             .build()
@@ -534,7 +539,11 @@ class IntroDbRepository(
     val segments = mutableListOf<IntroDbSegment>()
     for (i in timestamps.indices) {
       val current = timestamps[i]
-      val typeName = current.type?.name?.lowercase().orEmpty()
+      val typeName =
+        current.type
+          ?.name
+          ?.lowercase()
+          .orEmpty()
       val segmentType =
         when {
           "recap" in typeName || "summary" in typeName -> "recap"
@@ -587,19 +596,20 @@ class IntroDbRepository(
         return segmentsArray.mapNotNull { it as? JsonObject }.mapNotNull { it.toIntroDbSegment("intro") }
       }
 
-      payload.entries.flatMap { (segmentType, value) ->
-        when (value) {
-          is JsonArray -> {
-            value.mapNotNull { it as? JsonObject }.mapNotNull { it.toIntroDbSegment(segmentType) }
+      payload.entries
+        .flatMap { (segmentType, value) ->
+          when (value) {
+            is JsonArray -> {
+              value.mapNotNull { it as? JsonObject }.mapNotNull { it.toIntroDbSegment(segmentType) }
+            }
+            is JsonObject -> {
+              listOfNotNull(value.toIntroDbSegment(segmentType))
+            }
+            else -> emptyList()
           }
-          is JsonObject -> {
-            listOfNotNull(value.toIntroDbSegment(segmentType))
-          }
-          else -> emptyList()
+        }.ifEmpty {
+          payload.toLegacyIntroDbSegments()
         }
-      }.ifEmpty {
-        payload.toLegacyIntroDbSegments()
-      }
     }.getOrDefault(emptyList())
 
   private fun JsonObject.toLegacyIntroDbSegments(): List<IntroDbSegment> {

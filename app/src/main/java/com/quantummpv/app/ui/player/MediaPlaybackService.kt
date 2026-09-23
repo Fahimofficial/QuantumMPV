@@ -97,6 +97,7 @@ class MediaPlaybackService :
     private const val PROGRESS_NOTIFICATION_UPDATE_INTERVAL_MS = 2000L
     private const val MEDIA_NOTIFICATION_UPDATE_INTERVAL_MS = 1000L
     private const val MILLIS_PER_SECOND = 1000L
+
     // Published session artwork is downscaled and re-encoded to stay within Media3's expectations.
     private const val ARTWORK_MAX_DIMENSION = 512
     private const val ARTWORK_JPEG_QUALITY = 85
@@ -252,16 +253,20 @@ class MediaPlaybackService :
 
   // Playlist state — mirrored from PlayerActivity so the notification intent can restore it
   private var notificationIsAudio: Boolean = false
+
   @Volatile
   private var lastNotificationUpdateTime = 0L
+
   @Volatile
   private var lastPublishedPositionSeconds = 0.0
+
   @Volatile
   private var lastPlaybackStateSaveTime = 0L
 
   // Chapter & progress state for progress-centric notification
   private var chapters: List<ChapterNode> = emptyList()
   private var currentChapterIndex: Int = -1
+
   @Volatile
   private var currentPositionSeconds: Double = 0.0
   private var mediaDurationSeconds: Double = 0.0
@@ -275,7 +280,9 @@ class MediaPlaybackService :
   private var favoriteStateJob: Job? = null
   private var favoriteActionJob: Job? = null
   private val mediaFavoriteActionMutex = Mutex()
+
   @Volatile private var mpvAccessReleased = false
+
   @Volatile private var isCurrentFavorite = false
   private var usesAudioBackgroundPlayback = false
   private val audioManager by lazy { getSystemService(AUDIO_SERVICE) as AudioManager }
@@ -295,6 +302,7 @@ class MediaPlaybackService :
 
   @Volatile private var volumeBeforeDuck: Double? = null
   private var noisyReceiverRegistered = false
+
   @Volatile
   private var foregroundReady = false
   private val audioFocusChangeListener =
@@ -309,7 +317,8 @@ class MediaPlaybackService :
         AudioManager.AUDIOFOCUS_LOSS_TRANSIENT -> {
           hasAudioFocus = false
           resumeAfterFocusGain =
-            resumeAfterFocusGain || PlaybackSession.getPropertyBoolean("pause") == false
+            resumeAfterFocusGain ||
+            PlaybackSession.getPropertyBoolean("pause") == false
           PlaybackSession.setPropertyBoolean("pause", true)
         }
         AudioManager.AUDIOFOCUS_LOSS_TRANSIENT_CAN_DUCK -> {
@@ -335,8 +344,10 @@ class MediaPlaybackService :
         context: Context?,
         intent: Intent?,
       ) {
-        if (!mpvAccessReleased && !handingBackToActivity &&
-          intent?.action == AudioManager.ACTION_AUDIO_BECOMING_NOISY && ownsAudioFocus
+        if (!mpvAccessReleased &&
+          !handingBackToActivity &&
+          intent?.action == AudioManager.ACTION_AUDIO_BECOMING_NOISY &&
+          ownsAudioFocus
         ) {
           PlaybackSession.setPropertyBoolean("pause", true)
         }
@@ -1046,11 +1057,13 @@ class MediaPlaybackService :
         getString(R.string.player_unknown_video)
       }
     if (currentItem != null &&
-      (currentItem.stableId != mediaIdentifier ||
-        currentItem.originalUri != mediaUri ||
-        currentTitle != mediaTitle ||
-        currentItem.artist.orEmpty() != mediaArtist ||
-        currentItem.artworkUri != activeArtworkUri)
+      (
+        currentItem.stableId != mediaIdentifier ||
+          currentItem.originalUri != mediaUri ||
+          currentTitle != mediaTitle ||
+          currentItem.artist.orEmpty() != mediaArtist ||
+          currentItem.artworkUri != activeArtworkUri
+      )
     ) {
       applySessionItem(currentItem)
     } else {
@@ -1098,7 +1111,13 @@ class MediaPlaybackService :
   private fun handleDetachedEndOfFile() {
     if (activityForeground || PlaybackSession.state.value.surfaceAttached || !foregroundReady) return
     val queueState = PlaybackSession.queue.value
-    val autoplay = if (notificationIsAudio) playerPreferences.autoplayNextAudio.get() else playerPreferences.autoplayNextVideo.get()
+    val autoplay =
+      if (notificationIsAudio) {
+        playerPreferences.autoplayNextAudio.get()
+      } else {
+        playerPreferences.autoplayNextVideo
+          .get()
+      }
     when {
       queueState.repeatMode == RepeatMode.ONE -> {
         PlaybackSession.command("seek", "0", "absolute")
@@ -1143,8 +1162,7 @@ class MediaPlaybackService :
   private fun canHandleDetachedTransport(): Boolean =
     !mpvAccessReleased && !activityForeground && !handingBackToActivity
 
-  private fun canHandleTransportAction(): Boolean =
-    !mpvAccessReleased && (activityForeground || !handingBackToActivity)
+  private fun canHandleTransportAction(): Boolean = !mpvAccessReleased && (activityForeground || !handingBackToActivity)
 
   private fun currentNotificationStyle(): NotificationStyle =
     advancedPreferences.notificationStyle
@@ -1256,11 +1274,12 @@ class MediaPlaybackService :
         putExtra("media_identifier", targetIdentifier)
         putExtra(
           "position",
-          (currentPositionSeconds
-            .takeIf { it.isFinite() && it > 0.0 }
-            ?.toLong()
-            ?: 0L)
-            .coerceIn(0L, Int.MAX_VALUE.toLong())
+          (
+            currentPositionSeconds
+              .takeIf { it.isFinite() && it > 0.0 }
+              ?.toLong()
+              ?: 0L
+          ).coerceIn(0L, Int.MAX_VALUE.toLong())
             .toInt(),
         )
         putExtra("launch_source", "notification")

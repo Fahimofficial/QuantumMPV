@@ -520,7 +520,10 @@ object FileTypeUtils {
     val dotIndex = title.lastIndexOf('.')
     if (dotIndex <= 0) return title
     val ext = title.substring(dotIndex + 1).lowercase(Locale.getDefault())
-    return if (ext in AUDIO_EXTENSIONS || ext in VIDEO_EXTENSIONS || (ext.length in 2..5 && ext.none { it.isWhitespace() })) {
+    return if (ext in AUDIO_EXTENSIONS ||
+      ext in VIDEO_EXTENSIONS ||
+      (ext.length in 2..5 && ext.none { it.isWhitespace() })
+    ) {
       title.substring(0, dotIndex)
     } else {
       title

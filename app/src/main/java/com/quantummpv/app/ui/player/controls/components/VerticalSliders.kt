@@ -217,9 +217,10 @@ fun VolumeSlider(
     ) {
       val boostVolume = mpvVolume - 100
       val textStr = getVolumeSliderText(volume, mpvVolume, boostVolume, percentage, displayAsPercentage)
-      val volumeText = remember(textStr, displayAsPercentage) {
-        textStr + if (displayAsPercentage && !textStr.contains('%')) "%" else ""
-      }
+      val volumeText =
+        remember(textStr, displayAsPercentage) {
+          textStr + if (displayAsPercentage && !textStr.contains('%')) "%" else ""
+        }
       Text(
         text = volumeText,
         style = MaterialTheme.typography.titleSmall,
@@ -257,8 +258,8 @@ fun getVolumeSliderText(
   boostVolume: Int,
   percentage: Int,
   displayAsPercentage: Boolean,
-): String {
-  return when {
+): String =
+  when {
     mpvVolume == 100 ->
       if (displayAsPercentage) {
         "$percentage"
@@ -282,4 +283,3 @@ fun getVolumeSliderText(
       }
     }
   }
-}

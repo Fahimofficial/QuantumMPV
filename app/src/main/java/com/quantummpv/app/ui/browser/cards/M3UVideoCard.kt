@@ -88,7 +88,14 @@ fun M3UVideoCard(
   val networkReference = remember(url) { NetworkPlaybackUri.parse(url) }
   val isYouTubeArtwork =
     remember(logoUrl) {
-      val host = runCatching { android.net.Uri.parse(logoUrl).host.orEmpty().lowercase() }.getOrDefault("")
+      val host =
+        runCatching {
+          android.net.Uri
+            .parse(logoUrl)
+            .host
+            .orEmpty()
+            .lowercase()
+        }.getOrDefault("")
       host == "i.ytimg.com" || host.endsWith(".ytimg.com")
     }
 
@@ -225,113 +232,113 @@ fun M3UVideoCard(
             .padding(16.dp),
         verticalAlignment = Alignment.CenterVertically,
       ) {
-      Box(
-        modifier =
-          Modifier
-            .width(thumbnailWidth)
-            .aspectRatio(16f / 9f)
-            .clip(RoundedCornerShape(12.dp))
-            .background(MaterialTheme.colorScheme.surfaceContainerHigh)
-            .combinedClickable(
-              onClick = onClick,
-              onLongClick = onLongClick,
-            ),
-        contentAlignment = Alignment.Center,
-      ) {
-        val currentImageBitmap = remember(thumbnail) { thumbnail?.asImageBitmap() }
-        if (currentImageBitmap != null) {
-          androidx.compose.foundation.Image(
-            bitmap = currentImageBitmap,
-            contentDescription = null,
-            modifier = Modifier.matchParentSize(),
-            contentScale = ContentScale.Crop,
-          )
-        } else if (!logoUrl.isNullOrBlank()) {
-          RemoteImage(
-            url = logoUrl,
-            contentDescription = null,
-            contentScale = if (isYouTubeArtwork) ContentScale.Crop else ContentScale.Fit,
-            modifier =
-              if (isYouTubeArtwork) {
-                Modifier.matchParentSize()
-              } else {
-                Modifier
-                  .matchParentSize()
-                  .padding(8.dp)
-              },
-          )
-        } else {
-          Icon(
-            Icons.RoundedFilled.PlayArrow,
-            contentDescription = null,
-            modifier = Modifier.size(42.dp),
-            tint = MaterialTheme.colorScheme.secondary.copy(alpha = 0.65f),
-          )
-        }
-      }
-      Spacer(modifier = Modifier.width(16.dp))
-      Column(
-        modifier = Modifier.weight(1f),
-        verticalArrangement = Arrangement.spacedBy(6.dp),
-      ) {
-        Text(
-          title,
-          style = MaterialTheme.typography.titleSmall,
-          color =
-            if (isRecentlyPlayed) {
-              MaterialTheme.colorScheme.primary
-            } else {
-              MaterialTheme.colorScheme.onSurface
-            },
-          maxLines = maxLines,
-          overflow = TextOverflow.Ellipsis,
-          fontWeight = if (isFavorite) FontWeight.SemiBold else FontWeight.Normal,
-        )
-        Text(
-          url,
-          style = MaterialTheme.typography.bodySmall,
-          color = MaterialTheme.colorScheme.onSurfaceVariant,
-          maxLines = 2,
-          overflow = TextOverflow.Ellipsis,
-        )
-        FlowRow(
-          horizontalArrangement =
-            androidx.compose.foundation.layout.Arrangement
-              .spacedBy(6.dp),
-          verticalArrangement =
-            androidx.compose.foundation.layout.Arrangement
-              .spacedBy(6.dp),
+        Box(
+          modifier =
+            Modifier
+              .width(thumbnailWidth)
+              .aspectRatio(16f / 9f)
+              .clip(RoundedCornerShape(12.dp))
+              .background(MaterialTheme.colorScheme.surfaceContainerHigh)
+              .combinedClickable(
+                onClick = onClick,
+                onLongClick = onLongClick,
+              ),
+          contentAlignment = Alignment.Center,
         ) {
-          if (!groupTitle.isNullOrBlank()) {
-            M3UMetadataChip(
-              text = groupTitle,
-              containerColor = MaterialTheme.colorScheme.secondaryContainer,
-              contentColor = MaterialTheme.colorScheme.onSecondaryContainer,
+          val currentImageBitmap = remember(thumbnail) { thumbnail?.asImageBitmap() }
+          if (currentImageBitmap != null) {
+            androidx.compose.foundation.Image(
+              bitmap = currentImageBitmap,
+              contentDescription = null,
+              modifier = Modifier.matchParentSize(),
+              contentScale = ContentScale.Crop,
             )
-          }
-          if (hasDrm) {
-            M3UMetadataChip(
-              text = "DRM",
-              containerColor = MaterialTheme.colorScheme.errorContainer,
-              contentColor = MaterialTheme.colorScheme.onErrorContainer,
+          } else if (!logoUrl.isNullOrBlank()) {
+            RemoteImage(
+              url = logoUrl,
+              contentDescription = null,
+              contentScale = if (isYouTubeArtwork) ContentScale.Crop else ContentScale.Fit,
+              modifier =
+                if (isYouTubeArtwork) {
+                  Modifier.matchParentSize()
+                } else {
+                  Modifier
+                    .matchParentSize()
+                    .padding(8.dp)
+                },
             )
-          }
-          if (hasCustomUserAgent) {
-            M3UMetadataChip(
-              text = "UA",
-              containerColor = MaterialTheme.colorScheme.tertiaryContainer,
-              contentColor = MaterialTheme.colorScheme.onTertiaryContainer,
-            )
-          }
-          if (isFavorite) {
-            M3UMetadataChip(
-              text = "Saved",
-              containerColor = MaterialTheme.colorScheme.primaryContainer,
-              contentColor = MaterialTheme.colorScheme.onPrimaryContainer,
+          } else {
+            Icon(
+              Icons.RoundedFilled.PlayArrow,
+              contentDescription = null,
+              modifier = Modifier.size(42.dp),
+              tint = MaterialTheme.colorScheme.secondary.copy(alpha = 0.65f),
             )
           }
         }
-      }
+        Spacer(modifier = Modifier.width(16.dp))
+        Column(
+          modifier = Modifier.weight(1f),
+          verticalArrangement = Arrangement.spacedBy(6.dp),
+        ) {
+          Text(
+            title,
+            style = MaterialTheme.typography.titleSmall,
+            color =
+              if (isRecentlyPlayed) {
+                MaterialTheme.colorScheme.primary
+              } else {
+                MaterialTheme.colorScheme.onSurface
+              },
+            maxLines = maxLines,
+            overflow = TextOverflow.Ellipsis,
+            fontWeight = if (isFavorite) FontWeight.SemiBold else FontWeight.Normal,
+          )
+          Text(
+            url,
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            maxLines = 2,
+            overflow = TextOverflow.Ellipsis,
+          )
+          FlowRow(
+            horizontalArrangement =
+              androidx.compose.foundation.layout.Arrangement
+                .spacedBy(6.dp),
+            verticalArrangement =
+              androidx.compose.foundation.layout.Arrangement
+                .spacedBy(6.dp),
+          ) {
+            if (!groupTitle.isNullOrBlank()) {
+              M3UMetadataChip(
+                text = groupTitle,
+                containerColor = MaterialTheme.colorScheme.secondaryContainer,
+                contentColor = MaterialTheme.colorScheme.onSecondaryContainer,
+              )
+            }
+            if (hasDrm) {
+              M3UMetadataChip(
+                text = "DRM",
+                containerColor = MaterialTheme.colorScheme.errorContainer,
+                contentColor = MaterialTheme.colorScheme.onErrorContainer,
+              )
+            }
+            if (hasCustomUserAgent) {
+              M3UMetadataChip(
+                text = "UA",
+                containerColor = MaterialTheme.colorScheme.tertiaryContainer,
+                contentColor = MaterialTheme.colorScheme.onTertiaryContainer,
+              )
+            }
+            if (isFavorite) {
+              M3UMetadataChip(
+                text = "Saved",
+                containerColor = MaterialTheme.colorScheme.primaryContainer,
+                contentColor = MaterialTheme.colorScheme.onPrimaryContainer,
+              )
+            }
+          }
+        }
 
         if (onFavoriteClick != null) {
           Spacer(modifier = Modifier.width(8.dp))

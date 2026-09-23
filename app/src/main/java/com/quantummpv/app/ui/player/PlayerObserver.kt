@@ -22,8 +22,7 @@ class PlayerObserver(
   KoinComponent {
   private val playerPreferences: PlayerPreferences by inject()
 
-  private fun shouldIgnoreCallback(): Boolean =
-    activity.player.isExiting || !activity.isActivePlaybackOwner()
+  private fun shouldIgnoreCallback(): Boolean = activity.player.isExiting || !activity.isActivePlaybackOwner()
 
   private fun isVideoGeometryProperty(property: String): Boolean =
     property == "video-params/aspect" ||

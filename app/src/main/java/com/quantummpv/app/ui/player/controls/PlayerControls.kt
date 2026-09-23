@@ -9,14 +9,6 @@
 
 package com.quantummpv.app.ui.player.controls
 
-import com.quantummpv.app.ui.player.DeclaredPlaybackMediaKind
-import com.quantummpv.app.ui.player.PlaybackPhase
-import com.quantummpv.app.ui.player.PlaybackSession
-import com.quantummpv.app.ui.player.declaredMediaKind
-import com.quantummpv.app.domain.torrent.TorrentStreamingState
-import com.quantummpv.app.domain.torrent.formatTorrentBytes
-import com.quantummpv.app.domain.torrent.formatTorrentSpeed
-
 import android.content.res.Configuration.ORIENTATION_PORTRAIT
 import android.os.Debug
 import androidx.activity.compose.LocalActivity
@@ -76,8 +68,6 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
-import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableFloatStateOf
@@ -94,10 +84,10 @@ import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.Shadow
 import androidx.compose.ui.graphics.StrokeJoin
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.layout.onSizeChanged
@@ -118,7 +108,11 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.ui.zIndex
 import androidx.constraintlayout.compose.ConstraintLayout
 import androidx.constraintlayout.compose.Dimension
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.quantummpv.app.R
+import com.quantummpv.app.domain.torrent.TorrentStreamingState
+import com.quantummpv.app.domain.torrent.formatTorrentBytes
+import com.quantummpv.app.domain.torrent.formatTorrentSpeed
 import com.quantummpv.app.preferences.AdvancedPreferences
 import com.quantummpv.app.preferences.AiPreferences
 import com.quantummpv.app.preferences.AppearancePreferences
@@ -133,8 +127,11 @@ import com.quantummpv.app.preferences.preference.minusAssign
 import com.quantummpv.app.preferences.preference.plusAssign
 import com.quantummpv.app.ui.icons.Icon
 import com.quantummpv.app.ui.icons.Icons
+import com.quantummpv.app.ui.player.DeclaredPlaybackMediaKind
 import com.quantummpv.app.ui.player.Decoder.Companion.getDecoderFromValue
 import com.quantummpv.app.ui.player.Panels
+import com.quantummpv.app.ui.player.PlaybackPhase
+import com.quantummpv.app.ui.player.PlaybackSession
 import com.quantummpv.app.ui.player.PlayerActivity
 import com.quantummpv.app.ui.player.PlayerUpdates
 import com.quantummpv.app.ui.player.PlayerViewModel
@@ -162,14 +159,14 @@ import com.quantummpv.app.ui.player.controls.components.playerButtonContainerCol
 import com.quantummpv.app.ui.player.controls.components.playerButtonContentColor
 import com.quantummpv.app.ui.player.controls.components.rememberBufferingState
 import com.quantummpv.app.ui.player.controls.components.rememberTvInitialFocusRequester
+import com.quantummpv.app.ui.player.controls.components.sheets.toFixed
 import com.quantummpv.app.ui.player.controls.components.tvFocusHighlight
 import com.quantummpv.app.ui.player.controls.components.tvInitialFocus
-import com.quantummpv.app.ui.player.controls.components.sheets.toFixed
+import com.quantummpv.app.ui.player.declaredMediaKind
 import com.quantummpv.app.ui.theme.controlColor
-import com.quantummpv.app.utils.device.DeviceFormFactor
 import com.quantummpv.app.ui.theme.playerRippleConfiguration
 import com.quantummpv.app.ui.theme.spacing
-import dev.vivvvek.seeker.Segment
+import com.quantummpv.app.utils.device.DeviceFormFactor
 import kotlinx.collections.immutable.persistentListOf
 import kotlinx.collections.immutable.toImmutableList
 import kotlinx.coroutines.Dispatchers
@@ -293,12 +290,14 @@ fun PlayerControls(
   val currentChapter by PlaybackSession.propInt["chapter"].collectAsState()
   val configuredDecoder by PlaybackSession.propString["hwdec"].collectAsState()
   val activeDecoder by PlaybackSession.propString["hwdec-current"].collectAsState()
-  val decoder = remember(activeDecoder, configuredDecoder) {
-    getDecoderFromValue(activeDecoder?.takeIf { it.isNotBlank() } ?: configuredDecoder ?: "auto")
-  }
-  val isSpeedNonOne = remember(playbackSpeed) {
-    abs((playbackSpeed ?: 1f) - 1f) > 0.001f
-  }
+  val decoder =
+    remember(activeDecoder, configuredDecoder) {
+      getDecoderFromValue(activeDecoder?.takeIf { it.isNotBlank() } ?: configuredDecoder ?: "auto")
+    }
+  val isSpeedNonOne =
+    remember(playbackSpeed) {
+      abs((playbackSpeed ?: 1f) - 1f) > 0.001f
+    }
   val playerTimeToDisappear by playerPreferences.playerTimeToDisappear.collectAsState()
   val chapters by viewModel.chapters.collectAsState(persistentListOf())
   val skipSegments by viewModel.skipSegments.collectAsState(persistentListOf())
@@ -321,29 +320,31 @@ fun PlayerControls(
   val isAmbientEnabled by viewModel.isAmbientEnabled.collectAsState()
   val backgroundPlaybackEnabled by audioPreferences.backgroundPlayback.collectAsState()
 
-  val onOpenSheet: (Sheets) -> Unit = remember(viewModel) {
-    {
-      viewModel.sheetShown.update { _ -> it }
-      if (it == Sheets.None) {
-        viewModel.showControls()
-      } else {
-        viewModel.hideControls()
-        viewModel.panelShown.update { Panels.None }
+  val onOpenSheet: (Sheets) -> Unit =
+    remember(viewModel) {
+      {
+        viewModel.sheetShown.update { _ -> it }
+        if (it == Sheets.None) {
+          viewModel.showControls()
+        } else {
+          viewModel.hideControls()
+          viewModel.panelShown.update { Panels.None }
+        }
       }
     }
-  }
 
-  val onOpenPanel: (Panels) -> Unit = remember(viewModel) {
-    {
-      viewModel.panelShown.update { _ -> it }
-      if (it == Panels.None) {
-        viewModel.showControls()
-      } else {
-        viewModel.hideControls()
-        viewModel.sheetShown.update { Sheets.None }
+  val onOpenPanel: (Panels) -> Unit =
+    remember(viewModel) {
+      {
+        viewModel.panelShown.update { _ -> it }
+        if (it == Panels.None) {
+          viewModel.showControls()
+        } else {
+          viewModel.hideControls()
+          viewModel.sheetShown.update { Sheets.None }
+        }
       }
     }
-  }
 
   val isAudioOnly by viewModel.isAudioOnly.collectAsState()
   val activity = LocalActivity.current as? PlayerActivity
@@ -474,7 +475,7 @@ fun PlayerControls(
     }
   val portraitHasConfiguredQualityButton = PlayerButton.VIDEO_QUALITY in portraitBottomButtons
   val hasPlaylistSupport = viewModel.hasPlaylistSupport()
-    val playerDrawerButtons =
+  val playerDrawerButtons =
     remember(
       showVideoQualitySelector,
       chapters,
@@ -632,7 +633,7 @@ fun PlayerControls(
                 }
               }.then(safeAreaInsetModifier)
               .then(navigationBarBottomInsetModifier),
-          ) {
+        ) {
           val (topLeftControls, topRightControls) = createRefs()
           val (volumeSlider, brightnessSlider) = createRefs()
           val unlockControlsButton = createRef()
@@ -980,33 +981,33 @@ fun PlayerControls(
                 TextPlayerUpdate(text)
               }
 
-is PlayerUpdates.ResumedFrom -> {
-  val resumedUpdate = currentPlayerUpdate as PlayerUpdates.ResumedFrom
-  ResumedFromPlayerUpdate(
-    position = resumedUpdate.position,
-    onRestart = {
-      viewModel.playerUpdate.value = PlayerUpdates.None
-      viewModel.restartFromBeginning()
-    },
-  )
-}
+              is PlayerUpdates.ResumedFrom -> {
+                val resumedUpdate = currentPlayerUpdate as PlayerUpdates.ResumedFrom
+                ResumedFromPlayerUpdate(
+                  position = resumedUpdate.position,
+                  onRestart = {
+                    viewModel.playerUpdate.value = PlayerUpdates.None
+                    viewModel.restartFromBeginning()
+                  },
+                )
+              }
 
-is PlayerUpdates.ResumeAvailable -> {
-  val resumeUpdate = currentPlayerUpdate as PlayerUpdates.ResumeAvailable
-  ResumeAvailablePlayerUpdate(
-    position = resumeUpdate.position,
-    onResume = {
-      viewModel.playerUpdate.value = PlayerUpdates.None
-      viewModel.seekTo(resumeUpdate.position)
-    },
-  )
-}
+              is PlayerUpdates.ResumeAvailable -> {
+                val resumeUpdate = currentPlayerUpdate as PlayerUpdates.ResumeAvailable
+                ResumeAvailablePlayerUpdate(
+                  position = resumeUpdate.position,
+                  onResume = {
+                    viewModel.playerUpdate.value = PlayerUpdates.None
+                    viewModel.seekTo(resumeUpdate.position)
+                  },
+                )
+              }
 
-is PlayerUpdates.StartedAfresh -> {
-  TextPlayerUpdate(stringResource(R.string.player_started_afresh_pill))
-}
+              is PlayerUpdates.StartedAfresh -> {
+                TextPlayerUpdate(stringResource(R.string.player_started_afresh_pill))
+              }
 
-is PlayerUpdates.FrameInfo -> {
+              is PlayerUpdates.FrameInfo -> {
                 val frameInfo = (currentPlayerUpdate as PlayerUpdates.FrameInfo)
                 val text =
                   if (frameInfo.totalFrames > 0) {
@@ -1382,7 +1383,9 @@ is PlayerUpdates.FrameInfo -> {
                   }
                   isTorrentStreaming -> {
                     val streamState = torrentState as TorrentStreamingState.Streaming
-                    val speed = com.quantummpv.app.domain.torrent.formatTorrentSpeed(streamState.downloadSpeed)
+                    val speed =
+                      com.quantummpv.app.domain.torrent
+                        .formatTorrentSpeed(streamState.downloadSpeed)
                     val peers = "${streamState.peers} peers"
                     val progress = "${(streamState.bufferProgress * 100).toInt()}%"
                     "$speed | $peers | $progress"
@@ -1510,12 +1513,12 @@ is PlayerUpdates.FrameInfo -> {
 
                 Surface(
                   modifier =
-                  Modifier
-                    .size(64.dp)
-                    .tvInitialFocus(tvPlayFocusRequester)
-                    .tvFocusHighlight(CircleShape)
-                    .clip(CircleShape)
-                    .clickable(interaction, ripple(), onClick = {
+                    Modifier
+                      .size(64.dp)
+                      .tvInitialFocus(tvPlayFocusRequester)
+                      .tvFocusHighlight(CircleShape)
+                      .clip(CircleShape)
+                      .clickable(interaction, ripple(), onClick = {
                         resetControlsTimestamp = System.currentTimeMillis()
                         viewModel.pauseUnpause()
                       })
@@ -1693,7 +1696,7 @@ is PlayerUpdates.FrameInfo -> {
             val position by PlaybackSession.propInt["time-pos"].collectAsStateWithLifecycle()
             val precisePosition by viewModel.precisePosition.collectAsStateWithLifecycle()
             val invertDuration by playerPreferences.invertDuration.collectAsState()
-            val remaining  by PlaybackSession.propFloat["playtime-remaining"].collectAsState()
+            val remaining by PlaybackSession.propFloat["playtime-remaining"].collectAsState()
             val seekbarStyle by appearancePreferences.seekbarStyle.collectAsState()
             val useWavySeekbar by playerPreferences.useWavySeekbar.collectAsState()
             val displayedSeekbarPosition = precisePosition
@@ -2023,8 +2026,7 @@ is PlayerUpdates.FrameInfo -> {
       onDismissRequest = { onOpenPanel(Panels.None) },
     )
 
-
-val activePlayerDrawerButtons =
+    val activePlayerDrawerButtons =
       remember(
         isSpeedNonOne,
         currentZoom,
@@ -2533,7 +2535,12 @@ private fun CustomStatsPageSixOverlay(
           .height(3.dp)
           .padding(vertical = 0.5.dp),
     )
-    OutlinedLabeled(stringResource(R.string.diagnostics_app_cpu), "${stats.cpuPercent.toInt()}%", labelStyle, valueStyle)
+    OutlinedLabeled(
+      stringResource(R.string.diagnostics_app_cpu),
+      "${stats.cpuPercent.toInt()}%",
+      labelStyle,
+      valueStyle,
+    )
 
     Spacer(modifier = Modifier.height(2.dp))
     OutlinedText(stringResource(R.string.diagnostics_memory_cache_header), style = headerStyle)

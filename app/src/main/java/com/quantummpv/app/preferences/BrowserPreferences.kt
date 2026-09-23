@@ -12,15 +12,14 @@ package com.quantummpv.app.preferences
 import com.quantummpv.app.preferences.preference.Preference
 import com.quantummpv.app.preferences.preference.PreferenceStore
 import com.quantummpv.app.preferences.preference.getEnum
+import com.quantummpv.app.ui.browser.music.MusicSortField
+import com.quantummpv.app.ui.browser.music.MusicSortOrder
+import com.quantummpv.app.ui.browser.music.MusicViewMode
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
-
-import com.quantummpv.app.ui.browser.music.MusicSortField
-import com.quantummpv.app.ui.browser.music.MusicSortOrder
-import com.quantummpv.app.ui.browser.music.MusicViewMode
 
 /**
  * Preferences for the video browser (folder and video lists)

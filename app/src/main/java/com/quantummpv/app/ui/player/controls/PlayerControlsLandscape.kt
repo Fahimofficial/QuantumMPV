@@ -207,7 +207,9 @@ fun TopLeftPlayerControlsLandscape(
           Text(
             text =
               if (isRealtimeSubsActive) {
-                "${stringResource(R.string.realtime_subtitles_label)}: ${realtimeSubsLanguage.ifBlank { "?" }} ${realtimeSubsStatus.ifBlank { "" }}"
+                "${stringResource(
+                  R.string.realtime_subtitles_label,
+                )}: ${realtimeSubsLanguage.ifBlank { "?" }} ${realtimeSubsStatus.ifBlank { "" }}"
               } else {
                 "Translating ${translatingTrackName.ifBlank { "subs" }} ${translationStatus.ifBlank { "" }}"
               },

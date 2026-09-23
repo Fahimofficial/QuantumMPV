@@ -114,14 +114,14 @@ internal fun PlaybackItem.declaredMediaKind(): DeclaredPlaybackMediaKind {
   if (sequenceOf(originalUri, playableUri).any { candidate ->
       candidate.contains("/Audio/", ignoreCase = true) ||
         candidate.contains("includeItemTypes=Audio", ignoreCase = true)
-    }) {
+    }
+  ) {
     return DeclaredPlaybackMediaKind.AUDIO
   }
   return DeclaredPlaybackMediaKind.UNKNOWN
 }
 
-internal fun PlaybackItem.isDefinitelyAudioOnly(): Boolean =
-  declaredMediaKind() == DeclaredPlaybackMediaKind.AUDIO
+internal fun PlaybackItem.isDefinitelyAudioOnly(): Boolean = declaredMediaKind() == DeclaredPlaybackMediaKind.AUDIO
 
 internal enum class PlaybackVideoSelection {
   DISABLED,
@@ -270,11 +270,12 @@ internal object PlaybackQueueReducer {
   ): PlaybackQueueState? {
     if (previous.items.isEmpty()) return null
 
-    val prepared = if (previous.shuffleEnabled && previous.shuffleOrder.size != previous.items.size) {
-      rebuildShuffle(previous)
-    } else {
-      previous
-    }
+    val prepared =
+      if (previous.shuffleEnabled && previous.shuffleOrder.size != previous.items.size) {
+        rebuildShuffle(previous)
+      } else {
+        previous
+      }
 
     val nextIndex = peekIndex(prepared, forward) ?: return null
     return if (prepared.shuffleEnabled) {
@@ -292,11 +293,12 @@ internal object PlaybackQueueReducer {
     forward: Boolean,
   ): PlaybackItem? {
     if (previous.items.isEmpty()) return null
-    val prepared = if (previous.shuffleEnabled && previous.shuffleOrder.size != previous.items.size) {
-      rebuildShuffle(previous)
-    } else {
-      previous
-    }
+    val prepared =
+      if (previous.shuffleEnabled && previous.shuffleOrder.size != previous.items.size) {
+        rebuildShuffle(previous)
+      } else {
+        previous
+      }
     val nextIndex = peekIndex(prepared, forward) ?: return null
     val itemIndex = if (prepared.shuffleEnabled) prepared.shuffleOrder[nextIndex] else nextIndex
     return prepared.items.getOrNull(itemIndex)
@@ -370,7 +372,10 @@ internal object PlaybackQueueReducer {
       return state.copy(shuffleOrder = emptyList(), shufflePosition = -1)
     }
     val currentIndex = state.currentIndex.coerceIn(state.items.indices)
-    val remaining = state.items.indices.filter { it != currentIndex }.shuffled()
+    val remaining =
+      state.items.indices
+        .filter { it != currentIndex }
+        .shuffled()
     return state.copy(
       currentIndex = currentIndex,
       shuffleOrder = listOf(currentIndex) + remaining,
@@ -406,14 +411,15 @@ object PlaybackIdentity {
   }
 
   private fun normalizeNetworkPath(path: String): String {
-    val normalized = path.replace('\\', '/').split('/').fold(mutableListOf<String>()) { parts, part ->
-      when (part) {
-        "", "." -> Unit
-        ".." -> if (parts.isNotEmpty()) parts.removeAt(parts.lastIndex)
-        else -> parts += part
+    val normalized =
+      path.replace('\\', '/').split('/').fold(mutableListOf<String>()) { parts, part ->
+        when (part) {
+          "", "." -> Unit
+          ".." -> if (parts.isNotEmpty()) parts.removeAt(parts.lastIndex)
+          else -> parts += part
+        }
+        parts
       }
-      parts
-    }
     return normalized.joinToString("/")
   }
 

@@ -415,26 +415,18 @@ object MediaInfoParser {
     var season: Int? = null
     var episode: Int? = null
 
-    // Priority 1: S01E02 format (handles regular TV like Dexter.S01E02 and anime alike)
+    // Priority 1: S01E02 format, Priority 2: 1x02, Priority 3: Episode 5, Priority 4: EP05, Priority 5: E05
     if (seMatch != null) {
       season = seMatch.groupValues[1].toIntOrNull()
       episode = seMatch.groupValues[2].toIntOrNull()
-    }
-    // Priority 2: 1x02 format
-    else if (crossMatch != null) {
+    } else if (crossMatch != null) {
       season = crossMatch.groupValues[1].toIntOrNull()
       episode = crossMatch.groupValues[2].toIntOrNull()
-    }
-    // Priority 3: "Episode 5" format
-    else if (epWordMatch != null) {
+    } else if (epWordMatch != null) {
       episode = epWordMatch.groupValues[1].toIntOrNull()
-    }
-    // Priority 4: EP05 format
-    else if (epMarkerMatch != null) {
+    } else if (epMarkerMatch != null) {
       episode = epMarkerMatch.groupValues[1].toIntOrNull()
-    }
-    // Priority 5: Standalone E05 format (requires 2+ digits to avoid false positives)
-    else if (ePrefixMatch != null) {
+    } else if (ePrefixMatch != null) {
       val epNum = ePrefixMatch.groupValues[1].toIntOrNull()
       if (epNum != null && epNum !in setOf(480, 720, 1080, 2160) && epNum !in 1900..2100) {
         episode = epNum
@@ -834,13 +826,35 @@ object MediaInfoParser {
   ): String {
     val genericWords =
       setOf(
-        "raw", "api", "stream", "video", "play", "watch", "download", "get", "media", "v1", "v2", "v3",
-        "index.m3u8", "master.m3u8", "playlist.m3u8", "manifest.mpd", "video.mp4", "audio.mp3", "file", "embed", "player", "link",
+        "raw",
+        "api",
+        "stream",
+        "video",
+        "play",
+        "watch",
+        "download",
+        "get",
+        "media",
+        "v1",
+        "v2",
+        "v3",
+        "index.m3u8",
+        "master.m3u8",
+        "playlist.m3u8",
+        "manifest.mpd",
+        "video.mp4",
+        "audio.mp3",
+        "file",
+        "embed",
+        "player",
+        "link",
       )
 
     val trimmedFallback = fallbackFileName?.trim()
     if (!trimmedFallback.isNullOrBlank()) {
-      val isUrlLike = trimmedFallback.startsWith("http://", ignoreCase = true) || trimmedFallback.startsWith("https://", ignoreCase = true)
+      val isUrlLike =
+        trimmedFallback.startsWith("http://", ignoreCase = true) ||
+          trimmedFallback.startsWith("https://", ignoreCase = true)
       if (!isUrlLike && !genericWords.contains(trimmedFallback.lowercase())) {
         val parsed = parse(trimmedFallback)
         if (parsed.title.isNotBlank() && !genericWords.contains(parsed.title.lowercase())) {
@@ -861,7 +875,22 @@ object MediaInfoParser {
             return@runCatching "YouTube Video ($videoId)"
           }
         }
-        val queryParams = listOf("path", "file", "filename", "title", "name", "url", "src", "stream", "video", "target", "source", "query", "q")
+        val queryParams =
+          listOf(
+            "path",
+            "file",
+            "filename",
+            "title",
+            "name",
+            "url",
+            "src",
+            "stream",
+            "video",
+            "target",
+            "source",
+            "query",
+            "q",
+          )
         var candidate: String? = null
 
         for (param in queryParams) {
@@ -897,8 +926,10 @@ object MediaInfoParser {
     }
 
     return parsedCandidate
-      .replace(Regex("""\.(?:mkv|mp4|m4v|webm|avi|mov|ts|m2ts|mp3|m4a|flac|ogg|m3u8|mpd)$""", RegexOption.IGNORE_CASE), "")
-      .replace(Regex("""[._\-]"""), " ")
+      .replace(
+        Regex("""\.(?:mkv|mp4|m4v|webm|avi|mov|ts|m2ts|mp3|m4a|flac|ogg|m3u8|mpd)$""", RegexOption.IGNORE_CASE),
+        "",
+      ).replace(Regex("""[._\-]"""), " ")
       .replace(Regex("""\s+"""), " ")
       .trim()
       .ifBlank { source }

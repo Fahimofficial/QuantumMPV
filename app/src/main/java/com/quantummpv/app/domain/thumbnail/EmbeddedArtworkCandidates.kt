@@ -65,7 +65,9 @@ internal object EmbeddedArtworkResolver {
     artworkUri: String?,
   ): Bitmap? {
     if (artworkUri.isNullOrBlank()) return null
-    com.quantummpv.app.presentation.components.RemoteImageLoader.getFromMemory(artworkUri)?.let { return it }
+    com.quantummpv.app.presentation.components.RemoteImageLoader
+      .getFromMemory(artworkUri)
+      ?.let { return it }
     val uri = Uri.parse(artworkUri)
     return runCatching {
       val decoded =
@@ -75,12 +77,13 @@ internal object EmbeddedArtworkResolver {
           "content", "android.resource" ->
             context.contentResolver.openInputStream(uri)?.use { input -> BitmapFactory.decodeStream(input) }
           "http", "https" -> {
-            val connection = (java.net.URL(artworkUri).openConnection() as java.net.HttpURLConnection).apply {
-              connectTimeout = 8000
-              readTimeout = 8000
-              instanceFollowRedirects = true
-              setRequestProperty("User-Agent", "Mozilla/5.0 (Android) QuantumMPV")
-            }
+            val connection =
+              (java.net.URL(artworkUri).openConnection() as java.net.HttpURLConnection).apply {
+                connectTimeout = 8000
+                readTimeout = 8000
+                instanceFollowRedirects = true
+                setRequestProperty("User-Agent", "Mozilla/5.0 (Android) QuantumMPV")
+              }
             connection.inputStream.use { input ->
               BitmapFactory.decodeStream(input)
             }
@@ -88,7 +91,8 @@ internal object EmbeddedArtworkResolver {
           else -> null
         }
       decoded?.also {
-        com.quantummpv.app.presentation.components.RemoteImageLoader.putInMemory(artworkUri, it)
+        com.quantummpv.app.presentation.components.RemoteImageLoader
+          .putInMemory(artworkUri, it)
       }
     }.getOrNull()
   }

@@ -19,12 +19,11 @@ import androidx.compose.animation.scaleIn
 import androidx.compose.animation.scaleOut
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.FloatingActionButtonDefaults
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -38,15 +37,14 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.quantummpv.app.R
+import com.quantummpv.app.preferences.AppearancePreferences
+import com.quantummpv.app.preferences.preference.collectAsState
 import com.quantummpv.app.ui.icons.Icon
 import com.quantummpv.app.ui.icons.Icons
 import com.quantummpv.app.ui.player.controls.components.tvFocusHighlight
 import com.quantummpv.app.utils.history.RecentlyPlayedOps
 import com.quantummpv.app.utils.media.MediaUtils
 import kotlinx.coroutines.launch
-
-import com.quantummpv.app.preferences.AppearancePreferences
-import com.quantummpv.app.preferences.preference.collectAsState
 import org.koin.compose.koinInject
 
 /**
@@ -75,27 +73,32 @@ fun QuickPlayFab(
   // Pulse animation scale
   val scale by animateFloatAsState(
     targetValue = if (isPressed) 0.9f else 1f,
-    animationSpec = spring(
-      dampingRatio = Spring.DampingRatioMediumBouncy,
-      stiffness = Spring.StiffnessMedium,
-    ),
+    animationSpec =
+      spring(
+        dampingRatio = Spring.DampingRatioMediumBouncy,
+        stiffness = Spring.StiffnessMedium,
+      ),
     label = "quick_play_scale",
   )
 
   AnimatedVisibility(
     visible = visible && hasRecentlyPlayed && showQuickPlayFab,
-    enter = scaleIn(
-      animationSpec = spring(
-        dampingRatio = Spring.DampingRatioMediumBouncy,
-        stiffness = Spring.StiffnessMediumLow,
-      ),
-    ) + fadeIn(),
-    exit = scaleOut(
-      animationSpec = spring(
-        dampingRatio = Spring.DampingRatioNoBouncy,
-        stiffness = Spring.StiffnessMedium,
-      ),
-    ) + fadeOut(),
+    enter =
+      scaleIn(
+        animationSpec =
+          spring(
+            dampingRatio = Spring.DampingRatioMediumBouncy,
+            stiffness = Spring.StiffnessMediumLow,
+          ),
+      ) + fadeIn(),
+    exit =
+      scaleOut(
+        animationSpec =
+          spring(
+            dampingRatio = Spring.DampingRatioNoBouncy,
+            stiffness = Spring.StiffnessMedium,
+          ),
+      ) + fadeOut(),
     modifier = modifier,
   ) {
     FloatingActionButton(
@@ -108,32 +111,36 @@ fun QuickPlayFab(
               source = validEntity.filePath,
               context = context,
               launchSource = "quick_play_fab",
-              title = validEntity.videoTitle?.takeIf { it.isNotBlank() }
-                ?: validEntity.fileName.takeIf { it.isNotBlank() },
+              title =
+                validEntity.videoTitle?.takeIf { it.isNotBlank() }
+                  ?: validEntity.fileName.takeIf { it.isNotBlank() },
             )
           } else {
-            android.widget.Toast.makeText(
-              context,
-              R.string.toast_file_not_found,
-              android.widget.Toast.LENGTH_SHORT,
-            ).show()
+            android.widget.Toast
+              .makeText(
+                context,
+                R.string.toast_file_not_found,
+                android.widget.Toast.LENGTH_SHORT,
+              ).show()
           }
           isPressed = false
         }
       },
-      modifier = Modifier
-        .padding(bottom = bottomPadding)
-        .tvFocusHighlight(CircleShape, focusedScale = 1.06f)
-        .graphicsLayer {
-          scaleX = scale
-          scaleY = scale
-        },
+      modifier =
+        Modifier
+          .padding(bottom = bottomPadding)
+          .tvFocusHighlight(CircleShape, focusedScale = 1.06f)
+          .graphicsLayer {
+            scaleX = scale
+            scaleY = scale
+          },
       containerColor = MaterialTheme.colorScheme.primaryContainer,
       contentColor = MaterialTheme.colorScheme.onPrimaryContainer,
-      elevation = FloatingActionButtonDefaults.elevation(
-        defaultElevation = 6.dp,
-        pressedElevation = 12.dp,
-      ),
+      elevation =
+        FloatingActionButtonDefaults.elevation(
+          defaultElevation = 6.dp,
+          pressedElevation = 12.dp,
+        ),
     ) {
       Icon(
         Icons.RoundedFilled.PlayArrow,

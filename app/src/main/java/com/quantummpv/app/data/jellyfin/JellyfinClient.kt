@@ -54,8 +54,8 @@ class JellyfinClient(
           throw IOException("Plaintext Jellyfin connections are disabled in Jellyfin settings")
         }
         chain.proceed(request)
-      }
-      .build()
+      }.build()
+
   companion object {
     const val TICKS_PER_SECOND = 10_000_000L
     private const val TAG = "JellyfinClient"
@@ -76,22 +76,26 @@ class JellyfinClient(
 
     fun getDeviceId(context: Context? = null): String {
       cachedDeviceId?.let { return it }
-      val ctx = context ?: try {
-        org.koin.core.context.GlobalContext.get().get<Context>()
-      } catch (_: Exception) {
-        null
-      }
-      val id = if (ctx != null) {
-        val prefs = ctx.getSharedPreferences("jellyfin_client_prefs", Context.MODE_PRIVATE)
-        var storedId = prefs.getString("device_id", null)
-        if (storedId.isNullOrBlank()) {
-          storedId = UUID.randomUUID().toString().replace("-", "")
-          prefs.edit().putString("device_id", storedId).apply()
+      val ctx =
+        context ?: try {
+          org.koin.core.context.GlobalContext
+            .get()
+            .get<Context>()
+        } catch (_: Exception) {
+          null
         }
-        storedId
-      } else {
-        "mpvrx-android-player"
-      }
+      val id =
+        if (ctx != null) {
+          val prefs = ctx.getSharedPreferences("jellyfin_client_prefs", Context.MODE_PRIVATE)
+          var storedId = prefs.getString("device_id", null)
+          if (storedId.isNullOrBlank()) {
+            storedId = UUID.randomUUID().toString().replace("-", "")
+            prefs.edit().putString("device_id", storedId).apply()
+          }
+          storedId
+        } else {
+          "mpvrx-android-player"
+        }
       cachedDeviceId = id
       return id
     }
@@ -101,22 +105,26 @@ class JellyfinClient(
 
     private val JSON_MEDIA_TYPE = "application/json; charset=utf-8".toMediaType()
 
-    fun isLocalHostOrIp(host: String): Boolean =
-      ServerUrlUtils.isLocalOrPrivateHost(host)
+    fun isLocalHostOrIp(host: String): Boolean = ServerUrlUtils.isLocalOrPrivateHost(host)
 
     fun normalizeUrlCandidates(rawUrl: String): List<String> =
       ServerUrlUtils.generateCandidateUrls(rawUrl, defaultPort = 8096)
 
-    fun normalizeUrl(rawUrl: String): String =
-      ServerUrlUtils.normalizeUrl(rawUrl, defaultPort = 8096)
+    fun normalizeUrl(rawUrl: String): String = ServerUrlUtils.normalizeUrl(rawUrl, defaultPort = 8096)
 
-    fun authHeader(token: String? = null, context: Context? = null): String {
+    fun authHeader(
+      token: String? = null,
+      context: Context? = null,
+    ): String {
       val deviceId = getDeviceId(context)
       val base = "MediaBrowser Client=\"$CLIENT_NAME\", Device=\"$DEVICE_NAME\", DeviceId=\"$deviceId\", Version=\"$VERSION\""
       return if (!token.isNullOrBlank()) "$base, Token=\"$token\"" else base
     }
 
-    fun Request.Builder.addJellyfinHeaders(token: String? = null, context: Context? = null): Request.Builder {
+    fun Request.Builder.addJellyfinHeaders(
+      token: String? = null,
+      context: Context? = null,
+    ): Request.Builder {
       val auth = authHeader(token, context)
       header("X-Emby-Authorization", auth)
       header("Authorization", auth)
@@ -202,14 +210,27 @@ class JellyfinClient(
               }
               val bodyStr = response.body.string()
               val root = json.parseToJsonElement(bodyStr).jsonObject
-              val accessToken = root["AccessToken"]?.jsonPrimitive?.content ?: throw IOException("Missing AccessToken in response")
+              val accessToken =
+                root["AccessToken"]?.jsonPrimitive?.content ?: throw IOException("Missing AccessToken in response")
               val userObj = root["User"]?.jsonObject ?: throw IOException("Missing User object in response")
               val userId = userObj["Id"]?.jsonPrimitive?.content ?: throw IOException("Missing User.Id in response")
               val uname = userObj["Name"]?.jsonPrimitive?.content ?: username
               val serverId = root["ServerId"]?.jsonPrimitive?.content
               val configObj = userObj["Configuration"]?.jsonObject
-              val audioLang = configObj?.get("AudioLanguagePreference")?.jsonPrimitive?.content?.takeIf { it.isNotBlank() }
-              val subLang = configObj?.get("SubtitleLanguagePreference")?.jsonPrimitive?.content?.takeIf { it.isNotBlank() }
+              val audioLang =
+                configObj
+                  ?.get(
+                    "AudioLanguagePreference",
+                  )?.jsonPrimitive
+                  ?.content
+                  ?.takeIf { it.isNotBlank() }
+              val subLang =
+                configObj
+                  ?.get(
+                    "SubtitleLanguagePreference",
+                  )?.jsonPrimitive
+                  ?.content
+                  ?.takeIf { it.isNotBlank() }
 
               JellyfinAuthResult(
                 accessToken = accessToken,
@@ -262,8 +283,20 @@ class JellyfinClient(
               val serverId = userObj["ServerId"]?.jsonPrimitive?.content
 
               val configObj = userObj["Configuration"]?.jsonObject
-              val audioLang = configObj?.get("AudioLanguagePreference")?.jsonPrimitive?.content?.takeIf { it.isNotBlank() }
-              val subLang = configObj?.get("SubtitleLanguagePreference")?.jsonPrimitive?.content?.takeIf { it.isNotBlank() }
+              val audioLang =
+                configObj
+                  ?.get(
+                    "AudioLanguagePreference",
+                  )?.jsonPrimitive
+                  ?.content
+                  ?.takeIf { it.isNotBlank() }
+              val subLang =
+                configObj
+                  ?.get(
+                    "SubtitleLanguagePreference",
+                  )?.jsonPrimitive
+                  ?.content
+                  ?.takeIf { it.isNotBlank() }
 
               JellyfinUser(
                 id = userId,
@@ -338,7 +371,12 @@ class JellyfinClient(
           }
           val root = json.parseToJsonElement(response.body.string()).jsonObject
           val itemsArray = root["Items"]?.jsonArray ?: JsonArray(emptyList())
-          itemsArray.mapNotNull { it.jsonObject["Name"]?.jsonPrimitive?.content?.takeIf(String::isNotBlank) }
+          itemsArray.mapNotNull {
+            it.jsonObject["Name"]
+              ?.jsonPrimitive
+              ?.content
+              ?.takeIf(String::isNotBlank)
+          }
         }
       }
     }
@@ -755,7 +793,14 @@ class JellyfinClient(
           val bodyStr = response.body.string()
           val root = json.parseToJsonElement(bodyStr).jsonObject
           val streams = root["MediaStreams"]?.jsonArray ?: return@use emptyList<PlaybackSubtitleTrack>()
-          val mediaSourceId = root["MediaSources"]?.jsonArray?.firstOrNull()?.jsonObject?.get("Id")?.jsonPrimitive?.content ?: itemId
+          val mediaSourceId =
+            root["MediaSources"]
+              ?.jsonArray
+              ?.firstOrNull()
+              ?.jsonObject
+              ?.get("Id")
+              ?.jsonPrimitive
+              ?.content ?: itemId
 
           streams.mapNotNull { element ->
             val stream = element.jsonObject
@@ -967,22 +1012,25 @@ class JellyfinClient(
     val collectionType = obj["CollectionType"]?.jsonPrimitive?.content
     val overview = obj["Overview"]?.jsonPrimitive?.content
     val runTimeTicks = obj["RunTimeTicks"]?.jsonPrimitive?.longOrNull
-    val isFolder = obj["IsFolder"]?.jsonPrimitive?.booleanOrNull ?: (type == "CollectionFolder" || type == "Folder" || type == "Series" || type == "Season")
+    val isFolder =
+      obj["IsFolder"]?.jsonPrimitive?.booleanOrNull
+        ?: (type == "CollectionFolder" || type == "Folder" || type == "Series" || type == "Season")
     val productionYear = obj["ProductionYear"]?.jsonPrimitive?.intOrNull
     val communityRating = obj["CommunityRating"]?.jsonPrimitive?.content?.toDoubleOrNull()
     val criticRating = obj["CriticRating"]?.jsonPrimitive?.content?.toDoubleOrNull()
     val officialRating = obj["OfficialRating"]?.jsonPrimitive?.content
-    val seriesName = obj["SeriesName"]?.jsonPrimitive?.content
-      ?: obj["AlbumArtist"]?.jsonPrimitive?.content
-      ?: obj["AlbumArtists"]?.jsonArray?.firstOrNull()?.let { element ->
-        if (element is JsonObject) element["Name"]?.jsonPrimitive?.content else element.jsonPrimitive.content
-      }
-      ?: obj["ArtistItems"]?.jsonArray?.firstOrNull()?.let { element ->
-        if (element is JsonObject) element["Name"]?.jsonPrimitive?.content else element.jsonPrimitive.content
-      }
-      ?: obj["Artists"]?.jsonArray?.firstOrNull()?.let { element ->
-        if (element is JsonObject) element["Name"]?.jsonPrimitive?.content else element.jsonPrimitive.content
-      }
+    val seriesName =
+      obj["SeriesName"]?.jsonPrimitive?.content
+        ?: obj["AlbumArtist"]?.jsonPrimitive?.content
+        ?: obj["AlbumArtists"]?.jsonArray?.firstOrNull()?.let { element ->
+          if (element is JsonObject) element["Name"]?.jsonPrimitive?.content else element.jsonPrimitive.content
+        }
+        ?: obj["ArtistItems"]?.jsonArray?.firstOrNull()?.let { element ->
+          if (element is JsonObject) element["Name"]?.jsonPrimitive?.content else element.jsonPrimitive.content
+        }
+        ?: obj["Artists"]?.jsonArray?.firstOrNull()?.let { element ->
+          if (element is JsonObject) element["Name"]?.jsonPrimitive?.content else element.jsonPrimitive.content
+        }
     val seriesId = obj["SeriesId"]?.jsonPrimitive?.content
     val seriesPrimaryImageTag = obj["SeriesPrimaryImageTag"]?.jsonPrimitive?.content
     val seasonName = obj["SeasonName"]?.jsonPrimitive?.content
@@ -1003,11 +1051,17 @@ class JellyfinClient(
 
     val imageTagsObj = obj["ImageTags"]?.jsonObject
     val primaryImageTag = imageTagsObj?.get("Primary")?.jsonPrimitive?.content
-    val backdropImageTags = obj["BackdropImageTags"]?.jsonArray?.firstOrNull()?.jsonPrimitive?.content
+    val backdropImageTags =
+      obj["BackdropImageTags"]
+        ?.jsonArray
+        ?.firstOrNull()
+        ?.jsonPrimitive
+        ?.content
     val albumId = obj["AlbumId"]?.jsonPrimitive?.content ?: obj["ParentId"]?.jsonPrimitive?.content
-    val albumPrimaryImageTag = obj["AlbumPrimaryImageTag"]?.jsonPrimitive?.content
-      ?: obj["ParentPrimaryImageTag"]?.jsonPrimitive?.content
-      ?: obj["SeriesPrimaryImageTag"]?.jsonPrimitive?.content
+    val albumPrimaryImageTag =
+      obj["AlbumPrimaryImageTag"]?.jsonPrimitive?.content
+        ?: obj["ParentPrimaryImageTag"]?.jsonPrimitive?.content
+        ?: obj["SeriesPrimaryImageTag"]?.jsonPrimitive?.content
 
     val userDataObj = obj["UserData"]?.jsonObject
     val playbackPositionTicks = userDataObj?.get("PlaybackPositionTicks")?.jsonPrimitive?.longOrNull
@@ -1042,9 +1096,11 @@ class JellyfinClient(
           val videoRangeType = stream["VideoRangeType"]?.jsonPrimitive?.content
           videoHdrType =
             when {
-              videoRangeType?.contains("DOVI", ignoreCase = true) == true || videoRange?.contains("DOVI", ignoreCase = true) == true -> "Dolby Vision"
+              videoRangeType?.contains("DOVI", ignoreCase = true) == true ||
+                videoRange?.contains("DOVI", ignoreCase = true) == true -> "Dolby Vision"
               videoRangeType?.contains("HDR10+", ignoreCase = true) == true -> "HDR10+"
-              videoRangeType?.contains("HDR10", ignoreCase = true) == true || videoRange?.contains("HDR", ignoreCase = true) == true -> "HDR"
+              videoRangeType?.contains("HDR10", ignoreCase = true) == true ||
+                videoRange?.contains("HDR", ignoreCase = true) == true -> "HDR"
               else -> null
             }
         } else if (streamType.equals("Audio", ignoreCase = true) && audioCodec == null) {
@@ -1073,13 +1129,14 @@ class JellyfinClient(
       }
     }
 
-    val remoteTrailerUrl = obj["RemoteTrailers"]?.jsonArray?.firstOrNull()?.let { element ->
-      if (element is JsonObject) {
-        element["Url"]?.jsonPrimitive?.content
-      } else {
-        element.jsonPrimitive.content
-      }
-    } ?: obj["RemoteTrailerUrl"]?.jsonPrimitive?.content
+    val remoteTrailerUrl =
+      obj["RemoteTrailers"]?.jsonArray?.firstOrNull()?.let { element ->
+        if (element is JsonObject) {
+          element["Url"]?.jsonPrimitive?.content
+        } else {
+          element.jsonPrimitive.content
+        }
+      } ?: obj["RemoteTrailerUrl"]?.jsonPrimitive?.content
 
     return JellyfinItem(
       id = id,
@@ -1145,7 +1202,9 @@ class JellyfinClient(
 
         httpClient.newCall(request).awaitResponse().use { response ->
           if (!response.isSuccessful) {
-            return@withContext Result.failure(IOException("Create playlist failed: ${response.code} ${response.message}"))
+            return@withContext Result.failure(
+              IOException("Create playlist failed: ${response.code} ${response.message}"),
+            )
           }
           val bodyStr = response.body.string()
           val root = json.parseToJsonElement(bodyStr).jsonObject
@@ -1179,7 +1238,9 @@ class JellyfinClient(
 
         httpClient.newCall(request).awaitResponse().use { response ->
           if (!response.isSuccessful) {
-            return@withContext Result.failure(IOException("Add to playlist failed: ${response.code} ${response.message}"))
+            return@withContext Result.failure(
+              IOException("Add to playlist failed: ${response.code} ${response.message}"),
+            )
           }
           Result.success(Unit)
         }

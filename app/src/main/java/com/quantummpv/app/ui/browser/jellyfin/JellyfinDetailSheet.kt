@@ -9,7 +9,8 @@
 
 package com.quantummpv.app.ui.browser.jellyfin
 
-import androidx.compose.animation.AnimatedVisibility
+import android.content.Intent
+import android.net.Uri
 import androidx.compose.animation.animateContentSize
 import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.animateFloat
@@ -27,7 +28,6 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -39,7 +39,6 @@ import androidx.compose.foundation.layout.wrapContentSize
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AlertDialog
@@ -49,16 +48,11 @@ import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenu
-import androidx.compose.material3.TextButton
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.FilledTonalIconButton
-import androidx.compose.material3.FilterChip
-import androidx.compose.material3.FilterChipDefaults
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.IconButtonDefaults
-import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.OutlinedButton
@@ -66,6 +60,7 @@ import androidx.compose.material3.SheetState
 import androidx.compose.material3.SheetValue
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.rememberBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -79,28 +74,25 @@ import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import android.content.Intent
-import android.net.Uri
-import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.res.stringResource
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.quantummpv.app.R
 import com.quantummpv.app.data.jellyfin.JellyfinClient
 import com.quantummpv.app.domain.jellyfin.JellyfinItem
 import com.quantummpv.app.domain.jellyfin.JellyfinServer
 import com.quantummpv.app.presentation.components.RemoteImage
-import com.quantummpv.app.ui.icons.Icon
-import com.quantummpv.app.ui.icons.Icons
-import kotlin.math.roundToInt
-
-import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.quantummpv.app.ui.browser.music.SharedMusicDetailHeader
 import com.quantummpv.app.ui.browser.music.SharedMusicTrackListItem
+import com.quantummpv.app.ui.icons.Icon
+import com.quantummpv.app.ui.icons.Icons
 import com.quantummpv.app.ui.player.PlaybackSession
+import kotlin.math.roundToInt
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -133,7 +125,13 @@ fun JellyfinDetailSheet(
 ) {
   if (item == null) return
 
-  if (item.type == "MusicArtist" || item.type == "MusicAlbum" || item.type == "Album" || item.type == "Playlist" || item.type == "Artist" || item.type == "AlbumArtist") {
+  if (item.type == "MusicArtist" ||
+    item.type == "MusicAlbum" ||
+    item.type == "Album" ||
+    item.type == "Playlist" ||
+    item.type == "Artist" ||
+    item.type == "AlbumArtist"
+  ) {
     val queueState by PlaybackSession.queue.collectAsStateWithLifecycle()
     val currentSessionItem = queueState.currentItem
 
@@ -144,22 +142,24 @@ fun JellyfinDetailSheet(
       contentColor = MaterialTheme.colorScheme.onSurface,
     ) {
       Column(
-        modifier = Modifier
-          .fillMaxWidth()
-          .verticalScroll(rememberScrollState())
-          .padding(horizontal = 16.dp, vertical = 12.dp),
+        modifier =
+          Modifier
+            .fillMaxWidth()
+            .verticalScroll(rememberScrollState())
+            .padding(horizontal = 16.dp, vertical = 12.dp),
         verticalArrangement = Arrangement.spacedBy(16.dp),
       ) {
         // Header Row (Avatar / Artwork + Title + Play Button)
-        val imageUrl = remember(server.serverUrl, item.id, item.primaryImageTag, server.accessToken) {
-          JellyfinClient.getImageUrl(
-            serverUrl = server.serverUrl,
-            itemId = item.id,
-            imageTag = item.primaryImageTag,
-            maxWidth = 300,
-            token = server.accessToken,
-          )
-        }
+        val imageUrl =
+          remember(server.serverUrl, item.id, item.primaryImageTag, server.accessToken) {
+            JellyfinClient.getImageUrl(
+              serverUrl = server.serverUrl,
+              itemId = item.id,
+              imageTag = item.primaryImageTag,
+              maxWidth = 300,
+              token = server.accessToken,
+            )
+          }
         val isArtist = item.type == "MusicArtist" || item.type == "Artist" || item.type == "AlbumArtist"
         val subtitle = if (isArtist) null else (item.seriesName ?: item.overview)?.takeIf { it.isNotBlank() }
         val itemCountText = if (isArtist) null else "${episodes.size} ${if (item.type == "Playlist") "Items" else "Tracks"}"
@@ -169,11 +169,12 @@ fun JellyfinDetailSheet(
           subtitle = subtitle,
           itemCountText = itemCountText,
           artworkUrl = if (!item.primaryImageTag.isNullOrBlank()) imageUrl else null,
-          fallbackIcon = when {
-            isArtist -> Icons.RoundedFilled.Person
-            item.type == "Playlist" -> Icons.RoundedFilled.QueueMusic
-            else -> Icons.RoundedFilled.Audiotrack
-          },
+          fallbackIcon =
+            when {
+              isArtist -> Icons.RoundedFilled.Person
+              item.type == "Playlist" -> Icons.RoundedFilled.QueueMusic
+              else -> Icons.RoundedFilled.Audiotrack
+            },
           isCircular = isArtist,
           onPlayAll = if (episodes.isNotEmpty()) ({ onPlay(episodes.first(), false) }) else null,
           playButtonText = if (isArtist) "Play All" else "Play",
@@ -183,7 +184,9 @@ fun JellyfinDetailSheet(
           GhostDetailSections()
         } else {
           // Albums section for Artist Sheet
-          if ((item.type == "MusicArtist" || item.type == "Artist" || item.type == "AlbumArtist") && seasons.isNotEmpty()) {
+          if ((item.type == "MusicArtist" || item.type == "Artist" || item.type == "AlbumArtist") &&
+            seasons.isNotEmpty()
+          ) {
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
               Text(
                 text = "Albums",
@@ -211,30 +214,41 @@ fun JellyfinDetailSheet(
           if (episodes.isNotEmpty()) {
             Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
               Text(
-                text = if (item.type == "MusicArtist" || item.type == "Artist" || item.type == "AlbumArtist") "Songs" else "Tracks",
+                text =
+                  if (item.type == "MusicArtist" ||
+                    item.type == "Artist" ||
+                    item.type == "AlbumArtist"
+                  ) {
+                    "Songs"
+                  } else {
+                    "Tracks"
+                  },
                 style = MaterialTheme.typography.titleMedium,
                 fontWeight = FontWeight.Bold,
                 color = MaterialTheme.colorScheme.onSurface,
               )
               episodes.forEach { track ->
-                val trackImageUrl = remember(server.serverUrl, track.id, track.primaryImageTag, server.accessToken) {
-                  JellyfinClient.getImageUrl(
-                    serverUrl = server.serverUrl,
-                    itemId = track.id,
-                    imageTag = track.primaryImageTag,
-                    maxWidth = 200,
-                    token = server.accessToken,
-                  )
-                }
-
-                val isTrackPlaying = remember(currentSessionItem, track.id) {
-                  if (currentSessionItem == null || track.id.isBlank()) false
-                  else {
-                    val orig = currentSessionItem.originalUri
-                    val play = currentSessionItem.playableUri
-                    orig.contains(track.id, ignoreCase = true) || play.contains(track.id, ignoreCase = true)
+                val trackImageUrl =
+                  remember(server.serverUrl, track.id, track.primaryImageTag, server.accessToken) {
+                    JellyfinClient.getImageUrl(
+                      serverUrl = server.serverUrl,
+                      itemId = track.id,
+                      imageTag = track.primaryImageTag,
+                      maxWidth = 200,
+                      token = server.accessToken,
+                    )
                   }
-                }
+
+                val isTrackPlaying =
+                  remember(currentSessionItem, track.id) {
+                    if (currentSessionItem == null || track.id.isBlank()) {
+                      false
+                    } else {
+                      val orig = currentSessionItem.originalUri
+                      val play = currentSessionItem.playableUri
+                      orig.contains(track.id, ignoreCase = true) || play.contains(track.id, ignoreCase = true)
+                    }
+                  }
                 val trackSubtitle = track.seriesName ?: track.overview ?: ""
 
                 SharedMusicTrackListItem(
@@ -605,168 +619,182 @@ fun JellyfinDetailSheet(
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(10.dp, Alignment.CenterHorizontally),
           ) {
-          // Trailer Button for Movies & Series
-          if (item.type == "Movie" || item.isSeries || item.type == "Series") {
-            FilledTonalIconButton(
-              onClick = {
-                val rawUrl = item.remoteTrailerUrl?.takeIf { it.isNotBlank() }
-                val trailerUrl = if (!rawUrl.isNullOrBlank()) {
-                  if (rawUrl.startsWith("http://") || rawUrl.startsWith("https://")) rawUrl
-                  else "https://www.youtube.com/watch?v=$rawUrl"
-                } else {
-                  "https://www.youtube.com/results?search_query=${java.net.URLEncoder.encode("${item.name} trailer", "UTF-8")}"
-                }
-                val intent = Intent(Intent.ACTION_VIEW, Uri.parse(trailerUrl)).apply {
-                  addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-                }
-                runCatching { context.startActivity(intent) }
-              },
-              shape = RoundedCornerShape(14.dp),
-              modifier = Modifier.size(48.dp),
-            ) {
-              Icon(
-                imageVector = Icons.RoundedFilled.Movie,
-                contentDescription = "Trailer",
-                tint = MaterialTheme.colorScheme.primary,
-                modifier = Modifier.size(22.dp),
-              )
-            }
-          }
-
-          // Download Button (movie: direct; series: season / all-seasons menu)
-          if (onDownload != null && (item.type == "Movie" || item.isSeries)) {
-            var isDownloadMenuOpen by remember { mutableStateOf(false) }
-            val isItemDownloaded = item.id in downloadedItemIds
-            val isItemDownloading = item.id in activeDownloadItemIds
-            Box {
+            // Trailer Button for Movies & Series
+            if (item.type == "Movie" || item.isSeries || item.type == "Series") {
               FilledTonalIconButton(
                 onClick = {
-                  when {
-                    item.isSeries -> isDownloadMenuOpen = true
-                    isItemDownloaded || isItemDownloading -> {}
-                    else -> onDownload(item)
-                  }
+                  val rawUrl = item.remoteTrailerUrl?.takeIf { it.isNotBlank() }
+                  val trailerUrl =
+                    if (!rawUrl.isNullOrBlank()) {
+                      if (rawUrl.startsWith("http://") || rawUrl.startsWith("https://")) {
+                        rawUrl
+                      } else {
+                        "https://www.youtube.com/watch?v=$rawUrl"
+                      }
+                    } else {
+                      "https://www.youtube.com/results?search_query=${java.net.URLEncoder.encode(
+                        "${item.name} trailer",
+                        "UTF-8",
+                      )}"
+                    }
+                  val intent =
+                    Intent(Intent.ACTION_VIEW, Uri.parse(trailerUrl)).apply {
+                      addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                    }
+                  runCatching { context.startActivity(intent) }
                 },
                 shape = RoundedCornerShape(14.dp),
                 modifier = Modifier.size(48.dp),
               ) {
-                when {
-                  isItemDownloading ->
-                    CircularProgressIndicator(modifier = Modifier.size(20.dp), strokeWidth = 2.dp)
-                  isItemDownloaded ->
-                    Icon(
-                      imageVector = Icons.RoundedFilled.CheckCircle,
-                      contentDescription = stringResource(R.string.downloads_downloaded),
-                      tint = MaterialTheme.colorScheme.primary,
-                      modifier = Modifier.size(22.dp),
-                    )
-                  else ->
-                    Icon(
-                      imageVector = Icons.RoundedFilled.Download,
-                      contentDescription = stringResource(R.string.downloads_download),
-                      tint = MaterialTheme.colorScheme.onSecondaryContainer,
-                      modifier = Modifier.size(22.dp),
-                    )
-                }
-              }
-
-              DropdownMenu(
-                expanded = isDownloadMenuOpen,
-                onDismissRequest = { isDownloadMenuOpen = false },
-              ) {
-                DropdownMenuItem(
-                  text = { Text(stringResource(R.string.downloads_download_season)) },
-                  onClick = {
-                    isDownloadMenuOpen = false
-                    onDownloadSeason?.invoke()
-                  },
-                )
-                DropdownMenuItem(
-                  text = { Text(stringResource(R.string.downloads_download_series)) },
-                  onClick = {
-                    isDownloadMenuOpen = false
-                    onDownloadSeries?.invoke()
-                  },
+                Icon(
+                  imageVector = Icons.RoundedFilled.Movie,
+                  contentDescription = "Trailer",
+                  tint = MaterialTheme.colorScheme.primary,
+                  modifier = Modifier.size(22.dp),
                 )
               }
             }
-          }
 
-          // Favorite Toggle Button
-          FilledTonalIconButton(
-            onClick = { onToggleFavorite(item) },
-            shape = RoundedCornerShape(14.dp),
-            modifier = Modifier.size(48.dp),
-          ) {
-            Icon(
-              imageVector = if (item.isFavorite) Icons.RoundedFilled.Favorite else Icons.RoundedFilled.FavoriteBorder,
-              contentDescription = "Favorite",
-              tint = MaterialTheme.colorScheme.onSecondaryContainer,
-              modifier = Modifier.size(22.dp),
-            )
-          }
+            // Download Button (movie: direct; series: season / all-seasons menu)
+            if (onDownload != null && (item.type == "Movie" || item.isSeries)) {
+              var isDownloadMenuOpen by remember { mutableStateOf(false) }
+              val isItemDownloaded = item.id in downloadedItemIds
+              val isItemDownloading = item.id in activeDownloadItemIds
+              Box {
+                FilledTonalIconButton(
+                  onClick = {
+                    when {
+                      item.isSeries -> isDownloadMenuOpen = true
+                      isItemDownloaded || isItemDownloading -> {}
+                      else -> onDownload(item)
+                    }
+                  },
+                  shape = RoundedCornerShape(14.dp),
+                  modifier = Modifier.size(48.dp),
+                ) {
+                  when {
+                    isItemDownloading ->
+                      CircularProgressIndicator(modifier = Modifier.size(20.dp), strokeWidth = 2.dp)
+                    isItemDownloaded ->
+                      Icon(
+                        imageVector = Icons.RoundedFilled.CheckCircle,
+                        contentDescription = stringResource(R.string.downloads_downloaded),
+                        tint = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.size(22.dp),
+                      )
+                    else ->
+                      Icon(
+                        imageVector = Icons.RoundedFilled.Download,
+                        contentDescription = stringResource(R.string.downloads_download),
+                        tint = MaterialTheme.colorScheme.onSecondaryContainer,
+                        modifier = Modifier.size(22.dp),
+                      )
+                  }
+                }
 
-          // Mark Watched Toggle Button
-          FilledTonalIconButton(
-            onClick = { onTogglePlayed(item) },
-            shape = RoundedCornerShape(14.dp),
-            modifier = Modifier.size(48.dp),
-          ) {
-            Icon(
-              imageVector = if (item.isPlayed) Icons.RoundedFilled.Check else Icons.RoundedFilled.Visibility,
-              contentDescription = "Watched",
-              tint = MaterialTheme.colorScheme.onSecondaryContainer,
-              modifier = Modifier.size(22.dp),
-            )
-          }
+                DropdownMenu(
+                  expanded = isDownloadMenuOpen,
+                  onDismissRequest = { isDownloadMenuOpen = false },
+                ) {
+                  DropdownMenuItem(
+                    text = { Text(stringResource(R.string.downloads_download_season)) },
+                    onClick = {
+                      isDownloadMenuOpen = false
+                      onDownloadSeason?.invoke()
+                    },
+                  )
+                  DropdownMenuItem(
+                    text = { Text(stringResource(R.string.downloads_download_series)) },
+                    onClick = {
+                      isDownloadMenuOpen = false
+                      onDownloadSeries?.invoke()
+                    },
+                  )
+                }
+              }
+            }
 
-          // Delete Media Button (Allowed if user/item has deletion permissions)
-          if (onDeleteItem != null && item.canDelete) {
-            var showDeleteDialog by remember { mutableStateOf(false) }
+            // Favorite Toggle Button
             FilledTonalIconButton(
-              onClick = { showDeleteDialog = true },
+              onClick = { onToggleFavorite(item) },
               shape = RoundedCornerShape(14.dp),
-              colors = IconButtonDefaults.filledTonalIconButtonColors(
-                containerColor = MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.5f),
-                contentColor = MaterialTheme.colorScheme.error,
-              ),
               modifier = Modifier.size(48.dp),
             ) {
               Icon(
-                imageVector = Icons.RoundedFilled.Delete,
-                contentDescription = "Delete Item",
-                tint = MaterialTheme.colorScheme.error,
+                imageVector = if (item.isFavorite) Icons.RoundedFilled.Favorite else Icons.RoundedFilled.FavoriteBorder,
+                contentDescription = "Favorite",
+                tint = MaterialTheme.colorScheme.onSecondaryContainer,
                 modifier = Modifier.size(22.dp),
               )
             }
 
-            if (showDeleteDialog) {
-              AlertDialog(
-                onDismissRequest = { showDeleteDialog = false },
-                title = { Text("Delete ${if (item.isSeries) "Series" else "Item"}?") },
-                text = { Text("Are you sure you want to delete \"${item.name}\" from your Jellyfin server? This will permanently delete the media files.") },
-                confirmButton = {
-                  Button(
-                    onClick = {
-                      showDeleteDialog = false
-                      onDeleteItem(item)
-                    },
-                    colors = ButtonDefaults.buttonColors(
-                      containerColor = MaterialTheme.colorScheme.error,
-                      contentColor = MaterialTheme.colorScheme.onError,
-                    ),
-                  ) {
-                    Text("Delete")
-                  }
-                },
-                dismissButton = {
-                  TextButton(onClick = { showDeleteDialog = false }) {
-                    Text("Cancel")
-                  }
-                },
+            // Mark Watched Toggle Button
+            FilledTonalIconButton(
+              onClick = { onTogglePlayed(item) },
+              shape = RoundedCornerShape(14.dp),
+              modifier = Modifier.size(48.dp),
+            ) {
+              Icon(
+                imageVector = if (item.isPlayed) Icons.RoundedFilled.Check else Icons.RoundedFilled.Visibility,
+                contentDescription = "Watched",
+                tint = MaterialTheme.colorScheme.onSecondaryContainer,
+                modifier = Modifier.size(22.dp),
               )
             }
-          }
+
+            // Delete Media Button (Allowed if user/item has deletion permissions)
+            if (onDeleteItem != null && item.canDelete) {
+              var showDeleteDialog by remember { mutableStateOf(false) }
+              FilledTonalIconButton(
+                onClick = { showDeleteDialog = true },
+                shape = RoundedCornerShape(14.dp),
+                colors =
+                  IconButtonDefaults.filledTonalIconButtonColors(
+                    containerColor = MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.5f),
+                    contentColor = MaterialTheme.colorScheme.error,
+                  ),
+                modifier = Modifier.size(48.dp),
+              ) {
+                Icon(
+                  imageVector = Icons.RoundedFilled.Delete,
+                  contentDescription = "Delete Item",
+                  tint = MaterialTheme.colorScheme.error,
+                  modifier = Modifier.size(22.dp),
+                )
+              }
+
+              if (showDeleteDialog) {
+                AlertDialog(
+                  onDismissRequest = { showDeleteDialog = false },
+                  title = { Text("Delete ${if (item.isSeries) "Series" else "Item"}?") },
+                  text = {
+                    Text(
+                      "Are you sure you want to delete \"${item.name}\" from your Jellyfin server? This will permanently delete the media files.",
+                    )
+                  },
+                  confirmButton = {
+                    Button(
+                      onClick = {
+                        showDeleteDialog = false
+                        onDeleteItem(item)
+                      },
+                      colors =
+                        ButtonDefaults.buttonColors(
+                          containerColor = MaterialTheme.colorScheme.error,
+                          contentColor = MaterialTheme.colorScheme.onError,
+                        ),
+                    ) {
+                      Text("Delete")
+                    }
+                  },
+                  dismissButton = {
+                    TextButton(onClick = { showDeleteDialog = false }) {
+                      Text("Cancel")
+                    }
+                  },
+                )
+              }
+            }
           }
         }
 
@@ -834,15 +862,17 @@ fun JellyfinDetailSheet(
             )
 
             // Seasons Dropdown Menu
-            val sortedSeasons = remember(seasons) {
-              seasons.sortedWith(
-                compareBy<JellyfinItem> { it.indexNumber ?: Int.MAX_VALUE }
-                  .thenBy { it.name }
-              )
-            }
-            val selectedSeason = remember(sortedSeasons, selectedSeasonId) {
-              sortedSeasons.find { it.id == selectedSeasonId } ?: sortedSeasons.firstOrNull()
-            }
+            val sortedSeasons =
+              remember(seasons) {
+                seasons.sortedWith(
+                  compareBy<JellyfinItem> { it.indexNumber ?: Int.MAX_VALUE }
+                    .thenBy { it.name },
+                )
+              }
+            val selectedSeason =
+              remember(sortedSeasons, selectedSeasonId) {
+                sortedSeasons.find { it.id == selectedSeasonId } ?: sortedSeasons.firstOrNull()
+              }
             var isSeasonDropdownExpanded by remember { mutableStateOf(false) }
             val arrowRotation by animateFloatAsState(
               targetValue = if (isSeasonDropdownExpanded) 180f else 0f,
@@ -854,10 +884,19 @@ fun JellyfinDetailSheet(
                 onClick = { isSeasonDropdownExpanded = !isSeasonDropdownExpanded },
                 shape = RoundedCornerShape(10.dp),
                 color = MaterialTheme.colorScheme.surfaceContainerHighest,
-                border = BorderStroke(
-                  width = 1.dp,
-                  color = if (isSeasonDropdownExpanded) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f),
-                ),
+                border =
+                  BorderStroke(
+                    width = 1.dp,
+                    color =
+                      if (isSeasonDropdownExpanded) {
+                        MaterialTheme.colorScheme.primary
+                      } else {
+                        MaterialTheme.colorScheme.outlineVariant
+                          .copy(
+                            alpha = 0.4f,
+                          )
+                      },
+                  ),
               ) {
                 Row(
                   modifier = Modifier.padding(horizontal = 14.dp, vertical = 8.dp),
@@ -895,15 +934,24 @@ fun JellyfinDetailSheet(
                       onSelectSeason(season.id)
                     },
                     shape = RoundedCornerShape(8.dp),
-                    color = if (isSelected) MaterialTheme.colorScheme.primary.copy(alpha = 0.15f) else Color.Transparent,
-                    modifier = Modifier
-                      .fillMaxWidth()
-                      .padding(horizontal = 6.dp, vertical = 2.dp),
+                    color =
+                      if (isSelected) {
+                        MaterialTheme.colorScheme.primary.copy(
+                          alpha = 0.15f,
+                        )
+                      } else {
+                        Color.Transparent
+                      },
+                    modifier =
+                      Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 6.dp, vertical = 2.dp),
                   ) {
                     Row(
-                      modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 12.dp, vertical = 10.dp),
+                      modifier =
+                        Modifier
+                          .fillMaxWidth()
+                          .padding(horizontal = 12.dp, vertical = 10.dp),
                       verticalAlignment = Alignment.CenterVertically,
                       horizontalArrangement = Arrangement.SpaceBetween,
                     ) {
@@ -917,7 +965,14 @@ fun JellyfinDetailSheet(
                         Text(
                           text = "${season.childCount} ep",
                           style = MaterialTheme.typography.labelSmall,
-                          color = if (isSelected) MaterialTheme.colorScheme.primary.copy(alpha = 0.8f) else MaterialTheme.colorScheme.onSurfaceVariant,
+                          color =
+                            if (isSelected) {
+                              MaterialTheme.colorScheme.primary.copy(
+                                alpha = 0.8f,
+                              )
+                            } else {
+                              MaterialTheme.colorScheme.onSurfaceVariant
+                            },
                         )
                       }
                     }

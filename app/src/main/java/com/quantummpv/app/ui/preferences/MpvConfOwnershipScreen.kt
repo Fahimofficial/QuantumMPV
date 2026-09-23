@@ -101,9 +101,10 @@ object MpvConfOwnershipScreen : Screen {
       },
     ) { padding ->
       LazyColumn(
-        modifier = Modifier
-          .fillMaxSize()
-          .padding(padding),
+        modifier =
+          Modifier
+            .fillMaxSize()
+            .padding(padding),
         contentPadding = PaddingValues(start = 16.dp, end = 16.dp, bottom = 32.dp),
         verticalArrangement = Arrangement.spacedBy(10.dp),
       ) {
@@ -146,9 +147,10 @@ private fun OwnershipSummaryCard(
     shape = MaterialTheme.shapes.large,
   ) {
     Row(
-      modifier = Modifier
-        .fillMaxWidth()
-        .padding(16.dp),
+      modifier =
+        Modifier
+          .fillMaxWidth()
+          .padding(16.dp),
       verticalAlignment = Alignment.CenterVertically,
       horizontalArrangement = Arrangement.spacedBy(14.dp),
     ) {
@@ -288,14 +290,14 @@ private fun OwnershipGroupCard(
         override.optionNames.sorted().forEach { optionName ->
           val checked = optionName in selectedOptions
           Row(
-            modifier = Modifier
-              .fillMaxWidth()
-              .clickable {
-                onSelectionChange(
-                  if (checked) selectedOptions - optionName else selectedOptions + optionName,
-                )
-              }
-              .padding(vertical = 2.dp),
+            modifier =
+              Modifier
+                .fillMaxWidth()
+                .clickable {
+                  onSelectionChange(
+                    if (checked) selectedOptions - optionName else selectedOptions + optionName,
+                  )
+                }.padding(vertical = 2.dp),
             verticalAlignment = Alignment.CenterVertically,
           ) {
             Checkbox(checked = checked, onCheckedChange = null)

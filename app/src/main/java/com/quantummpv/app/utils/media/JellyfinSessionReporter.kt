@@ -57,11 +57,12 @@ class JellyfinSessionReporter(
       try {
         val uri = Uri.parse(url)
         val pathSegments = uri.pathSegments
-        val mediaIndex = pathSegments.indexOfFirst {
-          it.equals("Videos", ignoreCase = true) ||
-            it.equals("Audio", ignoreCase = true) ||
-            it.equals("Items", ignoreCase = true)
-        }
+        val mediaIndex =
+          pathSegments.indexOfFirst {
+            it.equals("Videos", ignoreCase = true) ||
+              it.equals("Audio", ignoreCase = true) ||
+              it.equals("Items", ignoreCase = true)
+          }
         if (mediaIndex == -1 || mediaIndex + 1 >= pathSegments.size) {
           return null
         }
@@ -185,7 +186,8 @@ class JellyfinSessionReporter(
   ) {
     try {
       val request =
-        Request.Builder()
+        Request
+          .Builder()
           .url(urlString)
           .header("Content-Type", "application/json")
           .header("X-Emby-Token", apiKey)

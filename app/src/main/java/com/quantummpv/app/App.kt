@@ -170,7 +170,12 @@ class App :
     if (videoBackgroundPlaybackEnabled) return
 
     val state = PlaybackSession.state.value
-    if (state.currentItem == null || state.phase == PlaybackPhase.IDLE || state.phase == PlaybackPhase.UNINITIALIZED) return
+    if (state.currentItem == null ||
+      state.phase == PlaybackPhase.IDLE ||
+      state.phase == PlaybackPhase.UNINITIALIZED
+    ) {
+      return
+    }
 
     PlaybackSession.setPropertyBoolean("pause", true)
     playerActivity.abandonAudioFocus()
@@ -318,13 +323,15 @@ class App :
     if (!BuildConfig.DEBUG) return
 
     StrictMode.setThreadPolicy(
-      StrictMode.ThreadPolicy.Builder()
+      StrictMode.ThreadPolicy
+        .Builder()
         .detectAll()
         .penaltyLog()
         .build(),
     )
     StrictMode.setVmPolicy(
-      StrictMode.VmPolicy.Builder()
+      StrictMode.VmPolicy
+        .Builder()
         .detectAll()
         .penaltyLog()
         .build(),

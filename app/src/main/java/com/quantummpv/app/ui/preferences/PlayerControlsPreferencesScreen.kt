@@ -62,8 +62,8 @@ import com.quantummpv.app.ui.player.controls.components.SeekbarStyleLivePreview
 import com.quantummpv.app.ui.preferences.components.PlayerButtonChip
 import com.quantummpv.app.ui.preferences.components.SwitchPreference
 import com.quantummpv.app.ui.utils.LocalBackStack
-import com.quantummpv.app.ui.utils.navigateTo
 import com.quantummpv.app.ui.utils.LocalShowSettingsBackArrow
+import com.quantummpv.app.ui.utils.navigateTo
 import com.quantummpv.app.ui.utils.popSafely
 import kotlinx.serialization.Serializable
 import me.zhanghai.compose.preference.ListPreference

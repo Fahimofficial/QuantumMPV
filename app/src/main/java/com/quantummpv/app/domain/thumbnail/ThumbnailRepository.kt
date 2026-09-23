@@ -85,11 +85,13 @@ class ThumbnailRepository(
   private val diskCacheLock = ReentrantReadWriteLock()
   private val ongoingOperations = ConcurrentHashMap<String, Deferred<Bitmap?>>()
   private val diskVideoBaseKeyCache = ConcurrentHashMap<String, String>()
+
   private data class ResolvedMetadata(
     val size: Long,
     val dateModified: Long,
     val duration: Long,
   )
+
   private val localMetadataCache = ConcurrentHashMap<String, ResolvedMetadata>()
   private val repositoryScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
   private val maxConcurrentFolders = 3
@@ -396,7 +398,10 @@ class ThumbnailRepository(
     return decoded
   }
 
-  private fun resolveLocalMetadata(video: Video, source: String): ResolvedMetadata {
+  private fun resolveLocalMetadata(
+    video: Video,
+    source: String,
+  ): ResolvedMetadata {
     if (video.size > 0L && video.dateModified > 0L && video.duration > 0L) {
       return ResolvedMetadata(video.size, video.dateModified, video.duration)
     }
@@ -424,7 +429,10 @@ class ThumbnailRepository(
       val cursor =
         when {
           video.uri.scheme == "content" &&
-            video.uri.toString().startsWith(MediaStore.Video.Media.EXTERNAL_CONTENT_URI.toString()) -> {
+            video.uri.toString().startsWith(
+              MediaStore.Video.Media.EXTERNAL_CONTENT_URI
+                .toString(),
+            ) -> {
             context.contentResolver.query(video.uri, projection, null, null, null)
           }
           file != null -> {
@@ -789,7 +797,10 @@ class ThumbnailRepository(
   private fun isNetworkThumbnailAllowed(path: String): Boolean =
     extractJellyfinImageUrls(path).isNotEmpty() || appearancePreferences.showNetworkThumbnails.get()
 
-  private fun extractJellyfinImageUrls(url: String, maxWidth: Int = 400): List<String> =
+  private fun extractJellyfinImageUrls(
+    url: String,
+    maxWidth: Int = 400,
+  ): List<String> =
     runCatching {
       val uri = Uri.parse(url)
       val pathSegments = uri.pathSegments

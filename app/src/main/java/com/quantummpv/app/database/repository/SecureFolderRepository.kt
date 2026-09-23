@@ -336,7 +336,10 @@ class SecureFolderRepository(
       if (originalParent != null && (originalParent.exists() || originalParent.mkdirs())) {
         originalParent
       } else {
-        File(android.os.Environment.getExternalStoragePublicDirectory(android.os.Environment.DIRECTORY_MOVIES), "Restored")
+        File(
+          android.os.Environment.getExternalStoragePublicDirectory(android.os.Environment.DIRECTORY_MOVIES),
+          "Restored",
+        )
       }
     return uniqueFileIn(candidateDir, entity.fileName)
   }

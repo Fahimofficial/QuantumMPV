@@ -4,8 +4,6 @@
 
 package com.quantummpv.app.ui.player.controls.components.sheets
 
-import com.quantummpv.app.ui.player.PlaybackSession
-
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.tween
@@ -49,9 +47,9 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.quantummpv.app.domain.lyrics.LyricsSourceType
-import com.quantummpv.app.domain.lyrics.SyncedLine
 import com.quantummpv.app.ui.icons.Icon
 import com.quantummpv.app.ui.icons.Icons
+import com.quantummpv.app.ui.player.PlaybackSession
 import com.quantummpv.app.ui.player.PlayerViewModel
 import com.quantummpv.app.ui.theme.fontFamilyForText
 
@@ -86,18 +84,20 @@ fun LyricsSheet(
     tonalElevation = 6.dp,
   ) {
     Column(
-      modifier = Modifier
-        .fillMaxWidth()
-        .padding(horizontal = 20.dp, vertical = 16.dp),
+      modifier =
+        Modifier
+          .fillMaxWidth()
+          .padding(horizontal = 20.dp, vertical = 16.dp),
       horizontalAlignment = Alignment.CenterHorizontally,
     ) {
       // Top drag handle
       Box(
-        modifier = Modifier
-          .width(36.dp)
-          .height(4.dp)
-          .clip(CircleShape)
-          .background(MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f)),
+        modifier =
+          Modifier
+            .width(36.dp)
+            .height(4.dp)
+            .clip(CircleShape)
+            .background(MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f)),
       )
 
       Spacer(modifier = Modifier.height(12.dp))
@@ -165,10 +165,11 @@ fun LyricsSheet(
             Text(if (state.embeddedLyrics?.sourceType == LyricsSourceType.LOCAL) "Local (.lrc)" else "Embedded")
           },
           enabled = hasEmbedded || state.selectedSource == LyricsSourceType.EMBEDDED,
-          colors = FilterChipDefaults.filterChipColors(
-            selectedContainerColor = MaterialTheme.colorScheme.primaryContainer,
-            selectedLabelColor = MaterialTheme.colorScheme.onPrimaryContainer,
-          ),
+          colors =
+            FilterChipDefaults.filterChipColors(
+              selectedContainerColor = MaterialTheme.colorScheme.primaryContainer,
+              selectedLabelColor = MaterialTheme.colorScheme.onPrimaryContainer,
+            ),
         )
 
         FilterChip(
@@ -177,10 +178,11 @@ fun LyricsSheet(
           label = {
             Text("Online (LRCLIB)")
           },
-          colors = FilterChipDefaults.filterChipColors(
-            selectedContainerColor = MaterialTheme.colorScheme.primaryContainer,
-            selectedLabelColor = MaterialTheme.colorScheme.onPrimaryContainer,
-          ),
+          colors =
+            FilterChipDefaults.filterChipColors(
+              selectedContainerColor = MaterialTheme.colorScheme.primaryContainer,
+              selectedLabelColor = MaterialTheme.colorScheme.onPrimaryContainer,
+            ),
         )
 
         if (state.isLoading) {
@@ -208,12 +210,13 @@ fun LyricsSheet(
 
       // Lyrics Content
       Box(
-        modifier = Modifier
-          .fillMaxWidth()
-          .height(340.dp)
-          .clip(RoundedCornerShape(16.dp))
-          .background(MaterialTheme.colorScheme.surfaceContainerLowest.copy(alpha = 0.7f))
-          .padding(horizontal = 16.dp, vertical = 12.dp),
+        modifier =
+          Modifier
+            .fillMaxWidth()
+            .height(340.dp)
+            .clip(RoundedCornerShape(16.dp))
+            .background(MaterialTheme.colorScheme.surfaceContainerLowest.copy(alpha = 0.7f))
+            .padding(horizontal = 16.dp, vertical = 12.dp),
         contentAlignment = Alignment.Center,
       ) {
         val activeLyrics = state.lyrics
@@ -238,29 +241,30 @@ fun LyricsSheet(
             ) {
               itemsIndexed(
                 items = activeLyrics.synced,
-                key = { index, line -> "${line.time}_${index}" },
+                key = { index, line -> "${line.time}_$index" },
                 contentType = { _, _ -> "lyric_sheet_synced" },
               ) { index, line ->
                 val isActive = index == state.activeLineIndex
                 val textColor by animateColorAsState(
-                  targetValue = if (isActive) {
-                    MaterialTheme.colorScheme.primary
-                  } else {
-                    MaterialTheme.colorScheme.onSurface.copy(alpha = 0.55f)
-                  },
+                  targetValue =
+                    if (isActive) {
+                      MaterialTheme.colorScheme.primary
+                    } else {
+                      MaterialTheme.colorScheme.onSurface.copy(alpha = 0.55f)
+                    },
                   animationSpec = tween(durationMillis = 250),
                   label = "LyricTextColor",
                 )
 
                 Column(
-                  modifier = Modifier
-                    .fillMaxWidth()
-                    .clip(RoundedCornerShape(8.dp))
-                    .clickable {
-                      val targetSeconds = line.time / 1000f
-                      PlaybackSession.command("seek", targetSeconds.toString(), "absolute+exact")
-                    }
-                    .padding(vertical = 4.dp, horizontal = 8.dp),
+                  modifier =
+                    Modifier
+                      .fillMaxWidth()
+                      .clip(RoundedCornerShape(8.dp))
+                      .clickable {
+                        val targetSeconds = line.time / 1000f
+                        PlaybackSession.command("seek", targetSeconds.toString(), "absolute+exact")
+                      }.padding(vertical = 4.dp, horizontal = 8.dp),
                   horizontalAlignment = Alignment.CenterHorizontally,
                 ) {
                   Text(
@@ -277,7 +281,14 @@ fun LyricsSheet(
                     Spacer(modifier = Modifier.height(2.dp))
                     Text(
                       text = trans,
-                      color = if (isActive) MaterialTheme.colorScheme.primary.copy(alpha = 0.85f) else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.70f),
+                      color =
+                        if (isActive) {
+                          MaterialTheme.colorScheme.primary.copy(
+                            alpha = 0.85f,
+                          )
+                        } else {
+                          MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.70f)
+                        },
                       fontSize = if (isActive) 15.sp else 13.sp,
                       fontWeight = FontWeight.Medium,
                       fontFamily = fontFamilyForText(trans),

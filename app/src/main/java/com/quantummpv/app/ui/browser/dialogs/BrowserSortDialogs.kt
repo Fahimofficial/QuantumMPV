@@ -449,7 +449,7 @@ fun VideoSortDialog(
       }
     },
     viewModeSelector =
-      if (enableViewModeOptions)
+      if (enableViewModeOptions) {
         MultiViewModeSelector(
           label = "View Mode",
           options =
@@ -474,9 +474,11 @@ fun VideoSortDialog(
               ),
             ),
         )
-      else null,
+      } else {
+        null
+      },
     layoutModeSelector =
-      if (enableLayoutModeOptions)
+      if (enableLayoutModeOptions) {
         ViewModeSelector(
           label = "Layout",
           firstOptionLabel = "List",
@@ -509,7 +511,9 @@ fun VideoSortDialog(
               null
             },
         )
-      else null,
+      } else {
+        null
+      },
     visibilityToggles =
       buildList {
         add(
@@ -1124,7 +1128,8 @@ fun MusicSortDialog(
       when (type) {
         MusicSortField.TITLE.displayName,
         MusicSortField.ARTIST.displayName,
-        MusicSortField.ALBUM.displayName -> Pair("A-Z", "Z-A")
+        MusicSortField.ALBUM.displayName,
+        -> Pair("A-Z", "Z-A")
         MusicSortField.DURATION.displayName -> Pair("Shortest", "Longest")
         MusicSortField.DATE_ADDED.displayName -> Pair("Oldest", "Newest")
         else -> Pair("Asc", "Desc")
@@ -1247,4 +1252,3 @@ fun JellyfinSortDialog(
     showSortOptions = true,
   )
 }
-

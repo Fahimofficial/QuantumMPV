@@ -9,12 +9,12 @@
 
 package com.quantummpv.app.ui.player.controls.components
 
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.spring
 import androidx.compose.foundation.border
 import androidx.compose.foundation.focusGroup
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.animation.core.animateFloatAsState
-import androidx.compose.animation.core.spring
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -53,8 +53,7 @@ fun Modifier.tvFocusHighlight(
       .graphicsLayer {
         scaleX = scale
         scaleY = scale
-      }
-      .then(
+      }.then(
         if (focused) {
           Modifier.border(3.dp, MaterialTheme.colorScheme.primary, shape)
         } else {

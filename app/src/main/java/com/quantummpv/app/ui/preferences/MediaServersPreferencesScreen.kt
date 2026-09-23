@@ -67,10 +67,10 @@ import com.quantummpv.app.ui.browser.navidrome.AddNavidromeServerDialog
 import com.quantummpv.app.ui.browser.navidrome.NavidromeViewModel
 import com.quantummpv.app.ui.icons.Icon
 import com.quantummpv.app.ui.icons.Icons
+import com.quantummpv.app.ui.preferences.components.SwitchPreference
 import com.quantummpv.app.ui.utils.LocalBackStack
 import com.quantummpv.app.ui.utils.LocalShowSettingsBackArrow
 import com.quantummpv.app.ui.utils.popSafely
-import com.quantummpv.app.ui.preferences.components.SwitchPreference
 import kotlinx.serialization.Serializable
 import me.zhanghai.compose.preference.Preference
 import me.zhanghai.compose.preference.ProvidePreferenceLocals
@@ -78,7 +78,6 @@ import org.koin.compose.koinInject
 
 @Serializable
 object MediaServersPreferencesScreen : Screen {
-
   @OptIn(ExperimentalMaterial3Api::class)
   @Composable
   override fun Content() {
@@ -806,12 +805,15 @@ private fun JellyfinServerAvatar(
   isActive: Boolean,
   modifier: Modifier = Modifier,
 ) {
-  val avatarUrl = remember(server.serverUrl, server.userId, server.accessToken) {
-    if (server.serverUrl.isNotBlank() && server.userId.isNotBlank()) {
-      val tokenParam = if (server.accessToken.isNotBlank()) "&api_key=${server.accessToken}" else ""
-      "${server.serverUrl.trimEnd('/')}/Users/${server.userId}/Images/Primary?maxWidth=120&quality=80$tokenParam"
-    } else null
-  }
+  val avatarUrl =
+    remember(server.serverUrl, server.userId, server.accessToken) {
+      if (server.serverUrl.isNotBlank() && server.userId.isNotBlank()) {
+        val tokenParam = if (server.accessToken.isNotBlank()) "&api_key=${server.accessToken}" else ""
+        "${server.serverUrl.trimEnd('/')}/Users/${server.userId}/Images/Primary?maxWidth=120&quality=80$tokenParam"
+      } else {
+        null
+      }
+    }
 
   Surface(
     shape = CircleShape,
@@ -827,7 +829,11 @@ private fun JellyfinServerAvatar(
       modifier = Modifier.fillMaxSize(),
       contentAlignment = Alignment.Center,
     ) {
-      val initial = server.username.trim().take(1).uppercase()
+      val initial =
+        server.username
+          .trim()
+          .take(1)
+          .uppercase()
       if (initial.isNotBlank()) {
         Text(
           text = initial,
@@ -873,14 +879,15 @@ private fun SeerrServerAvatar(
   modifier: Modifier = Modifier,
 ) {
   val rawAvatar = currentUser?.avatar
-  val avatarUrl = remember(rawAvatar, serverUrl) {
-    when {
-      rawAvatar.isNullOrBlank() -> null
-      rawAvatar.startsWith("http") -> rawAvatar
-      serverUrl.isNotBlank() -> "${serverUrl.trimEnd('/')}/${rawAvatar.trimStart('/')}"
-      else -> null
+  val avatarUrl =
+    remember(rawAvatar, serverUrl) {
+      when {
+        rawAvatar.isNullOrBlank() -> null
+        rawAvatar.startsWith("http") -> rawAvatar
+        serverUrl.isNotBlank() -> "${serverUrl.trimEnd('/')}/${rawAvatar.trimStart('/')}"
+        else -> null
+      }
     }
-  }
 
   Surface(
     shape = CircleShape,

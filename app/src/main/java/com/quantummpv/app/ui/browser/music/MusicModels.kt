@@ -8,12 +8,15 @@ import android.net.Uri
 import androidx.compose.runtime.Immutable
 
 @Immutable
-enum class MusicTab(val title: String) {
+enum class MusicTab(
+  val title: String,
+) {
   SONGS("Songs"),
   ALBUMS("Albums"),
   ARTISTS("Artists"),
   PLAYLISTS("Playlists"),
-  FOLDERS("Folders");
+  FOLDERS("Folders"),
+  ;
 
   companion object {
     val defaultTabs = entries.toList()
@@ -34,7 +37,7 @@ data class MusicSong(
   val trackNumber: Int = 0,
   val year: Int = 0,
   val albumArtUri: Uri? = null,
-  val size: Long = 0L
+  val size: Long = 0L,
 )
 
 @Immutable
@@ -44,7 +47,7 @@ data class MusicAlbum(
   val artist: String,
   val songCount: Int,
   val year: Int = 0,
-  val albumArtUri: Uri? = null
+  val albumArtUri: Uri? = null,
 )
 
 @Immutable
@@ -52,28 +55,30 @@ data class MusicArtist(
   val id: Long,
   val name: String,
   val songCount: Int,
-  val albumCount: Int = 0
+  val albumCount: Int = 0,
 )
 
 @Immutable
-enum class MusicSortField(val displayName: String) {
+enum class MusicSortField(
+  val displayName: String,
+) {
   TITLE("Title"),
   ARTIST("Artist"),
   ALBUM("Album"),
   DURATION("Duration"),
   DATE_ADDED("Date Added"),
   TRACK_COUNT("Track Count"),
-  YEAR("Year")
+  YEAR("Year"),
 }
 
 @Immutable
 enum class MusicSortOrder {
   ASCENDING,
-  DESCENDING
+  DESCENDING,
 }
 
 @Immutable
 enum class MusicViewMode {
   LIST,
-  GRID
+  GRID,
 }

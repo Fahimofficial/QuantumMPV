@@ -14,30 +14,18 @@ package com.quantummpv.app.ui.browser.medialibrary
 import android.content.Intent
 import android.os.Environment
 import android.widget.Toast
-import com.quantummpv.app.ui.utils.NavigationBackHandler as BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.tween
-import androidx.compose.animation.fadeIn
-import androidx.compose.animation.fadeOut
 import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutVertically
-import androidx.compose.foundation.background
-import androidx.compose.foundation.gestures.detectTapGestures
-import com.quantummpv.app.ui.browser.fab.FabScrollHelper
-import com.quantummpv.app.ui.components.InlineSearchBar
-import com.quantummpv.app.ui.components.themedSegmentedButtonColors
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.systemBars
-import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
-import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.FloatingActionButtonMenu
 import androidx.compose.material3.FloatingActionButtonMenuItem
 import androidx.compose.material3.Icon
@@ -71,12 +59,10 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
-import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
-import androidx.compose.ui.unit.dp
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.unit.dp
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.viewmodel.compose.viewModel
@@ -88,8 +74,8 @@ import com.quantummpv.app.preferences.MediaLibraryType
 import com.quantummpv.app.preferences.PlayerPreferences
 import com.quantummpv.app.preferences.SecureFolderPreferences
 import com.quantummpv.app.preferences.preference.collectAsState
-import com.quantummpv.app.ui.browser.MainScreen
 import com.quantummpv.app.ui.browser.LocalNavigationBarHeight
+import com.quantummpv.app.ui.browser.MainScreen
 import com.quantummpv.app.ui.browser.NavigationBarState
 import com.quantummpv.app.ui.browser.components.BrowserBottomBar
 import com.quantummpv.app.ui.browser.components.BrowserTopBar
@@ -100,17 +86,20 @@ import com.quantummpv.app.ui.browser.dialogs.FolderPickerDialog
 import com.quantummpv.app.ui.browser.dialogs.RenameDialog
 import com.quantummpv.app.ui.browser.dialogs.VideoCompressorOverlay
 import com.quantummpv.app.ui.browser.dialogs.VideoSortDialog
+import com.quantummpv.app.ui.browser.fab.FabScrollHelper
 import com.quantummpv.app.ui.browser.playlist.ALL_VIDEOS_PLAYLIST_ID
 import com.quantummpv.app.ui.browser.selection.rememberSelectionManager
 import com.quantummpv.app.ui.browser.states.EmptyState
 import com.quantummpv.app.ui.browser.videolist.VideoListContent
 import com.quantummpv.app.ui.browser.videolist.VideoWithPlaybackInfo
+import com.quantummpv.app.ui.components.InlineSearchBar
+import com.quantummpv.app.ui.components.themedSegmentedButtonColors
 import com.quantummpv.app.ui.icons.Icon
 import com.quantummpv.app.ui.icons.Icons
 import com.quantummpv.app.ui.player.PlaybackIdentity
 import com.quantummpv.app.ui.player.PlaybackItem
-import com.quantummpv.app.ui.player.PreparedPlaybackLaunchStore
 import com.quantummpv.app.ui.player.PlayerActivity
+import com.quantummpv.app.ui.player.PreparedPlaybackLaunchStore
 import com.quantummpv.app.ui.securefolder.SecureFolderGateScreen
 import com.quantummpv.app.ui.utils.LocalBackStack
 import com.quantummpv.app.ui.utils.navigateTo
@@ -122,6 +111,7 @@ import com.quantummpv.app.utils.sort.SortUtils
 import kotlinx.coroutines.launch
 import org.koin.compose.koinInject
 import java.io.File
+import com.quantummpv.app.ui.utils.NavigationBackHandler as BackHandler
 
 @OptIn(ExperimentalMaterial3ExpressiveApi::class)
 @Composable
@@ -151,7 +141,14 @@ fun MediaLibraryContent(forceAudio: Boolean = false) {
   val includeAudioBrowser by browserPreferences.includeAudioBrowser.collectAsState()
   val savedMediaType by browserPreferences.mediaLibraryType.collectAsState()
   val playlistMode by playerPreferences.playlistMode.collectAsState()
-  val mediaType = if (forceAudio) MediaLibraryType.Audio else if (includeAudioBrowser) savedMediaType else MediaLibraryType.Video
+  val mediaType =
+    if (forceAudio) {
+      MediaLibraryType.Audio
+    } else if (includeAudioBrowser) {
+      savedMediaType
+    } else {
+      MediaLibraryType.Video
+    }
   val sortedVideos =
     remember(videos, videoSortType, videoSortOrder) {
       SortUtils.sortVideos(videos, videoSortType, videoSortOrder)
@@ -334,19 +331,21 @@ fun MediaLibraryContent(forceAudio: Boolean = false) {
     val index = playlistVideos.indexOfFirst { it.path == video.path }.coerceAtLeast(0)
     lastPlayRequestIndex.intValue = index
 
-    val queueItems = playlistVideos.map { item ->
-      PlaybackItem.fromUri(
-        uri = item.uri.toString(),
-        stableId = PlaybackIdentity.forLocalPath(item.path),
-        title = item.displayName,
-        mimeType = item.mimeType,
+    val queueItems =
+      playlistVideos.map { item ->
+        PlaybackItem.fromUri(
+          uri = item.uri.toString(),
+          stableId = PlaybackIdentity.forLocalPath(item.path),
+          title = item.displayName,
+          mimeType = item.mimeType,
+        )
+      }
+    val launchToken =
+      PreparedPlaybackLaunchStore.stage(
+        items = queueItems,
+        currentIndex = index,
+        isExplicitQueue = true,
       )
-    }
-    val launchToken = PreparedPlaybackLaunchStore.stage(
-      items = queueItems,
-      currentIndex = index,
-      isExplicitQueue = true,
-    )
 
     val intent =
       android.content.Intent(android.content.Intent.ACTION_VIEW, video.uri).apply {
@@ -366,7 +365,10 @@ fun MediaLibraryContent(forceAudio: Boolean = false) {
     context.startActivity(intent)
   }
 
-  BackHandler(enabled = selectionManager.isInSelectionMode || isSearching || (isFabExpanded.value && !quickPlayFabDirect)) {
+  BackHandler(
+    enabled =
+      selectionManager.isInSelectionMode || isSearching || (isFabExpanded.value && !quickPlayFabDirect),
+  ) {
     when {
       isFabExpanded.value && !quickPlayFabDirect -> isFabExpanded.value = false
       selectionManager.isInSelectionMode -> selectionManager.clear()
@@ -445,7 +447,8 @@ fun MediaLibraryContent(forceAudio: Boolean = false) {
         BrowserTopBar(
           title =
             if (forceAudio) {
-              androidx.compose.ui.res.stringResource(com.quantummpv.app.R.string.ui_music)
+              androidx.compose.ui.res
+                .stringResource(com.quantummpv.app.R.string.ui_music)
             } else {
               androidx.compose.ui.res
                 .stringResource(com.quantummpv.app.R.string.pref_media_library_section)
@@ -517,7 +520,8 @@ fun MediaLibraryContent(forceAudio: Boolean = false) {
             tooltip = {
               PlainTooltip {
                 Text(
-                  androidx.compose.ui.res.stringResource(com.quantummpv.app.R.string.ui_toggle_menu),
+                  androidx.compose.ui.res
+                    .stringResource(com.quantummpv.app.R.string.ui_toggle_menu),
                 )
               }
             },
@@ -530,86 +534,95 @@ fun MediaLibraryContent(forceAudio: Boolean = false) {
                   alignment = Alignment.BottomEnd,
                 ),
               checked = isFabExpanded.value && !quickPlayFabDirect,
-                onCheckedChange = {
-                  if (quickPlayFabDirect) {
-                    coroutineScope.launch {
-                      val recentlyPlayedVideos = RecentlyPlayedOps.getRecentlyPlayed(limit = 1)
-                      val lastPlayed = recentlyPlayedVideos.firstOrNull()
-                      val targetVideo =
-                        if (lastPlayed != null) {
-                          filteredVideosWithInfo.firstOrNull { it.video.path == lastPlayed.filePath }?.video
-                        } else {
-                          null
-                        }
+              onCheckedChange = {
+                if (quickPlayFabDirect) {
+                  coroutineScope.launch {
+                    val recentlyPlayedVideos = RecentlyPlayedOps.getRecentlyPlayed(limit = 1)
+                    val lastPlayed = recentlyPlayedVideos.firstOrNull()
+                    val targetVideo =
+                      if (lastPlayed != null) {
+                        filteredVideosWithInfo.firstOrNull { it.video.path == lastPlayed.filePath }?.video
+                      } else {
+                        null
+                      }
 
-                      playFromMediaLibrary(targetVideo ?: filteredVideosWithInfo.first().video)
-                    }
+                    playFromMediaLibrary(targetVideo ?: filteredVideosWithInfo.first().video)
+                  }
+                } else {
+                  isFabExpanded.value = !isFabExpanded.value
+                }
+              },
+            ) {
+              val imageVector by remember {
+                derivedStateOf {
+                  if (checkedProgress > 0.5f &&
+                    !quickPlayFabDirect
+                  ) {
+                    Icons.RoundedFilled.Close
                   } else {
-                    isFabExpanded.value = !isFabExpanded.value
-                  }
-                },
-              ) {
-                val imageVector by remember {
-                  derivedStateOf {
-                    if (checkedProgress > 0.5f && !quickPlayFabDirect) Icons.RoundedFilled.Close else Icons.RoundedFilled.PlayArrow
+                    Icons.RoundedFilled.PlayArrow
                   }
                 }
-                Icon(
-                  imageVector = imageVector,
-                  contentDescription = null,
-                  modifier = Modifier.animateIcon({ if (quickPlayFabDirect) 0f else checkedProgress }),
-                )
               }
+              Icon(
+                imageVector = imageVector,
+                contentDescription = null,
+                modifier = Modifier.animateIcon({ if (quickPlayFabDirect) 0f else checkedProgress }),
+              )
             }
-          },
-        ) {
-          if (!quickPlayFabDirect) {
-            FloatingActionButtonMenuItem(
-              onClick = {
-                isFabExpanded.value = false
-                filePicker.launch(arrayOf(if (mediaType == MediaLibraryType.Audio) "audio/*" else "video/*"))
-              },
-              icon = { Icon(Icons.RoundedFilled.FileOpen, contentDescription = null) },
-              text = {
-                Text(
-                  text =
-                    androidx.compose.ui.res.stringResource(com.quantummpv.app.R.string.ui_open_file),
-                )
-              },
-            )
-
-            FloatingActionButtonMenuItem(
-              onClick = {
-                isFabExpanded.value = false
-                coroutineScope.launch {
-                  val recentlyPlayedVideos = RecentlyPlayedOps.getRecentlyPlayed(limit = 1)
-                  val lastPlayed = recentlyPlayedVideos.firstOrNull()
-                  val targetVideo =
-                    if (lastPlayed != null) {
-                      filteredVideosWithInfo.firstOrNull { it.video.path == lastPlayed.filePath }?.video
-                    } else {
-                      null
-                    }
-
-                  playFromMediaLibrary(targetVideo ?: filteredVideosWithInfo.first().video)
-                }
-              },
-              icon = { Icon(Icons.RoundedFilled.PlayArrow, contentDescription = null) },
-              text = {
-                Text(
-                  text =
-                    if (mediaType == MediaLibraryType.Audio) {
-                      androidx.compose.ui.res.stringResource(com.quantummpv.app.R.string.ui_play_recent_or_first_audio)
-                    } else {
-                      androidx.compose.ui.res.stringResource(com.quantummpv.app.R.string.ui_play_recent_or_first_video)
-                    },
-                )
-              },
-            )
           }
+        },
+      ) {
+        if (!quickPlayFabDirect) {
+          FloatingActionButtonMenuItem(
+            onClick = {
+              isFabExpanded.value = false
+              filePicker.launch(arrayOf(if (mediaType == MediaLibraryType.Audio) "audio/*" else "video/*"))
+            },
+            icon = { Icon(Icons.RoundedFilled.FileOpen, contentDescription = null) },
+            text = {
+              Text(
+                text =
+                  androidx.compose.ui.res
+                    .stringResource(com.quantummpv.app.R.string.ui_open_file),
+              )
+            },
+          )
+
+          FloatingActionButtonMenuItem(
+            onClick = {
+              isFabExpanded.value = false
+              coroutineScope.launch {
+                val recentlyPlayedVideos = RecentlyPlayedOps.getRecentlyPlayed(limit = 1)
+                val lastPlayed = recentlyPlayedVideos.firstOrNull()
+                val targetVideo =
+                  if (lastPlayed != null) {
+                    filteredVideosWithInfo.firstOrNull { it.video.path == lastPlayed.filePath }?.video
+                  } else {
+                    null
+                  }
+
+                playFromMediaLibrary(targetVideo ?: filteredVideosWithInfo.first().video)
+              }
+            },
+            icon = { Icon(Icons.RoundedFilled.PlayArrow, contentDescription = null) },
+            text = {
+              Text(
+                text =
+                  if (mediaType == MediaLibraryType.Audio) {
+                    androidx.compose.ui.res
+                      .stringResource(com.quantummpv.app.R.string.ui_play_recent_or_first_audio)
+                  } else {
+                    androidx.compose.ui.res
+                      .stringResource(com.quantummpv.app.R.string.ui_play_recent_or_first_video)
+                  },
+              )
+            },
+          )
         }
-      },
-    ) { padding ->
+      }
+    },
+  ) { padding ->
     val autoScrollToLastPlayed by browserPreferences.autoScrollToLastPlayed.collectAsState()
     val videosWereDeletedOrMoved = false
 
@@ -742,7 +755,11 @@ fun MediaLibraryContent(forceAudio: Boolean = false) {
           onAddToPlaylistClick = { addToPlaylistDialogOpen.value = true },
           showCopy = true,
           showMove = true,
-          showDownscale = selectionManager.getSelectedItems().let { items -> items.isNotEmpty() && items.none { it.isAudio } },
+          showDownscale =
+            selectionManager.getSelectedItems().let { items ->
+              items.isNotEmpty() &&
+                items.none { it.isAudio }
+            },
           showRename = selectionManager.selectedCount > 0,
           modifier =
             Modifier.padding(
@@ -813,7 +830,8 @@ fun MediaLibraryContent(forceAudio: Boolean = false) {
 
     swipeRenameVideo?.let { video ->
       val extension =
-        video.displayName.substringAfterLast('.', "")
+        video.displayName
+          .substringAfterLast('.', "")
           .takeIf { it.isNotBlank() }
           ?.let { ".$it" }
       RenameDialog(

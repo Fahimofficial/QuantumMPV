@@ -68,9 +68,9 @@ import com.quantummpv.app.preferences.getPlayerButtonLabel
 import com.quantummpv.app.ui.icons.Icon
 import com.quantummpv.app.ui.icons.Icons
 import com.quantummpv.app.ui.player.controls.components.LocalHidePlayerButtonsBackground
+import com.quantummpv.app.ui.player.controls.components.panels.DraggablePanel
 import com.quantummpv.app.ui.player.controls.components.tvFocusGroup
 import com.quantummpv.app.ui.player.controls.components.tvFocusHighlight
-import com.quantummpv.app.ui.player.controls.components.panels.DraggablePanel
 import com.quantummpv.app.ui.theme.controlColor
 import com.quantummpv.app.ui.theme.spacing
 

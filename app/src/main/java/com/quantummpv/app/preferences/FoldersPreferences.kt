@@ -14,7 +14,7 @@ import com.quantummpv.app.preferences.preference.PreferenceStore
 enum class BlacklistScope {
   BOTH,
   VIDEO_ONLY,
-  AUDIO_ONLY
+  AUDIO_ONLY,
 }
 
 /**
@@ -28,6 +28,7 @@ class FoldersPreferences(
 
   // Set of folder paths that should be hidden from the video folder list
   val blacklistedFolders = preferenceStore.getStringSet("blacklisted_folders", emptySet())
+
   // Set of folder paths that should be hidden from the audio/music library
   val blacklistedAudioFolders = preferenceStore.getStringSet("blacklisted_audio_folders", emptySet())
   val pinnedFolders = preferenceStore.getStringSet("pinned_folders", emptySet())
@@ -35,7 +36,10 @@ class FoldersPreferences(
   val hiddenFolderMarkerNames =
     preferenceStore.getStringSet("hidden_folder_marker_names", setOf(".nomedia"))
 
-  fun addBlacklistedFolders(paths: Set<String>, scope: BlacklistScope) {
+  fun addBlacklistedFolders(
+    paths: Set<String>,
+    scope: BlacklistScope,
+  ) {
     val currentVideo = blacklistedFolders.get().toMutableSet()
     val currentAudio = blacklistedAudioFolders.get().toMutableSet()
     when (scope) {

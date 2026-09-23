@@ -132,8 +132,11 @@ object RecentlyPlayedOps {
     repository
       .observeLastPlayed()
       .mapLatest { _ ->
-        if (!preferences.enableRecentlyPlayed.get()) null
-        else getLastPlayedEntity()
+        if (!preferences.enableRecentlyPlayed.get()) {
+          null
+        } else {
+          getLastPlayedEntity()
+        }
       }.distinctUntilChanged()
       .flowOn(Dispatchers.IO)
 
@@ -154,7 +157,9 @@ object RecentlyPlayedOps {
       .flowOn(Dispatchers.IO)
 
   suspend fun onVideoDeleted(filePath: String) {
-    if (filePath.isBlank()) return
+    if (filePath.isBlank()) {
+      return
+    }
     withContext(Dispatchers.IO) {
       kotlin.runCatching { repository.deleteByFilePath(filePath) }
     }

@@ -93,8 +93,8 @@ object YtdlpManager {
         HttpUtils.directMediaExtensions
           .flatMap { extension ->
             listOf(
-              "^[^?#]+%.${extension}$",
-              "^[^?#]+%.${extension}[?#]",
+              "^[^?#]+%.$extension$",
+              "^[^?#]+%.$extension[?#]",
             )
           }
     ).joinToString("|")
@@ -152,7 +152,11 @@ object YtdlpManager {
         .build()
         .toString()
     }
-    return uri.buildUpon().fragment(null).build().toString()
+    return uri
+      .buildUpon()
+      .fragment(null)
+      .build()
+      .toString()
   }
 
   fun playPlaylist(
@@ -215,8 +219,10 @@ object YtdlpManager {
               add("--playlist-end")
               add(MAX_IMPORTED_PLAYLIST_ENTRIES.toString())
 
-              (userAgentOverride?.takeIf(String::isNotBlank)
-                ?: preferences.customUserAgent.get().takeIf(String::isNotBlank))?.let { userAgent ->
+              (
+                userAgentOverride?.takeIf(String::isNotBlank)
+                  ?: preferences.customUserAgent.get().takeIf(String::isNotBlank)
+              )?.let { userAgent ->
                 add("--user-agent")
                 add(userAgent)
               }
@@ -235,7 +241,9 @@ object YtdlpManager {
               if (preferences.geoBypass.get()) add("--geo-bypass")
 
               val cookiesFile =
-                preferences.cookiesFile.get().takeIf(String::isNotBlank)
+                preferences.cookiesFile
+                  .get()
+                  .takeIf(String::isNotBlank)
                   ?.let(::File)
                   ?.takeIf(File::isFile)
                   ?: AndroidCookieJar.playbackCookieFile(context).takeIf(File::isFile)
@@ -316,7 +324,8 @@ object YtdlpManager {
           "https://i.ytimg.com/vi/$id/hqdefault.jpg"
         } else {
           item.optionalString("thumbnail")
-            ?: item.optJSONArray("thumbnails")
+            ?: item
+              .optJSONArray("thumbnails")
               ?.let { thumbnails ->
                 (thumbnails.length() - 1 downTo 0)
                   .asSequence()
@@ -735,8 +744,7 @@ object YtdlpManager {
     }
   }
 
-  private fun File.readTextOrNull(): String? =
-    runCatching { takeIf(File::isFile)?.readText()?.trim() }.getOrNull()
+  private fun File.readTextOrNull(): String? = runCatching { takeIf(File::isFile)?.readText()?.trim() }.getOrNull()
 
   private fun installYtdlp(
     context: Context,
@@ -767,8 +775,8 @@ object YtdlpManager {
     command: List<String>,
     context: Context,
     onOutput: (String) -> Unit,
-  ): Boolean {
-    return try {
+  ): Boolean =
+    try {
       val process = startPythonProcess(command, context)
 
       BufferedReader(InputStreamReader(process.inputStream)).use { reader ->
@@ -779,7 +787,6 @@ object YtdlpManager {
       onOutput("Error: ${e.message}")
       false
     }
-  }
 
   private suspend fun executePlaylistExtractionProcess(
     command: List<String>,

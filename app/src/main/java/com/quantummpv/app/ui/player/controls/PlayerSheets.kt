@@ -41,8 +41,8 @@ import com.quantummpv.app.ui.player.controls.components.sheets.PlaybackSpeedShee
 import com.quantummpv.app.ui.player.controls.components.sheets.PlaylistSheet
 import com.quantummpv.app.ui.player.controls.components.sheets.ScopesSheet
 import com.quantummpv.app.ui.player.controls.components.sheets.SubtitlesSheet
-import com.quantummpv.app.ui.player.controls.components.sheets.VideoZoomSheet
 import com.quantummpv.app.ui.player.controls.components.sheets.VideoQualitySheet
+import com.quantummpv.app.ui.player.controls.components.sheets.VideoZoomSheet
 import com.quantummpv.app.ui.player.controls.components.sheets.VisualizerStyleSheet
 import com.quantummpv.app.ui.player.setTrackSelectionId
 import com.quantummpv.app.utils.device.DeviceFormFactor
@@ -262,7 +262,8 @@ fun PlayerSheets(
         isOnlineSectionExpanded = isOnlineSectionExpanded,
         onToggleOnlineSection = { viewModel.toggleOnlineSection() },
         mediaTitle = viewModel.currentMediaTitle,
-        showWyzieSelection = subtitleSearchMode != com.quantummpv.app.repository.subtitle.OnlineSubtitleSearchMode.SUBHUB,
+        showWyzieSelection =
+          subtitleSearchMode != com.quantummpv.app.repository.subtitle.OnlineSubtitleSearchMode.SUBHUB,
         // Autocomplete & Series Selection
         mediaSearchResults = mediaResults.toImmutableList(),
         isSearchingMedia = isSearchingMedia,
@@ -306,19 +307,58 @@ fun PlayerSheets(
         remember {
           listOf(
             // Common compressed audio
-            "mp3", "m4a", "aac", "ogg", "oga", "opus", "wma",
+            "mp3",
+            "m4a",
+            "aac",
+            "ogg",
+            "oga",
+            "opus",
+            "wma",
             // Lossless audio
-            "flac", "alac", "wav", "wave", "ape", "tta", "tak", "aif", "aiff", "aifc",
+            "flac",
+            "alac",
+            "wav",
+            "wave",
+            "ape",
+            "tta",
+            "tak",
+            "aif",
+            "aiff",
+            "aifc",
             // Multichannel & surround / cinema formats
-            "ac3", "eac3", "dts", "dtshd", "dts-hd", "thd", "truehd", "mlp",
+            "ac3",
+            "eac3",
+            "dts",
+            "dtshd",
+            "dts-hd",
+            "thd",
+            "truehd",
+            "mlp",
             // Audio containers & video files with audio
-            "mka", "mkv", "mp4", "webm", "caf", "weba",
+            "mka",
+            "mkv",
+            "mp4",
+            "webm",
+            "caf",
+            "weba",
             // Voice / telephony
-            "amr", "awb", "spx", "3ga",
+            "amr",
+            "awb",
+            "spx",
+            "3ga",
             // High-resolution DSD
-            "dsf", "dff",
+            "dsf",
+            "dff",
             // Legacy / Tracker / Misc
-            "au", "snd", "ra", "mp1", "mp2", "mpa", "mpc", "mid", "midi",
+            "au",
+            "snd",
+            "ra",
+            "mp1",
+            "mp2",
+            "mpa",
+            "mpc",
+            "mid",
+            "midi",
           )
         }
 

@@ -67,17 +67,16 @@ import androidx.compose.ui.platform.ViewCompositionStrategy
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
-import androidx.compose.ui.text.style.TextAlign
-import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.core.view.ViewCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.findViewTreeViewModelStoreOwner
 import com.quantummpv.app.R
-import com.quantummpv.app.ui.icons.Icon as AppIcon
 import com.quantummpv.app.ui.icons.Icons
 import com.quantummpv.app.ui.player.Panels
 import com.quantummpv.app.ui.player.PlaybackSession
@@ -93,6 +92,7 @@ import kotlin.math.floor
 import kotlin.math.min
 import kotlin.math.roundToInt
 import kotlin.math.roundToLong
+import com.quantummpv.app.ui.icons.Icon as AppIcon
 
 private const val MIN_CLIP_SECONDS = 0.05
 
@@ -115,510 +115,517 @@ private data class ClipPanelState(
  * The editor is rendered by the shared player panel system. This overlay contains only UI that must
  * sit directly over the video, and outside crop mode it does not consume input.
  */
-class ClipOverlayView @JvmOverloads constructor(
-  context: Context,
-  attrs: AttributeSet? = null,
-) : FrameLayout(context, attrs) {
-  private data class ClipDraft(
-    val itemId: String,
-    var startSeconds: Double,
-    var endSeconds: Double? = null,
-    var crop: ClipCrop? = null,
-  )
-
-  private var panelState by mutableStateOf(ClipPanelState())
-
-  private var draft: ClipDraft? = null
-  private var cropView: CropSelectionView? = null
-  private var cropControls: ComposeView? = null
-  private var pausedBeforeCrop = true
-  private var lastTerminalState: ClipExportState? = null
-  private var bottomInset = 0
-
-  private val pollState =
-    object : Runnable {
-      override fun run() {
-        clearDraftIfMediaChanged()
-        updateExportState()
-        postDelayed(this, STATE_POLL_MS)
-      }
-    }
-
-  init {
-    isClickable = false
-    isFocusable = false
-    clipChildren = false
-    clipToPadding = false
-
-    ViewCompat.setOnApplyWindowInsetsListener(this) { _, insets ->
-      bottomInset = insets.getInsets(WindowInsetsCompat.Type.systemBars()).bottom
-      updateOverlayMargins()
-      insets
-    }
-  }
-
-  override fun onAttachedToWindow() {
-    super.onAttachedToWindow()
-    removeCallbacks(pollState)
-    post(pollState)
-  }
-
-  override fun onDetachedFromWindow() {
-    removeCallbacks(pollState)
-    if (cropView != null) exitCropMode(keepSelection = false)
-    dismissClipPanel()
-    draft = null
-    ClipEditorUiState.clear()
-    panelState = ClipPanelState()
-    super.onDetachedFromWindow()
-  }
-
-  override fun onSizeChanged(
-    w: Int,
-    h: Int,
-    oldw: Int,
-    oldh: Int,
-  ) {
-    super.onSizeChanged(w, h, oldw, oldh)
-    updateOverlayMargins()
-  }
-
-  override fun onTouchEvent(event: MotionEvent): Boolean =
-    if (cropView != null) true else super.onTouchEvent(event)
-
-  fun openClip(): Boolean = beginClip()
-
-  @Composable
-  internal fun EditorPanel(onDismissRequest: () -> Unit) {
-    if (panelState.cropActive) return
-
-    ClipEditorPanel(
-      state = panelState,
-      onRangeChange = ::updateClipRange,
-      onStartTimeChange = ::updateClipStart,
-      onEndTimeChange = ::updateClipEnd,
-      onMarkStart = ::markClipStart,
-      onMarkEnd = ::markClipEnd,
-      onCrop = ::enterCropMode,
-      onCancel = {
-        if (cancelOrClose()) onDismissRequest()
-      },
-      onSave = ::saveOrCancelExport,
+class ClipOverlayView
+  @JvmOverloads
+  constructor(
+    context: Context,
+    attrs: AttributeSet? = null,
+  ) : FrameLayout(context, attrs) {
+    private data class ClipDraft(
+      val itemId: String,
+      var startSeconds: Double,
+      var endSeconds: Double? = null,
+      var crop: ClipCrop? = null,
     )
-  }
 
-  private fun playerViewModel(): PlayerViewModel? {
-    val owner = findViewTreeViewModelStoreOwner() ?: return null
-    return ViewModelProvider(owner)[PlayerViewModel::class.java]
-  }
+    private var panelState by mutableStateOf(ClipPanelState())
 
-  private fun beginClip(): Boolean {
-    if (PlaybackSession.state.value.currentItem == null) {
-      toast(R.string.clip_video_unavailable)
-      return false
-    }
+    private var draft: ClipDraft? = null
+    private var cropView: CropSelectionView? = null
+    private var cropControls: ComposeView? = null
+    private var pausedBeforeCrop = true
+    private var lastTerminalState: ClipExportState? = null
+    private var bottomInset = 0
 
-    if (ClipExportManager.state.value is ClipExportState.Exporting) {
-      updateExportState()
-      return true
-    }
-
-    ensureDraft() ?: return false
-    refreshDraftUi()
-    return true
-  }
-
-  private fun ensureDraft(): ClipDraft? {
-    val itemId = PlaybackSession.state.value.currentItem?.stableId ?: return null
-    draft?.takeIf { it.itemId == itemId }?.let { return it }
-
-    val duration = mediaDurationSeconds()
-    var start = (currentPosition() ?: 0.0).coerceAtLeast(0.0)
-    val end =
-      if (duration > MIN_CLIP_SECONDS) {
-        if (start >= duration - MIN_CLIP_SECONDS) {
-          start = (duration - DEFAULT_CLIP_SECONDS).coerceAtLeast(0.0)
-        }
-        (start + DEFAULT_CLIP_SECONDS).coerceAtMost(duration)
-      } else {
-        start + DEFAULT_CLIP_SECONDS
-      }
-
-    return ClipDraft(
-      itemId = itemId,
-      startSeconds = start,
-      endSeconds = end.coerceAtLeast(start + MIN_CLIP_SECONDS),
-    ).also {
-      draft = it
-      refreshDraftUi()
-    }
-  }
-
-  private fun updateClipRange(
-    start: Float,
-    end: Float,
-    preview: Float,
-  ) {
-    val active = ensureDraft() ?: return
-    val duration = mediaDurationSeconds().takeIf { it > MIN_CLIP_SECONDS }
-    val maxEnd = duration?.toFloat() ?: maxOf(end, start + 0.05f)
-    val safeStart = start.coerceIn(0f, (maxEnd - 0.05f).coerceAtLeast(0f))
-    val safeEnd = end.coerceIn(safeStart + 0.05f, maxEnd)
-    active.startSeconds = safeStart.toDouble()
-    active.endSeconds = safeEnd.toDouble()
-    refreshDraftUi()
-    PlaybackSession.setPropertyDouble(
-      "time-pos",
-      preview.coerceIn(safeStart, safeEnd).toDouble(),
-    )
-    playerViewModel()?.autoHideControls()
-  }
-
-  private fun updateClipStart(seconds: Float) {
-    val end = ensureDraft()?.endSeconds?.toFloat() ?: return
-    updateClipRange(seconds, end, seconds)
-  }
-
-  private fun updateClipEnd(seconds: Float) {
-    val start = ensureDraft()?.startSeconds?.toFloat() ?: return
-    updateClipRange(start, seconds, seconds)
-  }
-
-  private fun markClipStart() {
-    val current = currentPosition() ?: return
-    val active = ensureDraft() ?: return
-    active.startSeconds = current
-    if ((active.endSeconds ?: Double.POSITIVE_INFINITY) <= current + MIN_CLIP_SECONDS) {
-      active.endSeconds = null
-    }
-    refreshDraftUi()
-    playerViewModel()?.autoHideControls()
-  }
-
-  private fun markClipEnd() {
-    val active = ensureDraft() ?: return
-    val current = currentPosition() ?: return
-    if (current <= active.startSeconds + MIN_CLIP_SECONDS) {
-      toast(R.string.clip_invalid_range)
-      return
-    }
-    active.endSeconds = current
-    refreshDraftUi()
-    playerViewModel()?.autoHideControls()
-  }
-
-  private fun saveOrCancelExport() {
-    val exportState = ClipExportManager.state.value
-    if (exportState is ClipExportState.Exporting) {
-      ClipExportManager.cancel()
-      updateExportState()
-      return
-    }
-
-    val active = draft ?: return
-    val end = active.endSeconds
-    val item = PlaybackSession.state.value.currentItem
-    if (item == null || item.stableId != active.itemId) {
-      closeDraft()
-      toast(R.string.clip_video_unavailable)
-      return
-    }
-    if (end == null || end <= active.startSeconds + MIN_CLIP_SECONDS) {
-      toast(R.string.clip_invalid_range)
-      return
-    }
-
-    val accepted =
-      ClipExportManager.export(
-        context,
-        ClipRequest(
-          item = item,
-          startSeconds = active.startSeconds,
-          endSeconds = end,
-          crop = active.crop,
-        ),
-      )
-    if (!accepted) toast(R.string.clip_export_busy)
-    updateExportState()
-  }
-
-  private fun cancelOrClose(): Boolean {
-    if (ClipExportManager.state.value is ClipExportState.Exporting) {
-      ClipExportManager.cancel()
-      updateExportState()
-      return false
-    } else {
-      closeDraft()
-      return true
-    }
-  }
-
-  private fun closeDraft() {
-    if (cropView != null) exitCropMode(keepSelection = false)
-    draft = null
-    ClipEditorUiState.clear()
-    panelState = ClipPanelState()
-  }
-
-  private fun enterCropMode() {
-    if (cropView != null) return
-    val active = ensureDraft() ?: return
-    val sourceWidth = PlaybackSession.getPropertyInt("video-params/w") ?: 0
-    val sourceHeight = PlaybackSession.getPropertyInt("video-params/h") ?: 0
-    if (sourceWidth <= 0 || sourceHeight <= 0) {
-      toast(R.string.clip_video_unavailable)
-      return
-    }
-
-    val rotation = ((PlaybackSession.getPropertyInt("video-params/rotate") ?: 0) % 360 + 360) % 360
-    val outputWidth = PlaybackSession.getPropertyInt("video-out-params/dw") ?: 0
-    val outputHeight = PlaybackSession.getPropertyInt("video-out-params/dh") ?: 0
-
-    playerViewModel()?.hideControls()
-    pausedBeforeCrop = PlaybackSession.getPropertyBoolean("pause") ?: true
-    if (!pausedBeforeCrop) PlaybackSession.setPropertyBoolean("pause", true)
-
-    panelState = panelState.copy(cropActive = true)
-    val selector =
-      CropSelectionView(
-        context = context,
-        sourceWidth = sourceWidth,
-        sourceHeight = sourceHeight,
-        displayWidth = outputWidth,
-        displayHeight = outputHeight,
-        rotation = rotation,
-        initialCrop = active.crop,
-        onSelectionChanged = ::positionCropControls,
-      )
-    cropView = selector
-    addView(selector, LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT))
-
-    val controls = buildCropControls(selector)
-    cropControls = controls
-    addView(
-      controls,
-      LayoutParams(
-        dp(CROP_PILL_WIDTH_DP),
-        dp(CROP_PILL_HEIGHT_DP),
-        Gravity.START or Gravity.TOP,
-      ),
-    )
-    controls.post { positionCropControls(selector.selectionBounds()) }
-  }
-
-  private fun buildCropControls(selector: CropSelectionView): ComposeView =
-    ComposeView(context).apply {
-      isClickable = true
-      setViewCompositionStrategy(ViewCompositionStrategy.DisposeOnDetachedFromWindow)
-      setContent {
-        MpvrxTheme {
-          ClipCropControls(
-            onCancel = { exitCropMode(keepSelection = false) },
-            onDone = {
-              draft?.crop = selector.currentCrop()
-              exitCropMode(keepSelection = true)
-            },
-          )
+    private val pollState =
+      object : Runnable {
+        override fun run() {
+          clearDraftIfMediaChanged()
+          updateExportState()
+          postDelayed(this, STATE_POLL_MS)
         }
       }
-    }
 
-  private fun exitCropMode(keepSelection: Boolean) {
-    val selector = cropView ?: return
-    if (!keepSelection) {
-      // Cancelling crop intentionally keeps the previous crop selection, if one existed.
-    }
-    removeView(selector)
-    cropView = null
-    cropControls?.let { controls ->
-      controls.disposeComposition()
-      removeView(controls)
-    }
-    cropControls = null
-    if (!pausedBeforeCrop) PlaybackSession.setPropertyBoolean("pause", false)
-    panelState = panelState.copy(cropActive = false)
-    refreshDraftUi()
-  }
+    init {
+      isClickable = false
+      isFocusable = false
+      clipChildren = false
+      clipToPadding = false
 
-  private fun updateExportState() {
-    when (val state = ClipExportManager.state.value) {
-      ClipExportState.Idle -> {
-        panelState =
-          panelState.copy(
-            exporting = false,
-            cancelling = false,
-            progress = 0,
-          )
-        lastTerminalState = null
-      }
-      is ClipExportState.Exporting -> {
-        panelState =
-          panelState.copy(
-            exporting = true,
-            cancelling = state.cancelling,
-            progress = (state.progress * 100f).roundToInt().coerceIn(0, 100),
-          )
-      }
-      is ClipExportState.Success -> {
-        if (lastTerminalState !== state) {
-          toast(context.getString(R.string.clip_saved, state.displayName))
-          lastTerminalState = state
-          draft = null
-          ClipEditorUiState.clear()
-          panelState = ClipPanelState(progress = 100)
-          dismissClipPanel()
-          ClipExportManager.consumeTerminalState()
-        }
-      }
-      is ClipExportState.Error -> {
-        if (lastTerminalState !== state) {
-          toast(context.getString(R.string.clip_export_failed, state.message))
-          lastTerminalState = state
-          ClipExportManager.consumeTerminalState()
-          panelState = panelState.copy(exporting = false, cancelling = false)
-          refreshDraftUi()
-        }
+      ViewCompat.setOnApplyWindowInsetsListener(this) { _, insets ->
+        bottomInset = insets.getInsets(WindowInsetsCompat.Type.systemBars()).bottom
+        updateOverlayMargins()
+        insets
       }
     }
-  }
 
-  private fun clearDraftIfMediaChanged() {
-    val active = draft ?: return
-    if (ClipExportManager.state.value is ClipExportState.Exporting) return
-    if (PlaybackSession.state.value.currentItem?.stableId == active.itemId) return
+    override fun onAttachedToWindow() {
+      super.onAttachedToWindow()
+      removeCallbacks(pollState)
+      post(pollState)
+    }
 
-    draft = null
-    if (cropView != null) exitCropMode(keepSelection = false)
-    ClipEditorUiState.clear()
-    panelState = ClipPanelState()
-    dismissClipPanel()
-  }
-
-  private fun dismissClipPanel() {
-    val viewModel = playerViewModel() ?: return
-    if (viewModel.panelShown.value != Panels.Clip) return
-    viewModel.panelShown.value = Panels.None
-    viewModel.showControls()
-  }
-
-  private fun refreshDraftUi() {
-    val active = draft
-    if (active == null) {
+    override fun onDetachedFromWindow() {
+      removeCallbacks(pollState)
+      if (cropView != null) exitCropMode(keepSelection = false)
+      dismissClipPanel()
+      draft = null
       ClipEditorUiState.clear()
-      panelState =
-        panelState.copy(
-          clipDuration = null,
-          startSeconds = 0f,
-          endSeconds = null,
-          durationSeconds = 0f,
-          crop = null,
-          canSave = false,
-        )
-      return
+      panelState = ClipPanelState()
+      super.onDetachedFromWindow()
     }
 
-    val duration = mediaDurationSeconds().toFloat().coerceAtLeast(0f)
-    ClipEditorUiState.publish(active.startSeconds, active.endSeconds)
-    panelState =
-      panelState.copy(
-        clipDuration = active.endSeconds?.let { formatTime((it - active.startSeconds).coerceAtLeast(0.0)) },
-        startSeconds = active.startSeconds.toFloat(),
-        endSeconds = active.endSeconds?.toFloat(),
-        durationSeconds = duration,
-        crop = active.crop,
-        canSave =
-          active.endSeconds?.let { it > active.startSeconds + MIN_CLIP_SECONDS } == true &&
-            ClipExportManager.state.value !is ClipExportState.Exporting,
+    override fun onSizeChanged(
+      w: Int,
+      h: Int,
+      oldw: Int,
+      oldh: Int,
+    ) {
+      super.onSizeChanged(w, h, oldw, oldh)
+      updateOverlayMargins()
+    }
+
+    override fun onTouchEvent(event: MotionEvent): Boolean = if (cropView != null) true else super.onTouchEvent(event)
+
+    fun openClip(): Boolean = beginClip()
+
+    @Composable
+    internal fun EditorPanel(onDismissRequest: () -> Unit) {
+      if (panelState.cropActive) return
+
+      ClipEditorPanel(
+        state = panelState,
+        onRangeChange = ::updateClipRange,
+        onStartTimeChange = ::updateClipStart,
+        onEndTimeChange = ::updateClipEnd,
+        onMarkStart = ::markClipStart,
+        onMarkEnd = ::markClipEnd,
+        onCrop = ::enterCropMode,
+        onCancel = {
+          if (cancelOrClose()) onDismissRequest()
+        },
+        onSave = ::saveOrCancelExport,
       )
-  }
-
-  private fun updateOverlayMargins() {
-    cropView?.selectionBounds()?.let(::positionCropControls)
-  }
-
-  private fun positionCropControls(bounds: RectF) {
-    val controls = cropControls ?: return
-    val pillWidth = dp(CROP_PILL_WIDTH_DP)
-    val pillHeight = dp(CROP_PILL_HEIGHT_DP)
-    val inset = dp(10).toFloat()
-    val handleClearance = dp(38).toFloat()
-    val edgeInset = dp(8).toFloat()
-
-    val desiredX =
-      if (bounds.width() >= pillWidth + handleClearance + inset) {
-        bounds.right - pillWidth - handleClearance
-      } else {
-        bounds.centerX() - pillWidth / 2f
-      }
-    val desiredY =
-      if (bounds.height() >= pillHeight + handleClearance + inset) {
-        bounds.bottom - pillHeight - handleClearance
-      } else {
-        bounds.centerY() - pillHeight / 2f
-      }
-    val maxX = (width - pillWidth).toFloat().minus(edgeInset).coerceAtLeast(edgeInset)
-    val maxY =
-      (height - bottomInset - pillHeight).toFloat().minus(edgeInset).coerceAtLeast(edgeInset)
-    controls.x = desiredX.coerceIn(edgeInset, maxX)
-    controls.y = desiredY.coerceIn(edgeInset, maxY)
-  }
-
-  private fun mediaDurationSeconds(): Double =
-    PlaybackSession.getPropertyDouble("duration")
-      ?: PlaybackSession.getPropertyInt("duration")?.toDouble()
-      ?: 0.0
-
-  private fun currentPosition(): Double? = PlaybackSession.getPropertyDouble("time-pos")
-
-  private fun formatTime(seconds: Double): String {
-    val totalTenths = (seconds.coerceAtLeast(0.0) * 10.0).roundToInt()
-    val hours = totalTenths / 36_000
-    val minutes = (totalTenths / 600) % 60
-    val secs = (totalTenths / 10) % 60
-    val tenths = totalTenths % 10
-    return if (hours > 0) {
-      "%d:%02d:%02d.%d".format(Locale.US, hours, minutes, secs, tenths)
-    } else {
-      "%02d:%02d.%d".format(Locale.US, minutes, secs, tenths)
     }
-  }
 
-  private fun toast(message: String) {
-    Toast.makeText(context, message, Toast.LENGTH_SHORT).show()
-  }
+    private fun playerViewModel(): PlayerViewModel? {
+      val owner = findViewTreeViewModelStoreOwner() ?: return null
+      return ViewModelProvider(owner)[PlayerViewModel::class.java]
+    }
 
-  private fun toast(messageRes: Int) {
-    Toast.makeText(context, messageRes, Toast.LENGTH_SHORT).show()
-  }
+    private fun beginClip(): Boolean {
+      if (PlaybackSession.state.value.currentItem == null) {
+        toast(R.string.clip_video_unavailable)
+        return false
+      }
 
-  private fun dp(value: Int): Int = (value * resources.displayMetrics.density).roundToInt()
+      if (ClipExportManager.state.value is ClipExportState.Exporting) {
+        updateExportState()
+        return true
+      }
 
-  companion object {
-    private const val OVERLAY_TAG = "mpvrx_clip_overlay"
-    private const val STATE_POLL_MS = 250L
-    private const val DEFAULT_CLIP_SECONDS = 10.0
-    private const val CROP_PILL_WIDTH_DP = 97
-    private const val CROP_PILL_HEIGHT_DP = 48
+      ensureDraft() ?: return false
+      refreshDraftUi()
+      return true
+    }
 
-    /** Attaches the Clip editor to the player-owned overlay layer. */
-    internal fun ensureAttached(activity: PlayerActivity): ClipOverlayView {
-      val overlayHost = activity.findViewById<FrameLayout>(R.id.clip_overlay_host)
-      overlayHost.bringToFront()
-      overlayHost.findViewWithTag<ClipOverlayView>(OVERLAY_TAG)?.let { return it }
+    private fun ensureDraft(): ClipDraft? {
+      val itemId =
+        PlaybackSession.state.value.currentItem
+          ?.stableId ?: return null
+      draft?.takeIf { it.itemId == itemId }?.let { return it }
 
-      return ClipOverlayView(activity).also { overlay ->
-        overlay.tag = OVERLAY_TAG
-        overlayHost.addView(
-          overlay,
-          ViewGroup.LayoutParams(
-            ViewGroup.LayoutParams.MATCH_PARENT,
-            ViewGroup.LayoutParams.MATCH_PARENT,
+      val duration = mediaDurationSeconds()
+      var start = (currentPosition() ?: 0.0).coerceAtLeast(0.0)
+      val end =
+        if (duration > MIN_CLIP_SECONDS) {
+          if (start >= duration - MIN_CLIP_SECONDS) {
+            start = (duration - DEFAULT_CLIP_SECONDS).coerceAtLeast(0.0)
+          }
+          (start + DEFAULT_CLIP_SECONDS).coerceAtMost(duration)
+        } else {
+          start + DEFAULT_CLIP_SECONDS
+        }
+
+      return ClipDraft(
+        itemId = itemId,
+        startSeconds = start,
+        endSeconds = end.coerceAtLeast(start + MIN_CLIP_SECONDS),
+      ).also {
+        draft = it
+        refreshDraftUi()
+      }
+    }
+
+    private fun updateClipRange(
+      start: Float,
+      end: Float,
+      preview: Float,
+    ) {
+      val active = ensureDraft() ?: return
+      val duration = mediaDurationSeconds().takeIf { it > MIN_CLIP_SECONDS }
+      val maxEnd = duration?.toFloat() ?: maxOf(end, start + 0.05f)
+      val safeStart = start.coerceIn(0f, (maxEnd - 0.05f).coerceAtLeast(0f))
+      val safeEnd = end.coerceIn(safeStart + 0.05f, maxEnd)
+      active.startSeconds = safeStart.toDouble()
+      active.endSeconds = safeEnd.toDouble()
+      refreshDraftUi()
+      PlaybackSession.setPropertyDouble(
+        "time-pos",
+        preview.coerceIn(safeStart, safeEnd).toDouble(),
+      )
+      playerViewModel()?.autoHideControls()
+    }
+
+    private fun updateClipStart(seconds: Float) {
+      val end = ensureDraft()?.endSeconds?.toFloat() ?: return
+      updateClipRange(seconds, end, seconds)
+    }
+
+    private fun updateClipEnd(seconds: Float) {
+      val start = ensureDraft()?.startSeconds?.toFloat() ?: return
+      updateClipRange(start, seconds, seconds)
+    }
+
+    private fun markClipStart() {
+      val current = currentPosition() ?: return
+      val active = ensureDraft() ?: return
+      active.startSeconds = current
+      if ((active.endSeconds ?: Double.POSITIVE_INFINITY) <= current + MIN_CLIP_SECONDS) {
+        active.endSeconds = null
+      }
+      refreshDraftUi()
+      playerViewModel()?.autoHideControls()
+    }
+
+    private fun markClipEnd() {
+      val active = ensureDraft() ?: return
+      val current = currentPosition() ?: return
+      if (current <= active.startSeconds + MIN_CLIP_SECONDS) {
+        toast(R.string.clip_invalid_range)
+        return
+      }
+      active.endSeconds = current
+      refreshDraftUi()
+      playerViewModel()?.autoHideControls()
+    }
+
+    private fun saveOrCancelExport() {
+      val exportState = ClipExportManager.state.value
+      if (exportState is ClipExportState.Exporting) {
+        ClipExportManager.cancel()
+        updateExportState()
+        return
+      }
+
+      val active = draft ?: return
+      val end = active.endSeconds
+      val item = PlaybackSession.state.value.currentItem
+      if (item == null || item.stableId != active.itemId) {
+        closeDraft()
+        toast(R.string.clip_video_unavailable)
+        return
+      }
+      if (end == null || end <= active.startSeconds + MIN_CLIP_SECONDS) {
+        toast(R.string.clip_invalid_range)
+        return
+      }
+
+      val accepted =
+        ClipExportManager.export(
+          context,
+          ClipRequest(
+            item = item,
+            startSeconds = active.startSeconds,
+            endSeconds = end,
+            crop = active.crop,
           ),
         )
+      if (!accepted) toast(R.string.clip_export_busy)
+      updateExportState()
+    }
+
+    private fun cancelOrClose(): Boolean {
+      if (ClipExportManager.state.value is ClipExportState.Exporting) {
+        ClipExportManager.cancel()
+        updateExportState()
+        return false
+      } else {
+        closeDraft()
+        return true
+      }
+    }
+
+    private fun closeDraft() {
+      if (cropView != null) exitCropMode(keepSelection = false)
+      draft = null
+      ClipEditorUiState.clear()
+      panelState = ClipPanelState()
+    }
+
+    private fun enterCropMode() {
+      if (cropView != null) return
+      val active = ensureDraft() ?: return
+      val sourceWidth = PlaybackSession.getPropertyInt("video-params/w") ?: 0
+      val sourceHeight = PlaybackSession.getPropertyInt("video-params/h") ?: 0
+      if (sourceWidth <= 0 || sourceHeight <= 0) {
+        toast(R.string.clip_video_unavailable)
+        return
+      }
+
+      val rotation = ((PlaybackSession.getPropertyInt("video-params/rotate") ?: 0) % 360 + 360) % 360
+      val outputWidth = PlaybackSession.getPropertyInt("video-out-params/dw") ?: 0
+      val outputHeight = PlaybackSession.getPropertyInt("video-out-params/dh") ?: 0
+
+      playerViewModel()?.hideControls()
+      pausedBeforeCrop = PlaybackSession.getPropertyBoolean("pause") ?: true
+      if (!pausedBeforeCrop) PlaybackSession.setPropertyBoolean("pause", true)
+
+      panelState = panelState.copy(cropActive = true)
+      val selector =
+        CropSelectionView(
+          context = context,
+          sourceWidth = sourceWidth,
+          sourceHeight = sourceHeight,
+          displayWidth = outputWidth,
+          displayHeight = outputHeight,
+          rotation = rotation,
+          initialCrop = active.crop,
+          onSelectionChanged = ::positionCropControls,
+        )
+      cropView = selector
+      addView(selector, LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT))
+
+      val controls = buildCropControls(selector)
+      cropControls = controls
+      addView(
+        controls,
+        LayoutParams(
+          dp(CROP_PILL_WIDTH_DP),
+          dp(CROP_PILL_HEIGHT_DP),
+          Gravity.START or Gravity.TOP,
+        ),
+      )
+      controls.post { positionCropControls(selector.selectionBounds()) }
+    }
+
+    private fun buildCropControls(selector: CropSelectionView): ComposeView =
+      ComposeView(context).apply {
+        isClickable = true
+        setViewCompositionStrategy(ViewCompositionStrategy.DisposeOnDetachedFromWindow)
+        setContent {
+          MpvrxTheme {
+            ClipCropControls(
+              onCancel = { exitCropMode(keepSelection = false) },
+              onDone = {
+                draft?.crop = selector.currentCrop()
+                exitCropMode(keepSelection = true)
+              },
+            )
+          }
+        }
+      }
+
+    private fun exitCropMode(keepSelection: Boolean) {
+      val selector = cropView ?: return
+      if (!keepSelection) {
+        // Cancelling crop intentionally keeps the previous crop selection, if one existed.
+      }
+      removeView(selector)
+      cropView = null
+      cropControls?.let { controls ->
+        controls.disposeComposition()
+        removeView(controls)
+      }
+      cropControls = null
+      if (!pausedBeforeCrop) PlaybackSession.setPropertyBoolean("pause", false)
+      panelState = panelState.copy(cropActive = false)
+      refreshDraftUi()
+    }
+
+    private fun updateExportState() {
+      when (val state = ClipExportManager.state.value) {
+        ClipExportState.Idle -> {
+          panelState =
+            panelState.copy(
+              exporting = false,
+              cancelling = false,
+              progress = 0,
+            )
+          lastTerminalState = null
+        }
+        is ClipExportState.Exporting -> {
+          panelState =
+            panelState.copy(
+              exporting = true,
+              cancelling = state.cancelling,
+              progress = (state.progress * 100f).roundToInt().coerceIn(0, 100),
+            )
+        }
+        is ClipExportState.Success -> {
+          if (lastTerminalState !== state) {
+            toast(context.getString(R.string.clip_saved, state.displayName))
+            lastTerminalState = state
+            draft = null
+            ClipEditorUiState.clear()
+            panelState = ClipPanelState(progress = 100)
+            dismissClipPanel()
+            ClipExportManager.consumeTerminalState()
+          }
+        }
+        is ClipExportState.Error -> {
+          if (lastTerminalState !== state) {
+            toast(context.getString(R.string.clip_export_failed, state.message))
+            lastTerminalState = state
+            ClipExportManager.consumeTerminalState()
+            panelState = panelState.copy(exporting = false, cancelling = false)
+            refreshDraftUi()
+          }
+        }
+      }
+    }
+
+    private fun clearDraftIfMediaChanged() {
+      val active = draft ?: return
+      if (ClipExportManager.state.value is ClipExportState.Exporting) return
+      if (PlaybackSession.state.value.currentItem
+          ?.stableId == active.itemId
+      ) {
+        return
+      }
+
+      draft = null
+      if (cropView != null) exitCropMode(keepSelection = false)
+      ClipEditorUiState.clear()
+      panelState = ClipPanelState()
+      dismissClipPanel()
+    }
+
+    private fun dismissClipPanel() {
+      val viewModel = playerViewModel() ?: return
+      if (viewModel.panelShown.value != Panels.Clip) return
+      viewModel.panelShown.value = Panels.None
+      viewModel.showControls()
+    }
+
+    private fun refreshDraftUi() {
+      val active = draft
+      if (active == null) {
+        ClipEditorUiState.clear()
+        panelState =
+          panelState.copy(
+            clipDuration = null,
+            startSeconds = 0f,
+            endSeconds = null,
+            durationSeconds = 0f,
+            crop = null,
+            canSave = false,
+          )
+        return
+      }
+
+      val duration = mediaDurationSeconds().toFloat().coerceAtLeast(0f)
+      ClipEditorUiState.publish(active.startSeconds, active.endSeconds)
+      panelState =
+        panelState.copy(
+          clipDuration = active.endSeconds?.let { formatTime((it - active.startSeconds).coerceAtLeast(0.0)) },
+          startSeconds = active.startSeconds.toFloat(),
+          endSeconds = active.endSeconds?.toFloat(),
+          durationSeconds = duration,
+          crop = active.crop,
+          canSave =
+            active.endSeconds?.let { it > active.startSeconds + MIN_CLIP_SECONDS } == true &&
+              ClipExportManager.state.value !is ClipExportState.Exporting,
+        )
+    }
+
+    private fun updateOverlayMargins() {
+      cropView?.selectionBounds()?.let(::positionCropControls)
+    }
+
+    private fun positionCropControls(bounds: RectF) {
+      val controls = cropControls ?: return
+      val pillWidth = dp(CROP_PILL_WIDTH_DP)
+      val pillHeight = dp(CROP_PILL_HEIGHT_DP)
+      val inset = dp(10).toFloat()
+      val handleClearance = dp(38).toFloat()
+      val edgeInset = dp(8).toFloat()
+
+      val desiredX =
+        if (bounds.width() >= pillWidth + handleClearance + inset) {
+          bounds.right - pillWidth - handleClearance
+        } else {
+          bounds.centerX() - pillWidth / 2f
+        }
+      val desiredY =
+        if (bounds.height() >= pillHeight + handleClearance + inset) {
+          bounds.bottom - pillHeight - handleClearance
+        } else {
+          bounds.centerY() - pillHeight / 2f
+        }
+      val maxX = (width - pillWidth).toFloat().minus(edgeInset).coerceAtLeast(edgeInset)
+      val maxY =
+        (height - bottomInset - pillHeight).toFloat().minus(edgeInset).coerceAtLeast(edgeInset)
+      controls.x = desiredX.coerceIn(edgeInset, maxX)
+      controls.y = desiredY.coerceIn(edgeInset, maxY)
+    }
+
+    private fun mediaDurationSeconds(): Double =
+      PlaybackSession.getPropertyDouble("duration")
+        ?: PlaybackSession.getPropertyInt("duration")?.toDouble()
+        ?: 0.0
+
+    private fun currentPosition(): Double? = PlaybackSession.getPropertyDouble("time-pos")
+
+    private fun formatTime(seconds: Double): String {
+      val totalTenths = (seconds.coerceAtLeast(0.0) * 10.0).roundToInt()
+      val hours = totalTenths / 36_000
+      val minutes = (totalTenths / 600) % 60
+      val secs = (totalTenths / 10) % 60
+      val tenths = totalTenths % 10
+      return if (hours > 0) {
+        "%d:%02d:%02d.%d".format(Locale.US, hours, minutes, secs, tenths)
+      } else {
+        "%02d:%02d.%d".format(Locale.US, minutes, secs, tenths)
+      }
+    }
+
+    private fun toast(message: String) {
+      Toast.makeText(context, message, Toast.LENGTH_SHORT).show()
+    }
+
+    private fun toast(messageRes: Int) {
+      Toast.makeText(context, messageRes, Toast.LENGTH_SHORT).show()
+    }
+
+    private fun dp(value: Int): Int = (value * resources.displayMetrics.density).roundToInt()
+
+    companion object {
+      private const val OVERLAY_TAG = "mpvrx_clip_overlay"
+      private const val STATE_POLL_MS = 250L
+      private const val DEFAULT_CLIP_SECONDS = 10.0
+      private const val CROP_PILL_WIDTH_DP = 97
+      private const val CROP_PILL_HEIGHT_DP = 48
+
+      /** Attaches the Clip editor to the player-owned overlay layer. */
+      internal fun ensureAttached(activity: PlayerActivity): ClipOverlayView {
+        val overlayHost = activity.findViewById<FrameLayout>(R.id.clip_overlay_host)
+        overlayHost.bringToFront()
+        overlayHost.findViewWithTag<ClipOverlayView>(OVERLAY_TAG)?.let { return it }
+
+        return ClipOverlayView(activity).also { overlay ->
+          overlay.tag = OVERLAY_TAG
+          overlayHost.addView(
+            overlay,
+            ViewGroup.LayoutParams(
+              ViewGroup.LayoutParams.MATCH_PARENT,
+              ViewGroup.LayoutParams.MATCH_PARENT,
+            ),
+          )
+        }
       }
     }
   }
-}
 
 @Composable
 private fun ClipEditorPanel(

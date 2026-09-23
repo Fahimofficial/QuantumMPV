@@ -17,19 +17,17 @@ import androidx.compose.animation.EnterTransition
 import androidx.compose.animation.ExitTransition
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.Spring
-import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.snap
 import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
-import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.background
 import androidx.compose.foundation.interaction.MutableInteractionSource
-import androidx.compose.foundation.selection.selectable
-import androidx.compose.foundation.selection.selectableGroup
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
@@ -43,12 +41,12 @@ import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.wrapContentWidth
-import com.quantummpv.app.ui.utils.NavigationPager
 import androidx.compose.foundation.pager.PagerState
 import androidx.compose.foundation.pager.rememberPagerState
+import androidx.compose.foundation.selection.selectable
+import androidx.compose.foundation.selection.selectableGroup
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
@@ -88,17 +86,14 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import kotlin.math.roundToInt
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.quantummpv.app.R
 import com.quantummpv.app.preferences.AppearancePreferences
 import com.quantummpv.app.preferences.MediaServerPreferences
 import com.quantummpv.app.preferences.MusicSourceProvider
 import com.quantummpv.app.preferences.PlayerPreferences
 import com.quantummpv.app.preferences.preference.collectAsState
-import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.quantummpv.app.presentation.Screen
-import com.quantummpv.app.ui.utils.LocalBackStack
-import com.quantummpv.app.ui.utils.navigateTo
 import com.quantummpv.app.ui.browser.folderlist.FolderListScreen
 import com.quantummpv.app.ui.browser.music.MusicLibraryContent
 import com.quantummpv.app.ui.browser.networkstreaming.NetworkStreamingScreen
@@ -106,18 +101,22 @@ import com.quantummpv.app.ui.browser.playlist.PlaylistScreen
 import com.quantummpv.app.ui.browser.recentlyplayed.RecentlyPlayedScreen
 import com.quantummpv.app.ui.icons.Icon
 import com.quantummpv.app.ui.icons.Icons
+import com.quantummpv.app.ui.player.NavigationAnimStyle
 import com.quantummpv.app.ui.player.controls.components.rememberTvInitialFocusRequester
 import com.quantummpv.app.ui.player.controls.components.tvFocusHighlight
 import com.quantummpv.app.ui.player.controls.components.tvInitialFocus
-import com.quantummpv.app.ui.player.NavigationAnimStyle
 import com.quantummpv.app.ui.theme.glassBorderColor
 import com.quantummpv.app.ui.theme.glassContainerColor
+import com.quantummpv.app.ui.utils.LocalBackStack
+import com.quantummpv.app.ui.utils.NavigationPager
+import com.quantummpv.app.ui.utils.navigateTo
 import com.quantummpv.app.ui.utils.navigationDurationMillis
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.cancelAndJoin
 import kotlinx.coroutines.launch
 import kotlinx.serialization.Serializable
 import org.koin.compose.koinInject
+import kotlin.math.roundToInt
 
 @Serializable
 object MainScreen : Screen {
@@ -216,7 +215,10 @@ object MainScreen : Screen {
     }
     SideEffect {
       NavigationBarState.isNavBarVisible =
-        backStack.lastOrNull() == MainScreen && !hideNavigationBar && visibleTabs.isNotEmpty() && !isPermissionDenied
+        backStack.lastOrNull() == MainScreen &&
+        !hideNavigationBar &&
+        visibleTabs.isNotEmpty() &&
+        !isPermissionDenied
     }
 
     val coroutineScope = rememberCoroutineScope()
@@ -371,7 +373,9 @@ object MainScreen : Screen {
                         contentAlignment = Alignment.Center,
                       ) {
                         androidx.compose.material3.Card(
-                          shape = androidx.compose.foundation.shape.RoundedCornerShape(24.dp),
+                          shape =
+                            androidx.compose.foundation.shape
+                              .RoundedCornerShape(24.dp),
                           colors =
                             androidx.compose.material3.CardDefaults.cardColors(
                               containerColor = MaterialTheme.colorScheme.surfaceContainerLow,
@@ -416,13 +420,18 @@ object MainScreen : Screen {
                           }
                         }
                       }
-                    } else if (!jellyfinUiState.isLoading && !jellyfinUiState.hasMusicLibrary && jellyfinUiState.libraries.isNotEmpty()) {
+                    } else if (!jellyfinUiState.isLoading &&
+                      !jellyfinUiState.hasMusicLibrary &&
+                      jellyfinUiState.libraries.isNotEmpty()
+                    ) {
                       Box(
                         modifier = Modifier.fillMaxSize().padding(24.dp),
                         contentAlignment = Alignment.Center,
                       ) {
                         androidx.compose.material3.Card(
-                          shape = androidx.compose.foundation.shape.RoundedCornerShape(24.dp),
+                          shape =
+                            androidx.compose.foundation.shape
+                              .RoundedCornerShape(24.dp),
                           colors =
                             androidx.compose.material3.CardDefaults.cardColors(
                               containerColor = MaterialTheme.colorScheme.surfaceContainerLow,
@@ -484,7 +493,9 @@ object MainScreen : Screen {
                         contentAlignment = Alignment.Center,
                       ) {
                         androidx.compose.material3.Card(
-                          shape = androidx.compose.foundation.shape.RoundedCornerShape(24.dp),
+                          shape =
+                            androidx.compose.foundation.shape
+                              .RoundedCornerShape(24.dp),
                           colors =
                             androidx.compose.material3.CardDefaults.cardColors(
                               containerColor = MaterialTheme.colorScheme.surfaceContainerLow,
@@ -545,7 +556,10 @@ object MainScreen : Screen {
                 MainTab.RECENTS -> RecentlyPlayedScreen.Content()
                 MainTab.PLAYLISTS -> PlaylistScreen.Content()
                 MainTab.NETWORK -> NetworkStreamingScreen.Content()
-                MainTab.JELLYFIN -> com.quantummpv.app.ui.browser.jellyfin.JellyfinContent(viewModel = jellyfinViewModel)
+                MainTab.JELLYFIN ->
+                  com.quantummpv.app.ui.browser.jellyfin.JellyfinContent(
+                    viewModel = jellyfinViewModel,
+                  )
               }
             }
           }
@@ -554,16 +568,24 @@ object MainScreen : Screen {
         // Animated bottom navigation bar with slide animations
         AnimatedVisibility(
           visible = !hideNavigationBar && visibleTabs.isNotEmpty() && !isPermissionDenied,
-          enter = if (navStyle == NavigationAnimStyle.None) EnterTransition.None else
-            slideInVertically(
-              animationSpec = tween(duration, easing = FastOutSlowInEasing),
-              initialOffsetY = { fullHeight -> fullHeight * 2 },
-            ) + fadeIn(tween(duration)),
-          exit = if (navStyle == NavigationAnimStyle.None) ExitTransition.None else
-            slideOutVertically(
-              animationSpec = tween(duration, easing = FastOutSlowInEasing),
-              targetOffsetY = { fullHeight -> fullHeight * 2 },
-            ) + fadeOut(tween(duration)),
+          enter =
+            if (navStyle == NavigationAnimStyle.None) {
+              EnterTransition.None
+            } else {
+              slideInVertically(
+                animationSpec = tween(duration, easing = FastOutSlowInEasing),
+                initialOffsetY = { fullHeight -> fullHeight * 2 },
+              ) + fadeIn(tween(duration))
+            },
+          exit =
+            if (navStyle == NavigationAnimStyle.None) {
+              ExitTransition.None
+            } else {
+              slideOutVertically(
+                animationSpec = tween(duration, easing = FastOutSlowInEasing),
+                targetOffsetY = { fullHeight -> fullHeight * 2 },
+              ) + fadeOut(tween(duration))
+            },
           modifier =
             Modifier
               .fillMaxWidth()
@@ -574,15 +596,24 @@ object MainScreen : Screen {
           BoxWithConstraints(modifier = Modifier.fillMaxWidth()) {
             val containerWidth = maxWidth
             val density = LocalDensity.current
-            val centerFraction = animateFloatAsState(
-              targetValue = when {
-                isDualPaneFolderSelected && selectedTab == MainTab.HOME -> 0.2f
-                isMiniPlayerVisible && (isLandscape || isTablet) -> 0f
-                else -> 0.5f
-              },
-              animationSpec = if (navStyle == NavigationAnimStyle.None) snap() else tween(duration, easing = FastOutSlowInEasing),
-              label = "pill_alignment",
-            )
+            val centerFraction =
+              animateFloatAsState(
+                targetValue =
+                  when {
+                    isDualPaneFolderSelected && selectedTab == MainTab.HOME -> 0.2f
+                    isMiniPlayerVisible && (isLandscape || isTablet) -> 0f
+                    else -> 0.5f
+                  },
+                animationSpec =
+                  if (navStyle ==
+                    NavigationAnimStyle.None
+                  ) {
+                    snap()
+                  } else {
+                    tween(duration, easing = FastOutSlowInEasing)
+                  },
+                label = "pill_alignment",
+              )
 
             ExpressivePillNavigationBar(
               visibleTabs = visibleTabs,
@@ -590,25 +621,28 @@ object MainScreen : Screen {
               onTabSelected = onTabSelected,
               pagerState = pagerState,
               glass = glassBottomNavigation,
-              modifier = Modifier
-                .layout { measurable, constraints ->
-                  val margin = 16.dp.roundToPx()
-                  val placeable = measurable.measure(
-                    constraints.copy(minWidth = 0, maxWidth = (constraints.maxWidth - margin * 2).coerceAtLeast(0)),
-                  )
-                  layout(constraints.maxWidth, placeable.height) {
-                    // Place using the actual width, avoiding springs chasing animated measurements.
-                    val start = (constraints.maxWidth * centerFraction.value - placeable.width / 2f)
-                      .roundToInt().coerceAtLeast(margin)
-                    placeable.placeRelative(start, 0)
-                  }
-                }
-                .onGloballyPositioned { coords ->
-                  val width = with(density) { coords.size.width.toDp() }
-                  NavigationBarState.navbarWidth = width
-                  NavigationBarState.navbarLeftOffset =
-                    (containerWidth * centerFraction.value - width / 2).coerceAtLeast(16.dp)
-                },
+              modifier =
+                Modifier
+                  .layout { measurable, constraints ->
+                    val margin = 16.dp.roundToPx()
+                    val placeable =
+                      measurable.measure(
+                        constraints.copy(minWidth = 0, maxWidth = (constraints.maxWidth - margin * 2).coerceAtLeast(0)),
+                      )
+                    layout(constraints.maxWidth, placeable.height) {
+                      // Place using the actual width, avoiding springs chasing animated measurements.
+                      val start =
+                        (constraints.maxWidth * centerFraction.value - placeable.width / 2f)
+                          .roundToInt()
+                          .coerceAtLeast(margin)
+                      placeable.placeRelative(start, 0)
+                    }
+                  }.onGloballyPositioned { coords ->
+                    val width = with(density) { coords.size.width.toDp() }
+                    NavigationBarState.navbarWidth = width
+                    NavigationBarState.navbarLeftOffset =
+                      (containerWidth * centerFraction.value - width / 2).coerceAtLeast(16.dp)
+                  },
             )
           }
         }
@@ -656,7 +690,8 @@ private fun ExpressivePillNavigationBar(
   val tabWidths =
     visibleTabs.mapIndexed { index, tab ->
       val fraction = (1f - kotlin.math.abs(position - index)).coerceIn(0f, 1f)
-      androidx.compose.ui.unit.lerp(inactiveTabWidth, activeTabWidth(tab), fraction)
+      androidx.compose.ui.unit
+        .lerp(inactiveTabWidth, activeTabWidth(tab), fraction)
     }
   val tabOffsets =
     buildList {
@@ -669,8 +704,12 @@ private fun ExpressivePillNavigationBar(
   val pageFloor = position.toInt().coerceIn(visibleTabs.indices)
   val pageCeil = (pageFloor + 1).coerceIn(visibleTabs.indices)
   val pageFraction = (position - pageFloor).coerceIn(0f, 1f)
-  val indicatorLeft = androidx.compose.ui.unit.lerp(tabOffsets[pageFloor], tabOffsets[pageCeil], pageFraction)
-  val indicatorWidth = androidx.compose.ui.unit.lerp(tabWidths[pageFloor], tabWidths[pageCeil], pageFraction)
+  val indicatorLeft =
+    androidx.compose.ui.unit
+      .lerp(tabOffsets[pageFloor], tabOffsets[pageCeil], pageFraction)
+  val indicatorWidth =
+    androidx.compose.ui.unit
+      .lerp(tabWidths[pageFloor], tabWidths[pageCeil], pageFraction)
 
   Surface(
     modifier = modifier,
@@ -719,10 +758,11 @@ private fun ExpressivePillNavigationBar(
             val activeFraction = (1f - kotlin.math.abs(position - index)).coerceIn(0f, 1f)
             val navBounceScale by animateFloatAsState(
               targetValue = if (tab == selectedTab) 1f else 0.96f,
-              animationSpec = spring(
-                dampingRatio = Spring.DampingRatioMediumBouncy,
-                stiffness = Spring.StiffnessMediumLow,
-              ),
+              animationSpec =
+                spring(
+                  dampingRatio = Spring.DampingRatioMediumBouncy,
+                  stiffness = Spring.StiffnessMediumLow,
+                ),
               label = "bottomNavigationBounce",
             )
             val label =
@@ -761,18 +801,24 @@ private fun ExpressivePillNavigationBar(
               contentAlignment = Alignment.Center,
             ) {
               Row(
-                modifier = Modifier
-                  .graphicsLayer {
-                    scaleX = navBounceScale
-                    scaleY = navBounceScale
-                  }
-                  .padding(horizontal = 8.dp),
+                modifier =
+                  Modifier
+                    .graphicsLayer {
+                      scaleX = navBounceScale
+                      scaleY = navBounceScale
+                    }.padding(horizontal = 8.dp),
                 horizontalArrangement = Arrangement.Center,
                 verticalAlignment = Alignment.CenterVertically,
               ) {
                 MainTabIcon(tab, contentColor, label)
                 if (activeFraction > 0.05f) {
-                  Spacer(modifier = Modifier.width(androidx.compose.ui.unit.lerp(0.dp, 6.dp, activeFraction)))
+                  Spacer(
+                    modifier =
+                      Modifier.width(
+                        androidx.compose.ui.unit
+                          .lerp(0.dp, 6.dp, activeFraction),
+                      ),
+                  )
                   Text(
                     text = label,
                     style = MaterialTheme.typography.labelMedium,
@@ -802,14 +848,15 @@ private fun MainTabIcon(
   tint: Color,
   contentDescription: String?,
 ) {
-  val icon = when (tab) {
-    MainScreen.MainTab.HOME -> Icons.RoundedFilled.Home
-    MainScreen.MainTab.MUSIC -> Icons.RoundedFilled.Audiotrack
-    MainScreen.MainTab.RECENTS -> Icons.RoundedFilled.History
-    MainScreen.MainTab.PLAYLISTS -> Icons.RoundedFilled.PlaylistPlay
-    MainScreen.MainTab.NETWORK -> Icons.RoundedFilled.BringYourOwnIp
-    MainScreen.MainTab.JELLYFIN -> null
-  }
+  val icon =
+    when (tab) {
+      MainScreen.MainTab.HOME -> Icons.RoundedFilled.Home
+      MainScreen.MainTab.MUSIC -> Icons.RoundedFilled.Audiotrack
+      MainScreen.MainTab.RECENTS -> Icons.RoundedFilled.History
+      MainScreen.MainTab.PLAYLISTS -> Icons.RoundedFilled.PlaylistPlay
+      MainScreen.MainTab.NETWORK -> Icons.RoundedFilled.BringYourOwnIp
+      MainScreen.MainTab.JELLYFIN -> null
+    }
   if (icon == null) {
     androidx.compose.material3.Icon(
       painter = painterResource(R.drawable.ic_jellyfin),

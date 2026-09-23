@@ -208,6 +208,7 @@ private class VideoAmbientPipeline : AutoCloseable {
   private var seeded = false
   private var supported = Build.VERSION.SDK_INT >= Build.VERSION_CODES.N
   private var consecutiveFailures = 0
+
   @Volatile private var closed = false
 
   suspend fun runCapture(
@@ -473,9 +474,9 @@ private fun encodeAmbientPixels(
     val gridIndex = index * 3
     output[index] =
       (0xFF shl 24) or
-        (ambientLinearToSrgb(grid[gridIndex]) shl 16) or
-        (ambientLinearToSrgb(grid[gridIndex + 1]) shl 8) or
-        ambientLinearToSrgb(grid[gridIndex + 2])
+      (ambientLinearToSrgb(grid[gridIndex]) shl 16) or
+      (ambientLinearToSrgb(grid[gridIndex + 1]) shl 8) or
+      ambientLinearToSrgb(grid[gridIndex + 2])
   }
 }
 

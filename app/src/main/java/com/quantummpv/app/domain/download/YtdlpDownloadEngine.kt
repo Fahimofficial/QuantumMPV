@@ -19,13 +19,13 @@ import com.quantummpv.app.ui.player.ytdlp.YtdlpManager
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.SupervisorJob
-import kotlinx.coroutines.launch
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.runInterruptible
 import kotlinx.coroutines.withContext
 import java.io.BufferedReader
@@ -96,13 +96,14 @@ class YtdlpDownloadEngine(
   ): Int {
     val id = nextId.getAndIncrement()
     if (!directory.exists()) directory.mkdirs()
-    val job = Job(
-      id = id,
-      url = url,
-      title = title,
-      directory = directory.absolutePath,
-      formatSelector = formatSelector,
-    )
+    val job =
+      Job(
+        id = id,
+        url = url,
+        title = title,
+        directory = directory.absolutePath,
+        formatSelector = formatSelector,
+      )
     _jobs.update { current -> current + job }
     persistenceScope.launch { jobDao.upsert(toEntity(job)) }
     YtdlpDownloadService.start(context)
@@ -264,7 +265,9 @@ class YtdlpDownloadEngine(
       if (preferences.geoBypass.get()) add("--geo-bypass")
 
       val cookiesFile =
-        preferences.cookiesFile.get().takeIf(String::isNotBlank)
+        preferences.cookiesFile
+          .get()
+          .takeIf(String::isNotBlank)
           ?.let(::File)
           ?.takeIf(File::isFile)
           ?: AndroidCookieJar.playbackCookieFile(context).takeIf(File::isFile)
@@ -362,7 +365,15 @@ class YtdlpDownloadEngine(
     }
 
     fun parseDestination(line: String): String? =
-      DESTINATION_REGEX.find(line.trim())?.groupValues?.get(1)?.trim()
-        ?: ALREADY_DOWNLOADED_REGEX.find(line.trim())?.groupValues?.get(1)?.trim()
+      DESTINATION_REGEX
+        .find(line.trim())
+        ?.groupValues
+        ?.get(1)
+        ?.trim()
+        ?: ALREADY_DOWNLOADED_REGEX
+          .find(line.trim())
+          ?.groupValues
+          ?.get(1)
+          ?.trim()
   }
 }

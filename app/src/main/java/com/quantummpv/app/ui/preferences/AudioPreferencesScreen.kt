@@ -20,10 +20,13 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Checkbox
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -31,10 +34,15 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.RangeSlider
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.TextField
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalResources
@@ -45,19 +53,20 @@ import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
 import com.quantummpv.app.R
+import com.quantummpv.app.data.lyrics.LyricsLanguageOptions
 import com.quantummpv.app.preferences.AudioChannels
 import com.quantummpv.app.preferences.AudioPlayerOrientation
 import com.quantummpv.app.preferences.AudioPreferences
-import com.quantummpv.app.preferences.LyricsTranslationDisplayMode
-import com.quantummpv.app.preferences.MediaServerPreferences
-import com.quantummpv.app.preferences.MusicSourceProvider
-import com.quantummpv.app.data.lyrics.LyricsLanguageOptions
 import com.quantummpv.app.preferences.AudioVisualizerStyle
 import com.quantummpv.app.preferences.BrowserPreferences
+import com.quantummpv.app.preferences.LyricsTranslationDisplayMode
 import com.quantummpv.app.preferences.MediaLibraryType
+import com.quantummpv.app.preferences.MediaServerPreferences
+import com.quantummpv.app.preferences.MusicSourceProvider
 import com.quantummpv.app.preferences.PlayerPreferences
 import com.quantummpv.app.preferences.preference.collectAsState
 import com.quantummpv.app.presentation.Screen
+import com.quantummpv.app.ui.browser.music.MusicTab
 import com.quantummpv.app.ui.icons.Icon
 import com.quantummpv.app.ui.icons.Icons
 import com.quantummpv.app.ui.preferences.components.SwitchPreference
@@ -72,16 +81,6 @@ import me.zhanghai.compose.preference.ProvidePreferenceLocals
 import me.zhanghai.compose.preference.SliderPreference
 import me.zhanghai.compose.preference.TextFieldPreference
 import org.koin.compose.koinInject
-
-import androidx.compose.foundation.layout.Row
-import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.Checkbox
-import androidx.compose.material3.TextButton
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
-import androidx.compose.ui.Alignment
-import com.quantummpv.app.ui.browser.music.MusicTab
 
 @Serializable
 object AudioPreferencesScreen : Screen {
@@ -242,12 +241,17 @@ object AudioPreferencesScreen : Screen {
               PreferenceDivider()
               val enabledMusicTabs by preferences.enabledMusicTabs.collectAsState()
               val musicTabOrder by preferences.musicTabOrder.collectAsState()
-              val musicTabsSummary = remember(enabledMusicTabs, musicTabOrder) {
-                val tabMap = MusicTab.entries.associateBy { it.name }
-                val orderedTabs = (musicTabOrder.mapNotNull { tabMap[it] } + (MusicTab.entries - musicTabOrder.mapNotNull { tabMap[it] }.toSet())).distinct()
-                val names = orderedTabs.filter { it.name in enabledMusicTabs }.map { it.title }
-                if (names.isEmpty()) "Songs" else names.joinToString(", ")
-              }
+              val musicTabsSummary =
+                remember(enabledMusicTabs, musicTabOrder) {
+                  val tabMap = MusicTab.entries.associateBy { it.name }
+                  val orderedTabs =
+                    (
+                      musicTabOrder.mapNotNull { tabMap[it] } +
+                        (MusicTab.entries - musicTabOrder.mapNotNull { tabMap[it] }.toSet())
+                    ).distinct()
+                  val names = orderedTabs.filter { it.name in enabledMusicTabs }.map { it.title }
+                  if (names.isEmpty()) "Songs" else names.joinToString(", ")
+                }
 
               Column(
                 modifier =
@@ -647,9 +651,14 @@ object AudioPreferencesScreen : Screen {
       val enabledMusicTabs by preferences.enabledMusicTabs.collectAsState()
       val musicTabOrder by preferences.musicTabOrder.collectAsState()
       val tabMap = remember { MusicTab.entries.associateBy { it.name } }
-      val currentOrderedTabs = remember(musicTabOrder) {
-        (musicTabOrder.mapNotNull { tabMap[it] } + (MusicTab.entries - musicTabOrder.mapNotNull { tabMap[it] }.toSet())).distinct()
-      }
+      val currentOrderedTabs =
+        remember(musicTabOrder) {
+          (
+            musicTabOrder.mapNotNull {
+              tabMap[it]
+            } + (MusicTab.entries - musicTabOrder.mapNotNull { tabMap[it] }.toSet())
+          ).distinct()
+        }
 
       AlertDialog(
         onDismissRequest = { showMusicTabsDialog = false },
@@ -665,9 +674,10 @@ object AudioPreferencesScreen : Screen {
             currentOrderedTabs.forEachIndexed { index, tab ->
               val isChecked = tab.name in enabledMusicTabs
               Row(
-                modifier = Modifier
-                  .fillMaxWidth()
-                  .padding(vertical = 2.dp),
+                modifier =
+                  Modifier
+                    .fillMaxWidth()
+                    .padding(vertical = 2.dp),
                 verticalAlignment = Alignment.CenterVertically,
               ) {
                 Checkbox(
@@ -688,21 +698,21 @@ object AudioPreferencesScreen : Screen {
                 Text(
                   text = tab.title,
                   style = MaterialTheme.typography.bodyLarge,
-                  modifier = Modifier
-                    .weight(1f)
-                    .clickable {
-                      val current = enabledMusicTabs.toMutableSet()
-                      if (isChecked) {
-                        if (current.size > 1) {
-                          current.remove(tab.name)
+                  modifier =
+                    Modifier
+                      .weight(1f)
+                      .clickable {
+                        val current = enabledMusicTabs.toMutableSet()
+                        if (isChecked) {
+                          if (current.size > 1) {
+                            current.remove(tab.name)
+                            preferences.enabledMusicTabs.set(current)
+                          }
+                        } else {
+                          current.add(tab.name)
                           preferences.enabledMusicTabs.set(current)
                         }
-                      } else {
-                        current.add(tab.name)
-                        preferences.enabledMusicTabs.set(current)
-                      }
-                    }
-                    .padding(vertical = 8.dp),
+                      }.padding(vertical = 8.dp),
                 )
                 IconButton(
                   onClick = {
@@ -718,7 +728,14 @@ object AudioPreferencesScreen : Screen {
                   Icon(
                     imageVector = Icons.RoundedFilled.ExpandLess,
                     contentDescription = "Move Up",
-                    tint = if (index > 0) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.outline.copy(alpha = 0.38f),
+                    tint =
+                      if (index >
+                        0
+                      ) {
+                        MaterialTheme.colorScheme.onSurface
+                      } else {
+                        MaterialTheme.colorScheme.outline.copy(alpha = 0.38f)
+                      },
                   )
                 }
                 IconButton(
@@ -735,7 +752,14 @@ object AudioPreferencesScreen : Screen {
                   Icon(
                     imageVector = Icons.RoundedFilled.ExpandMore,
                     contentDescription = "Move Down",
-                    tint = if (index < currentOrderedTabs.size - 1) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.outline.copy(alpha = 0.38f),
+                    tint =
+                      if (index <
+                        currentOrderedTabs.size - 1
+                      ) {
+                        MaterialTheme.colorScheme.onSurface
+                      } else {
+                        MaterialTheme.colorScheme.outline.copy(alpha = 0.38f)
+                      },
                   )
                 }
               }

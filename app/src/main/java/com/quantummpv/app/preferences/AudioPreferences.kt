@@ -24,6 +24,7 @@ class AudioPreferences(
   val audioChannels = preferenceStore.getEnum("audio_channels", AudioChannels.AutoSafe)
   val volumeBoostCap = preferenceStore.getInt("audio_volume_boost_cap", 30)
   val backgroundPlayback = preferenceStore.getBoolean("automatic_background_playback", false)
+
   /** Audio-player-only background playback; video retains [backgroundPlayback]. */
   val audioBackgroundPlayback = preferenceStore.getBoolean("audio_player_background_playback", false)
   val volumeNormalization = preferenceStore.getBoolean("audio_volume_normalization", false)
@@ -33,24 +34,30 @@ class AudioPreferences(
   val audioOrientation = preferenceStore.getEnum("audio_player_orientation", AudioPlayerOrientation.Auto)
   val audioAmbientMode = preferenceStore.getBoolean("audio_ambient_mode", true)
   val audioWavySeekbar = preferenceStore.getBoolean("audio_wavy_seekbar", true)
-  val enabledMusicTabs = preferenceStore.getStringSet(
-    "enabled_music_tabs",
-    setOf("SONGS", "ALBUMS", "ARTISTS", "PLAYLISTS", "FOLDERS"),
-  )
-  val musicTabOrder = preferenceStore.getObject(
-    key = "music_tab_order",
-    defaultValue = listOf("SONGS", "ALBUMS", "ARTISTS", "PLAYLISTS", "FOLDERS"),
-    serializer = { list -> list.joinToString(",") },
-    deserializer = { str ->
-      val parsed = str.split(",").map { it.trim() }.filter { it.isNotEmpty() }
-      val missing = listOf("SONGS", "ALBUMS", "ARTISTS", "PLAYLISTS", "FOLDERS") - parsed.toSet()
-      parsed + missing
-    },
-  )
+  val enabledMusicTabs =
+    preferenceStore.getStringSet(
+      "enabled_music_tabs",
+      setOf("SONGS", "ALBUMS", "ARTISTS", "PLAYLISTS", "FOLDERS"),
+    )
+  val musicTabOrder =
+    preferenceStore.getObject(
+      key = "music_tab_order",
+      defaultValue = listOf("SONGS", "ALBUMS", "ARTISTS", "PLAYLISTS", "FOLDERS"),
+      serializer = { list -> list.joinToString(",") },
+      deserializer = { str ->
+        val parsed = str.split(",").map { it.trim() }.filter { it.isNotEmpty() }
+        val missing = listOf("SONGS", "ALBUMS", "ARTISTS", "PLAYLISTS", "FOLDERS") - parsed.toSet()
+        parsed + missing
+      },
+    )
 
   val lyricsAutoTranslate = preferenceStore.getBoolean("lyrics_auto_translate", false)
   val lyricsTargetLanguage = preferenceStore.getString("lyrics_target_language", "en")
-  val lyricsTranslationDisplayMode = preferenceStore.getEnum("lyrics_translation_display_mode", LyricsTranslationDisplayMode.DualLine)
+  val lyricsTranslationDisplayMode =
+    preferenceStore.getEnum(
+      "lyrics_translation_display_mode",
+      LyricsTranslationDisplayMode.DualLine,
+    )
 
   init {
     // Consolidate the old audio-only screen-lock switch into the single global setting.
@@ -84,7 +91,6 @@ enum class AudioVisualizerStyle(
   Particle(R.string.pref_audio_visualizer_style_particle),
 }
 
-
 enum class AudioChannels(
   @StringRes val title: Int,
   val property: String,
@@ -92,6 +98,7 @@ enum class AudioChannels(
 ) {
   /** Let mpv prefer the source layout when the output device reports that it is supported. */
   Auto(R.string.pref_audio_channels_auto, "audio-channels", "auto"),
+
   /** Use the system-preferred layout and safely fall back to stereo. This is mpv's default. */
   AutoSafe(R.string.pref_audio_channels_auto_safe, "audio-channels", "auto-safe"),
   Mono(R.string.pref_audio_channels_mono, "audio-channels", "mono"),

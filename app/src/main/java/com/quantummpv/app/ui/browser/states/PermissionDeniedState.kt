@@ -20,7 +20,6 @@ import android.net.Uri
 import android.os.Build
 import android.os.Environment
 import android.provider.Settings
-import com.quantummpv.app.ui.utils.NavigationBackHandler as BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedContent
@@ -97,6 +96,7 @@ import com.quantummpv.app.ui.theme.AppShapeScale
 import com.quantummpv.app.utils.device.DeviceFormFactor
 import com.quantummpv.app.utils.permission.PermissionUtils
 import org.koin.compose.koinInject
+import com.quantummpv.app.ui.utils.NavigationBackHandler as BackHandler
 
 private fun checkFilePermission(context: Context): Boolean {
   val isPlayStoreBuild = BuildConfig.SCOPED_STORAGE_ONLY
@@ -112,8 +112,8 @@ private fun checkFilePermission(context: Context): Boolean {
   }
 }
 
-private fun checkNotificationPermission(context: Context): Boolean {
-  return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+private fun checkNotificationPermission(context: Context): Boolean =
+  if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
     ContextCompat.checkSelfPermission(
       context,
       android.Manifest.permission.POST_NOTIFICATIONS,
@@ -121,14 +121,12 @@ private fun checkNotificationPermission(context: Context): Boolean {
   } else {
     true
   }
-}
 
-private fun checkAudioPermission(context: Context): Boolean {
-  return ContextCompat.checkSelfPermission(
+private fun checkAudioPermission(context: Context): Boolean =
+  ContextCompat.checkSelfPermission(
     context,
     android.Manifest.permission.RECORD_AUDIO,
   ) == PackageManager.PERMISSION_GRANTED
-}
 
 private fun openStoragePermissionSettings(context: Context): Boolean {
   val packageUri = Uri.parse("package:${context.packageName}")
@@ -170,13 +168,14 @@ fun PermissionDeniedState(
 
   // Re-check permissions whenever activity resumes from system settings or permission dialogs
   DisposableEffect(lifecycleOwner) {
-    val observer = LifecycleEventObserver { _, event ->
-      if (event == Lifecycle.Event.ON_RESUME) {
-        isFileGranted = checkFilePermission(context)
-        isNotificationGranted = checkNotificationPermission(context)
-        isAudioGranted = checkAudioPermission(context)
+    val observer =
+      LifecycleEventObserver { _, event ->
+        if (event == Lifecycle.Event.ON_RESUME) {
+          isFileGranted = checkFilePermission(context)
+          isNotificationGranted = checkNotificationPermission(context)
+          isAudioGranted = checkAudioPermission(context)
+        }
       }
-    }
     lifecycleOwner.lifecycle.addObserver(observer)
     onDispose {
       lifecycleOwner.lifecycle.removeObserver(observer)
@@ -184,36 +183,44 @@ fun PermissionDeniedState(
   }
 
   // Launcher for notification permission prompt
-  val notificationLauncher = rememberLauncherForActivityResult(
-    contract = ActivityResultContracts.RequestPermission(),
-  ) { granted ->
-    isNotificationGranted = granted || checkNotificationPermission(context)
-    if (!granted && Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-      val activity = context as? Activity
-      if (activity != null && !activity.shouldShowRequestPermissionRationale(android.Manifest.permission.POST_NOTIFICATIONS)) {
-        val intent = Intent(Settings.ACTION_APP_NOTIFICATION_SETTINGS).apply {
-          putExtra(Settings.EXTRA_APP_PACKAGE, context.packageName)
+  val notificationLauncher =
+    rememberLauncherForActivityResult(
+      contract = ActivityResultContracts.RequestPermission(),
+    ) { granted ->
+      isNotificationGranted = granted || checkNotificationPermission(context)
+      if (!granted && Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+        val activity = context as? Activity
+        if (activity != null &&
+          !activity.shouldShowRequestPermissionRationale(android.Manifest.permission.POST_NOTIFICATIONS)
+        ) {
+          val intent =
+            Intent(Settings.ACTION_APP_NOTIFICATION_SETTINGS).apply {
+              putExtra(Settings.EXTRA_APP_PACKAGE, context.packageName)
+            }
+          runCatching { context.startActivity(intent) }
         }
-        runCatching { context.startActivity(intent) }
       }
     }
-  }
 
   // Launcher for audio permission prompt
-  val audioLauncher = rememberLauncherForActivityResult(
-    contract = ActivityResultContracts.RequestPermission(),
-  ) { granted ->
-    isAudioGranted = granted || checkAudioPermission(context)
-    if (!granted) {
-      val activity = context as? Activity
-      if (activity != null && !activity.shouldShowRequestPermissionRationale(android.Manifest.permission.RECORD_AUDIO)) {
-        val intent = Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS).apply {
-          data = Uri.parse("package:${context.packageName}")
+  val audioLauncher =
+    rememberLauncherForActivityResult(
+      contract = ActivityResultContracts.RequestPermission(),
+    ) { granted ->
+      isAudioGranted = granted || checkAudioPermission(context)
+      if (!granted) {
+        val activity = context as? Activity
+        if (activity != null &&
+          !activity.shouldShowRequestPermissionRationale(android.Manifest.permission.RECORD_AUDIO)
+        ) {
+          val intent =
+            Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS).apply {
+              data = Uri.parse("package:${context.packageName}")
+            }
+          runCatching { context.startActivity(intent) }
         }
-        runCatching { context.startActivity(intent) }
       }
     }
-  }
 
   val browserPreferences = koinInject<BrowserPreferences>()
   val steps =
@@ -252,12 +259,13 @@ fun PermissionDeniedState(
   }
 
   Box(
-    modifier = modifier
-      .fillMaxSize()
-      .padding(
-        top = if (isTelevision) 32.dp else 16.dp,
-        bottom = if (isTelevision) 32.dp else 48.dp,
-      ),
+    modifier =
+      modifier
+        .fillMaxSize()
+        .padding(
+          top = if (isTelevision) 32.dp else 16.dp,
+          bottom = if (isTelevision) 32.dp else 48.dp,
+        ),
   ) {
     Surface(
       modifier = Modifier.fillMaxSize(),
@@ -268,14 +276,15 @@ fun PermissionDeniedState(
         contentAlignment = Alignment.Center,
       ) {
         Column(
-          modifier = Modifier
-            .widthIn(max = if (isTelevision) 760.dp else 560.dp)
-            .fillMaxWidth()
-            .fillMaxHeight()
-            .padding(
-              horizontal = if (isTelevision) 48.dp else 24.dp,
-              vertical = 16.dp,
-            ),
+          modifier =
+            Modifier
+              .widthIn(max = if (isTelevision) 760.dp else 560.dp)
+              .fillMaxWidth()
+              .fillMaxHeight()
+              .padding(
+                horizontal = if (isTelevision) 48.dp else 24.dp,
+                vertical = 16.dp,
+              ),
           horizontalAlignment = Alignment.CenterHorizontally,
         ) {
           // Step progress dots
@@ -288,24 +297,27 @@ fun PermissionDeniedState(
               val isCurrent = index == stepIndex
               Surface(
                 shape = RoundedCornerShape(4.dp),
-                color = if (isCurrent) {
-                  MaterialTheme.colorScheme.primary
-                } else {
-                  MaterialTheme.colorScheme.surfaceContainerHighest
-                },
-                modifier = Modifier
-                  .height(8.dp)
-                  .width(if (isCurrent) 22.dp else 8.dp),
+                color =
+                  if (isCurrent) {
+                    MaterialTheme.colorScheme.primary
+                  } else {
+                    MaterialTheme.colorScheme.surfaceContainerHighest
+                  },
+                modifier =
+                  Modifier
+                    .height(8.dp)
+                    .width(if (isCurrent) 22.dp else 8.dp),
               ) {}
             }
           }
 
           // One step per page so nothing ever overflows the display
           Column(
-            modifier = Modifier
-              .weight(1f)
-              .fillMaxWidth()
-              .verticalScroll(rememberScrollState()),
+            modifier =
+              Modifier
+                .weight(1f)
+                .fillMaxWidth()
+                .verticalScroll(rememberScrollState()),
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.Center,
           ) {
@@ -314,12 +326,13 @@ fun PermissionDeniedState(
                 horizontalAlignment = Alignment.CenterHorizontally,
                 modifier = Modifier.fillMaxWidth(),
               ) {
-                val stepIcon = when (step) {
-                  OnboardingStep.STORAGE -> Icons.RoundedFilled.Folder
-                  OnboardingStep.NOTIFICATIONS -> Icons.RoundedFilled.Notifications
-                  OnboardingStep.AUDIO -> Icons.RoundedFilled.Mic
-                  OnboardingStep.FINISH -> Icons.RoundedFilled.CheckCircle
-                }
+                val stepIcon =
+                  when (step) {
+                    OnboardingStep.STORAGE -> Icons.RoundedFilled.Folder
+                    OnboardingStep.NOTIFICATIONS -> Icons.RoundedFilled.Notifications
+                    OnboardingStep.AUDIO -> Icons.RoundedFilled.Mic
+                    OnboardingStep.FINISH -> Icons.RoundedFilled.CheckCircle
+                  }
 
                 Surface(
                   modifier = Modifier.size(72.dp),
@@ -343,11 +356,12 @@ fun PermissionDeniedState(
                 Spacer(modifier = Modifier.height(16.dp))
 
                 Text(
-                  text = if (step == OnboardingStep.FINISH) {
-                    stringResource(R.string.onboarding_all_set_title)
-                  } else {
-                    stringResource(R.string.ui_app_permissions)
-                  },
+                  text =
+                    if (step == OnboardingStep.FINISH) {
+                      stringResource(R.string.onboarding_all_set_title)
+                    } else {
+                      stringResource(R.string.ui_app_permissions)
+                    },
                   style = MaterialTheme.typography.headlineMedium,
                   fontWeight = FontWeight.Bold,
                   textAlign = TextAlign.Center,
@@ -357,11 +371,12 @@ fun PermissionDeniedState(
                 Spacer(modifier = Modifier.height(8.dp))
 
                 Text(
-                  text = if (step == OnboardingStep.FINISH) {
-                    stringResource(R.string.onboarding_all_set_desc)
-                  } else {
-                    stringResource(R.string.ui_permissions_setup_subtitle)
-                  },
+                  text =
+                    if (step == OnboardingStep.FINISH) {
+                      stringResource(R.string.onboarding_all_set_desc)
+                    } else {
+                      stringResource(R.string.ui_permissions_setup_subtitle)
+                    },
                   style = MaterialTheme.typography.bodyMedium,
                   textAlign = TextAlign.Center,
                   color = MaterialTheme.colorScheme.onSurfaceVariant,
@@ -373,15 +388,16 @@ fun PermissionDeniedState(
                   OnboardingStep.STORAGE ->
                     PermissionSectionCard(
                       title = stringResource(R.string.ui_file_permission_title),
-                      description = if (isPlayStoreBuild) {
-                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-                          stringResource(R.string.ui_file_permission_desc_playstore_tiramisu)
+                      description =
+                        if (isPlayStoreBuild) {
+                          if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                            stringResource(R.string.ui_file_permission_desc_playstore_tiramisu)
+                          } else {
+                            stringResource(R.string.ui_file_permission_desc_playstore)
+                          }
                         } else {
-                          stringResource(R.string.ui_file_permission_desc_playstore)
-                        }
-                      } else {
-                        stringResource(R.string.ui_file_permission_desc_all_files)
-                      },
+                          stringResource(R.string.ui_file_permission_desc_all_files)
+                        },
                       isGranted = isFileGranted,
                       icon = Icons.RoundedFilled.Folder,
                       modifier =
@@ -444,13 +460,14 @@ fun PermissionDeniedState(
                     )
 
                   OnboardingStep.FINISH -> {
-                    val missingPermissions = buildList {
-                      if (!isFileGranted) add(stringResource(R.string.ui_file_permission_title))
-                      if (!isNotificationGranted && Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-                        add(stringResource(R.string.ui_notification_permission_title))
+                    val missingPermissions =
+                      buildList {
+                        if (!isFileGranted) add(stringResource(R.string.ui_file_permission_title))
+                        if (!isNotificationGranted && Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                          add(stringResource(R.string.ui_notification_permission_title))
+                        }
+                        if (!isAudioGranted) add(stringResource(R.string.ui_audio_record_permission_title))
                       }
-                      if (!isAudioGranted) add(stringResource(R.string.ui_audio_record_permission_title))
-                    }
                     if (missingPermissions.isNotEmpty()) {
                       val warningColor = Color(0xFFFFB300)
                       Surface(
@@ -502,9 +519,10 @@ fun PermissionDeniedState(
           // Bottom controls: Skip everywhere; Next only unlocks once the step's permission is granted
           Column(
             horizontalAlignment = Alignment.CenterHorizontally,
-            modifier = Modifier
-              .fillMaxWidth()
-              .padding(top = 16.dp),
+            modifier =
+              Modifier
+                .fillMaxWidth()
+                .padding(top = 16.dp),
           ) {
             val nextEnabled = currentStepGranted
             Row(
@@ -518,10 +536,11 @@ fun PermissionDeniedState(
                     // Skipping storage skips every permission step
                     if (currentStep == OnboardingStep.STORAGE) stepIndex = steps.lastIndex else goNext()
                   },
-                  modifier = Modifier
-                    .weight(0.35f)
-                    .tvFocusHighlight(AppShapeScale.large, focusedScale = 1.04f)
-                    .height(54.dp),
+                  modifier =
+                    Modifier
+                      .weight(0.35f)
+                      .tvFocusHighlight(AppShapeScale.large, focusedScale = 1.04f)
+                      .height(54.dp),
                   shape = AppShapeScale.large,
                 ) {
                   Text(
@@ -538,35 +557,38 @@ fun PermissionDeniedState(
                   if (currentStep == OnboardingStep.FINISH) finishSetup() else goNext()
                 },
                 enabled = nextEnabled,
-                modifier = Modifier
-                  .weight(1f)
-                  .then(
-                    if (nextEnabled) {
-                      Modifier.tvInitialFocus(stepFocusRequester)
-                    } else {
-                      Modifier
-                    },
-                  ).tvFocusHighlight(AppShapeScale.large, enabled = nextEnabled, focusedScale = 1.04f)
-                  .height(54.dp)
-                  .alpha(if (nextEnabled) 1f else 0.45f),
+                modifier =
+                  Modifier
+                    .weight(1f)
+                    .then(
+                      if (nextEnabled) {
+                        Modifier.tvInitialFocus(stepFocusRequester)
+                      } else {
+                        Modifier
+                      },
+                    ).tvFocusHighlight(AppShapeScale.large, enabled = nextEnabled, focusedScale = 1.04f)
+                    .height(54.dp)
+                    .alpha(if (nextEnabled) 1f else 0.45f),
                 shape = AppShapeScale.large,
-                colors = ButtonDefaults.buttonColors(
-                  containerColor = MaterialTheme.colorScheme.primary,
-                  contentColor = MaterialTheme.colorScheme.onPrimary,
-                  disabledContainerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
-                  disabledContentColor = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f),
-                ),
+                colors =
+                  ButtonDefaults.buttonColors(
+                    containerColor = MaterialTheme.colorScheme.primary,
+                    contentColor = MaterialTheme.colorScheme.onPrimary,
+                    disabledContainerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
+                    disabledContentColor = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f),
+                  ),
               ) {
                 Row(
                   verticalAlignment = Alignment.CenterVertically,
                   horizontalArrangement = Arrangement.Center,
                 ) {
                   Text(
-                    text = if (currentStep == OnboardingStep.FINISH) {
-                      stringResource(R.string.onboarding_get_started)
-                    } else {
-                      stringResource(R.string.ui_next)
-                    },
+                    text =
+                      if (currentStep == OnboardingStep.FINISH) {
+                        stringResource(R.string.onboarding_get_started)
+                      } else {
+                        stringResource(R.string.ui_next)
+                      },
                     style = MaterialTheme.typography.titleMedium,
                     fontWeight = FontWeight.Bold,
                   )
@@ -630,9 +652,10 @@ fun PermissionDeniedState(
       },
       text = {
         Column(
-          modifier = Modifier
-            .heightIn(max = 400.dp)
-            .verticalScroll(rememberScrollState()),
+          modifier =
+            Modifier
+              .heightIn(max = 400.dp)
+              .verticalScroll(rememberScrollState()),
           verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
           if (isPlayStoreBuild) {
@@ -642,11 +665,12 @@ fun PermissionDeniedState(
               color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
             Text(
-              text = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-                "On Android 13 and above, this permission allows the app to read video files from your device's storage, including Downloads, Movies, and DCIM folders."
-              } else {
-                "This permission allows the app to read media files from your device's storage to play videos and audio."
-              },
+              text =
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                  "On Android 13 and above, this permission allows the app to read video files from your device's storage, including Downloads, Movies, and DCIM folders."
+                } else {
+                  "This permission allows the app to read media files from your device's storage to play videos and audio."
+                },
               style = MaterialTheme.typography.bodyMedium,
               color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
@@ -685,22 +709,24 @@ fun PermissionDeniedState(
             color = MaterialTheme.colorScheme.onSurfaceVariant,
           )
 
-          val annotatedString = buildAnnotatedString {
-            pushStringAnnotation(
-              tag = "URL",
-              annotation = githubUrl,
-            )
-            withStyle(
-              style = SpanStyle(
-                color = MaterialTheme.colorScheme.primary,
-                fontWeight = FontWeight.Medium,
-                textDecoration = TextDecoration.Underline,
-              ),
-            ) {
-              append(githubUrl)
+          val annotatedString =
+            buildAnnotatedString {
+              pushStringAnnotation(
+                tag = "URL",
+                annotation = githubUrl,
+              )
+              withStyle(
+                style =
+                  SpanStyle(
+                    color = MaterialTheme.colorScheme.primary,
+                    fontWeight = FontWeight.Medium,
+                    textDecoration = TextDecoration.Underline,
+                  ),
+              ) {
+                append(githubUrl)
+              }
+              pop()
             }
-            pop()
-          }
 
           ClickableText(
             text = annotatedString,
@@ -749,54 +775,58 @@ private fun PermissionSectionCard(
 ) {
   val isTelevision = DeviceFormFactor.isTelevision(LocalContext.current)
   val cardBgColor by animateColorAsState(
-    targetValue = if (isGranted) {
-      MaterialTheme.colorScheme.surfaceContainerLowest
-    } else {
-      MaterialTheme.colorScheme.surfaceContainer
-    },
+    targetValue =
+      if (isGranted) {
+        MaterialTheme.colorScheme.surfaceContainerLowest
+      } else {
+        MaterialTheme.colorScheme.surfaceContainer
+      },
     label = "card_bg",
   )
 
-  val borderModifier = if (!isGranted) {
-    Modifier.border(
-      width = 1.dp,
-      color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f),
-      shape = AppShapeScale.largeIncreased,
-    )
-  } else {
-    Modifier
-  }
+  val borderModifier =
+    if (!isGranted) {
+      Modifier.border(
+        width = 1.dp,
+        color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f),
+        shape = AppShapeScale.largeIncreased,
+      )
+    } else {
+      Modifier
+    }
 
   Card(
-    modifier = modifier
-      .fillMaxWidth()
-      .alpha(if (isGranted) 0.65f else 1f)
-      .then(borderModifier)
-      .tvFocusHighlight(
-        AppShapeScale.largeIncreased,
-        enabled = !isGranted,
-        focusedScale = 1.025f,
-      )
-      .clip(AppShapeScale.largeIncreased)
-      .clickable(enabled = !isGranted, onClick = onClick),
+    modifier =
+      modifier
+        .fillMaxWidth()
+        .alpha(if (isGranted) 0.65f else 1f)
+        .then(borderModifier)
+        .tvFocusHighlight(
+          AppShapeScale.largeIncreased,
+          enabled = !isGranted,
+          focusedScale = 1.025f,
+        ).clip(AppShapeScale.largeIncreased)
+        .clickable(enabled = !isGranted, onClick = onClick),
     colors = CardDefaults.cardColors(containerColor = cardBgColor),
     shape = AppShapeScale.largeIncreased,
   ) {
     Row(
-      modifier = Modifier
-        .fillMaxWidth()
-        .padding(18.dp),
+      modifier =
+        Modifier
+          .fillMaxWidth()
+          .padding(18.dp),
       verticalAlignment = Alignment.CenterVertically,
     ) {
       // Left Icon Container
       Surface(
         modifier = Modifier.size(44.dp),
         shape = RoundedCornerShape(12.dp),
-        color = if (isGranted) {
-          MaterialTheme.colorScheme.surfaceVariant
-        } else {
-          MaterialTheme.colorScheme.primaryContainer
-        },
+        color =
+          if (isGranted) {
+            MaterialTheme.colorScheme.surfaceVariant
+          } else {
+            MaterialTheme.colorScheme.primaryContainer
+          },
       ) {
         Box(
           contentAlignment = Alignment.Center,
@@ -806,11 +836,12 @@ private fun PermissionSectionCard(
             imageVector = icon,
             contentDescription = null,
             modifier = Modifier.size(22.dp),
-            tint = if (isGranted) {
-              MaterialTheme.colorScheme.onSurfaceVariant
-            } else {
-              MaterialTheme.colorScheme.onPrimaryContainer
-            },
+            tint =
+              if (isGranted) {
+                MaterialTheme.colorScheme.onSurfaceVariant
+              } else {
+                MaterialTheme.colorScheme.onPrimaryContainer
+              },
           )
         }
       }
@@ -828,11 +859,12 @@ private fun PermissionSectionCard(
             text = title,
             style = if (isTelevision) MaterialTheme.typography.titleLarge else MaterialTheme.typography.titleMedium,
             fontWeight = FontWeight.Bold,
-            color = if (isGranted) {
-              MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f)
-            } else {
-              MaterialTheme.colorScheme.onSurface
-            },
+            color =
+              if (isGranted) {
+                MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f)
+              } else {
+                MaterialTheme.colorScheme.onSurface
+              },
           )
 
           if (isGranted) {
@@ -885,12 +917,12 @@ private fun PermissionSectionCard(
 @Composable
 private fun PillBadge(text: String) {
   Box(
-    modifier = Modifier
-      .background(
-        color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.7f),
-        shape = RoundedCornerShape(50),
-      )
-      .padding(horizontal = 8.dp, vertical = 2.dp),
+    modifier =
+      Modifier
+        .background(
+          color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.7f),
+          shape = RoundedCornerShape(50),
+        ).padding(horizontal = 8.dp, vertical = 2.dp),
   ) {
     Text(
       text = text,
@@ -919,9 +951,10 @@ fun StoragePermissionPrompt(
     )
 
   DisposableEffect(lifecycleOwner) {
-    val observer = LifecycleEventObserver { _, event ->
-      if (event == Lifecycle.Event.ON_RESUME) isFileGranted = checkFilePermission(context)
-    }
+    val observer =
+      LifecycleEventObserver { _, event ->
+        if (event == Lifecycle.Event.ON_RESUME) isFileGranted = checkFilePermission(context)
+      }
     lifecycleOwner.lifecycle.addObserver(observer)
     onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
   }
@@ -932,9 +965,10 @@ fun StoragePermissionPrompt(
   ) {
     Column(
       horizontalAlignment = Alignment.CenterHorizontally,
-      modifier = Modifier
-        .widthIn(max = if (isTelevision) 560.dp else 420.dp)
-        .padding(horizontal = if (isTelevision) 48.dp else 24.dp),
+      modifier =
+        Modifier
+          .widthIn(max = if (isTelevision) 560.dp else 420.dp)
+          .padding(horizontal = if (isTelevision) 48.dp else 24.dp),
     ) {
       Surface(
         modifier = Modifier.size(64.dp),

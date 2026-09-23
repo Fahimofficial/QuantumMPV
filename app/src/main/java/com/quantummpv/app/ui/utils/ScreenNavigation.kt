@@ -34,12 +34,14 @@ import com.quantummpv.app.preferences.PlayerPreferences
 import com.quantummpv.app.preferences.preference.collectAsState
 import com.quantummpv.app.presentation.Screen
 import com.quantummpv.app.ui.player.NavigationAnimStyle
-import kotlin.math.roundToInt
 import org.koin.compose.koinInject
+import kotlin.math.roundToInt
 
 /** The Appearance slider is a duration multiplier: smaller values finish sooner. */
-internal fun navigationDurationMillis(speed: Float, baseMillis: Int = 300): Int =
-  (baseMillis * (speed.takeIf { it.isFinite() } ?: 1f).coerceIn(0.25f, 2.5f)).roundToInt()
+internal fun navigationDurationMillis(
+  speed: Float,
+  baseMillis: Int = 300,
+): Int = (baseMillis * (speed.takeIf { it.isFinite() } ?: 1f).coerceIn(0.25f, 2.5f)).roundToInt()
 
 /** One host for full screens and nested panes, including system/predictive Back and saved state. */
 @Composable
@@ -90,32 +92,46 @@ private fun screenNavTransition(
         fadeOut(tween(duration, easing = FastOutSlowInEasing))
     NavigationAnimStyle.FlipFade -> {
       val exitDuration = (duration * 0.35f).roundToInt()
-      (fadeIn(tween(duration - exitDuration, delayMillis = exitDuration)) +
-        scaleIn(
-          tween(duration, easing = FastOutSlowInEasing),
-          initialScale = if (forward) 0.96f else 1.04f,
-        )) togetherWith fadeOut(tween(exitDuration))
+      (
+        fadeIn(tween(duration - exitDuration, delayMillis = exitDuration)) +
+          scaleIn(
+            tween(duration, easing = FastOutSlowInEasing),
+            initialScale = if (forward) 0.96f else 1.04f,
+          )
+      ) togetherWith fadeOut(tween(exitDuration))
     }
     NavigationAnimStyle.Depth ->
       if (forward) {
-        (slideInHorizontally(tween(duration, easing = FastOutSlowInEasing)) { it * direction } +
-          fadeIn(tween(duration))) togetherWith
-          (scaleOut(tween(duration, easing = FastOutSlowInEasing), targetScale = 0.96f) +
-            fadeOut(tween(duration), targetAlpha = 0.7f))
+        (
+          slideInHorizontally(tween(duration, easing = FastOutSlowInEasing)) { it * direction } +
+            fadeIn(tween(duration))
+        ) togetherWith
+          (
+            scaleOut(tween(duration, easing = FastOutSlowInEasing), targetScale = 0.96f) +
+              fadeOut(tween(duration), targetAlpha = 0.7f)
+          )
       } else {
-        (scaleIn(tween(duration, easing = FastOutSlowInEasing), initialScale = 0.96f) +
-          fadeIn(tween(duration), initialAlpha = 0.7f)) togetherWith
-          (slideOutHorizontally(tween(duration, easing = FastOutSlowInEasing)) { it * direction } +
-            fadeOut(tween(duration)))
+        (
+          scaleIn(tween(duration, easing = FastOutSlowInEasing), initialScale = 0.96f) +
+            fadeIn(tween(duration), initialAlpha = 0.7f)
+        ) togetherWith
+          (
+            slideOutHorizontally(tween(duration, easing = FastOutSlowInEasing)) { it * direction } +
+              fadeOut(tween(duration))
+          )
       }
     NavigationAnimStyle.Default ->
       if (forward) {
         slideInHorizontally(tween(duration, easing = FastOutSlowInEasing)) { it * direction } togetherWith
-          (slideOutHorizontally(tween(duration, easing = FastOutSlowInEasing)) { -it * direction / 4 } +
-            fadeOut(tween(duration, easing = FastOutSlowInEasing), targetAlpha = 0.88f))
+          (
+            slideOutHorizontally(tween(duration, easing = FastOutSlowInEasing)) { -it * direction / 4 } +
+              fadeOut(tween(duration, easing = FastOutSlowInEasing), targetAlpha = 0.88f)
+          )
       } else {
-        (slideInHorizontally(tween(duration, easing = FastOutSlowInEasing)) { -it * direction / 4 } +
-          fadeIn(tween(duration, easing = FastOutSlowInEasing), initialAlpha = 0.88f)) togetherWith
+        (
+          slideInHorizontally(tween(duration, easing = FastOutSlowInEasing)) { -it * direction / 4 } +
+            fadeIn(tween(duration, easing = FastOutSlowInEasing), initialAlpha = 0.88f)
+        ) togetherWith
           slideOutHorizontally(tween(duration, easing = FastOutSlowInEasing)) { it * direction }
       }
   }

@@ -9,7 +9,6 @@
 
 package com.quantummpv.app.ui.browser.jellyfin
 
-import com.quantummpv.app.ui.utils.NavigationBackHandler as BackHandler
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.animateFloatAsState
@@ -20,7 +19,6 @@ import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -43,9 +41,9 @@ import androidx.compose.foundation.lazy.grid.GridItemSpan
 import androidx.compose.foundation.lazy.grid.LazyGridState
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
-import androidx.compose.foundation.lazy.grid.rememberLazyGridState
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -69,7 +67,6 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.ToggleFloatingActionButton
 import androidx.compose.material3.ToggleFloatingActionButtonDefaults.animateIcon
 import androidx.compose.material3.animateFloatingActionButton
-import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -81,12 +78,10 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
-import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
@@ -99,10 +94,10 @@ import com.quantummpv.app.domain.jellyfin.JellyfinItem
 import com.quantummpv.app.domain.jellyfin.JellyfinSearchCategory
 import com.quantummpv.app.domain.jellyfin.JellyfinServer
 import com.quantummpv.app.preferences.AppearancePreferences
-import com.quantummpv.app.preferences.MediaServerPreferences
-import com.quantummpv.app.preferences.MusicSourceProvider
 import com.quantummpv.app.preferences.BrowserPreferences
 import com.quantummpv.app.preferences.MediaLayoutMode
+import com.quantummpv.app.preferences.MediaServerPreferences
+import com.quantummpv.app.preferences.MusicSourceProvider
 import com.quantummpv.app.preferences.preference.collectAsState
 import com.quantummpv.app.presentation.components.pullrefresh.PullRefreshBox
 import com.quantummpv.app.ui.browser.LocalNavigationBarHeight
@@ -111,8 +106,8 @@ import com.quantummpv.app.ui.browser.components.ExpressiveScrollBar
 import com.quantummpv.app.ui.browser.components.fastScrollGlyph
 import com.quantummpv.app.ui.browser.dialogs.JellyfinSortDialog
 import com.quantummpv.app.ui.browser.dialogs.MusicSortDialog
-import com.quantummpv.app.ui.browser.music.MusicSortField
 import com.quantummpv.app.ui.browser.fab.FabScrollHelper
+import com.quantummpv.app.ui.browser.music.MusicSortField
 import com.quantummpv.app.ui.browser.selection.rememberSelectionManager
 import com.quantummpv.app.ui.components.InlineSearchBar
 import com.quantummpv.app.ui.icons.Icon
@@ -121,6 +116,7 @@ import com.quantummpv.app.ui.utils.LocalBackStack
 import com.quantummpv.app.ui.utils.navigateTo
 import com.quantummpv.app.ui.utils.rememberTabNavigation
 import org.koin.compose.koinInject
+import com.quantummpv.app.ui.utils.NavigationBackHandler as BackHandler
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -170,19 +166,21 @@ fun JellyfinContent(
         ),
     )
 
-  val musicTabs = remember {
-    listOf(
-      JellyfinMusicTab.HOME,
-      JellyfinMusicTab.TRACKS,
-      JellyfinMusicTab.ALBUMS,
-      JellyfinMusicTab.ARTISTS,
-      JellyfinMusicTab.PLAYLISTS,
+  val musicTabs =
+    remember {
+      listOf(
+        JellyfinMusicTab.HOME,
+        JellyfinMusicTab.TRACKS,
+        JellyfinMusicTab.ALBUMS,
+        JellyfinMusicTab.ARTISTS,
+        JellyfinMusicTab.PLAYLISTS,
+      )
+    }
+  val musicPagerState =
+    rememberPagerState(
+      initialPage = musicTabs.indexOf(uiState.musicActiveTab).coerceAtLeast(0),
+      pageCount = { musicTabs.size },
     )
-  }
-  val musicPagerState = rememberPagerState(
-    initialPage = musicTabs.indexOf(uiState.musicActiveTab).coerceAtLeast(0),
-    pageCount = { musicTabs.size },
-  )
   val navigateMusicTab = rememberTabNavigation(musicPagerState)
 
   LaunchedEffect(musicPagerState.settledPage, musicPagerState.isScrollInProgress, musicTabs) {
@@ -203,8 +201,10 @@ fun JellyfinContent(
   }
 
   val homeListState = rememberLazyListState()
-  val libraryListState = remember(uiState.openLibrary, uiState.sortBy, uiState.sortOrder, uiState.isUnplayedOnly) { LazyListState() }
-  val libraryGridState = remember(uiState.openLibrary, uiState.sortBy, uiState.sortOrder, uiState.isUnplayedOnly) { LazyGridState() }
+  val libraryListState =
+    remember(uiState.openLibrary, uiState.sortBy, uiState.sortOrder, uiState.isUnplayedOnly) { LazyListState() }
+  val libraryGridState =
+    remember(uiState.openLibrary, uiState.sortBy, uiState.sortOrder, uiState.isUnplayedOnly) { LazyGridState() }
 
   if (uiState.openLibrary == null) {
     FabScrollHelper.trackScrollForFabVisibility(
@@ -248,17 +248,24 @@ fun JellyfinContent(
     }
   }
 
-  com.quantummpv.app.ui.browser.NavigationBarSelectionEffect(selectionManager.isInSelectionMode)
+  com.quantummpv.app.ui.browser
+    .NavigationBarSelectionEffect(selectionManager.isInSelectionMode)
 
   // Intercept back button if searching, selecting, requests open, details open, or browsing inside a folder
   val isBackEnabled =
     if (isMusicOnlyMode) {
-      isSearching || selectionManager.isInSelectionMode || uiState.detailItem != null ||
+      isSearching ||
+        selectionManager.isInSelectionMode ||
+        uiState.detailItem != null ||
         (uiState.openLibrary?.isMusic == true && uiState.musicActiveTab != JellyfinMusicTab.HOME) ||
         (isFabExpanded && !quickPlayFabDirect)
     } else {
-      isSeerrRequestsOpen || isSearching || selectionManager.isInSelectionMode ||
-        uiState.detailItem != null || uiState.openLibrary != null || (isFabExpanded && !quickPlayFabDirect)
+      isSeerrRequestsOpen ||
+        isSearching ||
+        selectionManager.isInSelectionMode ||
+        uiState.detailItem != null ||
+        uiState.openLibrary != null ||
+        (isFabExpanded && !quickPlayFabDirect)
     }
 
   BackHandler(
@@ -332,9 +339,10 @@ fun JellyfinContent(
   ) {
     // Top Bar Container (Material 3 Expressive BrowserTopBar / SearchBar / TabRow)
     Column(
-      modifier = Modifier
-        .fillMaxWidth()
-        .background(headerContainerColor),
+      modifier =
+        Modifier
+          .fillMaxWidth()
+          .background(headerContainerColor),
     ) {
       if (isSearching) {
         Column(
@@ -392,7 +400,12 @@ fun JellyfinContent(
               FilterChip(
                 selected = isSelected,
                 onClick = { viewModel.setSearchCategory(category) },
-                label = { Text(category.displayName, fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal) },
+                label = {
+                  Text(
+                    category.displayName,
+                    fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
+                  )
+                },
                 shape = RoundedCornerShape(12.dp),
                 colors =
                   FilterChipDefaults.filterChipColors(
@@ -415,17 +428,28 @@ fun JellyfinContent(
           onDeselectAll = { selectionManager.clear() },
           onPlayClick = { viewModel.playSelected(context, selectionManager.getSelectedItems()) },
           isSingleSelection = selectionManager.isSingleSelection,
-          onBackClick = if (!isMusicOnlyMode && uiState.openLibrary != null) { { viewModel.navigateBack() } } else null,
-          onSortClick = if (uiState.openLibrary != null && !(uiState.openLibrary?.isMusic == true && uiState.musicActiveTab == JellyfinMusicTab.HOME)) {
-            { isSortDialogOpen = true }
-          } else null,
+          onBackClick =
+            if (!isMusicOnlyMode && uiState.openLibrary != null) {
+              { viewModel.navigateBack() }
+            } else {
+              null
+            },
+          onSortClick =
+            if (uiState.openLibrary != null &&
+              !(uiState.openLibrary?.isMusic == true && uiState.musicActiveTab == JellyfinMusicTab.HOME)
+            ) {
+              { isSortDialogOpen = true }
+            } else {
+              null
+            },
           onSearchClick = { isSearching = true },
           // Seerr requests only surface on the untouched Jellyfin home page.
-          onRequestClick = if (!isMusicOnlyMode && uiState.openLibrary == null && uiState.selectedLibraryId == null) {
-            { isSeerrRequestsOpen = true }
-          } else {
-            null
-          },
+          onRequestClick =
+            if (!isMusicOnlyMode && uiState.openLibrary == null && uiState.selectedLibraryId == null) {
+              { isSeerrRequestsOpen = true }
+            } else {
+              null
+            },
           onSettingsClick = {
             backstack.navigateTo(com.quantummpv.app.ui.preferences.PreferencesScreen)
           },
@@ -437,9 +461,10 @@ fun JellyfinContent(
                   Surface(
                     shape = RoundedCornerShape(16.dp),
                     color = MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.8f),
-                    modifier = Modifier
-                      .padding(horizontal = 4.dp, vertical = 6.dp)
-                      .clickable { isSourceDropdownOpen = true },
+                    modifier =
+                      Modifier
+                        .padding(horizontal = 4.dp, vertical = 6.dp)
+                        .clickable { isSourceDropdownOpen = true },
                   ) {
                     Row(
                       verticalAlignment = Alignment.CenterVertically,
@@ -473,11 +498,12 @@ fun JellyfinContent(
                       }
                       Spacer(Modifier.width(6.dp))
                       Text(
-                        text = when (currentMusicSource) {
-                          MusicSourceProvider.JELLYFIN -> stringResource(R.string.pref_jellyfin_title)
-                          MusicSourceProvider.NAVIDROME -> stringResource(R.string.music_source_navidrome)
-                          else -> stringResource(R.string.music_source_local)
-                        },
+                        text =
+                          when (currentMusicSource) {
+                            MusicSourceProvider.JELLYFIN -> stringResource(R.string.pref_jellyfin_title)
+                            MusicSourceProvider.NAVIDROME -> stringResource(R.string.music_source_navidrome)
+                            else -> stringResource(R.string.music_source_local)
+                          },
                         style = MaterialTheme.typography.labelMedium,
                         fontWeight = FontWeight.Bold,
                         color = MaterialTheme.colorScheme.onSecondaryContainer,
@@ -694,7 +720,10 @@ fun JellyfinContent(
             }
 
             // Loading state (initial)
-            uiState.isLoading && uiState.libraries.isEmpty() && uiState.currentItems.isEmpty() && uiState.heroItems.isEmpty() -> {
+            uiState.isLoading &&
+              uiState.libraries.isEmpty() &&
+              uiState.currentItems.isEmpty() &&
+              uiState.heroItems.isEmpty() -> {
               CircularProgressIndicator()
             }
 
@@ -741,11 +770,12 @@ fun JellyfinContent(
                     }
 
                     // 2. Libraries Section (above Continue Watching)
-                    val homeLibraries = uiState.libraries.filter { library ->
-                      library.collectionType?.equals("playlists", ignoreCase = true) != true &&
-                        !library.name.equals("playlists", ignoreCase = true) &&
-                        library.type != "PlaylistsFolder"
-                    }
+                    val homeLibraries =
+                      uiState.libraries.filter { library ->
+                        library.collectionType?.equals("playlists", ignoreCase = true) != true &&
+                          !library.name.equals("playlists", ignoreCase = true) &&
+                          library.type != "PlaylistsFolder"
+                      }
                     if (homeLibraries.isNotEmpty()) {
                       item {
                         Column(
@@ -814,7 +844,11 @@ fun JellyfinContent(
                             onItemClick = { item -> viewModel.openDetail(item) },
                             onItemLongClick = { item -> viewModel.playItem(context, item) },
                             onSeeAll = {
-                              val movieLib = uiState.libraries.find { it.collectionType?.equals("movies", ignoreCase = true) == true }
+                              val movieLib =
+                                uiState.libraries.find {
+                                  it.collectionType?.equals("movies", ignoreCase = true) ==
+                                    true
+                                }
                               if (movieLib != null) viewModel.navigateToItem(movieLib)
                             },
                           )
@@ -832,7 +866,11 @@ fun JellyfinContent(
                             onItemClick = { item -> viewModel.openDetail(item) },
                             onItemLongClick = { item -> viewModel.playItem(context, item) },
                             onSeeAll = {
-                              val tvLib = uiState.libraries.find { it.collectionType?.equals("tvshows", ignoreCase = true) == true }
+                              val tvLib =
+                                uiState.libraries.find {
+                                  it.collectionType?.equals("tvshows", ignoreCase = true) ==
+                                    true
+                                }
                               if (tvLib != null) viewModel.navigateToItem(tvLib)
                             },
                           )
@@ -865,7 +903,11 @@ fun JellyfinContent(
                             title = "Music",
                             subtitle = "Albums & Tracks",
                             onSeeAll = {
-                              val musicLib = uiState.libraries.find { it.collectionType?.equals("music", ignoreCase = true) == true }
+                              val musicLib =
+                                uiState.libraries.find {
+                                  it.collectionType?.equals("music", ignoreCase = true) ==
+                                    true
+                                }
                               if (musicLib != null) viewModel.navigateToItem(musicLib)
                             },
                           )
@@ -879,14 +921,26 @@ fun JellyfinContent(
                                 item = item,
                                 server = server,
                                 onClick = {
-                                  if (item.type == "MusicArtist" || item.type == "Artist" || item.type == "AlbumArtist" || item.type == "MusicAlbum" || item.type == "Album" || item.type == "Playlist") {
+                                  if (item.type == "MusicArtist" ||
+                                    item.type == "Artist" ||
+                                    item.type == "AlbumArtist" ||
+                                    item.type == "MusicAlbum" ||
+                                    item.type == "Album" ||
+                                    item.type == "Playlist"
+                                  ) {
                                     viewModel.openDetail(item)
                                   } else {
                                     viewModel.playItem(context, item)
                                   }
                                 },
                                 onLongClick = {
-                                  if (item.type == "MusicArtist" || item.type == "Artist" || item.type == "AlbumArtist" || item.type == "MusicAlbum" || item.type == "Album" || item.type == "Playlist") {
+                                  if (item.type == "MusicArtist" ||
+                                    item.type == "Artist" ||
+                                    item.type == "AlbumArtist" ||
+                                    item.type == "MusicAlbum" ||
+                                    item.type == "Album" ||
+                                    item.type == "Playlist"
+                                  ) {
                                     viewModel.playItem(context, item)
                                   } else {
                                     viewModel.openDetail(item)
@@ -916,7 +970,13 @@ fun JellyfinContent(
                   onItemClick = { item ->
                     if (selectionManager.isInSelectionMode) {
                       selectionManager.toggle(item)
-                    } else if (item.type == "MusicArtist" || item.type == "Artist" || item.type == "AlbumArtist" || item.type == "MusicAlbum" || item.type == "Album" || item.type == "Playlist") {
+                    } else if (item.type == "MusicArtist" ||
+                      item.type == "Artist" ||
+                      item.type == "AlbumArtist" ||
+                      item.type == "MusicAlbum" ||
+                      item.type == "Album" ||
+                      item.type == "Playlist"
+                    ) {
                       viewModel.openDetail(item)
                     } else if (item.isFolder || item.type == "CollectionFolder") {
                       viewModel.navigateToItem(item)
@@ -932,88 +992,195 @@ fun JellyfinContent(
                 val allEpisodes = items.isNotEmpty() && items.all { it.type == "Episode" }
                 val isListMode = layoutMode == MediaLayoutMode.LIST || allEpisodes
 
-              if (items.isEmpty() && !uiState.isLoading) {
-                Column(
-                  modifier = Modifier.padding(24.dp),
-                  horizontalAlignment = Alignment.CenterHorizontally,
-                  verticalArrangement = Arrangement.Center,
-                ) {
-                  Icon(
-                    imageVector = Icons.RoundedFilled.Movie,
-                    contentDescription = null,
-                    tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f),
-                    modifier = Modifier.size(48.dp),
+                if (items.isEmpty() && !uiState.isLoading) {
+                  Column(
+                    modifier = Modifier.padding(24.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.Center,
+                  ) {
+                    Icon(
+                      imageVector = Icons.RoundedFilled.Movie,
+                      contentDescription = null,
+                      tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f),
+                      modifier = Modifier.size(48.dp),
+                    )
+                    Spacer(modifier = Modifier.height(12.dp))
+                    Text(
+                      text = if (uiState.searchQuery.isNotBlank()) "No results found for \"${uiState.searchQuery}\"" else "No media found in this folder",
+                      style = MaterialTheme.typography.bodyLarge,
+                      color = MaterialTheme.colorScheme.onSurfaceVariant,
+                      textAlign = TextAlign.Center,
+                    )
+                  }
+                } else if (isListMode) {
+                  val listState = libraryListState
+                  val hasEnoughItems = items.size > 6
+                  val scrollbarAlpha by animateFloatAsState(
+                    targetValue = if (hasEnoughItems) 1f else 0f,
+                    label = "scrollbarAlpha",
                   )
-                  Spacer(modifier = Modifier.height(12.dp))
-                  Text(
-                    text = if (uiState.searchQuery.isNotBlank()) "No results found for \"${uiState.searchQuery}\"" else "No media found in this folder",
-                    style = MaterialTheme.typography.bodyLarge,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    textAlign = TextAlign.Center,
-                  )
-                }
-              } else if (isListMode) {
-                val listState = libraryListState
-                val hasEnoughItems = items.size > 6
-                val scrollbarAlpha by animateFloatAsState(
-                  targetValue = if (hasEnoughItems) 1f else 0f,
-                  label = "scrollbarAlpha",
-                )
 
-                val shouldLoadMore =
-                  remember {
-                    derivedStateOf {
-                      val lastVisibleIndex = listState.layoutInfo.visibleItemsInfo.lastOrNull()?.index ?: 0
-                      items.isNotEmpty() && lastVisibleIndex >= items.size - 5
+                  val shouldLoadMore =
+                    remember {
+                      derivedStateOf {
+                        val lastVisibleIndex =
+                          listState.layoutInfo.visibleItemsInfo
+                            .lastOrNull()
+                            ?.index ?: 0
+                        items.isNotEmpty() && lastVisibleIndex >= items.size - 5
+                      }
+                    }
+
+                  LaunchedEffect(shouldLoadMore.value) {
+                    if (shouldLoadMore.value && uiState.hasMore && !uiState.isLoading && !uiState.isLoadingMore) {
+                      viewModel.loadMoreItems()
                     }
                   }
 
-                LaunchedEffect(shouldLoadMore.value) {
-                  if (shouldLoadMore.value && uiState.hasMore && !uiState.isLoading && !uiState.isLoadingMore) {
-                    viewModel.loadMoreItems()
-                  }
-                }
-
-                Box(modifier = Modifier.fillMaxSize()) {
-                  LazyColumn(
-                    state = listState,
-                    modifier = Modifier.fillMaxSize(),
-                    contentPadding = PaddingValues(start = 16.dp, end = 24.dp, top = 8.dp, bottom = navigationBarHeight + 80.dp),
-                    verticalArrangement = Arrangement.spacedBy(10.dp),
-                  ) {
-                    items(items, key = { it.id }) { item ->
-                      uiState.activeServer?.let { server ->
-                        if (allEpisodes || item.type == "Episode") {
-                          JellyfinEpisodeCard(
-                            item = item,
-                            server = server,
-                            onPlay = {
-                              if (selectionManager.isInSelectionMode) {
-                                selectionManager.toggle(item)
-                              } else {
-                                viewModel.playItem(context, item)
-                              }
-                            },
-                            onLongClick = { selectionManager.handleLongClick(item) },
-                            isSelected = selectionManager.isSelected(item),
-                            downloadState =
-                              when {
-                                item.id in downloadedItemIds -> EpisodeDownloadState.DOWNLOADED
-                                item.id in activeDownloadItemIds -> EpisodeDownloadState.ACTIVE
-                                else -> EpisodeDownloadState.NOT_DOWNLOADED
+                  Box(modifier = Modifier.fillMaxSize()) {
+                    LazyColumn(
+                      state = listState,
+                      modifier = Modifier.fillMaxSize(),
+                      contentPadding =
+                        PaddingValues(
+                          start = 16.dp,
+                          end = 24.dp,
+                          top = 8.dp,
+                          bottom =
+                            navigationBarHeight + 80.dp,
+                        ),
+                      verticalArrangement = Arrangement.spacedBy(10.dp),
+                    ) {
+                      items(items, key = { it.id }) { item ->
+                        uiState.activeServer?.let { server ->
+                          if (allEpisodes || item.type == "Episode") {
+                            JellyfinEpisodeCard(
+                              item = item,
+                              server = server,
+                              onPlay = {
+                                if (selectionManager.isInSelectionMode) {
+                                  selectionManager.toggle(item)
+                                } else {
+                                  viewModel.playItem(context, item)
+                                }
                               },
-                            onDownload = { viewModel.downloadItem(item) },
-                          )
-                        } else {
-                          JellyfinListItemCard(
+                              onLongClick = { selectionManager.handleLongClick(item) },
+                              isSelected = selectionManager.isSelected(item),
+                              downloadState =
+                                when {
+                                  item.id in downloadedItemIds -> EpisodeDownloadState.DOWNLOADED
+                                  item.id in activeDownloadItemIds -> EpisodeDownloadState.ACTIVE
+                                  else -> EpisodeDownloadState.NOT_DOWNLOADED
+                                },
+                              onDownload = { viewModel.downloadItem(item) },
+                            )
+                          } else {
+                            JellyfinListItemCard(
+                              item = item,
+                              server = server,
+                              onClick = {
+                                if (selectionManager.isInSelectionMode) {
+                                  selectionManager.toggle(item)
+                                } else if (item.isFolder ||
+                                  item.isSeries ||
+                                  item.isSeason ||
+                                  item.type == "CollectionFolder"
+                                ) {
+                                  viewModel.navigateToItem(item)
+                                } else if (item.isVideo) {
+                                  viewModel.openDetail(item)
+                                } else {
+                                  viewModel.playItem(context, item)
+                                }
+                              },
+                              onLongClick = { selectionManager.handleLongClick(item) },
+                              isSelected = selectionManager.isSelected(item),
+                              isDownloaded = item.id in downloadedItemIds,
+                            )
+                          }
+                        }
+                      }
+                      if (uiState.isLoadingMore) {
+                        item {
+                          Box(
+                            modifier =
+                              Modifier
+                                .fillMaxWidth()
+                                .padding(16.dp),
+                            contentAlignment = Alignment.Center,
+                          ) {
+                            CircularProgressIndicator(modifier = Modifier.size(28.dp))
+                          }
+                        }
+                      }
+                    }
+
+                    if (hasEnoughItems && scrollbarAlpha > 0.01f) {
+                      ExpressiveScrollBar(
+                        listState = listState,
+                        dragLabelProvider = { index ->
+                          fastScrollGlyph(items.getOrNull(index)?.name)
+                        },
+                        modifier =
+                          Modifier
+                            .align(Alignment.CenterEnd)
+                            .padding(end = 2.dp, top = 6.dp, bottom = navigationBarHeight + 80.dp)
+                            .graphicsLayer { alpha = scrollbarAlpha },
+                      )
+                    }
+                  }
+                } else {
+                  val gridState = libraryGridState
+                  val hasEnoughItems = items.size > 6
+                  val scrollbarAlpha by animateFloatAsState(
+                    targetValue = if (hasEnoughItems) 1f else 0f,
+                    label = "scrollbarAlpha",
+                  )
+
+                  val shouldLoadMore =
+                    remember {
+                      derivedStateOf {
+                        val lastVisibleIndex =
+                          gridState.layoutInfo.visibleItemsInfo
+                            .lastOrNull()
+                            ?.index ?: 0
+                        items.isNotEmpty() && lastVisibleIndex >= items.size - 8
+                      }
+                    }
+
+                  LaunchedEffect(shouldLoadMore.value) {
+                    if (shouldLoadMore.value && uiState.hasMore && !uiState.isLoading && !uiState.isLoadingMore) {
+                      viewModel.loadMoreItems()
+                    }
+                  }
+
+                  Box(modifier = Modifier.fillMaxSize()) {
+                    LazyVerticalGrid(
+                      state = gridState,
+                      columns = GridCells.Adaptive(minSize = 130.dp),
+                      modifier = Modifier.fillMaxSize(),
+                      contentPadding =
+                        PaddingValues(
+                          start = 12.dp,
+                          end = 24.dp,
+                          top = 8.dp,
+                          bottom =
+                            navigationBarHeight + 80.dp,
+                        ),
+                      verticalArrangement = Arrangement.spacedBy(12.dp),
+                      horizontalArrangement = Arrangement.spacedBy(12.dp),
+                    ) {
+                      items(items, key = { it.id }) { item ->
+                        uiState.activeServer?.let { server ->
+                          JellyfinPosterCard(
                             item = item,
                             server = server,
                             onClick = {
                               if (selectionManager.isInSelectionMode) {
                                 selectionManager.toggle(item)
-                              } else if (item.isFolder || item.isSeries || item.isSeason || item.type == "CollectionFolder") {
+                              } else if (item.isFolder || item.isSeason || item.type == "CollectionFolder") {
                                 viewModel.navigateToItem(item)
-                              } else if (item.isVideo) {
+                              } else if (item.isSeries || item.isVideo) {
                                 viewModel.openDetail(item)
                               } else {
                                 viewModel.playItem(context, item)
@@ -1025,124 +1192,41 @@ fun JellyfinContent(
                           )
                         }
                       }
-                    }
-                    if (uiState.isLoadingMore) {
-                      item {
-                        Box(
-                          modifier =
-                            Modifier
-                              .fillMaxWidth()
-                              .padding(16.dp),
-                          contentAlignment = Alignment.Center,
-                        ) {
-                          CircularProgressIndicator(modifier = Modifier.size(28.dp))
+
+                      if (uiState.isLoadingMore) {
+                        item(span = { GridItemSpan(maxLineSpan) }) {
+                          Box(
+                            modifier =
+                              Modifier
+                                .fillMaxWidth()
+                                .padding(16.dp),
+                            contentAlignment = Alignment.Center,
+                          ) {
+                            CircularProgressIndicator(modifier = Modifier.size(28.dp))
+                          }
                         }
                       }
                     }
-                  }
 
-                  if (hasEnoughItems && scrollbarAlpha > 0.01f) {
-                    ExpressiveScrollBar(
-                      listState = listState,
-                      dragLabelProvider = { index ->
-                        fastScrollGlyph(items.getOrNull(index)?.name)
-                      },
-                      modifier =
-                        Modifier
-                          .align(Alignment.CenterEnd)
-                          .padding(end = 2.dp, top = 6.dp, bottom = navigationBarHeight + 80.dp)
-                          .graphicsLayer { alpha = scrollbarAlpha },
-                    )
-                  }
-                }
-              } else {
-                val gridState = libraryGridState
-                val hasEnoughItems = items.size > 6
-                val scrollbarAlpha by animateFloatAsState(
-                  targetValue = if (hasEnoughItems) 1f else 0f,
-                  label = "scrollbarAlpha",
-                )
-
-                val shouldLoadMore =
-                  remember {
-                    derivedStateOf {
-                      val lastVisibleIndex = gridState.layoutInfo.visibleItemsInfo.lastOrNull()?.index ?: 0
-                      items.isNotEmpty() && lastVisibleIndex >= items.size - 8
+                    if (hasEnoughItems && scrollbarAlpha > 0.01f) {
+                      ExpressiveScrollBar(
+                        gridState = gridState,
+                        dragLabelProvider = { index ->
+                          fastScrollGlyph(items.getOrNull(index)?.name)
+                        },
+                        modifier =
+                          Modifier
+                            .align(Alignment.CenterEnd)
+                            .padding(end = 2.dp, top = 6.dp, bottom = navigationBarHeight + 80.dp)
+                            .graphicsLayer { alpha = scrollbarAlpha },
+                      )
                     }
-                  }
-
-                LaunchedEffect(shouldLoadMore.value) {
-                  if (shouldLoadMore.value && uiState.hasMore && !uiState.isLoading && !uiState.isLoadingMore) {
-                    viewModel.loadMoreItems()
-                  }
-                }
-
-                Box(modifier = Modifier.fillMaxSize()) {
-                  LazyVerticalGrid(
-                    state = gridState,
-                    columns = GridCells.Adaptive(minSize = 130.dp),
-                    modifier = Modifier.fillMaxSize(),
-                    contentPadding = PaddingValues(start = 12.dp, end = 24.dp, top = 8.dp, bottom = navigationBarHeight + 80.dp),
-                    verticalArrangement = Arrangement.spacedBy(12.dp),
-                    horizontalArrangement = Arrangement.spacedBy(12.dp),
-                  ) {
-                    items(items, key = { it.id }) { item ->
-                      uiState.activeServer?.let { server ->
-                        JellyfinPosterCard(
-                          item = item,
-                          server = server,
-                          onClick = {
-                            if (selectionManager.isInSelectionMode) {
-                              selectionManager.toggle(item)
-                            } else if (item.isFolder || item.isSeason || item.type == "CollectionFolder") {
-                              viewModel.navigateToItem(item)
-                            } else if (item.isSeries || item.isVideo) {
-                              viewModel.openDetail(item)
-                            } else {
-                              viewModel.playItem(context, item)
-                            }
-                          },
-                          onLongClick = { selectionManager.handleLongClick(item) },
-                          isSelected = selectionManager.isSelected(item),
-                          isDownloaded = item.id in downloadedItemIds,
-                        )
-                      }
-                    }
-
-                    if (uiState.isLoadingMore) {
-                      item(span = { GridItemSpan(maxLineSpan) }) {
-                        Box(
-                          modifier =
-                            Modifier
-                              .fillMaxWidth()
-                              .padding(16.dp),
-                          contentAlignment = Alignment.Center,
-                        ) {
-                          CircularProgressIndicator(modifier = Modifier.size(28.dp))
-                        }
-                      }
-                    }
-                  }
-
-                  if (hasEnoughItems && scrollbarAlpha > 0.01f) {
-                    ExpressiveScrollBar(
-                      gridState = gridState,
-                      dragLabelProvider = { index ->
-                        fastScrollGlyph(items.getOrNull(index)?.name)
-                      },
-                      modifier =
-                        Modifier
-                          .align(Alignment.CenterEnd)
-                          .padding(end = 2.dp, top = 6.dp, bottom = navigationBarHeight + 80.dp)
-                          .graphicsLayer { alpha = scrollbarAlpha },
-                    )
                   }
                 }
               }
             }
           }
         }
-      }
       }
 
       // Multi-Select Floating Action Pill (smoothly replaces bottom nav bar)
@@ -1280,67 +1364,73 @@ fun JellyfinContent(
                 alignment = Alignment.BottomEnd,
               ),
             checked = isFabExpanded && !quickPlayFabDirect,
-              onCheckedChange = {
-                if (quickPlayFabDirect) {
-                  viewModel.resumeLastPlayed(context)
+            onCheckedChange = {
+              if (quickPlayFabDirect) {
+                viewModel.resumeLastPlayed(context)
+              } else {
+                isFabExpanded = !isFabExpanded
+              }
+            },
+          ) {
+            // The scope's animated checkedProgress drives the icon; a local val here
+            // shadowed it before, freezing the FAB on the play icon while expanded.
+            val imageVector by remember(quickPlayFabDirect) {
+              derivedStateOf {
+                if (checkedProgress > 0.5f &&
+                  !quickPlayFabDirect
+                ) {
+                  Icons.RoundedFilled.Close
                 } else {
-                  isFabExpanded = !isFabExpanded
-                }
-              },
-            ) {
-              // The scope's animated checkedProgress drives the icon; a local val here
-              // shadowed it before, freezing the FAB on the play icon while expanded.
-              val imageVector by remember(quickPlayFabDirect) {
-                derivedStateOf {
-                  if (checkedProgress > 0.5f && !quickPlayFabDirect) Icons.RoundedFilled.Close else Icons.RoundedFilled.PlayArrow
+                  Icons.RoundedFilled.PlayArrow
                 }
               }
-              Icon(
-                imageVector = imageVector,
-                contentDescription = stringResource(R.string.ui_quick_play),
-                modifier = Modifier.animateIcon({ if (quickPlayFabDirect) 0f else checkedProgress }),
-              )
             }
-          },
-        ) {
-          if (!quickPlayFabDirect) {
-            FloatingActionButtonMenuItem(
-              onClick = {
-                isFabExpanded = false
-                isSearching = true
-              },
-              icon = { Icon(Icons.RoundedFilled.Search, contentDescription = null) },
-              text = { Text("Search") },
-            )
-
-            FloatingActionButtonMenuItem(
-              onClick = {
-                isFabExpanded = false
-                viewModel.playRandom(context)
-              },
-              icon = { Icon(Icons.RoundedFilled.Shuffle, contentDescription = null) },
-              text = { Text("Play Random") },
-            )
-
-            FloatingActionButtonMenuItem(
-              onClick = {
-                isFabExpanded = false
-                isManageServersOpen = true
-              },
-              icon = { Icon(Icons.RoundedFilled.BringYourOwnIp, contentDescription = null) },
-              text = { Text("Switch Server") },
-            )
-
-            FloatingActionButtonMenuItem(
-              onClick = {
-                isFabExpanded = false
-                viewModel.resumeLastPlayed(context)
-              },
-              icon = { Icon(Icons.RoundedFilled.History, contentDescription = null) },
-              text = { Text(stringResource(R.string.pref_advanced_enable_recently_played_title)) },
+            Icon(
+              imageVector = imageVector,
+              contentDescription = stringResource(R.string.ui_quick_play),
+              modifier = Modifier.animateIcon({ if (quickPlayFabDirect) 0f else checkedProgress }),
             )
           }
+        },
+      ) {
+        if (!quickPlayFabDirect) {
+          FloatingActionButtonMenuItem(
+            onClick = {
+              isFabExpanded = false
+              isSearching = true
+            },
+            icon = { Icon(Icons.RoundedFilled.Search, contentDescription = null) },
+            text = { Text("Search") },
+          )
+
+          FloatingActionButtonMenuItem(
+            onClick = {
+              isFabExpanded = false
+              viewModel.playRandom(context)
+            },
+            icon = { Icon(Icons.RoundedFilled.Shuffle, contentDescription = null) },
+            text = { Text("Play Random") },
+          )
+
+          FloatingActionButtonMenuItem(
+            onClick = {
+              isFabExpanded = false
+              isManageServersOpen = true
+            },
+            icon = { Icon(Icons.RoundedFilled.BringYourOwnIp, contentDescription = null) },
+            text = { Text("Switch Server") },
+          )
+
+          FloatingActionButtonMenuItem(
+            onClick = {
+              isFabExpanded = false
+              viewModel.resumeLastPlayed(context)
+            },
+            icon = { Icon(Icons.RoundedFilled.History, contentDescription = null) },
+            text = { Text(stringResource(R.string.pref_advanced_enable_recently_played_title)) },
+          )
         }
+      }
     }
   }
 
@@ -1375,34 +1465,39 @@ fun JellyfinContent(
   }
 
   if (uiState.openLibrary?.isMusic == true) {
-    val availableFields = remember(uiState.musicActiveTab) {
-      when (uiState.musicActiveTab) {
-        JellyfinMusicTab.TRACKS -> listOf(
-          MusicSortField.TITLE,
-          MusicSortField.ARTIST,
-          MusicSortField.ALBUM,
-          MusicSortField.DURATION,
-          MusicSortField.YEAR,
-        )
-        JellyfinMusicTab.ALBUMS -> listOf(
-          MusicSortField.TITLE,
-          MusicSortField.ARTIST,
-          MusicSortField.YEAR,
-          MusicSortField.TRACK_COUNT,
-          MusicSortField.DURATION,
-        )
-        JellyfinMusicTab.ARTISTS -> listOf(
-          MusicSortField.ARTIST,
-          MusicSortField.TRACK_COUNT,
-        )
-        JellyfinMusicTab.PLAYLISTS -> listOf(
-          MusicSortField.TITLE,
-          MusicSortField.TRACK_COUNT,
-          MusicSortField.DURATION,
-        )
-        else -> emptyList()
+    val availableFields =
+      remember(uiState.musicActiveTab) {
+        when (uiState.musicActiveTab) {
+          JellyfinMusicTab.TRACKS ->
+            listOf(
+              MusicSortField.TITLE,
+              MusicSortField.ARTIST,
+              MusicSortField.ALBUM,
+              MusicSortField.DURATION,
+              MusicSortField.YEAR,
+            )
+          JellyfinMusicTab.ALBUMS ->
+            listOf(
+              MusicSortField.TITLE,
+              MusicSortField.ARTIST,
+              MusicSortField.YEAR,
+              MusicSortField.TRACK_COUNT,
+              MusicSortField.DURATION,
+            )
+          JellyfinMusicTab.ARTISTS ->
+            listOf(
+              MusicSortField.ARTIST,
+              MusicSortField.TRACK_COUNT,
+            )
+          JellyfinMusicTab.PLAYLISTS ->
+            listOf(
+              MusicSortField.TITLE,
+              MusicSortField.TRACK_COUNT,
+              MusicSortField.DURATION,
+            )
+          else -> emptyList()
+        }
       }
-    }
 
     MusicSortDialog(
       isOpen = isSortDialogOpen,
@@ -1532,10 +1627,11 @@ private fun ErrorView(
   onRetry: () -> Unit,
   onReauthenticate: (() -> Unit)? = null,
 ) {
-  val isAuthError = message.contains("401", ignoreCase = true) ||
-    message.contains("unauthorized", ignoreCase = true) ||
-    message.contains("forbidden", ignoreCase = true) ||
-    message.contains("403", ignoreCase = true)
+  val isAuthError =
+    message.contains("401", ignoreCase = true) ||
+      message.contains("unauthorized", ignoreCase = true) ||
+      message.contains("forbidden", ignoreCase = true) ||
+      message.contains("403", ignoreCase = true)
 
   Column(
     modifier = Modifier.padding(24.dp),

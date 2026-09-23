@@ -63,7 +63,11 @@ class WebDavClient(
     relativePath: String,
     trailingSlash: Boolean = false,
   ): HttpUrl {
-    val host = connection.host.trim().removePrefix("[").removeSuffix("]")
+    val host =
+      connection.host
+        .trim()
+        .removePrefix("[")
+        .removeSuffix("]")
     val builder =
       HttpUrl
         .Builder()
@@ -235,7 +239,11 @@ class WebDavClient(
     }
     rangeHttpClient.newCall(headBuilder.build()).execute().use { response ->
       if (response.isSuccessful) {
-        response.header("Content-Length")?.toLongOrNull()?.takeIf { it >= 0L }?.let { return it }
+        response
+          .header("Content-Length")
+          ?.toLongOrNull()
+          ?.takeIf { it >= 0L }
+          ?.let { return it }
       }
     }
 
@@ -252,7 +260,11 @@ class WebDavClient(
     }
     rangeHttpClient.newCall(rangeBuilder.build()).execute().use { response ->
       val match = contentRangePattern.matchEntire(response.header("Content-Range").orEmpty())
-      return match?.groupValues?.get(3)?.takeUnless { it == "*" }?.toLongOrNull()
+      return match
+        ?.groupValues
+        ?.get(3)
+        ?.takeUnless { it == "*" }
+        ?.toLongOrNull()
     }
   }
 
@@ -391,7 +403,12 @@ class WebDavClient(
     val rangeMatch = contentRangePattern.matchEntire(response.header("Content-Range").orEmpty())
     val returnedStart = rangeMatch?.groupValues?.get(1)?.toLongOrNull()
     val returnedEnd = rangeMatch?.groupValues?.get(2)?.toLongOrNull()
-    val totalLength = rangeMatch?.groupValues?.get(3)?.takeUnless { it == "*" }?.toLongOrNull()
+    val totalLength =
+      rangeMatch
+        ?.groupValues
+        ?.get(3)
+        ?.takeUnless { it == "*" }
+        ?.toLongOrNull()
     val returnedLength =
       if (returnedStart != null && returnedEnd != null && returnedEnd >= returnedStart) {
         returnedEnd - returnedStart + 1L

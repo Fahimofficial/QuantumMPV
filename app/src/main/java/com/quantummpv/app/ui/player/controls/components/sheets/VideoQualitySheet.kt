@@ -110,7 +110,12 @@ private fun qualityLabel(track: TrackNode): String {
       width != null && height != null -> minOf(width, height)
       height != null -> height
       width != null -> width
-      else -> QUALITY_HEIGHT_REGEX.find(track.effectiveTitle.orEmpty())?.groupValues?.getOrNull(1)?.toLongOrNull()
+      else ->
+        QUALITY_HEIGHT_REGEX
+          .find(track.effectiveTitle.orEmpty())
+          ?.groupValues
+          ?.getOrNull(1)
+          ?.toLongOrNull()
     }
   val resolution =
     when {

@@ -11,8 +11,6 @@
 
 package com.quantummpv.app.ui.player.controls
 
-import com.quantummpv.app.ui.player.PlaybackSession
-
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.spring
@@ -60,7 +58,6 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.input.pointer.pointerInput
-import androidx.compose.ui.layout.layout
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalHapticFeedback
@@ -79,6 +76,7 @@ import com.quantummpv.app.presentation.components.RightSideOvalShape
 import com.quantummpv.app.ui.icons.Icon
 import com.quantummpv.app.ui.icons.Icons
 import com.quantummpv.app.ui.player.Panels
+import com.quantummpv.app.ui.player.PlaybackSession
 import com.quantummpv.app.ui.player.PlayerUpdates
 import com.quantummpv.app.ui.player.PlayerViewModel
 import com.quantummpv.app.ui.player.Sheets
@@ -551,7 +549,8 @@ fun GestureHandler(
             var lastVolumePercentValue = currentVolumePercent
             var lastMPVVolumeValue = currentMPVVolume ?: 100
             var lastBrightnessValue = currentBrightness
-            var originalSubtitlePosition = PlaybackSession.getPropertyInt("sub-pos") ?: subtitlesPreferences.subPos.get()
+            var originalSubtitlePosition =
+              PlaybackSession.getPropertyInt("sub-pos") ?: subtitlesPreferences.subPos.get()
             var lastSubtitlePosition = PlaybackSession.getPropertyInt("sub-pos") ?: subtitlesPreferences.subPos.get()
             val brightnessGestureSens = 0.001f
             // Match the anime4k gesture feel, but snap to whole-number volume steps.
@@ -582,7 +581,8 @@ fun GestureHandler(
                       isSubtitleHoldActive = true
                       longPressTriggeredDuringTouch = true
                       haptics.performHapticFeedback(HapticFeedbackType.LongPress)
-                      originalSubtitlePosition = PlaybackSession.getPropertyInt("sub-pos") ?: subtitlesPreferences.subPos.get()
+                      originalSubtitlePosition =
+                        PlaybackSession.getPropertyInt("sub-pos") ?: subtitlesPreferences.subPos.get()
                       lastSubtitlePosition = originalSubtitlePosition
                       viewModel.playerUpdate.update {
                         PlayerUpdates.ShowText(
@@ -660,9 +660,9 @@ fun GestureHandler(
                           enableCenterSwipeUpGesture && startPosition.x in (size.width * 0.35f)..(size.width * 0.65f)
                         if (
                           isLongPressing &&
-                            isDynamicSpeedControlActive &&
-                            gestureOwner == GestureOwner.SPEED &&
-                            (abs(deltaX) > 10f || abs(deltaY) > 10f)
+                          isDynamicSpeedControlActive &&
+                          gestureOwner == GestureOwner.SPEED &&
+                          (abs(deltaX) > 10f || abs(deltaY) > 10f)
                         ) {
                           longPressJob.cancel()
                           gestureType = "speed_control"
@@ -736,7 +736,8 @@ fun GestureHandler(
                             lastBrightnessValue = currentBrightness
                             originalSubtitlePosition =
                               PlaybackSession.getPropertyInt("sub-pos") ?: subtitlesPreferences.subPos.get()
-                            lastSubtitlePosition = PlaybackSession.getPropertyInt("sub-pos") ?: subtitlesPreferences.subPos.get()
+                            lastSubtitlePosition =
+                              PlaybackSession.getPropertyInt("sub-pos") ?: subtitlesPreferences.subPos.get()
                           }
                         }
                         "subtitle_vertical" -> {
@@ -1093,7 +1094,8 @@ fun GestureHandler(
 
                   if (pinchToZoomSubtitles && hasActiveSub && isSubtitlePinch) {
                     isSubZoomMode = true
-                    initialSubScale = PlaybackSession.getPropertyFloat("sub-scale") ?: subtitlesPreferences.subScale.get()
+                    initialSubScale =
+                      PlaybackSession.getPropertyFloat("sub-scale") ?: subtitlesPreferences.subScale.get()
                     initialDist = dist
                     lastCalculatedSubScale = initialSubScale
                   } else if (pinchToZoomGesture || panAndZoomEnabled) {
@@ -1120,7 +1122,9 @@ fun GestureHandler(
                     val midDeltaX = abs(midX - prevMidX)
                     val midDeltaY = abs(midY - prevMidY)
 
-                    if (!gestureStarted && (distDelta > 5f || (panAndZoomEnabled && (midDeltaX > 3f || midDeltaY > 3f)))) {
+                    if (!gestureStarted &&
+                      (distDelta > 5f || (panAndZoomEnabled && (midDeltaX > 3f || midDeltaY > 3f)))
+                    ) {
                       gestureStarted = true
                       if (pinchToZoomGesture && distDelta > 5f) {
                         viewModel.playerUpdate.update { PlayerUpdates.VideoZoom }

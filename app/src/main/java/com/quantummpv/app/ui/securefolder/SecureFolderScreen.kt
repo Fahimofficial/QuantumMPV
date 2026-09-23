@@ -9,6 +9,7 @@
 
 package com.quantummpv.app.ui.securefolder
 
+import android.widget.Toast
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.layout.Arrangement
@@ -54,7 +55,6 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.quantummpv.app.R
-import com.quantummpv.app.database.entities.SecureMediaEntity
 import com.quantummpv.app.database.repository.VideoMetadataCacheRepository
 import com.quantummpv.app.domain.media.model.Video
 import com.quantummpv.app.preferences.AppearancePreferences
@@ -77,7 +77,6 @@ import com.quantummpv.app.ui.utils.popSafely
 import com.quantummpv.app.utils.media.MediaInfoOps
 import com.quantummpv.app.utils.media.MediaUtils
 import com.quantummpv.app.utils.sort.SortUtils
-import android.widget.Toast
 import kotlinx.serialization.Serializable
 import org.koin.compose.koinInject
 import java.io.File
@@ -294,7 +293,7 @@ data object SecureFolderScreen : Screen {
                           stringResource(R.string.secure_folder_show_in_preferences)
                         } else {
                           stringResource(R.string.secure_folder_hide_from_preferences)
-                        }
+                        },
                       )
                     },
                     leadingIcon = {
@@ -337,7 +336,7 @@ data object SecureFolderScreen : Screen {
                           stringResource(R.string.secure_folder_disable_fingerprint)
                         } else {
                           stringResource(R.string.secure_folder_enable_fingerprint)
-                        }
+                        },
                       )
                     },
                     leadingIcon = {
@@ -678,6 +677,3 @@ private fun formatResolutionWithFps(
 
   return "$baseResolution@${fps.toInt()}"
 }
-
-
-

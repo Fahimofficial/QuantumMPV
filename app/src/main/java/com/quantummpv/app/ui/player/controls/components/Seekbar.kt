@@ -9,7 +9,6 @@
 
 package com.quantummpv.app.ui.player.controls.components
 
-import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.RepeatMode
@@ -21,38 +20,28 @@ import androidx.compose.animation.core.infiniteRepeatable
 import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
-import androidx.compose.animation.fadeIn
-import androidx.compose.animation.fadeOut
-import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Canvas
-import androidx.compose.foundation.Image
-import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsDraggedAsState
 import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.aspectRatio
-import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.wrapContentHeight
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.ripple
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
@@ -74,13 +63,9 @@ import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.drawscope.clipRect
 import androidx.compose.ui.graphics.graphicsLayer
-import androidx.compose.ui.layout.ContentScale
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
-import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.Dp
-import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import com.quantummpv.app.preferences.SeekbarStyle
 import com.quantummpv.app.ui.player.SkipSegment
@@ -101,7 +86,6 @@ import kotlinx.collections.immutable.persistentListOf
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
-import kotlin.math.min
 
 /** Precomputed, allocation-free drawing data for a single skip segment overlay. */
 private data class SkipSegmentOverlay(
@@ -692,7 +676,6 @@ private fun SeekbarContent(
           )
         }
       }
-
     }
 
     val activeClip = clipRange
@@ -823,6 +806,7 @@ private fun ClipRangeSelection(
     val dashGap = 3.dp.toPx()
     val guideStroke = 2.dp.toPx()
     val guideEffect = PathEffect.dashPathEffect(floatArrayOf(dashLength, dashGap))
+
     fun drawBoundary(markerX: Float) {
       drawLine(
         color = color.copy(alpha = 0.96f),
@@ -857,12 +841,20 @@ private fun NormalSeekbar(
   val primaryColor = MaterialTheme.colorScheme.primary
   val trackHeight by animateDpAsState(
     targetValue = if (isScrubbing) 6.dp else 4.dp,
-    animationSpec = spring(dampingRatio = AppMotion.Spatial.Expressive.dampingRatio, stiffness = AppMotion.Spatial.Expressive.stiffness),
+    animationSpec =
+      spring(
+        dampingRatio = AppMotion.Spatial.Expressive.dampingRatio,
+        stiffness = AppMotion.Spatial.Expressive.stiffness,
+      ),
     label = "normal_seekbar_height",
   )
   val thumbRadiusDp by animateDpAsState(
     targetValue = if (isScrubbing) 9.dp else 6.5.dp,
-    animationSpec = spring(dampingRatio = AppMotion.Spatial.Expressive.dampingRatio, stiffness = AppMotion.Spatial.Expressive.stiffness),
+    animationSpec =
+      spring(
+        dampingRatio = AppMotion.Spatial.Expressive.dampingRatio,
+        stiffness = AppMotion.Spatial.Expressive.stiffness,
+      ),
     label = "normal_seekbar_thumb",
   )
 
@@ -875,7 +867,8 @@ private fun NormalSeekbar(
           .mapNotNull {
             val f = it.start / duration
             if (f.isFinite() && f in 0.005f..0.995f) f else null
-          }.sorted().toFloatArray()
+          }.sorted()
+          .toFloatArray()
       }
     }
 
@@ -885,14 +878,25 @@ private fun NormalSeekbar(
     val totalWidth = size.width
     val centerY = size.height / 2f
     val currentPosition = positionProvider()
-    val progress = if (duration > 0f && currentPosition.isFinite()) (currentPosition / duration).coerceIn(0f, 1f) else 0f
+    val progress =
+      if (duration > 0f &&
+        currentPosition.isFinite()
+      ) {
+        (currentPosition / duration).coerceIn(0f, 1f)
+      } else {
+        0f
+      }
     val playedPx = (totalWidth * progress).coerceIn(0f, totalWidth)
     val height = trackHeight.toPx()
     val radius = height / 2f
     val thumbR = thumbRadiusDp.toPx()
     val gapHalf = 1.dp.toPx()
 
-    fun drawSegmentedTrack(startX: Float, endX: Float, color: Color) {
+    fun drawSegmentedTrack(
+      startX: Float,
+      endX: Float,
+      color: Color,
+    ) {
       if (endX <= startX) return
       if (chapterFractions.isEmpty()) {
         drawRoundRect(
@@ -1006,15 +1010,16 @@ private fun SquigglySeekbar(
   val surfaceVariant = MaterialTheme.colorScheme.surfaceVariant
 
   val isInteracting = isScrubbing
-  val thumbVisibilityState = animateFloatAsState(
-    targetValue = if (isInteracting) 0f else 1f,
-    animationSpec =
-      spring(
-        dampingRatio = AppMotion.Effect.Alpha.dampingRatio,
-        stiffness = AppMotion.Effect.Alpha.stiffness,
-      ),
-    label = "wavy_seekbar_thumb_visibility",
-  )
+  val thumbVisibilityState =
+    animateFloatAsState(
+      targetValue = if (isInteracting) 0f else 1f,
+      animationSpec =
+        spring(
+          dampingRatio = AppMotion.Effect.Alpha.dampingRatio,
+          stiffness = AppMotion.Effect.Alpha.stiffness,
+        ),
+      label = "wavy_seekbar_thumb_visibility",
+    )
 
   // Animation state
   var phaseOffset by remember { mutableFloatStateOf(0f) }
@@ -1095,7 +1100,14 @@ private fun SquigglySeekbar(
   ) {
     val currentPosition = positionProvider()
     val strokeWidth = 5.dp.toPx()
-    val progress = if (duration > 0f && currentPosition.isFinite()) (currentPosition / duration).coerceIn(0f, 1f) else 0f
+    val progress =
+      if (duration > 0f &&
+        currentPosition.isFinite()
+      ) {
+        (currentPosition / duration).coerceIn(0f, 1f)
+      } else {
+        0f
+      }
     val totalWidth = size.width
     val totalProgressPx = totalWidth * progress
     val centerY = size.height / 2f
@@ -1446,7 +1458,14 @@ private fun SlimSeekbar(
 
   Canvas(modifier = modifier.fillMaxWidth().height(48.dp)) {
     val currentPosition = positionProvider()
-    val progress = if (duration > 0f && currentPosition.isFinite()) (currentPosition / duration).coerceIn(0f, 1f) else 0f
+    val progress =
+      if (duration > 0f &&
+        currentPosition.isFinite()
+      ) {
+        (currentPosition / duration).coerceIn(0f, 1f)
+      } else {
+        0f
+      }
     val totalWidth = size.width
     val playedPx = totalWidth * progress
     val centerY = size.height / 2f
@@ -1900,7 +1919,7 @@ private fun PreviewSeekBarWavy() {
   SeekbarWithTimers(
     position = 30f,
     duration = 180f,
-    remaining= 150f,
+    remaining = 150f,
     onValueChange = {},
     onValueChangeFinished = {},
     timersInverted = Pair(false, true),
@@ -1919,7 +1938,7 @@ private fun PreviewSeekBarSlim() {
   SeekbarWithTimers(
     position = 30f,
     duration = 180f,
-    remaining= 150f,
+    remaining = 150f,
     onValueChange = {},
     onValueChangeFinished = {},
     timersInverted = Pair(false, true),
@@ -1938,7 +1957,7 @@ private fun PreviewSeekBarSlimScrubbing() {
   SeekbarWithTimers(
     position = 30f,
     duration = 180f,
-    remaining= 150f,
+    remaining = 150f,
     onValueChange = {},
     onValueChangeFinished = {},
     timersInverted = Pair(false, true),

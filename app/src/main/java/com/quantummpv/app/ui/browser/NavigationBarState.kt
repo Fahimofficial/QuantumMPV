@@ -26,7 +26,11 @@ import androidx.compose.ui.unit.dp
 object NavigationBarState {
   private var selectionOwner: Any? = null
 
-  internal fun claimSelection(owner: Any, inSelectionMode: Boolean, onlyVideos: Boolean) {
+  internal fun claimSelection(
+    owner: Any,
+    inSelectionMode: Boolean,
+    onlyVideos: Boolean,
+  ) {
     selectionOwner = owner
     updateSelectionState(inSelectionMode, onlyVideos)
   }

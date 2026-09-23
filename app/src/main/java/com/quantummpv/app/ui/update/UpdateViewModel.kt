@@ -11,8 +11,8 @@ package com.quantummpv.app.ui.update
 
 import android.app.Application
 import android.content.Context
-import android.util.Log
 import android.content.Intent
+import android.util.Log
 import androidx.core.content.FileProvider
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
@@ -139,35 +139,36 @@ class UpdateViewModel(
     }
 
     updateCheckJob?.cancel()
-    updateCheckJob = viewModelScope.launch {
-      _updateState.value = UpdateState.Loading
-      try {
-        val release = updateManager.checkForUpdate(channel = _updateChannel.value, forceShow = manual)
-        if (release != null) {
-          val existingFile = updateManager.getApkFile(release)
-          if (existingFile != null) {
-            _updateState.value = UpdateState.ReadyToInstall(release)
+    updateCheckJob =
+      viewModelScope.launch {
+        _updateState.value = UpdateState.Loading
+        try {
+          val release = updateManager.checkForUpdate(channel = _updateChannel.value, forceShow = manual)
+          if (release != null) {
+            val existingFile = updateManager.getApkFile(release)
+            if (existingFile != null) {
+              _updateState.value = UpdateState.ReadyToInstall(release)
+            } else {
+              _updateState.value = UpdateState.Available(release)
+            }
           } else {
-            _updateState.value = UpdateState.Available(release)
+            if (manual) {
+              _updateState.value = UpdateState.NoUpdate
+            } else {
+              _updateState.value = UpdateState.Idle
+            }
           }
-        } else {
+        } catch (cancellation: CancellationException) {
+          throw cancellation
+        } catch (e: Exception) {
+          Log.e(TAG, "Failed to check for updates", e)
           if (manual) {
-            _updateState.value = UpdateState.NoUpdate
+            _updateState.value = UpdateState.Error
           } else {
             _updateState.value = UpdateState.Idle
           }
         }
-      } catch (cancellation: CancellationException) {
-        throw cancellation
-      } catch (e: Exception) {
-        Log.e(TAG, "Failed to check for updates", e)
-        if (manual) {
-          _updateState.value = UpdateState.Error
-        } else {
-          _updateState.value = UpdateState.Idle
-        }
       }
-    }
   }
 
   fun downloadUpdate(release: Release) {

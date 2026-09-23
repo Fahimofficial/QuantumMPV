@@ -32,8 +32,8 @@ import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.Constraints
 import androidx.compose.ui.unit.dp
-import com.quantummpv.app.ui.theme.spacing
 import com.quantummpv.app.ui.player.controls.components.tvFocusHighlight
+import com.quantummpv.app.ui.theme.spacing
 import kotlin.math.roundToInt
 
 @Composable

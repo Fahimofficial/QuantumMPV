@@ -9,25 +9,20 @@
 
 package com.quantummpv.app.ui.player.controls
 
-import com.quantummpv.app.ui.player.PlaybackSession
-
 import android.Manifest
 import android.content.pm.PackageManager
 import android.content.res.Configuration
 import android.graphics.Bitmap
-import android.graphics.Color as AndroidColor
 import android.media.MediaMetadataRetriever
 import android.net.Uri
 import android.util.LruCache
-import android.widget.Toast
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.animation.animateColorAsState
-import androidx.compose.animation.Crossfade
 import androidx.compose.animation.SizeTransform
+import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.Spring
@@ -40,8 +35,6 @@ import androidx.compose.animation.fadeOut
 import androidx.compose.animation.scaleIn
 import androidx.compose.animation.scaleOut
 import androidx.compose.animation.shrinkHorizontally
-import androidx.compose.animation.slideInHorizontally
-import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.ExperimentalFoundationApi
@@ -51,10 +44,9 @@ import androidx.compose.foundation.basicMarquee
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.gestures.detectHorizontalDragGestures
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsPressedAsState
-import androidx.compose.foundation.horizontalScroll
-import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
@@ -67,14 +59,15 @@ import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -82,36 +75,22 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
-import androidx.compose.material3.ripple
 import androidx.compose.material3.Text
+import androidx.compose.material3.ripple
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
-import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
-import androidx.compose.runtime.produceState
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
-import kotlinx.coroutines.launch
-import androidx.palette.graphics.Palette
-import com.quantummpv.app.database.repository.PlaylistRepository
-import com.quantummpv.app.repository.JellyfinRepository
-import com.quantummpv.app.repository.NavidromeRepository
-import com.quantummpv.app.domain.media.model.Video
-import com.quantummpv.app.ui.browser.dialogs.AddToPlaylistDialog
-import com.quantummpv.app.ui.player.resolveUri
-import com.quantummpv.app.ui.player.controls.components.MiniAudioVisualizer
-import com.quantummpv.app.ui.player.controls.components.sheets.PlaylistItem
-import sh.calvin.reorderable.ReorderableCollectionItemScope
-import sh.calvin.reorderable.ReorderableItem
-import sh.calvin.reorderable.rememberReorderableLazyListState
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -127,6 +106,7 @@ import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
@@ -136,35 +116,41 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.compose.foundation.layout.offset
-import androidx.compose.runtime.mutableFloatStateOf
-import androidx.compose.ui.input.pointer.pointerInput
-import androidx.compose.ui.unit.IntOffset
 import androidx.core.content.ContextCompat
 import androidx.core.graphics.ColorUtils
-import kotlin.math.abs
-import kotlin.math.roundToInt
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.palette.graphics.Palette
 import com.quantummpv.app.R
+import com.quantummpv.app.database.repository.PlaylistRepository
+import com.quantummpv.app.domain.media.model.Video
 import com.quantummpv.app.domain.thumbnail.EmbeddedArtworkResolver
-import com.quantummpv.app.presentation.components.RemoteImage
 import com.quantummpv.app.preferences.AppearancePreferences
 import com.quantummpv.app.preferences.AudioPreferences
 import com.quantummpv.app.preferences.AudioVisualizerStyle
 import com.quantummpv.app.preferences.GesturePreferences
 import com.quantummpv.app.preferences.PlayerPreferences
 import com.quantummpv.app.preferences.preference.collectAsState
+import com.quantummpv.app.presentation.components.RemoteImage
+import com.quantummpv.app.repository.JellyfinRepository
+import com.quantummpv.app.repository.NavidromeRepository
+import com.quantummpv.app.ui.browser.dialogs.AddToPlaylistDialog
 import com.quantummpv.app.ui.icons.Icon
 import com.quantummpv.app.ui.icons.Icons
 import com.quantummpv.app.ui.player.Panels
+import com.quantummpv.app.ui.player.PlaybackSession
 import com.quantummpv.app.ui.player.PlayerActivity
 import com.quantummpv.app.ui.player.PlayerViewModel
 import com.quantummpv.app.ui.player.RepeatMode
 import com.quantummpv.app.ui.player.Sheets
 import com.quantummpv.app.ui.player.controls.components.AbLoopIcon
+import com.quantummpv.app.ui.player.controls.components.MiniAudioVisualizer
 import com.quantummpv.app.ui.player.controls.components.SeekbarWithTimers
+import com.quantummpv.app.ui.player.controls.components.sheets.PlaylistItem
 import com.quantummpv.app.ui.player.controls.components.tvFocusHighlight
+import com.quantummpv.app.ui.player.resolveUri
 import com.quantummpv.app.ui.player.visualizer.AudioFeatures
 import com.quantummpv.app.ui.player.visualizer.AudioSpectrumAnalyzer
 import com.quantummpv.app.ui.player.visualizer.BlobOverlay
@@ -175,18 +161,24 @@ import com.quantummpv.app.ui.player.visualizer.VisualizerPalette
 import com.quantummpv.app.ui.player.visualizer.rememberAudioVisualizerFeatures
 import com.quantummpv.app.ui.theme.fontFamilyForText
 import com.quantummpv.app.ui.utils.isMpvOptionOwnedByConfig
-
 import com.quantummpv.app.utils.media.fileExtension
 import kotlinx.collections.immutable.persistentListOf
 import kotlinx.collections.immutable.toImmutableList
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.isActive
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 import org.koin.compose.koinInject
+import sh.calvin.reorderable.ReorderableCollectionItemScope
+import sh.calvin.reorderable.ReorderableItem
+import sh.calvin.reorderable.rememberReorderableLazyListState
 import java.util.Locale
 import java.util.concurrent.atomic.AtomicBoolean
+import kotlin.math.abs
+import kotlin.math.roundToInt
+import android.graphics.Color as AndroidColor
 
 private data class AudioPresentationMetadata(
   val artwork: Bitmap?,
@@ -253,7 +245,8 @@ private object AudioPresentationMetadataCache {
             else -> pathOrUri
           }
         val explicitArtwork = EmbeddedArtworkResolver.decodeArtworkUri(context, artworkUri)
-        val isNetworkStream = pathOrUri.startsWith("http://", ignoreCase = true) || pathOrUri.startsWith("https://", ignoreCase = true)
+        val isNetworkStream =
+          pathOrUri.startsWith("http://", ignoreCase = true) || pathOrUri.startsWith("https://", ignoreCase = true)
         val retriever = if (!isNetworkStream) MediaMetadataRetriever() else null
         val loaded =
           try {
@@ -275,18 +268,24 @@ private object AudioPresentationMetadataCache {
             }
 
             AudioPresentationMetadata(
-              artwork = explicitArtwork ?: retriever?.let { EmbeddedArtworkResolver.decodeEmbeddedArtwork(cleanPath ?: pathOrUri, it) },
-              artist = retriever?.let {
-                it.extractMetadata(MediaMetadataRetriever.METADATA_KEY_ARTIST)
-                  ?: it.extractMetadata(MediaMetadataRetriever.METADATA_KEY_ALBUMARTIST)
-                  ?: it.extractMetadata(MediaMetadataRetriever.METADATA_KEY_AUTHOR)
-                  ?: it.extractMetadata(MediaMetadataRetriever.METADATA_KEY_COMPOSER)
-              },
+              artwork =
+                explicitArtwork
+                  ?: retriever?.let { EmbeddedArtworkResolver.decodeEmbeddedArtwork(cleanPath ?: pathOrUri, it) },
+              artist =
+                retriever?.let {
+                  it.extractMetadata(MediaMetadataRetriever.METADATA_KEY_ARTIST)
+                    ?: it.extractMetadata(MediaMetadataRetriever.METADATA_KEY_ALBUMARTIST)
+                    ?: it.extractMetadata(MediaMetadataRetriever.METADATA_KEY_AUTHOR)
+                    ?: it.extractMetadata(MediaMetadataRetriever.METADATA_KEY_COMPOSER)
+                },
             )
           } catch (_: Exception) {
-            val fallbackArtwork = explicitArtwork ?: if (cleanPath != null && !isNetworkStream) {
-              EmbeddedArtworkResolver.decodeSidecar(cleanPath)
-            } else null
+            val fallbackArtwork =
+              explicitArtwork ?: if (cleanPath != null && !isNetworkStream) {
+                EmbeddedArtworkResolver.decodeSidecar(cleanPath)
+              } else {
+                null
+              }
             AudioPresentationMetadata(artwork = fallbackArtwork, artist = null)
           } finally {
             runCatching { retriever?.release() }
@@ -363,12 +362,12 @@ private fun visualizerPaletteFromAccent(
   materialPalette: VisualizerPalette,
   accentArgb: Int,
 ): VisualizerPalette =
-  materialPalette.copy(
-    primary = ColorUtils.blendARGB(materialPalette.primary, accentArgb, 0.56f),
-    secondary = ColorUtils.blendARGB(materialPalette.secondary, accentArgb, 0.36f),
-    tertiary = ColorUtils.blendARGB(materialPalette.tertiary, accentArgb, 0.28f),
-  )
-    .withThemeContrast()
+  materialPalette
+    .copy(
+      primary = ColorUtils.blendARGB(materialPalette.primary, accentArgb, 0.56f),
+      secondary = ColorUtils.blendARGB(materialPalette.secondary, accentArgb, 0.36f),
+      tertiary = ColorUtils.blendARGB(materialPalette.tertiary, accentArgb, 0.28f),
+    ).withThemeContrast()
 
 private fun artworkVisualizerPalette(
   bitmap: Bitmap,
@@ -468,7 +467,6 @@ private fun AudioVisualizerViewport(
           modifier = rendererModifier,
         )
     }
-
   }
 }
 
@@ -531,7 +529,9 @@ private fun CoverArtCardImage(
       contentScale = ContentScale.Crop,
       modifier = Modifier.fillMaxSize(),
     )
-  } else if (!artworkUrl.isNullOrBlank() && (artworkUrl.startsWith("http://", ignoreCase = true) || artworkUrl.startsWith("https://", ignoreCase = true))) {
+  } else if (!artworkUrl.isNullOrBlank() &&
+    (artworkUrl.startsWith("http://", ignoreCase = true) || artworkUrl.startsWith("https://", ignoreCase = true))
+  ) {
     RemoteImage(
       url = artworkUrl,
       contentDescription = null,
@@ -659,7 +659,11 @@ fun AudioPlayerControls(
           !bps.isNullOrBlank() && bps.toIntOrNull() != null -> "${bps.toInt()}-bit"
           audioFormat?.contains("24") == true || audioFormat == "s24" || audioFormat == "s24p" -> "24-bit"
           audioFormat?.contains("16") == true || audioFormat == "s16" || audioFormat == "s16p" -> "16-bit"
-          audioFormat?.contains("32") == true || audioFormat == "s32" || audioFormat == "s32p" || audioFormat == "flt" || audioFormat == "fltp" -> "32-bit"
+          audioFormat?.contains("32") == true ||
+            audioFormat == "s32" ||
+            audioFormat == "s32p" ||
+            audioFormat == "flt" ||
+            audioFormat == "fltp" -> "32-bit"
           audioFormat?.contains("8") == true || audioFormat == "u8" -> "8-bit"
           isHiRes -> "24-bit"
           isLosslessCodecOrExt -> "16-bit"
@@ -688,7 +692,11 @@ fun AudioPlayerControls(
 
   val currentArtworkUri =
     currentItem?.artworkUri?.takeIf { it.isNotBlank() }
-      ?: filteredPlaylist.firstOrNull { it.isPlaying || it.path == mediaPath || it.uri.toString() == mediaPath }?.tvgLogo?.takeIf { it.isNotBlank() }
+      ?: filteredPlaylist
+        .firstOrNull {
+          it.isPlaying || it.path == mediaPath || it.uri.toString() == mediaPath
+        }?.tvgLogo
+        ?.takeIf { it.isNotBlank() }
 
   val currentAudioPresentation =
     rememberAudioPresentationMetadata(
@@ -778,11 +786,11 @@ fun AudioPlayerControls(
       }
   }
 
-   val isPlaying = paused == false
-   val currentDurSec = if (preciseDuration > 0f) preciseDuration else duration?.toFloat() ?: 0f
-   val currentVolumePercent by viewModel.currentVolumePercent.collectAsState()
-   val volumeScale = currentVolumePercent / 100f
-   val visualizerFeatures = rememberAudioVisualizerFeatures(isPlaying, volumeScale)
+  val isPlaying = paused == false
+  val currentDurSec = if (preciseDuration > 0f) preciseDuration else duration?.toFloat() ?: 0f
+  val currentVolumePercent by viewModel.currentVolumePercent.collectAsState()
+  val volumeScale = currentVolumePercent / 100f
+  val visualizerFeatures = rememberAudioVisualizerFeatures(isPlaying, volumeScale)
 
   // Hardware buttons, Bluetooth devices and system panels can change STREAM_MUSIC without
   // going through the player's volume callbacks. Keep the visualizer's gain synchronized.
@@ -805,8 +813,10 @@ fun AudioPlayerControls(
     enabled =
       isPlaying &&
         !isSheetOpen &&
-        ((showVisualizer && !showInPlaceLyrics) ||
-          (audioWavySeekbar && !isLyricsFullscreen)),
+        (
+          (showVisualizer && !showInPlaceLyrics) ||
+            (audioWavySeekbar && !isLyricsFullscreen)
+        ),
     features = visualizerFeatures,
   )
 
@@ -825,46 +835,62 @@ fun AudioPlayerControls(
   val coroutineScope = rememberCoroutineScope()
   val activeTrackPath = mediaPath?.takeIf { it.isNotBlank() } ?: currentMediaSource
 
-  val jellyfinInfo = remember(activeTrackPath, mediaPath) {
-    val path = mediaPath?.takeIf { it.isNotBlank() } ?: activeTrackPath
-    if (path.isNullOrBlank()) null
-    else {
-      val uri = runCatching { Uri.parse(path) }.getOrNull()
-      if (uri == null) null
-      else {
-        val pathSegments = uri.pathSegments
-        val mediaIndex = pathSegments.indexOfFirst {
-          it.equals("Videos", ignoreCase = true) ||
-            it.equals("Audio", ignoreCase = true) ||
-            it.equals("Items", ignoreCase = true)
+  val jellyfinInfo =
+    remember(activeTrackPath, mediaPath) {
+      val path = mediaPath?.takeIf { it.isNotBlank() } ?: activeTrackPath
+      if (path.isNullOrBlank()) {
+        null
+      } else {
+        val uri = runCatching { Uri.parse(path) }.getOrNull()
+        if (uri == null) {
+          null
+        } else {
+          val pathSegments = uri.pathSegments
+          val mediaIndex =
+            pathSegments.indexOfFirst {
+              it.equals("Videos", ignoreCase = true) ||
+                it.equals("Audio", ignoreCase = true) ||
+                it.equals("Items", ignoreCase = true)
+            }
+          if (mediaIndex != -1 && mediaIndex + 1 < pathSegments.size) {
+            val itemId = pathSegments[mediaIndex + 1]
+            val apiKey = uri.getQueryParameter("api_key") ?: uri.getQueryParameter("ApiKey")
+            val scheme = uri.scheme ?: "http"
+            val authority = uri.encodedAuthority
+            val subPathSegments = pathSegments.subList(0, mediaIndex)
+            val baseUrl =
+              if (authority != null) {
+                if (subPathSegments.isEmpty()) {
+                  "$scheme://$authority"
+                } else {
+                  "$scheme://$authority/" + subPathSegments.joinToString("/")
+                }
+              } else {
+                null
+              }
+            if (itemId.isNotBlank() && baseUrl != null) {
+              Triple(baseUrl, itemId, apiKey)
+            } else {
+              null
+            }
+          } else {
+            null
+          }
         }
-        if (mediaIndex != -1 && mediaIndex + 1 < pathSegments.size) {
-          val itemId = pathSegments[mediaIndex + 1]
-          val apiKey = uri.getQueryParameter("api_key") ?: uri.getQueryParameter("ApiKey")
-          val scheme = uri.scheme ?: "http"
-          val authority = uri.encodedAuthority
-          val subPathSegments = pathSegments.subList(0, mediaIndex)
-          val baseUrl = if (authority != null) {
-            if (subPathSegments.isEmpty()) "$scheme://$authority"
-            else "$scheme://$authority/" + subPathSegments.joinToString("/")
-          } else null
-          if (itemId.isNotBlank() && baseUrl != null) {
-            Triple(baseUrl, itemId, apiKey)
-          } else null
-        } else null
       }
     }
-  }
 
-  val activeJellyfinServer = remember(jellyfinServers, jellyfinInfo) {
-    if (jellyfinInfo == null) null
-    else {
-      jellyfinServers.firstOrNull { s ->
-        s.serverUrl.contains(runCatching { Uri.parse(jellyfinInfo.first).host.orEmpty() }.getOrDefault("")) ||
-          (!jellyfinInfo.third.isNullOrBlank() && s.accessToken == jellyfinInfo.third)
-      } ?: jellyfinServers.firstOrNull()
+  val activeJellyfinServer =
+    remember(jellyfinServers, jellyfinInfo) {
+      if (jellyfinInfo == null) {
+        null
+      } else {
+        jellyfinServers.firstOrNull { s ->
+          s.serverUrl.contains(runCatching { Uri.parse(jellyfinInfo.first).host.orEmpty() }.getOrDefault("")) ||
+            (!jellyfinInfo.third.isNullOrBlank() && s.accessToken == jellyfinInfo.third)
+        } ?: jellyfinServers.firstOrNull()
+      }
     }
-  }
 
   var jellyfinFavoriteOverride by remember(activeTrackPath, mediaPath) { mutableStateOf<Boolean?>(null) }
 
@@ -872,47 +898,60 @@ fun AudioPlayerControls(
     val server = activeJellyfinServer
     val itemId = jellyfinInfo?.second
     if (server != null && !itemId.isNullOrBlank()) {
-      val item = withContext(Dispatchers.IO) {
-        jellyfinRepository.getItem(server, itemId).getOrNull()
-      }
+      val item =
+        withContext(Dispatchers.IO) {
+          jellyfinRepository.getItem(server, itemId).getOrNull()
+        }
       if (item != null) {
         jellyfinFavoriteOverride = item.isFavorite
       }
     }
   }
 
-  val navidromeInfo = remember(activeTrackPath, mediaPath, currentMediaSource) {
-    val path = mediaPath?.takeIf { it.isNotBlank() } ?: activeTrackPath ?: currentMediaSource
-    if (path.isNullOrBlank()) null
-    else {
-      val uri = runCatching { Uri.parse(path) }.getOrNull()
-      if (uri == null) null
-      else {
-        if (uri.path?.contains("/rest/stream", ignoreCase = true) == true ||
+  val navidromeInfo =
+    remember(activeTrackPath, mediaPath, currentMediaSource) {
+      val path = mediaPath?.takeIf { it.isNotBlank() } ?: activeTrackPath ?: currentMediaSource
+      if (path.isNullOrBlank()) {
+        null
+      } else {
+        val uri = runCatching { Uri.parse(path) }.getOrNull()
+        if (uri == null) {
+          null
+        } else {
+          if (uri.path?.contains("/rest/stream", ignoreCase = true) == true ||
             uri.path?.contains("stream.view", ignoreCase = true) == true ||
-            uri.query?.contains("stream.view", ignoreCase = true) == true) {
-          val songId = uri.getQueryParameter("id")
-          val username = uri.getQueryParameter("u")
-          val scheme = uri.scheme ?: "http"
-          val authority = uri.encodedAuthority
-          val baseUrl = if (authority != null) "$scheme://$authority" else null
-          if (!songId.isNullOrBlank()) {
-            Triple(baseUrl, songId, username)
-          } else null
-        } else null
+            uri.query?.contains("stream.view", ignoreCase = true) == true
+          ) {
+            val songId = uri.getQueryParameter("id")
+            val username = uri.getQueryParameter("u")
+            val scheme = uri.scheme ?: "http"
+            val authority = uri.encodedAuthority
+            val baseUrl = if (authority != null) "$scheme://$authority" else null
+            if (!songId.isNullOrBlank()) {
+              Triple(baseUrl, songId, username)
+            } else {
+              null
+            }
+          } else {
+            null
+          }
+        }
       }
     }
-  }
 
-  val activeNavidromeServer = remember(navidromeServers, navidromeInfo) {
-    if (navidromeInfo == null) null
-    else {
-      navidromeServers.firstOrNull { s ->
-        s.serverUrl.contains(runCatching { Uri.parse(navidromeInfo.first.orEmpty()).host.orEmpty() }.getOrDefault("")) ||
-          (!navidromeInfo.third.isNullOrBlank() && s.username == navidromeInfo.third)
-      } ?: navidromeServers.firstOrNull()
+  val activeNavidromeServer =
+    remember(navidromeServers, navidromeInfo) {
+      if (navidromeInfo == null) {
+        null
+      } else {
+        navidromeServers.firstOrNull { s ->
+          s.serverUrl.contains(
+            runCatching { Uri.parse(navidromeInfo.first.orEmpty()).host.orEmpty() }.getOrDefault(""),
+          ) ||
+            (!navidromeInfo.third.isNullOrBlank() && s.username == navidromeInfo.third)
+        } ?: navidromeServers.firstOrNull()
+      }
     }
-  }
 
   var navidromeFavoriteOverride by remember(activeTrackPath, mediaPath) { mutableStateOf<Boolean?>(null) }
 
@@ -920,9 +959,10 @@ fun AudioPlayerControls(
     val server = activeNavidromeServer
     val songId = navidromeInfo?.second
     if (server != null && !songId.isNullOrBlank()) {
-      val song = withContext(Dispatchers.IO) {
-        navidromeRepository.getSong(server, songId).getOrNull()
-      }
+      val song =
+        withContext(Dispatchers.IO) {
+          navidromeRepository.getSong(server, songId).getOrNull()
+        }
       if (song != null) {
         navidromeFavoriteOverride = song.isFavorite
       }
@@ -930,7 +970,14 @@ fun AudioPlayerControls(
   }
 
   val isCurrentTrackFavoriteLocal by remember(activeTrackPath, mediaPath) {
-    playlistRepository.observeIsFavorite((mediaPath?.takeIf { it.isNotBlank() } ?: activeTrackPath).orEmpty(), isAudio = true)
+    playlistRepository.observeIsFavorite(
+      (
+        mediaPath?.takeIf {
+          it.isNotBlank()
+        } ?: activeTrackPath
+      ).orEmpty(),
+      isAudio = true,
+    )
   }.collectAsState(initial = false)
 
   val isCurrentTrackFavorite = jellyfinFavoriteOverride ?: navidromeFavoriteOverride ?: isCurrentTrackFavoriteLocal
@@ -991,14 +1038,16 @@ fun AudioPlayerControls(
     withContext(Dispatchers.Default) {
       runCatching {
         val palette = Palette.from(albumArtBitmap).maximumColorCount(16).generate()
-        val vibrant = palette.getVibrantColor(
-          palette.getDominantColor(
-            palette.getMutedColor(0)
+        val vibrant =
+          palette.getVibrantColor(
+            palette.getDominantColor(
+              palette.getMutedColor(0),
+            ),
           )
-        )
-        val darkVibrant = palette.getDarkVibrantColor(
-          palette.getDarkMutedColor(vibrant)
-        )
+        val darkVibrant =
+          palette.getDarkVibrantColor(
+            palette.getDarkMutedColor(vibrant),
+          )
         if (vibrant == 0 && darkVibrant == 0) return@runCatching null
 
         val topColor = Color(if (vibrant != 0) vibrant else darkVibrant).copy(alpha = 0.50f)
@@ -1012,8 +1061,22 @@ fun AudioPlayerControls(
     }
   }
 
-  val targetTopColor = if (ambientModeEnabled && (!showVisualizer || showInPlaceLyrics)) (ambientColors?.first ?: Color.Transparent) else Color.Transparent
-  val targetBottomColor = if (ambientModeEnabled && (!showVisualizer || showInPlaceLyrics)) (ambientColors?.second ?: Color.Transparent) else Color.Transparent
+  val targetTopColor =
+    if (ambientModeEnabled &&
+      (!showVisualizer || showInPlaceLyrics)
+    ) {
+      (ambientColors?.first ?: Color.Transparent)
+    } else {
+      Color.Transparent
+    }
+  val targetBottomColor =
+    if (ambientModeEnabled &&
+      (!showVisualizer || showInPlaceLyrics)
+    ) {
+      (ambientColors?.second ?: Color.Transparent)
+    } else {
+      Color.Transparent
+    }
 
   val animatedAmbientTop: Color by animateColorAsState(
     targetValue = targetTopColor,
@@ -1032,27 +1095,34 @@ fun AudioPlayerControls(
         .fillMaxSize()
         .background(MaterialTheme.colorScheme.surface)
         .drawWithCache {
-          if (ambientModeEnabled && (!showVisualizer || showInPlaceLyrics) && (animatedAmbientTop != Color.Transparent || animatedAmbientBottom != Color.Transparent)) {
+          if (ambientModeEnabled &&
+            (!showVisualizer || showInPlaceLyrics) &&
+            (animatedAmbientTop != Color.Transparent || animatedAmbientBottom != Color.Transparent)
+          ) {
             val topColor = animatedAmbientTop
             val bottomColor = animatedAmbientBottom
-            val radialGradient = Brush.radialGradient(
-              colors = listOf(
-                topColor,
-                bottomColor,
-                Color.Transparent,
-              ),
-              center = Offset(size.width * 0.5f, size.height * 0.25f),
-              radius = size.width * 1.3f,
-            )
-            val linearGradient = Brush.verticalGradient(
-              colors = listOf(
-                topColor.copy(alpha = topColor.alpha * 0.65f),
-                bottomColor.copy(alpha = bottomColor.alpha * 0.35f),
-                Color.Transparent,
-              ),
-              startY = 0f,
-              endY = size.height * 0.80f,
-            )
+            val radialGradient =
+              Brush.radialGradient(
+                colors =
+                  listOf(
+                    topColor,
+                    bottomColor,
+                    Color.Transparent,
+                  ),
+                center = Offset(size.width * 0.5f, size.height * 0.25f),
+                radius = size.width * 1.3f,
+              )
+            val linearGradient =
+              Brush.verticalGradient(
+                colors =
+                  listOf(
+                    topColor.copy(alpha = topColor.alpha * 0.65f),
+                    bottomColor.copy(alpha = bottomColor.alpha * 0.35f),
+                    Color.Transparent,
+                  ),
+                startY = 0f,
+                endY = size.height * 0.80f,
+              )
             onDrawBehind {
               drawRect(radialGradient)
               drawRect(linearGradient)
@@ -1060,8 +1130,7 @@ fun AudioPlayerControls(
           } else {
             onDrawBehind {}
           }
-        }
-        .windowInsetsPadding(WindowInsets.safeDrawing)
+        }.windowInsetsPadding(WindowInsets.safeDrawing)
         .padding(start = 16.dp, end = 16.dp, top = 6.dp, bottom = 12.dp),
   ) {
     val headerBar = @Composable {
@@ -1145,15 +1214,23 @@ fun AudioPlayerControls(
       activeCoverOverride = null
     }
 
-    val nextItem = remember(filteredPlaylist, mediaPath) {
-      val idx = filteredPlaylist.indexOfFirst { it.isPlaying || it.path == mediaPath || it.uri.toString() == mediaPath }
-      if (idx in 0 until filteredPlaylist.lastIndex) filteredPlaylist[idx + 1] else null
-    }
+    val nextItem =
+      remember(filteredPlaylist, mediaPath) {
+        val idx =
+          filteredPlaylist.indexOfFirst {
+            it.isPlaying || it.path == mediaPath || it.uri.toString() == mediaPath
+          }
+        if (idx in 0 until filteredPlaylist.lastIndex) filteredPlaylist[idx + 1] else null
+      }
 
-    val prevItem = remember(filteredPlaylist, mediaPath) {
-      val idx = filteredPlaylist.indexOfFirst { it.isPlaying || it.path == mediaPath || it.uri.toString() == mediaPath }
-      if (idx > 0) filteredPlaylist[idx - 1] else null
-    }
+    val prevItem =
+      remember(filteredPlaylist, mediaPath) {
+        val idx =
+          filteredPlaylist.indexOfFirst {
+            it.isPlaying || it.path == mediaPath || it.uri.toString() == mediaPath
+          }
+        if (idx > 0) filteredPlaylist[idx - 1] else null
+      }
 
     val nextCoverBitmap =
       rememberAudioAlbumArt(
@@ -1202,148 +1279,163 @@ fun AudioPlayerControls(
             transitionSpec = {
               val contentTransform =
                 if (targetState) {
-                  (fadeIn(animationSpec = tween(350, easing = FastOutSlowInEasing)) +
-                    scaleIn(animationSpec = tween(350, easing = FastOutSlowInEasing), initialScale = 0.90f))
-                    .togetherWith(
-                      fadeOut(animationSpec = tween(280)) +
-                        scaleOut(animationSpec = tween(280), targetScale = 1.06f),
-                    )
+                  (
+                    fadeIn(animationSpec = tween(350, easing = FastOutSlowInEasing)) +
+                      scaleIn(animationSpec = tween(350, easing = FastOutSlowInEasing), initialScale = 0.90f)
+                  ).togetherWith(
+                    fadeOut(animationSpec = tween(280)) +
+                      scaleOut(animationSpec = tween(280), targetScale = 1.06f),
+                  )
                 } else {
-                  (fadeIn(animationSpec = tween(350, easing = FastOutSlowInEasing)) +
-                    scaleIn(animationSpec = spring(dampingRatio = 0.72f, stiffness = 400f), initialScale = 0.88f))
-                    .togetherWith(
-                      fadeOut(animationSpec = tween(280)) +
-                        scaleOut(animationSpec = tween(280), targetScale = 1.06f),
-                    )
+                  (
+                    fadeIn(animationSpec = tween(350, easing = FastOutSlowInEasing)) +
+                      scaleIn(animationSpec = spring(dampingRatio = 0.72f, stiffness = 400f), initialScale = 0.88f)
+                  ).togetherWith(
+                    fadeOut(animationSpec = tween(280)) +
+                      scaleOut(animationSpec = tween(280), targetScale = 1.06f),
+                  )
                 }
               contentTransform.using(SizeTransform(clip = false))
             },
             label = "visualizer_toggle",
             modifier = Modifier.fillMaxHeight().fillMaxWidth(if (isTabletPortrait) 0.65f else 1.0f),
           ) { isVisualizerActive ->
-          if (isVisualizerActive) {
-            AudioVisualizerViewport(
-              style = audioVisualizerStyle,
-              palette = visualizerPalette,
-              isPlaying = isPlaying,
-              isSheetOpen = isSheetOpen,
-              features = visualizerFeatures,
-              onClick = viewModel::toggleAudioVisualizer,
-              onLongClick = { onOpenSheet(Sheets.VisualizerStyle) },
-              modifier = Modifier.fillMaxSize(),
-            )
-          } else {
-            val coverShape = RoundedCornerShape(32.dp)
-            val density = LocalDensity.current
-            val gap = with(density) { 24.dp.toPx() }
-            val stride = containerWidthPx + gap
+            if (isVisualizerActive) {
+              AudioVisualizerViewport(
+                style = audioVisualizerStyle,
+                palette = visualizerPalette,
+                isPlaying = isPlaying,
+                isSheetOpen = isSheetOpen,
+                features = visualizerFeatures,
+                onClick = viewModel::toggleAudioVisualizer,
+                onLongClick = { onOpenSheet(Sheets.VisualizerStyle) },
+                modifier = Modifier.fillMaxSize(),
+              )
+            } else {
+              val coverShape = RoundedCornerShape(32.dp)
+              val density = LocalDensity.current
+              val gap = with(density) { 24.dp.toPx() }
+              val stride = containerWidthPx + gap
 
-            Box(
-              modifier = Modifier
-                .fillMaxSize()
-                .pointerInput(showVisualizer, containerWidthPx) {
-                  if (showVisualizer || containerWidthPx <= 0f) return@pointerInput
-                  detectHorizontalDragGestures(
-                    onDragStart = {
-                      coroutineScope.launch { animatableOffsetX.snapTo(0f) }
-                    },
-                    onDragEnd = {
-                      val threshold = containerWidthPx * 0.25f
-                      val dragVal = animatableOffsetX.value
-                      coroutineScope.launch {
-                        if (dragVal < -threshold) {
-                          haptic.performHapticFeedback(HapticFeedbackType.LongPress)
-                          animatableOffsetX.animateTo(
-                            targetValue = -stride,
-                            animationSpec = spring(stiffness = Spring.StiffnessMediumLow, dampingRatio = 0.85f),
-                          )
-                          activeCoverOverride = nextCoverBitmap ?: albumArtBitmap
-                          animatableOffsetX.snapTo(0f)
-                          if (viewModel.hasPlaylistSupport()) {
-                            viewModel.playNext()
-                          } else {
-                            runCatching { PlaybackSession.command("playlist-next") }
+              Box(
+                modifier =
+                  Modifier
+                    .fillMaxSize()
+                    .pointerInput(showVisualizer, containerWidthPx) {
+                      if (showVisualizer || containerWidthPx <= 0f) return@pointerInput
+                      detectHorizontalDragGestures(
+                        onDragStart = {
+                          coroutineScope.launch { animatableOffsetX.snapTo(0f) }
+                        },
+                        onDragEnd = {
+                          val threshold = containerWidthPx * 0.25f
+                          val dragVal = animatableOffsetX.value
+                          coroutineScope.launch {
+                            if (dragVal < -threshold) {
+                              haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                              animatableOffsetX.animateTo(
+                                targetValue = -stride,
+                                animationSpec = spring(stiffness = Spring.StiffnessMediumLow, dampingRatio = 0.85f),
+                              )
+                              activeCoverOverride = nextCoverBitmap ?: albumArtBitmap
+                              animatableOffsetX.snapTo(0f)
+                              if (viewModel.hasPlaylistSupport()) {
+                                viewModel.playNext()
+                              } else {
+                                runCatching { PlaybackSession.command("playlist-next") }
+                              }
+                            } else if (dragVal > threshold) {
+                              haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                              animatableOffsetX.animateTo(
+                                targetValue = stride,
+                                animationSpec = spring(stiffness = Spring.StiffnessMediumLow, dampingRatio = 0.85f),
+                              )
+                              activeCoverOverride = prevCoverBitmap ?: albumArtBitmap
+                              animatableOffsetX.snapTo(0f)
+                              if (viewModel.hasPlaylistSupport()) {
+                                viewModel.playPrevious()
+                              } else {
+                                runCatching { PlaybackSession.command("playlist-prev") }
+                              }
+                            } else {
+                              animatableOffsetX.animateTo(
+                                targetValue = 0f,
+                                animationSpec = spring(stiffness = Spring.StiffnessMediumLow, dampingRatio = 0.85f),
+                              )
+                            }
                           }
-                        } else if (dragVal > threshold) {
-                          haptic.performHapticFeedback(HapticFeedbackType.LongPress)
-                          animatableOffsetX.animateTo(
-                            targetValue = stride,
-                            animationSpec = spring(stiffness = Spring.StiffnessMediumLow, dampingRatio = 0.85f),
-                          )
-                          activeCoverOverride = prevCoverBitmap ?: albumArtBitmap
-                          animatableOffsetX.snapTo(0f)
-                          if (viewModel.hasPlaylistSupport()) {
-                            viewModel.playPrevious()
-                          } else {
-                            runCatching { PlaybackSession.command("playlist-prev") }
+                        },
+                        onDragCancel = {
+                          coroutineScope.launch {
+                            animatableOffsetX.animateTo(
+                              0f,
+                              spring(stiffness = Spring.StiffnessMediumLow, dampingRatio = 0.85f),
+                            )
                           }
-                        } else {
-                          animatableOffsetX.animateTo(
-                            targetValue = 0f,
-                            animationSpec = spring(stiffness = Spring.StiffnessMediumLow, dampingRatio = 0.85f),
-                          )
-                        }
-                      }
+                        },
+                        onHorizontalDrag = { change, dragAmount ->
+                          change.consume()
+                          coroutineScope.launch {
+                            animatableOffsetX.snapTo(animatableOffsetX.value + dragAmount)
+                          }
+                        },
+                      )
                     },
-                    onDragCancel = {
-                      coroutineScope.launch {
-                        animatableOffsetX.animateTo(0f, spring(stiffness = Spring.StiffnessMediumLow, dampingRatio = 0.85f))
-                      }
-                    },
-                    onHorizontalDrag = { change, dragAmount ->
-                      change.consume()
-                      coroutineScope.launch {
-                        animatableOffsetX.snapTo(animatableOffsetX.value + dragAmount)
-                      }
-                    }
-                  )
-                },
-              contentAlignment = Alignment.Center,
-            ) {
-              // 1. Previous Cover Art Card (Visible when dragging right -> currentOffset > 0)
-              if (currentOffset > 0f) {
-                Surface(
-                  modifier = Modifier
-                    .aspectRatio(1f)
-                    .offset { IntOffset((-stride + currentOffset).roundToInt(), 0) }
-                    .clip(coverShape),
-                  shape = coverShape,
-                  color = Color.Transparent,
-                ) {
-                  CoverArtCardImage(bitmap = prevCoverBitmap, artworkUrl = prevItem?.tvgLogo?.takeIf { it.isNotBlank() })
-                }
-              }
-
-              // 2. Next Cover Art Card (Visible when dragging left -> currentOffset < 0)
-              if (currentOffset < 0f) {
-                Surface(
-                  modifier = Modifier
-                    .aspectRatio(1f)
-                    .offset { IntOffset((stride + currentOffset).roundToInt(), 0) }
-                    .clip(coverShape),
-                  shape = coverShape,
-                  color = Color.Transparent,
-                ) {
-                  CoverArtCardImage(bitmap = nextCoverBitmap, artworkUrl = nextItem?.tvgLogo?.takeIf { it.isNotBlank() })
-                }
-              }
-
-              // 3. Current Cover Art Card
-              Surface(
-                modifier = Modifier
-                  .aspectRatio(1f)
-                  .offset { IntOffset(currentOffset.roundToInt(), 0) }
-                  .clip(coverShape),
-                shape = coverShape,
-                color = Color.Transparent,
+                contentAlignment = Alignment.Center,
               ) {
-                CoverArtCardImage(bitmap = activeCoverOverride ?: albumArtBitmap, artworkUrl = currentArtworkUri)
+                // 1. Previous Cover Art Card (Visible when dragging right -> currentOffset > 0)
+                if (currentOffset > 0f) {
+                  Surface(
+                    modifier =
+                      Modifier
+                        .aspectRatio(1f)
+                        .offset { IntOffset((-stride + currentOffset).roundToInt(), 0) }
+                        .clip(coverShape),
+                    shape = coverShape,
+                    color = Color.Transparent,
+                  ) {
+                    CoverArtCardImage(
+                      bitmap = prevCoverBitmap,
+                      artworkUrl = prevItem?.tvgLogo?.takeIf { it.isNotBlank() },
+                    )
+                  }
+                }
+
+                // 2. Next Cover Art Card (Visible when dragging left -> currentOffset < 0)
+                if (currentOffset < 0f) {
+                  Surface(
+                    modifier =
+                      Modifier
+                        .aspectRatio(1f)
+                        .offset { IntOffset((stride + currentOffset).roundToInt(), 0) }
+                        .clip(coverShape),
+                    shape = coverShape,
+                    color = Color.Transparent,
+                  ) {
+                    CoverArtCardImage(
+                      bitmap = nextCoverBitmap,
+                      artworkUrl = nextItem?.tvgLogo?.takeIf { it.isNotBlank() },
+                    )
+                  }
+                }
+
+                // 3. Current Cover Art Card
+                Surface(
+                  modifier =
+                    Modifier
+                      .aspectRatio(1f)
+                      .offset { IntOffset(currentOffset.roundToInt(), 0) }
+                      .clip(coverShape),
+                  shape = coverShape,
+                  color = Color.Transparent,
+                ) {
+                  CoverArtCardImage(bitmap = activeCoverOverride ?: albumArtBitmap, artworkUrl = currentArtworkUri)
+                }
               }
             }
           }
         }
       }
-    }
     }
 
     val trackMetadataView = @Composable {
@@ -1573,7 +1665,11 @@ fun AudioPlayerControls(
                   if (navServer != null && !navSongId.isNullOrBlank()) {
                     navidromeFavoriteOverride = newFavState
                     withContext(Dispatchers.IO) {
-                      navidromeRepository.toggleFavorite(server = navServer, songId = navSongId, isFavorite = newFavState)
+                      navidromeRepository.toggleFavorite(
+                        server = navServer,
+                        songId = navSongId,
+                        isFavorite = newFavState,
+                      )
                     }
                   }
                 }
@@ -1606,7 +1702,7 @@ fun AudioPlayerControls(
 
     val seekbarView = @Composable {
       val position by PlaybackSession.propInt["time-pos"].collectAsStateWithLifecycle()
-      val remaining  by PlaybackSession.propFloat["playtime-remaining"].collectAsState()
+      val remaining by PlaybackSession.propFloat["playtime-remaining"].collectAsState()
       val precisePosition by viewModel.precisePosition.collectAsStateWithLifecycle()
       val currentPosSec = if (precisePosition > 0f) precisePosition else position?.toFloat() ?: 0f
       val isPaused = paused ?: false
@@ -1745,8 +1841,7 @@ fun AudioPlayerControls(
                   .clip(CircleShape)
                   .background(
                     MaterialTheme.colorScheme.surfaceContainerHigh.copy(alpha = 0.65f),
-                  )
-                  .horizontalScroll(rememberScrollState())
+                  ).horizontalScroll(rememberScrollState())
                   .padding(horizontal = 8.dp, vertical = 4.dp),
               verticalAlignment = Alignment.CenterVertically,
               horizontalArrangement = Arrangement.spacedBy(4.dp),
@@ -1826,8 +1921,7 @@ fun AudioPlayerControls(
                   .clip(CircleShape)
                   .background(
                     MaterialTheme.colorScheme.surfaceContainerHigh.copy(alpha = 0.65f),
-                  )
-                  .horizontalScroll(rememberScrollState())
+                  ).horizontalScroll(rememberScrollState())
                   .padding(horizontal = 8.dp, vertical = 4.dp),
               verticalAlignment = Alignment.CenterVertically,
               horizontalArrangement = Arrangement.spacedBy(4.dp),
@@ -1932,19 +2026,25 @@ fun AudioPlayerControls(
 
     if (isPortrait) {
       Column(
-        modifier = Modifier
-          .fillMaxSize()
-          .clickable(
-            enabled = showInPlaceLyrics,
-            interactionSource = remember { MutableInteractionSource() },
-            indication = null,
-          ) { resetInactivityTimer() },
+        modifier =
+          Modifier
+            .fillMaxSize()
+            .clickable(
+              enabled = showInPlaceLyrics,
+              interactionSource = remember { MutableInteractionSource() },
+              indication = null,
+            ) { resetInactivityTimer() },
         horizontalAlignment = Alignment.CenterHorizontally,
       ) {
         androidx.compose.animation.AnimatedVisibility(
           visible = !isLyricsFullscreen,
-          enter = fadeIn(animationSpec = tween(300)) + androidx.compose.animation.expandVertically(animationSpec = tween(300)),
-          exit = fadeOut(animationSpec = tween(300)) + androidx.compose.animation.shrinkVertically(animationSpec = tween(300)),
+          enter =
+            fadeIn(
+              animationSpec = tween(300),
+            ) + androidx.compose.animation.expandVertically(animationSpec = tween(300)),
+          exit =
+            fadeOut(animationSpec = tween(300)) +
+              androidx.compose.animation.shrinkVertically(animationSpec = tween(300)),
         ) {
           Column(horizontalAlignment = Alignment.CenterHorizontally) {
             headerBar()
@@ -1958,8 +2058,13 @@ fun AudioPlayerControls(
 
         androidx.compose.animation.AnimatedVisibility(
           visible = !isLyricsFullscreen,
-          enter = fadeIn(animationSpec = tween(300)) + androidx.compose.animation.expandVertically(animationSpec = tween(300)),
-          exit = fadeOut(animationSpec = tween(300)) + androidx.compose.animation.shrinkVertically(animationSpec = tween(300)),
+          enter =
+            fadeIn(
+              animationSpec = tween(300),
+            ) + androidx.compose.animation.expandVertically(animationSpec = tween(300)),
+          exit =
+            fadeOut(animationSpec = tween(300)) +
+              androidx.compose.animation.shrinkVertically(animationSpec = tween(300)),
         ) {
           Column(horizontalAlignment = Alignment.CenterHorizontally) {
             Spacer(modifier = Modifier.height(16.dp))
@@ -1980,9 +2085,10 @@ fun AudioPlayerControls(
         verticalAlignment = Alignment.CenterVertically,
       ) {
         Column(
-          modifier = Modifier
-            .weight(1f)
-            .fillMaxHeight(),
+          modifier =
+            Modifier
+              .weight(1f)
+              .fillMaxHeight(),
           verticalArrangement = Arrangement.SpaceBetween,
           horizontalAlignment = Alignment.CenterHorizontally,
         ) {
@@ -2007,10 +2113,11 @@ fun AudioPlayerControls(
         }
 
         Surface(
-          modifier = Modifier
-            .weight(1.1f)
-            .fillMaxHeight()
-            .clip(RoundedCornerShape(24.dp)),
+          modifier =
+            Modifier
+              .weight(1.1f)
+              .fillMaxHeight()
+              .clip(RoundedCornerShape(24.dp)),
           color = MaterialTheme.colorScheme.surfaceContainerLow,
           shape = RoundedCornerShape(24.dp),
         ) {
@@ -2044,9 +2151,10 @@ fun AudioPlayerControls(
     }
 
     if (addToPlaylistDialogOpen && !mediaPath.isNullOrBlank()) {
-      val displayTitle = remember(lastValidTitle, displayArtist) {
-        cleanSongTitle(lastValidTitle, displayArtist)
-      }
+      val displayTitle =
+        remember(lastValidTitle, displayArtist) {
+          cleanSongTitle(lastValidTitle, displayArtist)
+        }
       val videoForPlaylist =
         remember(mediaPath, displayTitle) {
           Video(
@@ -2072,14 +2180,17 @@ fun AudioPlayerControls(
           )
         }
 
-      val isJellyfinMedia = remember(mediaPath) {
-        !mediaPath.isNullOrBlank() &&
-          (mediaPath.contains("api_key=", ignoreCase = true) ||
-            mediaPath.contains("/Items/", ignoreCase = true) ||
-            mediaPath.contains("/Audio/", ignoreCase = true) ||
-            mediaPath.contains("jellyfin", ignoreCase = true) ||
-            mediaPath.contains("/rest/stream", ignoreCase = true))
-      }
+      val isJellyfinMedia =
+        remember(mediaPath) {
+          !mediaPath.isNullOrBlank() &&
+            (
+              mediaPath.contains("api_key=", ignoreCase = true) ||
+                mediaPath.contains("/Items/", ignoreCase = true) ||
+                mediaPath.contains("/Audio/", ignoreCase = true) ||
+                mediaPath.contains("jellyfin", ignoreCase = true) ||
+                mediaPath.contains("/rest/stream", ignoreCase = true)
+            )
+        }
 
       AddToPlaylistDialog(
         isOpen = true,
@@ -2101,14 +2212,16 @@ private fun DualPaneSidePanel(
   var selectedTab by remember(initialLyricsActive) { mutableIntStateOf(if (initialLyricsActive) 1 else 0) }
 
   Column(
-    modifier = Modifier
-      .fillMaxSize()
-      .padding(16.dp),
+    modifier =
+      Modifier
+        .fillMaxSize()
+        .padding(16.dp),
   ) {
     Row(
-      modifier = Modifier
-        .fillMaxWidth()
-        .padding(bottom = 12.dp),
+      modifier =
+        Modifier
+          .fillMaxWidth()
+          .padding(bottom = 12.dp),
       horizontalArrangement = Arrangement.spacedBy(8.dp),
       verticalAlignment = Alignment.CenterVertically,
     ) {
@@ -2116,19 +2229,21 @@ private fun DualPaneSidePanel(
         selected = selectedTab == 0,
         onClick = { selectedTab = 0 },
         label = { Text(stringResource(R.string.player_up_next_title), fontWeight = FontWeight.Bold) },
-        colors = androidx.compose.material3.FilterChipDefaults.filterChipColors(
-          selectedContainerColor = MaterialTheme.colorScheme.primaryContainer,
-          selectedLabelColor = MaterialTheme.colorScheme.onPrimaryContainer,
-        ),
+        colors =
+          androidx.compose.material3.FilterChipDefaults.filterChipColors(
+            selectedContainerColor = MaterialTheme.colorScheme.primaryContainer,
+            selectedLabelColor = MaterialTheme.colorScheme.onPrimaryContainer,
+          ),
       )
       androidx.compose.material3.FilterChip(
         selected = selectedTab == 1,
         onClick = { selectedTab = 1 },
         label = { Text(stringResource(R.string.player_lyrics_title), fontWeight = FontWeight.Bold) },
-        colors = androidx.compose.material3.FilterChipDefaults.filterChipColors(
-          selectedContainerColor = MaterialTheme.colorScheme.primaryContainer,
-          selectedLabelColor = MaterialTheme.colorScheme.onPrimaryContainer,
-        ),
+        colors =
+          androidx.compose.material3.FilterChipDefaults.filterChipColors(
+            selectedContainerColor = MaterialTheme.colorScheme.primaryContainer,
+            selectedLabelColor = MaterialTheme.colorScheme.onPrimaryContainer,
+          ),
       )
     }
 
@@ -2176,23 +2291,26 @@ private fun UpNextPlaylistContent(
   var dragStartIndex by remember { mutableIntStateOf(-1) }
   var dragEndIndex by remember { mutableIntStateOf(-1) }
 
-  val reorderableLazyListState = rememberReorderableLazyListState(lazyListState) { from, to ->
-    if (showDragHandle) {
-      if (dragStartIndex == -1) {
-        dragStartIndex = from.index
-      }
-      dragEndIndex = to.index
-      displayPlaylist = displayPlaylist.toMutableList().apply {
-        add(to.index, removeAt(from.index))
+  val reorderableLazyListState =
+    rememberReorderableLazyListState(lazyListState) { from, to ->
+      if (showDragHandle) {
+        if (dragStartIndex == -1) {
+          dragStartIndex = from.index
+        }
+        dragEndIndex = to.index
+        displayPlaylist =
+          displayPlaylist.toMutableList().apply {
+            add(to.index, removeAt(from.index))
+          }
       }
     }
-  }
 
   Column(modifier = Modifier.fillMaxSize()) {
     Row(
-      modifier = Modifier
-        .fillMaxWidth()
-        .padding(bottom = 12.dp, start = 4.dp, end = 4.dp),
+      modifier =
+        Modifier
+          .fillMaxWidth()
+          .padding(bottom = 12.dp, start = 4.dp, end = 4.dp),
       verticalAlignment = Alignment.CenterVertically,
       horizontalArrangement = Arrangement.SpaceBetween,
     ) {
@@ -2278,11 +2396,12 @@ private fun UpNextPlaylistItemRow(
   onClick: () -> Unit,
   scope: ReorderableCollectionItemScope?,
 ) {
-  val bgColor = if (isPlaying) {
-    MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.45f)
-  } else {
-    MaterialTheme.colorScheme.surfaceContainer
-  }
+  val bgColor =
+    if (isPlaying) {
+      MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.45f)
+    } else {
+      MaterialTheme.colorScheme.surfaceContainer
+    }
 
   val itemCoverArt =
     rememberAudioAlbumArt(
@@ -2291,17 +2410,19 @@ private fun UpNextPlaylistItemRow(
     )
 
   Surface(
-    modifier = Modifier
-      .fillMaxWidth()
-      .clip(RoundedCornerShape(16.dp))
-      .clickable(onClick = onClick),
+    modifier =
+      Modifier
+        .fillMaxWidth()
+        .clip(RoundedCornerShape(16.dp))
+        .clickable(onClick = onClick),
     shape = RoundedCornerShape(16.dp),
     color = bgColor,
   ) {
     Row(
-      modifier = Modifier
-        .fillMaxWidth()
-        .padding(horizontal = 12.dp, vertical = 10.dp),
+      modifier =
+        Modifier
+          .fillMaxWidth()
+          .padding(horizontal = 12.dp, vertical = 10.dp),
       verticalAlignment = Alignment.CenterVertically,
     ) {
       if (scope != null) {
@@ -2309,11 +2430,12 @@ private fun UpNextPlaylistItemRow(
           imageVector = Icons.RoundedFilled.DragHandle,
           contentDescription = "Reorder",
           tint = MaterialTheme.colorScheme.onSurfaceVariant,
-          modifier = with(scope) {
-            Modifier
-              .size(24.dp)
-              .draggableHandle()
-          },
+          modifier =
+            with(scope) {
+              Modifier
+                .size(24.dp)
+                .draggableHandle()
+            },
         )
         Spacer(modifier = Modifier.width(8.dp))
       }
@@ -2324,7 +2446,12 @@ private fun UpNextPlaylistItemRow(
         color = if (isPlaying) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surfaceVariant,
       ) {
         val itemImageBitmap = remember(itemCoverArt) { itemCoverArt?.asImageBitmap() }
-        val hasRemoteImage = item.tvgLogo.isNotBlank() && (item.tvgLogo.startsWith("http://", ignoreCase = true) || item.tvgLogo.startsWith("https://", ignoreCase = true))
+        val hasRemoteImage =
+          item.tvgLogo.isNotBlank() &&
+            (
+              item.tvgLogo.startsWith("http://", ignoreCase = true) ||
+                item.tvgLogo.startsWith("https://", ignoreCase = true)
+            )
         if (itemImageBitmap != null || hasRemoteImage) {
           if (itemImageBitmap != null) {
             Image(
@@ -2345,9 +2472,10 @@ private fun UpNextPlaylistItemRow(
             val paused by PlaybackSession.propBoolean["pause"].collectAsState()
             val isPlaybackActive = paused != true
             Box(
-              modifier = Modifier
-                .fillMaxSize()
-                .background(Color.Black.copy(alpha = 0.45f)),
+              modifier =
+                Modifier
+                  .fillMaxSize()
+                  .background(Color.Black.copy(alpha = 0.45f)),
               contentAlignment = Alignment.Center,
             ) {
               MiniAudioVisualizer(
@@ -2405,8 +2533,6 @@ private fun UpNextPlaylistItemRow(
   }
 }
 
-
-
 private fun formatSec(totalSeconds: Long): String {
   val secs = totalSeconds.coerceAtLeast(0L)
   val hours = secs / 3600
@@ -2446,8 +2572,7 @@ private fun ReactiveIconButton(
           .graphicsLayer {
             scaleX = scale
             scaleY = scale
-          }
-          .clip(CircleShape)
+          }.clip(CircleShape)
           .combinedClickable(
             interactionSource = interactionSource,
             indication = ripple(bounded = false, radius = 24.dp),
@@ -2460,8 +2585,7 @@ private fun ReactiveIconButton(
               haptic.performHapticFeedback(HapticFeedbackType.LongPress)
               onLongClick()
             },
-          )
-          .padding(8.dp),
+          ).padding(8.dp),
       contentAlignment = Alignment.Center,
     ) {
       content()

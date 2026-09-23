@@ -12,48 +12,59 @@ package com.quantummpv.app.domain.seerr
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 
-enum class MediaType(val value: String) {
+enum class MediaType(
+  val value: String,
+) {
   MOVIE("movie"),
-  TV("tv");
+  TV("tv"),
+  ;
 
   companion object {
-    fun fromApiString(value: String): MediaType = when (value.lowercase()) {
-      "movie" -> MOVIE
-      "tv" -> TV
-      else -> MOVIE
-    }
+    fun fromApiString(value: String): MediaType =
+      when (value.lowercase()) {
+        "movie" -> MOVIE
+        "tv" -> TV
+        else -> MOVIE
+      }
   }
 }
 
-enum class MediaStatus(val value: Int) {
+enum class MediaStatus(
+  val value: Int,
+) {
   UNKNOWN(1),
   PENDING(2),
   PROCESSING(3),
   PARTIALLY_AVAILABLE(4),
   AVAILABLE(5),
   BLACKLISTED(6),
-  DELETED(7);
+  DELETED(7),
+  ;
 
   companion object {
-    fun fromValue(value: Int?): MediaStatus = when (value) {
-      1 -> UNKNOWN
-      2 -> PENDING
-      3 -> PROCESSING
-      4 -> PARTIALLY_AVAILABLE
-      5 -> AVAILABLE
-      6 -> BLACKLISTED
-      7 -> DELETED
-      else -> UNKNOWN
-    }
+    fun fromValue(value: Int?): MediaStatus =
+      when (value) {
+        1 -> UNKNOWN
+        2 -> PENDING
+        3 -> PROCESSING
+        4 -> PARTIALLY_AVAILABLE
+        5 -> AVAILABLE
+        6 -> BLACKLISTED
+        7 -> DELETED
+        else -> UNKNOWN
+      }
   }
 }
 
-enum class RequestStatus(val value: Int) {
+enum class RequestStatus(
+  val value: Int,
+) {
   PENDING(1),
   APPROVED(2),
   DECLINED(3),
   FAILED(4),
-  COMPLETED(5);
+  COMPLETED(5),
+  ;
 
   companion object {
     fun fromValue(value: Int?): RequestStatus = entries.firstOrNull { it.value == value } ?: PENDING
@@ -83,11 +94,12 @@ data class SearchResultItem(
 ) {
   fun getDisplayTitle(): String = title ?: name ?: originalTitle ?: originalName ?: "Unknown"
 
-  fun getMediaType(): MediaType = try {
-    MediaType.fromApiString(mediaType)
-  } catch (_: Exception) {
-    MediaType.MOVIE
-  }
+  fun getMediaType(): MediaType =
+    try {
+      MediaType.fromApiString(mediaType)
+    } catch (_: Exception) {
+      MediaType.MOVIE
+    }
 
   fun getPosterUrl(baseUrl: String = "https://image.tmdb.org/t/p/w500"): String? =
     posterPath?.let {
@@ -115,6 +127,7 @@ data class SearchResultItem(
   fun getMediaStatus(): MediaStatus? {
     val standardStatus = mediaInfo?.status
     val status4k = mediaInfo?.status4k
+
     fun isValid(status: Int?) = status != null && status != 1
     return when {
       isValid(standardStatus) -> MediaStatus.fromValue(standardStatus)
@@ -134,9 +147,10 @@ data class SearchResultItem(
     return status
   }
 
-  fun getRating(): String? = voteAverage?.let {
-    if (it > 0) String.format("%.1f", it) else null
-  }
+  fun getRating(): String? =
+    voteAverage?.let {
+      if (it > 0) String.format("%.1f", it) else null
+    }
 
   fun getReleaseYear(): String? {
     val date = releaseDate ?: firstAirDate
@@ -204,21 +218,22 @@ data class MediaDetails(
       }
     }
 
-  fun getRating(): String? = voteAverage?.let {
-    if (it > 0) String.format("%.1f", it) else null
-  }
+  fun getRating(): String? =
+    voteAverage?.let {
+      if (it > 0) String.format("%.1f", it) else null
+    }
 
   fun getYear(): String? {
     val date = releaseDate ?: firstAirDate
     return date?.take(4)
   }
 
-  fun getDirector(): String? =
-    credits?.crew?.firstOrNull { it.job == "Director" }?.name
- 
+  fun getDirector(): String? = credits?.crew?.firstOrNull { it.job == "Director" }?.name
+
   fun getMediaStatus(): MediaStatus? {
     val standardStatus = mediaInfo?.status
     val status4k = mediaInfo?.status4k
+
     fun isValid(status: Int?) = status != null && status != 1
     return when {
       isValid(standardStatus) -> MediaStatus.fromValue(standardStatus)
@@ -328,11 +343,9 @@ data class MediaInfo(
       }
     }
 
-  fun isFullyAvailable(): Boolean =
-    status == MediaStatus.AVAILABLE.value && !jellyfinMediaId.isNullOrBlank()
+  fun isFullyAvailable(): Boolean = status == MediaStatus.AVAILABLE.value && !jellyfinMediaId.isNullOrBlank()
 
-  fun isPartiallyAvailable(): Boolean =
-    status == MediaStatus.PARTIALLY_AVAILABLE.value
+  fun isPartiallyAvailable(): Boolean = status == MediaStatus.PARTIALLY_AVAILABLE.value
 
   fun getJellyfinItemId(): String? {
     val raw = jellyfinMediaId ?: jellyfinMediaId4k ?: return null
@@ -342,8 +355,9 @@ data class MediaInfo(
       raw
     }
   }
-  fun toSearchResultItem(): SearchResultItem {
-    return SearchResultItem(
+
+  fun toSearchResultItem(): SearchResultItem =
+    SearchResultItem(
       id = tmdbId ?: id,
       mediaType = mediaType,
       title = title,
@@ -354,7 +368,6 @@ data class MediaInfo(
       firstAirDate = firstAirDate,
       mediaInfo = this,
     )
-  }
 }
 
 @Serializable
@@ -387,11 +400,12 @@ data class JellyseerrRequest(
 ) {
   fun getRequestStatus(): RequestStatus = RequestStatus.fromValue(status)
 
-  fun getMediaType(): MediaType = try {
-    MediaType.fromApiString(media.mediaType)
-  } catch (_: Exception) {
-    MediaType.MOVIE
-  }
+  fun getMediaType(): MediaType =
+    try {
+      MediaType.fromApiString(media.mediaType)
+    } catch (_: Exception) {
+      MediaType.MOVIE
+    }
 }
 
 @Serializable
@@ -543,8 +557,11 @@ data class JellyseerrUser(
   @SerialName("requestCount") val requestCount: Int = 0,
 ) {
   fun isAdmin(): Boolean = Permissions.hasPermission(permissions, Permissions.ADMIN)
+
   fun canRequest(): Boolean = Permissions.hasPermission(permissions, Permissions.REQUEST) || isAdmin()
+
   fun canAutoApprove(): Boolean = Permissions.hasPermission(permissions, Permissions.AUTO_APPROVE) || isAdmin()
+
   fun canManageRequests(): Boolean = Permissions.hasPermission(permissions, Permissions.MANAGE_REQUESTS) || isAdmin()
 }
 
@@ -588,7 +605,10 @@ object Permissions {
   const val AUTO_APPROVE_4K_MOVIE = 1L shl 15
   const val AUTO_APPROVE_4K_TV = 1L shl 16
 
-  fun hasPermission(permissions: Long, permission: Long): Boolean {
+  fun hasPermission(
+    permissions: Long,
+    permission: Long,
+  ): Boolean {
     if ((permissions and ADMIN) == ADMIN) return true
     return (permissions and permission) == permission
   }

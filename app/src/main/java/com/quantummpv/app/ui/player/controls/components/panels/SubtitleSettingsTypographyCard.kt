@@ -9,8 +9,6 @@
 
 package com.quantummpv.app.ui.player.controls.components.panels
 
-import com.quantummpv.app.ui.player.PlaybackSession
-
 import android.annotation.SuppressLint
 import androidx.annotation.StringRes
 import androidx.compose.foundation.horizontalScroll
@@ -44,6 +42,7 @@ import androidx.compose.ui.platform.LocalResources
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.unit.dp
+import com.github.k1rakishou.fsaf.FileManager
 import com.quantummpv.app.R
 import com.quantummpv.app.preferences.DEFAULT_SUBTITLE_FONT_FAMILY
 import com.quantummpv.app.preferences.SubtitleJustification
@@ -54,12 +53,12 @@ import com.quantummpv.app.presentation.components.ExposedTextDropDownMenu
 import com.quantummpv.app.presentation.components.SliderItem
 import com.quantummpv.app.ui.icons.Icon
 import com.quantummpv.app.ui.icons.Icons
+import com.quantummpv.app.ui.player.PlaybackSession
 import com.quantummpv.app.ui.player.PlayerViewModel
 import com.quantummpv.app.ui.player.controls.CARDS_MAX_WIDTH
 import com.quantummpv.app.ui.player.controls.panelCardsColors
 import com.quantummpv.app.ui.theme.spacing
 import com.quantummpv.app.ui.utils.currentMpvConfigOverrideOptions
-import com.github.k1rakishou.fsaf.FileManager
 import com.yubyf.truetypeparser.TTFFile
 import kotlinx.collections.immutable.toImmutableList
 import kotlinx.coroutines.Dispatchers

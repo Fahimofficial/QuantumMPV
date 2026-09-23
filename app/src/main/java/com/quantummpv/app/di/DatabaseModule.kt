@@ -724,8 +724,12 @@ val MIGRATION_16_17 =
         )
         """.trimIndent(),
       )
-      db.execSQL("CREATE INDEX IF NOT EXISTS `index_download_items_systemDownloadId` ON `download_items` (`systemDownloadId`)")
-      db.execSQL("CREATE INDEX IF NOT EXISTS `index_download_items_jellyfinItemId` ON `download_items` (`jellyfinItemId`)")
+      db.execSQL(
+        "CREATE INDEX IF NOT EXISTS `index_download_items_systemDownloadId` ON `download_items` (`systemDownloadId`)",
+      )
+      db.execSQL(
+        "CREATE INDEX IF NOT EXISTS `index_download_items_jellyfinItemId` ON `download_items` (`jellyfinItemId`)",
+      )
     }
   }
 
@@ -772,10 +776,12 @@ val MIGRATION_19_20 =
       )
       try {
         db.execSQL("ALTER TABLE `navidrome_servers` ADD COLUMN `token` TEXT NOT NULL DEFAULT ''")
-      } catch (_: Exception) {}
+      } catch (_: Exception) {
+      }
       try {
         db.execSQL("ALTER TABLE `navidrome_servers` ADD COLUMN `authMode` TEXT NOT NULL DEFAULT 'CREDENTIALS'")
-      } catch (_: Exception) {}
+      } catch (_: Exception) {
+      }
     }
   }
 
@@ -796,10 +802,12 @@ val MIGRATION_20_21 =
       )
       try {
         db.execSQL("ALTER TABLE `navidrome_servers` ADD COLUMN `token` TEXT NOT NULL DEFAULT ''")
-      } catch (_: Exception) {}
+      } catch (_: Exception) {
+      }
       try {
         db.execSQL("ALTER TABLE `navidrome_servers` ADD COLUMN `authMode` TEXT NOT NULL DEFAULT 'CREDENTIALS'")
-      } catch (_: Exception) {}
+      } catch (_: Exception) {
+      }
     }
   }
 
@@ -820,10 +828,12 @@ val MIGRATION_19_21 =
       )
       try {
         db.execSQL("ALTER TABLE `navidrome_servers` ADD COLUMN `token` TEXT NOT NULL DEFAULT ''")
-      } catch (_: Exception) {}
+      } catch (_: Exception) {
+      }
       try {
         db.execSQL("ALTER TABLE `navidrome_servers` ADD COLUMN `authMode` TEXT NOT NULL DEFAULT 'CREDENTIALS'")
-      } catch (_: Exception) {}
+      } catch (_: Exception) {
+      }
     }
   }
 

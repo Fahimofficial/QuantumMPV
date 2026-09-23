@@ -47,7 +47,9 @@ class YtdlpDownloadService : Service() {
     startId: Int,
   ): Int {
     if (intent?.action == ACTION_CANCEL_ACTIVE) {
-      engine.jobs.value.firstOrNull { it.state == YtdlpDownloadEngine.JobState.RUNNING }?.let { engine.cancel(it.id) }
+      engine.jobs.value
+        .firstOrNull { it.state == YtdlpDownloadEngine.JobState.RUNNING }
+        ?.let { engine.cancel(it.id) }
     }
     ensureChannel()
     startAsForeground(buildNotification(null))

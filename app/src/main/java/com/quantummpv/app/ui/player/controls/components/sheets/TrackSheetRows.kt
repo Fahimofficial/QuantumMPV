@@ -90,7 +90,12 @@ fun getTrackTitle(track: TrackNode): String {
       )
     hasTitle -> stringResource(R.string.player_sheets_track_title_wo_lang, track.id, title)
     hasLang -> stringResource(R.string.player_sheets_track_lang_wo_title, track.id, lang)
-    !track.codecDesc.isNullOrBlank() -> stringResource(R.string.player_sheets_track_title_wo_lang, track.id, track.codecDesc)
+    !track.codecDesc.isNullOrBlank() ->
+      stringResource(
+        R.string.player_sheets_track_title_wo_lang,
+        track.id,
+        track.codecDesc,
+      )
     track.isSubtitle -> stringResource(R.string.player_sheets_chapter_title_substitute_subtitle, track.id)
     track.isAudio -> stringResource(R.string.player_sheets_chapter_title_substitute_audio, track.id)
     else -> ""

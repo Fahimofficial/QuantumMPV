@@ -9,7 +9,6 @@
 
 package com.quantummpv.app.ui.browser.navidrome
 
-import com.quantummpv.app.ui.utils.NavigationBackHandler as BackHandler
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -29,7 +28,6 @@ import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
-import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -68,24 +66,23 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.quantummpv.app.R
 import com.quantummpv.app.domain.navidrome.NavidromeMusicTab
-import com.quantummpv.app.domain.navidrome.NavidromeServer
 import com.quantummpv.app.preferences.MediaServerPreferences
 import com.quantummpv.app.preferences.MusicSourceProvider
 import com.quantummpv.app.preferences.preference.collectAsState
 import com.quantummpv.app.repository.JellyfinRepository
 import com.quantummpv.app.repository.NavidromeRepository
+import com.quantummpv.app.ui.browser.LocalNavigationBarHeight
 import com.quantummpv.app.ui.browser.components.BrowserTopBar
-import com.quantummpv.app.ui.browser.music.SharedMusicGridCard
+import com.quantummpv.app.ui.browser.dialogs.MusicSortDialog
+import com.quantummpv.app.ui.browser.music.MusicSortField
 import com.quantummpv.app.ui.browser.music.SharedMusicTrackListItem
 import com.quantummpv.app.ui.icons.Icon
 import com.quantummpv.app.ui.icons.Icons
 import com.quantummpv.app.ui.utils.LocalBackStack
 import com.quantummpv.app.ui.utils.navigateTo
 import com.quantummpv.app.ui.utils.rememberTabNavigation
-import com.quantummpv.app.ui.browser.dialogs.MusicSortDialog
-import com.quantummpv.app.ui.browser.music.MusicSortField
-import com.quantummpv.app.ui.browser.LocalNavigationBarHeight
 import org.koin.compose.koinInject
+import com.quantummpv.app.ui.utils.NavigationBackHandler as BackHandler
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -109,20 +106,22 @@ fun NavidromeContent(
   var isSortDialogOpen by rememberSaveable { mutableStateOf(false) }
   val searchFocusRequester = remember { FocusRequester() }
 
-  val musicTabs = remember {
-    listOf(
-      NavidromeMusicTab.HOME,
-      NavidromeMusicTab.TRACKS,
-      NavidromeMusicTab.ALBUMS,
-      NavidromeMusicTab.ARTISTS,
-      NavidromeMusicTab.PLAYLISTS,
-    )
-  }
+  val musicTabs =
+    remember {
+      listOf(
+        NavidromeMusicTab.HOME,
+        NavidromeMusicTab.TRACKS,
+        NavidromeMusicTab.ALBUMS,
+        NavidromeMusicTab.ARTISTS,
+        NavidromeMusicTab.PLAYLISTS,
+      )
+    }
 
-  val musicPagerState = rememberPagerState(
-    initialPage = 0,
-    pageCount = { musicTabs.size },
-  )
+  val musicPagerState =
+    rememberPagerState(
+      initialPage = 0,
+      pageCount = { musicTabs.size },
+    )
   val navigateMusicTab = rememberTabNavigation(musicPagerState)
 
   LaunchedEffect(musicPagerState.settledPage, musicPagerState.isScrollInProgress) {
@@ -140,7 +139,8 @@ fun NavidromeContent(
   }
 
   // Intercept back button if searching or detail open
-  val isBackEnabled = isSearching || uiState.detailAlbum != null || uiState.detailArtist != null || uiState.detailPlaylist != null
+  val isBackEnabled =
+    isSearching || uiState.detailAlbum != null || uiState.detailArtist != null || uiState.detailPlaylist != null
 
   BackHandler(enabled = isBackEnabled) {
     when {
@@ -158,21 +158,24 @@ fun NavidromeContent(
     if (MaterialTheme.colorScheme.background == Color.Black) Color.Black else MaterialTheme.colorScheme.surfaceContainer
 
   Column(
-    modifier = modifier
-      .fillMaxSize()
-      .background(MaterialTheme.colorScheme.background),
+    modifier =
+      modifier
+        .fillMaxSize()
+        .background(MaterialTheme.colorScheme.background),
   ) {
     // Top Bar Container
     Column(
-      modifier = Modifier
-        .fillMaxWidth()
-        .background(headerContainerColor),
+      modifier =
+        Modifier
+          .fillMaxWidth()
+          .background(headerContainerColor),
     ) {
       if (isSearching) {
         Column(
-          modifier = Modifier
-            .fillMaxWidth()
-            .padding(horizontal = 16.dp, vertical = 6.dp),
+          modifier =
+            Modifier
+              .fillMaxWidth()
+              .padding(horizontal = 16.dp, vertical = 6.dp),
           verticalArrangement = Arrangement.spacedBy(8.dp),
         ) {
           OutlinedTextField(
@@ -204,29 +207,42 @@ fun NavidromeContent(
             },
             singleLine = true,
             shape = RoundedCornerShape(28.dp),
-            colors = OutlinedTextFieldDefaults.colors(
-              focusedContainerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
-              unfocusedContainerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
-              focusedBorderColor = Color.Transparent,
-              unfocusedBorderColor = Color.Transparent,
-            ),
-            modifier = Modifier
-              .fillMaxWidth()
-              .focusRequester(searchFocusRequester),
+            colors =
+              OutlinedTextFieldDefaults.colors(
+                focusedContainerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
+                unfocusedContainerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
+                focusedBorderColor = Color.Transparent,
+                unfocusedBorderColor = Color.Transparent,
+              ),
+            modifier =
+              Modifier
+                .fillMaxWidth()
+                .focusRequester(searchFocusRequester),
             keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
             keyboardActions = KeyboardActions(onSearch = { }),
           )
         }
       } else {
         BrowserTopBar(
-          title = if (isMusicOnlyMode) stringResource(R.string.ui_music) else (uiState.activeServer?.name ?: stringResource(R.string.pref_navidrome_title)),
+          title =
+            if (isMusicOnlyMode) {
+              stringResource(R.string.ui_music)
+            } else {
+              (
+                uiState.activeServer?.name
+                  ?: stringResource(R.string.pref_navidrome_title)
+              )
+            },
           isInSelectionMode = false,
           selectedCount = 0,
           totalCount = 0,
           onCancelSelection = { },
-          onSortClick = if (uiState.activeTab != NavidromeMusicTab.HOME) {
-            { isSortDialogOpen = true }
-          } else null,
+          onSortClick =
+            if (uiState.activeTab != NavidromeMusicTab.HOME) {
+              { isSortDialogOpen = true }
+            } else {
+              null
+            },
           onSearchClick = { isSearching = true },
           onSettingsClick = {
             backstack.navigateTo(com.quantummpv.app.ui.preferences.PreferencesScreen)
@@ -238,9 +254,10 @@ fun NavidromeContent(
                 Surface(
                   shape = RoundedCornerShape(16.dp),
                   color = MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.8f),
-                  modifier = Modifier
-                    .padding(horizontal = 4.dp, vertical = 6.dp)
-                    .clickable { isSourceDropdownOpen = true },
+                  modifier =
+                    Modifier
+                      .padding(horizontal = 4.dp, vertical = 6.dp)
+                      .clickable { isSourceDropdownOpen = true },
                 ) {
                   Row(
                     verticalAlignment = Alignment.CenterVertically,
@@ -444,9 +461,10 @@ fun NavidromeContent(
       ) {
         androidx.compose.material3.Card(
           shape = RoundedCornerShape(24.dp),
-          colors = androidx.compose.material3.CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.surfaceContainerLow,
-          ),
+          colors =
+            androidx.compose.material3.CardDefaults.cardColors(
+              containerColor = MaterialTheme.colorScheme.surfaceContainerLow,
+            ),
         ) {
           Column(
             modifier = Modifier.padding(24.dp),
@@ -580,34 +598,39 @@ fun NavidromeContent(
     }
 
     // Sort & View dialog
-    val availableFields = remember(uiState.activeTab) {
-      when (uiState.activeTab) {
-        NavidromeMusicTab.TRACKS -> listOf(
-          MusicSortField.TITLE,
-          MusicSortField.ARTIST,
-          MusicSortField.ALBUM,
-          MusicSortField.DURATION,
-          MusicSortField.YEAR,
-        )
-        NavidromeMusicTab.ALBUMS -> listOf(
-          MusicSortField.TITLE,
-          MusicSortField.ARTIST,
-          MusicSortField.YEAR,
-          MusicSortField.TRACK_COUNT,
-          MusicSortField.DURATION,
-        )
-        NavidromeMusicTab.ARTISTS -> listOf(
-          MusicSortField.ARTIST,
-          MusicSortField.TRACK_COUNT,
-        )
-        NavidromeMusicTab.PLAYLISTS -> listOf(
-          MusicSortField.TITLE,
-          MusicSortField.TRACK_COUNT,
-          MusicSortField.DURATION,
-        )
-        else -> emptyList()
+    val availableFields =
+      remember(uiState.activeTab) {
+        when (uiState.activeTab) {
+          NavidromeMusicTab.TRACKS ->
+            listOf(
+              MusicSortField.TITLE,
+              MusicSortField.ARTIST,
+              MusicSortField.ALBUM,
+              MusicSortField.DURATION,
+              MusicSortField.YEAR,
+            )
+          NavidromeMusicTab.ALBUMS ->
+            listOf(
+              MusicSortField.TITLE,
+              MusicSortField.ARTIST,
+              MusicSortField.YEAR,
+              MusicSortField.TRACK_COUNT,
+              MusicSortField.DURATION,
+            )
+          NavidromeMusicTab.ARTISTS ->
+            listOf(
+              MusicSortField.ARTIST,
+              MusicSortField.TRACK_COUNT,
+            )
+          NavidromeMusicTab.PLAYLISTS ->
+            listOf(
+              MusicSortField.TITLE,
+              MusicSortField.TRACK_COUNT,
+              MusicSortField.DURATION,
+            )
+          else -> emptyList()
+        }
       }
-    }
 
     MusicSortDialog(
       isOpen = isSortDialogOpen,

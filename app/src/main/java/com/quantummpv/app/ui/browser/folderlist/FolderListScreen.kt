@@ -17,12 +17,7 @@ import android.util.Log
 import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
-import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.animation.fadeIn
-import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.background
-import androidx.compose.foundation.gestures.detectTapGestures
-import com.quantummpv.app.ui.browser.fab.FabScrollHelper
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
@@ -79,9 +74,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
-import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.res.stringResource
@@ -89,6 +82,8 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.google.accompanist.permissions.ExperimentalPermissionsApi
+import com.google.accompanist.permissions.PermissionStatus
 import com.quantummpv.app.BuildConfig
 import com.quantummpv.app.R
 import com.quantummpv.app.domain.browser.FileSystemItem
@@ -116,6 +111,7 @@ import com.quantummpv.app.ui.browser.dialogs.FileOperationProgressDialog
 import com.quantummpv.app.ui.browser.dialogs.FolderPickerDialog
 import com.quantummpv.app.ui.browser.dialogs.FolderSortDialog
 import com.quantummpv.app.ui.browser.dialogs.RenameDialog
+import com.quantummpv.app.ui.browser.fab.FabScrollHelper
 import com.quantummpv.app.ui.browser.filesystem.FileSystemBrowserRootScreen
 import com.quantummpv.app.ui.browser.medialibrary.MediaLibraryContent
 import com.quantummpv.app.ui.browser.selection.rememberSelectionManager
@@ -129,8 +125,8 @@ import com.quantummpv.app.ui.icons.Icon
 import com.quantummpv.app.ui.icons.Icons
 import com.quantummpv.app.ui.securefolder.SecureFolderGateScreen
 import com.quantummpv.app.ui.utils.LocalBackStack
-import com.quantummpv.app.ui.utils.navigateTo
 import com.quantummpv.app.ui.utils.calculateResponsiveGridSpans
+import com.quantummpv.app.ui.utils.navigateTo
 import com.quantummpv.app.utils.history.RecentlyPlayedOps
 import com.quantummpv.app.utils.media.CopyPasteOps
 import com.quantummpv.app.utils.media.MediaSearchEngine
@@ -139,8 +135,6 @@ import com.quantummpv.app.utils.media.OpenDocumentTreeContract
 import com.quantummpv.app.utils.permission.PermissionUtils
 import com.quantummpv.app.utils.sort.SortUtils
 import com.quantummpv.app.utils.storage.FileTypeUtils
-import com.google.accompanist.permissions.ExperimentalPermissionsApi
-import com.google.accompanist.permissions.PermissionStatus
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
@@ -248,7 +242,15 @@ object FolderListScreen : Screen {
     var internalSearchQuery by rememberSaveable { mutableStateOf("") }
     var internalIsSearching by rememberSaveable { mutableStateOf(false) }
     val effectiveSearchQuery = if (embedded) searchQuery else searchQuery.ifBlank { internalSearchQuery }
-    val effectiveIsSearching = if (embedded) searchQuery.isNotBlank() else (internalIsSearching || internalSearchQuery.isNotBlank())
+    val effectiveIsSearching =
+      if (embedded) {
+        searchQuery.isNotBlank()
+      } else {
+        (
+          internalIsSearching ||
+            internalSearchQuery.isNotBlank()
+        )
+      }
     var searchResults by remember { mutableStateOf<List<FileSystemItem>>(emptyList()) }
     var isSearchLoading by remember { mutableStateOf(false) }
     val keyboardController = LocalSoftwareKeyboardController.current
@@ -281,28 +283,31 @@ object FolderListScreen : Screen {
           searchResults =
             if (audioOnly) {
               val q = effectiveSearchQuery.trim().lowercase()
-              val matchingFolders = videoFolders.filter { folder ->
-                folder.name.lowercase().contains(q) || folder.path.lowercase().contains(q)
-              }.map { folder ->
-                FileSystemItem.Folder(
-                  name = folder.name,
-                  path = folder.path,
-                  lastModified = folder.lastModified,
-                  videoCount = folder.videoCount,
-                  totalSize = folder.totalSize,
-                  totalDuration = folder.totalDuration,
-                )
-              }
-              val matchingAudioFiles = com.quantummpv.app.repository.MediaFileRepository
-                .searchAudio(context, effectiveSearchQuery)
-                .map { audio ->
-                  FileSystemItem.VideoFile(
-                    name = audio.displayName,
-                    path = audio.path,
-                    lastModified = audio.dateModified,
-                    video = audio,
-                  )
-                }
+              val matchingFolders =
+                videoFolders
+                  .filter { folder ->
+                    folder.name.lowercase().contains(q) || folder.path.lowercase().contains(q)
+                  }.map { folder ->
+                    FileSystemItem.Folder(
+                      name = folder.name,
+                      path = folder.path,
+                      lastModified = folder.lastModified,
+                      videoCount = folder.videoCount,
+                      totalSize = folder.totalSize,
+                      totalDuration = folder.totalDuration,
+                    )
+                  }
+              val matchingAudioFiles =
+                com.quantummpv.app.repository.MediaFileRepository
+                  .searchAudio(context, effectiveSearchQuery)
+                  .map { audio ->
+                    FileSystemItem.VideoFile(
+                      name = audio.displayName,
+                      path = audio.path,
+                      lastModified = audio.dateModified,
+                      video = audio,
+                    )
+                  }
               matchingFolders + matchingAudioFiles
             } else {
               searchIndexJob?.join()
@@ -464,7 +469,11 @@ object FolderListScreen : Screen {
           val selectedVideos =
             selectedFolders.flatMap { folder ->
               com.quantummpv.app.repository.MediaFileRepository
-                .getVideosForBuckets(context, setOf(folder.bucketId), includeAudioOverride = if (audioOnly) true else null)
+                .getVideosForBuckets(
+                  context,
+                  setOf(folder.bucketId),
+                  includeAudioOverride = if (audioOnly) true else null,
+                )
             }
           if (selectedVideos.isNotEmpty()) {
             when (operationType.value) {
@@ -497,7 +506,8 @@ object FolderListScreen : Screen {
     }
 
     // Update NavigationBarState synchronously when selection mode changes
-    com.quantummpv.app.ui.browser.NavigationBarSelectionEffect(selectionManager.isInSelectionMode)
+    com.quantummpv.app.ui.browser
+      .NavigationBarSelectionEffect(selectionManager.isInSelectionMode)
 
     val isNavigationPageActive = com.quantummpv.app.ui.utils.LocalNavigationPageActive.current
     androidx.lifecycle.compose.LifecycleResumeEffect(isDualPaneActive, selectedFolderBucketId, isNavigationPageActive) {
@@ -763,7 +773,13 @@ object FolderListScreen : Screen {
                 ) {
                   val imageVector by remember {
                     derivedStateOf {
-                      if (checkedProgress > 0.5f && !quickPlayFabDirect) Icons.RoundedFilled.Close else Icons.RoundedFilled.PlayArrow
+                      if (checkedProgress > 0.5f &&
+                        !quickPlayFabDirect
+                      ) {
+                        Icons.RoundedFilled.Close
+                      } else {
+                        Icons.RoundedFilled.PlayArrow
+                      }
                     }
                   }
                   Icon(
@@ -833,101 +849,101 @@ object FolderListScreen : Screen {
       ) { padding ->
         Box(modifier = Modifier.padding(padding)) {
           if (isPermissionSetupCompleted && permissionState.status == PermissionStatus.Granted) {
-              if (effectiveIsSearching) {
-                // Show search results
-                Box(modifier = Modifier.fillMaxSize()) {
-                  if (isSearchLoading) {
-                    // Loading state
-                    Box(
-                      modifier = Modifier.fillMaxSize(),
-                      contentAlignment = Alignment.Center,
-                    ) {
-                      CircularProgressIndicator()
-                    }
-                  } else if (searchResults.isEmpty()) {
-                    // No results
-                    EmptyState(
-                      icon = Icons.RoundedFilled.Search,
-                      title = stringResource(R.string.ui_no_results_found),
-                      message = if (audioOnly) "No audio folders or songs match your search query" else "No folders or videos match your search query",
-                      modifier = Modifier.fillMaxSize(),
-                    )
-                  } else {
-                    // Show search results
-                    SearchResultsContent(
-                      searchResults = searchResults,
-                      navigationBarHeight = navigationBarHeight,
-                      onFolderClick = { folder ->
-                        if (isDualPaneActive) {
-                          selectedFolderBucketId = folder.bucketId
-                          selectedFolderName = folder.name
-                          if (!embedded) {
-                            internalIsSearching = false
-                            internalSearchQuery = ""
-                          }
-                        } else {
-                          backstack.navigateTo(
-                            com.quantummpv.app.ui.browser.videolist
-                              .VideoListScreen(folder.bucketId, folder.name, isAudio = audioOnly),
-                          )
-                        }
-                      },
-                      onVideoClick = { video ->
-                        MediaUtils.playFile(video, context)
-                      },
-                      mediaLayoutMode = mediaLayoutMode,
-                    )
+            if (effectiveIsSearching) {
+              // Show search results
+              Box(modifier = Modifier.fillMaxSize()) {
+                if (isSearchLoading) {
+                  // Loading state
+                  Box(
+                    modifier = Modifier.fillMaxSize(),
+                    contentAlignment = Alignment.Center,
+                  ) {
+                    CircularProgressIndicator()
                   }
-                }
-              } else {
-                FolderListContent(
-                  folders = filteredFolders,
-                  foldersWithNewCount = foldersWithNewCount,
-                  pinnedFolderPaths = pinnedFolderPaths,
-                  recentlyPlayedFilePath = recentlyPlayedFilePath,
-                  isLoading = isLoading,
-                  scanStatus = scanStatus,
-                  hasCompletedInitialLoad = hasCompletedInitialLoad,
-                  foldersWereDeleted = foldersWereDeleted,
-                  mediaLayoutMode = mediaLayoutMode,
-                  tapThumbnailToSelect = tapThumbnailToSelect,
-                  navigationBarHeight = navigationBarHeight,
-                  listState = listState,
-                  gridState = gridState,
-                  isRefreshing = isRefreshing,
-                  selectionManager = selectionManager,
-                  onRefresh = { viewModel.refresh() },
-                  onFolderClick = { folder ->
-                    if (selectionManager.isInSelectionMode) {
-                      selectionManager.toggle(folder)
-                    } else {
+                } else if (searchResults.isEmpty()) {
+                  // No results
+                  EmptyState(
+                    icon = Icons.RoundedFilled.Search,
+                    title = stringResource(R.string.ui_no_results_found),
+                    message = if (audioOnly) "No audio folders or songs match your search query" else "No folders or videos match your search query",
+                    modifier = Modifier.fillMaxSize(),
+                  )
+                } else {
+                  // Show search results
+                  SearchResultsContent(
+                    searchResults = searchResults,
+                    navigationBarHeight = navigationBarHeight,
+                    onFolderClick = { folder ->
                       if (isDualPaneActive) {
                         selectedFolderBucketId = folder.bucketId
                         selectedFolderName = folder.name
+                        if (!embedded) {
+                          internalIsSearching = false
+                          internalSearchQuery = ""
+                        }
                       } else {
                         backstack.navigateTo(
                           com.quantummpv.app.ui.browser.videolist
                             .VideoListScreen(folder.bucketId, folder.name, isAudio = audioOnly),
                         )
                       }
-                    }
-                  },
-                  onFolderLongClick = { folder ->
-                    selectionManager.handleLongClick(folder)
-                  },
-                  onTogglePin = { folder ->
-                    coroutineScope.launch {
-                      val updated = foldersPreferences.pinnedFolders.get().toMutableSet()
-                      if (!updated.add(folder.path)) {
-                        updated.remove(folder.path)
-                      }
-                      foldersPreferences.pinnedFolders.set(updated)
-                    }
-                  },
-                  selectedFolderBucketId = selectedFolderBucketId,
-                  audioOnly = audioOnly,
-                )
+                    },
+                    onVideoClick = { video ->
+                      MediaUtils.playFile(video, context)
+                    },
+                    mediaLayoutMode = mediaLayoutMode,
+                  )
+                }
               }
+            } else {
+              FolderListContent(
+                folders = filteredFolders,
+                foldersWithNewCount = foldersWithNewCount,
+                pinnedFolderPaths = pinnedFolderPaths,
+                recentlyPlayedFilePath = recentlyPlayedFilePath,
+                isLoading = isLoading,
+                scanStatus = scanStatus,
+                hasCompletedInitialLoad = hasCompletedInitialLoad,
+                foldersWereDeleted = foldersWereDeleted,
+                mediaLayoutMode = mediaLayoutMode,
+                tapThumbnailToSelect = tapThumbnailToSelect,
+                navigationBarHeight = navigationBarHeight,
+                listState = listState,
+                gridState = gridState,
+                isRefreshing = isRefreshing,
+                selectionManager = selectionManager,
+                onRefresh = { viewModel.refresh() },
+                onFolderClick = { folder ->
+                  if (selectionManager.isInSelectionMode) {
+                    selectionManager.toggle(folder)
+                  } else {
+                    if (isDualPaneActive) {
+                      selectedFolderBucketId = folder.bucketId
+                      selectedFolderName = folder.name
+                    } else {
+                      backstack.navigateTo(
+                        com.quantummpv.app.ui.browser.videolist
+                          .VideoListScreen(folder.bucketId, folder.name, isAudio = audioOnly),
+                      )
+                    }
+                  }
+                },
+                onFolderLongClick = { folder ->
+                  selectionManager.handleLongClick(folder)
+                },
+                onTogglePin = { folder ->
+                  coroutineScope.launch {
+                    val updated = foldersPreferences.pinnedFolders.get().toMutableSet()
+                    if (!updated.add(folder.path)) {
+                      updated.remove(folder.path)
+                    }
+                    foldersPreferences.pinnedFolders.set(updated)
+                  }
+                },
+                selectedFolderBucketId = selectedFolderBucketId,
+                audioOnly = audioOnly,
+              )
+            }
           } else if (isPermissionSetupCompleted) {
             com.quantummpv.app.ui.browser.states.StoragePermissionPrompt(
               onRequestPermission = { permissionState.launchPermissionRequest() },
@@ -1257,7 +1273,9 @@ private fun FolderListContent(
           LoadingState(
             icon = Icons.RoundedFilled.Folder,
             title = if (audioOnly) "Scanning for songs" else stringResource(R.string.ui_scanning_for_videos),
-            message = scanStatus ?: if (audioOnly) "Please wait while we search your device" else "Please wait while we search your device",
+            message =
+              scanStatus
+                ?: if (audioOnly) "Please wait while we search your device" else "Please wait while we search your device",
           )
         } else if (showEmpty) {
           EmptyState(

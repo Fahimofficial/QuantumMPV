@@ -49,55 +49,63 @@ class AddToPlaylistViewModel :
   private var observeJob: kotlinx.coroutines.Job? = null
   private var activeJellyfinServer: JellyfinServer? = null
 
-  fun loadPlaylists(isAudio: Boolean?, isJellyfin: Boolean = false) {
+  fun loadPlaylists(
+    isAudio: Boolean?,
+    isJellyfin: Boolean = false,
+  ) {
     observeJob?.cancel()
-    observeJob = viewModelScope.launch(Dispatchers.IO) {
-      if (isJellyfin) {
-        val servers = jellyfinRepository.allServers.firstOrNull().orEmpty()
-        val active = servers.firstOrNull()
-        activeJellyfinServer = active
-        if (active != null) {
-          val playlists = jellyfinRepository.getItems(
-            server = active,
-            parentId = null,
-            includeItemTypes = "Playlist",
-            limit = 100,
-          ).getOrNull()?.items.orEmpty()
+    observeJob =
+      viewModelScope.launch(Dispatchers.IO) {
+        if (isJellyfin) {
+          val servers = jellyfinRepository.allServers.firstOrNull().orEmpty()
+          val active = servers.firstOrNull()
+          activeJellyfinServer = active
+          if (active != null) {
+            val playlists =
+              jellyfinRepository
+                .getItems(
+                  server = active,
+                  parentId = null,
+                  includeItemTypes = "Playlist",
+                  limit = 100,
+                ).getOrNull()
+                ?.items
+                .orEmpty()
 
-          _playlistOptions.value = playlists
-            .sortedBy { it.name.lowercase() }
-            .map { item ->
-              PlaylistOption(
-                id = item.id,
-                name = item.name,
-                itemCount = item.childCount ?: 0,
-                subtitle = "${item.childCount ?: 0} items",
-                jellyfinItem = item,
-              )
-            }
+            _playlistOptions.value =
+              playlists
+                .sortedBy { it.name.lowercase() }
+                .map { item ->
+                  PlaylistOption(
+                    id = item.id,
+                    name = item.name,
+                    itemCount = item.childCount ?: 0,
+                    subtitle = "${item.childCount ?: 0} items",
+                    jellyfinItem = item,
+                  )
+                }
+          } else {
+            _playlistOptions.value = emptyList()
+          }
         } else {
-          _playlistOptions.value = emptyList()
-        }
-      } else {
-        repository.observeAllPlaylists(isAudio).collectLatest { playlists ->
-          _playlistOptions.value =
-            playlists
-              .sortedWith(
-                compareByDescending<PlaylistEntity> { repository.isProtectedPlaylist(it) }
-                  .thenBy { it.name.lowercase() }
-              )
-              .map { playlist ->
-                PlaylistOption(
-                  id = playlist.id.toString(),
-                  name = playlist.name,
-                  itemCount = repository.getPlaylistItems(playlist.id).size,
-                  subtitle = "${repository.getPlaylistItems(playlist.id).size} items",
-                  localPlaylist = playlist,
-                )
-              }
+          repository.observeAllPlaylists(isAudio).collectLatest { playlists ->
+            _playlistOptions.value =
+              playlists
+                .sortedWith(
+                  compareByDescending<PlaylistEntity> { repository.isProtectedPlaylist(it) }
+                    .thenBy { it.name.lowercase() },
+                ).map { playlist ->
+                  PlaylistOption(
+                    id = playlist.id.toString(),
+                    name = playlist.name,
+                    itemCount = repository.getPlaylistItems(playlist.id).size,
+                    subtitle = "${repository.getPlaylistItems(playlist.id).size} items",
+                    localPlaylist = playlist,
+                  )
+                }
+          }
         }
       }
-    }
   }
 
   suspend fun createAndAdd(
@@ -106,7 +114,8 @@ class AddToPlaylistViewModel :
     isJellyfin: Boolean = false,
   ) = withContext(Dispatchers.IO) {
     if (isJellyfin) {
-      val server = activeJellyfinServer ?: jellyfinRepository.allServers.firstOrNull()?.firstOrNull() ?: return@withContext
+      val server =
+        activeJellyfinServer ?: jellyfinRepository.allServers.firstOrNull()?.firstOrNull() ?: return@withContext
       val itemIds = videos.map { extractJellyfinItemId(it) }
       jellyfinRepository.createPlaylist(server, name, itemIds)
     } else {
@@ -122,7 +131,8 @@ class AddToPlaylistViewModel :
     isJellyfin: Boolean = false,
   ) = withContext(Dispatchers.IO) {
     if (isJellyfin) {
-      val server = activeJellyfinServer ?: jellyfinRepository.allServers.firstOrNull()?.firstOrNull() ?: return@withContext
+      val server =
+        activeJellyfinServer ?: jellyfinRepository.allServers.firstOrNull()?.firstOrNull() ?: return@withContext
       val itemIds = videos.map { extractJellyfinItemId(it) }
       jellyfinRepository.addToPlaylist(server, option.id, itemIds)
     } else {

@@ -4,6 +4,7 @@
 
 package com.quantummpv.app.ui.browser.music
 
+import android.content.res.Configuration
 import android.net.Uri
 import android.text.format.DateUtils
 import androidx.compose.foundation.ExperimentalFoundationApi
@@ -17,7 +18,6 @@ import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.aspectRatio
-import android.content.res.Configuration
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -25,10 +25,10 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyRow
-import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyHorizontalGrid
 import androidx.compose.foundation.lazy.grid.items
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Button
@@ -48,20 +48,18 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalConfiguration
-import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
-import com.quantummpv.app.R
 import com.quantummpv.app.presentation.components.RemoteImage
 import com.quantummpv.app.ui.icons.AppIcon
 import com.quantummpv.app.ui.icons.Icon
 import com.quantummpv.app.ui.icons.Icons
-import com.quantummpv.app.ui.player.controls.components.tvFocusHighlight
 import com.quantummpv.app.ui.player.PlaybackSession
 import com.quantummpv.app.ui.player.controls.components.MiniAudioVisualizer
+import com.quantummpv.app.ui.player.controls.components.tvFocusHighlight
 import com.quantummpv.app.ui.theme.AppShapeScale
 
 @OptIn(ExperimentalFoundationApi::class)
@@ -86,36 +84,40 @@ fun SharedMusicTrackListItem(
   modifier: Modifier = Modifier,
 ) {
   Surface(
-    modifier = modifier
-      .fillMaxWidth()
-      .padding(horizontal = 8.dp, vertical = 3.dp)
-      .clip(AppShapeScale.large)
-      .then(
-        if (onLongClick != null) {
-          Modifier.combinedClickable(onClick = onClick, onLongClick = onLongClick)
-        } else {
-          Modifier.clickable(onClick = onClick)
-        }
-      ),
+    modifier =
+      modifier
+        .fillMaxWidth()
+        .padding(horizontal = 8.dp, vertical = 3.dp)
+        .clip(AppShapeScale.large)
+        .then(
+          if (onLongClick != null) {
+            Modifier.combinedClickable(onClick = onClick, onLongClick = onLongClick)
+          } else {
+            Modifier.clickable(onClick = onClick)
+          },
+        ),
     shape = AppShapeScale.large,
-    color = when {
-      isSelected -> MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.6f)
-      isPlaying -> MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.35f)
-      else -> Color.Transparent
-    },
+    color =
+      when {
+        isSelected -> MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.6f)
+        isPlaying -> MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.35f)
+        else -> Color.Transparent
+      },
   ) {
     Row(
-      modifier = Modifier
-        .fillMaxWidth()
-        .padding(horizontal = 12.dp, vertical = 8.dp),
+      modifier =
+        Modifier
+          .fillMaxWidth()
+          .padding(horizontal = 12.dp, vertical = 8.dp),
       verticalAlignment = Alignment.CenterVertically,
     ) {
       val itemArtSize = if (isCircular) (coverArtSizeDp * 1.3f).toInt().coerceAtLeast(48).dp else coverArtSizeDp.dp
       Box(
-        modifier = Modifier
-          .size(itemArtSize)
-          .clip(if (isCircular) CircleShape else AppShapeScale.medium)
-          .background(MaterialTheme.colorScheme.surfaceVariant),
+        modifier =
+          Modifier
+            .size(itemArtSize)
+            .clip(if (isCircular) CircleShape else AppShapeScale.medium)
+            .background(MaterialTheme.colorScheme.surfaceVariant),
         contentAlignment = Alignment.Center,
       ) {
         when {
@@ -146,10 +148,11 @@ fun SharedMusicTrackListItem(
 
         if (isSelected) {
           Box(
-            modifier = Modifier
-              .fillMaxSize()
-              .then(if (isCircular) Modifier.clip(CircleShape) else Modifier)
-              .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.45f)),
+            modifier =
+              Modifier
+                .fillMaxSize()
+                .then(if (isCircular) Modifier.clip(CircleShape) else Modifier)
+                .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.45f)),
             contentAlignment = Alignment.Center,
           ) {
             Icon(
@@ -163,10 +166,11 @@ fun SharedMusicTrackListItem(
           val paused by PlaybackSession.propBoolean["pause"].collectAsState()
           val isPlaybackActive = paused != true
           Box(
-            modifier = Modifier
-              .fillMaxSize()
-              .then(if (isCircular) Modifier.clip(CircleShape) else Modifier)
-              .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.55f)),
+            modifier =
+              Modifier
+                .fillMaxSize()
+                .then(if (isCircular) Modifier.clip(CircleShape) else Modifier)
+                .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.55f)),
             contentAlignment = Alignment.Center,
           ) {
             MiniAudioVisualizer(
@@ -183,9 +187,10 @@ fun SharedMusicTrackListItem(
       Column(modifier = Modifier.weight(1f)) {
         Text(
           text = title,
-          style = MaterialTheme.typography.bodyLarge.copy(
-            fontWeight = if (isPlaying) FontWeight.Bold else FontWeight.SemiBold,
-          ),
+          style =
+            MaterialTheme.typography.bodyLarge.copy(
+              fontWeight = if (isPlaying) FontWeight.Bold else FontWeight.SemiBold,
+            ),
           maxLines = 1,
           overflow = TextOverflow.Ellipsis,
           color = if (isPlaying) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface,
@@ -196,7 +201,14 @@ fun SharedMusicTrackListItem(
             style = MaterialTheme.typography.bodySmall,
             maxLines = 1,
             overflow = TextOverflow.Ellipsis,
-            color = if (isPlaying) MaterialTheme.colorScheme.primary.copy(alpha = 0.8f) else MaterialTheme.colorScheme.onSurfaceVariant,
+            color =
+              if (isPlaying) {
+                MaterialTheme.colorScheme.primary.copy(
+                  alpha = 0.8f,
+                )
+              } else {
+                MaterialTheme.colorScheme.onSurfaceVariant
+              },
           )
         }
       }
@@ -258,32 +270,37 @@ fun SharedMusicGridCard(
   modifier: Modifier = Modifier,
 ) {
   Card(
-    modifier = modifier
-      .then(if (cardWidth != null) Modifier.width(cardWidth) else Modifier.fillMaxWidth())
-      .tvFocusHighlight(AppShapeScale.large, focusedScale = 1.03f)
-      .clip(AppShapeScale.large)
-      .combinedClickable(onClick = onClick, onLongClick = onLongClick),
+    modifier =
+      modifier
+        .then(if (cardWidth != null) Modifier.width(cardWidth) else Modifier.fillMaxWidth())
+        .tvFocusHighlight(AppShapeScale.large, focusedScale = 1.03f)
+        .clip(AppShapeScale.large)
+        .combinedClickable(onClick = onClick, onLongClick = onLongClick),
     shape = AppShapeScale.large,
-    colors = CardDefaults.cardColors(
-      containerColor = when {
-        isSelected -> MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.6f)
-        isPlaying -> MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.35f)
-        else -> Color.Transparent
-      }
-    )
+    colors =
+      CardDefaults.cardColors(
+        containerColor =
+          when {
+            isSelected -> MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.6f)
+            isPlaying -> MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.35f)
+            else -> Color.Transparent
+          },
+      ),
   ) {
     Column(
-      modifier = Modifier
-        .fillMaxWidth()
-        .padding(if (isCircular) 14.dp else 8.dp),
+      modifier =
+        Modifier
+          .fillMaxWidth()
+          .padding(if (isCircular) 14.dp else 8.dp),
       horizontalAlignment = if (isCircular) Alignment.CenterHorizontally else Alignment.Start,
     ) {
       Box(
-        modifier = Modifier
-          .fillMaxWidth()
-          .aspectRatio(1f)
-          .clip(if (isCircular) CircleShape else AppShapeScale.medium)
-          .background(MaterialTheme.colorScheme.surfaceVariant),
+        modifier =
+          Modifier
+            .fillMaxWidth()
+            .aspectRatio(1f)
+            .clip(if (isCircular) CircleShape else AppShapeScale.medium)
+            .background(MaterialTheme.colorScheme.surfaceVariant),
         contentAlignment = Alignment.Center,
       ) {
         when {
@@ -314,10 +331,11 @@ fun SharedMusicGridCard(
 
         if (isSelected) {
           Box(
-            modifier = Modifier
-              .fillMaxSize()
-              .then(if (isCircular) Modifier.clip(CircleShape) else Modifier)
-              .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.45f)),
+            modifier =
+              Modifier
+                .fillMaxSize()
+                .then(if (isCircular) Modifier.clip(CircleShape) else Modifier)
+                .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.45f)),
             contentAlignment = Alignment.Center,
           ) {
             Icon(
@@ -331,10 +349,11 @@ fun SharedMusicGridCard(
           val paused by PlaybackSession.propBoolean["pause"].collectAsState()
           val isPlaybackActive = paused != true
           Box(
-            modifier = Modifier
-              .fillMaxSize()
-              .then(if (isCircular) Modifier.clip(CircleShape) else Modifier)
-              .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.55f)),
+            modifier =
+              Modifier
+                .fillMaxSize()
+                .then(if (isCircular) Modifier.clip(CircleShape) else Modifier)
+                .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.55f)),
             contentAlignment = Alignment.Center,
           ) {
             MiniAudioVisualizer(
@@ -355,10 +374,14 @@ fun SharedMusicGridCard(
       ) {
         Text(
           text = title,
-          style = if (isCircular) MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Bold)
-          else MaterialTheme.typography.bodyLarge.copy(
-            fontWeight = if (isPlaying) FontWeight.ExtraBold else FontWeight.Bold
-          ),
+          style =
+            if (isCircular) {
+              MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Bold)
+            } else {
+              MaterialTheme.typography.bodyLarge.copy(
+                fontWeight = if (isPlaying) FontWeight.ExtraBold else FontWeight.Bold,
+              )
+            },
           maxLines = 1,
           overflow = TextOverflow.Ellipsis,
           color = if (isPlaying) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface,
@@ -372,7 +395,14 @@ fun SharedMusicGridCard(
             style = MaterialTheme.typography.bodySmall,
             maxLines = 1,
             overflow = TextOverflow.Ellipsis,
-            color = if (isPlaying) MaterialTheme.colorScheme.primary.copy(alpha = 0.8f) else MaterialTheme.colorScheme.onSurfaceVariant,
+            color =
+              if (isPlaying) {
+                MaterialTheme.colorScheme.primary.copy(
+                  alpha = 0.8f,
+                )
+              } else {
+                MaterialTheme.colorScheme.onSurfaceVariant
+              },
             textAlign = if (isCircular) TextAlign.Center else TextAlign.Start,
             modifier = Modifier.fillMaxWidth(),
           )
@@ -399,9 +429,10 @@ fun SharedMusicSectionHeader(
   onSeeAllClick: (() -> Unit)? = null,
 ) {
   Row(
-    modifier = modifier
-      .fillMaxWidth()
-      .padding(start = 16.dp, end = 16.dp, bottom = 12.dp),
+    modifier =
+      modifier
+        .fillMaxWidth()
+        .padding(start = 16.dp, end = 16.dp, bottom = 12.dp),
     horizontalArrangement = Arrangement.SpaceBetween,
     verticalAlignment = Alignment.CenterVertically,
   ) {
@@ -415,10 +446,11 @@ fun SharedMusicSectionHeader(
         text = "See all",
         style = MaterialTheme.typography.labelLarge.copy(fontWeight = FontWeight.SemiBold),
         color = MaterialTheme.colorScheme.primary,
-        modifier = Modifier
-          .clip(RoundedCornerShape(8.dp))
-          .clickable(onClick = onSeeAllClick)
-          .padding(horizontal = 8.dp, vertical = 4.dp),
+        modifier =
+          Modifier
+            .clip(RoundedCornerShape(8.dp))
+            .clickable(onClick = onSeeAllClick)
+            .padding(horizontal = 8.dp, vertical = 4.dp),
       )
     }
   }
@@ -437,11 +469,12 @@ fun <T> SharedCompactTrackGridSection(
   onSeeAllClick: (() -> Unit)? = null,
 ) {
   val isLandscape = LocalConfiguration.current.orientation == Configuration.ORIENTATION_LANDSCAPE
-  val rowsCount = when {
-    tracks.size >= 6 -> 3
-    tracks.size >= 3 -> 2
-    else -> 1
-  }
+  val rowsCount =
+    when {
+      tracks.size >= 6 -> 3
+      tracks.size >= 3 -> 2
+      else -> 1
+    }
   val rowHeight = if (isLandscape) 70 else 64
   val itemWidth = if (isLandscape) 320.dp else 280.dp
   val gridHeight = (rowsCount * rowHeight + (rowsCount - 1) * 12).dp
@@ -453,26 +486,29 @@ fun <T> SharedCompactTrackGridSection(
     )
     LazyHorizontalGrid(
       rows = GridCells.Fixed(rowsCount),
-      modifier = Modifier
-        .height(gridHeight)
-        .padding(horizontal = 16.dp),
+      modifier =
+        Modifier
+          .height(gridHeight)
+          .padding(horizontal = 16.dp),
       horizontalArrangement = Arrangement.spacedBy(16.dp),
       verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
       items(tracks, key = { getId(it) }) { track ->
         val artworkUrl = getArtworkUrl(track)
         Row(
-          modifier = Modifier
-            .width(itemWidth)
-            .clip(RoundedCornerShape(8.dp))
-            .clickable { onTrackClick(track) },
+          modifier =
+            Modifier
+              .width(itemWidth)
+              .clip(RoundedCornerShape(8.dp))
+              .clickable { onTrackClick(track) },
           verticalAlignment = Alignment.CenterVertically,
         ) {
           Box(
-            modifier = Modifier
-              .size(56.dp)
-              .clip(RoundedCornerShape(6.dp))
-              .background(MaterialTheme.colorScheme.surfaceContainerHighest),
+            modifier =
+              Modifier
+                .size(56.dp)
+                .clip(RoundedCornerShape(6.dp))
+                .background(MaterialTheme.colorScheme.surfaceContainerHighest),
             contentAlignment = Alignment.Center,
           ) {
             if (!artworkUrl.isNullOrBlank()) {
@@ -582,10 +618,11 @@ fun SharedMusicDetailHeader(
       verticalAlignment = Alignment.CenterVertically,
     ) {
       Box(
-        modifier = Modifier
-          .size(64.dp)
-          .clip(if (isCircular) CircleShape else RoundedCornerShape(8.dp))
-          .background(MaterialTheme.colorScheme.surfaceVariant),
+        modifier =
+          Modifier
+            .size(64.dp)
+            .clip(if (isCircular) CircleShape else RoundedCornerShape(8.dp))
+            .background(MaterialTheme.colorScheme.surfaceVariant),
         contentAlignment = Alignment.Center,
       ) {
         if (!artworkUrl.isNullOrBlank()) {

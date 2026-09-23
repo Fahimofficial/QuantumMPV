@@ -30,7 +30,10 @@ enum class JellyfinAuthMode {
   TOKEN,
 }
 
-enum class JellyfinSortBy(val apiValue: String, val displayName: String) {
+enum class JellyfinSortBy(
+  val apiValue: String,
+  val displayName: String,
+) {
   NAME("SortName", "Title"),
   DATE_ADDED("DateCreated", "Recently Added"),
   DATE_PLAYED("DatePlayed", "Recently Played"),
@@ -40,12 +43,17 @@ enum class JellyfinSortBy(val apiValue: String, val displayName: String) {
   RANDOM("Random", "Random"),
 }
 
-enum class JellyfinSortOrder(val apiValue: String, val displayName: String) {
+enum class JellyfinSortOrder(
+  val apiValue: String,
+  val displayName: String,
+) {
   ASCENDING("Ascending", "Ascending"),
   DESCENDING("Descending", "Descending"),
 }
 
-enum class JellyfinSearchCategory(val displayName: String) {
+enum class JellyfinSearchCategory(
+  val displayName: String,
+) {
   ALL("All"),
   MOVIES("Movies"),
   SHOWS("TV Shows"),

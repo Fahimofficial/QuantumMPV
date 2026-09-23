@@ -111,59 +111,60 @@ object ClipExportManager {
 
     val appContext = context.applicationContext
     lateinit var job: Job
-    job = scope.launch(start = CoroutineStart.LAZY) {
-      var resolvedSource: ResolvedSource? = null
-      var temporaryOutput: File? = null
-      try {
-        resolvedSource = resolveSource(appContext, request.item)
-        temporaryOutput = createTemporaryOutput(appContext)
+    job =
+      scope.launch(start = CoroutineStart.LAZY) {
+        var resolvedSource: ResolvedSource? = null
+        var temporaryOutput: File? = null
+        try {
+          resolvedSource = resolveSource(appContext, request.item)
+          temporaryOutput = createTemporaryOutput(appContext)
 
-        val error =
-          Media3ClipExporter.export(
-            context = appContext,
-            source = resolvedSource.uri,
-            output = temporaryOutput.absolutePath,
-            startSeconds = request.startSeconds,
-            endSeconds = request.endSeconds,
-            crop = request.crop,
-            cropFrameWidth = cropFrameSize?.first ?: 0,
-            cropFrameHeight = cropFrameSize?.second ?: 0,
-            headers = request.item.headers,
-            onProgress = { progress ->
-              val current = _state.value as? ClipExportState.Exporting
-              _state.value =
-                ClipExportState.Exporting(
-                  progress = progress.toFloat().coerceIn(0f, 1f),
-                  cancelling = current?.cancelling == true,
-                )
-            },
-          )
+          val error =
+            Media3ClipExporter.export(
+              context = appContext,
+              source = resolvedSource.uri,
+              output = temporaryOutput.absolutePath,
+              startSeconds = request.startSeconds,
+              endSeconds = request.endSeconds,
+              crop = request.crop,
+              cropFrameWidth = cropFrameSize?.first ?: 0,
+              cropFrameHeight = cropFrameSize?.second ?: 0,
+              headers = request.item.headers,
+              onProgress = { progress ->
+                val current = _state.value as? ClipExportState.Exporting
+                _state.value =
+                  ClipExportState.Exporting(
+                    progress = progress.toFloat().coerceIn(0f, 1f),
+                    cancelling = current?.cancelling == true,
+                  )
+              },
+            )
 
-        if (error != null) {
-          _state.value = ClipExportState.Error(error)
-          return@launch
+          if (error != null) {
+            _state.value = ClipExportState.Error(error)
+            return@launch
+          }
+
+          if (!temporaryOutput.exists() || temporaryOutput.length() <= 0L) {
+            error("Clip export finished without producing an output video")
+          }
+
+          val displayName = buildDisplayName(request.item)
+          val savedUri = saveToVideoLibrary(appContext, temporaryOutput, displayName)
+          temporaryOutput = null
+          _state.value = ClipExportState.Success(savedUri, displayName)
+        } catch (error: CancellationException) {
+          throw error
+        } catch (error: Throwable) {
+          _state.value =
+            ClipExportState.Error(
+              error.message?.takeIf { it.isNotBlank() } ?: "Unable to save this clip",
+            )
+        } finally {
+          resolvedSource?.close?.invoke()
+          temporaryOutput?.delete()
         }
-
-        if (!temporaryOutput.exists() || temporaryOutput.length() <= 0L) {
-          error("Clip export finished without producing an output video")
-        }
-
-        val displayName = buildDisplayName(request.item)
-        val savedUri = saveToVideoLibrary(appContext, temporaryOutput, displayName)
-        temporaryOutput = null
-        _state.value = ClipExportState.Success(savedUri, displayName)
-      } catch (error: CancellationException) {
-        throw error
-      } catch (error: Throwable) {
-        _state.value =
-          ClipExportState.Error(
-            error.message?.takeIf { it.isNotBlank() } ?: "Unable to save this clip",
-          )
-      } finally {
-        resolvedSource?.close?.invoke()
-        temporaryOutput?.delete()
       }
-    }
     activeJob = job
     job.invokeOnCompletion { error ->
       if (activeJob === job) {

@@ -9,8 +9,6 @@
 
 package com.quantummpv.app.ui.player.controls.components.sheets
 
-import com.quantummpv.app.ui.player.PlaybackSession
-
 import android.content.res.Configuration
 import android.text.format.DateUtils
 import androidx.compose.foundation.ExperimentalFoundationApi
@@ -60,6 +58,7 @@ import com.quantummpv.app.preferences.preference.collectAsState
 import com.quantummpv.app.presentation.components.PlayerSheet
 import com.quantummpv.app.ui.icons.Icon
 import com.quantummpv.app.ui.icons.Icons
+import com.quantummpv.app.ui.player.PlaybackSession
 import com.quantummpv.app.ui.player.anime4k.Anime4KUiState
 import com.quantummpv.app.ui.theme.AppShapeScale
 import com.quantummpv.app.ui.theme.spacing

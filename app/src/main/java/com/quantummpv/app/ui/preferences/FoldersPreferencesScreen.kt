@@ -27,18 +27,20 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.AssistChip
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Scaffold
-import com.quantummpv.app.ui.components.IconSwitch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBarDefaults
@@ -57,9 +59,6 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.quantummpv.app.R
 import com.quantummpv.app.domain.media.model.VideoFolder
-import androidx.compose.material3.AssistChip
-import androidx.compose.material3.HorizontalDivider
-import androidx.compose.material3.RadioButton
 import com.quantummpv.app.preferences.BlacklistScope
 import com.quantummpv.app.preferences.FoldersPreferences
 import com.quantummpv.app.preferences.preference.collectAsState
@@ -67,6 +66,7 @@ import com.quantummpv.app.presentation.Screen
 import com.quantummpv.app.ui.browser.components.BrowserTopBar
 import com.quantummpv.app.ui.browser.selection.SelectionState
 import com.quantummpv.app.ui.browser.states.EmptyState
+import com.quantummpv.app.ui.components.IconSwitch
 import com.quantummpv.app.ui.icons.Icon
 import com.quantummpv.app.ui.icons.Icons
 import com.quantummpv.app.ui.utils.LocalBackStack
@@ -101,9 +101,10 @@ object FoldersPreferencesScreen : Screen {
     val settingsHighlight =
       rememberSettingsSearchHighlight(FoldersPreferencesScreen, MaterialTheme.colorScheme.primary)
 
-    val allBlacklistedFolders = remember(blacklistedVideoFolders, blacklistedAudioFolders) {
-      (blacklistedVideoFolders + blacklistedAudioFolders).toList().sorted()
-    }
+    val allBlacklistedFolders =
+      remember(blacklistedVideoFolders, blacklistedAudioFolders) {
+        (blacklistedVideoFolders + blacklistedAudioFolders).toList().sorted()
+      }
 
     Scaffold(
       topBar = {
@@ -218,11 +219,12 @@ object FoldersPreferencesScreen : Screen {
             items(allBlacklistedFolders, key = { it }) { folderPath ->
               val isVideo = folderPath in blacklistedVideoFolders
               val isAudio = folderPath in blacklistedAudioFolders
-              val scope = when {
-                isVideo && isAudio -> BlacklistScope.BOTH
-                isVideo -> BlacklistScope.VIDEO_ONLY
-                else -> BlacklistScope.AUDIO_ONLY
-              }
+              val scope =
+                when {
+                  isVideo && isAudio -> BlacklistScope.BOTH
+                  isVideo -> BlacklistScope.VIDEO_ONLY
+                  else -> BlacklistScope.AUDIO_ONLY
+                }
 
               BlacklistedFolderItem(
                 folderPath = folderPath,
@@ -530,23 +532,25 @@ private fun BlacklistedFolderItem(
             Spacer(modifier = Modifier.height(4.dp))
             AssistChip(
               onClick = {
-                val nextScope = when (scope) {
-                  BlacklistScope.BOTH -> BlacklistScope.VIDEO_ONLY
-                  BlacklistScope.VIDEO_ONLY -> BlacklistScope.AUDIO_ONLY
-                  BlacklistScope.AUDIO_ONLY -> BlacklistScope.BOTH
-                }
+                val nextScope =
+                  when (scope) {
+                    BlacklistScope.BOTH -> BlacklistScope.VIDEO_ONLY
+                    BlacklistScope.VIDEO_ONLY -> BlacklistScope.AUDIO_ONLY
+                    BlacklistScope.AUDIO_ONLY -> BlacklistScope.BOTH
+                  }
                 onScopeChange(nextScope)
               },
               label = {
                 Text(
-                  text = when (scope) {
-                    BlacklistScope.BOTH -> "Both (Video & Audio)"
-                    BlacklistScope.VIDEO_ONLY -> "Videos Only"
-                    BlacklistScope.AUDIO_ONLY -> "Audio Only"
-                  },
-                  style = MaterialTheme.typography.labelSmall
+                  text =
+                    when (scope) {
+                      BlacklistScope.BOTH -> "Both (Video & Audio)"
+                      BlacklistScope.VIDEO_ONLY -> "Videos Only"
+                      BlacklistScope.AUDIO_ONLY -> "Audio Only"
+                    },
+                  style = MaterialTheme.typography.labelSmall,
                 )
-              }
+              },
             )
           }
         }
@@ -793,29 +797,33 @@ internal fun getSimplifiedStoragePath(uriString: String): String =
   }
 
 private suspend fun scanAllMediaFolders(context: Application): List<VideoFolder> {
-  val repoFolders = com.quantummpv.app.repository.MediaFileRepository
-    .getAllVideoFoldersFast(context = context, includeAudioOverride = true)
+  val repoFolders =
+    com.quantummpv.app.repository.MediaFileRepository
+      .getAllVideoFoldersFast(context = context, includeAudioOverride = true)
 
-  val songs = try {
-    com.quantummpv.app.ui.browser.music.MusicLibraryScanner.scanSongs(context)
-  } catch (_: Exception) {
-    emptyList()
-  }
+  val songs =
+    try {
+      com.quantummpv.app.ui.browser.music.MusicLibraryScanner
+        .scanSongs(context)
+    } catch (_: Exception) {
+      emptyList()
+    }
 
   val audioFolderPaths = songs.mapNotNull { java.io.File(it.path).parent }.toSet()
   val existingPaths = repoFolders.map { it.path.lowercase() }.toSet()
 
-  val extraAudioFolders = audioFolderPaths.filter { path -> path.lowercase() !in existingPaths }.map { path ->
-    VideoFolder(
-      bucketId = path,
-      name = path.substringAfterLast('/'),
-      path = path,
-      videoCount = 0,
-      totalSize = 0L,
-      totalDuration = 0L,
-      lastModified = 0L,
-    )
-  }
+  val extraAudioFolders =
+    audioFolderPaths.filter { path -> path.lowercase() !in existingPaths }.map { path ->
+      VideoFolder(
+        bucketId = path,
+        name = path.substringAfterLast('/'),
+        path = path,
+        videoCount = 0,
+        totalSize = 0L,
+        totalDuration = 0L,
+        lastModified = 0L,
+      )
+    }
 
   return (repoFolders + extraAudioFolders).sortedBy { it.name.lowercase() }
 }

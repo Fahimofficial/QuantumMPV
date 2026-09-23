@@ -315,8 +315,7 @@ object MediaFileRepository : KoinComponent {
   private fun normalizeAudioFolderKey(path: String): String =
     path.replace('\\', '/').trimEnd('/').lowercase(Locale.ROOT)
 
-  private fun leafName(path: String): String =
-    path.replace('\\', '/').trimEnd('/').substringAfterLast('/')
+  private fun leafName(path: String): String = path.replace('\\', '/').trimEnd('/').substringAfterLast('/')
 
   fun scanNoMediaFoldersIncrementally(
     context: Context,

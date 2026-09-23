@@ -12,14 +12,16 @@ package com.quantummpv.app.preferences
 import com.quantummpv.app.preferences.preference.PreferenceStore
 import com.quantummpv.app.preferences.preference.getEnum
 
-enum class MusicSourceProvider(val id: String) {
+enum class MusicSourceProvider(
+  val id: String,
+) {
   LOCAL("local"),
   JELLYFIN("jellyfin"),
-  NAVIDROME("navidrome");
+  NAVIDROME("navidrome"),
+  ;
 
   companion object {
-    fun fromId(id: String): MusicSourceProvider =
-      entries.firstOrNull { it.id == id } ?: LOCAL
+    fun fromId(id: String): MusicSourceProvider = entries.firstOrNull { it.id == id } ?: LOCAL
   }
 }
 

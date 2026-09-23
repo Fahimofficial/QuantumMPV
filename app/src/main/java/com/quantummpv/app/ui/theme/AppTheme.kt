@@ -570,8 +570,7 @@ private fun Color.accessibleContentColor(): Color {
   return if (blackContrast >= whiteContrast) Color.Black else Color.White
 }
 
-private fun Color.withMinimumContrastAgainst(background: Color): Color =
-  withMinimumContrastAgainst(listOf(background))
+private fun Color.withMinimumContrastAgainst(background: Color): Color = withMinimumContrastAgainst(listOf(background))
 
 private fun Color.withMinimumContrastAgainst(backgrounds: List<Color>): Color {
   if (backgrounds.minOf { background -> contrastRatio(background) } >= MinimumTextContrast) return this
@@ -601,7 +600,10 @@ private fun Color.contrastRatio(other: Color): Float {
   return (lighter + 0.05f) / (darker + 0.05f)
 }
 
-private fun Color.blendToward(target: Color, fraction: Float): Color =
+private fun Color.blendToward(
+  target: Color,
+  fraction: Float,
+): Color =
   Color(
     red = red + (target.red - red) * fraction,
     green = green + (target.green - green) * fraction,

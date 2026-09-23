@@ -92,7 +92,10 @@ internal object RemoteImageLoader {
 
   fun getFromMemory(url: String): Bitmap? = synchronized(memoryCache) { memoryCache.get(url) }
 
-  fun putInMemory(url: String, bitmap: Bitmap) {
+  fun putInMemory(
+    url: String,
+    bitmap: Bitmap,
+  ) {
     synchronized(memoryCache) { memoryCache.put(url, bitmap) }
   }
 
@@ -138,12 +141,15 @@ internal object RemoteImageLoader {
     val scheme = parsedUri?.scheme?.lowercase()
     val localBitmap =
       when (scheme) {
-        "content", "android.resource" -> decodeSampled(context, parsedUri)
-          ?: EmbeddedArtworkResolver.decodeArtworkUri(context, url)
-        "file" -> parsedUri.path?.let(::File)?.let(::decodeSampled)
-          ?: EmbeddedArtworkResolver.decodeArtworkUri(context, url)
-        null, "" -> File(url).takeIf { it.isFile }?.let(::decodeSampled)
-          ?: EmbeddedArtworkResolver.decodeArtworkUri(context, url)
+        "content", "android.resource" ->
+          decodeSampled(context, parsedUri)
+            ?: EmbeddedArtworkResolver.decodeArtworkUri(context, url)
+        "file" ->
+          parsedUri.path?.let(::File)?.let(::decodeSampled)
+            ?: EmbeddedArtworkResolver.decodeArtworkUri(context, url)
+        null, "" ->
+          File(url).takeIf { it.isFile }?.let(::decodeSampled)
+            ?: EmbeddedArtworkResolver.decodeArtworkUri(context, url)
         else -> null
       }
     if (localBitmap != null) {

@@ -42,8 +42,8 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.rememberUpdatedState
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -93,9 +93,13 @@ import kotlin.math.roundToInt
 private sealed interface AudioWaveformLoadState {
   data object Loading : AudioWaveformLoadState
 
-  data class Ready(val data: AudioWaveformData) : AudioWaveformLoadState
+  data class Ready(
+    val data: AudioWaveformData,
+  ) : AudioWaveformLoadState
 
-  data class Error(val message: String) : AudioWaveformLoadState
+  data class Error(
+    val message: String,
+  ) : AudioWaveformLoadState
 }
 
 @Composable
@@ -520,8 +524,9 @@ private fun VideoScope(
         currentCoroutineContext().ensureActive()
         val startedAt = System.nanoTime()
         withContext(Dispatchers.Default) {
-          val source = PlaybackSession.grabThumbnail(resolution)
-            ?: return@withContext
+          val source =
+            PlaybackSession.grabThumbnail(resolution)
+              ?: return@withContext
           try {
             pendingFrame.set(VideoScopeAnalyzer.analyze(source, mode))
           } finally {

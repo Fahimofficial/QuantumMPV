@@ -80,21 +80,72 @@ fun AmbientSheet(
   val opacity by viewModel.ambientOpacity.collectAsState()
   val isFast =
     remember(
-      blurSamples, maxRadius, glowIntensity, satBoost, vignetteStrength, warmth, fadeCurve, opacity,
+      blurSamples,
+      maxRadius,
+      glowIntensity,
+      satBoost,
+      vignetteStrength,
+      warmth,
+      fadeCurve,
+      opacity,
     ) {
-      matchesGlowPreset(AmbientShaderPresets.glowFast, blurSamples, maxRadius, glowIntensity, satBoost, vignetteStrength, warmth, fadeCurve, opacity)
+      matchesGlowPreset(
+        AmbientShaderPresets.glowFast,
+        blurSamples,
+        maxRadius,
+        glowIntensity,
+        satBoost,
+        vignetteStrength,
+        warmth,
+        fadeCurve,
+        opacity,
+      )
     }
   val isBalanced =
     remember(
-      blurSamples, maxRadius, glowIntensity, satBoost, vignetteStrength, warmth, fadeCurve, opacity,
+      blurSamples,
+      maxRadius,
+      glowIntensity,
+      satBoost,
+      vignetteStrength,
+      warmth,
+      fadeCurve,
+      opacity,
     ) {
-      matchesGlowPreset(AmbientShaderPresets.glowBalanced, blurSamples, maxRadius, glowIntensity, satBoost, vignetteStrength, warmth, fadeCurve, opacity)
+      matchesGlowPreset(
+        AmbientShaderPresets.glowBalanced,
+        blurSamples,
+        maxRadius,
+        glowIntensity,
+        satBoost,
+        vignetteStrength,
+        warmth,
+        fadeCurve,
+        opacity,
+      )
     }
   val isHQ =
     remember(
-      blurSamples, maxRadius, glowIntensity, satBoost, vignetteStrength, warmth, fadeCurve, opacity,
+      blurSamples,
+      maxRadius,
+      glowIntensity,
+      satBoost,
+      vignetteStrength,
+      warmth,
+      fadeCurve,
+      opacity,
     ) {
-      matchesGlowPreset(AmbientShaderPresets.glowHighQuality, blurSamples, maxRadius, glowIntensity, satBoost, vignetteStrength, warmth, fadeCurve, opacity)
+      matchesGlowPreset(
+        AmbientShaderPresets.glowHighQuality,
+        blurSamples,
+        maxRadius,
+        glowIntensity,
+        satBoost,
+        vignetteStrength,
+        warmth,
+        fadeCurve,
+        opacity,
+      )
     }
   val configuration = LocalConfiguration.current
   val customMaxHeight =
@@ -155,290 +206,290 @@ fun AmbientSheet(
       )
 
       if (ambientStyle == AmbientStyle.Glow) {
-      // ── Quality Presets ──────────────────────────────────────────────
-      Row(
-        modifier =
-          Modifier
-            .fillMaxWidth()
-            .padding(horizontal = MaterialTheme.spacing.medium),
-        horizontalArrangement = Arrangement.spacedBy(6.dp),
-        verticalAlignment = Alignment.CenterVertically,
-      ) {
-        ExpressivePresetButton(
-          label = "Fast",
-          selected = isFast,
-          onClick = { viewModel.applyAmbientProfileFast() },
-        )
-        ExpressivePresetButton(
-          label = "Balanced",
-          selected = isBalanced,
-          onClick = { viewModel.applyAmbientProfileBalanced() },
-        )
-        ExpressivePresetButton(
-          label = "HQ",
-          selected = isHQ,
-          onClick = { viewModel.applyAmbientProfileHighQuality() },
-        )
-      }
-
-      HorizontalDivider(
-        modifier = Modifier.padding(horizontal = MaterialTheme.spacing.medium),
-        color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.3f),
-      )
-
-      // ── Section: Glow ────────────────────────────────────────────────
-      var glowExpanded by remember { mutableStateOf(true) }
-      SectionHeader(
-        title = stringResource(R.string.ambient_glow),
-        isExpanded = glowExpanded,
-        onClick = { glowExpanded = !glowExpanded },
-      )
-      AnimatedVisibility(
-        visible = glowExpanded,
-        enter =
-          expandVertically(
-            animationSpec =
-              spring(
-                dampingRatio = AppMotion.Spatial.Expressive.dampingRatio,
-                stiffness = AppMotion.Spatial.Expressive.stiffness,
-              ),
-          ) +
-            fadeIn(animationSpec = spring(stiffness = AppMotion.Effect.Alpha.stiffness)),
-        exit =
-          shrinkVertically(
-            animationSpec =
-              spring(
-                dampingRatio = AppMotion.Spatial.Expressive.dampingRatio,
-                stiffness = AppMotion.Spatial.Expressive.stiffness,
-              ),
-          ) +
-            fadeOut(animationSpec = spring(stiffness = AppMotion.Effect.Alpha.stiffness)),
-      ) {
-        Column(
-          verticalArrangement = Arrangement.spacedBy(MaterialTheme.spacing.small),
+        // ── Quality Presets ──────────────────────────────────────────────
+        Row(
+          modifier =
+            Modifier
+              .fillMaxWidth()
+              .padding(horizontal = MaterialTheme.spacing.medium),
+          horizontalArrangement = Arrangement.spacedBy(6.dp),
+          verticalAlignment = Alignment.CenterVertically,
         ) {
-          SliderItem(
-            label = "Blur Samples",
-            valueText = "$blurSamples",
-            value = blurSamples,
-            onChange = { viewModel.updateAmbientParams(blurSamples = it) },
-            min = 5,
-            max = 64,
-            icon = {
-              AppSymbolIcon(
-                imageVector = Icons.RoundedFilled.BlurOn,
-                contentDescription = null,
-                tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.size(20.dp),
-              )
-            },
+          ExpressivePresetButton(
+            label = "Fast",
+            selected = isFast,
+            onClick = { viewModel.applyAmbientProfileFast() },
           )
-
-          SliderItem(
-            label = "Spread",
-            valueText = "%.2f".format(maxRadius),
-            value = maxRadius,
-            onChange = { viewModel.updateAmbientParams(maxRadius = it) },
-            min = 0.05f,
-            max = 0.80f,
-            steps = 75,
-            icon = {
-              AppSymbolIcon(
-                imageVector = Icons.RoundedFilled.Gradient,
-                contentDescription = null,
-                tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.size(20.dp),
-              )
-            },
+          ExpressivePresetButton(
+            label = "Balanced",
+            selected = isBalanced,
+            onClick = { viewModel.applyAmbientProfileBalanced() },
           )
-
-          SliderItem(
-            label = "Glow Intensity",
-            valueText = "%.1f".format(glowIntensity),
-            value = glowIntensity,
-            onChange = { viewModel.updateAmbientParams(glowIntensity = it) },
-            min = 0.5f,
-            max = 3.0f,
-            steps = 25,
-            icon = {
-              AppSymbolIcon(
-                imageVector = Icons.RoundedFilled.Brightness6,
-                contentDescription = null,
-                tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.size(20.dp),
-              )
-            },
-          )
-
-          SliderItem(
-            label = "Fade Curve",
-            valueText = "%.1f".format(fadeCurve),
-            value = fadeCurve,
-            onChange = { viewModel.updateAmbientParams(fadeCurve = it) },
-            min = 0.5f,
-            max = 3.0f,
-            steps = 25,
-            icon = {
-              AppSymbolIcon(
-                imageVector = Icons.RoundedFilled.WbSunny,
-                contentDescription = null,
-                tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.size(20.dp),
-              )
-            },
+          ExpressivePresetButton(
+            label = "HQ",
+            selected = isHQ,
+            onClick = { viewModel.applyAmbientProfileHighQuality() },
           )
         }
-      }
 
-      HorizontalDivider(
-        modifier = Modifier.padding(horizontal = MaterialTheme.spacing.medium),
-        color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.3f),
-      )
+        HorizontalDivider(
+          modifier = Modifier.padding(horizontal = MaterialTheme.spacing.medium),
+          color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.3f),
+        )
 
-      // ── Section: Color ───────────────────────────────────────────────
-      var colorExpanded by remember { mutableStateOf(true) }
-      SectionHeader(
-        title = stringResource(R.string.ambient_color),
-        isExpanded = colorExpanded,
-        onClick = { colorExpanded = !colorExpanded },
-      )
-      AnimatedVisibility(
-        visible = colorExpanded,
-        enter =
-          expandVertically(
-            animationSpec =
-              spring(
-                dampingRatio = AppMotion.Spatial.Expressive.dampingRatio,
-                stiffness = AppMotion.Spatial.Expressive.stiffness,
-              ),
-          ) +
-            fadeIn(animationSpec = spring(stiffness = AppMotion.Effect.Alpha.stiffness)),
-        exit =
-          shrinkVertically(
-            animationSpec =
-              spring(
-                dampingRatio = AppMotion.Spatial.Expressive.dampingRatio,
-                stiffness = AppMotion.Spatial.Expressive.stiffness,
-              ),
-          ) +
-            fadeOut(animationSpec = spring(stiffness = AppMotion.Effect.Alpha.stiffness)),
-      ) {
-        Column(
-          verticalArrangement = Arrangement.spacedBy(MaterialTheme.spacing.small),
+        // ── Section: Glow ────────────────────────────────────────────────
+        var glowExpanded by remember { mutableStateOf(true) }
+        SectionHeader(
+          title = stringResource(R.string.ambient_glow),
+          isExpanded = glowExpanded,
+          onClick = { glowExpanded = !glowExpanded },
+        )
+        AnimatedVisibility(
+          visible = glowExpanded,
+          enter =
+            expandVertically(
+              animationSpec =
+                spring(
+                  dampingRatio = AppMotion.Spatial.Expressive.dampingRatio,
+                  stiffness = AppMotion.Spatial.Expressive.stiffness,
+                ),
+            ) +
+              fadeIn(animationSpec = spring(stiffness = AppMotion.Effect.Alpha.stiffness)),
+          exit =
+            shrinkVertically(
+              animationSpec =
+                spring(
+                  dampingRatio = AppMotion.Spatial.Expressive.dampingRatio,
+                  stiffness = AppMotion.Spatial.Expressive.stiffness,
+                ),
+            ) +
+              fadeOut(animationSpec = spring(stiffness = AppMotion.Effect.Alpha.stiffness)),
         ) {
-          SliderItem(
-            label = "Saturation",
-            valueText = "%.1f".format(satBoost),
-            value = satBoost,
-            onChange = { viewModel.updateAmbientParams(satBoost = it) },
-            min = 0.0f,
-            max = 3.0f,
-            steps = 30,
-            icon = {
-              AppSymbolIcon(
-                imageVector = Icons.RoundedFilled.Palette,
-                contentDescription = null,
-                tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.size(20.dp),
-              )
-            },
-          )
+          Column(
+            verticalArrangement = Arrangement.spacedBy(MaterialTheme.spacing.small),
+          ) {
+            SliderItem(
+              label = "Blur Samples",
+              valueText = "$blurSamples",
+              value = blurSamples,
+              onChange = { viewModel.updateAmbientParams(blurSamples = it) },
+              min = 5,
+              max = 64,
+              icon = {
+                AppSymbolIcon(
+                  imageVector = Icons.RoundedFilled.BlurOn,
+                  contentDescription = null,
+                  tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                  modifier = Modifier.size(20.dp),
+                )
+              },
+            )
 
-          SliderItem(
-            label = "Warmth",
-            valueText = if (warmth == 0f) "0" else "%.2f".format(warmth),
-            value = warmth,
-            onChange = { viewModel.updateAmbientParams(warmth = it) },
-            min = -1.0f,
-            max = 1.0f,
-            steps = 40,
-            icon = {
-              AppSymbolIcon(
-                imageVector = Icons.RoundedFilled.Thermostat,
-                contentDescription = null,
-                tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.size(20.dp),
-              )
-            },
-          )
+            SliderItem(
+              label = "Spread",
+              valueText = "%.2f".format(maxRadius),
+              value = maxRadius,
+              onChange = { viewModel.updateAmbientParams(maxRadius = it) },
+              min = 0.05f,
+              max = 0.80f,
+              steps = 75,
+              icon = {
+                AppSymbolIcon(
+                  imageVector = Icons.RoundedFilled.Gradient,
+                  contentDescription = null,
+                  tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                  modifier = Modifier.size(20.dp),
+                )
+              },
+            )
+
+            SliderItem(
+              label = "Glow Intensity",
+              valueText = "%.1f".format(glowIntensity),
+              value = glowIntensity,
+              onChange = { viewModel.updateAmbientParams(glowIntensity = it) },
+              min = 0.5f,
+              max = 3.0f,
+              steps = 25,
+              icon = {
+                AppSymbolIcon(
+                  imageVector = Icons.RoundedFilled.Brightness6,
+                  contentDescription = null,
+                  tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                  modifier = Modifier.size(20.dp),
+                )
+              },
+            )
+
+            SliderItem(
+              label = "Fade Curve",
+              valueText = "%.1f".format(fadeCurve),
+              value = fadeCurve,
+              onChange = { viewModel.updateAmbientParams(fadeCurve = it) },
+              min = 0.5f,
+              max = 3.0f,
+              steps = 25,
+              icon = {
+                AppSymbolIcon(
+                  imageVector = Icons.RoundedFilled.WbSunny,
+                  contentDescription = null,
+                  tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                  modifier = Modifier.size(20.dp),
+                )
+              },
+            )
+          }
         }
-      }
 
-      HorizontalDivider(
-        modifier = Modifier.padding(horizontal = MaterialTheme.spacing.medium),
-        color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.3f),
-      )
+        HorizontalDivider(
+          modifier = Modifier.padding(horizontal = MaterialTheme.spacing.medium),
+          color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.3f),
+        )
 
-      // ── Section: Compositing ─────────────────────────────────────────
-      var compositingExpanded by remember { mutableStateOf(true) }
-      SectionHeader(
-        title = stringResource(R.string.ambient_compositing),
-        isExpanded = compositingExpanded,
-        onClick = { compositingExpanded = !compositingExpanded },
-      )
-      AnimatedVisibility(
-        visible = compositingExpanded,
-        enter =
-          expandVertically(
-            animationSpec =
-              spring(
-                dampingRatio = AppMotion.Spatial.Expressive.dampingRatio,
-                stiffness = AppMotion.Spatial.Expressive.stiffness,
-              ),
-          ) +
-            fadeIn(animationSpec = spring(stiffness = AppMotion.Effect.Alpha.stiffness)),
-        exit =
-          shrinkVertically(
-            animationSpec =
-              spring(
-                dampingRatio = AppMotion.Spatial.Expressive.dampingRatio,
-                stiffness = AppMotion.Spatial.Expressive.stiffness,
-              ),
-          ) +
-            fadeOut(animationSpec = spring(stiffness = AppMotion.Effect.Alpha.stiffness)),
-      ) {
-        Column(
-          verticalArrangement = Arrangement.spacedBy(MaterialTheme.spacing.small),
+        // ── Section: Color ───────────────────────────────────────────────
+        var colorExpanded by remember { mutableStateOf(true) }
+        SectionHeader(
+          title = stringResource(R.string.ambient_color),
+          isExpanded = colorExpanded,
+          onClick = { colorExpanded = !colorExpanded },
+        )
+        AnimatedVisibility(
+          visible = colorExpanded,
+          enter =
+            expandVertically(
+              animationSpec =
+                spring(
+                  dampingRatio = AppMotion.Spatial.Expressive.dampingRatio,
+                  stiffness = AppMotion.Spatial.Expressive.stiffness,
+                ),
+            ) +
+              fadeIn(animationSpec = spring(stiffness = AppMotion.Effect.Alpha.stiffness)),
+          exit =
+            shrinkVertically(
+              animationSpec =
+                spring(
+                  dampingRatio = AppMotion.Spatial.Expressive.dampingRatio,
+                  stiffness = AppMotion.Spatial.Expressive.stiffness,
+                ),
+            ) +
+              fadeOut(animationSpec = spring(stiffness = AppMotion.Effect.Alpha.stiffness)),
         ) {
-          SliderItem(
-            label = "Opacity",
-            valueText = "%.2f".format(opacity),
-            value = opacity,
-            onChange = { viewModel.updateAmbientParams(opacity = it) },
-            min = 0.0f,
-            max = 1.0f,
-            steps = 20,
-            icon = {
-              AppSymbolIcon(
-                imageVector = Icons.RoundedFilled.Opacity,
-                contentDescription = null,
-                tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.size(20.dp),
-              )
-            },
-          )
+          Column(
+            verticalArrangement = Arrangement.spacedBy(MaterialTheme.spacing.small),
+          ) {
+            SliderItem(
+              label = "Saturation",
+              valueText = "%.1f".format(satBoost),
+              value = satBoost,
+              onChange = { viewModel.updateAmbientParams(satBoost = it) },
+              min = 0.0f,
+              max = 3.0f,
+              steps = 30,
+              icon = {
+                AppSymbolIcon(
+                  imageVector = Icons.RoundedFilled.Palette,
+                  contentDescription = null,
+                  tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                  modifier = Modifier.size(20.dp),
+                )
+              },
+            )
 
-          SliderItem(
-            label = "Vignette",
-            valueText = "%.1f".format(vignetteStrength),
-            value = vignetteStrength,
-            onChange = { viewModel.updateAmbientParams(vignetteStrength = it) },
-            min = 0.0f,
-            max = 1.0f,
-            steps = 10,
-            icon = {
-              AppSymbolIcon(
-                imageVector = Icons.RoundedFilled.Vignette,
-                contentDescription = null,
-                tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.size(20.dp),
-              )
-            },
-          )
+            SliderItem(
+              label = "Warmth",
+              valueText = if (warmth == 0f) "0" else "%.2f".format(warmth),
+              value = warmth,
+              onChange = { viewModel.updateAmbientParams(warmth = it) },
+              min = -1.0f,
+              max = 1.0f,
+              steps = 40,
+              icon = {
+                AppSymbolIcon(
+                  imageVector = Icons.RoundedFilled.Thermostat,
+                  contentDescription = null,
+                  tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                  modifier = Modifier.size(20.dp),
+                )
+              },
+            )
+          }
         }
-      }
 
-      Spacer(modifier = Modifier.height(8.dp))
+        HorizontalDivider(
+          modifier = Modifier.padding(horizontal = MaterialTheme.spacing.medium),
+          color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.3f),
+        )
+
+        // ── Section: Compositing ─────────────────────────────────────────
+        var compositingExpanded by remember { mutableStateOf(true) }
+        SectionHeader(
+          title = stringResource(R.string.ambient_compositing),
+          isExpanded = compositingExpanded,
+          onClick = { compositingExpanded = !compositingExpanded },
+        )
+        AnimatedVisibility(
+          visible = compositingExpanded,
+          enter =
+            expandVertically(
+              animationSpec =
+                spring(
+                  dampingRatio = AppMotion.Spatial.Expressive.dampingRatio,
+                  stiffness = AppMotion.Spatial.Expressive.stiffness,
+                ),
+            ) +
+              fadeIn(animationSpec = spring(stiffness = AppMotion.Effect.Alpha.stiffness)),
+          exit =
+            shrinkVertically(
+              animationSpec =
+                spring(
+                  dampingRatio = AppMotion.Spatial.Expressive.dampingRatio,
+                  stiffness = AppMotion.Spatial.Expressive.stiffness,
+                ),
+            ) +
+              fadeOut(animationSpec = spring(stiffness = AppMotion.Effect.Alpha.stiffness)),
+        ) {
+          Column(
+            verticalArrangement = Arrangement.spacedBy(MaterialTheme.spacing.small),
+          ) {
+            SliderItem(
+              label = "Opacity",
+              valueText = "%.2f".format(opacity),
+              value = opacity,
+              onChange = { viewModel.updateAmbientParams(opacity = it) },
+              min = 0.0f,
+              max = 1.0f,
+              steps = 20,
+              icon = {
+                AppSymbolIcon(
+                  imageVector = Icons.RoundedFilled.Opacity,
+                  contentDescription = null,
+                  tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                  modifier = Modifier.size(20.dp),
+                )
+              },
+            )
+
+            SliderItem(
+              label = "Vignette",
+              valueText = "%.1f".format(vignetteStrength),
+              value = vignetteStrength,
+              onChange = { viewModel.updateAmbientParams(vignetteStrength = it) },
+              min = 0.0f,
+              max = 1.0f,
+              steps = 10,
+              icon = {
+                AppSymbolIcon(
+                  imageVector = Icons.RoundedFilled.Vignette,
+                  contentDescription = null,
+                  tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                  modifier = Modifier.size(20.dp),
+                )
+              },
+            )
+          }
+        }
+
+        Spacer(modifier = Modifier.height(8.dp))
       } else {
         Text(
           text = stringResource(R.string.ambient_youtube_auto_hint),

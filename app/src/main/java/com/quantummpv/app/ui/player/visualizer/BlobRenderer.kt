@@ -208,7 +208,6 @@ internal class BlobRenderer(
         GlUtils.readAssetText(context, "shaders/visualizer/blob/composite_fragment.glsl"),
       )
 
-
     cacheUniformLocations()
     createMesh()
     createQuad()
@@ -488,8 +487,8 @@ internal class BlobRenderer(
       0.38f + audio.energy * 0.28f + audio.beat * 0.22f,
     )
 
-     updateSpectrumTexture(sourceAudio.spectrum, sourceAudio.volumeScale)
-     bindTexture(0, spectrumTexture, uSpectrum)
+    updateSpectrumTexture(sourceAudio.spectrum, sourceAudio.volumeScale)
+    bindTexture(0, spectrumTexture, uSpectrum)
 
     GLES30.glLineWidth(1.4f)
     GLES30.glBindVertexArray(meshVao)

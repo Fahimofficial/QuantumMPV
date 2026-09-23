@@ -42,11 +42,11 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import com.mikepenz.markdown.m3.Markdown
 import com.quantummpv.app.R
 import com.quantummpv.app.domain.update.Release
 import com.quantummpv.app.ui.icons.Icon
 import com.quantummpv.app.ui.icons.Icons
-import com.mikepenz.markdown.m3.Markdown
 import java.text.SimpleDateFormat
 import java.util.Locale
 import java.util.TimeZone

@@ -186,8 +186,7 @@ val AppTypography =
 fun fontFamilyForText(text: String): FontFamily =
   if (text.requiresSystemFontFallback()) FontFamily.SansSerif else GoogleSansRounded
 
-fun localeRequiresSystemFont(locale: Locale): Boolean =
-  locale.getDisplayName(locale).requiresSystemFontFallback()
+fun localeRequiresSystemFont(locale: Locale): Boolean = locale.getDisplayName(locale).requiresSystemFontFallback()
 
 private fun String.requiresSystemFontFallback(): Boolean {
   var index = 0

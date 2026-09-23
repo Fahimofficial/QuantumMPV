@@ -15,19 +15,18 @@ import android.content.Intent
 import android.content.IntentFilter
 import android.content.pm.ActivityInfo
 import android.graphics.Bitmap
-import android.media.MediaMetadataRetriever
 import android.media.AudioManager
+import android.media.MediaMetadataRetriever
 import android.net.Uri
 import android.os.BatteryManager
 import android.os.Build
 import android.os.SystemClock
-import `is`.xyz.mpv.MPVNode
 import android.provider.OpenableColumns
 import android.provider.Settings
 import android.util.DisplayMetrics
-import android.view.WindowManager
 import android.util.Log
 import android.util.LruCache
+import android.view.WindowManager
 import android.view.inputmethod.InputMethodManager
 import android.webkit.MimeTypeMap
 import android.widget.Toast
@@ -42,19 +41,18 @@ import com.quantummpv.app.domain.autocrop.AutoCropAnalyzer
 import com.quantummpv.app.domain.autocrop.AutoCropEdges
 import com.quantummpv.app.domain.hdr.HdrToysManager
 import com.quantummpv.app.domain.network.NetworkPlaybackUri
-import com.quantummpv.app.domain.torrent.TorrentStreamingState
-import com.quantummpv.app.domain.torrent.formatTorrentSpeed
 import com.quantummpv.app.domain.syncplay.SyncplayFile
 import com.quantummpv.app.domain.syncplay.SyncplayPlaybackState
+import com.quantummpv.app.domain.torrent.TorrentStreamingState
+import com.quantummpv.app.domain.torrent.formatTorrentSpeed
 import com.quantummpv.app.preferences.AdvancedPreferences
 import com.quantummpv.app.preferences.AudioChannels
 import com.quantummpv.app.preferences.AudioPreferences
 import com.quantummpv.app.preferences.DecoderPreferences
 import com.quantummpv.app.preferences.GesturePreferences
-import com.quantummpv.app.preferences.MpvConfigOverride
+import com.quantummpv.app.preferences.IntroSegmentProvider
 import com.quantummpv.app.preferences.MpvConfigControlledFeatures
 import com.quantummpv.app.preferences.MpvConfigOverridePolicy
-import com.quantummpv.app.preferences.IntroSegmentProvider
 import com.quantummpv.app.preferences.PlayerPreferences
 import com.quantummpv.app.preferences.SubtitlesPreferences
 import com.quantummpv.app.repository.IntroDbLookupOutcome
@@ -78,9 +76,9 @@ import com.quantummpv.app.ui.player.controls.components.sheets.EQ_MAX_DB
 import com.quantummpv.app.ui.player.controls.components.sheets.EQ_MIN_DB
 import com.quantummpv.app.ui.player.controls.components.sheets.EqualizerPreset
 import com.quantummpv.app.ui.player.controls.components.sheets.EqualizerState
-import com.quantummpv.app.ui.player.ytdlp.YtdlpManager
 import com.quantummpv.app.ui.player.screenshot.ScreenshotSaver
 import com.quantummpv.app.ui.player.screenshot.ScreenshotSettings
+import com.quantummpv.app.ui.player.ytdlp.YtdlpManager
 import com.quantummpv.app.ui.preferences.CustomButton
 import com.quantummpv.app.ui.preferences.CustomButtonScriptLanguage
 import com.quantummpv.app.utils.media.AudioEqualizerManager
@@ -91,7 +89,7 @@ import com.quantummpv.app.utils.media.SubtitleHashUtils
 import com.quantummpv.app.utils.media.fileExtension
 import com.quantummpv.app.utils.media.resolveSubtitleLookupDirectories
 import com.quantummpv.app.utils.storage.FileTypeUtils
-import `is`.xyz.mpv.FastThumbnails
+import `is`.xyz.mpv.MPVNode
 import kotlinx.collections.immutable.persistentListOf
 import kotlinx.collections.immutable.toImmutableList
 import kotlinx.coroutines.CoroutineScope
@@ -129,8 +127,8 @@ import org.koin.core.component.KoinComponent
 import org.koin.core.component.inject
 import java.io.File
 import java.io.FileOutputStream
-import java.security.MessageDigest
 import java.lang.ref.WeakReference
+import java.security.MessageDigest
 import java.util.concurrent.atomic.AtomicLong
 import kotlin.math.abs
 import kotlin.math.roundToInt
@@ -148,7 +146,8 @@ enum class AutoCropState {
 }
 
 @Suppress("TooManyFunctions")
-class PlayerViewModel : ViewModel(),
+class PlayerViewModel :
+  ViewModel(),
   KoinComponent {
   private var hostReference = WeakReference<PlayerHost>(null)
   private val host: PlayerHost
@@ -161,6 +160,7 @@ class PlayerViewModel : ViewModel(),
   fun detachHost(host: PlayerHost) {
     if (hostReference.get() === host) hostReference.clear()
   }
+
   enum class IntroDbStatusState {
     IDLE,
     LOOKING_UP,
@@ -507,6 +507,7 @@ class PlayerViewModel : ViewModel(),
   private var autoCropReadinessJob: Job? = null
   private var autoCropAnalyzedGeneration = -1L
   private var autoCropApplied = false
+
   // Memory-only analysis cache. This is not playback history and does not enable auto-crop.
   private val autoCropResultCache = LruCache<String, AutoCropEdges>(AUTO_CROP_CACHE_CAPACITY)
   private val _autoCropState = MutableStateFlow(AutoCropState.IDLE)
@@ -690,8 +691,9 @@ class PlayerViewModel : ViewModel(),
 
   fun selectVideoQuality(track: TrackNode) {
     if (currentItemRequiresYtdlp() && !MpvConfigOverridePolicy.isOwnedByMpvConf("ytdl-format")) {
-      val selectedAudio = pairedYtdlTrack(track, TrackNode::isAudio)
-        ?: allTracks.value.firstOrNull { candidate -> candidate.isAudio && candidate.isSelected }
+      val selectedAudio =
+        pairedYtdlTrack(track, TrackNode::isAudio)
+          ?: allTracks.value.firstOrNull { candidate -> candidate.isAudio && candidate.isSelected }
       val selector = buildYtdlFormatSelector(videoTrack = track, audioTrack = selectedAudio)
       if (selector != null && host.reloadCurrentYtdlFormat(selector)) return
     }
@@ -719,8 +721,9 @@ class PlayerViewModel : ViewModel(),
       !MpvConfigOverridePolicy.isOwnedByMpvConf("ytdl-format") &&
       ytdlFormatId(track) != null
     ) {
-      val selectedVideo = pairedYtdlTrack(track, TrackNode::isVideo)
-        ?: allTracks.value.firstOrNull { candidate -> candidate.isVideo && candidate.isSelected }
+      val selectedVideo =
+        pairedYtdlTrack(track, TrackNode::isVideo)
+          ?: allTracks.value.firstOrNull { candidate -> candidate.isVideo && candidate.isSelected }
       val selector = buildYtdlFormatSelector(videoTrack = selectedVideo, audioTrack = track)
       if (selector != null && host.reloadCurrentYtdlFormat(selector)) return
     }
@@ -781,7 +784,12 @@ class PlayerViewModel : ViewModel(),
       width != null && height != null -> minOf(width, height)
       height != null -> height
       width != null -> width
-      else -> QUALITY_HEIGHT_REGEX.find(track.effectiveTitle.orEmpty())?.groupValues?.getOrNull(1)?.toLongOrNull() ?: 0L
+      else ->
+        QUALITY_HEIGHT_REGEX
+          .find(track.effectiveTitle.orEmpty())
+          ?.groupValues
+          ?.getOrNull(1)
+          ?.toLongOrNull() ?: 0L
     }
   }
 
@@ -803,8 +811,8 @@ class PlayerViewModel : ViewModel(),
         DeclaredPlaybackMediaKind.UNKNOWN -> {
           if (
             session.phase !in setOf(PlaybackPhase.READY, PlaybackPhase.BACKGROUND) ||
-              currentPath == null ||
-              currentPath !in listOf(queuedItem.originalUri, queuedItem.playableUri)
+            currentPath == null ||
+            currentPath !in listOf(queuedItem.originalUri, queuedItem.playableUri)
           ) {
             return@combine false
           }
@@ -833,6 +841,7 @@ class PlayerViewModel : ViewModel(),
 
   // Audio player UI state
   val albumArtBounds = MutableStateFlow<android.graphics.Rect?>(null)
+
   // The style and artwork/visualizer display choice are persisted via audioPreferences.
   val showVisualizerInAudioPlayer = MutableStateFlow(audioPreferences.showAudioVisualizer.get())
   val equalizerState = MutableStateFlow(EqualizerState())
@@ -950,18 +959,21 @@ class PlayerViewModel : ViewModel(),
   }
 
   fun loadLyricsForCurrentTrack(forceRefresh: Boolean = false) {
-    val path = PlaybackSession.getPropertyString("path") ?: PlaybackSession.getPropertyString("stream-open-filename") ?: return
+    val path =
+      PlaybackSession.getPropertyString("path") ?: PlaybackSession.getPropertyString("stream-open-filename") ?: return
     if (path.isBlank()) return
 
-    val title = currentMediaTitle.takeIf { it.isNotBlank() }
-      ?: PlaybackSession.getPropertyString("metadata/by-key/Title")
-      ?: PlaybackSession.getPropertyString("media-title")
-      ?: ""
+    val title =
+      currentMediaTitle.takeIf { it.isNotBlank() }
+        ?: PlaybackSession.getPropertyString("metadata/by-key/Title")
+        ?: PlaybackSession.getPropertyString("media-title")
+        ?: ""
 
-    val artist = PlaybackSession.getPropertyString("metadata/by-key/Artist")
-      ?: PlaybackSession.getPropertyString("metadata/by-key/ARTIST")
-      ?: PlaybackSession.getPropertyString("metadata/by-key/album_artist")
-      ?: ""
+    val artist =
+      PlaybackSession.getPropertyString("metadata/by-key/Artist")
+        ?: PlaybackSession.getPropertyString("metadata/by-key/ARTIST")
+        ?: PlaybackSession.getPropertyString("metadata/by-key/album_artist")
+        ?: ""
 
     val duration = PlaybackSession.getPropertyInt("duration") ?: 0
     val request = LyricsLoadRequest(path, title, artist, duration)
@@ -976,53 +988,59 @@ class PlayerViewModel : ViewModel(),
     lyricsLoadJob?.cancel()
     lyricsTranslateJob?.cancel()
 
-    lyricsLoadJob = viewModelScope.launch(Dispatchers.IO) {
-      val result = lyricsRepository.loadLyricsForTrack(
-        mediaPath = path,
-        title = title,
-        artist = artist,
-        durationSeconds = duration,
-        forceRefresh = forceRefresh,
-      )
+    lyricsLoadJob =
+      viewModelScope.launch(Dispatchers.IO) {
+        val result =
+          lyricsRepository.loadLyricsForTrack(
+            mediaPath = path,
+            title = title,
+            artist = artist,
+            durationSeconds = duration,
+            forceRefresh = forceRefresh,
+          )
 
-      // The track may have changed again while this fetch was in-flight; only apply the
-      // result if we're still on the same track (extra guard on top of job cancellation).
-      val stillCurrentPath = PlaybackSession.getPropertyString("path")
-        ?: PlaybackSession.getPropertyString("stream-open-filename")
-      if (stillCurrentPath != path) return@launch
+        // The track may have changed again while this fetch was in-flight; only apply the
+        // result if we're still on the same track (extra guard on top of job cancellation).
+        val stillCurrentPath =
+          PlaybackSession.getPropertyString("path")
+            ?: PlaybackSession.getPropertyString("stream-open-filename")
+        if (stillCurrentPath != path) return@launch
 
-      val activeIndex = com.quantummpv.app.utils.media.LyricsUtils.getActiveLineIndex(
-        syncedLines = result.activeLyrics?.synced,
-        positionMs = (precisePosition.value * 1000).toLong(),
-        offsetMs = 0,
-      )
-      val autoTranslate = audioPreferences.lyricsAutoTranslate.get()
-      val defaultTargetLang = audioPreferences.lyricsTargetLanguage.get().ifBlank { "en" }
+        val activeIndex =
+          com.quantummpv.app.utils.media.LyricsUtils.getActiveLineIndex(
+            syncedLines = result.activeLyrics?.synced,
+            positionMs = (precisePosition.value * 1000).toLong(),
+            offsetMs = 0,
+          )
+        val autoTranslate = audioPreferences.lyricsAutoTranslate.get()
+        val defaultTargetLang = audioPreferences.lyricsTargetLanguage.get().ifBlank { "en" }
 
-      lyricsUiState.value = lyricsUiState.value.copy(
-        isLoading = false,
-        isTranslationActive = false,
-        targetLanguage = defaultTargetLang,
-        lyrics = result.activeLyrics,
-        originalLyrics = result.activeLyrics,
-        embeddedLyrics = result.embeddedLyrics,
-        onlineLyrics = result.onlineLyrics,
-        activeLineIndex = activeIndex,
-        selectedSource = result.selectedSource,
-        availableSources = result.availableSources,
-        syncOffsetMs = 0,
-      )
+        lyricsUiState.value =
+          lyricsUiState.value.copy(
+            isLoading = false,
+            isTranslationActive = false,
+            targetLanguage = defaultTargetLang,
+            lyrics = result.activeLyrics,
+            originalLyrics = result.activeLyrics,
+            embeddedLyrics = result.embeddedLyrics,
+            onlineLyrics = result.onlineLyrics,
+            activeLineIndex = activeIndex,
+            selectedSource = result.selectedSource,
+            availableSources = result.availableSources,
+            syncOffsetMs = 0,
+          )
 
-      val hasSynced = result.activeLyrics?.synced?.isNotEmpty() == true
+        val hasSynced = result.activeLyrics?.synced?.isNotEmpty() == true
 
-      if (autoTranslate && hasSynced) {
-        translateLyrics(defaultTargetLang)
+        if (autoTranslate && hasSynced) {
+          translateLyrics(defaultTargetLang)
+        }
       }
-    }
   }
 
   fun switchLyricsSource(sourceType: com.quantummpv.app.domain.lyrics.LyricsSourceType) {
-    val path = PlaybackSession.getPropertyString("path") ?: PlaybackSession.getPropertyString("stream-open-filename") ?: return
+    val path =
+      PlaybackSession.getPropertyString("path") ?: PlaybackSession.getPropertyString("stream-open-filename") ?: return
     if (path.isBlank()) return
 
     val current = lyricsUiState.value
@@ -1033,67 +1051,84 @@ class PlayerViewModel : ViewModel(),
       lyricsUiState.value = current.copy(isLoading = true)
       lyricsLoadJob?.cancel()
       lyricsTranslateJob?.cancel()
-      lyricsLoadJob = viewModelScope.launch(Dispatchers.IO) {
-        val title = currentMediaTitle.takeIf { it.isNotBlank() }
-          ?: PlaybackSession.getPropertyString("metadata/by-key/Title")
-          ?: PlaybackSession.getPropertyString("media-title")
-          ?: ""
-        val artist = PlaybackSession.getPropertyString("metadata/by-key/Artist")
-          ?: PlaybackSession.getPropertyString("metadata/by-key/ARTIST")
-          ?: PlaybackSession.getPropertyString("metadata/by-key/album_artist")
-          ?: ""
-        val duration = PlaybackSession.getPropertyInt("duration") ?: 0
+      lyricsLoadJob =
+        viewModelScope.launch(Dispatchers.IO) {
+          val title =
+            currentMediaTitle.takeIf { it.isNotBlank() }
+              ?: PlaybackSession.getPropertyString("metadata/by-key/Title")
+              ?: PlaybackSession.getPropertyString("media-title")
+              ?: ""
+          val artist =
+            PlaybackSession.getPropertyString("metadata/by-key/Artist")
+              ?: PlaybackSession.getPropertyString("metadata/by-key/ARTIST")
+              ?: PlaybackSession.getPropertyString("metadata/by-key/album_artist")
+              ?: ""
+          val duration = PlaybackSession.getPropertyInt("duration") ?: 0
 
-        val online = lyricsRepository.fetchOnlineLyrics(title, artist, duration)
+          val online = lyricsRepository.fetchOnlineLyrics(title, artist, duration)
 
-        val stillCurrentPath = PlaybackSession.getPropertyString("path")
-          ?: PlaybackSession.getPropertyString("stream-open-filename")
-        if (stillCurrentPath != path) return@launch
+          val stillCurrentPath =
+            PlaybackSession.getPropertyString("path")
+              ?: PlaybackSession.getPropertyString("stream-open-filename")
+          if (stillCurrentPath != path) return@launch
 
-        val updatedSources = (current.availableSources + com.quantummpv.app.domain.lyrics.LyricsSourceType.ONLINE).distinct()
-        val activeLyrics = online ?: current.embeddedLyrics
-        val activeIndex = com.quantummpv.app.utils.media.LyricsUtils.getActiveLineIndex(
-          syncedLines = activeLyrics?.synced,
-          positionMs = (precisePosition.value * 1000).toLong(),
-          offsetMs = current.syncOffsetMs,
-        )
-        val hasSynced = activeLyrics?.synced?.isNotEmpty() == true
+          val updatedSources =
+            (current.availableSources + com.quantummpv.app.domain.lyrics.LyricsSourceType.ONLINE)
+              .distinct()
+          val activeLyrics = online ?: current.embeddedLyrics
+          val activeIndex =
+            com.quantummpv.app.utils.media.LyricsUtils.getActiveLineIndex(
+              syncedLines = activeLyrics?.synced,
+              positionMs = (precisePosition.value * 1000).toLong(),
+              offsetMs = current.syncOffsetMs,
+            )
+          val hasSynced = activeLyrics?.synced?.isNotEmpty() == true
 
-        lyricsUiState.value = current.copy(
-          isLoading = false,
-          isTranslationActive = false,
-          onlineLyrics = online,
-          lyrics = activeLyrics,
-          originalLyrics = activeLyrics,
-          selectedSource = if (online != null) com.quantummpv.app.domain.lyrics.LyricsSourceType.ONLINE else current.selectedSource,
-          availableSources = updatedSources,
-          activeLineIndex = activeIndex,
-        )
+          lyricsUiState.value =
+            current.copy(
+              isLoading = false,
+              isTranslationActive = false,
+              onlineLyrics = online,
+              lyrics = activeLyrics,
+              originalLyrics = activeLyrics,
+              selectedSource =
+                if (online !=
+                  null
+                ) {
+                  com.quantummpv.app.domain.lyrics.LyricsSourceType.ONLINE
+                } else {
+                  current.selectedSource
+                },
+              availableSources = updatedSources,
+              activeLineIndex = activeIndex,
+            )
 
-        if (autoTranslate && hasSynced) {
-          translateLyrics(defaultTargetLang)
+          if (autoTranslate && hasSynced) {
+            translateLyrics(defaultTargetLang)
+          }
         }
-      }
       return
     }
 
     val updatedResult = lyricsRepository.switchSource(path, sourceType)
     if (updatedResult != null) {
       val activeLyrics = updatedResult.activeLyrics
-      val activeIndex = com.quantummpv.app.utils.media.LyricsUtils.getActiveLineIndex(
-        syncedLines = activeLyrics?.synced,
-        positionMs = (precisePosition.value * 1000).toLong(),
-        offsetMs = current.syncOffsetMs,
-      )
+      val activeIndex =
+        com.quantummpv.app.utils.media.LyricsUtils.getActiveLineIndex(
+          syncedLines = activeLyrics?.synced,
+          positionMs = (precisePosition.value * 1000).toLong(),
+          offsetMs = current.syncOffsetMs,
+        )
       val hasSynced = activeLyrics?.synced?.isNotEmpty() == true
 
-      lyricsUiState.value = current.copy(
-        lyrics = activeLyrics,
-        originalLyrics = activeLyrics,
-        isTranslationActive = false,
-        selectedSource = updatedResult.selectedSource,
-        activeLineIndex = activeIndex,
-      )
+      lyricsUiState.value =
+        current.copy(
+          lyrics = activeLyrics,
+          originalLyrics = activeLyrics,
+          isTranslationActive = false,
+          selectedSource = updatedResult.selectedSource,
+          activeLineIndex = activeIndex,
+        )
 
       if (autoTranslate && hasSynced) {
         translateLyrics(defaultTargetLang)
@@ -1116,7 +1151,9 @@ class PlayerViewModel : ViewModel(),
     val state = lyricsUiState.value
     val synced = state.lyrics?.synced ?: return
     val posMs = (precisePosition.value * 1000).toLong()
-    val index = com.quantummpv.app.utils.media.LyricsUtils.getActiveLineIndex(synced, posMs, state.syncOffsetMs)
+    val index =
+      com.quantummpv.app.utils.media.LyricsUtils
+        .getActiveLineIndex(synced, posMs, state.syncOffsetMs)
     if (index != state.activeLineIndex) {
       lyricsUiState.value = state.copy(activeLineIndex = index)
     }
@@ -1126,57 +1163,65 @@ class PlayerViewModel : ViewModel(),
     val current = lyricsUiState.value
     val baseLyrics = current.originalLyrics ?: current.lyrics ?: return
     val lang = targetLang ?: audioPreferences.lyricsTargetLanguage.get().ifBlank { "en" }
-    val path = PlaybackSession.getPropertyString("path") ?: PlaybackSession.getPropertyString("stream-open-filename") ?: ""
+    val path =
+      PlaybackSession.getPropertyString("path") ?: PlaybackSession.getPropertyString("stream-open-filename") ?: ""
 
     audioPreferences.lyricsAutoTranslate.set(true)
     audioPreferences.lyricsTargetLanguage.set(lang)
 
-    lyricsUiState.value = current.copy(
-      isTranslating = true,
-      targetLanguage = lang,
-      originalLyrics = current.originalLyrics ?: current.lyrics,
-      errorMessage = null,
-    )
+    lyricsUiState.value =
+      current.copy(
+        isTranslating = true,
+        targetLanguage = lang,
+        originalLyrics = current.originalLyrics ?: current.lyrics,
+        errorMessage = null,
+      )
 
     lyricsTranslateJob?.cancel()
-    lyricsTranslateJob = viewModelScope.launch(Dispatchers.IO) {
-      val outcome = lyricsTranslationService.translateLyrics(
-        lyrics = baseLyrics,
-        targetLanguage = lang,
-        cacheKey = path,
-      )
+    lyricsTranslateJob =
+      viewModelScope.launch(Dispatchers.IO) {
+        val outcome =
+          lyricsTranslationService.translateLyrics(
+            lyrics = baseLyrics,
+            targetLanguage = lang,
+            cacheKey = path,
+          )
 
-      // Bail out if the track changed while translation was in-flight, so a slow
-      // translation for the previous song can't overwrite the new song's lyrics.
-      val stillCurrentPath = PlaybackSession.getPropertyString("path")
-        ?: PlaybackSession.getPropertyString("stream-open-filename")
-      if (stillCurrentPath != path) return@launch
+        // Bail out if the track changed while translation was in-flight, so a slow
+        // translation for the previous song can't overwrite the new song's lyrics.
+        val stillCurrentPath =
+          PlaybackSession.getPropertyString("path")
+            ?: PlaybackSession.getPropertyString("stream-open-filename")
+        if (stillCurrentPath != path) return@launch
 
-      if (!outcome.isSuccessful) {
-        lyricsUiState.value = lyricsUiState.value.copy(
-          isTranslating = false,
-          isTranslationActive = false,
-          lyrics = baseLyrics,
-          errorMessage = appContext.getString(R.string.lyrics_translation_failed),
-        )
-        return@launch
+        if (!outcome.isSuccessful) {
+          lyricsUiState.value =
+            lyricsUiState.value.copy(
+              isTranslating = false,
+              isTranslationActive = false,
+              lyrics = baseLyrics,
+              errorMessage = appContext.getString(R.string.lyrics_translation_failed),
+            )
+          return@launch
+        }
+
+        val translated = outcome.lyrics
+        val activeIndex =
+          com.quantummpv.app.utils.media.LyricsUtils.getActiveLineIndex(
+            syncedLines = translated.synced,
+            positionMs = (precisePosition.value * 1000).toLong(),
+            offsetMs = current.syncOffsetMs,
+          )
+        lyricsUiState.value =
+          lyricsUiState.value.copy(
+            isTranslating = false,
+            isTranslationActive = true,
+            lyrics = translated,
+            activeLineIndex = activeIndex,
+            errorMessage =
+              if (outcome.isComplete) null else appContext.getString(R.string.lyrics_translation_partial),
+          )
       }
-
-      val translated = outcome.lyrics
-      val activeIndex = com.quantummpv.app.utils.media.LyricsUtils.getActiveLineIndex(
-        syncedLines = translated.synced,
-        positionMs = (precisePosition.value * 1000).toLong(),
-        offsetMs = current.syncOffsetMs,
-      )
-      lyricsUiState.value = lyricsUiState.value.copy(
-        isTranslating = false,
-        isTranslationActive = true,
-        lyrics = translated,
-        activeLineIndex = activeIndex,
-        errorMessage =
-          if (outcome.isComplete) null else appContext.getString(R.string.lyrics_translation_partial),
-      )
-    }
   }
 
   fun toggleLyricsTranslation() {
@@ -1193,18 +1238,20 @@ class PlayerViewModel : ViewModel(),
     lyricsTranslateJob?.cancel()
     val current = lyricsUiState.value
     val original = current.originalLyrics ?: current.lyrics ?: return
-    val activeIndex = com.quantummpv.app.utils.media.LyricsUtils.getActiveLineIndex(
-      syncedLines = original.synced,
-      positionMs = (precisePosition.value * 1000).toLong(),
-      offsetMs = current.syncOffsetMs,
-    )
-    lyricsUiState.value = current.copy(
-      isTranslating = false,
-      isTranslationActive = false,
-      lyrics = original,
-      activeLineIndex = activeIndex,
-      errorMessage = null,
-    )
+    val activeIndex =
+      com.quantummpv.app.utils.media.LyricsUtils.getActiveLineIndex(
+        syncedLines = original.synced,
+        positionMs = (precisePosition.value * 1000).toLong(),
+        offsetMs = current.syncOffsetMs,
+      )
+    lyricsUiState.value =
+      current.copy(
+        isTranslating = false,
+        isTranslationActive = false,
+        lyrics = original,
+        activeLineIndex = activeIndex,
+        errorMessage = null,
+      )
   }
 
   fun setEqualizerVolumeBoost(db: Int) {
@@ -1241,17 +1288,29 @@ class PlayerViewModel : ViewModel(),
 
   private fun getCustomMpvAf(): String {
     val confFile = File(appContext.filesDir, "mpv.conf")
-    val text = if (confFile.exists()) {
-      runCatching { confFile.readText() }.getOrDefault("")
-    } else {
-      advancedPreferences.mpvConf.get()
-    }
+    val text =
+      if (confFile.exists()) {
+        runCatching { confFile.readText() }.getOrDefault("")
+      } else {
+        advancedPreferences.mpvConf.get()
+      }
     if (text.isBlank()) return ""
-    val afFilters = text.lines()
-      .map { it.trim() }
-      .filter { !it.startsWith("#") && (it.startsWith("af=") || it.startsWith("af =") || it.startsWith("af-add=") || it.startsWith("af-add =") || it.startsWith("af-append=") || it.startsWith("af-append =")) }
-      .map { line -> line.substringAfter("=").trim() }
-      .filter { it.isNotBlank() }
+    val afFilters =
+      text
+        .lines()
+        .map { it.trim() }
+        .filter {
+          !it.startsWith("#") &&
+            (
+              it.startsWith("af=") ||
+                it.startsWith("af =") ||
+                it.startsWith("af-add=") ||
+                it.startsWith("af-add =") ||
+                it.startsWith("af-append=") ||
+                it.startsWith("af-append =")
+            )
+        }.map { line -> line.substringAfter("=").trim() }
+        .filter { it.isNotBlank() }
     return afFilters.joinToString(",")
   }
 
@@ -1359,7 +1418,8 @@ class PlayerViewModel : ViewModel(),
     val bitrateInt = PlaybackSession.getPropertyInt("audio-bitrate") ?: 0
     val bitrateStr = if (bitrateInt > 0) "${bitrateInt / 1000} kbps" else "Variable / Unknown"
 
-    val path = PlaybackSession.getPropertyString("path") ?: PlaybackSession.getPropertyString("stream-open-filename") ?: ""
+    val path =
+      PlaybackSession.getPropertyString("path") ?: PlaybackSession.getPropertyString("stream-open-filename") ?: ""
     val fileSizeStr =
       if (path.isNotBlank() && !path.startsWith("content://") && !path.startsWith("http")) {
         runCatching {
@@ -1424,8 +1484,16 @@ class PlayerViewModel : ViewModel(),
   }
 
   // Audio state
-  val maxVolume = (appContext.getSystemService(Context.AUDIO_SERVICE) as AudioManager).getStreamMaxVolume(AudioManager.STREAM_MUSIC)
-  val currentVolume = MutableStateFlow((appContext.getSystemService(Context.AUDIO_SERVICE) as AudioManager).getStreamVolume(AudioManager.STREAM_MUSIC))
+  val maxVolume =
+    (
+      appContext.getSystemService(
+        Context.AUDIO_SERVICE,
+      ) as AudioManager
+    ).getStreamMaxVolume(AudioManager.STREAM_MUSIC)
+  val currentVolume =
+    MutableStateFlow(
+      (appContext.getSystemService(Context.AUDIO_SERVICE) as AudioManager).getStreamVolume(AudioManager.STREAM_MUSIC),
+    )
   val currentVolumePercent = MutableStateFlow(systemVolumeToPercent(currentVolume.value))
 
   // UI state
@@ -1439,12 +1507,13 @@ class PlayerViewModel : ViewModel(),
   val areControlsLocked: StateFlow<Boolean> = _areControlsLocked.asStateFlow()
 
   val playerUpdate = MutableStateFlow<PlayerUpdates>(PlayerUpdates.None)
-fun restartFromBeginning() {
-  seekTo(0)
-  runCatching { PlaybackSession.setPropertyBoolean("pause", false) }
-}
 
-val isBrightnessSliderShown = MutableStateFlow(false)
+  fun restartFromBeginning() {
+    seekTo(0)
+    runCatching { PlaybackSession.setPropertyBoolean("pause", false) }
+  }
+
+  val isBrightnessSliderShown = MutableStateFlow(false)
   val isVolumeSliderShown = MutableStateFlow(false)
   val volumeSliderTimestamp = MutableStateFlow(0L)
   val brightnessSliderTimestamp = MutableStateFlow(0L)
@@ -1473,7 +1542,6 @@ val isBrightnessSliderShown = MutableStateFlow(false)
 
   private val _seekState = MutableStateFlow(SeekState())
   val seekState: StateFlow<SeekState> = _seekState.asStateFlow()
-
 
   // Frame navigation
   private val _currentFrame = MutableStateFlow(0)
@@ -1613,6 +1681,7 @@ val isBrightnessSliderShown = MutableStateFlow(false)
   val ambientOpacity: StateFlow<Float> = _ambientOpacity.asStateFlow()
 
   @Volatile private var lastAmbientScaleX = -1.0
+
   @Volatile private var lastAmbientScaleY = -1.0
   private var ambientDebounceJob: kotlinx.coroutines.Job? = null
   private val ambientScheduleLock = Any()
@@ -1621,10 +1690,11 @@ val isBrightnessSliderShown = MutableStateFlow(false)
   private val _isAmbientLifecycleActive = MutableStateFlow(false)
   val isAmbientLifecycleActive: StateFlow<Boolean> = _isAmbientLifecycleActive.asStateFlow()
   private val ambientShaderSeq = AtomicLong()
+
   @Volatile private var ambientShaderFile: java.io.File? = null
 
   /**
-  * Caches the [AmbientGlowShaderSpec] that was last compiled into a GLSL file.
+   * Caches the [AmbientGlowShaderSpec] that was last compiled into a GLSL file.
    * When [updateAmbientStretch] is called but every parameter is identical to
    * the previously compiled spec, the expensive string-build + file-write +
    * MPV shader-reload cycle is skipped entirely.
@@ -2016,7 +2086,11 @@ val isBrightnessSliderShown = MutableStateFlow(false)
               wasSeeking -> {
                 wasSeeking = false
                 if (_isRealtimeSubsActive.value) {
-                  val positionMs = ((PlaybackSession.getPropertyDouble("time-pos") ?: _precisePosition.value.toDouble()) * 1000).toLong()
+                  val positionMs =
+                    (
+                      (PlaybackSession.getPropertyDouble("time-pos") ?: _precisePosition.value.toDouble()) *
+                        1000
+                    ).toLong()
                   realtimeSubtitleService.seekTo(positionMs)
                 }
               }
@@ -2990,7 +3064,8 @@ val isBrightnessSliderShown = MutableStateFlow(false)
         ?.takeIf(String::isNotBlank)
         ?.let { path -> mpvPathToUriMap[path] ?: path }
     val runtimeSource =
-      PlaybackSession.getPropertyString("stream-open-filename")
+      PlaybackSession
+        .getPropertyString("stream-open-filename")
         ?.takeIf(String::isNotBlank)
         ?: PlaybackSession.getPropertyString("path")?.takeIf(String::isNotBlank)
     val source =
@@ -3027,7 +3102,11 @@ val isBrightnessSliderShown = MutableStateFlow(false)
 
     stopRealtimeSubtitles(showToastMessage = false)
     val sessionId = ++realtimeSubtitleSessionId
-    val sourceLanguage = aiPreferences.sttLanguage.get().trim().takeIf(String::isNotBlank)
+    val sourceLanguage =
+      aiPreferences.sttLanguage
+        .get()
+        .trim()
+        .takeIf(String::isNotBlank)
     val resolvedTargetLanguage = targetLanguage.trim().takeIf(String::isNotBlank)
     val startPositionMs = (_precisePosition.value * 1000f).toLong().coerceIn(0L, videoDurationMs)
     val playbackGeneration = PlaybackSession.state.value.generation
@@ -3052,7 +3131,11 @@ val isBrightnessSliderShown = MutableStateFlow(false)
       scope = viewModelScope,
       positionProvider = { (_precisePosition.value * 1000f).toLong() },
       onProgress = { progress ->
-        if (sessionId != realtimeSubtitleSessionId || playbackGeneration != PlaybackSession.state.value.generation) return@start
+        if (sessionId != realtimeSubtitleSessionId ||
+          playbackGeneration != PlaybackSession.state.value.generation
+        ) {
+          return@start
+        }
         _realtimeSubsProgress.value = progress.chunkIndex.toFloat() / progress.totalChunks.coerceAtLeast(1)
         _realtimeSubsStatus.value = progress.stage
       },
@@ -3060,7 +3143,11 @@ val isBrightnessSliderShown = MutableStateFlow(false)
         updateRealtimeSubtitleContent(sessionId, playbackGeneration, srtContent)
       },
       onComplete = {
-        if (sessionId != realtimeSubtitleSessionId || playbackGeneration != PlaybackSession.state.value.generation) return@start
+        if (sessionId != realtimeSubtitleSessionId ||
+          playbackGeneration != PlaybackSession.state.value.generation
+        ) {
+          return@start
+        }
         _isRealtimeSubsActive.value = false
         _realtimeSubsProgress.value = 0f
         _realtimeSubsStatus.value = ""
@@ -3068,7 +3155,11 @@ val isBrightnessSliderShown = MutableStateFlow(false)
         showToast(appContext.getString(R.string.realtime_subtitles_complete))
       },
       onError = { error ->
-        if (sessionId != realtimeSubtitleSessionId || playbackGeneration != PlaybackSession.state.value.generation) return@start
+        if (sessionId != realtimeSubtitleSessionId ||
+          playbackGeneration != PlaybackSession.state.value.generation
+        ) {
+          return@start
+        }
         _isRealtimeSubsActive.value = false
         _realtimeSubsProgress.value = 0f
         _realtimeSubsStatus.value = ""
@@ -3087,13 +3178,21 @@ val isBrightnessSliderShown = MutableStateFlow(false)
     viewModelScope.launch(Dispatchers.IO) {
       try {
         realtimeSubtitleUpdateMutex.withLock {
-          if (sessionId != realtimeSubtitleSessionId || playbackGeneration != PlaybackSession.state.value.generation) return@withLock
+          if (sessionId != realtimeSubtitleSessionId ||
+            playbackGeneration != PlaybackSession.state.value.generation
+          ) {
+            return@withLock
+          }
           val file = realtimeSrtFile ?: return@withLock
           FileOutputStream(file, false).use { output ->
             output.write(content.toByteArray())
             output.fd.sync()
           }
-          if (sessionId != realtimeSubtitleSessionId || playbackGeneration != PlaybackSession.state.value.generation) return@withLock
+          if (sessionId != realtimeSubtitleSessionId ||
+            playbackGeneration != PlaybackSession.state.value.generation
+          ) {
+            return@withLock
+          }
 
           val path = file.absolutePath
           var trackId = realtimeSubtitleTrackId ?: findRealtimeSubtitleTrackId(path)
@@ -3102,7 +3201,9 @@ val isBrightnessSliderShown = MutableStateFlow(false)
               PlaybackSession.command("sub-add", path, "select")
             }
             trackId = awaitRealtimeSubtitleTrackId(path, sessionId, playbackGeneration)
-            if (sessionId != realtimeSubtitleSessionId || playbackGeneration != PlaybackSession.state.value.generation) {
+            if (sessionId != realtimeSubtitleSessionId ||
+              playbackGeneration != PlaybackSession.state.value.generation
+            ) {
               trackId?.let { staleTrackId ->
                 withContext(Dispatchers.Main) {
                   PlaybackSession.command("sub-remove", staleTrackId.toString())
@@ -4317,7 +4418,6 @@ val isBrightnessSliderShown = MutableStateFlow(false)
     seekBarVisibleForPolling = false
   }
 
-
   fun lockControls() {
     _areControlsLocked.value = true
   }
@@ -4452,7 +4552,7 @@ val isBrightnessSliderShown = MutableStateFlow(false)
               // the last complete seek interval instead of issuing a command into keep-open EOF.
               val allowExplicitEof =
                 preciseSeeking &&
-                toApply > 0 &&
+                  toApply > 0 &&
                   currentPosition >= guardedEndPosition - SEEK_TARGET_TOLERANCE_SECONDS
               requestedTarget.coerceAtMost(if (allowExplicitEof) duration else nonPreciseEndPosition)
             }
@@ -4633,7 +4733,11 @@ val isBrightnessSliderShown = MutableStateFlow(false)
     val newPercent = volumePercent.coerceIn(0, 100)
     val newVolume = percentToSystemVolume(newPercent)
     val flags = if (isAudioOnly.value) AudioManager.FLAG_SHOW_UI else 0
-    (appContext.getSystemService(Context.AUDIO_SERVICE) as AudioManager).setStreamVolume(AudioManager.STREAM_MUSIC, newVolume, flags)
+    (
+      appContext.getSystemService(
+        Context.AUDIO_SERVICE,
+      ) as AudioManager
+    ).setStreamVolume(AudioManager.STREAM_MUSIC, newVolume, flags)
     currentVolume.value = syncCurrentSystemVolume()
     currentVolumePercent.value = newPercent
 
@@ -4651,7 +4755,11 @@ val isBrightnessSliderShown = MutableStateFlow(false)
   ) {
     val newVolume = volume.coerceIn(0..maxVolume)
     val flags = if (showUi || isAudioOnly.value) AudioManager.FLAG_SHOW_UI else 0
-    (appContext.getSystemService(Context.AUDIO_SERVICE) as AudioManager).setStreamVolume(AudioManager.STREAM_MUSIC, newVolume, flags)
+    (
+      appContext.getSystemService(
+        Context.AUDIO_SERVICE,
+      ) as AudioManager
+    ).setStreamVolume(AudioManager.STREAM_MUSIC, newVolume, flags)
     currentVolume.value = syncCurrentSystemVolume()
 
     if (currentVolume.value < maxVolume) {
@@ -4683,7 +4791,12 @@ val isBrightnessSliderShown = MutableStateFlow(false)
   }
 
   private fun syncCurrentSystemVolume(): Int {
-    val systemVolume = (appContext.getSystemService(Context.AUDIO_SERVICE) as AudioManager).getStreamVolume(AudioManager.STREAM_MUSIC)
+    val systemVolume =
+      (
+        appContext.getSystemService(
+          Context.AUDIO_SERVICE,
+        ) as AudioManager
+      ).getStreamVolume(AudioManager.STREAM_MUSIC)
     currentVolume.value = systemVolume
     currentVolumePercent.value = systemVolumeToPercent(systemVolume)
     return systemVolume
@@ -4959,7 +5072,11 @@ val isBrightnessSliderShown = MutableStateFlow(false)
         PlaybackSession.setPropertyString("hwdec", "no")
         withTimeoutOrNull(AUTO_CROP_HWDEC_TIMEOUT_MS) {
           while (currentCoroutineContext().isActive && PlaybackSession.isCurrentGeneration(generation)) {
-            if (PlaybackSession.getPropertyString("hwdec-current").orEmpty() in setOf("", "no")) return@withTimeoutOrNull
+            if (PlaybackSession.getPropertyString("hwdec-current").orEmpty() in
+              setOf("", "no")
+            ) {
+              return@withTimeoutOrNull
+            }
             delay(AUTO_CROP_METADATA_POLL_MS)
           }
         }
@@ -5010,7 +5127,8 @@ val isBrightnessSliderShown = MutableStateFlow(false)
     }
     if (!PlaybackSession.isCurrentGeneration(generation)) return AutoCropAnalysisResult.Unavailable
     if (samples.size < AUTO_CROP_MIN_VALID_SAMPLES) return AutoCropAnalysisResult.Unavailable
-    return AutoCropAnalyzer.combine(samples)
+    return AutoCropAnalyzer
+      .combine(samples)
       ?.let(AutoCropAnalysisResult::Detected)
       ?: AutoCropAnalysisResult.NoBars
   }
@@ -5705,19 +5823,19 @@ val isBrightnessSliderShown = MutableStateFlow(false)
       val path = localPath ?: resolvedUri.path?.takeIf { File(it).exists() } ?: resolvedUri.toString()
       val isAudio =
         isAudioOnly.value ||
-        item.mimeType?.startsWith("audio/", ignoreCase = true) == true ||
-        path
-          .substringBefore('?')
-          .substringBefore('#')
-          .substringAfterLast('.', "")
-          .lowercase() in FileTypeUtils.AUDIO_EXTENSIONS ||
-        resolvedUri.toString().lowercase().contains("audio") ||
-        uri.toString().lowercase().contains("audio") ||
-        resolvedUri.toString().lowercase().contains("stream.view") ||
-        uri.toString().lowercase().contains("stream.view") ||
-        resolvedUri.toString().lowercase().contains("/rest/stream") ||
-        uri.toString().lowercase().contains("/rest/stream") ||
-        (item.artist?.isNotBlank() == true && item.durationSeconds != null)
+          item.mimeType?.startsWith("audio/", ignoreCase = true) == true ||
+          path
+            .substringBefore('?')
+            .substringBefore('#')
+            .substringAfterLast('.', "")
+            .lowercase() in FileTypeUtils.AUDIO_EXTENSIONS ||
+          resolvedUri.toString().lowercase().contains("audio") ||
+          uri.toString().lowercase().contains("audio") ||
+          resolvedUri.toString().lowercase().contains("stream.view") ||
+          uri.toString().lowercase().contains("stream.view") ||
+          resolvedUri.toString().lowercase().contains("/rest/stream") ||
+          uri.toString().lowercase().contains("/rest/stream") ||
+          (item.artist?.isNotBlank() == true && item.durationSeconds != null)
       val isCurrentlyPlaying = index == queue.currentIndex
 
       // Try to get from cache first (synchronized access)
@@ -6291,7 +6409,11 @@ val isBrightnessSliderShown = MutableStateFlow(false)
     }
     return if (savedMode == HdrScreenMode.LINEAR &&
       !(decoderPreferences.gpuNext.get() && decoderPreferences.useVulkan.get())
-    ) HdrScreenMode.defaultEnabledMode else savedMode
+    ) {
+      HdrScreenMode.defaultEnabledMode
+    } else {
+      savedMode
+    }
   }
 
   private fun reconcileHdrModeWithRenderer() {
@@ -6762,7 +6884,7 @@ val isBrightnessSliderShown = MutableStateFlow(false)
   }
 
   /**
-  * Builds an [AmbientGlowShaderSpec] from the current ambient parameter values.
+   * Builds an [AmbientGlowShaderSpec] from the current ambient parameter values.
    * The spec is a lightweight data class that captures all shader inputs;
    * [AmbientShaderBuilder.build] converts it to a GLSL string only when the
    * spec has actually changed from the last compiled version.
@@ -6816,7 +6938,6 @@ val isBrightnessSliderShown = MutableStateFlow(false)
     // it, and the service may keep an active session open.
     runCatching { stopRealtimeSubtitles(showToastMessage = false) }
     runCatching { cancelAutoCropAnalysis() }
-
 
     // The metadataCache (Pair<String, String> entries) is small and
     // bounded at 100 entries, so it is not urgent to clear, but clearing

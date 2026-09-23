@@ -4,7 +4,6 @@
 package com.quantummpv.app.ui.preferences
 
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
@@ -26,7 +25,6 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
-import com.quantummpv.app.R
 import com.quantummpv.app.database.MpvRxDatabase
 import com.quantummpv.app.presentation.Screen
 import com.quantummpv.app.ui.icons.Icon
@@ -50,36 +48,41 @@ object LibraryInsightsScreen : Screen {
     var refreshKey by remember { mutableStateOf(0) }
 
     LaunchedEffect(database, refreshKey) {
-      insights = withContext(Dispatchers.IO) {
-        val rows = database.recentlyPlayedDao().getAllRecentlyPlayed()
-        val cutoff = System.currentTimeMillis() - 7L * 24L * 60L * 60L * 1000L
-        LibraryInsights(
-          historyCount = rows.size,
-          uniqueItems = rows.map { it.filePath }.distinct().size,
-          recentCount = rows.count { it.timestamp >= cutoff },
-          missingLocalFiles = rows.count { row ->
-            row.filePath.isNotBlank() &&
-              !row.filePath.startsWith("http://", true) &&
-              !row.filePath.startsWith("https://", true) &&
-              !File(row.filePath).exists()
-          },
-          networkItems = rows.count { row ->
-            row.filePath.startsWith("http://", true) || row.filePath.startsWith("https://", true)
-          },
-        )
-      }
+      insights =
+        withContext(Dispatchers.IO) {
+          val rows = database.recentlyPlayedDao().getAllRecentlyPlayed()
+          val cutoff = System.currentTimeMillis() - 7L * 24L * 60L * 60L * 1000L
+          LibraryInsights(
+            historyCount = rows.size,
+            uniqueItems = rows.map { it.filePath }.distinct().size,
+            recentCount = rows.count { it.timestamp >= cutoff },
+            missingLocalFiles =
+              rows.count { row ->
+                row.filePath.isNotBlank() &&
+                  !row.filePath.startsWith("http://", true) &&
+                  !row.filePath.startsWith("https://", true) &&
+                  !File(row.filePath).exists()
+              },
+            networkItems =
+              rows.count { row ->
+                row.filePath.startsWith("http://", true) || row.filePath.startsWith("https://", true)
+              },
+          )
+        }
     }
 
     Scaffold(
       topBar = {
         TopAppBar(
           title = { Text("Library insights") },
-          navigationIcon = { androidx.compose.material3.IconButton(onClick = { backStack.popSafely() }) {
-            Icon(
-              Icons.RoundedFilled.ArrowBack,
-              contentDescription = null,
-            )
-          } },
+          navigationIcon = {
+            androidx.compose.material3.IconButton(onClick = { backStack.popSafely() }) {
+              Icon(
+                Icons.RoundedFilled.ArrowBack,
+                contentDescription = null,
+              )
+            }
+          },
           actions = {
             Button(onClick = { refreshKey++ }, contentPadding = PaddingValues(horizontal = 12.dp)) {
               Text("Refresh")

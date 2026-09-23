@@ -472,8 +472,10 @@ class MediaInfoActivity : AppCompatActivity() {
         sections
           .firstOrNull { it.name.equals("General", ignoreCase = true) }
           ?.properties
-          ?.firstOrNull { it.first.equals("Attachments", ignoreCase = true) || it.first.equals("Attachment", ignoreCase = true) }
-          ?.second
+          ?.firstOrNull {
+            it.first.equals("Attachments", ignoreCase = true) ||
+              it.first.equals("Attachment", ignoreCase = true)
+          }?.second
           ?.split(" / ")
           ?.map(String::trim)
           ?.filter(String::isNotEmpty)
@@ -731,7 +733,11 @@ class MediaInfoActivity : AppCompatActivity() {
     val isAudioFile = primaryAudio != null && primaryVideo == null
 
     fun imageValue(key: String): String =
-      imageSection?.properties?.firstOrNull { it.first.equals(key, ignoreCase = true) }?.second.orEmpty()
+      imageSection
+        ?.properties
+        ?.firstOrNull { it.first.equals(key, ignoreCase = true) }
+        ?.second
+        .orEmpty()
 
     val imageResolution =
       remember(imageSection) {

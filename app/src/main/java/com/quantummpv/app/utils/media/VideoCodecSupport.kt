@@ -4,8 +4,8 @@
 
 package com.quantummpv.app.utils.media
 
-import android.media.MediaCodecList
 import android.media.MediaCodecInfo
+import android.media.MediaCodecList
 import android.os.Build
 
 enum class VideoDecodeSupport {
@@ -34,7 +34,8 @@ object VideoCodecSupportInspector {
   private val decoderCapabilities by lazy(LazyThreadSafetyMode.SYNCHRONIZED) {
     val capabilities = mutableMapOf<String, MutableList<DecoderCapability>>()
     runCatching {
-      MediaCodecList(MediaCodecList.ALL_CODECS).codecInfos
+      MediaCodecList(MediaCodecList.ALL_CODECS)
+        .codecInfos
         .asSequence()
         .filterNot { it.isEncoder }
         .forEach { codecInfo ->

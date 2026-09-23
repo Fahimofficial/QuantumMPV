@@ -593,7 +593,10 @@ class FileSystemBrowserViewModel(
     Log.d(TAG, "Loaded playback info for ${playbackMap.size} videos with progress")
   }
 
-  fun setWatched(video: Video, watched: Boolean) {
+  fun setWatched(
+    video: Video,
+    watched: Boolean,
+  ) {
     viewModelScope.launch(Dispatchers.IO) {
       val durationSeconds = (video.duration / 1000L).coerceAtMost(Int.MAX_VALUE.toLong()).toInt()
       val identifiers =
@@ -603,23 +606,26 @@ class FileSystemBrowserViewModel(
           PlaybackIdentity.forUri(video.path),
           PlaybackIdentity.forUri("file://${video.path}"),
         )
-      val existing = playbackStateRepository.getAllPlaybackStates().firstNotNullOfOrNull { state ->
-        if (state.mediaTitle in identifiers) state else null
-      }
+      val existing =
+        playbackStateRepository.getAllPlaybackStates().firstNotNullOfOrNull { state ->
+          if (state.mediaTitle in identifiers) state else null
+        }
       playbackStateRepository.upsert(
-        (existing ?: com.quantummpv.app.database.entities.PlaybackStateEntity(
-          mediaTitle = PlaybackIdentity.forLocalPath(video.path),
-          lastPosition = 0,
-          playbackSpeed = 1.0,
-          sid = -1,
-          secondarySid = -1,
-          subDelay = 0,
-          subSpeed = 1.0,
-          aid = -1,
-          audioDelay = 0,
-          timeRemaining = durationSeconds,
-          hasBeenWatched = false,
-        )).copy(
+        (
+          existing ?: com.quantummpv.app.database.entities.PlaybackStateEntity(
+            mediaTitle = PlaybackIdentity.forLocalPath(video.path),
+            lastPosition = 0,
+            playbackSpeed = 1.0,
+            sid = -1,
+            secondarySid = -1,
+            subDelay = 0,
+            subSpeed = 1.0,
+            aid = -1,
+            audioDelay = 0,
+            timeRemaining = durationSeconds,
+            hasBeenWatched = false,
+          )
+        ).copy(
           mediaTitle = PlaybackIdentity.forLocalPath(video.path),
           lastPosition = 0,
           timeRemaining = if (watched) 0 else durationSeconds,

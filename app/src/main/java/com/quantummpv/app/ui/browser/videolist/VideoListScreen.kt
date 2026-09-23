@@ -14,9 +14,7 @@ package com.quantummpv.app.ui.browser.videolist
 import android.content.Intent
 import android.os.Environment
 import android.widget.Toast
-import com.quantummpv.app.ui.utils.NavigationBackHandler as BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
-import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.spring
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -37,8 +35,8 @@ import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
 import androidx.compose.material3.FloatingActionButton
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.PlainTooltip
 import androidx.compose.material3.Scaffold
@@ -64,9 +62,9 @@ import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.stringResource
@@ -82,9 +80,9 @@ import com.quantummpv.app.preferences.AppearancePreferences
 import com.quantummpv.app.preferences.BrowserPreferences
 import com.quantummpv.app.preferences.GesturePreferences
 import com.quantummpv.app.preferences.MediaLayoutMode
-import com.quantummpv.app.preferences.SortOrder
 import com.quantummpv.app.preferences.PlayerPreferences
 import com.quantummpv.app.preferences.SecureFolderPreferences
+import com.quantummpv.app.preferences.SortOrder
 import com.quantummpv.app.preferences.preference.collectAsState
 import com.quantummpv.app.presentation.Screen
 import com.quantummpv.app.presentation.components.pullrefresh.PullRefreshBox
@@ -119,8 +117,8 @@ import com.quantummpv.app.ui.utils.navigateTo
 import com.quantummpv.app.ui.utils.popSafely
 import com.quantummpv.app.utils.history.RecentlyPlayedOps
 import com.quantummpv.app.utils.media.CopyPasteOps
-import com.quantummpv.app.utils.media.MediaUtils
 import com.quantummpv.app.utils.media.MediaSearchEngine
+import com.quantummpv.app.utils.media.MediaUtils
 import com.quantummpv.app.utils.media.OpenDocumentTreeContract
 import com.quantummpv.app.utils.sort.SortUtils
 import kotlinx.coroutines.delay
@@ -132,6 +130,7 @@ import kotlinx.serialization.Serializable
 import org.koin.compose.koinInject
 import java.io.File
 import kotlin.math.roundToInt
+import com.quantummpv.app.ui.utils.NavigationBackHandler as BackHandler
 
 @Serializable
 data class VideoListScreen(
@@ -157,7 +156,7 @@ data class VideoListScreen(
     // ViewModel
     val viewModel: VideoListViewModel =
       viewModel(
-        key = "VideoListViewModel_${bucketId}_${isAudio}",
+        key = "VideoListViewModel_${bucketId}_$isAudio",
         factory = VideoListViewModel.factory(context.applicationContext as android.app.Application, bucketId, isAudio),
       )
     val videos by viewModel.videos.collectAsState()
@@ -194,10 +193,11 @@ data class VideoListScreen(
           sortedVideosWithInfo
         } else {
           val matchingVideoIds =
-            MediaSearchEngine.searchVideos(
-              query = internalSearchQuery,
-              videos = sortedVideosWithInfo.map { it.video },
-            ).mapTo(hashSetOf()) { it.id }
+            MediaSearchEngine
+              .searchVideos(
+                query = internalSearchQuery,
+                videos = sortedVideosWithInfo.map { it.video },
+              ).mapTo(hashSetOf()) { it.id }
           sortedVideosWithInfo.filter { it.video.id in matchingVideoIds }
         }
       }
@@ -325,7 +325,8 @@ data class VideoListScreen(
     }
 
     // Update NavigationBarState synchronously when selection mode changes
-    com.quantummpv.app.ui.browser.NavigationBarSelectionEffect(selectionManager.isInSelectionMode)
+    com.quantummpv.app.ui.browser
+      .NavigationBarSelectionEffect(selectionManager.isInSelectionMode)
 
     // Predictive back: Only intercept when in selection mode
     BackHandler(enabled = selectionManager.isInSelectionMode) {
@@ -369,65 +370,67 @@ data class VideoListScreen(
                 Icon(Icons.RoundedFilled.Close, contentDescription = stringResource(R.string.generic_cancel))
               }
             },
-            shape = androidx.compose.foundation.shape.RoundedCornerShape(28.dp),
+            shape =
+              androidx.compose.foundation.shape
+                .RoundedCornerShape(28.dp),
             tonalElevation = 6.dp,
           )
         } else {
           BrowserTopBar(
-          title = displayFolderName,
-          isInSelectionMode = selectionManager.isInSelectionMode,
-          selectedCount = selectionManager.selectedCount,
-          totalCount = sortedVideosWithInfo.size,
-          onBackClick = {
-            if (selectionManager.isInSelectionMode) {
-              selectionManager.clear()
-            } else {
-              if (onBack != null) {
-                onBack()
-              } else {
-                backstack.popSafely()
-              }
-            }
-          },
-          onCancelSelection = { selectionManager.clear() },
-          onSortClick = { sortDialogOpen.value = true },
-          onSearchClick = { internalIsSearching = true },
-          onSettingsClick =
-            if (isDualPane) {
-              null
-            } else {
-              { backstack.navigateTo(com.quantummpv.app.ui.preferences.PreferencesScreen) }
-            },
-          onTitleDoubleTap = { backstack.navigateTo(SecureFolderGateScreen) },
-          onTitleLongPress = { backstack.navigateTo(SecureFolderGateScreen) },
-          isSingleSelection = selectionManager.isSingleSelection,
-          onInfoClick = {
-            if (selectionManager.isSingleSelection) {
-              val video = selectionManager.getSelectedItems().firstOrNull()
-              if (video != null) {
-                val intent = Intent(context, com.quantummpv.app.ui.mediainfo.MediaInfoActivity::class.java)
-                intent.action = Intent.ACTION_VIEW
-                intent.data = video.uri
-                context.startActivity(intent)
+            title = displayFolderName,
+            isInSelectionMode = selectionManager.isInSelectionMode,
+            selectedCount = selectionManager.selectedCount,
+            totalCount = sortedVideosWithInfo.size,
+            onBackClick = {
+              if (selectionManager.isInSelectionMode) {
                 selectionManager.clear()
+              } else {
+                if (onBack != null) {
+                  onBack()
+                } else {
+                  backstack.popSafely()
+                }
               }
-            }
-          },
-          onShareClick = { selectionManager.shareSelected() },
-          onPlayClick = { selectionManager.playSelected() },
-          onSelectAll = { selectionManager.selectAll() },
-          onInvertSelection = { selectionManager.invertSelection() },
-          onDeselectAll = { selectionManager.clear() },
-          onMoveToSecureClick = {
-            if (!secureFolderPreferences.isPinSet()) {
-              backstack.navigateTo(SecureFolderGateScreen)
-            } else if (secureFolderPreferences.dontAskBeforeMove.get()) {
-              moveSelectedToSecureFolder()
-            } else {
-              moveToSecureConfirmOpen.value = true
-            }
-          },
-          onAddToPlaylistClick = { addToPlaylistDialogOpen.value = true },
+            },
+            onCancelSelection = { selectionManager.clear() },
+            onSortClick = { sortDialogOpen.value = true },
+            onSearchClick = { internalIsSearching = true },
+            onSettingsClick =
+              if (isDualPane) {
+                null
+              } else {
+                { backstack.navigateTo(com.quantummpv.app.ui.preferences.PreferencesScreen) }
+              },
+            onTitleDoubleTap = { backstack.navigateTo(SecureFolderGateScreen) },
+            onTitleLongPress = { backstack.navigateTo(SecureFolderGateScreen) },
+            isSingleSelection = selectionManager.isSingleSelection,
+            onInfoClick = {
+              if (selectionManager.isSingleSelection) {
+                val video = selectionManager.getSelectedItems().firstOrNull()
+                if (video != null) {
+                  val intent = Intent(context, com.quantummpv.app.ui.mediainfo.MediaInfoActivity::class.java)
+                  intent.action = Intent.ACTION_VIEW
+                  intent.data = video.uri
+                  context.startActivity(intent)
+                  selectionManager.clear()
+                }
+              }
+            },
+            onShareClick = { selectionManager.shareSelected() },
+            onPlayClick = { selectionManager.playSelected() },
+            onSelectAll = { selectionManager.selectAll() },
+            onInvertSelection = { selectionManager.invertSelection() },
+            onDeselectAll = { selectionManager.clear() },
+            onMoveToSecureClick = {
+              if (!secureFolderPreferences.isPinSet()) {
+                backstack.navigateTo(SecureFolderGateScreen)
+              } else if (secureFolderPreferences.dontAskBeforeMove.get()) {
+                moveSelectedToSecureFolder()
+              } else {
+                moveToSecureConfirmOpen.value = true
+              }
+            },
+            onAddToPlaylistClick = { addToPlaylistDialogOpen.value = true },
           )
         }
       },
@@ -554,7 +557,11 @@ data class VideoListScreen(
             onRenameClick = { renameDialogOpen.value = true },
             onDeleteClick = { deleteDialogOpen.value = true },
             onAddToPlaylistClick = { addToPlaylistDialogOpen.value = true },
-            showDownscale = selectionManager.getSelectedItems().let { items -> items.isNotEmpty() && items.none { it.isAudio } },
+            showDownscale =
+              selectionManager.getSelectedItems().let { items ->
+                items.isNotEmpty() &&
+                  items.none { it.isAudio }
+              },
             showRename = selectionManager.selectedCount > 0,
             modifier =
               Modifier
@@ -581,7 +588,14 @@ data class VideoListScreen(
             } else {
               com.quantummpv.app.ui.browser.music.MusicSortOrder.DESCENDING
             },
-          viewMode = if (mediaLayoutMode == MediaLayoutMode.GRID) com.quantummpv.app.ui.browser.music.MusicViewMode.GRID else com.quantummpv.app.ui.browser.music.MusicViewMode.LIST,
+          viewMode =
+            if (mediaLayoutMode ==
+              MediaLayoutMode.GRID
+            ) {
+              com.quantummpv.app.ui.browser.music.MusicViewMode.GRID
+            } else {
+              com.quantummpv.app.ui.browser.music.MusicViewMode.LIST
+            },
           // VideoSortType has no Artist/Album, so only offer the fields it can actually persist
           // (Title/Duration/Date Added) instead of silently collapsing Artist/Album back to Title.
           availableFields =
@@ -601,12 +615,24 @@ data class VideoListScreen(
           },
           onSortOrderChange = { order ->
             browserPreferences.videoSortOrder.set(
-              if (order == com.quantummpv.app.ui.browser.music.MusicSortOrder.ASCENDING) SortOrder.Ascending else SortOrder.Descending,
+              if (order ==
+                com.quantummpv.app.ui.browser.music.MusicSortOrder.ASCENDING
+              ) {
+                SortOrder.Ascending
+              } else {
+                SortOrder.Descending
+              },
             )
           },
           onViewModeChange = { mode ->
             browserPreferences.folderViewVideoLayoutMode.set(
-              if (mode == com.quantummpv.app.ui.browser.music.MusicViewMode.GRID) MediaLayoutMode.GRID else MediaLayoutMode.LIST,
+              if (mode ==
+                com.quantummpv.app.ui.browser.music.MusicViewMode.GRID
+              ) {
+                MediaLayoutMode.GRID
+              } else {
+                MediaLayoutMode.LIST
+              },
             )
           },
         )

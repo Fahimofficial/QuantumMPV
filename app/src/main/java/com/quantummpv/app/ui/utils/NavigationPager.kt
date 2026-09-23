@@ -45,7 +45,10 @@ private val LocalNavigationPagerPresent = staticCompositionLocalOf { false }
 private val PassThroughPageScrollConnection = object : NestedScrollConnection {}
 
 @Composable
-internal fun NavigationBackHandler(enabled: Boolean = true, onBack: () -> Unit) {
+internal fun NavigationBackHandler(
+  enabled: Boolean = true,
+  onBack: () -> Unit,
+) {
   BackHandler(enabled = enabled && LocalNavigationPageActive.current, onBack = onBack)
 }
 
@@ -61,12 +64,13 @@ internal fun NavigationPager(
 ) {
   val isNestedPager = LocalNavigationPagerPresent.current
   val ownsHorizontalSwipes = userScrollEnabled && !isNestedPager
-  val nestedScrollConnection = if (ownsHorizontalSwipes) {
-    PagerDefaults.pageNestedScrollConnection(state, Orientation.Horizontal)
-  } else {
-    // Disabling drag alone does not disable a pager's nested-scroll/fling consumption.
-    PassThroughPageScrollConnection
-  }
+  val nestedScrollConnection =
+    if (ownsHorizontalSwipes) {
+      PagerDefaults.pageNestedScrollConnection(state, Orientation.Horizontal)
+    } else {
+      // Disabling drag alone does not disable a pager's nested-scroll/fling consumption.
+      PassThroughPageScrollConnection
+    }
   CompositionLocalProvider(LocalNavigationPagerPresent provides true) {
     HorizontalPager(
       state = state,
@@ -94,17 +98,23 @@ internal fun rememberTabNavigation(state: PagerState): (Int) -> Unit {
   var job by remember(state) { mutableStateOf<Job?>(null) }
   return { page ->
     if (page in 0 until state.pageCount) {
-      val isAlreadySettled = state.currentPage == page &&
-        state.currentPageOffsetFraction == 0f && !state.isScrollInProgress
+      val isAlreadySettled =
+        state.currentPage == page &&
+          state.currentPageOffsetFraction == 0f &&
+          !state.isScrollInProgress
       job?.cancel()
       if (!isAlreadySettled) {
-        job = scope.launch {
-          if (style == NavigationAnimStyle.None) {
-            state.scrollToPage(page)
-          } else {
-            state.animateScrollToPage(page, animationSpec = tween(navigationDurationMillis(speed), easing = FastOutSlowInEasing))
+        job =
+          scope.launch {
+            if (style == NavigationAnimStyle.None) {
+              state.scrollToPage(page)
+            } else {
+              state.animateScrollToPage(
+                page,
+                animationSpec = tween(navigationDurationMillis(speed), easing = FastOutSlowInEasing),
+              )
+            }
           }
-        }
       }
     }
   }

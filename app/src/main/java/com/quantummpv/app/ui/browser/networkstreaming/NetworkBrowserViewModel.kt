@@ -31,8 +31,8 @@ import com.quantummpv.app.preferences.SortOrder
 import com.quantummpv.app.repository.NetworkRepository
 import com.quantummpv.app.ui.player.NetworkPlaybackSource
 import com.quantummpv.app.ui.player.PlaybackItem
-import com.quantummpv.app.ui.player.PreparedPlaybackLaunchStore
 import com.quantummpv.app.ui.player.PlayerActivity
+import com.quantummpv.app.ui.player.PreparedPlaybackLaunchStore
 import com.quantummpv.app.utils.media.M3UParseResult
 import com.quantummpv.app.utils.media.M3UParser
 import com.quantummpv.app.utils.media.M3UPlaylistItem
@@ -227,11 +227,12 @@ class NetworkBrowserViewModel(
           networkSource = NetworkPlaybackSource(connection.id, networkFile.path),
         )
       }
-    val launchToken = PreparedPlaybackLaunchStore.stage(
-      items = queueItems,
-      currentIndex = playlistIndex,
-      isExplicitQueue = true,
-    )
+    val launchToken =
+      PreparedPlaybackLaunchStore.stage(
+        items = queueItems,
+        currentIndex = playlistIndex,
+        isExplicitQueue = true,
+      )
     val uri = Uri.parse(queueItems[playlistIndex].originalUri)
 
     val intent = Intent(Intent.ACTION_VIEW, uri)
@@ -281,7 +282,8 @@ class NetworkBrowserViewModel(
       }
     }
 
-    val absolutePath = absoluteConnectionPath(resource, connection) ?: return copy(url = M3UParser.sanitizeSourceUrl(url))
+    val absolutePath =
+      absoluteConnectionPath(resource, connection) ?: return copy(url = M3UParser.sanitizeSourceUrl(url))
     return copy(url = NetworkPlaybackUri.create(connection.id, absolutePath.value))
   }
 
@@ -310,11 +312,21 @@ class NetworkBrowserViewModel(
       if (actualPort != connection.port) return@runCatching null
 
       val root = NetworkPath.from(connection.path).segments
-      val fullPath = uri.path.orEmpty().split('/').filter(String::isNotEmpty)
+      val fullPath =
+        uri.path
+          .orEmpty()
+          .split('/')
+          .filter(String::isNotEmpty)
       val matchesRoot =
         root.indices.all { index ->
           val actual = fullPath.getOrNull(index) ?: return@all false
-          if (connection.protocol == NetworkProtocol.SMB) actual.equals(root[index], ignoreCase = true) else actual == root[index]
+          if (connection.protocol ==
+            NetworkProtocol.SMB
+          ) {
+            actual.equals(root[index], ignoreCase = true)
+          } else {
+            actual == root[index]
+          }
         }
       if (!matchesRoot) return@runCatching null
       NetworkPath.from(fullPath.drop(root.size).joinToString("/"))
@@ -389,7 +401,13 @@ internal fun List<NetworkFile>.sortedForNetworkBrowser(
       NetworkSortType.Title ->
         if (sortOrder.isAscending) sortedBy { it.name.lowercase() } else sortedByDescending { it.name.lowercase() }
       NetworkSortType.Date ->
-        if (sortOrder.isAscending) sortedBy(NetworkFile::lastModified) else sortedByDescending(NetworkFile::lastModified)
+        if (sortOrder.isAscending) {
+          sortedBy(
+            NetworkFile::lastModified,
+          )
+        } else {
+          sortedByDescending(NetworkFile::lastModified)
+        }
       NetworkSortType.Size ->
         if (sortOrder.isAscending) sortedBy(NetworkFile::size) else sortedByDescending(NetworkFile::size)
     }

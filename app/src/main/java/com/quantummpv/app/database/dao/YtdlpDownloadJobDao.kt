@@ -22,7 +22,10 @@ interface YtdlpDownloadJobDao {
   suspend fun delete(id: Int)
 
   @Query("UPDATE ytdlp_download_jobs SET state = 'RUNNING', updatedAt = :updatedAt WHERE id = :id AND state = 'QUEUED'")
-  suspend fun claimQueued(id: Int, updatedAt: Long = System.currentTimeMillis()): Int
+  suspend fun claimQueued(
+    id: Int,
+    updatedAt: Long = System.currentTimeMillis(),
+  ): Int
 
   @Query("UPDATE ytdlp_download_jobs SET state = 'QUEUED', updatedAt = :updatedAt WHERE state = 'RUNNING'")
   suspend fun requeueInterrupted(updatedAt: Long = System.currentTimeMillis()): Int

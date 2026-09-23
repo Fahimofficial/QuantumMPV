@@ -11,7 +11,6 @@ import com.quantummpv.app.domain.lyrics.SyncedWord
 import java.util.regex.Pattern
 
 object LyricsUtils {
-
   // The fractional component is optional in standard LRC. In particular, many embedded USLT
   // tags contain whole-second timestamps such as `[00:54]`; treating those as plain text leaks
   // the timestamp into the UI and disables the synced-line animations.
@@ -72,21 +71,22 @@ object LyricsUtils {
           }
         }
 
-        val (finalLine, inlineTranslation) = when {
-          displayText.contains("\n") -> {
-            val p = displayText.split("\n", limit = 2)
-            Pair(p[0].trim(), p.getOrNull(1)?.trim())
+        val (finalLine, inlineTranslation) =
+          when {
+            displayText.contains("\n") -> {
+              val p = displayText.split("\n", limit = 2)
+              Pair(p[0].trim(), p.getOrNull(1)?.trim())
+            }
+            displayText.contains(" / ") -> {
+              val p = displayText.split(" / ", limit = 2)
+              Pair(p[0].trim(), p.getOrNull(1)?.trim())
+            }
+            displayText.contains(" | ") -> {
+              val p = displayText.split(" | ", limit = 2)
+              Pair(p[0].trim(), p.getOrNull(1)?.trim())
+            }
+            else -> Pair(displayText, null)
           }
-          displayText.contains(" / ") -> {
-            val p = displayText.split(" / ", limit = 2)
-            Pair(p[0].trim(), p.getOrNull(1)?.trim())
-          }
-          displayText.contains(" | ") -> {
-            val p = displayText.split(" | ", limit = 2)
-            Pair(p[0].trim(), p.getOrNull(1)?.trim())
-          }
-          else -> Pair(displayText, null)
-        }
 
         val lastLine = syncedLines.lastOrNull()
         if (lastLine != null && lastLine.time == lineTimestamp && lastLine.translation == null) {

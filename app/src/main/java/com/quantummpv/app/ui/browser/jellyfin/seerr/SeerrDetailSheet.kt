@@ -9,7 +9,6 @@
 
 package com.quantummpv.app.ui.browser.jellyfin.seerr
 
-import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -42,10 +41,8 @@ import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.FilterChipDefaults
-import androidx.compose.material3.TextButton
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.IconButtonDefaults
@@ -55,8 +52,8 @@ import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.SheetState
 import androidx.compose.material3.SheetValue
 import androidx.compose.material3.Surface
-import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.rememberBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -119,9 +116,10 @@ fun SeerrDetailSheet(
 ) {
   if (searchItem == null && details == null) return
 
-  val mediaType = details?.let {
-    if (it.numberOfSeason != null || it.seasons != null) MediaType.TV else MediaType.MOVIE
-  } ?: searchItem?.getMediaType() ?: MediaType.MOVIE
+  val mediaType =
+    details?.let {
+      if (it.numberOfSeason != null || it.seasons != null) MediaType.TV else MediaType.MOVIE
+    } ?: searchItem?.getMediaType() ?: MediaType.MOVIE
 
   val title = details?.getDisplayTitle() ?: searchItem?.getDisplayTitle() ?: "Details"
   val overview = details?.overview ?: searchItem?.overview ?: ""
@@ -132,92 +130,106 @@ fun SeerrDetailSheet(
   val runtime = details?.runtime
 
   val mediaInfo = details?.mediaInfo ?: searchItem?.mediaInfo
-  val mediaStatus = details?.getDisplayStatus() ?: searchItem?.getDisplayStatus() ?: MediaStatus.fromValue(mediaInfo?.status ?: MediaStatus.UNKNOWN.value)
+  val mediaStatus =
+    details?.getDisplayStatus() ?: searchItem?.getDisplayStatus()
+      ?: MediaStatus.fromValue(mediaInfo?.status ?: MediaStatus.UNKNOWN.value)
   val jellyfinId = mediaInfo?.getJellyfinItemId()
   val isAvailableInJellyfin = mediaStatus == MediaStatus.AVAILABLE && !jellyfinId.isNullOrBlank()
 
   val seasons = details?.seasons?.filter { (it.seasonNumber ?: 0) > 0 } ?: emptyList()
-  val seasonStatusMap = remember(details?.mediaInfo, searchItem?.mediaInfo) {
-    val info = details?.mediaInfo ?: searchItem?.mediaInfo
-    info?.seasons?.associate { (it.seasonNumber ?: -1) to MediaStatus.fromValue(it.status) } ?: emptyMap()
-  }
-  val unrequestedSeasons = remember(seasons, seasonStatusMap) {
-    seasons.mapNotNull { it.seasonNumber }.filter { num ->
-      val st = seasonStatusMap[num] ?: MediaStatus.UNKNOWN
-      st == MediaStatus.UNKNOWN || st == MediaStatus.DELETED
+  val seasonStatusMap =
+    remember(details?.mediaInfo, searchItem?.mediaInfo) {
+      val info = details?.mediaInfo ?: searchItem?.mediaInfo
+      info?.seasons?.associate { (it.seasonNumber ?: -1) to MediaStatus.fromValue(it.status) } ?: emptyMap()
     }
-  }
-  val selectedSeasons = remember(unrequestedSeasons) {
-    mutableStateListOf<Int>().apply {
-      addAll(unrequestedSeasons)
+  val unrequestedSeasons =
+    remember(seasons, seasonStatusMap) {
+      seasons.mapNotNull { it.seasonNumber }.filter { num ->
+        val st = seasonStatusMap[num] ?: MediaStatus.UNKNOWN
+        st == MediaStatus.UNKNOWN || st == MediaStatus.DELETED
+      }
     }
-  }
+  val selectedSeasons =
+    remember(unrequestedSeasons) {
+      mutableStateListOf<Int>().apply {
+        addAll(unrequestedSeasons)
+      }
+    }
 
   val isTv = mediaType == MediaType.TV
-  val resolutionOptions = remember(isTv, radarrServers, sonarrServers) {
-    val options = mutableListOf<ResolutionOption>()
-    if (isTv) {
-      sonarrServers.forEach { server ->
-        server.profiles.forEach { profile ->
-          val label = buildString {
-            append(profile.name ?: "Default")
-            if (server.is4k == true) append(" (4K)")
-            else if (sonarrServers.size > 1) append(" (${server.name})")
+  val resolutionOptions =
+    remember(isTv, radarrServers, sonarrServers) {
+      val options = mutableListOf<ResolutionOption>()
+      if (isTv) {
+        sonarrServers.forEach { server ->
+          server.profiles.forEach { profile ->
+            val label =
+              buildString {
+                append(profile.name ?: "Default")
+                if (server.is4k == true) {
+                  append(" (4K)")
+                } else if (sonarrServers.size > 1) {
+                  append(" (${server.name})")
+                }
+              }
+            options.add(
+              ResolutionOption(
+                label = label,
+                is4k = server.is4k == true,
+                serverId = server.id,
+                profileId = profile.id,
+                rootFolder = server.activeDirectory,
+              ),
+            )
           }
-          options.add(
-            ResolutionOption(
-              label = label,
-              is4k = server.is4k == true,
-              serverId = server.id,
-              profileId = profile.id,
-              rootFolder = server.activeDirectory,
-            ),
-          )
+        }
+      } else {
+        radarrServers.forEach { server ->
+          server.profiles.forEach { profile ->
+            val label =
+              buildString {
+                append(profile.name ?: "Default")
+                if (server.is4k == true) {
+                  append(" (4K)")
+                } else if (radarrServers.size > 1) {
+                  append(" (${server.name})")
+                }
+              }
+            options.add(
+              ResolutionOption(
+                label = label,
+                is4k = server.is4k == true,
+                serverId = server.id,
+                profileId = profile.id,
+                rootFolder = server.activeDirectory,
+              ),
+            )
+          }
         }
       }
-    } else {
-      radarrServers.forEach { server ->
-        server.profiles.forEach { profile ->
-          val label = buildString {
-            append(profile.name ?: "Default")
-            if (server.is4k == true) append(" (4K)")
-            else if (radarrServers.size > 1) append(" (${server.name})")
-          }
-          options.add(
-            ResolutionOption(
-              label = label,
-              is4k = server.is4k == true,
-              serverId = server.id,
-              profileId = profile.id,
-              rootFolder = server.activeDirectory,
-            ),
-          )
-        }
-      }
-    }
 
-    if (options.isEmpty()) {
-      options.add(
-        ResolutionOption(
-          label = "Standard (1080p)",
-          is4k = false,
-          serverId = null,
-          profileId = null,
-          rootFolder = null,
-        ),
-      )
-      options.add(
-        ResolutionOption(
-          label = "4K Ultra HD",
-          is4k = true,
-          serverId = null,
-          profileId = null,
-          rootFolder = null,
-        ),
-      )
+      if (options.isEmpty()) {
+        options.add(
+          ResolutionOption(
+            label = "Standard (1080p)",
+            is4k = false,
+            serverId = null,
+            profileId = null,
+            rootFolder = null,
+          ),
+        )
+        options.add(
+          ResolutionOption(
+            label = "4K Ultra HD",
+            is4k = true,
+            serverId = null,
+            profileId = null,
+            rootFolder = null,
+          ),
+        )
+      }
+      options
     }
-    options
-  }
 
   var selectedResolution by remember(resolutionOptions) {
     mutableStateOf(
@@ -234,15 +246,17 @@ fun SeerrDetailSheet(
     dragHandle = null,
   ) {
     Column(
-      modifier = Modifier
-        .fillMaxWidth()
-        .verticalScroll(rememberScrollState()),
+      modifier =
+        Modifier
+          .fillMaxWidth()
+          .verticalScroll(rememberScrollState()),
     ) {
       // Top Backdrop Header
       Box(
-        modifier = Modifier
-          .fillMaxWidth()
-          .height(220.dp),
+        modifier =
+          Modifier
+            .fillMaxWidth()
+            .height(220.dp),
       ) {
         if (!backdropUrl.isNullOrBlank()) {
           RemoteImage(
@@ -253,36 +267,40 @@ fun SeerrDetailSheet(
           )
         } else {
           Box(
-            modifier = Modifier
-              .fillMaxSize()
-              .background(MaterialTheme.colorScheme.surfaceVariant),
+            modifier =
+              Modifier
+                .fillMaxSize()
+                .background(MaterialTheme.colorScheme.surfaceVariant),
           )
         }
 
         // Gradient Scrim
         Box(
-          modifier = Modifier
-            .fillMaxSize()
-            .background(
-              Brush.verticalGradient(
-                colors = listOf(
-                  Color.Black.copy(alpha = 0.3f),
-                  Color.Transparent,
-                  MaterialTheme.colorScheme.surfaceContainerLow.copy(alpha = 0.9f),
-                  MaterialTheme.colorScheme.surfaceContainerLow,
+          modifier =
+            Modifier
+              .fillMaxSize()
+              .background(
+                Brush.verticalGradient(
+                  colors =
+                    listOf(
+                      Color.Black.copy(alpha = 0.3f),
+                      Color.Transparent,
+                      MaterialTheme.colorScheme.surfaceContainerLow.copy(alpha = 0.9f),
+                      MaterialTheme.colorScheme.surfaceContainerLow,
+                    ),
                 ),
               ),
-            ),
         )
 
         // Close button top-right
         IconButton(
           onClick = onDismiss,
           colors = IconButtonDefaults.iconButtonColors(containerColor = Color.Black.copy(alpha = 0.5f)),
-          modifier = Modifier
-            .align(Alignment.TopEnd)
-            .padding(12.dp)
-            .size(36.dp),
+          modifier =
+            Modifier
+              .align(Alignment.TopEnd)
+              .padding(12.dp)
+              .size(36.dp),
         ) {
           Icon(
             Icons.RoundedFilled.Close,
@@ -294,9 +312,10 @@ fun SeerrDetailSheet(
 
         // Poster + Title + Metadata Row on bottom
         Row(
-          modifier = Modifier
-            .align(Alignment.BottomStart)
-            .padding(horizontal = 16.dp, vertical = 8.dp),
+          modifier =
+            Modifier
+              .align(Alignment.BottomStart)
+              .padding(horizontal = 16.dp, vertical = 8.dp),
           verticalAlignment = Alignment.Bottom,
           horizontalArrangement = Arrangement.spacedBy(14.dp),
         ) {
@@ -304,9 +323,10 @@ fun SeerrDetailSheet(
             Card(
               shape = RoundedCornerShape(12.dp),
               elevation = CardDefaults.cardElevation(defaultElevation = 6.dp),
-              modifier = Modifier
-                .width(90.dp)
-                .aspectRatio(2f / 3f),
+              modifier =
+                Modifier
+                  .width(90.dp)
+                  .aspectRatio(2f / 3f),
             ) {
               RemoteImage(
                 url = posterUrl,
@@ -318,9 +338,10 @@ fun SeerrDetailSheet(
           }
 
           Column(
-            modifier = Modifier
-              .weight(1f)
-              .padding(bottom = 2.dp),
+            modifier =
+              Modifier
+                .weight(1f)
+                .padding(bottom = 2.dp),
           ) {
             Text(
               text = title,
@@ -390,7 +411,14 @@ fun SeerrDetailSheet(
                 )
               }
 
-              val displayStatus = if (mediaStatus != MediaStatus.UNKNOWN) mediaStatus else searchItem?.getDisplayStatus()
+              val displayStatus =
+                if (mediaStatus !=
+                  MediaStatus.UNKNOWN
+                ) {
+                  mediaStatus
+                } else {
+                  searchItem?.getDisplayStatus()
+                }
               if (displayStatus != null && displayStatus != MediaStatus.UNKNOWN) {
                 SeerrStatusChip(status = displayStatus)
               }
@@ -403,10 +431,11 @@ fun SeerrDetailSheet(
       val genres = details?.genres ?: emptyList()
       if (genres.isNotEmpty()) {
         Row(
-          modifier = Modifier
-            .fillMaxWidth()
-            .horizontalScroll(rememberScrollState())
-            .padding(horizontal = 16.dp, vertical = 8.dp),
+          modifier =
+            Modifier
+              .fillMaxWidth()
+              .horizontalScroll(rememberScrollState())
+              .padding(horizontal = 16.dp, vertical = 8.dp),
           horizontalArrangement = Arrangement.spacedBy(6.dp),
         ) {
           genres.forEach { genre ->
@@ -428,19 +457,21 @@ fun SeerrDetailSheet(
 
       // Action Buttons Row (Play / Request / Status / Admin Approve)
       Column(
-        modifier = Modifier
-          .fillMaxWidth()
-          .padding(horizontal = 16.dp, vertical = 10.dp),
+        modifier =
+          Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 16.dp, vertical = 10.dp),
         verticalArrangement = Arrangement.spacedBy(8.dp),
       ) {
         // 1. Play in Jellyfin (if available and ID present)
         if (isAvailableInJellyfin && !jellyfinId.isNullOrBlank() && onOpenJellyfinItem != null) {
           Button(
             onClick = { onOpenJellyfinItem(jellyfinId) },
-            colors = ButtonDefaults.buttonColors(
-              containerColor = MaterialTheme.colorScheme.primary,
-              contentColor = MaterialTheme.colorScheme.onPrimary,
-            ),
+            colors =
+              ButtonDefaults.buttonColors(
+                containerColor = MaterialTheme.colorScheme.primary,
+                contentColor = MaterialTheme.colorScheme.onPrimary,
+              ),
             shape = RoundedCornerShape(12.dp),
             modifier = Modifier.fillMaxWidth().height(48.dp),
           ) {
@@ -465,10 +496,11 @@ fun SeerrDetailSheet(
               Button(
                 onClick = {},
                 enabled = false,
-                colors = ButtonDefaults.buttonColors(
-                  disabledContainerColor = MaterialTheme.colorScheme.surfaceContainerHighest,
-                  disabledContentColor = MaterialTheme.colorScheme.onSurfaceVariant,
-                ),
+                colors =
+                  ButtonDefaults.buttonColors(
+                    disabledContainerColor = MaterialTheme.colorScheme.surfaceContainerHighest,
+                    disabledContentColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                  ),
                 shape = RoundedCornerShape(12.dp),
                 modifier = Modifier.fillMaxWidth().height(48.dp),
               ) {
@@ -487,10 +519,11 @@ fun SeerrDetailSheet(
             Button(
               onClick = {},
               enabled = false,
-              colors = ButtonDefaults.buttonColors(
-                disabledContainerColor = MaterialTheme.colorScheme.surfaceContainerHighest,
-                disabledContentColor = MaterialTheme.colorScheme.onSurfaceVariant,
-              ),
+              colors =
+                ButtonDefaults.buttonColors(
+                  disabledContainerColor = MaterialTheme.colorScheme.surfaceContainerHighest,
+                  disabledContentColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                ),
               shape = RoundedCornerShape(12.dp),
               modifier = Modifier.fillMaxWidth().height(48.dp),
             ) {
@@ -508,10 +541,11 @@ fun SeerrDetailSheet(
             Button(
               onClick = {},
               enabled = false,
-              colors = ButtonDefaults.buttonColors(
-                disabledContainerColor = MaterialTheme.colorScheme.surfaceContainerHighest,
-                disabledContentColor = MaterialTheme.colorScheme.onSurfaceVariant,
-              ),
+              colors =
+                ButtonDefaults.buttonColors(
+                  disabledContainerColor = MaterialTheme.colorScheme.surfaceContainerHighest,
+                  disabledContentColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                ),
               shape = RoundedCornerShape(12.dp),
               modifier = Modifier.fillMaxWidth().height(48.dp),
             ) {
@@ -547,10 +581,11 @@ fun SeerrDetailSheet(
                 )
               },
               enabled = !isRequesting && (mediaType != MediaType.TV || selectedSeasons.isNotEmpty()),
-              colors = ButtonDefaults.buttonColors(
-                containerColor = MaterialTheme.colorScheme.primary,
-                contentColor = MaterialTheme.colorScheme.onPrimary,
-              ),
+              colors =
+                ButtonDefaults.buttonColors(
+                  containerColor = MaterialTheme.colorScheme.primary,
+                  contentColor = MaterialTheme.colorScheme.onPrimary,
+                ),
               shape = RoundedCornerShape(12.dp),
               modifier = Modifier.fillMaxWidth().height(48.dp),
             ) {
@@ -570,15 +605,16 @@ fun SeerrDetailSheet(
                 )
                 Spacer(modifier = Modifier.width(8.dp))
                 Text(
-                  text = if (mediaType == MediaType.TV) {
-                    if (unrequestedSeasons.size < seasons.size && unrequestedSeasons.isNotEmpty()) {
-                      "Request Remaining (${selectedSeasons.size})"
+                  text =
+                    if (mediaType == MediaType.TV) {
+                      if (unrequestedSeasons.size < seasons.size && unrequestedSeasons.isNotEmpty()) {
+                        "Request Remaining (${selectedSeasons.size})"
+                      } else {
+                        stringResource(R.string.seerr_request_tv)
+                      }
                     } else {
-                      stringResource(R.string.seerr_request_tv)
-                    }
-                  } else {
-                    stringResource(R.string.seerr_request_movie)
-                  },
+                      stringResource(R.string.seerr_request_movie)
+                    },
                   fontWeight = FontWeight.Bold,
                 )
               }
@@ -587,7 +623,13 @@ fun SeerrDetailSheet(
         }
 
         // TV Show Season Selection (Only when unrequested / partially available and not already processing/pending/available)
-        if (mediaType == MediaType.TV && seasons.isNotEmpty() && unrequestedSeasons.isNotEmpty() && mediaStatus != MediaStatus.AVAILABLE && mediaStatus != MediaStatus.PROCESSING && mediaStatus != MediaStatus.PENDING) {
+        if (mediaType == MediaType.TV &&
+          seasons.isNotEmpty() &&
+          unrequestedSeasons.isNotEmpty() &&
+          mediaStatus != MediaStatus.AVAILABLE &&
+          mediaStatus != MediaStatus.PROCESSING &&
+          mediaStatus != MediaStatus.PENDING
+        ) {
           Spacer(modifier = Modifier.height(4.dp))
           Row(
             modifier = Modifier.fillMaxWidth(),
@@ -608,27 +650,28 @@ fun SeerrDetailSheet(
                 style = MaterialTheme.typography.labelMedium,
                 color = MaterialTheme.colorScheme.primary,
                 fontWeight = FontWeight.SemiBold,
-                modifier = Modifier
-                  .clip(RoundedCornerShape(6.dp))
-                  .clickable {
-                    if (selectedSeasons.size == unrequestedSeasons.size) {
-                      selectedSeasons.clear()
-                    } else {
-                      selectedSeasons.clear()
-                      selectedSeasons.addAll(unrequestedSeasons)
-                    }
-                  }
-                  .padding(horizontal = 6.dp, vertical = 3.dp),
+                modifier =
+                  Modifier
+                    .clip(RoundedCornerShape(6.dp))
+                    .clickable {
+                      if (selectedSeasons.size == unrequestedSeasons.size) {
+                        selectedSeasons.clear()
+                      } else {
+                        selectedSeasons.clear()
+                        selectedSeasons.addAll(unrequestedSeasons)
+                      }
+                    }.padding(horizontal = 6.dp, vertical = 3.dp),
               )
             }
           }
 
           // Season Chips
           Row(
-            modifier = Modifier
-              .fillMaxWidth()
-              .horizontalScroll(rememberScrollState())
-              .padding(vertical = 4.dp),
+            modifier =
+              Modifier
+                .fillMaxWidth()
+                .horizontalScroll(rememberScrollState())
+                .padding(vertical = 4.dp),
             horizontalArrangement = Arrangement.spacedBy(6.dp),
           ) {
             seasons.forEach { season ->
@@ -637,12 +680,13 @@ fun SeerrDetailSheet(
               val seasonStatus = seasonStatusMap[seasonNum] ?: MediaStatus.UNKNOWN
               val isSelected = selectedSeasons.contains(seasonNum)
 
-              val label = when {
-                seasonStatus == MediaStatus.AVAILABLE -> "S$seasonNum (Available)"
-                seasonStatus == MediaStatus.PROCESSING -> "S$seasonNum (Processing)"
-                seasonStatus == MediaStatus.PENDING -> "S$seasonNum (Pending)"
-                else -> "Season $seasonNum"
-              }
+              val label =
+                when {
+                  seasonStatus == MediaStatus.AVAILABLE -> "S$seasonNum (Available)"
+                  seasonStatus == MediaStatus.PROCESSING -> "S$seasonNum (Processing)"
+                  seasonStatus == MediaStatus.PENDING -> "S$seasonNum (Pending)"
+                  else -> "Season $seasonNum"
+                }
 
               FilterChip(
                 selected = isSelected,
@@ -660,12 +704,13 @@ fun SeerrDetailSheet(
                   Text(label)
                 },
                 shape = RoundedCornerShape(10.dp),
-                colors = FilterChipDefaults.filterChipColors(
-                  selectedContainerColor = MaterialTheme.colorScheme.primaryContainer,
-                  selectedLabelColor = MaterialTheme.colorScheme.onPrimaryContainer,
-                  disabledContainerColor = MaterialTheme.colorScheme.surfaceContainerHighest,
-                  disabledLabelColor = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
-                ),
+                colors =
+                  FilterChipDefaults.filterChipColors(
+                    selectedContainerColor = MaterialTheme.colorScheme.primaryContainer,
+                    selectedLabelColor = MaterialTheme.colorScheme.onPrimaryContainer,
+                    disabledContainerColor = MaterialTheme.colorScheme.surfaceContainerHighest,
+                    disabledLabelColor = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
+                  ),
               )
             }
           }
@@ -681,10 +726,11 @@ fun SeerrDetailSheet(
           ) {
             Button(
               onClick = { onApprove(pendingRequest.id) },
-              colors = ButtonDefaults.buttonColors(
-                containerColor = MaterialTheme.colorScheme.primary,
-                contentColor = MaterialTheme.colorScheme.onPrimary,
-              ),
+              colors =
+                ButtonDefaults.buttonColors(
+                  containerColor = MaterialTheme.colorScheme.primary,
+                  contentColor = MaterialTheme.colorScheme.onPrimary,
+                ),
               shape = RoundedCornerShape(10.dp),
               modifier = Modifier.weight(1f),
             ) {
@@ -731,10 +777,11 @@ fun SeerrDetailSheet(
                     showDeleteDialog = false
                     onDeleteRequest(activeRequest.id)
                   },
-                  colors = ButtonDefaults.buttonColors(
-                    containerColor = MaterialTheme.colorScheme.error,
-                    contentColor = MaterialTheme.colorScheme.onError,
-                  ),
+                  colors =
+                    ButtonDefaults.buttonColors(
+                      containerColor = MaterialTheme.colorScheme.error,
+                      contentColor = MaterialTheme.colorScheme.onError,
+                    ),
                 ) {
                   Text("Delete")
                 }
@@ -754,9 +801,10 @@ fun SeerrDetailSheet(
       // Overview Section
       if (overview.isNotBlank()) {
         Column(
-          modifier = Modifier
-            .fillMaxWidth()
-            .padding(horizontal = 16.dp, vertical = 6.dp),
+          modifier =
+            Modifier
+              .fillMaxWidth()
+              .padding(horizontal = 16.dp, vertical = 6.dp),
         ) {
           Text(
             text = "Overview",
@@ -779,9 +827,10 @@ fun SeerrDetailSheet(
               style = MaterialTheme.typography.labelSmall,
               fontWeight = FontWeight.Bold,
               color = MaterialTheme.colorScheme.primary,
-              modifier = Modifier
-                .clickable { isOverviewExpanded = !isOverviewExpanded }
-                .padding(top = 2.dp),
+              modifier =
+                Modifier
+                  .clickable { isOverviewExpanded = !isOverviewExpanded }
+                  .padding(top = 2.dp),
             )
           }
         }
@@ -791,9 +840,10 @@ fun SeerrDetailSheet(
       val cast = details?.credits?.cast ?: emptyList()
       if (cast.isNotEmpty()) {
         Column(
-          modifier = Modifier
-            .fillMaxWidth()
-            .padding(vertical = 8.dp),
+          modifier =
+            Modifier
+              .fillMaxWidth()
+              .padding(vertical = 8.dp),
         ) {
           Text(
             text = "Cast",
@@ -819,16 +869,18 @@ fun SeerrDetailSheet(
                     url = profileUrl,
                     contentDescription = member.name,
                     contentScale = ContentScale.Crop,
-                    modifier = Modifier
-                      .size(54.dp)
-                      .clip(CircleShape),
+                    modifier =
+                      Modifier
+                        .size(54.dp)
+                        .clip(CircleShape),
                   )
                 } else {
                   Box(
-                    modifier = Modifier
-                      .size(54.dp)
-                      .clip(CircleShape)
-                      .background(MaterialTheme.colorScheme.surfaceVariant),
+                    modifier =
+                      Modifier
+                        .size(54.dp)
+                        .clip(CircleShape)
+                        .background(MaterialTheme.colorScheme.surfaceVariant),
                     contentAlignment = Alignment.Center,
                   ) {
                     Text(
@@ -867,9 +919,10 @@ fun SeerrDetailSheet(
 
       if (isLoading) {
         Box(
-          modifier = Modifier
-            .fillMaxWidth()
-            .padding(16.dp),
+          modifier =
+            Modifier
+              .fillMaxWidth()
+              .padding(16.dp),
           contentAlignment = Alignment.Center,
         ) {
           CircularProgressIndicator(modifier = Modifier.size(24.dp))
@@ -911,9 +964,10 @@ private fun ResolutionProfileDropdown(
         modifier = Modifier.fillMaxWidth(),
       ) {
         Row(
-          modifier = Modifier
-            .fillMaxWidth()
-            .padding(horizontal = 14.dp, vertical = 12.dp),
+          modifier =
+            Modifier
+              .fillMaxWidth()
+              .padding(horizontal = 14.dp, vertical = 12.dp),
           horizontalArrangement = Arrangement.SpaceBetween,
           verticalAlignment = Alignment.CenterVertically,
         ) {

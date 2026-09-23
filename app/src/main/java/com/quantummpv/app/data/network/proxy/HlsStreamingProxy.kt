@@ -103,11 +103,12 @@ class HlsStreamingProxy private constructor() : NanoHTTPD("127.0.0.1", 0) {
     userAgent: String? = null,
   ): String {
     val token = generateToken()
-    val session = HlsSession(
-      sourceUrl = sourceUrl,
-      headers = headers,
-      userAgent = userAgent,
-    )
+    val session =
+      HlsSession(
+        sourceUrl = sourceUrl,
+        headers = headers,
+        userAgent = userAgent,
+      )
     sessionsByToken[token] = session
     tokenByRegistration.put(streamId, token)?.let { oldToken ->
       sessionsByToken.remove(oldToken)
@@ -180,8 +181,12 @@ class HlsStreamingProxy private constructor() : NanoHTTPD("127.0.0.1", 0) {
     }
   }
 
-  private class CustomStatus(private val code: Int, private val desc: String) : Response.IStatus {
+  private class CustomStatus(
+    private val code: Int,
+    private val desc: String,
+  ) : Response.IStatus {
     override fun getRequestStatus(): Int = code
+
     override fun getDescription(): String = "$code $desc"
   }
 
@@ -198,8 +203,11 @@ class HlsStreamingProxy private constructor() : NanoHTTPD("127.0.0.1", 0) {
       okResponse = httpClient.newCall(requestBuilder.build()).execute()
     } catch (e: IOException) {
       Log.e(TAG, "Failed to fetch master manifest (${e::class.java.simpleName})")
-      return newFixedLengthResponse(CustomStatus(502, "Bad Gateway"), MIME_PLAINTEXT, "Failed to fetch upstream manifest")
-        .apply { addCorsHeaders(this) }
+      return newFixedLengthResponse(
+        CustomStatus(502, "Bad Gateway"),
+        MIME_PLAINTEXT,
+        "Failed to fetch upstream manifest",
+      ).apply { addCorsHeaders(this) }
     }
 
     if (!okResponse.isSuccessful) {
@@ -240,8 +248,11 @@ class HlsStreamingProxy private constructor() : NanoHTTPD("127.0.0.1", 0) {
       okResponse = httpClient.newCall(requestBuilder.build()).execute()
     } catch (e: IOException) {
       Log.e(TAG, "Failed to fetch variant manifest (${e::class.java.simpleName})")
-      return newFixedLengthResponse(CustomStatus(502, "Bad Gateway"), MIME_PLAINTEXT, "Failed to fetch upstream variant")
-        .apply { addCorsHeaders(this) }
+      return newFixedLengthResponse(
+        CustomStatus(502, "Bad Gateway"),
+        MIME_PLAINTEXT,
+        "Failed to fetch upstream variant",
+      ).apply { addCorsHeaders(this) }
     }
 
     if (!okResponse.isSuccessful) {
@@ -291,7 +302,15 @@ class HlsStreamingProxy private constructor() : NanoHTTPD("127.0.0.1", 0) {
 
     val code = okResponse.code
     val isPartial = code == 206
-    val status = if (isPartial) Response.Status.PARTIAL_CONTENT else if (okResponse.isSuccessful) Response.Status.OK else Response.Status.lookup(code) ?: CustomStatus(code, "Upstream Error")
+    val status =
+      if (isPartial) {
+        Response.Status.PARTIAL_CONTENT
+      } else if (okResponse.isSuccessful) {
+        Response.Status.OK
+      } else {
+        Response.Status.lookup(code)
+          ?: CustomStatus(code, "Upstream Error")
+      }
 
     if (!okResponse.isSuccessful && !isPartial) {
       okResponse.close()
@@ -302,18 +321,20 @@ class HlsStreamingProxy private constructor() : NanoHTTPD("127.0.0.1", 0) {
     val contentType = okResponse.header("Content-Type") ?: guessContentType(segmentUrl)
     val contentLength = okResponse.body.contentLength()
     val contentRange = okResponse.header("Content-Range")
-    val bodyStream = if (headOnly) {
-      okResponse.close()
-      ByteArrayInputStream(ByteArray(0))
-    } else {
-      okResponse.body.byteStream()
-    }
+    val bodyStream =
+      if (headOnly) {
+        okResponse.close()
+        ByteArrayInputStream(ByteArray(0))
+      } else {
+        okResponse.body.byteStream()
+      }
 
-    val response = if (contentLength >= 0L) {
-      newFixedLengthResponse(status, contentType, bodyStream, contentLength)
-    } else {
-      newChunkedResponse(status, contentType, bodyStream)
-    }
+    val response =
+      if (contentLength >= 0L) {
+        newFixedLengthResponse(status, contentType, bodyStream, contentLength)
+      } else {
+        newChunkedResponse(status, contentType, bodyStream)
+      }
 
     addCorsHeaders(response)
     response.addHeader("Accept-Ranges", "bytes")
@@ -480,7 +501,10 @@ class HlsStreamingProxy private constructor() : NanoHTTPD("127.0.0.1", 0) {
     return rewrittenLines.joinToString("\n")
   }
 
-  private fun resolveUrl(baseUrl: String, relativeUrl: String): String {
+  private fun resolveUrl(
+    baseUrl: String,
+    relativeUrl: String,
+  ): String {
     val cleanRelative = relativeUrl.trim()
     val base = baseUrl.toHttpUrlOrNull() ?: return cleanRelative
     val resolved = base.resolve(cleanRelative)
@@ -567,7 +591,10 @@ class HlsStreamingProxy private constructor() : NanoHTTPD("127.0.0.1", 0) {
     if (!hasUserAgent && !userAgent.isNullOrBlank()) {
       builder.header("User-Agent", userAgent)
     } else if (!hasUserAgent) {
-      builder.header("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36")
+      builder.header(
+        "User-Agent",
+        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+      )
     }
 
     if (!hasReferer && !fallbackReferer.isNullOrBlank()) {
@@ -599,7 +626,14 @@ class HlsStreamingProxy private constructor() : NanoHTTPD("127.0.0.1", 0) {
   }
 
   private fun notFound(headOnly: Boolean): Response {
-    val stream = if (headOnly) ByteArrayInputStream(ByteArray(0)) else ByteArrayInputStream("Not Found".toByteArray(StandardCharsets.UTF_8))
+    val stream =
+      if (headOnly) {
+        ByteArrayInputStream(
+          ByteArray(0),
+        )
+      } else {
+        ByteArrayInputStream("Not Found".toByteArray(StandardCharsets.UTF_8))
+      }
     return newFixedLengthResponse(Response.Status.NOT_FOUND, MIME_PLAINTEXT, stream, if (headOnly) 0L else 9L).apply {
       addCorsHeaders(this)
     }

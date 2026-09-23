@@ -18,8 +18,6 @@ import com.quantummpv.app.database.dao.NetworkConnectionDao
 import com.quantummpv.app.domain.network.ConnectionStatus
 import com.quantummpv.app.domain.network.NetworkConnection
 import com.quantummpv.app.domain.network.NetworkFile
-import java.util.concurrent.ConcurrentHashMap
-import kotlin.coroutines.coroutineContext
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.NonCancellable
@@ -34,6 +32,8 @@ import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
+import java.util.concurrent.ConcurrentHashMap
+import kotlin.coroutines.coroutineContext
 
 /** Manages saved network connections and the clients currently using them. */
 class NetworkRepository(
@@ -110,7 +110,8 @@ class NetworkRepository(
 
         val updated = connection.copy(password = storedPassword)
         reconnectRequired =
-          existing?.hasSameConnectionSettings(updated) != true || credentialChanged
+          existing?.hasSameConnectionSettings(updated) != true ||
+          credentialChanged
         dao.update(updated)
       }
       if (reconnectRequired) {
@@ -301,8 +302,8 @@ class NetworkRepository(
       }
     }
 
-  private suspend fun redactAndMigrate(connection: NetworkConnection): NetworkConnection {
-    return credentialMutex.withLock {
+  private suspend fun redactAndMigrate(connection: NetworkConnection): NetworkConnection =
+    credentialMutex.withLock {
       val latest = dao.getConnectionById(connection.id) ?: connection
       if (latest.password.isNotEmpty() && !credentialCipher.isEncrypted(latest.password)) {
         try {
@@ -315,7 +316,6 @@ class NetworkRepository(
       }
       latest.copy(password = "")
     }
-  }
 
   private suspend fun resolveCredential(connection: NetworkConnection): NetworkConnection =
     credentialMutex.withLock {
@@ -377,8 +377,7 @@ class NetworkRepository(
     _connectionStatuses.update { it + (connectionId to status) }
   }
 
-  private fun hasConnectedClient(connectionId: Long): Boolean =
-    activeClients[connectionId]?.isConnected() == true
+  private fun hasConnectedClient(connectionId: Long): Boolean = activeClients[connectionId]?.isConnected() == true
 
   private fun NetworkConnection.hasSameConnectionSettings(other: NetworkConnection): Boolean =
     protocol == other.protocol &&

@@ -9,10 +9,8 @@
 
 package com.quantummpv.app.ui.browser.jellyfin
 
-import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.animation.core.Spring
-import androidx.compose.animation.core.animateFloatAsState
-import androidx.compose.animation.core.spring
+import android.content.Intent
+import android.net.Uri
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
@@ -34,7 +32,6 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
-import com.quantummpv.app.utils.media.MediaUtils
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.pager.HorizontalPager
@@ -48,16 +45,12 @@ import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
-import android.content.Intent
-import android.net.Uri
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.FilledTonalIconButton
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.FilterChipDefaults
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -69,10 +62,10 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.SpanStyle
@@ -119,8 +112,8 @@ private fun buildStarSubtitle(
   communityRating: Double?,
   criticRating: Double?,
   partsAfterRating: List<String> = emptyList(),
-): AnnotatedString {
-  return buildAnnotatedString {
+): AnnotatedString =
+  buildAnnotatedString {
     var hasContent = false
     partsBeforeRating.filter { it.isNotBlank() }.forEach { part ->
       if (hasContent) append(" • ")
@@ -146,7 +139,6 @@ private fun buildStarSubtitle(
       hasContent = true
     }
   }
-}
 
 // ============================================================================
 // Hero Featured Carousel Banner (Material 3 Expressive)
@@ -163,12 +155,15 @@ fun JellyfinHeroBanner(
   if (items.isEmpty()) return
 
   val pageCount = if (items.size > 1) Int.MAX_VALUE else items.size
-  val initialPage = remember(items) {
-    if (items.size > 1) {
-      val middle = Int.MAX_VALUE / 2
-      middle - (middle % items.size)
-    } else 0
-  }
+  val initialPage =
+    remember(items) {
+      if (items.size > 1) {
+        val middle = Int.MAX_VALUE / 2
+        middle - (middle % items.size)
+      } else {
+        0
+      }
+    }
   val pagerState = rememberPagerState(initialPage = initialPage, pageCount = { pageCount })
 
   // Auto-scroll every 5 seconds when not touched
@@ -382,7 +377,14 @@ fun JellyfinHeroBanner(
               contentPadding = PaddingValues(horizontal = 18.dp, vertical = 10.dp),
             ) {
               Icon(
-                imageVector = if (item.isSeries && item.progressPercent <= 0.05f) Icons.RoundedFilled.Tv else Icons.RoundedFilled.PlayArrow,
+                imageVector =
+                  if (item.isSeries &&
+                    item.progressPercent <= 0.05f
+                  ) {
+                    Icons.RoundedFilled.Tv
+                  } else {
+                    Icons.RoundedFilled.PlayArrow
+                  },
                 contentDescription = null,
                 modifier = Modifier.size(18.dp),
               )
@@ -417,15 +419,23 @@ fun JellyfinHeroBanner(
             FilledTonalIconButton(
               onClick = {
                 val rawUrl = item.remoteTrailerUrl?.takeIf { it.isNotBlank() }
-                val trailerUrl = if (!rawUrl.isNullOrBlank()) {
-                  if (rawUrl.startsWith("http://") || rawUrl.startsWith("https://")) rawUrl
-                  else "https://www.youtube.com/watch?v=$rawUrl"
-                } else {
-                  "https://www.youtube.com/results?search_query=${java.net.URLEncoder.encode("${item.name} trailer", "UTF-8")}"
-                }
-                val intent = Intent(Intent.ACTION_VIEW, Uri.parse(trailerUrl)).apply {
-                  addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-                }
+                val trailerUrl =
+                  if (!rawUrl.isNullOrBlank()) {
+                    if (rawUrl.startsWith("http://") || rawUrl.startsWith("https://")) {
+                      rawUrl
+                    } else {
+                      "https://www.youtube.com/watch?v=$rawUrl"
+                    }
+                  } else {
+                    "https://www.youtube.com/results?search_query=${java.net.URLEncoder.encode(
+                      "${item.name} trailer",
+                      "UTF-8",
+                    )}"
+                  }
+                val intent =
+                  Intent(Intent.ACTION_VIEW, Uri.parse(trailerUrl)).apply {
+                    addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                  }
                 runCatching { heroContext.startActivity(intent) }
               },
               shape = RoundedCornerShape(14.dp),
@@ -664,7 +674,10 @@ fun JellyfinResumeCard(
 
   val posterBorderModifier =
     if (isSelected) {
-      Modifier.clip(RoundedCornerShape(10.dp)).border(2.dp, MaterialTheme.colorScheme.primary, RoundedCornerShape(10.dp))
+      Modifier
+        .clip(
+          RoundedCornerShape(10.dp),
+        ).border(2.dp, MaterialTheme.colorScheme.primary, RoundedCornerShape(10.dp))
     } else {
       Modifier.clip(RoundedCornerShape(10.dp))
     }
@@ -796,11 +809,16 @@ fun JellyfinResumeCard(
         if (item.seriesName != null && item.indexNumber != null) {
           AnnotatedString("S${item.parentIndexNumber ?: 1}:E${item.indexNumber} • ${item.name}")
         } else {
-          val before = buildList {
-            item.productionYear?.let { add(it.toString()) }
-            val dur = item.formattedDuration
-            if (dur.isNotBlank()) add(dur) else if (item.productionYear == null) add(item.type)
-          }
+          val before =
+            buildList {
+              item.productionYear?.let { add(it.toString()) }
+              val dur = item.formattedDuration
+              if (dur.isNotBlank()) {
+                add(dur)
+              } else if (item.productionYear == null) {
+                add(item.type)
+              }
+            }
           buildStarSubtitle(before, item.communityRating, item.criticRating)
         }
 
@@ -843,16 +861,21 @@ fun JellyfinPosterCard(
   isSelected: Boolean = false,
   isDownloaded: Boolean = false,
 ) {
-  val posterImageTag = if (item.type == "Episode" && !item.seriesPrimaryImageTag.isNullOrBlank()) {
-    item.seriesPrimaryImageTag
-  } else {
-    item.primaryImageTag
-  }
-  val posterItemId = if (item.type == "Episode" && !item.seriesId.isNullOrBlank() && !item.seriesPrimaryImageTag.isNullOrBlank()) {
-    item.seriesId
-  } else {
-    item.id
-  }
+  val posterImageTag =
+    if (item.type == "Episode" && !item.seriesPrimaryImageTag.isNullOrBlank()) {
+      item.seriesPrimaryImageTag
+    } else {
+      item.primaryImageTag
+    }
+  val posterItemId =
+    if (item.type == "Episode" &&
+      !item.seriesId.isNullOrBlank() &&
+      !item.seriesPrimaryImageTag.isNullOrBlank()
+    ) {
+      item.seriesId
+    } else {
+      item.id
+    }
   val imageUrl =
     remember(server.serverUrl, posterItemId, posterImageTag, server.accessToken) {
       JellyfinClient.getImageUrl(
@@ -1015,20 +1038,21 @@ fun JellyfinPosterCard(
       )
       val subtitle =
         run {
-          val before = buildList {
-            item.productionYear?.let { add(it.toString()) }
-            if (item.isSeries && item.childCount != null && item.childCount > 0) {
-              add(if (item.childCount == 1) "1 Season" else "${item.childCount} Seasons")
-            } else if (item.type == "Episode") {
-              if (item.parentIndexNumber != null && item.indexNumber != null) {
-                add("S${item.parentIndexNumber}:E${item.indexNumber}")
-              } else {
-                add("Episode")
+          val before =
+            buildList {
+              item.productionYear?.let { add(it.toString()) }
+              if (item.isSeries && item.childCount != null && item.childCount > 0) {
+                add(if (item.childCount == 1) "1 Season" else "${item.childCount} Seasons")
+              } else if (item.type == "Episode") {
+                if (item.parentIndexNumber != null && item.indexNumber != null) {
+                  add("S${item.parentIndexNumber}:E${item.indexNumber}")
+                } else {
+                  add("Episode")
+                }
+              } else if (item.productionYear == null) {
+                add(item.type)
               }
-            } else if (item.productionYear == null) {
-              add(item.type)
             }
-          }
           buildStarSubtitle(before, item.communityRating, item.criticRating)
         }
       Text(
@@ -1559,10 +1583,11 @@ fun JellyfinEpisodeCard(
         }
         val epMeta =
           run {
-            val after = buildList {
-              val dur = item.formattedDuration
-              if (dur.isNotBlank()) add(dur)
-            }
+            val after =
+              buildList {
+                val dur = item.formattedDuration
+                if (dur.isNotBlank()) add(dur)
+              }
             buildStarSubtitle(emptyList(), item.communityRating, item.criticRating, after)
           }
         if (epMeta.isNotBlank()) {
@@ -1791,17 +1816,19 @@ fun JellyfinListItemCard(
         )
         val details =
           run {
-            val before = buildList {
-              item.productionYear?.let { add(it.toString()) }
-              if (item.isSeries && item.childCount != null) {
-                add("${item.childCount} Seasons")
-              } else if (item.productionYear == null) {
-                add(item.type)
+            val before =
+              buildList {
+                item.productionYear?.let { add(it.toString()) }
+                if (item.isSeries && item.childCount != null) {
+                  add("${item.childCount} Seasons")
+                } else if (item.productionYear == null) {
+                  add(item.type)
+                }
               }
-            }
-            val after = buildList {
-              item.qualityBadge?.let { add(it) }
-            }
+            val after =
+              buildList {
+                item.qualityBadge?.let { add(it) }
+              }
             buildStarSubtitle(before, item.communityRating, item.criticRating, after)
           }
 

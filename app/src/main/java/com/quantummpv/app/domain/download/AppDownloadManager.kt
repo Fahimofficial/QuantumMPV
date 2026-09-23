@@ -151,7 +151,8 @@ class AppDownloadManager(
   suspend fun drainQueue(onUpdate: (ActiveSnapshot) -> Unit) {
     while (true) {
       val next =
-        dao.getAll()
+        dao
+          .getAll()
           .filter { it.status == AppDownloadStatus.QUEUED.name }
           .minByOrNull { it.timeQueued } ?: break
       runDownload(next, onUpdate)
@@ -306,7 +307,12 @@ class AppDownloadManager(
               .take(24)
           val target = File(directory, "$baseName.$label.$extension")
           if (target.isFile && target.length() > 0) return@forEachIndexed
-          val request = Request.Builder().url(track.url).get().build()
+          val request =
+            Request
+              .Builder()
+              .url(track.url)
+              .get()
+              .build()
           httpClient.newCall(request).awaitResponse().use { response ->
             check(response.isSuccessful) { "HTTP ${response.code}" }
             val body = response.body.bytes()

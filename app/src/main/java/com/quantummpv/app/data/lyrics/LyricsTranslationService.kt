@@ -58,38 +58,39 @@ data class SupportedLanguage(
 )
 
 object LyricsLanguageOptions {
-  val ALL_LANGUAGES = listOf(
-    SupportedLanguage("en", "English"),
-    SupportedLanguage(
-      "romaji",
-      "Romaji / Romanized (Pinyin, Academic)",
-      isRomanization = true,
-      subtitle = "Pronunciation / Romaji / Pinyin",
-    ),
-    SupportedLanguage(
-      "hinglish_casual",
-      "Hinglish (Colloquial)",
-      isRomanization = true,
-      subtitle = "Casual spelling for Hindi, Punjabi, Bengali & more",
-    ),
-    SupportedLanguage("hi", "Hindi (हिन्दी)"),
-    SupportedLanguage("es", "Spanish (Español)"),
-    SupportedLanguage("fr", "French (Français)"),
-    SupportedLanguage("de", "German (Deutsch)"),
-    SupportedLanguage("ja", "Japanese (日本語)"),
-    SupportedLanguage("ko", "Korean (한국어)"),
-    SupportedLanguage("zh-CN", "Chinese (Simplified)"),
-    SupportedLanguage("it", "Italian (Italiano)"),
-    SupportedLanguage("pt", "Portuguese (Português)"),
-    SupportedLanguage("ru", "Russian (Русский)"),
-    SupportedLanguage("ar", "Arabic (العربية)"),
-    SupportedLanguage("bn", "Bengali (বাংলা)"),
-    SupportedLanguage("ta", "Tamil (தமிழ்)"),
-    SupportedLanguage("te", "Telugu (తెలుగు)"),
-    SupportedLanguage("mr", "Marathi (मराठी)"),
-    SupportedLanguage("pa", "Punjabi (ਪੰਜਾਬੀ)"),
-    SupportedLanguage("ur", "Urdu (اردو)"),
-  )
+  val ALL_LANGUAGES =
+    listOf(
+      SupportedLanguage("en", "English"),
+      SupportedLanguage(
+        "romaji",
+        "Romaji / Romanized (Pinyin, Academic)",
+        isRomanization = true,
+        subtitle = "Pronunciation / Romaji / Pinyin",
+      ),
+      SupportedLanguage(
+        "hinglish_casual",
+        "Hinglish (Colloquial)",
+        isRomanization = true,
+        subtitle = "Casual spelling for Hindi, Punjabi, Bengali & more",
+      ),
+      SupportedLanguage("hi", "Hindi (हिन्दी)"),
+      SupportedLanguage("es", "Spanish (Español)"),
+      SupportedLanguage("fr", "French (Français)"),
+      SupportedLanguage("de", "German (Deutsch)"),
+      SupportedLanguage("ja", "Japanese (日本語)"),
+      SupportedLanguage("ko", "Korean (한국어)"),
+      SupportedLanguage("zh-CN", "Chinese (Simplified)"),
+      SupportedLanguage("it", "Italian (Italiano)"),
+      SupportedLanguage("pt", "Portuguese (Português)"),
+      SupportedLanguage("ru", "Russian (Русский)"),
+      SupportedLanguage("ar", "Arabic (العربية)"),
+      SupportedLanguage("bn", "Bengali (বাংলা)"),
+      SupportedLanguage("ta", "Tamil (தமிழ்)"),
+      SupportedLanguage("te", "Telugu (తెలుగు)"),
+      SupportedLanguage("mr", "Marathi (मराठी)"),
+      SupportedLanguage("pa", "Punjabi (ਪੰਜਾਬੀ)"),
+      SupportedLanguage("ur", "Urdu (اردو)"),
+    )
 
   fun getDisplayName(code: String): String {
     if (code.equals("hinglish", ignoreCase = true)) return "Romaji / Romanized"
@@ -114,12 +115,18 @@ class LyricsTranslationService(
   }
 
   // Fast timeout for translation calls (5s connect / 8s read)
-  private val client = okHttpClient.newBuilder()
-    .connectTimeout(5, TimeUnit.SECONDS)
-    .readTimeout(8, TimeUnit.SECONDS)
-    .build()
+  private val client =
+    okHttpClient
+      .newBuilder()
+      .connectTimeout(5, TimeUnit.SECONDS)
+      .readTimeout(8, TimeUnit.SECONDS)
+      .build()
 
-  private val json = Json { ignoreUnknownKeys = true; isLenient = true }
+  private val json =
+    Json {
+      ignoreUnknownKeys = true
+      isLenient = true
+    }
   private val requestSemaphore = Semaphore(MAX_CONCURRENT_TRANSLATION_REQUESTS)
   private val translationCache = LruCache<String, LyricsTranslationOutcome>(64)
 
@@ -127,43 +134,47 @@ class LyricsTranslationService(
     lyrics: Lyrics,
     targetLanguage: String,
     cacheKey: String? = null,
-  ): LyricsTranslationOutcome = withContext(Dispatchers.IO) {
-    val requestedLineCount = lyrics.synced?.count { it.line.isNotBlank() } ?: lyrics.plain?.count { it.isNotBlank() } ?: 0
-    if (!lyrics.isValid()) return@withContext LyricsTranslationOutcome(lyrics, 0, requestedLineCount)
+  ): LyricsTranslationOutcome =
+    withContext(Dispatchers.IO) {
+      val requestedLineCount =
+        lyrics.synced?.count { it.line.isNotBlank() } ?: lyrics.plain?.count { it.isNotBlank() } ?: 0
+      if (!lyrics.isValid()) return@withContext LyricsTranslationOutcome(lyrics, 0, requestedLineCount)
 
-    val key = cacheKey?.let { "${it}_${lyrics.hashCode()}_$targetLanguage" }
-    if (key != null) {
-      translationCache.get(key)?.let { return@withContext it }
-    }
-
-    try {
-      if (!lyrics.synced.isNullOrEmpty()) {
-        val translatedSynced = translateSyncedLines(lyrics.synced, targetLanguage)
-        val outcome = LyricsTranslationOutcome(
-          lyrics = lyrics.copy(synced = translatedSynced.lines),
-          resolvedLineCount = translatedSynced.resolvedLineCount,
-          requestedLineCount = translatedSynced.requestedLineCount,
-        )
-        if (key != null && outcome.isComplete) translationCache.put(key, outcome)
-        return@withContext outcome
-      } else if (!lyrics.plain.isNullOrEmpty()) {
-        val translatedPlain = translatePlainLines(lyrics.plain, targetLanguage)
-        val outcome = LyricsTranslationOutcome(
-          lyrics = lyrics.copy(plain = translatedPlain.lines),
-          resolvedLineCount = translatedPlain.resolvedLineCount,
-          requestedLineCount = translatedPlain.requestedLineCount,
-        )
-        if (key != null && outcome.isComplete) translationCache.put(key, outcome)
-        return@withContext outcome
+      val key = cacheKey?.let { "${it}_${lyrics.hashCode()}_$targetLanguage" }
+      if (key != null) {
+        translationCache.get(key)?.let { return@withContext it }
       }
-    } catch (cancellation: CancellationException) {
-      throw cancellation
-    } catch (e: Exception) {
-      Log.e(TAG, "Error translating lyrics to $targetLanguage: ${e.message}", e)
-    }
 
-    LyricsTranslationOutcome(lyrics, 0, requestedLineCount)
-  }
+      try {
+        if (!lyrics.synced.isNullOrEmpty()) {
+          val translatedSynced = translateSyncedLines(lyrics.synced, targetLanguage)
+          val outcome =
+            LyricsTranslationOutcome(
+              lyrics = lyrics.copy(synced = translatedSynced.lines),
+              resolvedLineCount = translatedSynced.resolvedLineCount,
+              requestedLineCount = translatedSynced.requestedLineCount,
+            )
+          if (key != null && outcome.isComplete) translationCache.put(key, outcome)
+          return@withContext outcome
+        } else if (!lyrics.plain.isNullOrEmpty()) {
+          val translatedPlain = translatePlainLines(lyrics.plain, targetLanguage)
+          val outcome =
+            LyricsTranslationOutcome(
+              lyrics = lyrics.copy(plain = translatedPlain.lines),
+              resolvedLineCount = translatedPlain.resolvedLineCount,
+              requestedLineCount = translatedPlain.requestedLineCount,
+            )
+          if (key != null && outcome.isComplete) translationCache.put(key, outcome)
+          return@withContext outcome
+        }
+      } catch (cancellation: CancellationException) {
+        throw cancellation
+      } catch (e: Exception) {
+        Log.e(TAG, "Error translating lyrics to $targetLanguage: ${e.message}", e)
+      }
+
+      LyricsTranslationOutcome(lyrics, 0, requestedLineCount)
+    }
 
   private suspend fun translateSyncedLines(
     lines: List<SyncedLine>,
@@ -172,20 +183,22 @@ class LyricsTranslationService(
     val textsToTranslate = lines.map { it.line }
     val translations = batchTranslate(textsToTranslate, targetLanguage)
 
-    val translatedLines = lines.mapIndexed { index, line ->
-      val res = translations.getOrNull(index)
-      if (res == null) return@mapIndexed line
-      val translatedText = res.translation.takeIf(String::isNotBlank)
-      val romanizedText = res.romanization?.takeIf(String::isNotBlank)
-      line.copy(
-        translation = when {
-          targetLanguage == "romaji" || targetLanguage == "hinglish" || targetLanguage == "hinglish_casual" ->
-            romanizedText ?: translatedText
-          else -> translatedText
-        },
-        romanization = romanizedText,
-      )
-    }
+    val translatedLines =
+      lines.mapIndexed { index, line ->
+        val res = translations.getOrNull(index)
+        if (res == null) return@mapIndexed line
+        val translatedText = res.translation.takeIf(String::isNotBlank)
+        val romanizedText = res.romanization?.takeIf(String::isNotBlank)
+        line.copy(
+          translation =
+            when {
+              targetLanguage == "romaji" || targetLanguage == "hinglish" || targetLanguage == "hinglish_casual" ->
+                romanizedText ?: translatedText
+              else -> translatedText
+            },
+          romanization = romanizedText,
+        )
+      }
     return TranslatedLines(
       lines = translatedLines,
       resolvedLineCount = translations.count { it.isResolved && it.translation.isNotBlank() },
@@ -198,23 +211,28 @@ class LyricsTranslationService(
     targetLanguage: String,
   ): TranslatedLines<String> {
     val translations = batchTranslate(lines, targetLanguage)
-    val translatedLines = lines.mapIndexed { index, original ->
-      val res = translations.getOrNull(index)
-      if (res != null) {
-        val text = if (targetLanguage == "romaji" || targetLanguage == "hinglish" || targetLanguage == "hinglish_casual") {
-          res.romanization ?: res.translation
-        } else {
-          res.translation
-        }
-        if (text.isNotBlank() && !text.equals(original.trim(), ignoreCase = true)) {
-          "$original\n$text"
+    val translatedLines =
+      lines.mapIndexed { index, original ->
+        val res = translations.getOrNull(index)
+        if (res != null) {
+          val text =
+            if (targetLanguage == "romaji" ||
+              targetLanguage == "hinglish" ||
+              targetLanguage == "hinglish_casual"
+            ) {
+              res.romanization ?: res.translation
+            } else {
+              res.translation
+            }
+          if (text.isNotBlank() && !text.equals(original.trim(), ignoreCase = true)) {
+            "$original\n$text"
+          } else {
+            original
+          }
         } else {
           original
         }
-      } else {
-        original
       }
-    }
     return TranslatedLines(
       lines = translatedLines,
       resolvedLineCount = translations.count { it.isResolved && it.translation.isNotBlank() },
@@ -225,28 +243,30 @@ class LyricsTranslationService(
   private suspend fun batchTranslate(
     texts: List<String>,
     targetLang: String,
-  ): List<TranslationResult> = coroutineScope {
-    if (texts.isEmpty()) return@coroutineScope emptyList()
+  ): List<TranslationResult> =
+    coroutineScope {
+      if (texts.isEmpty()) return@coroutineScope emptyList()
 
-    // Special handling for Romaji / Hinglish / Romanized (formal, diacritic-preserving)
-    if (targetLang.equals("romaji", ignoreCase = true) || targetLang.equals("hinglish", ignoreCase = true)) {
-      return@coroutineScope handleRomajiTransliteration(texts)
-    }
-
-    // Special handling for casual Hinglish (Hindi, Punjabi/Gurmukhi, Bengali, Tamil, etc. -> everyday Latin spelling)
-    if (targetLang.equals("hinglish_casual", ignoreCase = true)) {
-      return@coroutineScope handleHinglishCasualTransliteration(texts)
-    }
-
-    val chunks = texts.chunked(CHUNK_SIZE)
-    val deferredChunks = chunks.map { chunk ->
-      async(Dispatchers.IO) {
-        requestSemaphore.withPermit { translateChunk(chunk, targetLang) }
+      // Special handling for Romaji / Hinglish / Romanized (formal, diacritic-preserving)
+      if (targetLang.equals("romaji", ignoreCase = true) || targetLang.equals("hinglish", ignoreCase = true)) {
+        return@coroutineScope handleRomajiTransliteration(texts)
       }
-    }
 
-    deferredChunks.awaitAll().flatten()
-  }
+      // Special handling for casual Hinglish (Hindi, Punjabi/Gurmukhi, Bengali, Tamil, etc. -> everyday Latin spelling)
+      if (targetLang.equals("hinglish_casual", ignoreCase = true)) {
+        return@coroutineScope handleHinglishCasualTransliteration(texts)
+      }
+
+      val chunks = texts.chunked(CHUNK_SIZE)
+      val deferredChunks =
+        chunks.map { chunk ->
+          async(Dispatchers.IO) {
+            requestSemaphore.withPermit { translateChunk(chunk, targetLang) }
+          }
+        }
+
+      deferredChunks.awaitAll().flatten()
+    }
 
   /**
    * Handles Romaji / Hinglish / Romanized pronunciation requests.
@@ -254,29 +274,31 @@ class LyricsTranslationService(
    * If the text is in non-Latin script (Devanagari, Kana/Kanji, Hangul, Cyrillic, etc.),
    * fetches accurate Romanization (Romaji for Japanese, Pinyin for Chinese, etc.).
    */
-  private suspend fun handleRomajiTransliteration(texts: List<String>): List<TranslationResult> = coroutineScope {
-    val isAlreadyLatin = isPredominantlyLatin(texts)
-    if (isAlreadyLatin) {
-      // Already written in Romaji / Hinglish / Latin script!
-      return@coroutineScope texts.map { line ->
-        val trimmed = line.trim()
-        TranslationResult(
-          translation = trimmed,
-          romanization = trimmed,
-        )
+  private suspend fun handleRomajiTransliteration(texts: List<String>): List<TranslationResult> =
+    coroutineScope {
+      val isAlreadyLatin = isPredominantlyLatin(texts)
+      if (isAlreadyLatin) {
+        // Already written in Romaji / Hinglish / Latin script!
+        return@coroutineScope texts.map { line ->
+          val trimmed = line.trim()
+          TranslationResult(
+            translation = trimmed,
+            romanization = trimmed,
+          )
+        }
       }
-    }
 
-    // Non-Latin script: fetch authentic Romanization (Romaji for Japanese, Pinyin for Chinese, etc.)
-    val chunks = texts.chunked(CHUNK_SIZE)
-    val deferredChunks = chunks.map { chunk ->
-      async(Dispatchers.IO) {
-        requestSemaphore.withPermit { romanizeChunk(chunk) }
-      }
-    }
+      // Non-Latin script: fetch authentic Romanization (Romaji for Japanese, Pinyin for Chinese, etc.)
+      val chunks = texts.chunked(CHUNK_SIZE)
+      val deferredChunks =
+        chunks.map { chunk ->
+          async(Dispatchers.IO) {
+            requestSemaphore.withPermit { romanizeChunk(chunk) }
+          }
+        }
 
-    deferredChunks.awaitAll().flatten()
-  }
+      deferredChunks.awaitAll().flatten()
+    }
 
   /**
    * Handles casual "Hinglish" style transliteration — the way lyrics are typically typed on
@@ -291,68 +313,87 @@ class LyricsTranslationService(
    * Devanagari/Gurmukhi lines — route each line correctly instead of one script's lines
    * accidentally being treated as the other's.
    */
-  private suspend fun handleHinglishCasualTransliteration(texts: List<String>): List<TranslationResult> = coroutineScope {
-    // Determine per-line script so a mixed English + Devanagari/Gurmukhi song doesn't get
-    // misclassified as a whole. Latin lines are left completely untouched (no diacritic
-    // stripping) so English contractions like "I'm" / "can't" are never mangled.
-    val latinFlags = texts.map { isLatinLine(it) }
-    val nonLatinIndices = latinFlags.withIndex().filter { !it.value }.map { it.index }
+  private suspend fun handleHinglishCasualTransliteration(texts: List<String>): List<TranslationResult> =
+    coroutineScope {
+      // Determine per-line script so a mixed English + Devanagari/Gurmukhi song doesn't get
+      // misclassified as a whole. Latin lines are left completely untouched (no diacritic
+      // stripping) so English contractions like "I'm" / "can't" are never mangled.
+      val latinFlags = texts.map { isLatinLine(it) }
+      val nonLatinIndices = latinFlags.withIndex().filter { !it.value }.map { it.index }
 
-    // For Devanagari lines specifically, pre-apply schwa deletion BEFORE sending to Google's
-    // romanization endpoint. Google's raw dt=rm output keeps every akshara's inherent 'a'
-    // vowel (e.g. "हम" -> "hama", "करने" -> "karane"), which reads nothing like how Hindi is
-    // actually spoken/typed casually ("ham", "karne"). Inserting an explicit virama at the
-    // positions where the schwa should be silent lets Google's own (already-correct)
-    // consonant-cluster transliteration produce the right result for us.
-    val preprocessed = nonLatinIndices.map { idx ->
-      val line = texts[idx]
-      if (isDevanagariLine(line)) applyHindiSchwaDeletion(line) else line
-    }
-
-    val romanizedByIndex: Map<Int, TranslationResult> =
-      if (nonLatinIndices.isEmpty()) {
-        emptyMap()
-      } else {
-        val chunks = preprocessed.chunked(CHUNK_SIZE)
-        val deferredChunks = chunks.map { chunk ->
-          async(Dispatchers.IO) {
-            requestSemaphore.withPermit { romanizeChunk(chunk) }
-          }
+      // For Devanagari lines specifically, pre-apply schwa deletion BEFORE sending to Google's
+      // romanization endpoint. Google's raw dt=rm output keeps every akshara's inherent 'a'
+      // vowel (e.g. "हम" -> "hama", "करने" -> "karane"), which reads nothing like how Hindi is
+      // actually spoken/typed casually ("ham", "karne"). Inserting an explicit virama at the
+      // positions where the schwa should be silent lets Google's own (already-correct)
+      // consonant-cluster transliteration produce the right result for us.
+      val preprocessed =
+        nonLatinIndices.map { idx ->
+          val line = texts[idx]
+          if (isDevanagariLine(line)) applyHindiSchwaDeletion(line) else line
         }
-        val romanized = deferredChunks.awaitAll().flatten()
-        nonLatinIndices.zip(romanized).toMap()
-      }
 
-    texts.mapIndexed { index, line ->
-      if (latinFlags[index]) {
-        val trimmed = line.trim()
-        TranslationResult(translation = trimmed, romanization = trimmed)
-      } else {
-        val res = romanizedByIndex[index]
-        val source = res?.romanization ?: res?.translation ?: line
-        val casual = casualizeHinglish(source)
-        TranslationResult(
-          translation = casual,
-          romanization = casual,
-          detectedSourceLang = res?.detectedSourceLang,
-        )
+      val romanizedByIndex: Map<Int, TranslationResult> =
+        if (nonLatinIndices.isEmpty()) {
+          emptyMap()
+        } else {
+          val chunks = preprocessed.chunked(CHUNK_SIZE)
+          val deferredChunks =
+            chunks.map { chunk ->
+              async(Dispatchers.IO) {
+                requestSemaphore.withPermit { romanizeChunk(chunk) }
+              }
+            }
+          val romanized = deferredChunks.awaitAll().flatten()
+          nonLatinIndices.zip(romanized).toMap()
+        }
+
+      texts.mapIndexed { index, line ->
+        if (latinFlags[index]) {
+          val trimmed = line.trim()
+          TranslationResult(translation = trimmed, romanization = trimmed)
+        } else {
+          val res = romanizedByIndex[index]
+          val source = res?.romanization ?: res?.translation ?: line
+          val casual = casualizeHinglish(source)
+          TranslationResult(
+            translation = casual,
+            romanization = casual,
+            detectedSourceLang = res?.detectedSourceLang,
+          )
+        }
       }
     }
-  }
 
   /** True if the line contains at least one Devanagari script character. */
-  private fun isDevanagariLine(text: String): Boolean {
-    return text.any { it.code in 0x0900..0x097F }
-  }
+  private fun isDevanagariLine(text: String): Boolean = text.any { it.code in 0x0900..0x097F }
 
   private object Devanagari {
     val CONSONANTS = (0x0915..0x0939).map { it.toChar() }.toSet() + (0x0958..0x095F).map { it.toChar() }.toSet()
     const val VIRAMA = '\u094D'
-    val MATRAS = setOf(
-      '\u093E', '\u093F', '\u0940', '\u0941', '\u0942', '\u0943', '\u0944',
-      '\u0945', '\u0946', '\u0947', '\u0948', '\u0949', '\u094A', '\u094B', '\u094C',
-      '\u0955', '\u0956', '\u0957', '\u0962', '\u0963',
-    )
+    val MATRAS =
+      setOf(
+        '\u093E',
+        '\u093F',
+        '\u0940',
+        '\u0941',
+        '\u0942',
+        '\u0943',
+        '\u0944',
+        '\u0945',
+        '\u0946',
+        '\u0947',
+        '\u0948',
+        '\u0949',
+        '\u094A',
+        '\u094B',
+        '\u094C',
+        '\u0955',
+        '\u0956',
+        '\u0957',
+        '\u0962',
+        '\u0963',
+      )
     val NASAL_MARKS = setOf('\u0901', '\u0902', '\u0903') // candrabindu, anusvara, visarga
   }
 
@@ -510,14 +551,22 @@ class LyricsTranslationService(
     //  - ś/ṣ would otherwise collapse to plain "s" and lose the "sh" sound
     //  - long vowels are doubled to preserve the length distinction casually
     //  - ṁ/ṃ (anusvara/nasalization) reads as "n" in casual typing, not "m"
-    var result = text
-      .replace("ś", "sh").replace("Ś", "Sh")
-      .replace("ṣ", "sh").replace("Ṣ", "Sh")
-      .replace("ā", "aa").replace("Ā", "Aa")
-      .replace("ī", "ee").replace("Ī", "Ee")
-      .replace("ū", "oo").replace("Ū", "Oo")
-      .replace("ṁ", "n").replace("Ṁ", "N")
-      .replace("ṃ", "n").replace("Ṃ", "N")
+    var result =
+      text
+        .replace("ś", "sh")
+        .replace("Ś", "Sh")
+        .replace("ṣ", "sh")
+        .replace("Ṣ", "Sh")
+        .replace("ā", "aa")
+        .replace("Ā", "Aa")
+        .replace("ī", "ee")
+        .replace("Ī", "Ee")
+        .replace("ū", "oo")
+        .replace("Ū", "Oo")
+        .replace("ṁ", "n")
+        .replace("Ṁ", "N")
+        .replace("ṃ", "n")
+        .replace("Ṃ", "N")
 
     // Google sometimes represents nasalization as a combining mark riding on the vowel
     // instead of a standalone ṁ/ṃ character (e.g. a combining tilde or candrabindu). Convert
@@ -645,24 +694,28 @@ class LyricsTranslationService(
   }
 
   private suspend fun fetchGoogleRomanization(query: String): String? {
-    val url = HttpUrl.Builder()
-      .scheme("https")
-      .host("translate.google.com")
-      .addPathSegment("translate_a")
-      .addPathSegment("single")
-      .addQueryParameter("client", "it")
-      .addQueryParameter("sl", "auto")
-      .addQueryParameter("tl", "en")
-      .addQueryParameter("dt", "t")
-      .addQueryParameter("dt", "rm")
-      .addQueryParameter("q", query)
-      .build()
+    val url =
+      HttpUrl
+        .Builder()
+        .scheme("https")
+        .host("translate.google.com")
+        .addPathSegment("translate_a")
+        .addPathSegment("single")
+        .addQueryParameter("client", "it")
+        .addQueryParameter("sl", "auto")
+        .addQueryParameter("tl", "en")
+        .addQueryParameter("dt", "t")
+        .addQueryParameter("dt", "rm")
+        .addQueryParameter("q", query)
+        .build()
 
-    val request = Request.Builder()
-      .url(url)
-      .header("User-Agent", USER_AGENT)
-      .get()
-      .build()
+    val request =
+      Request
+        .Builder()
+        .url(url)
+        .header("User-Agent", USER_AGENT)
+        .get()
+        .build()
 
     client.newCall(request).awaitResponse().use { response ->
       if (!response.isSuccessful) return null
@@ -673,8 +726,9 @@ class LyricsTranslationService(
       // Check sentences array for the full romanization block (in the last element)
       for (i in sentences.indices.reversed()) {
         val elem = sentences.getOrNull(i)?.jsonArray
-        val candidate = elem?.getOrNull(3)?.jsonPrimitive?.content
-          ?: elem?.getOrNull(2)?.jsonPrimitive?.content
+        val candidate =
+          elem?.getOrNull(3)?.jsonPrimitive?.content
+            ?: elem?.getOrNull(2)?.jsonPrimitive?.content
         if (!candidate.isNullOrBlank() && candidate != "null") {
           return candidate.trim()
         }
@@ -683,8 +737,9 @@ class LyricsTranslationService(
       val sb = StringBuilder()
       for (elem in sentences) {
         val sub = elem.jsonArray
-        val rom = sub.getOrNull(3)?.jsonPrimitive?.content
-          ?: sub.getOrNull(2)?.jsonPrimitive?.content
+        val rom =
+          sub.getOrNull(3)?.jsonPrimitive?.content
+            ?: sub.getOrNull(2)?.jsonPrimitive?.content
         if (!rom.isNullOrBlank() && rom != "null") {
           sb.append(rom).append(" ")
         }
@@ -697,7 +752,9 @@ class LyricsTranslationService(
     if (text.isBlank()) return text
     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
       try {
-        val transliterator = android.icu.text.Transliterator.getInstance("Any-Latin")
+        val transliterator =
+          android.icu.text.Transliterator
+            .getInstance("Any-Latin")
         val result = transliterator.transliterate(text)
         if (!result.isNullOrBlank()) return result.trim()
       } catch (e: Throwable) {
@@ -789,21 +846,25 @@ class LyricsTranslationService(
     query: String,
     targetLang: String,
   ): String? {
-    val url = HttpUrl.Builder()
-      .scheme("https")
-      .host("translate.google.com")
-      .addPathSegment("m")
-      .addQueryParameter("sl", "auto")
-      .addQueryParameter("tl", targetLang)
-      .addQueryParameter("hl", "en-US")
-      .addQueryParameter("q", query)
-      .build()
+    val url =
+      HttpUrl
+        .Builder()
+        .scheme("https")
+        .host("translate.google.com")
+        .addPathSegment("m")
+        .addQueryParameter("sl", "auto")
+        .addQueryParameter("tl", targetLang)
+        .addQueryParameter("hl", "en-US")
+        .addQueryParameter("q", query)
+        .build()
 
-    val request = Request.Builder()
-      .url(url)
-      .header("User-Agent", USER_AGENT)
-      .get()
-      .build()
+    val request =
+      Request
+        .Builder()
+        .url(url)
+        .header("User-Agent", USER_AGENT)
+        .get()
+        .build()
 
     client.newCall(request).awaitResponse().use { response ->
       if (!response.isSuccessful) {
@@ -822,19 +883,23 @@ class LyricsTranslationService(
     targetLang: String,
   ): String? {
     val langPair = "autodetect|$targetLang"
-    val url = HttpUrl.Builder()
-      .scheme("https")
-      .host("api.mymemory.translated.net")
-      .addPathSegment("get")
-      .addQueryParameter("q", query)
-      .addQueryParameter("langpair", langPair)
-      .build()
+    val url =
+      HttpUrl
+        .Builder()
+        .scheme("https")
+        .host("api.mymemory.translated.net")
+        .addPathSegment("get")
+        .addQueryParameter("q", query)
+        .addQueryParameter("langpair", langPair)
+        .build()
 
-    val request = Request.Builder()
-      .url(url)
-      .header("User-Agent", USER_AGENT)
-      .get()
-      .build()
+    val request =
+      Request
+        .Builder()
+        .url(url)
+        .header("User-Agent", USER_AGENT)
+        .get()
+        .build()
 
     client.newCall(request).awaitResponse().use { response ->
       if (!response.isSuccessful) {
@@ -853,19 +918,23 @@ class LyricsTranslationService(
     query: String,
     targetLang: String,
   ): String? {
-    val formBody = FormBody.Builder()
-      .add("client", "gtx")
-      .add("sl", "auto")
-      .add("tl", targetLang)
-      .add("dt", "t")
-      .add("q", query)
-      .build()
+    val formBody =
+      FormBody
+        .Builder()
+        .add("client", "gtx")
+        .add("sl", "auto")
+        .add("tl", targetLang)
+        .add("dt", "t")
+        .add("q", query)
+        .build()
 
-    val request = Request.Builder()
-      .url("https://translate.googleapis.com/translate_a/single")
-      .header("User-Agent", USER_AGENT)
-      .post(formBody)
-      .build()
+    val request =
+      Request
+        .Builder()
+        .url("https://translate.googleapis.com/translate_a/single")
+        .header("User-Agent", USER_AGENT)
+        .post(formBody)
+        .build()
 
     client.newCall(request).awaitResponse().use { response ->
       if (!response.isSuccessful) return null
@@ -891,10 +960,11 @@ class LyricsTranslationService(
     originalChunk: List<String>,
   ): List<TranslationResult> {
     // Default each position with the original line so missing markers never leave lines blank
-    val results = Array(chunkSize) { idx ->
-      val orig = originalChunk[idx].trim()
-      TranslationResult(translation = orig, romanization = orig, isResolved = false)
-    }
+    val results =
+      Array(chunkSize) { idx ->
+        val orig = originalChunk[idx].trim()
+        TranslationResult(translation = orig, romanization = orig, isResolved = false)
+      }
 
     // Normalize Indic/Arabic/Fullwidth digits and brackets so regex matching works across all languages
     val normalizedText = normalizeDigitsAndBrackets(translatedText)
@@ -915,11 +985,12 @@ class LyricsTranslationService(
         if (localIdx != null && localIdx in 0 until chunkSize) {
           val orig = originalChunk[localIdx].trim()
           val cleanContent = cleanLine(content)
-          results[localIdx] = TranslationResult(
-            translation = cleanContent.ifEmpty { orig },
-            romanization = cleanContent.ifEmpty { orig },
-            isResolved = cleanContent.isNotEmpty(),
-          )
+          results[localIdx] =
+            TranslationResult(
+              translation = cleanContent.ifEmpty { orig },
+              romanization = cleanContent.ifEmpty { orig },
+              isResolved = cleanContent.isNotEmpty(),
+            )
         }
       }
       return results.toList()
@@ -933,27 +1004,27 @@ class LyricsTranslationService(
         val localIdx = entry.value
         val orig = originalChunk[localIdx].trim()
         val trans = nonBlankLines[i].ifEmpty { orig }
-        results[localIdx] = TranslationResult(
-          translation = trans,
-          romanization = trans,
-        )
+        results[localIdx] =
+          TranslationResult(
+            translation = trans,
+            romanization = trans,
+          )
       }
       return results.toList()
     }
 
     for ((_, localIdx) in indexMap) {
-      results[localIdx] = TranslationResult(
-        translation = originalChunk[localIdx].trim(),
-        romanization = originalChunk[localIdx].trim(),
-        isResolved = false,
-      )
+      results[localIdx] =
+        TranslationResult(
+          translation = originalChunk[localIdx].trim(),
+          romanization = originalChunk[localIdx].trim(),
+          isResolved = false,
+        )
     }
     return results.toList()
   }
 
-  private fun cleanLine(line: String): String {
-    return line.replace(Regex("""^\s*\[?\d+\]?[.:\- ]*"""), "").trim()
-  }
+  private fun cleanLine(line: String): String = line.replace(Regex("""^\s*\[?\d+\]?[.:\- ]*"""), "").trim()
 
   private fun normalizeDigitsAndBrackets(text: String): String {
     val sb = StringBuilder(text.length)
@@ -971,30 +1042,33 @@ class LyricsTranslationService(
   }
 
   private fun unescapeHtml(text: String): String {
-    var result = text
-      .replace("&quot;", "\"")
-      .replace("&#39;", "'")
-      .replace("&apos;", "'")
-      .replace("&amp;", "&")
-      .replace("&lt;", "<")
-      .replace("&gt;", ">")
-      .replace("&nbsp;", " ")
+    var result =
+      text
+        .replace("&quot;", "\"")
+        .replace("&#39;", "'")
+        .replace("&apos;", "'")
+        .replace("&amp;", "&")
+        .replace("&lt;", "<")
+        .replace("&gt;", ">")
+        .replace("&nbsp;", " ")
 
     // Unescape numeric and hex character entities like &#20320; or &#x4F60;
     if (result.contains("&#")) {
-      result = NUMERIC_ENTITY_REGEX.replace(result) { matchResult ->
-        val entity = matchResult.groupValues[1]
-        try {
-          val codePoint = if (entity.startsWith("x", ignoreCase = true)) {
-            entity.substring(1).toInt(16)
-          } else {
-            entity.toInt(10)
+      result =
+        NUMERIC_ENTITY_REGEX.replace(result) { matchResult ->
+          val entity = matchResult.groupValues[1]
+          try {
+            val codePoint =
+              if (entity.startsWith("x", ignoreCase = true)) {
+                entity.substring(1).toInt(16)
+              } else {
+                entity.toInt(10)
+              }
+            String(Character.toChars(codePoint))
+          } catch (_: Exception) {
+            matchResult.value
           }
-          String(Character.toChars(codePoint))
-        } catch (_: Exception) {
-          matchResult.value
         }
-      }
     }
 
     return result

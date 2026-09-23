@@ -10,9 +10,9 @@
 package com.quantummpv.app.ui.cast
 
 import android.view.Menu
-import com.quantummpv.app.R
 import com.google.android.gms.cast.framework.CastButtonFactory
 import com.google.android.gms.cast.framework.media.widget.ExpandedControllerActivity
+import com.quantummpv.app.R
 
 class CastExpandedControlsActivity : ExpandedControllerActivity() {
   override fun onCreateOptionsMenu(menu: Menu): Boolean {

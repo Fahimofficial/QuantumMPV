@@ -9,8 +9,6 @@
 
 package com.quantummpv.app.ui.player.screenshot
 
-import com.quantummpv.app.ui.player.PlaybackSession
-
 import android.content.ContentValues
 import android.content.Context
 import android.graphics.Bitmap
@@ -21,6 +19,7 @@ import android.os.Build
 import android.os.Environment
 import android.provider.MediaStore
 import com.quantummpv.app.preferences.PlayerPreferences
+import com.quantummpv.app.ui.player.PlaybackSession
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.withContext
@@ -130,7 +129,11 @@ object ScreenshotSaver {
     val sourcePng = File(context.cacheDir, "mpvrx_snapshot_fallback_source.png")
     sourcePng.delete()
     PlaybackSession.setOptionString("screenshot-format", "png")
-    PlaybackSession.command("screenshot-to-file", sourcePng.absolutePath, if (includeSubtitles) "subtitles" else "video")
+    PlaybackSession.command(
+      "screenshot-to-file",
+      sourcePng.absolutePath,
+      if (includeSubtitles) "subtitles" else "video",
+    )
     delay(250)
     if (!sourcePng.exists() || sourcePng.length() == 0L) return null
 

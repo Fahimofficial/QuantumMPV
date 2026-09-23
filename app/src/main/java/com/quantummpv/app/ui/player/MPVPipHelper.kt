@@ -24,13 +24,12 @@ import android.util.Rational
 import android.view.View
 import androidx.annotation.DrawableRes
 import androidx.appcompat.app.AppCompatActivity
+import androidx.core.content.ContextCompat
 import com.quantummpv.app.preferences.PlayerPreferences
 import com.quantummpv.app.ui.icons.Icons
 import com.quantummpv.app.utils.media.resolveSeekMode
 import org.koin.core.component.KoinComponent
 import org.koin.core.component.inject
-
-import androidx.core.content.ContextCompat
 
 private const val PIP_INTENTS_FILTER = "pip_action"
 private const val PIP_INTENT_ACTION = "pip_action_code"
@@ -46,7 +45,6 @@ class MPVPipHelper(
   private val isAudioPlayer: () -> Boolean = { false },
   private val isVideoLoaded: () -> Boolean = { false },
 ) : KoinComponent {
-
   constructor(
     activity: AppCompatActivity,
     mpvView: MPVView,

@@ -62,7 +62,8 @@ fun YtdlpInstallationStatus(
     when {
       info == null -> stringResource(R.string.ui_reading_installed_version)
       !isInstalled -> stringResource(R.string.ui_install_stable_to_play_web_links)
-      version != null && shortCommitHash != null &&
+      version != null &&
+        shortCommitHash != null &&
         info.channel in setOf(YtdlpReleaseChannel.NIGHTLY, YtdlpReleaseChannel.MASTER) ->
         stringResource(R.string.ui_yt_dlp_build_and_commit, version, shortCommitHash)
       version != null -> stringResource(R.string.ui_yt_dlp_version, version)

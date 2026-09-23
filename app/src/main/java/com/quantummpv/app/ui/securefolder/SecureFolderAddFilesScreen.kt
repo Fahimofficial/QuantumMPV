@@ -99,9 +99,10 @@ data object SecureFolderAddFilesScreen : Screen {
     val videoFolders by folderListViewModel.videoFolders.collectAsState()
     val folderSortType by browserPreferences.folderSortType.collectAsState()
     val folderSortOrder by browserPreferences.folderSortOrder.collectAsState()
-    val sortedFolders = remember(videoFolders, folderSortType, folderSortOrder) {
-      SortUtils.sortFolders(videoFolders, folderSortType, folderSortOrder)
-    }
+    val sortedFolders =
+      remember(videoFolders, folderSortType, folderSortOrder) {
+        SortUtils.sortFolders(videoFolders, folderSortType, folderSortOrder)
+      }
 
     var selectedFolder by remember { mutableStateOf<VideoFolder?>(null) }
     val folder = selectedFolder
@@ -129,9 +130,10 @@ data object SecureFolderAddFilesScreen : Screen {
       }
     val videoSortType by browserPreferences.videoSortType.collectAsState()
     val videoSortOrder by browserPreferences.videoSortOrder.collectAsState()
-    val sortedVideos = remember(currentVideos, videoSortType, videoSortOrder) {
-      SortUtils.sortVideos(currentVideos, videoSortType, videoSortOrder)
-    }
+    val sortedVideos =
+      remember(currentVideos, videoSortType, videoSortOrder) {
+        SortUtils.sortVideos(currentVideos, videoSortType, videoSortOrder)
+      }
 
     val selectionManager =
       if (folder != null) {

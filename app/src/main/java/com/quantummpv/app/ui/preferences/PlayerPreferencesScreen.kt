@@ -149,25 +149,25 @@ object PlayerPreferencesScreen : Screen {
 
               PreferenceDivider()
 
-val resumePlaybackMode by preferences.resumePlaybackMode.collectAsState()
-ListPreference(
-  modifier = Modifier.settingsSearchTarget(R.string.pref_player_resume_playback_title),
-  value = resumePlaybackMode,
-  onValueChange = preferences.resumePlaybackMode::set,
-  values = ResumePlaybackMode.entries,
-  valueToText = { AnnotatedString(resources.getString(it.titleRes)) },
-  title = { Text(stringResource(R.string.pref_player_resume_playback_title)) },
-  summary = {
-    Text(
-      stringResource(resumePlaybackMode.summaryRes),
-      color = MaterialTheme.colorScheme.outline,
-    )
-  },
-)
+              val resumePlaybackMode by preferences.resumePlaybackMode.collectAsState()
+              ListPreference(
+                modifier = Modifier.settingsSearchTarget(R.string.pref_player_resume_playback_title),
+                value = resumePlaybackMode,
+                onValueChange = preferences.resumePlaybackMode::set,
+                values = ResumePlaybackMode.entries,
+                valueToText = { AnnotatedString(resources.getString(it.titleRes)) },
+                title = { Text(stringResource(R.string.pref_player_resume_playback_title)) },
+                summary = {
+                  Text(
+                    stringResource(resumePlaybackMode.summaryRes),
+                    color = MaterialTheme.colorScheme.outline,
+                  )
+                },
+              )
 
-PreferenceDivider()
+              PreferenceDivider()
 
-val savePositionOnQuit by preferences.savePositionOnQuit.collectAsState()
+              val savePositionOnQuit by preferences.savePositionOnQuit.collectAsState()
               SwitchPreference(
                 modifier = Modifier.settingsSearchTarget(R.string.pref_player_save_position_on_quit),
                 value = savePositionOnQuit,
@@ -197,7 +197,8 @@ val savePositionOnQuit by preferences.savePositionOnQuit.collectAsState()
                     preferences.enableVideoMiniPlayer.set(false)
                     showVideoMiniPlayerDependencyDialog = false
                   }
-                  if (enabled && Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
+                  if (enabled &&
+                    Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
                     ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) !=
                     PackageManager.PERMISSION_GRANTED
                   ) {
@@ -1095,23 +1096,23 @@ val savePositionOnQuit by preferences.savePositionOnQuit.collectAsState()
 
               PreferenceDivider()
 
-val showResumeIndicatorOverlay by preferences.showResumeIndicatorOverlay.collectAsState()
-SwitchPreference(
-  modifier = Modifier.settingsSearchTarget(R.string.pref_resume_indicator_overlay_title),
-  value = showResumeIndicatorOverlay,
-  onValueChange = preferences.showResumeIndicatorOverlay::set,
-  title = { Text(stringResource(R.string.pref_resume_indicator_overlay_title)) },
-  summary = {
-    Text(
-      stringResource(R.string.pref_resume_indicator_overlay_summary),
-      color = MaterialTheme.colorScheme.outline,
-    )
-  },
-)
+              val showResumeIndicatorOverlay by preferences.showResumeIndicatorOverlay.collectAsState()
+              SwitchPreference(
+                modifier = Modifier.settingsSearchTarget(R.string.pref_resume_indicator_overlay_title),
+                value = showResumeIndicatorOverlay,
+                onValueChange = preferences.showResumeIndicatorOverlay::set,
+                title = { Text(stringResource(R.string.pref_resume_indicator_overlay_title)) },
+                summary = {
+                  Text(
+                    stringResource(R.string.pref_resume_indicator_overlay_summary),
+                    color = MaterialTheme.colorScheme.outline,
+                  )
+                },
+              )
 
-PreferenceDivider()
+              PreferenceDivider()
 
-val showProviderStatusOverlay by preferences.showProviderStatusOverlay.collectAsState()
+              val showProviderStatusOverlay by preferences.showProviderStatusOverlay.collectAsState()
               SwitchPreference(
                 modifier = Modifier.settingsSearchTarget(R.string.pref_provider_status_overlay_title),
                 value = showProviderStatusOverlay,

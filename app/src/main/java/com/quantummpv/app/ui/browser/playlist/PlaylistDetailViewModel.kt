@@ -10,6 +10,7 @@
 package com.quantummpv.app.ui.browser.playlist
 
 import android.app.Application
+import android.net.Uri
 import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
@@ -17,7 +18,6 @@ import androidx.lifecycle.viewModelScope
 import com.quantummpv.app.database.entities.PlaylistEntity
 import com.quantummpv.app.database.entities.PlaylistItemEntity
 import com.quantummpv.app.database.repository.PlaylistRepository
-import android.net.Uri
 import com.quantummpv.app.domain.media.model.Video
 import com.quantummpv.app.repository.MediaFileRepository
 import com.quantummpv.app.ui.browser.base.BaseBrowserViewModel
@@ -109,69 +109,80 @@ class PlaylistDetailViewModel(
               _videoItems.value = videoItems
             } else {
               // For regular playlists, use the existing logic with MediaFileRepository
-              val fileObjects = items.map { item ->
-                when {
-                  item.filePath.startsWith("content://") || item.filePath.startsWith("file://") -> {
-                    val uri = Uri.parse(item.filePath)
-                    val resolved = uri.resolveUri(getApplication(), allowFdFallback = false)
-                    if (!resolved.isNullOrBlank()) File(resolved) else File(uri.path ?: item.filePath)
+              val fileObjects =
+                items.map { item ->
+                  when {
+                    item.filePath.startsWith("content://") || item.filePath.startsWith("file://") -> {
+                      val uri = Uri.parse(item.filePath)
+                      val resolved = uri.resolveUri(getApplication(), allowFdFallback = false)
+                      if (!resolved.isNullOrBlank()) File(resolved) else File(uri.path ?: item.filePath)
+                    }
+                    else -> File(item.filePath)
                   }
-                  else -> File(item.filePath)
                 }
-              }
 
               // Get unique bucket IDs from playlist items' parent folders
               val bucketIds = fileObjects.mapNotNull { it.parent }.filter { it.isNotBlank() }.toSet()
 
               // Get all videos and audio files from those folders (uses cache)
-              val allVideos = MediaFileRepository.getVideosForBuckets(getApplication(), bucketIds, includeAudioOverride = true)
+              val allVideos =
+                MediaFileRepository.getVideosForBuckets(
+                  getApplication(),
+                  bucketIds,
+                  includeAudioOverride = true,
+                )
 
               // Match videos by path, maintaining playlist order
               val videoItems =
                 items.mapIndexedNotNull { index, item ->
                   val file = fileObjects.getOrNull(index) ?: File(item.filePath)
                   val isAudioFile = FileTypeUtils.isAudioFile(file)
-                  val matchedVideo = allVideos.find { video ->
-                    video.path == item.filePath ||
-                      video.path == file.absolutePath ||
-                      video.uri.toString() == item.filePath
-                  }
-                  val video = (matchedVideo?.let { if (isAudioFile && !it.isAudio) it.copy(isAudio = true) else it }) ?: run {
-                    if (file.exists()) {
-                      MediaFileRepository.getVideosFromFiles(getApplication(), listOf(file)).firstOrNull()?.let {
-                        if (isAudioFile && !it.isAudio) it.copy(isAudio = true) else it
+                  val matchedVideo =
+                    allVideos.find { video ->
+                      video.path == item.filePath ||
+                        video.path == file.absolutePath ||
+                        video.uri.toString() == item.filePath
+                    }
+                  val video =
+                    (matchedVideo?.let { if (isAudioFile && !it.isAudio) it.copy(isAudio = true) else it }) ?: run {
+                      if (file.exists()) {
+                        MediaFileRepository.getVideosFromFiles(getApplication(), listOf(file)).firstOrNull()?.let {
+                          if (isAudioFile && !it.isAudio) it.copy(isAudio = true) else it
+                        }
+                      } else {
+                        null
                       }
-                    } else {
-                      null
+                    } ?: run {
+                      val rawUri =
+                        when {
+                          item.filePath.startsWith("content://") ||
+                            item.filePath.startsWith("http://") ||
+                            item.filePath.startsWith("https://") -> Uri.parse(item.filePath)
+                          file.exists() -> Uri.fromFile(file)
+                          else -> Uri.parse(item.filePath)
+                        }
+                      Video(
+                        id = item.id.toLong(),
+                        title = item.fileName,
+                        displayName = item.fileName,
+                        path = if (file.exists()) file.absolutePath else item.filePath,
+                        uri = rawUri,
+                        duration = 0L,
+                        durationFormatted = "--",
+                        size = if (file.exists()) file.length() else 0L,
+                        sizeFormatted = "--",
+                        dateModified = item.addedAt,
+                        dateAdded = item.addedAt,
+                        mimeType = if (isAudioFile) "audio/*" else "video/*",
+                        bucketId = file.parent ?: "",
+                        bucketDisplayName = file.parentFile?.name ?: "",
+                        width = 0,
+                        height = 0,
+                        fps = 0f,
+                        resolution = "--",
+                        isAudio = isAudioFile,
+                      )
                     }
-                  } ?: run {
-                    val rawUri = when {
-                      item.filePath.startsWith("content://") || item.filePath.startsWith("http://") || item.filePath.startsWith("https://") -> Uri.parse(item.filePath)
-                      file.exists() -> Uri.fromFile(file)
-                      else -> Uri.parse(item.filePath)
-                    }
-                    Video(
-                      id = item.id.toLong(),
-                      title = item.fileName,
-                      displayName = item.fileName,
-                      path = if (file.exists()) file.absolutePath else item.filePath,
-                      uri = rawUri,
-                      duration = 0L,
-                      durationFormatted = "--",
-                      size = if (file.exists()) file.length() else 0L,
-                      sizeFormatted = "--",
-                      dateModified = item.addedAt,
-                      dateAdded = item.addedAt,
-                      mimeType = if (isAudioFile) "audio/*" else "video/*",
-                      bucketId = file.parent ?: "",
-                      bucketDisplayName = file.parentFile?.name ?: "",
-                      width = 0,
-                      height = 0,
-                      fps = 0f,
-                      resolution = "--",
-                      isAudio = isAudioFile,
-                    )
-                  }
                   PlaylistVideoItem(item, video)
                 }
 
@@ -214,35 +225,41 @@ class PlaylistDetailViewModel(
               .map { item ->
                 File(item.filePath).parent ?: ""
               }.toSet()
-          val allVideos = MediaFileRepository.getVideosForBuckets(getApplication(), bucketIds, includeAudioOverride = true)
+          val allVideos =
+            MediaFileRepository.getVideosForBuckets(
+              getApplication(),
+              bucketIds,
+              includeAudioOverride = true,
+            )
           val videoItems =
             items.mapNotNull { item ->
               val matchedVideo = allVideos.find { video -> video.path == item.filePath }
-              val video = matchedVideo ?: run {
-                val file = File(item.filePath)
-                val isAudioFile = FileTypeUtils.isAudioFile(file)
-                Video(
-                  id = item.id.toLong(),
-                  title = item.fileName,
-                  displayName = item.fileName,
-                  path = item.filePath,
-                  uri = android.net.Uri.fromFile(file),
-                  duration = 0L,
-                  durationFormatted = "--",
-                  size = if (file.exists()) file.length() else 0L,
-                  sizeFormatted = "--",
-                  dateModified = item.addedAt,
-                  dateAdded = item.addedAt,
-                  mimeType = if (isAudioFile) "audio/*" else "video/*",
-                  bucketId = "",
-                  bucketDisplayName = "",
-                  width = 0,
-                  height = 0,
-                  fps = 0f,
-                  resolution = "--",
-                  isAudio = isAudioFile,
-                )
-              }
+              val video =
+                matchedVideo ?: run {
+                  val file = File(item.filePath)
+                  val isAudioFile = FileTypeUtils.isAudioFile(file)
+                  Video(
+                    id = item.id.toLong(),
+                    title = item.fileName,
+                    displayName = item.fileName,
+                    path = item.filePath,
+                    uri = android.net.Uri.fromFile(file),
+                    duration = 0L,
+                    durationFormatted = "--",
+                    size = if (file.exists()) file.length() else 0L,
+                    sizeFormatted = "--",
+                    dateModified = item.addedAt,
+                    dateAdded = item.addedAt,
+                    mimeType = if (isAudioFile) "audio/*" else "video/*",
+                    bucketId = "",
+                    bucketDisplayName = "",
+                    width = 0,
+                    height = 0,
+                    fps = 0f,
+                    resolution = "--",
+                    isAudio = isAudioFile,
+                  )
+                }
               PlaylistVideoItem(item, video)
             }
           _videoItems.value = videoItems

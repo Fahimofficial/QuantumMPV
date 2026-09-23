@@ -48,6 +48,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -59,12 +60,11 @@ import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalConfiguration
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.compose.runtime.saveable.rememberSaveable
-import androidx.compose.ui.res.stringResource
 import com.quantummpv.app.R
 import com.quantummpv.app.domain.media.model.Video
 import com.quantummpv.app.domain.thumbnail.ThumbnailRepository
@@ -72,20 +72,20 @@ import com.quantummpv.app.preferences.preference.collectAsState
 import com.quantummpv.app.presentation.components.PlayerSheet
 import com.quantummpv.app.presentation.components.RemoteImage
 import com.quantummpv.app.ui.browser.dialogs.AddToPlaylistDialog
-import com.quantummpv.app.ui.player.PlaybackSession
-import com.quantummpv.app.ui.player.controls.components.MiniAudioVisualizer
 import com.quantummpv.app.ui.icons.Icon
 import com.quantummpv.app.ui.icons.Icons
+import com.quantummpv.app.ui.player.PlaybackSession
+import com.quantummpv.app.ui.player.controls.components.MiniAudioVisualizer
 import com.quantummpv.app.ui.theme.spacing
 import kotlinx.collections.immutable.ImmutableList
 import kotlinx.collections.immutable.toImmutableList
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import org.koin.compose.koinInject
-import kotlin.math.abs
 import sh.calvin.reorderable.ReorderableCollectionItemScope
 import sh.calvin.reorderable.ReorderableItem
 import sh.calvin.reorderable.rememberReorderableLazyListState
+import kotlin.math.abs
 
 fun PlaylistItem.toVideo(): Video {
   val cleanPath =
@@ -145,7 +145,14 @@ private fun PlaylistThumbnail(
   val hasArtwork = item.tvgLogo.isNotBlank()
   val isYouTubeArtwork =
     remember(item.tvgLogo) {
-      val host = runCatching { Uri.parse(item.tvgLogo).host.orEmpty().lowercase() }.getOrDefault("")
+      val host =
+        runCatching {
+          Uri
+            .parse(item.tvgLogo)
+            .host
+            .orEmpty()
+            .lowercase()
+        }.getOrDefault("")
       host == "i.ytimg.com" || host.endsWith(".ytimg.com")
     }
   val cleanPath =
@@ -450,9 +457,12 @@ fun PlaylistSheet(
                   dragStartIndex = from.index
                 }
                 dragEndIndex = to.index
-                displayPlaylist = displayPlaylist.toMutableList().apply {
-                  add(to.index, removeAt(from.index))
-                }.toImmutableList()
+                displayPlaylist =
+                  displayPlaylist
+                    .toMutableList()
+                    .apply {
+                      add(to.index, removeAt(from.index))
+                    }.toImmutableList()
               }
             }
 
@@ -512,7 +522,7 @@ fun PlaylistSheet(
               ),
             horizontalArrangement = Arrangement.spacedBy(MaterialTheme.spacing.small),
           ) {
-              items(playlist, key = { it.index }) { item ->
+            items(playlist, key = { it.index }) { item ->
               PlaylistTrackGridItem(
                 item = item,
                 thumbnailRepository = thumbnailRepository,

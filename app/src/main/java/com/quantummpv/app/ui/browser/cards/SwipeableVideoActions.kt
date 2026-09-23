@@ -9,8 +9,8 @@
 
 package com.quantummpv.app.ui.browser.cards
 
-import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.animate
+import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectHorizontalDragGestures
@@ -223,8 +223,7 @@ private fun SwipePillAction(
           scaleX = iconScale
           scaleY = iconScale
           this.alpha = alpha
-        }
-        .padding(8.dp)
+        }.padding(8.dp)
         .clip(RoundedCornerShape(28.dp))
         .background(background)
         .then(if (onClick != null) Modifier.clickable(onClick = onClick) else Modifier),

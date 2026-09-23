@@ -33,8 +33,7 @@ data class NetworkConnection(
   val autoConnect: Boolean = false,
   val useHttps: Boolean = false, // For WebDAV: use HTTPS instead of HTTP
 ) {
-  override fun toString(): String =
-    "NetworkConnection(id=$id, name=$name, protocol=$protocol, credentials=<redacted>)"
+  override fun toString(): String = "NetworkConnection(id=$id, name=$name, protocol=$protocol, credentials=<redacted>)"
 }
 
 /**

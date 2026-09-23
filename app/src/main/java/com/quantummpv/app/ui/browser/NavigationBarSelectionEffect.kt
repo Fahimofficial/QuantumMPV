@@ -11,7 +11,10 @@ import com.quantummpv.app.ui.utils.LocalNavigationPageActive
 
 /** Only the foreground page may publish selection controls to the shared navigation bar. */
 @Composable
-internal fun NavigationBarSelectionEffect(inSelectionMode: Boolean, onlyVideos: Boolean = true) {
+internal fun NavigationBarSelectionEffect(
+  inSelectionMode: Boolean,
+  onlyVideos: Boolean = true,
+) {
   val owner = remember { Any() }
   val isActive = LocalNavigationPageActive.current
   LifecycleResumeEffect(inSelectionMode, onlyVideos, isActive) {

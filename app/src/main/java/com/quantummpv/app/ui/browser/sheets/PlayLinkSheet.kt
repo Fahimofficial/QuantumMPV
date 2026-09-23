@@ -43,7 +43,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import androidx.core.net.toUri
 import com.quantummpv.app.database.repository.NetworkStreamEntryRepository
 import com.quantummpv.app.domain.torrent.isTorrentSource
 import com.quantummpv.app.domain.torrent.normalizeTorrentSource
@@ -116,8 +115,13 @@ fun PlayLinkSheet(
               )
 
               val uri = runCatching { android.net.Uri.parse(selectedSource) }.getOrNull()
-              if (firstEntry == null && com.quantummpv.app.utils.media.HttpUtils.isYouTubeUrl(uri)) {
-                val ytMeta = com.quantummpv.app.utils.media.HttpUtils.fetchYouTubeMetadata(playableSource)
+              if (firstEntry == null &&
+                com.quantummpv.app.utils.media.HttpUtils
+                  .isYouTubeUrl(uri)
+              ) {
+                val ytMeta =
+                  com.quantummpv.app.utils.media.HttpUtils
+                    .fetchYouTubeMetadata(playableSource)
                 if (ytMeta != null && ytMeta.title.isNotBlank()) {
                   RecentlyPlayedOps.updateVideoMetadata(
                     filePath = selectedSource,
@@ -245,15 +249,26 @@ fun PlayLinkSheet(
                 // Torrents download through the torrent flow.
                 onPlayLink(playableSource)
               } else {
-                when (linkDownloadCoordinator.enqueue(playableSource, MediaInfoParser.parseStreamTitle(playableSource))) {
+                when (
+                  linkDownloadCoordinator.enqueue(
+                    playableSource,
+                    MediaInfoParser.parseStreamTitle(playableSource),
+                  )
+                ) {
                   com.quantummpv.app.domain.download.LinkDownloadCoordinator.Route.UNSUPPORTED ->
                     android.widget.Toast
-                      .makeText(context, com.quantummpv.app.R.string.downloads_location_invalid, android.widget.Toast.LENGTH_SHORT)
-                      .show()
+                      .makeText(
+                        context,
+                        com.quantummpv.app.R.string.downloads_location_invalid,
+                        android.widget.Toast.LENGTH_SHORT,
+                      ).show()
                   else ->
                     android.widget.Toast
-                      .makeText(context, com.quantummpv.app.R.string.downloads_started, android.widget.Toast.LENGTH_SHORT)
-                      .show()
+                      .makeText(
+                        context,
+                        com.quantummpv.app.R.string.downloads_started,
+                        android.widget.Toast.LENGTH_SHORT,
+                      ).show()
                 }
               }
               onDismiss()
@@ -284,7 +299,9 @@ fun PlayLinkSheet(
             )
           } else {
             Text(
-              text = androidx.compose.ui.res.stringResource(com.quantummpv.app.R.string.ui_play),
+              text =
+                androidx.compose.ui.res
+                  .stringResource(com.quantummpv.app.R.string.ui_play),
               fontWeight = FontWeight.SemiBold,
             )
           }

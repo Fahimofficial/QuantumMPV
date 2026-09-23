@@ -124,7 +124,9 @@ class OpenCodeClient(
         apiClient.newCall(request).awaitResponse().use { response ->
           val body = response.body.string()
           if (!response.isSuccessful) {
-            throw IllegalStateException("OpenCode generate error ${response.code}: ${AiResponseParser.error(json, body)}")
+            throw IllegalStateException(
+              "OpenCode generate error ${response.code}: ${AiResponseParser.error(json, body)}",
+            )
           }
           when (protocol) {
             Protocol.RESPONSES -> AiResponseParser.openAiResponses(json, body, "OpenCode")

@@ -207,13 +207,14 @@ object DownloadsScreen : Screen {
           items(completedDownloads, key = { "dl_done_${it.id}" }) { download ->
             CompletedRow(
               title = download.displayTitle,
-              subtitle = buildString {
-                append(download.entity.fileName)
-                if (download.entity.totalBytes > 0) {
-                  append("  •  ")
-                  append(formatBytes(download.entity.totalBytes))
-                }
-              },
+              subtitle =
+                buildString {
+                  append(download.entity.fileName)
+                  if (download.entity.totalBytes > 0) {
+                    append("  •  ")
+                    append(formatBytes(download.entity.totalBytes))
+                  }
+                },
               playable = download.isPlayable,
               onPlay = {
                 MediaUtils.playFile(
@@ -502,7 +503,10 @@ private fun downloadStatusLine(
     AppDownloadStatus.QUEUED -> stringResource(R.string.downloads_queued)
     AppDownloadStatus.FAILED ->
       stringResource(R.string.downloads_failed) +
-        entity.failureReason?.takeIf { it.isNotBlank() }?.let { ": $it" }.orEmpty()
+        entity.failureReason
+          ?.takeIf { it.isNotBlank() }
+          ?.let { ": $it" }
+          .orEmpty()
     AppDownloadStatus.CANCELLED -> stringResource(R.string.downloads_cancelled)
     AppDownloadStatus.SUCCESS -> stringResource(R.string.downloads_downloaded)
     AppDownloadStatus.RUNNING ->

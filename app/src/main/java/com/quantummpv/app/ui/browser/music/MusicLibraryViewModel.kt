@@ -6,7 +6,6 @@ package com.quantummpv.app.ui.browser.music
 
 import android.content.Context
 import android.content.Intent
-import android.net.Uri
 import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
@@ -14,9 +13,10 @@ import com.quantummpv.app.database.entities.PlaylistEntity
 import com.quantummpv.app.database.repository.PlaylistRepository
 import com.quantummpv.app.ui.player.PlaybackItem
 import com.quantummpv.app.ui.player.PlaybackSession
-import com.quantummpv.app.ui.player.PreparedPlaybackLaunchStore
 import com.quantummpv.app.ui.player.PlayerActivity
+import com.quantummpv.app.ui.player.PreparedPlaybackLaunchStore
 import com.quantummpv.app.utils.history.RecentlyPlayedOps
+import com.quantummpv.app.utils.media.MediaLibraryEvents
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -24,6 +24,7 @@ import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.collect
+import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.flowOn
@@ -36,10 +37,9 @@ import kotlinx.coroutines.withContext
 import org.koin.core.component.KoinComponent
 import org.koin.core.component.inject
 
-import com.quantummpv.app.utils.media.MediaLibraryEvents
-import kotlinx.coroutines.flow.collectLatest
-
-class MusicLibraryViewModel : ViewModel(), KoinComponent {
+class MusicLibraryViewModel :
+  ViewModel(),
+  KoinComponent {
   private companion object {
     const val TAG = "MusicLibraryViewModel"
   }
@@ -50,15 +50,20 @@ class MusicLibraryViewModel : ViewModel(), KoinComponent {
   private val audioPreferences: com.quantummpv.app.preferences.AudioPreferences by inject()
   private val foldersPreferences: com.quantummpv.app.preferences.FoldersPreferences by inject()
 
-  val visibleTabs: StateFlow<List<MusicTab>> = combine(
-    audioPreferences.musicTabOrder.changes(),
-    audioPreferences.enabledMusicTabs.changes(),
-  ) { orderList, enabledSet ->
-    val tabMap = MusicTab.entries.associateBy { it.name }
-    val orderedTabs = (orderList.mapNotNull { tabMap[it] } + (MusicTab.entries - orderList.mapNotNull { tabMap[it] }.toSet())).distinct()
-    val filtered = orderedTabs.filter { it.name in enabledSet }
-    if (filtered.isEmpty()) listOf(MusicTab.SONGS) else filtered
-  }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), MusicTab.entries.toList())
+  val visibleTabs: StateFlow<List<MusicTab>> =
+    combine(
+      audioPreferences.musicTabOrder.changes(),
+      audioPreferences.enabledMusicTabs.changes(),
+    ) { orderList, enabledSet ->
+      val tabMap = MusicTab.entries.associateBy { it.name }
+      val orderedTabs =
+        (
+          orderList.mapNotNull { tabMap[it] } +
+            (MusicTab.entries - orderList.mapNotNull { tabMap[it] }.toSet())
+        ).distinct()
+      val filtered = orderedTabs.filter { it.name in enabledSet }
+      if (filtered.isEmpty()) listOf(MusicTab.SONGS) else filtered
+    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), MusicTab.entries.toList())
 
   // Keep the unfiltered MediaStore result so changing the minimum-duration preference can update
   // Songs, Albums and Artists immediately without rescanning storage on every slider movement.
@@ -75,7 +80,8 @@ class MusicLibraryViewModel : ViewModel(), KoinComponent {
   val artists: StateFlow<List<MusicArtist>> = _artists.asStateFlow()
 
   val playlists: StateFlow<List<PlaylistEntity>> =
-    playlistRepository.observeAllPlaylists(isAudio = true)
+    playlistRepository
+      .observeAllPlaylists(isAudio = true)
       .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
   private val _selectedTab = MutableStateFlow(MusicTab.SONGS)
@@ -99,7 +105,8 @@ class MusicLibraryViewModel : ViewModel(), KoinComponent {
   val isLoading: StateFlow<Boolean> = _isLoading.asStateFlow()
 
   val recentlyPlayedFilePath: StateFlow<String?> =
-    RecentlyPlayedOps.observeLastPlayedPath()
+    RecentlyPlayedOps
+      .observeLastPlayedPath()
       .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), null)
 
   val isPlaybackActive: StateFlow<Boolean> =
@@ -115,11 +122,10 @@ class MusicLibraryViewModel : ViewModel(), KoinComponent {
     viewModelScope.launch {
       combine(
         browserPreferences.minimumAudioDurationSeconds.changes(),
-        foldersPreferences.blacklistedAudioFolders.changes()
+        foldersPreferences.blacklistedAudioFolders.changes(),
       ) { minimumSeconds, blacklist ->
         Pair(minimumSeconds, blacklist)
-      }
-        .distinctUntilChanged()
+      }.distinctUntilChanged()
         .collect { applyFilters() }
     }
     viewModelScope.launch {
@@ -132,66 +138,83 @@ class MusicLibraryViewModel : ViewModel(), KoinComponent {
     }
   }
 
-  val filteredSongs: StateFlow<List<MusicSong>> = combine(
-    _songs, _searchQuery, sortField, sortOrder
-  ) { songList, query, field, order ->
-    var result = songList
-    if (query.isNotBlank()) {
-      val q = query.trim().lowercase()
-      result = result.filter {
-        it.title.lowercase().contains(q) ||
-          it.artist.lowercase().contains(q) ||
-          it.album.lowercase().contains(q)
+  val filteredSongs: StateFlow<List<MusicSong>> =
+    combine(
+      _songs,
+      _searchQuery,
+      sortField,
+      sortOrder,
+    ) { songList, query, field, order ->
+      var result = songList
+      if (query.isNotBlank()) {
+        val q = query.trim().lowercase()
+        result =
+          result.filter {
+            it.title.lowercase().contains(q) ||
+              it.artist.lowercase().contains(q) ||
+              it.album.lowercase().contains(q)
+          }
       }
-    }
-    val sorted = when (field) {
-      MusicSortField.TITLE -> result.sortedBy { it.title.lowercase() }
-      MusicSortField.ARTIST -> result.sortedBy { it.artist.lowercase() }
-      MusicSortField.ALBUM -> result.sortedBy { it.album.lowercase() }
-      MusicSortField.DURATION -> result.sortedBy { it.durationMs }
-      MusicSortField.DATE_ADDED -> result.sortedBy { it.dateAdded }
-      MusicSortField.TRACK_COUNT, MusicSortField.YEAR -> result.sortedBy { it.year }
-    }
-    if (order == MusicSortOrder.DESCENDING) sorted.reversed() else sorted
-  }.flowOn(Dispatchers.Default)
-    .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+      val sorted =
+        when (field) {
+          MusicSortField.TITLE -> result.sortedBy { it.title.lowercase() }
+          MusicSortField.ARTIST -> result.sortedBy { it.artist.lowercase() }
+          MusicSortField.ALBUM -> result.sortedBy { it.album.lowercase() }
+          MusicSortField.DURATION -> result.sortedBy { it.durationMs }
+          MusicSortField.DATE_ADDED -> result.sortedBy { it.dateAdded }
+          MusicSortField.TRACK_COUNT, MusicSortField.YEAR -> result.sortedBy { it.year }
+        }
+      if (order == MusicSortOrder.DESCENDING) sorted.reversed() else sorted
+    }.flowOn(Dispatchers.Default)
+      .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
-  val filteredAlbums: StateFlow<List<MusicAlbum>> = combine(
-    _albums, _searchQuery, sortField, sortOrder
-  ) { albumList, query, field, order ->
-    var result = albumList
-    if (query.isNotBlank()) {
-      val q = query.trim().lowercase()
-      result = result.filter {
-        it.title.lowercase().contains(q) || it.artist.lowercase().contains(q)
+  val filteredAlbums: StateFlow<List<MusicAlbum>> =
+    combine(
+      _albums,
+      _searchQuery,
+      sortField,
+      sortOrder,
+    ) { albumList, query, field, order ->
+      var result = albumList
+      if (query.isNotBlank()) {
+        val q = query.trim().lowercase()
+        result =
+          result.filter {
+            it.title.lowercase().contains(q) || it.artist.lowercase().contains(q)
+          }
       }
-    }
-    val sorted = when (field) {
-      MusicSortField.TITLE, MusicSortField.ALBUM -> result.sortedBy { it.title.lowercase() }
-      MusicSortField.ARTIST -> result.sortedBy { it.artist.lowercase() }
-      MusicSortField.TRACK_COUNT -> result.sortedBy { it.songCount }
-      MusicSortField.YEAR -> result.sortedBy { it.year }
-      else -> result.sortedBy { it.title.lowercase() }
-    }
-    if (order == MusicSortOrder.DESCENDING) sorted.reversed() else sorted
-  }.flowOn(Dispatchers.Default)
-    .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+      val sorted =
+        when (field) {
+          MusicSortField.TITLE, MusicSortField.ALBUM -> result.sortedBy { it.title.lowercase() }
+          MusicSortField.ARTIST -> result.sortedBy { it.artist.lowercase() }
+          MusicSortField.TRACK_COUNT -> result.sortedBy { it.songCount }
+          MusicSortField.YEAR -> result.sortedBy { it.year }
+          else -> result.sortedBy { it.title.lowercase() }
+        }
+      if (order == MusicSortOrder.DESCENDING) sorted.reversed() else sorted
+    }.flowOn(Dispatchers.Default)
+      .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
-  val filteredArtists: StateFlow<List<MusicArtist>> = combine(
-    _artists, _searchQuery, sortField, sortOrder
-  ) { artistList, query, field, order ->
-    var result = artistList
-    if (query.isNotBlank()) {
-      val q = query.trim().lowercase()
-      result = result.filter { it.name.lowercase().contains(q) }
-    }
-    val sorted = when (field) {
-      MusicSortField.TRACK_COUNT -> result.sortedBy { it.songCount }
-      else -> result.sortedBy { it.name.lowercase() }
-    }
-    if (order == MusicSortOrder.DESCENDING) sorted.reversed() else sorted
-  }.flowOn(Dispatchers.Default)
-    .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+  val filteredArtists: StateFlow<List<MusicArtist>> =
+    combine(
+      _artists,
+      _searchQuery,
+      sortField,
+      sortOrder,
+    ) { artistList, query, field, order ->
+      var result = artistList
+      if (query.isNotBlank()) {
+        val q = query.trim().lowercase()
+        result = result.filter { it.name.lowercase().contains(q) }
+      }
+      val sorted =
+        when (field) {
+          MusicSortField.TRACK_COUNT -> result.sortedBy { it.songCount }
+          else -> result.sortedBy { it.name.lowercase() }
+        }
+      if (order == MusicSortOrder.DESCENDING) sorted.reversed() else sorted
+    }.flowOn(Dispatchers.Default)
+      .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
   suspend fun refreshLibrary(context: Context) {
     _isLoading.value = true
@@ -212,33 +235,40 @@ class MusicLibraryViewModel : ViewModel(), KoinComponent {
    * selects 30 seconds, every 30s, 3min, 30min, or multi-hour audio file remains in the library.
    * Also filters out songs whose path starts with any blacklisted audio folder path.
    */
-  private suspend fun applyFilters() = filterMutex.withLock {
-    // A scan and a preference change can arrive together. Serialize publication and take the
-    // latest inputs inside the lock so an older background calculation cannot win the race.
-    val allSongs = _allSongs.value
-    val minimumSeconds = browserPreferences.minimumAudioDurationSeconds.get()
-    val blacklist = foldersPreferences.blacklistedAudioFolders.get()
-    val (visibleSongs, albums, artists) = withContext(Dispatchers.Default) {
-      val minimumMs = minimumSeconds.coerceAtLeast(0).toLong() * 1000L
-      val visible = allSongs.filter { song ->
-        val meetsDuration = (minimumMs == 0L || song.durationMs >= minimumMs)
-        val isNotBlacklisted = blacklist.none { folderPath ->
-          song.path.equals(folderPath, ignoreCase = true) ||
-            song.path.startsWith(if (folderPath.endsWith("/")) folderPath else "$folderPath/", ignoreCase = true)
+  private suspend fun applyFilters() =
+    filterMutex.withLock {
+      // A scan and a preference change can arrive together. Serialize publication and take the
+      // latest inputs inside the lock so an older background calculation cannot win the race.
+      val allSongs = _allSongs.value
+      val minimumSeconds = browserPreferences.minimumAudioDurationSeconds.get()
+      val blacklist = foldersPreferences.blacklistedAudioFolders.get()
+      val (visibleSongs, albums, artists) =
+        withContext(Dispatchers.Default) {
+          val minimumMs = minimumSeconds.coerceAtLeast(0).toLong() * 1000L
+          val visible =
+            allSongs.filter { song ->
+              val meetsDuration = (minimumMs == 0L || song.durationMs >= minimumMs)
+              val isNotBlacklisted =
+                blacklist.none { folderPath ->
+                  song.path.equals(folderPath, ignoreCase = true) ||
+                    song.path.startsWith(
+                      if (folderPath.endsWith("/")) folderPath else "$folderPath/",
+                      ignoreCase = true,
+                    )
+                }
+              meetsDuration && isNotBlacklisted
+            }
+          Triple(visible, buildAlbums(visible), buildArtists(visible))
         }
-        meetsDuration && isNotBlacklisted
-      }
-      Triple(visible, buildAlbums(visible), buildArtists(visible))
+
+      _songs.value = visibleSongs
+      _albums.value = albums
+      _artists.value = artists
+
+      // Never leave the detail screen pointing at an album/artist that was completely filtered out.
+      _selectedAlbum.value = _selectedAlbum.value?.takeIf { selected -> _albums.value.any { it.id == selected.id } }
+      _selectedArtist.value = _selectedArtist.value?.takeIf { selected -> _artists.value.any { it.id == selected.id } }
     }
-
-    _songs.value = visibleSongs
-    _albums.value = albums
-    _artists.value = artists
-
-    // Never leave the detail screen pointing at an album/artist that was completely filtered out.
-    _selectedAlbum.value = _selectedAlbum.value?.takeIf { selected -> _albums.value.any { it.id == selected.id } }
-    _selectedArtist.value = _selectedArtist.value?.takeIf { selected -> _artists.value.any { it.id == selected.id } }
-  }
 
   private fun buildAlbums(songs: List<MusicSong>): List<MusicAlbum> =
     songs
@@ -253,8 +283,7 @@ class MusicLibraryViewModel : ViewModel(), KoinComponent {
           year = albumSongs.maxOfOrNull { it.year } ?: 0,
           albumArtUri = firstSong.albumArtUri,
         )
-      }
-      .sortedBy { it.title.lowercase() }
+      }.sortedBy { it.title.lowercase() }
 
   private fun buildArtists(songs: List<MusicSong>): List<MusicArtist> =
     songs
@@ -267,8 +296,7 @@ class MusicLibraryViewModel : ViewModel(), KoinComponent {
           songCount = artistSongs.size,
           albumCount = artistSongs.map { it.albumId }.distinct().size,
         )
-      }
-      .sortedBy { it.name.lowercase() }
+      }.sortedBy { it.name.lowercase() }
 
   fun scanLibrary(context: Context? = null) {
     viewModelScope.launch {
@@ -289,11 +317,12 @@ class MusicLibraryViewModel : ViewModel(), KoinComponent {
   }
 
   fun toggleSortOrder() {
-    val nextOrder = if (sortOrder.value == MusicSortOrder.ASCENDING) {
-      MusicSortOrder.DESCENDING
-    } else {
-      MusicSortOrder.ASCENDING
-    }
+    val nextOrder =
+      if (sortOrder.value == MusicSortOrder.ASCENDING) {
+        MusicSortOrder.DESCENDING
+      } else {
+        MusicSortOrder.ASCENDING
+      }
     browserPreferences.musicSortOrder.set(nextOrder)
   }
 
@@ -318,72 +347,86 @@ class MusicLibraryViewModel : ViewModel(), KoinComponent {
     _selectedArtist.value = artist
   }
 
-  fun playSong(context: Context, song: MusicSong, songList: List<MusicSong> = _songs.value) {
+  fun playSong(
+    context: Context,
+    song: MusicSong,
+    songList: List<MusicSong> = _songs.value,
+  ) {
     if (songList.isEmpty()) return
     val index = songList.indexOfFirst { it.id == song.id }.coerceAtLeast(0)
 
-    val queueItems = songList.map { item ->
-      PlaybackItem.fromUri(
-        uri = item.uri.toString(),
-        title = item.title,
-        artist = item.artist,
-        mimeType = "audio/*",
-        artworkUri = item.albumArtUri?.toString(),
+    val queueItems =
+      songList.map { item ->
+        PlaybackItem.fromUri(
+          uri = item.uri.toString(),
+          title = item.title,
+          artist = item.artist,
+          mimeType = "audio/*",
+          artworkUri = item.albumArtUri?.toString(),
+        )
+      }
+    val launchToken =
+      PreparedPlaybackLaunchStore.stage(
+        items = queueItems,
+        currentIndex = index,
+        isExplicitQueue = true,
       )
-    }
-    val launchToken = PreparedPlaybackLaunchStore.stage(
-      items = queueItems,
-      currentIndex = index,
-      isExplicitQueue = true,
-    )
 
-    val intent = Intent(Intent.ACTION_VIEW, song.uri).apply {
-      setClass(context, PlayerActivity::class.java)
-      addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
-      putExtra("internal_launch", true)
-      putExtra(PlayerActivity.EXTRA_PREPARED_PLAYBACK_QUEUE, true)
-      putExtra(PlayerActivity.EXTRA_PREPARED_PLAYBACK_TOKEN, launchToken)
-      putExtra("playlist_index", index)
-      putExtra("launch_source", "music_library")
-      putExtra("media_library_audio", true)
-      putExtra("is_audio", true)
-      putExtra("title", song.title)
-    }
+    val intent =
+      Intent(Intent.ACTION_VIEW, song.uri).apply {
+        setClass(context, PlayerActivity::class.java)
+        addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+        putExtra("internal_launch", true)
+        putExtra(PlayerActivity.EXTRA_PREPARED_PLAYBACK_QUEUE, true)
+        putExtra(PlayerActivity.EXTRA_PREPARED_PLAYBACK_TOKEN, launchToken)
+        putExtra("playlist_index", index)
+        putExtra("launch_source", "music_library")
+        putExtra("media_library_audio", true)
+        putExtra("is_audio", true)
+        putExtra("title", song.title)
+      }
     context.startActivity(intent)
   }
 
-  fun playAllSongs(context: Context, songsToPlay: List<MusicSong>, shuffle: Boolean = false) {
+  fun playAllSongs(
+    context: Context,
+    songsToPlay: List<MusicSong>,
+    shuffle: Boolean = false,
+  ) {
     if (songsToPlay.isEmpty()) return
     val list = if (shuffle) songsToPlay.shuffled() else songsToPlay
     val firstSong = list.first()
 
-    val queueItems = list.map { item ->
-      PlaybackItem.fromUri(
-        uri = item.uri.toString(),
-        title = item.title,
-        artist = item.artist,
-        mimeType = "audio/*",
-        artworkUri = item.albumArtUri?.toString(),
+    val queueItems =
+      list.map { item ->
+        PlaybackItem.fromUri(
+          uri = item.uri.toString(),
+          title = item.title,
+          artist = item.artist,
+          mimeType = "audio/*",
+          artworkUri = item.albumArtUri?.toString(),
+        )
+      }
+    val launchToken =
+      PreparedPlaybackLaunchStore.stage(
+        items = queueItems,
+        currentIndex = 0,
+        isExplicitQueue = true,
       )
-    }
-    val launchToken = PreparedPlaybackLaunchStore.stage(
-      items = queueItems,
-      currentIndex = 0,
-      isExplicitQueue = true,
-    )
 
-    val intent = Intent(Intent.ACTION_VIEW, firstSong.uri).apply {
-      setClass(context, PlayerActivity::class.java)
-      addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
-      putExtra("internal_launch", true)
-      putExtra(PlayerActivity.EXTRA_PREPARED_PLAYBACK_QUEUE, true)
-      putExtra(PlayerActivity.EXTRA_PREPARED_PLAYBACK_TOKEN, launchToken)
-      putExtra("playlist_index", 0)
-      putExtra("launch_source", if (shuffle) "music_shuffle" else "music_play_all")
-      putExtra("media_library_audio", true)
-      putExtra("is_audio", true)
-      putExtra("title", firstSong.title)
-    }
+    val intent =
+      Intent(Intent.ACTION_VIEW, firstSong.uri).apply {
+        setClass(context, PlayerActivity::class.java)
+        addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+        putExtra("internal_launch", true)
+        putExtra(PlayerActivity.EXTRA_PREPARED_PLAYBACK_QUEUE, true)
+        putExtra(PlayerActivity.EXTRA_PREPARED_PLAYBACK_TOKEN, launchToken)
+        putExtra("playlist_index", 0)
+        putExtra("launch_source", if (shuffle) "music_shuffle" else "music_play_all")
+        putExtra("media_library_audio", true)
+        putExtra("is_audio", true)
+        putExtra("title", firstSong.title)
+      }
     context.startActivity(intent)
   }
 
@@ -402,31 +445,41 @@ class MusicLibraryViewModel : ViewModel(), KoinComponent {
     }
   }
 
-  suspend fun deleteSongs(context: Context, songsToDelete: List<MusicSong>): Pair<Int, Int> {
-    val videos = songsToDelete.map { song ->
-      com.quantummpv.app.domain.media.model.Video(
-        id = song.id,
-        title = song.title,
-        displayName = song.title,
-        path = song.path,
-        uri = song.uri,
-        duration = song.durationMs,
-        durationFormatted = android.text.format.DateUtils.formatElapsedTime(song.durationMs / 1000),
-        size = 0L,
-        sizeFormatted = "",
-        dateModified = song.dateAdded,
-        dateAdded = song.dateAdded,
-        mimeType = "audio/*",
-        bucketId = "",
-        bucketDisplayName = "",
-        width = 0,
-        height = 0,
-        fps = 0f,
-        resolution = "",
-        isAudio = true
+  suspend fun deleteSongs(
+    context: Context,
+    songsToDelete: List<MusicSong>,
+  ): Pair<Int, Int> {
+    val videos =
+      songsToDelete.map { song ->
+        com.quantummpv.app.domain.media.model.Video(
+          id = song.id,
+          title = song.title,
+          displayName = song.title,
+          path = song.path,
+          uri = song.uri,
+          duration = song.durationMs,
+          durationFormatted =
+            android.text.format.DateUtils
+              .formatElapsedTime(song.durationMs / 1000),
+          size = 0L,
+          sizeFormatted = "",
+          dateModified = song.dateAdded,
+          dateAdded = song.dateAdded,
+          mimeType = "audio/*",
+          bucketId = "",
+          bucketDisplayName = "",
+          width = 0,
+          height = 0,
+          fps = 0f,
+          resolution = "",
+          isAudio = true,
+        )
+      }
+    val result =
+      com.quantummpv.app.utils.permission.PermissionUtils.StorageOps.deleteVideos(
+        context.applicationContext as android.app.Application,
+        videos,
       )
-    }
-    val result = com.quantummpv.app.utils.permission.PermissionUtils.StorageOps.deleteVideos(context.applicationContext as android.app.Application, videos)
     refreshLibrary(context)
     return result
   }

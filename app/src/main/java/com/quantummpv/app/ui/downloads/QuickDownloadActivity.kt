@@ -53,7 +53,8 @@ class QuickDownloadActivity : ComponentActivity() {
 
   private fun extractUrl(intent: Intent): String? =
     intent.data?.toString()?.takeIf { it.startsWith("http://") || it.startsWith("https://") }
-      ?: intent.getStringExtra(Intent.EXTRA_TEXT)
+      ?: intent
+        .getStringExtra(Intent.EXTRA_TEXT)
         ?.trim()
         ?.split(Regex("\\s+"))
         ?.firstOrNull { it.startsWith("http://") || it.startsWith("https://") }
@@ -67,18 +68,26 @@ class QuickDownloadActivity : ComponentActivity() {
   }
 }
 
-private data class DownloadQuality(val label: String, val description: String, val selector: String)
-
-private val downloadQualities = listOf(
-  DownloadQuality("Best available", "Highest quality supported by the source", QuickDownloadActivity.BEST),
-  DownloadQuality("Up to 1080p", "Good quality for most phones and tablets", QuickDownloadActivity.P1080),
-  DownloadQuality("Up to 720p", "Smaller downloads with clear picture quality", QuickDownloadActivity.P720),
-  DownloadQuality("Up to 480p", "Lower data use and faster downloads", QuickDownloadActivity.P480),
-  DownloadQuality("Audio only", "Download the best available audio stream", QuickDownloadActivity.AUDIO),
+private data class DownloadQuality(
+  val label: String,
+  val description: String,
+  val selector: String,
 )
 
+private val downloadQualities =
+  listOf(
+    DownloadQuality("Best available", "Highest quality supported by the source", QuickDownloadActivity.BEST),
+    DownloadQuality("Up to 1080p", "Good quality for most phones and tablets", QuickDownloadActivity.P1080),
+    DownloadQuality("Up to 720p", "Smaller downloads with clear picture quality", QuickDownloadActivity.P720),
+    DownloadQuality("Up to 480p", "Lower data use and faster downloads", QuickDownloadActivity.P480),
+    DownloadQuality("Audio only", "Download the best available audio stream", QuickDownloadActivity.AUDIO),
+  )
+
 @Composable
-private fun QuickDownloadScreen(url: String, onFinished: () -> Unit) {
+private fun QuickDownloadScreen(
+  url: String,
+  onFinished: () -> Unit,
+) {
   val engine = koinInject<YtdlpDownloadEngine>()
   val locations = koinInject<DownloadLocations>()
   var selected by remember { mutableStateOf(downloadQualities.first()) }
@@ -94,10 +103,13 @@ private fun QuickDownloadScreen(url: String, onFinished: () -> Unit) {
       Spacer(Modifier.height(4.dp))
       downloadQualities.forEach { quality ->
         Row(
-          modifier = Modifier.fillMaxWidth().selectable(
-            selected = selected == quality,
-            onClick = { selected = quality },
-          ).padding(vertical = 8.dp),
+          modifier =
+            Modifier
+              .fillMaxWidth()
+              .selectable(
+                selected = selected == quality,
+                onClick = { selected = quality },
+              ).padding(vertical = 8.dp),
           verticalAlignment = Alignment.CenterVertically,
         ) {
           RadioButton(selected = selected == quality, onClick = null)
@@ -113,7 +125,9 @@ private fun QuickDownloadScreen(url: String, onFinished: () -> Unit) {
         onClick = {
           val title = url.substringAfterLast('/').substringBefore('?').ifBlank { "shared-download" }
           engine.enqueue(url, title, locations.linksDir(), selected.selector)
-          android.widget.Toast.makeText(context, "Download added to queue", android.widget.Toast.LENGTH_SHORT).show()
+          android.widget.Toast
+            .makeText(context, "Download added to queue", android.widget.Toast.LENGTH_SHORT)
+            .show()
           onFinished()
         },
       ) { Text("Start download") }

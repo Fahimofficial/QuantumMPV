@@ -65,17 +65,20 @@ internal object Media3ClipExporter {
         val transformer = buildTransformer(context, headers, completion)
 
         val mediaItem =
-          MediaItem.Builder()
+          MediaItem
+            .Builder()
             .setUri(toMediaUri(source))
             .setClippingConfiguration(
-              MediaItem.ClippingConfiguration.Builder()
+              MediaItem.ClippingConfiguration
+                .Builder()
                 .setStartPositionMs((startSeconds.coerceAtLeast(0.0) * 1000.0).roundToLong())
                 .setEndPositionMs((endSeconds.coerceAtLeast(startSeconds) * 1000.0).roundToLong())
                 .build(),
             ).build()
 
         val editedMediaItem =
-          EditedMediaItem.Builder(mediaItem)
+          EditedMediaItem
+            .Builder(mediaItem)
             .setEffects(buildEffects(crop, cropFrameWidth, cropFrameHeight))
             .build()
 
@@ -121,7 +124,8 @@ internal object Media3ClipExporter {
     val dataSourceFactory = DefaultDataSource.Factory(context, httpFactory)
     val mediaSourceFactory = DefaultMediaSourceFactory(dataSourceFactory)
     val decoderFactory =
-      DefaultDecoderFactory.Builder(context)
+      DefaultDecoderFactory
+        .Builder(context)
         .setEnableDecoderFallback(true)
         .build()
     val assetLoaderFactory =
@@ -153,7 +157,8 @@ internal object Media3ClipExporter {
         }
       }
 
-    return Transformer.Builder(context)
+    return Transformer
+      .Builder(context)
       .setAssetLoaderFactory(assetLoaderFactory)
       .setVideoMimeType(MimeTypes.VIDEO_H264)
       .setAudioMimeType(MimeTypes.AUDIO_AAC)

@@ -42,9 +42,9 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import com.quantummpv.app.presentation.components.PlayerSheet
-import com.quantummpv.app.ui.player.AutoCropState
 import com.quantummpv.app.ui.icons.Icon
 import com.quantummpv.app.ui.icons.Icons
+import com.quantummpv.app.ui.player.AutoCropState
 import com.quantummpv.app.ui.theme.spacing
 
 data class AspectRatio(
@@ -111,9 +111,17 @@ fun AspectRatioSheet(
         }
       ListItem(
         content = {
-          Text(androidx.compose.ui.res.stringResource(com.quantummpv.app.R.string.ui_auto_crop_black_bars))
+          Text(
+            androidx.compose.ui.res
+              .stringResource(com.quantummpv.app.R.string.ui_auto_crop_black_bars),
+          )
         },
-        supportingContent = { Text(androidx.compose.ui.res.stringResource(autoCropSummary)) },
+        supportingContent = {
+          Text(
+            androidx.compose.ui.res
+              .stringResource(autoCropSummary),
+          )
+        },
         trailingContent = {
           Switch(
             checked = autoCropEnabled,

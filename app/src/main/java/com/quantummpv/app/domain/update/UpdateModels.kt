@@ -40,7 +40,11 @@ data class Release(
   val previewBuildNumber: Int?
     get() =
       if (isPreview) {
-        commitCount ?: PREVIEW_TAG_REGEX.find(tagName)?.groupValues?.getOrNull(1)?.toIntOrNull()
+        commitCount ?: PREVIEW_TAG_REGEX
+          .find(tagName)
+          ?.groupValues
+          ?.getOrNull(1)
+          ?.toIntOrNull()
       } else {
         null
       }

@@ -63,7 +63,10 @@ import kotlin.math.sin
  * Shifts lightness and saturation of a Compose Color to produce
  * rich, dynamic tonal variations within the Material Design 3 theme palette.
  */
-fun Color.shiftTonal(lightnessDelta: Float, saturationScale: Float = 1.0f): Color {
+fun Color.shiftTonal(
+  lightnessDelta: Float,
+  saturationScale: Float = 1.0f,
+): Color {
   val hsv = FloatArray(3)
   android.graphics.Color.RGBToHSV(
     (red * 255).toInt().coerceIn(0, 255),
@@ -106,69 +109,87 @@ fun SeekbarWavyVisualizerOverlay(
   val tertiaryColor = MaterialTheme.colorScheme.tertiary
 
   // Pre-calculated tonal palette (zero allocation in draw loop)
-  val layer1Light = remember(tertiaryColor) { tertiaryColor.shiftTonal(lightnessDelta = +0.18f, saturationScale = 0.85f) }
-  val layer1Dark = remember(tertiaryColor) { tertiaryColor.shiftTonal(lightnessDelta = -0.15f, saturationScale = 1.30f) }
-  val layer2Dark = remember(secondaryColor) { secondaryColor.shiftTonal(lightnessDelta = -0.16f, saturationScale = 1.30f) }
-  val layer2Light = remember(secondaryColor) { secondaryColor.shiftTonal(lightnessDelta = +0.18f, saturationScale = 0.85f) }
+  val layer1Light =
+    remember(tertiaryColor) { tertiaryColor.shiftTonal(lightnessDelta = +0.18f, saturationScale = 0.85f) }
+  val layer1Dark =
+    remember(tertiaryColor) { tertiaryColor.shiftTonal(lightnessDelta = -0.15f, saturationScale = 1.30f) }
+  val layer2Dark =
+    remember(secondaryColor) { secondaryColor.shiftTonal(lightnessDelta = -0.16f, saturationScale = 1.30f) }
+  val layer2Light =
+    remember(secondaryColor) { secondaryColor.shiftTonal(lightnessDelta = +0.18f, saturationScale = 0.85f) }
   val layer3Light = remember(primaryColor) { primaryColor.shiftTonal(lightnessDelta = +0.20f, saturationScale = 0.90f) }
   val layer3Dark = remember(primaryColor) { primaryColor.shiftTonal(lightnessDelta = -0.14f, saturationScale = 1.35f) }
 
   // Pre-allocated gradient color lists to eliminate garbage collection churn during frame rendering (PR #9)
-  val gradient1Colors = remember(layer1Light, layer1Dark) {
-    listOf(layer1Light.copy(alpha = 0.30f), layer1Dark.copy(alpha = 0.08f))
-  }
-  val gradient2Colors = remember(layer2Light, layer2Dark) {
-    listOf(layer2Light.copy(alpha = 0.38f), layer2Dark.copy(alpha = 0.12f))
-  }
-  val gradient3Colors = remember(layer3Light, layer3Dark) {
-    listOf(layer3Light.copy(alpha = 0.56f), layer3Dark.copy(alpha = 0.22f))
-  }
-  val gradient3HorizontalColors = remember(layer3Light, layer3Dark, secondaryColor) {
-    listOf(layer3Light.copy(alpha = 0.32f), secondaryColor.copy(alpha = 0.22f), layer3Dark.copy(alpha = 0.38f))
-  }
+  val gradient1Colors =
+    remember(layer1Light, layer1Dark) {
+      listOf(layer1Light.copy(alpha = 0.30f), layer1Dark.copy(alpha = 0.08f))
+    }
+  val gradient2Colors =
+    remember(layer2Light, layer2Dark) {
+      listOf(layer2Light.copy(alpha = 0.38f), layer2Dark.copy(alpha = 0.12f))
+    }
+  val gradient3Colors =
+    remember(layer3Light, layer3Dark) {
+      listOf(layer3Light.copy(alpha = 0.56f), layer3Dark.copy(alpha = 0.22f))
+    }
+  val gradient3HorizontalColors =
+    remember(layer3Light, layer3Dark, secondaryColor) {
+      listOf(layer3Light.copy(alpha = 0.32f), secondaryColor.copy(alpha = 0.22f), layer3Dark.copy(alpha = 0.38f))
+    }
 
-  val contour1Colors = remember(layer1Light, layer1Dark) {
-    listOf(layer1Light.copy(alpha = 0.18f), layer1Dark.copy(alpha = 0.12f))
-  }
-  val contour2Colors = remember(layer2Light, layer2Dark) {
-    listOf(layer2Dark.copy(alpha = 0.24f), layer2Light.copy(alpha = 0.18f))
-  }
-  val contour3OuterColors = remember(layer3Light, layer3Dark) {
-    listOf(layer3Light.copy(alpha = 0.32f), layer3Dark.copy(alpha = 0.22f))
-  }
-  val contour3InnerColors = remember(layer3Light, layer3Dark) {
-    listOf(layer3Light.copy(alpha = 0.52f), layer3Dark.copy(alpha = 0.40f))
-  }
+  val contour1Colors =
+    remember(layer1Light, layer1Dark) {
+      listOf(layer1Light.copy(alpha = 0.18f), layer1Dark.copy(alpha = 0.12f))
+    }
+  val contour2Colors =
+    remember(layer2Light, layer2Dark) {
+      listOf(layer2Dark.copy(alpha = 0.24f), layer2Light.copy(alpha = 0.18f))
+    }
+  val contour3OuterColors =
+    remember(layer3Light, layer3Dark) {
+      listOf(layer3Light.copy(alpha = 0.32f), layer3Dark.copy(alpha = 0.22f))
+    }
+  val contour3InnerColors =
+    remember(layer3Light, layer3Dark) {
+      listOf(layer3Light.copy(alpha = 0.52f), layer3Dark.copy(alpha = 0.40f))
+    }
 
-  val crispContour1Colors = remember(layer1Light, layer1Dark) {
-    listOf(layer1Light.copy(alpha = 0.45f), layer1Dark.copy(alpha = 0.32f))
-  }
-  val crispContour2Colors = remember(layer2Light, layer2Dark) {
-    listOf(layer2Dark.copy(alpha = 0.72f), layer2Light.copy(alpha = 0.62f))
-  }
-  val crispContour3Colors = remember(layer3Light, layer3Dark) {
-    listOf(layer3Light.copy(alpha = 0.98f), layer3Dark.copy(alpha = 0.92f))
-  }
+  val crispContour1Colors =
+    remember(layer1Light, layer1Dark) {
+      listOf(layer1Light.copy(alpha = 0.45f), layer1Dark.copy(alpha = 0.32f))
+    }
+  val crispContour2Colors =
+    remember(layer2Light, layer2Dark) {
+      listOf(layer2Dark.copy(alpha = 0.72f), layer2Light.copy(alpha = 0.62f))
+    }
+  val crispContour3Colors =
+    remember(layer3Light, layer3Dark) {
+      listOf(layer3Light.copy(alpha = 0.98f), layer3Dark.copy(alpha = 0.92f))
+    }
 
   // Dynamic seekbar track thickness that tracks the underlying seekbar's exact height
-  val effectiveTrackHeightDp = when (seekbarStyle) {
-    SeekbarStyle.Thick -> if (isPaused || isScrubbing) 11.2.dp else 16.dp
-    SeekbarStyle.Standard -> if (isPaused || isScrubbing) 5.6.dp else 8.dp
-    SeekbarStyle.Normal -> if (isScrubbing) 6.dp else 4.dp
-    SeekbarStyle.Slim -> when {
-      isScrubbing -> 15.dp
-      isPaused -> 6.dp
-      else -> 8.dp
+  val effectiveTrackHeightDp =
+    when (seekbarStyle) {
+      SeekbarStyle.Thick -> if (isPaused || isScrubbing) 11.2.dp else 16.dp
+      SeekbarStyle.Standard -> if (isPaused || isScrubbing) 5.6.dp else 8.dp
+      SeekbarStyle.Normal -> if (isScrubbing) 6.dp else 4.dp
+      SeekbarStyle.Slim ->
+        when {
+          isScrubbing -> 15.dp
+          isPaused -> 6.dp
+          else -> 8.dp
+        }
+      SeekbarStyle.Wavy -> 8.dp
     }
-    SeekbarStyle.Wavy -> 8.dp
-  }
 
   val animatedTrackHeight by animateDpAsState(
     targetValue = effectiveTrackHeightDp,
-    animationSpec = spring(
-      dampingRatio = AppMotion.Spatial.Expressive.dampingRatio,
-      stiffness = AppMotion.Spatial.Expressive.stiffness,
-    ),
+    animationSpec =
+      spring(
+        dampingRatio = AppMotion.Spatial.Expressive.dampingRatio,
+        stiffness = AppMotion.Spatial.Expressive.stiffness,
+      ),
     label = "wavy_overlay_track_height",
   )
 
@@ -248,13 +269,14 @@ fun SeekbarWavyVisualizerOverlay(
     val topBaselineY = centerY - halfThickness
 
     // Thumb clearance offset adjusted per seekbar style so wave stops right before the thumb tip
-    val thumbOffsetPx = when (seekbarStyle) {
-      SeekbarStyle.Thick -> if (isScrubbing) 5.dp.toPx() else 7.dp.toPx()
-      SeekbarStyle.Standard -> if (isScrubbing) 5.dp.toPx() else 7.5.dp.toPx()
-      SeekbarStyle.Normal -> if (isScrubbing) 9.dp.toPx() else 6.5.dp.toPx()
-      SeekbarStyle.Slim -> halfThickness
-      SeekbarStyle.Wavy -> 4.dp.toPx()
-    }
+    val thumbOffsetPx =
+      when (seekbarStyle) {
+        SeekbarStyle.Thick -> if (isScrubbing) 5.dp.toPx() else 7.dp.toPx()
+        SeekbarStyle.Standard -> if (isScrubbing) 5.dp.toPx() else 7.5.dp.toPx()
+        SeekbarStyle.Normal -> if (isScrubbing) 9.dp.toPx() else 6.5.dp.toPx()
+        SeekbarStyle.Slim -> halfThickness
+        SeekbarStyle.Wavy -> 4.dp.toPx()
+      }
 
     // Wave stops gracefully just before the thumb tip so it never overlaps or covers the seekbar thumb
     val waveEndX = (thumbX - thumbOffsetPx).coerceAtLeast(0f)
@@ -318,11 +340,12 @@ fun SeekbarWavyVisualizerOverlay(
       if (amp1 > 0.05f) {
         drawPath(
           path = pathFilled1,
-          brush = Brush.verticalGradient(
-            colors = gradient1Colors,
-            startY = topWaveY,
-            endY = topBaselineY,
-          ),
+          brush =
+            Brush.verticalGradient(
+              colors = gradient1Colors,
+              startY = topWaveY,
+              endY = topBaselineY,
+            ),
         )
       }
 
@@ -330,11 +353,12 @@ fun SeekbarWavyVisualizerOverlay(
       if (amp2 > 0.05f) {
         drawPath(
           path = pathFilled2,
-          brush = Brush.verticalGradient(
-            colors = gradient2Colors,
-            startY = topWaveY,
-            endY = topBaselineY,
-          ),
+          brush =
+            Brush.verticalGradient(
+              colors = gradient2Colors,
+              startY = topWaveY,
+              endY = topBaselineY,
+            ),
         )
       }
 
@@ -342,19 +366,21 @@ fun SeekbarWavyVisualizerOverlay(
       if (amp3 > 0.05f) {
         drawPath(
           path = pathFilled3,
-          brush = Brush.verticalGradient(
-            colors = gradient3Colors,
-            startY = topWaveY,
-            endY = topBaselineY,
-          ),
+          brush =
+            Brush.verticalGradient(
+              colors = gradient3Colors,
+              startY = topWaveY,
+              endY = topBaselineY,
+            ),
         )
         drawPath(
           path = pathFilled3,
-          brush = Brush.horizontalGradient(
-            colors = gradient3HorizontalColors,
-            startX = 0f,
-            endX = activeWidth,
-          ),
+          brush =
+            Brush.horizontalGradient(
+              colors = gradient3HorizontalColors,
+              startX = 0f,
+              endX = activeWidth,
+            ),
         )
       }
 
@@ -363,44 +389,48 @@ fun SeekbarWavyVisualizerOverlay(
         // Layer 1 Ambient Glow
         drawPath(
           path = pathContour1,
-          brush = Brush.horizontalGradient(
-            colors = contour1Colors,
-            startX = 0f,
-            endX = activeWidth,
-          ),
+          brush =
+            Brush.horizontalGradient(
+              colors = contour1Colors,
+              startX = 0f,
+              endX = activeWidth,
+            ),
           style = Stroke(width = 4.0.dp.toPx(), cap = StrokeCap.Round, join = StrokeJoin.Round),
         )
 
         // Layer 2 Harmonic Glow
         drawPath(
           path = pathContour2,
-          brush = Brush.horizontalGradient(
-            colors = contour2Colors,
-            startX = 0f,
-            endX = activeWidth,
-          ),
+          brush =
+            Brush.horizontalGradient(
+              colors = contour2Colors,
+              startX = 0f,
+              endX = activeWidth,
+            ),
           style = Stroke(width = 5.0.dp.toPx(), cap = StrokeCap.Round, join = StrokeJoin.Round),
         )
 
         // Layer 3 Primary Outer Soft Glow
         drawPath(
           path = pathContour3,
-          brush = Brush.horizontalGradient(
-            colors = contour3OuterColors,
-            startX = 0f,
-            endX = activeWidth,
-          ),
+          brush =
+            Brush.horizontalGradient(
+              colors = contour3OuterColors,
+              startX = 0f,
+              endX = activeWidth,
+            ),
           style = Stroke(width = 6.5.dp.toPx(), cap = StrokeCap.Round, join = StrokeJoin.Round),
         )
 
         // Layer 3 Primary Inner Focused Halo
         drawPath(
           path = pathContour3,
-          brush = Brush.horizontalGradient(
-            colors = contour3InnerColors,
-            startX = 0f,
-            endX = activeWidth,
-          ),
+          brush =
+            Brush.horizontalGradient(
+              colors = contour3InnerColors,
+              startX = 0f,
+              endX = activeWidth,
+            ),
           style = Stroke(width = 3.5.dp.toPx(), cap = StrokeCap.Round, join = StrokeJoin.Round),
         )
       }
@@ -410,33 +440,36 @@ fun SeekbarWavyVisualizerOverlay(
       // Layer 1: Soft organic contour stroke
       drawPath(
         path = pathContour1,
-        brush = Brush.horizontalGradient(
-          colors = crispContour1Colors,
-          startX = 0f,
-          endX = activeWidth,
-        ),
+        brush =
+          Brush.horizontalGradient(
+            colors = crispContour1Colors,
+            startX = 0f,
+            endX = activeWidth,
+          ),
         style = Stroke(width = 1.0.dp.toPx(), cap = StrokeCap.Round, join = StrokeJoin.Round),
       )
 
       // Layer 2: Medium harmonic contour stroke
       drawPath(
         path = pathContour2,
-        brush = Brush.horizontalGradient(
-          colors = crispContour2Colors,
-          startX = 0f,
-          endX = activeWidth,
-        ),
+        brush =
+          Brush.horizontalGradient(
+            colors = crispContour2Colors,
+            startX = 0f,
+            endX = activeWidth,
+          ),
         style = Stroke(width = 1.2.dp.toPx(), cap = StrokeCap.Round, join = StrokeJoin.Round),
       )
 
       // Layer 3: Vibrant primary contour stroke (1.8dp in PR #9)
       drawPath(
         path = pathContour3,
-        brush = Brush.horizontalGradient(
-          colors = crispContour3Colors,
-          startX = 0f,
-          endX = activeWidth,
-        ),
+        brush =
+          Brush.horizontalGradient(
+            colors = crispContour3Colors,
+            startX = 0f,
+            endX = activeWidth,
+          ),
         style = Stroke(width = 1.8.dp.toPx(), cap = StrokeCap.Round, join = StrokeJoin.Round),
       )
     }
@@ -477,9 +510,10 @@ fun AudioWavySeekBar(
 
   Column(modifier = modifier.fillMaxWidth()) {
     Box(
-      modifier = Modifier
-        .fillMaxWidth()
-        .height(50.dp),
+      modifier =
+        Modifier
+          .fillMaxWidth()
+          .height(50.dp),
     ) {
       Canvas(modifier = Modifier.matchParentSize()) {
         val width = size.width
@@ -535,15 +569,17 @@ fun AudioWavySeekBar(
         valueRange = 0f..boundedDuration.coerceAtLeast(1f),
         enabled = boundedDuration > 0f,
         interactionSource = interactionSource,
-        colors = SliderDefaults.colors(
-          thumbColor = Color.Transparent,
-          activeTrackColor = Color.Transparent,
-          inactiveTrackColor = Color.Transparent,
-        ),
-        modifier = Modifier
-          .matchParentSize()
-          .tvFocusHighlight(MaterialTheme.shapes.small, enabled = boundedDuration > 0f)
-          .alpha(0f),
+        colors =
+          SliderDefaults.colors(
+            thumbColor = Color.Transparent,
+            activeTrackColor = Color.Transparent,
+            inactiveTrackColor = Color.Transparent,
+          ),
+        modifier =
+          Modifier
+            .matchParentSize()
+            .tvFocusHighlight(MaterialTheme.shapes.small, enabled = boundedDuration > 0f)
+            .alpha(0f),
       )
     }
 

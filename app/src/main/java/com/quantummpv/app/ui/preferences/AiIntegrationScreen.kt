@@ -25,23 +25,17 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
-import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.ElevatedCard
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.FilterChip
 import androidx.compose.material3.IconButton
-import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -57,13 +51,11 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
-import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.quantummpv.app.R
 import com.quantummpv.app.preferences.AiPreferences
@@ -341,432 +333,431 @@ object AiIntegrationScreen : Screen {
               }
             }
 
-val apiKeyInfo =
-                  @Suppress("REDUNDANT_ELSE_IN_WHEN")
-                  when (provider) {
-                  AiProvider.OPENCODE ->
-                    ApiKeyInfo(
-                      "OpenCode API Key",
-                      "Get your key from opencode.ai/auth",
-                      "sk-...",
-                      openCodeKey,
-                      preferences.openCodeApiKey::set,
-                    )
-                  AiProvider.GROQ ->
-                    ApiKeyInfo(
-                      "Groq API Key",
-                      "Get your key from console.groq.com",
-                      "gsk_...",
-                      groqKey,
-                      preferences.groqApiKey::set,
-                    )
-                  AiProvider.OPENAI ->
-                    ApiKeyInfo(
-                      "OpenAI API Key",
-                      "Get your key from platform.openai.com/api-keys",
-                      "sk-...",
-                      openaiKey,
-                      preferences.openaiApiKey::set,
-                    )
-                  AiProvider.ANTHROPIC ->
-                    ApiKeyInfo(
-                      "Anthropic API Key",
-                      "Get your key from console.anthropic.com",
-                      "sk-ant-...",
-                      anthropicKey,
-                      preferences.anthropicApiKey::set,
-                    )
-                  AiProvider.OPENROUTER ->
-                    ApiKeyInfo(
-                      "OpenRouter API Key",
-                      "Get your key from openrouter.ai/keys",
-                      "sk-or-...",
-                      openrouterKey,
-                      preferences.openrouterApiKey::set,
-                    )
-                  AiProvider.TOGETHER ->
-                    ApiKeyInfo(
-                      "Together API Key",
-                      "Get your key from api.together.xyz/settings/api-keys",
-                      "...",
-                      togetherKey,
-                      preferences.togetherApiKey::set,
-                    )
-                  else -> null
-                }
-
-              if (apiKeyInfo != null) {
-                item {
-                  PreferenceSectionHeader(
-                    title = stringResource(R.string.pref_api_config_section),
-                    modifier = Modifier.settingsSearchTarget(R.string.search_api_key_config_title),
+            val apiKeyInfo =
+              @Suppress("REDUNDANT_ELSE_IN_WHEN")
+              when (provider) {
+                AiProvider.OPENCODE ->
+                  ApiKeyInfo(
+                    "OpenCode API Key",
+                    "Get your key from opencode.ai/auth",
+                    "sk-...",
+                    openCodeKey,
+                    preferences.openCodeApiKey::set,
                   )
-                }
+                AiProvider.GROQ ->
+                  ApiKeyInfo(
+                    "Groq API Key",
+                    "Get your key from console.groq.com",
+                    "gsk_...",
+                    groqKey,
+                    preferences.groqApiKey::set,
+                  )
+                AiProvider.OPENAI ->
+                  ApiKeyInfo(
+                    "OpenAI API Key",
+                    "Get your key from platform.openai.com/api-keys",
+                    "sk-...",
+                    openaiKey,
+                    preferences.openaiApiKey::set,
+                  )
+                AiProvider.ANTHROPIC ->
+                  ApiKeyInfo(
+                    "Anthropic API Key",
+                    "Get your key from console.anthropic.com",
+                    "sk-ant-...",
+                    anthropicKey,
+                    preferences.anthropicApiKey::set,
+                  )
+                AiProvider.OPENROUTER ->
+                  ApiKeyInfo(
+                    "OpenRouter API Key",
+                    "Get your key from openrouter.ai/keys",
+                    "sk-or-...",
+                    openrouterKey,
+                    preferences.openrouterApiKey::set,
+                  )
+                AiProvider.TOGETHER ->
+                  ApiKeyInfo(
+                    "Together API Key",
+                    "Get your key from api.together.xyz/settings/api-keys",
+                    "...",
+                    togetherKey,
+                    preferences.togetherApiKey::set,
+                  )
+                else -> null
+              }
 
-                item {
-                  PreferenceCard {
-                    TextFieldPreference(
-                      value = apiKeyInfo.apiKey,
-                      onValueChange = apiKeyInfo.onChange,
-                      textToValue = { it.trim() },
-                      title = { Text(apiKeyInfo.title) },
-                      summary = {
-                        if (apiKeyInfo.apiKey.isBlank()) {
-                          Text(apiKeyInfo.hint, color = MaterialTheme.colorScheme.error)
-                        } else {
-                          Text(
-                            androidx.compose.ui.res
-                              .stringResource(com.quantummpv.app.R.string.pref_api_key_saved),
-                            color = MaterialTheme.colorScheme.outline,
-                          )
-                        }
-                      },
-                      textField = { value, onValueChange, _ ->
-                        Column {
-                          Text(stringResource(R.string.pref_paste_api_key, apiKeyInfo.title))
-                          TextField(
-                            value = value,
-                            onValueChange = onValueChange,
-                            modifier = Modifier.fillMaxWidth(),
-                            placeholder = { Text(apiKeyInfo.placeholder) },
-                            singleLine = true,
-                            visualTransformation = if (showApiKey) VisualTransformation.None else PasswordVisualTransformation(),
-                          )
-                        }
-                      },
-                    )
+            if (apiKeyInfo != null) {
+              item {
+                PreferenceSectionHeader(
+                  title = stringResource(R.string.pref_api_config_section),
+                  modifier = Modifier.settingsSearchTarget(R.string.search_api_key_config_title),
+                )
+              }
 
-                    PreferenceDivider()
-
-                    Row(
-                      modifier =
-                        Modifier
-                          .fillMaxWidth()
-                          .padding(horizontal = 16.dp, vertical = 8.dp),
-                      horizontalArrangement = Arrangement.spacedBy(12.dp),
-                    ) {
-                      Button(
-                        onClick = { showApiKey = !showApiKey },
-                        modifier = Modifier.weight(1f),
-                        colors =
-                          ButtonDefaults.buttonColors(
-                            containerColor = MaterialTheme.colorScheme.secondaryContainer,
-                            contentColor = MaterialTheme.colorScheme.onSecondaryContainer,
-                          ),
-                        shape = MaterialTheme.shapes.extraLarge,
-                      ) {
+              item {
+                PreferenceCard {
+                  TextFieldPreference(
+                    value = apiKeyInfo.apiKey,
+                    onValueChange = apiKeyInfo.onChange,
+                    textToValue = { it.trim() },
+                    title = { Text(apiKeyInfo.title) },
+                    summary = {
+                      if (apiKeyInfo.apiKey.isBlank()) {
+                        Text(apiKeyInfo.hint, color = MaterialTheme.colorScheme.error)
+                      } else {
                         Text(
-                          if (showApiKey) {
-                            stringResource(
-                              R.string.pref_hide_key,
-                            )
-                          } else {
-                            stringResource(R.string.pref_show_key)
-                          },
+                          androidx.compose.ui.res
+                            .stringResource(com.quantummpv.app.R.string.pref_api_key_saved),
+                          color = MaterialTheme.colorScheme.outline,
                         )
                       }
+                    },
+                    textField = { value, onValueChange, _ ->
+                      Column {
+                        Text(stringResource(R.string.pref_paste_api_key, apiKeyInfo.title))
+                        TextField(
+                          value = value,
+                          onValueChange = onValueChange,
+                          modifier = Modifier.fillMaxWidth(),
+                          placeholder = { Text(apiKeyInfo.placeholder) },
+                          singleLine = true,
+                          visualTransformation = if (showApiKey) VisualTransformation.None else PasswordVisualTransformation(),
+                        )
+                      }
+                    },
+                  )
 
-                      Button(
-                        onClick = {
-                          scope.launch {
-                            isVerifying = true
-                            verifyResult = null
-                            aiService
-                              .verifyKey()
-                              .onSuccess {
-                                verifyResult = it
-                                preferences.lastVerified.set(System.currentTimeMillis())
-                              }.onFailure { e ->
-                                verifyResult = "Verification failed: ${e.message}"
-                              }
-                            isVerifying = false
-                          }
-                        },
-                        modifier = Modifier.weight(1f),
-                        enabled = !isVerifying && apiKeyInfo.apiKey.isNotBlank(),
-                        colors =
-                          ButtonDefaults.buttonColors(
-                            containerColor = MaterialTheme.colorScheme.primary,
-                          ),
-                        shape = MaterialTheme.shapes.extraLarge,
-                      ) {
-                        if (isVerifying) {
-                          CircularProgressIndicator(
-                            modifier = Modifier.size(18.dp),
-                            strokeWidth = 2.dp,
-                            color = MaterialTheme.colorScheme.onPrimary,
+                  PreferenceDivider()
+
+                  Row(
+                    modifier =
+                      Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp, vertical = 8.dp),
+                    horizontalArrangement = Arrangement.spacedBy(12.dp),
+                  ) {
+                    Button(
+                      onClick = { showApiKey = !showApiKey },
+                      modifier = Modifier.weight(1f),
+                      colors =
+                        ButtonDefaults.buttonColors(
+                          containerColor = MaterialTheme.colorScheme.secondaryContainer,
+                          contentColor = MaterialTheme.colorScheme.onSecondaryContainer,
+                        ),
+                      shape = MaterialTheme.shapes.extraLarge,
+                    ) {
+                      Text(
+                        if (showApiKey) {
+                          stringResource(
+                            R.string.pref_hide_key,
                           )
                         } else {
-                          Text(
-                            androidx.compose.ui.res
-                              .stringResource(com.quantummpv.app.R.string.pref_verify_key),
-                          )
-                        }
-                      }
+                          stringResource(R.string.pref_show_key)
+                        },
+                      )
                     }
 
-                    if (verifyResult != null) {
-                      Row(
-                        modifier =
-                          Modifier
-                            .fillMaxWidth()
-                            .padding(horizontal = 16.dp, vertical = 4.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                      ) {
-                        val isSuccess = verifyResult!!.contains("successfully") || verifyResult!!.contains("ready")
-                        Icon(
-                          imageVector = if (isSuccess) Icons.RoundedFilled.Check else Icons.RoundedFilled.Warning,
-                          contentDescription = null,
-                          tint = if (isSuccess) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.error,
+                    Button(
+                      onClick = {
+                        scope.launch {
+                          isVerifying = true
+                          verifyResult = null
+                          aiService
+                            .verifyKey()
+                            .onSuccess {
+                              verifyResult = it
+                              preferences.lastVerified.set(System.currentTimeMillis())
+                            }.onFailure { e ->
+                              verifyResult = "Verification failed: ${e.message}"
+                            }
+                          isVerifying = false
+                        }
+                      },
+                      modifier = Modifier.weight(1f),
+                      enabled = !isVerifying && apiKeyInfo.apiKey.isNotBlank(),
+                      colors =
+                        ButtonDefaults.buttonColors(
+                          containerColor = MaterialTheme.colorScheme.primary,
+                        ),
+                      shape = MaterialTheme.shapes.extraLarge,
+                    ) {
+                      if (isVerifying) {
+                        CircularProgressIndicator(
                           modifier = Modifier.size(18.dp),
+                          strokeWidth = 2.dp,
+                          color = MaterialTheme.colorScheme.onPrimary,
                         )
-                        Spacer(modifier = Modifier.size(8.dp))
+                      } else {
                         Text(
-                          text = verifyResult!!,
-                          style = MaterialTheme.typography.bodySmall,
-                          color = if (isSuccess) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.error,
+                          androidx.compose.ui.res
+                            .stringResource(com.quantummpv.app.R.string.pref_verify_key),
                         )
                       }
                     }
                   }
-                }
 
-                item {
-                  PreferenceSectionHeader(
-                    title = stringResource(R.string.pref_model_section),
-                    modifier = Modifier.settingsSearchTarget(R.string.search_ai_model_selection_title),
-                  )
-                }
-
-                item {
-                  PreferenceCard {
+                  if (verifyResult != null) {
                     Row(
                       modifier =
                         Modifier
                           .fillMaxWidth()
-                          .padding(horizontal = 16.dp, vertical = 8.dp),
+                          .padding(horizontal = 16.dp, vertical = 4.dp),
                       verticalAlignment = Alignment.CenterVertically,
-                      horizontalArrangement = Arrangement.SpaceBetween,
                     ) {
-                      Text(
-                        text =
-                          androidx.compose.ui.res.stringResource(
-                            com.quantummpv.app.R.string.pref_available_models_header,
-                          ),
-                        style = MaterialTheme.typography.labelLarge,
-                        fontWeight = FontWeight.Bold,
+                      val isSuccess = verifyResult!!.contains("successfully") || verifyResult!!.contains("ready")
+                      Icon(
+                        imageVector = if (isSuccess) Icons.RoundedFilled.Check else Icons.RoundedFilled.Warning,
+                        contentDescription = null,
+                        tint = if (isSuccess) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.error,
+                        modifier = Modifier.size(18.dp),
                       )
-                      Button(
-                        onClick = { loadModels() },
-                        enabled = !isLoadingModels && apiKeyInfo.apiKey.isNotBlank(),
-                        colors =
-                          ButtonDefaults.buttonColors(
-                            containerColor = MaterialTheme.colorScheme.primary,
-                          ),
-                        shape = MaterialTheme.shapes.extraLarge,
-                      ) {
-                        if (isLoadingModels) {
-                          CircularProgressIndicator(
-                            modifier = Modifier.size(18.dp),
-                            strokeWidth = 2.dp,
-                            color = MaterialTheme.colorScheme.onPrimary,
-                          )
-                        } else {
-                          Icon(
-                            imageVector = Icons.RoundedFilled.Refresh,
-                            contentDescription =
-                              androidx.compose.ui.res.stringResource(
-                                com.quantummpv.app.R.string.ui_refresh,
-                              ),
-                            modifier = Modifier.size(18.dp),
-                          )
-                        }
-                        Spacer(modifier = Modifier.size(4.dp))
-                        Text(
-                          androidx.compose.ui.res
-                            .stringResource(com.quantummpv.app.R.string.pref_fetch_models),
+                      Spacer(modifier = Modifier.size(8.dp))
+                      Text(
+                        text = verifyResult!!,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = if (isSuccess) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.error,
+                      )
+                    }
+                  }
+                }
+              }
+
+              item {
+                PreferenceSectionHeader(
+                  title = stringResource(R.string.pref_model_section),
+                  modifier = Modifier.settingsSearchTarget(R.string.search_ai_model_selection_title),
+                )
+              }
+
+              item {
+                PreferenceCard {
+                  Row(
+                    modifier =
+                      Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp, vertical = 8.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                  ) {
+                    Text(
+                      text =
+                        androidx.compose.ui.res.stringResource(
+                          com.quantummpv.app.R.string.pref_available_models_header,
+                        ),
+                      style = MaterialTheme.typography.labelLarge,
+                      fontWeight = FontWeight.Bold,
+                    )
+                    Button(
+                      onClick = { loadModels() },
+                      enabled = !isLoadingModels && apiKeyInfo.apiKey.isNotBlank(),
+                      colors =
+                        ButtonDefaults.buttonColors(
+                          containerColor = MaterialTheme.colorScheme.primary,
+                        ),
+                      shape = MaterialTheme.shapes.extraLarge,
+                    ) {
+                      if (isLoadingModels) {
+                        CircularProgressIndicator(
+                          modifier = Modifier.size(18.dp),
+                          strokeWidth = 2.dp,
+                          color = MaterialTheme.colorScheme.onPrimary,
+                        )
+                      } else {
+                        Icon(
+                          imageVector = Icons.RoundedFilled.Refresh,
+                          contentDescription =
+                            androidx.compose.ui.res.stringResource(
+                              com.quantummpv.app.R.string.ui_refresh,
+                            ),
+                          modifier = Modifier.size(18.dp),
                         )
                       }
-                    }
-
-                    if (modelLoadError != null) {
+                      Spacer(modifier = Modifier.size(4.dp))
                       Text(
-                        text = modelLoadError!!,
-                        color = MaterialTheme.colorScheme.error,
-                        style = MaterialTheme.typography.bodySmall,
-                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp),
+                        androidx.compose.ui.res
+                          .stringResource(com.quantummpv.app.R.string.pref_fetch_models),
                       )
                     }
+                  }
 
-                    if (models.isNotEmpty()) {
-                      var showModelDialog by remember { mutableStateOf(false) }
+                  if (modelLoadError != null) {
+                    Text(
+                      text = modelLoadError!!,
+                      color = MaterialTheme.colorScheme.error,
+                      style = MaterialTheme.typography.bodySmall,
+                      modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp),
+                    )
+                  }
 
-                      val modelDisplayNames = models.associate { it.id to it.displayName }
+                  if (models.isNotEmpty()) {
+                    var showModelDialog by remember { mutableStateOf(false) }
 
-                      Surface(
-                        onClick = { showModelDialog = true },
-                        shape = MaterialTheme.shapes.medium,
-                        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f),
-                        modifier =
-                          Modifier
-                            .fillMaxWidth()
-                            .padding(horizontal = 16.dp, vertical = 4.dp),
-                      ) {
-                        Row(
-                          verticalAlignment = Alignment.CenterVertically,
-                          modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp),
-                        ) {
-                          Column(modifier = Modifier.weight(1f)) {
-                            Text(
-                              text =
-                                androidx.compose.ui.res.stringResource(
-                                  com.quantummpv.app.R.string.pref_model_section,
-                                ),
-                              style = MaterialTheme.typography.labelLarge,
-                              fontWeight = FontWeight.Bold,
-                            )
-                            Text(
-                              text =
-                                if (selectedModel.isNotBlank()) {
-                                  modelDisplayNames[selectedModel] ?: selectedModel
-                                } else {
-                                  "Tap to select a model"
-                                },
-                              style = MaterialTheme.typography.bodySmall,
-                              color = MaterialTheme.colorScheme.outline,
-                            )
-                          }
-                          if (selectedModel.isNotBlank()) {
-                            val isFree = models.firstOrNull { it.id == selectedModel }?.isFree == true
-                            if (isFree) {
-                              FreeTag()
-                              Spacer(modifier = Modifier.width(8.dp))
-                            }
-                          }
-                          Icon(
-                            Icons.RoundedFilled.ArrowDropDown,
-                            contentDescription = null,
-                            tint = MaterialTheme.colorScheme.outline,
-                          )
-                        }
-                      }
+                    val modelDisplayNames = models.associate { it.id to it.displayName }
 
-                      if (showModelDialog) {
-                        ModelSearchDialog(
-                          models = models,
-                          selectedModelId = selectedModel,
-                          onSelect = { preferences.selectedModelFor(provider).set(it) },
-                          onDismiss = { showModelDialog = false },
-                        )
-                      }
-                    } else {
-                      Text(
-                        text = "Tap 'Fetch Models' to load available models from ${provider.displayName}",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.outline,
-                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
-                      )
-                    }
-
-                    PreferenceDivider()
-
-                    Column(
+                    Surface(
+                      onClick = { showModelDialog = true },
+                      shape = MaterialTheme.shapes.medium,
+                      color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f),
                       modifier =
                         Modifier
                           .fillMaxWidth()
-                          .padding(horizontal = 16.dp, vertical = 8.dp),
-                      verticalArrangement = Arrangement.spacedBy(6.dp),
+                          .padding(horizontal = 16.dp, vertical = 4.dp),
                     ) {
-                      Text(
-                        text =
-                          androidx.compose.ui.res.stringResource(
-                            com.quantummpv.app.R.string.pref_verify_model_header,
-                          ),
-                        style = MaterialTheme.typography.labelLarge,
-                        fontWeight = FontWeight.Bold,
-                      )
-
-                      Button(
-                        onClick = {
-                          scope.launch {
-                            isVerifyingModel = true
-                            verifyModelResult = null
-                            aiService
-                              .verifyModel()
-                              .onSuccess { verifyModelResult = it }
-                              .onFailure { e ->
-                                verifyModelResult = "Error: ${e.message}"
-                              }
-                            isVerifyingModel = false
-                          }
-                        },
-                        modifier = Modifier.fillMaxWidth(),
-                        enabled = !isVerifyingModel && selectedModel.isNotBlank(),
-                        colors =
-                          ButtonDefaults.buttonColors(
-                            containerColor = MaterialTheme.colorScheme.tertiary,
-                          ),
-                        shape = MaterialTheme.shapes.extraLarge,
+                      Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp),
                       ) {
-                        if (isVerifyingModel) {
-                          CircularProgressIndicator(
-                            modifier = Modifier.size(18.dp),
-                            strokeWidth = 2.dp,
-                            color = MaterialTheme.colorScheme.onTertiary,
+                        Column(modifier = Modifier.weight(1f)) {
+                          Text(
+                            text =
+                              androidx.compose.ui.res.stringResource(
+                                com.quantummpv.app.R.string.pref_model_section,
+                              ),
+                            style = MaterialTheme.typography.labelLarge,
+                            fontWeight = FontWeight.Bold,
                           )
-                          Spacer(Modifier.width(8.dp))
+                          Text(
+                            text =
+                              if (selectedModel.isNotBlank()) {
+                                modelDisplayNames[selectedModel] ?: selectedModel
+                              } else {
+                                "Tap to select a model"
+                              },
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.outline,
+                          )
                         }
-                        Text(
-                          androidx.compose.ui.res
-                            .stringResource(com.quantummpv.app.R.string.pref_check_model_access),
+                        if (selectedModel.isNotBlank()) {
+                          val isFree = models.firstOrNull { it.id == selectedModel }?.isFree == true
+                          if (isFree) {
+                            FreeTag()
+                            Spacer(modifier = Modifier.width(8.dp))
+                          }
+                        }
+                        Icon(
+                          Icons.RoundedFilled.ArrowDropDown,
+                          contentDescription = null,
+                          tint = MaterialTheme.colorScheme.outline,
                         )
                       }
+                    }
 
-                      if (verifyModelResult != null) {
-                        val lines = verifyModelResult!!.split("\n")
-                        Surface(
-                          color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f),
-                          shape = MaterialTheme.shapes.medium,
-                          modifier = Modifier.fillMaxWidth(),
+                    if (showModelDialog) {
+                      ModelSearchDialog(
+                        models = models,
+                        selectedModelId = selectedModel,
+                        onSelect = { preferences.selectedModelFor(provider).set(it) },
+                        onDismiss = { showModelDialog = false },
+                      )
+                    }
+                  } else {
+                    Text(
+                      text = "Tap 'Fetch Models' to load available models from ${provider.displayName}",
+                      style = MaterialTheme.typography.bodySmall,
+                      color = MaterialTheme.colorScheme.outline,
+                      modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
+                    )
+                  }
+
+                  PreferenceDivider()
+
+                  Column(
+                    modifier =
+                      Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp, vertical = 8.dp),
+                    verticalArrangement = Arrangement.spacedBy(6.dp),
+                  ) {
+                    Text(
+                      text =
+                        androidx.compose.ui.res.stringResource(
+                          com.quantummpv.app.R.string.pref_verify_model_header,
+                        ),
+                      style = MaterialTheme.typography.labelLarge,
+                      fontWeight = FontWeight.Bold,
+                    )
+
+                    Button(
+                      onClick = {
+                        scope.launch {
+                          isVerifyingModel = true
+                          verifyModelResult = null
+                          aiService
+                            .verifyModel()
+                            .onSuccess { verifyModelResult = it }
+                            .onFailure { e ->
+                              verifyModelResult = "Error: ${e.message}"
+                            }
+                          isVerifyingModel = false
+                        }
+                      },
+                      modifier = Modifier.fillMaxWidth(),
+                      enabled = !isVerifyingModel && selectedModel.isNotBlank(),
+                      colors =
+                        ButtonDefaults.buttonColors(
+                          containerColor = MaterialTheme.colorScheme.tertiary,
+                        ),
+                      shape = MaterialTheme.shapes.extraLarge,
+                    ) {
+                      if (isVerifyingModel) {
+                        CircularProgressIndicator(
+                          modifier = Modifier.size(18.dp),
+                          strokeWidth = 2.dp,
+                          color = MaterialTheme.colorScheme.onTertiary,
+                        )
+                        Spacer(Modifier.width(8.dp))
+                      }
+                      Text(
+                        androidx.compose.ui.res
+                          .stringResource(com.quantummpv.app.R.string.pref_check_model_access),
+                      )
+                    }
+
+                    if (verifyModelResult != null) {
+                      val lines = verifyModelResult!!.split("\n")
+                      Surface(
+                        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f),
+                        shape = MaterialTheme.shapes.medium,
+                        modifier = Modifier.fillMaxWidth(),
+                      ) {
+                        Column(
+                          modifier = Modifier.padding(12.dp),
+                          verticalArrangement = Arrangement.spacedBy(4.dp),
                         ) {
-                          Column(
-                            modifier = Modifier.padding(12.dp),
-                            verticalArrangement = Arrangement.spacedBy(4.dp),
-                          ) {
-                            lines.forEach { line ->
-                              val isPositive =
-                                line.startsWith("Available") ||
-                                  line.startsWith("Free") ||
-                                  line.startsWith("API access working")
-                              val isWarning =
-                                line.startsWith("Quota") ||
-                                  line.startsWith("Paid") ||
-                                  line.startsWith("âš ")
-                              Row(
-                                verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.spacedBy(6.dp),
-                              ) {
-                                Icon(
-                                  imageVector =
-                                    when {
-                                      isPositive -> Icons.RoundedFilled.Check
-                                      isWarning -> Icons.RoundedFilled.Warning
-                                      else -> Icons.RoundedFilled.Close
-                                    },
-                                  contentDescription = null,
-                                  modifier = Modifier.size(16.dp),
-                                  tint =
-                                    when {
-                                      isPositive -> MaterialTheme.colorScheme.primary
-                                      isWarning -> MaterialTheme.colorScheme.error
-                                      else -> MaterialTheme.colorScheme.error
-                                    },
-                                )
-                                Text(
-                                  text = line,
-                                  style = MaterialTheme.typography.bodySmall,
-                                )
-                              }
+                          lines.forEach { line ->
+                            val isPositive =
+                              line.startsWith("Available") ||
+                                line.startsWith("Free") ||
+                                line.startsWith("API access working")
+                            val isWarning =
+                              line.startsWith("Quota") ||
+                                line.startsWith("Paid") ||
+                                line.startsWith("âš ")
+                            Row(
+                              verticalAlignment = Alignment.CenterVertically,
+                              horizontalArrangement = Arrangement.spacedBy(6.dp),
+                            ) {
+                              Icon(
+                                imageVector =
+                                  when {
+                                    isPositive -> Icons.RoundedFilled.Check
+                                    isWarning -> Icons.RoundedFilled.Warning
+                                    else -> Icons.RoundedFilled.Close
+                                  },
+                                contentDescription = null,
+                                modifier = Modifier.size(16.dp),
+                                tint =
+                                  when {
+                                    isPositive -> MaterialTheme.colorScheme.primary
+                                    isWarning -> MaterialTheme.colorScheme.error
+                                    else -> MaterialTheme.colorScheme.error
+                                  },
+                              )
+                              Text(
+                                text = line,
+                                style = MaterialTheme.typography.bodySmall,
+                              )
                             }
                           }
                         }
@@ -775,6 +766,7 @@ val apiKeyInfo =
                   }
                 }
               }
+            }
 
             item { PreferenceSectionHeader(title = stringResource(R.string.pref_ai_features_subsection)) }
 
@@ -829,204 +821,204 @@ val apiKeyInfo =
               )
             }
 
-              item {
-                PreferenceCard {
-                  val sttProviders = listOf(AiProvider.GROQ, AiProvider.OPENAI, AiProvider.OPENROUTER)
-                  val sttProvider by preferences.sttProvider.collectAsState()
-                  val sttModel by preferences.sttModelFor(sttProvider).collectAsState()
+            item {
+              PreferenceCard {
+                val sttProviders = listOf(AiProvider.GROQ, AiProvider.OPENAI, AiProvider.OPENROUTER)
+                val sttProvider by preferences.sttProvider.collectAsState()
+                val sttModel by preferences.sttModelFor(sttProvider).collectAsState()
 
-                  SwitchPreference(
-                    value = realtimeSubsEnabled,
-                    onValueChange = { preferences.realtimeSubsEnabled.set(it) },
-                    title = {
-                      Text(
-                        androidx.compose.ui.res
-                          .stringResource(com.quantummpv.app.R.string.pref_stt_title),
-                      )
-                    },
-                    summary = {
-                      Text(
-                        androidx.compose.ui.res
-                          .stringResource(com.quantummpv.app.R.string.pref_stt_summary),
-                        color = MaterialTheme.colorScheme.outline,
-                      )
-                    },
-                  )
+                SwitchPreference(
+                  value = realtimeSubsEnabled,
+                  onValueChange = { preferences.realtimeSubsEnabled.set(it) },
+                  title = {
+                    Text(
+                      androidx.compose.ui.res
+                        .stringResource(com.quantummpv.app.R.string.pref_stt_title),
+                    )
+                  },
+                  summary = {
+                    Text(
+                      androidx.compose.ui.res
+                        .stringResource(com.quantummpv.app.R.string.pref_stt_summary),
+                      color = MaterialTheme.colorScheme.outline,
+                    )
+                  },
+                )
 
-                  PreferenceDivider()
+                PreferenceDivider()
 
-                  ListPreference(
-                    value = subtitleGenerationOutputFormat,
-                    onValueChange = { preferences.subtitleGenerationOutputFormat.set(it) },
-                    values = listOf("srt", "vtt"),
-                    valueToText = {
-                      androidx.compose.ui.text
-                        .AnnotatedString(it.uppercase())
-                    },
-                    title = {
-                      Text(
-                        androidx.compose.ui.res
-                          .stringResource(com.quantummpv.app.R.string.pref_stt_output_format_title),
-                      )
-                    },
-                    summary = {
-                      Text(
-                        subtitleGenerationOutputFormat.uppercase(),
-                        color = MaterialTheme.colorScheme.outline,
-                      )
-                    },
-                  )
+                ListPreference(
+                  value = subtitleGenerationOutputFormat,
+                  onValueChange = { preferences.subtitleGenerationOutputFormat.set(it) },
+                  values = listOf("srt", "vtt"),
+                  valueToText = {
+                    androidx.compose.ui.text
+                      .AnnotatedString(it.uppercase())
+                  },
+                  title = {
+                    Text(
+                      androidx.compose.ui.res
+                        .stringResource(com.quantummpv.app.R.string.pref_stt_output_format_title),
+                    )
+                  },
+                  summary = {
+                    Text(
+                      subtitleGenerationOutputFormat.uppercase(),
+                      color = MaterialTheme.colorScheme.outline,
+                    )
+                  },
+                )
 
-                  PreferenceDivider()
+                PreferenceDivider()
 
-                  ListPreference(
-                    value = sttProvider,
-                    onValueChange = preferences.sttProvider::set,
-                    values = sttProviders,
-                    valueToText = {
-                      androidx.compose.ui.text
-                        .AnnotatedString(it.displayName)
-                    },
-                    title = {
-                      Text(
-                        androidx.compose.ui.res
-                          .stringResource(com.quantummpv.app.R.string.pref_stt_provider_title),
-                      )
-                    },
-                    summary = {
-                      Text(
-                        androidx.compose.ui.res
-                          .stringResource(com.quantummpv.app.R.string.pref_stt_provider_summary),
-                        color = MaterialTheme.colorScheme.outline,
-                      )
-                    },
-                  )
+                ListPreference(
+                  value = sttProvider,
+                  onValueChange = preferences.sttProvider::set,
+                  values = sttProviders,
+                  valueToText = {
+                    androidx.compose.ui.text
+                      .AnnotatedString(it.displayName)
+                  },
+                  title = {
+                    Text(
+                      androidx.compose.ui.res
+                        .stringResource(com.quantummpv.app.R.string.pref_stt_provider_title),
+                    )
+                  },
+                  summary = {
+                    Text(
+                      androidx.compose.ui.res
+                        .stringResource(com.quantummpv.app.R.string.pref_stt_provider_summary),
+                      color = MaterialTheme.colorScheme.outline,
+                    )
+                  },
+                )
 
-                  PreferenceDivider()
+                PreferenceDivider()
 
-                  SttModelSelector(
-                    sttProvider = sttProvider,
-                    sttModel = sttModel,
-                    apiKey =
-                      when (sttProvider) {
-                        AiProvider.GROQ -> groqKey
-                        AiProvider.OPENAI -> openaiKey
-                        AiProvider.OPENROUTER -> openrouterKey
-                        else -> ""
-                      },
-                    onSelectModel = { preferences.sttModelFor(sttProvider).set(it) },
-                  )
-
-                  PreferenceDivider()
-
-                  val sttLanguage by preferences.sttLanguage.collectAsState()
-                  ListPreference(
-                    modifier = Modifier.settingsSearchTarget(R.string.pref_translation_section),
-                    value = sttLanguage,
-                    onValueChange = { preferences.sttLanguage.set(it) },
-                    values =
-                      listOf(
-                        "",
-                        "en",
-                        "es",
-                        "fr",
-                        "de",
-                        "hi",
-                        "ja",
-                        "zh",
-                        "ko",
-                        "pt",
-                        "ru",
-                        "ar",
-                        "it",
-                        "nl",
-                        "pl",
-                        "tr",
-                        "vi",
-                        "th",
-                      ),
-                    valueToText = { lang ->
-                      androidx.compose.ui.text.AnnotatedString(
-                        when (lang) {
-                          "" -> "Auto-detect"
-                          "en" -> "English"
-                          "es" -> "Spanish"
-                          "fr" -> "French"
-                          "de" -> "German"
-                          "hi" -> "Hindi"
-                          "ja" -> "Japanese"
-                          "zh" -> "Chinese"
-                          "ko" -> "Korean"
-                          "pt" -> "Portuguese"
-                          "ru" -> "Russian"
-                          "ar" -> "Arabic"
-                          "it" -> "Italian"
-                          "nl" -> "Dutch"
-                          "pl" -> "Polish"
-                          "tr" -> "Turkish"
-                          "vi" -> "Vietnamese"
-                          "th" -> "Thai"
-                          else -> lang
-                        },
-                      )
+                SttModelSelector(
+                  sttProvider = sttProvider,
+                  sttModel = sttModel,
+                  apiKey =
+                    when (sttProvider) {
+                      AiProvider.GROQ -> groqKey
+                      AiProvider.OPENAI -> openaiKey
+                      AiProvider.OPENROUTER -> openrouterKey
+                      else -> ""
                     },
-                    title = {
-                      Text(
-                        androidx.compose.ui.res
-                          .stringResource(com.quantummpv.app.R.string.pref_audio_language_title),
-                      )
-                    },
-                    summary = {
-                      Text(
-                        if (sttLanguage.isBlank()) "Auto-detect speech language" else sttLanguage.uppercase(),
-                        color = MaterialTheme.colorScheme.outline,
-                      )
-                    },
-                  )
-                }
-              }
+                  onSelectModel = { preferences.sttModelFor(sttProvider).set(it) },
+                )
 
-              item {
-                PreferenceSectionHeader(
-                  title = stringResource(R.string.pref_translation_section),
+                PreferenceDivider()
+
+                val sttLanguage by preferences.sttLanguage.collectAsState()
+                ListPreference(
                   modifier = Modifier.settingsSearchTarget(R.string.pref_translation_section),
+                  value = sttLanguage,
+                  onValueChange = { preferences.sttLanguage.set(it) },
+                  values =
+                    listOf(
+                      "",
+                      "en",
+                      "es",
+                      "fr",
+                      "de",
+                      "hi",
+                      "ja",
+                      "zh",
+                      "ko",
+                      "pt",
+                      "ru",
+                      "ar",
+                      "it",
+                      "nl",
+                      "pl",
+                      "tr",
+                      "vi",
+                      "th",
+                    ),
+                  valueToText = { lang ->
+                    androidx.compose.ui.text.AnnotatedString(
+                      when (lang) {
+                        "" -> "Auto-detect"
+                        "en" -> "English"
+                        "es" -> "Spanish"
+                        "fr" -> "French"
+                        "de" -> "German"
+                        "hi" -> "Hindi"
+                        "ja" -> "Japanese"
+                        "zh" -> "Chinese"
+                        "ko" -> "Korean"
+                        "pt" -> "Portuguese"
+                        "ru" -> "Russian"
+                        "ar" -> "Arabic"
+                        "it" -> "Italian"
+                        "nl" -> "Dutch"
+                        "pl" -> "Polish"
+                        "tr" -> "Turkish"
+                        "vi" -> "Vietnamese"
+                        "th" -> "Thai"
+                        else -> lang
+                      },
+                    )
+                  },
+                  title = {
+                    Text(
+                      androidx.compose.ui.res
+                        .stringResource(com.quantummpv.app.R.string.pref_audio_language_title),
+                    )
+                  },
+                  summary = {
+                    Text(
+                      if (sttLanguage.isBlank()) "Auto-detect speech language" else sttLanguage.uppercase(),
+                      color = MaterialTheme.colorScheme.outline,
+                    )
+                  },
                 )
               }
+            }
 
-              item {
-                PreferenceCard {
-                  SwitchPreference(
-                    value = subtitleTranslationEnabled,
-                    onValueChange = { enabled ->
-                      preferences.subtitleTranslationEnabled.set(enabled)
-                      if (enabled && subtitleTranslationFirstTime) {
-                        showSubtitleTranslationWarning = true
-                      }
-                    },
-                    title = {
-                      Text(
-                        androidx.compose.ui.res
-                          .stringResource(com.quantummpv.app.R.string.pref_enable_translation_title),
-                      )
-                    },
-                    summary = {
-                      Text(
-                        androidx.compose.ui.res.stringResource(
-                          com.quantummpv.app.R.string.pref_enable_translation_summary,
-                        ),
-                        color = MaterialTheme.colorScheme.outline,
-                      )
-                    },
-                  )
+            item {
+              PreferenceSectionHeader(
+                title = stringResource(R.string.pref_translation_section),
+                modifier = Modifier.settingsSearchTarget(R.string.pref_translation_section),
+              )
+            }
 
-                  PreferenceDivider()
+            item {
+              PreferenceCard {
+                SwitchPreference(
+                  value = subtitleTranslationEnabled,
+                  onValueChange = { enabled ->
+                    preferences.subtitleTranslationEnabled.set(enabled)
+                    if (enabled && subtitleTranslationFirstTime) {
+                      showSubtitleTranslationWarning = true
+                    }
+                  },
+                  title = {
+                    Text(
+                      androidx.compose.ui.res
+                        .stringResource(com.quantummpv.app.R.string.pref_enable_translation_title),
+                    )
+                  },
+                  summary = {
+                    Text(
+                      androidx.compose.ui.res.stringResource(
+                        com.quantummpv.app.R.string.pref_enable_translation_summary,
+                      ),
+                      color = MaterialTheme.colorScheme.outline,
+                    )
+                  },
+                )
 
-                  AutoTranslateLanguageConfig(
-                    languages = autoTranslateLanguages,
-                    onLanguagesChange = { preferences.autoTranslateLanguages.set(it) },
-                  )
-                }
+                PreferenceDivider()
+
+                AutoTranslateLanguageConfig(
+                  languages = autoTranslateLanguages,
+                  onLanguagesChange = { preferences.autoTranslateLanguages.set(it) },
+                )
               }
+            }
 
             item {
               PreferenceSectionHeader(

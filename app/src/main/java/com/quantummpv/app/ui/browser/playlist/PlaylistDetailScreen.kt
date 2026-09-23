@@ -14,7 +14,6 @@ package com.quantummpv.app.ui.browser.playlist
 import android.content.Intent
 import android.net.Uri
 import android.widget.Toast
-import com.quantummpv.app.ui.utils.NavigationBackHandler as BackHandler
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -95,6 +94,7 @@ import kotlinx.serialization.Serializable
 import org.koin.compose.koinInject
 import sh.calvin.reorderable.ReorderableItem
 import sh.calvin.reorderable.rememberReorderableLazyListState
+import com.quantummpv.app.ui.utils.NavigationBackHandler as BackHandler
 
 /**
  * Playlist detail screen showing videos in a playlist.
@@ -757,15 +757,23 @@ private fun PlaylistVideoListContent(
           )
           Text(
             text =
-              if (isAudio) "No songs in playlist"
-              else androidx.compose.ui.res.stringResource(com.quantummpv.app.R.string.ui_no_videos_in_playlist),
+              if (isAudio) {
+                "No songs in playlist"
+              } else {
+                androidx.compose.ui.res
+                  .stringResource(com.quantummpv.app.R.string.ui_no_videos_in_playlist)
+              },
             style = MaterialTheme.typography.titleMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
           )
           Text(
             text =
-              if (isAudio) "Add songs to get started"
-              else androidx.compose.ui.res.stringResource(com.quantummpv.app.R.string.ui_add_videos_to_get_started),
+              if (isAudio) {
+                "Add songs to get started"
+              } else {
+                androidx.compose.ui.res
+                  .stringResource(com.quantummpv.app.R.string.ui_add_videos_to_get_started)
+              },
             style = MaterialTheme.typography.bodyMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
           )

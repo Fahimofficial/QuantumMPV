@@ -20,13 +20,15 @@ internal class ParticleVisualizerView(
   features: AudioFeatures,
   palette: VisualizerPalette,
   reducedMotion: Boolean = false,
-) : GLSurfaceView(context), PaletteConsumer {
-  private val renderer = ParticleFeedbackRenderer(
-    context.applicationContext,
-    features,
-    palette,
-    reducedMotion,
-  )
+) : GLSurfaceView(context),
+  PaletteConsumer {
+  private val renderer =
+    ParticleFeedbackRenderer(
+      context.applicationContext,
+      features,
+      palette,
+      reducedMotion,
+    )
 
   init {
     setEGLContextClientVersion(3)

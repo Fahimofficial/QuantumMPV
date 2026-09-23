@@ -300,7 +300,12 @@ object AppearancePreferencesScreen : Screen {
                     value = glassBottomNavigation,
                     onValueChange = preferences.glassBottomNavigation::set,
                     title = { Text(stringResource(R.string.pref_appearance_glass_navigation_title)) },
-                    summary = { Text(stringResource(R.string.pref_appearance_glass_navigation_summary), color = MaterialTheme.colorScheme.outline) },
+                    summary = {
+                      Text(
+                        stringResource(R.string.pref_appearance_glass_navigation_summary),
+                        color = MaterialTheme.colorScheme.outline,
+                      )
+                    },
                   )
                   TextButton(
                     onClick = { showResetAppearanceDialog = true },

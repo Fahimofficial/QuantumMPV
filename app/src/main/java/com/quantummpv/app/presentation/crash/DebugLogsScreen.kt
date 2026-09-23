@@ -137,10 +137,12 @@ internal fun DebugLogsScreen(onNavigateBack: () -> Unit) {
       val needle = query.trim()
       sourceEntries.filter { entry ->
         entry.level in selectedLevels &&
-          (needle.isEmpty() ||
-            entry.level.label.contains(needle, ignoreCase = true) ||
-            entry.tag.contains(needle, ignoreCase = true) ||
-            entry.message.contains(needle, ignoreCase = true))
+          (
+            needle.isEmpty() ||
+              entry.level.label.contains(needle, ignoreCase = true) ||
+              entry.tag.contains(needle, ignoreCase = true) ||
+              entry.message.contains(needle, ignoreCase = true)
+          )
       }
     }
 
@@ -203,7 +205,15 @@ internal fun DebugLogsScreen(onNavigateBack: () -> Unit) {
             Text(
               text =
                 buildString {
-                  append(if (isPaused) "Paused" else if (readError != null) "Retrying" else "Live")
+                  append(
+                    if (isPaused) {
+                      "Paused"
+                    } else if (readError != null) {
+                      "Retrying"
+                    } else {
+                      "Live"
+                    },
+                  )
                   append(" • ")
                   if (filteredEntries.size == sourceEntries.size) {
                     append(sourceEntries.size)
@@ -400,7 +410,14 @@ internal fun DebugLogsScreen(onNavigateBack: () -> Unit) {
           filteredEntries.isEmpty() -> {
             val hasActiveFilter = query.isNotBlank() || selectedLevels.size != DebugLogLevel.entries.size
             DebugLogMessageState(
-              title = if (hasActiveFilter) "No matching logs" else if (isPaused) "Logs paused" else "Waiting for logs…",
+              title =
+                if (hasActiveFilter) {
+                  "No matching logs"
+                } else if (isPaused) {
+                  "Logs paused"
+                } else {
+                  "Waiting for logs…"
+                },
               message =
                 if (hasActiveFilter) {
                   "Try clearing the search or enabling more log levels."
@@ -540,15 +557,16 @@ private fun DebugLogEntryCard(
 
       if (expanded && entry.pid != null) {
         Text(
-          text = buildString {
-            append("pid ")
-            append(entry.pid)
-            entry.tid?.let {
-              append(" • tid ")
-              append(it)
-            }
-            append(" • long-press to copy")
-          },
+          text =
+            buildString {
+              append("pid ")
+              append(entry.pid)
+              entry.tid?.let {
+                append(" • tid ")
+                append(it)
+              }
+              append(" • long-press to copy")
+            },
           style = MaterialTheme.typography.labelSmall,
           color = MaterialTheme.colorScheme.onSurfaceVariant,
         )

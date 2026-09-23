@@ -47,7 +47,8 @@ object SubtitleOps : KoinComponent {
       // first WebDAV/SMB/FTP item's cached path while discovering external subtitles.
       val activeNetworkSource =
         if (networkConnectionId != -1L) {
-          PlaybackSession.queue.value.currentItem?.networkSource
+          PlaybackSession.queue.value.currentItem
+            ?.networkSource
         } else {
           null
         }

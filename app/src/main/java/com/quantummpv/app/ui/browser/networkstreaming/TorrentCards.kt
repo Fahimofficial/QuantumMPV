@@ -9,7 +9,6 @@
 
 package com.quantummpv.app.ui.browser.networkstreaming
 
-import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.animateDpAsState
@@ -364,7 +363,15 @@ fun TorrentHeroBanner(
             label = "dotWidth",
           )
           val color by animateColorAsState(
-            targetValue = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f),
+            targetValue =
+              if (isSelected) {
+                MaterialTheme.colorScheme.primary
+              } else {
+                MaterialTheme.colorScheme.outlineVariant
+                  .copy(
+                    alpha = 0.5f,
+                  )
+              },
             label = "dotColor",
           )
           Box(
