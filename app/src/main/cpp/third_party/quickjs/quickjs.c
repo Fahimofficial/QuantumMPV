@@ -7822,22 +7822,18 @@ void JS_ComputeMemoryUsage(JSRuntime *rt, JSMemoryUsage *s)
         case JS_CLASS_MAP_ITERATOR:      /* u.map_iterator_data */
         case JS_CLASS_SET_ITERATOR:      /* u.map_iterator_data */
             {
-                JSMapIteratorData *it = p->u.map_iterator_data;
-                if (it) {
+                if (p->u.map_iterator_data) {
                     s->memory_used_count++;
-                    s->memory_used_size += sizeof(*it);
-                    compute_value_size(it->obj, hp);
+                    s->memory_used_size += sizeof(JSValue) + sizeof(int) + sizeof(void*);
                 }
             }
             break;
         case JS_CLASS_ARRAY_ITERATOR:    /* u.array_iterator_data */
         case JS_CLASS_STRING_ITERATOR:   /* u.array_iterator_data */
             {
-                JSArrayIteratorData *it = p->u.array_iterator_data;
-                if (it) {
+                if (p->u.array_iterator_data) {
                     s->memory_used_count++;
-                    s->memory_used_size += sizeof(*it);
-                    compute_value_size(it->obj, hp);
+                    s->memory_used_size += sizeof(JSValue) + sizeof(int) + sizeof(uint32_t);
                 }
             }
             break;
@@ -7854,38 +7850,18 @@ void JS_ComputeMemoryUsage(JSRuntime *rt, JSMemoryUsage *s)
             break;
         case JS_CLASS_PROMISE:           /* u.promise_data */
             {
-                JSPromiseData *pd = p->u.promise_data;
-                if (pd) {
+                if (p->u.promise_data) {
                     s->memory_used_count++;
-                    s->memory_used_size += sizeof(*pd);
-                    compute_value_size(pd->promise_result, hp);
-                    for(i = 0; i < 2; i++) {
-                        struct list_head *el;
-                        list_for_each(el, &pd->promise_reactions[i]) {
-                            JSPromiseReactionData *rd = list_entry(el, JSPromiseReactionData, link);
-                            s->memory_used_count++;
-                            s->memory_used_size += sizeof(*rd);
-                            compute_value_size(rd->resolving_funcs[0], hp);
-                            compute_value_size(rd->resolving_funcs[1], hp);
-                            compute_value_size(rd->handler, hp);
-                        }
-                    }
+                    s->memory_used_size += sizeof(int) + 2*sizeof(struct list_head) + sizeof(bool) + sizeof(JSValue);
                 }
             }
             break;
         case JS_CLASS_PROMISE_RESOLVE_FUNCTION:  /* u.promise_function_data */
         case JS_CLASS_PROMISE_REJECT_FUNCTION:   /* u.promise_function_data */
             {
-                JSPromiseFunctionData *pfd = p->u.promise_function_data;
-                if (pfd) {
+                if (p->u.promise_function_data) {
                     s->memory_used_count++;
-                    s->memory_used_size += sizeof(*pfd);
-                    compute_value_size(pfd->promise, hp);
-                    if (pfd->presolved) {
-                        double ref_count = pfd->presolved->ref_count;
-                        s->memory_used_count += 1 / ref_count;
-                        s->memory_used_size += sizeof(*pfd->presolved) / ref_count;
-                    }
+                    s->memory_used_size += sizeof(JSValue) + sizeof(void*);
                 }
             }
             break;
@@ -7903,12 +7879,9 @@ void JS_ComputeMemoryUsage(JSRuntime *rt, JSMemoryUsage *s)
             break;
         case JS_CLASS_ASYNC_FROM_SYNC_ITERATOR:  /* u.async_from_sync_iterator_data */
             {
-                JSAsyncFromSyncIteratorData *afd = p->u.async_from_sync_iterator_data;
-                if (afd) {
+                if (p->u.async_from_sync_iterator_data) {
                     s->memory_used_count++;
-                    s->memory_used_size += sizeof(*afd);
-                    compute_value_size(afd->sync_iter, hp);
-                    compute_value_size(afd->next_method, hp);
+                    s->memory_used_size += sizeof(JSValue) * 2;
                 }
             }
             break;
@@ -7918,15 +7891,6 @@ void JS_ComputeMemoryUsage(JSRuntime *rt, JSMemoryUsage *s)
                 if (agd) {
                     s->memory_used_count++;
                     s->memory_used_size += sizeof(*agd);
-                    struct list_head *el;
-                    list_for_each(el, &agd->queue) {
-                        JSAsyncGeneratorRequest *req = list_entry(el, JSAsyncGeneratorRequest, link);
-                        s->memory_used_count++;
-                        s->memory_used_size += sizeof(*req);
-                        compute_value_size(req->result.resolving_funcs[0], hp);
-                        compute_value_size(req->result.resolving_funcs[1], hp);
-                        compute_value_size(req->args[0], hp);
-                    }
                 }
             }
             break;
