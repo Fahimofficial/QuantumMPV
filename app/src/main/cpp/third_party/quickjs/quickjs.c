@@ -6551,6 +6551,7 @@ JSValue JS_NewCFunction2(JSContext *ctx, JSCFunction *func,
 }
 
 typedef struct JSCFunctionDataRecord {
+    JSContext *realm;
     JSCFunctionData *func;
     uint8_t length;
     uint8_t data_len;
@@ -6615,7 +6616,7 @@ static JSValue js_call_c_function_data(JSContext *ctx, JSValueConst func_obj,
     prev_sf = rt->current_stack_frame;
     sf->prev_frame = prev_sf;
     rt->current_stack_frame = sf;
-    // TODO(bnoordhuis) switch realms like js_call_c_function does
+    ctx = s->realm; /* change the current realm */
     sf->is_strict_mode = false;
     sf->is_constructor = (flags & JS_CALL_FLAG_CONSTRUCTOR) != 0;
     sf->cur_func = unsafe_unconst(func_obj);
@@ -6644,6 +6645,7 @@ JSValue JS_NewCFunctionData2(JSContext *ctx, JSCFunctionData *func,
         JS_FreeValue(ctx, func_obj);
         return JS_EXCEPTION;
     }
+    s->realm = ctx;
     s->func = func;
     s->length = length;
     s->data_len = data_len;
@@ -6693,6 +6695,7 @@ static void js_autoinit_mark(JSRuntime *rt, JSProperty *pr,
 }
 
 typedef struct JSCClosureRecord {
+    JSContext *realm;
     JSCClosure *func;
     uint16_t length;
     uint16_t magic;
@@ -6741,7 +6744,7 @@ static JSValue js_call_c_closure(JSContext *ctx, JSValueConst func_obj,
     prev_sf = rt->current_stack_frame;
     sf->prev_frame = prev_sf;
     rt->current_stack_frame = sf;
-    // TODO(bnoordhuis) switch realms like js_call_c_function does
+    ctx = s->realm; /* change the current realm */
     sf->is_strict_mode = false;
     sf->is_constructor = (flags & JS_CALL_FLAG_CONSTRUCTOR) != 0;
     sf->cur_func = unsafe_unconst(func_obj);
@@ -6769,6 +6772,7 @@ JSValue JS_NewCClosure(JSContext *ctx, JSCClosure *func, const char *name,
         JS_FreeValue(ctx, func_obj);
         return JS_EXCEPTION;
     }
+    s->realm = ctx;
     s->func = func;
     s->length = length;
     s->magic = magic;
@@ -20968,6 +20972,12 @@ static JSContext *JS_GetFunctionRealm(JSContext *ctx, JSValueConst func_obj)
     switch(p->class_id) {
     case JS_CLASS_C_FUNCTION:
         realm = p->u.cfunc.realm;
+        break;
+    case JS_CLASS_C_FUNCTION_DATA:
+        realm = p->u.c_function_data_record->realm;
+        break;
+    case JS_CLASS_C_CLOSURE:
+        realm = p->u.c_closure_record->realm;
         break;
     case JS_CLASS_BYTECODE_FUNCTION:
     case JS_CLASS_GENERATOR_FUNCTION:
