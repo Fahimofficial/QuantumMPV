@@ -2487,6 +2487,7 @@ static JSValue js_os_setTimeout(JSContext *ctx, JSValueConst this_val,
         th->argc = argc - 2;
         th->argv = js_mallocz(ctx, sizeof(JSValue) * th->argc);
         if (!th->argv) {
+            JS_FreeValue(ctx, th->func);
             js_free_rt(rt, th);
             return JS_EXCEPTION;
         }
@@ -2605,7 +2606,24 @@ static int js_os_run_timers(JSRuntime *rt, JSContext *ctx, JSThreadState *ts, in
             func = JS_DupValueRT(rt, th->func);
             if (th->repeats) {
                 th->timeout = cur_time + th->delay;
-                r = call_handler(ctx, func, th->argc, (JSValueConst *)th->argv);
+                if (th->argc > 0) {
+                    int argc = th->argc;
+                    JSValue *tmp_argv = js_malloc_rt(rt, sizeof(JSValue) * argc);
+                    if (!tmp_argv) {
+                        JS_FreeValueRT(rt, func);
+                        return -1;
+                    }
+                    for (int i = 0; i < argc; i++) {
+                        tmp_argv[i] = JS_DupValueRT(rt, th->argv[i]);
+                    }
+                    r = call_handler(ctx, func, argc, (JSValueConst *)tmp_argv);
+                    for (int i = 0; i < argc; i++) {
+                        JS_FreeValueRT(rt, tmp_argv[i]);
+                    }
+                    js_free_rt(rt, tmp_argv);
+                } else {
+                    r = call_handler(ctx, func, 0, NULL);
+                }
             } else {
                 int argc = th->argc;
                 JSValue *argv = th->argv;
