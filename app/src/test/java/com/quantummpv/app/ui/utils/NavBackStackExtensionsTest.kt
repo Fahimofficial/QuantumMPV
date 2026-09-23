@@ -1,3 +1,12 @@
+/*
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published
+ * by the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ */
+
 package com.quantummpv.app.ui.utils
 
 import androidx.navigation3.runtime.NavBackStack
@@ -8,10 +17,14 @@ import kotlin.test.assertFalse
 import kotlin.test.assertTrue
 
 class NavBackStackExtensionsTest {
+  data class TestScreen(
+    val id: Int,
+  ) : NavKey
 
-  data class TestScreen(val id: Int) : NavKey
-
-  private class TestNavBackStack(initialList: List<TestScreen>) : NavBackStack<TestScreen>(), MutableList<TestScreen> by initialList.toMutableList()
+  private class TestNavBackStack(
+    initialList: List<TestScreen>,
+  ) : NavBackStack<TestScreen>(),
+    MutableList<TestScreen> by initialList.toMutableList()
 
   @Test
   fun `popSafely returns false and does not mutate when stack is empty`() {
