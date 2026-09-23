@@ -1062,11 +1062,26 @@ static inline int utf8_scan(const char *buf, size_t buf_len, size_t *plen)
     cbits = 0;
     len = buf_len;
     // TODO: handle more than 1 byte at a time
-    for (i = 0; i < buf_len; i++)
-        cbits |= buf[i];
+    p = (const uint8_t *)buf;
+    p_end = p + buf_len;
+    if (buf_len >= sizeof(size_t)) {
+        size_t cbits_word = 0;
+        const uint8_t *p_end_word = p + (buf_len & ~(sizeof(size_t) - 1));
+        while (p < p_end_word) {
+            size_t v;
+            memcpy(&v, p, sizeof(size_t));
+            cbits_word |= v;
+            p += sizeof(size_t);
+        }
+        for (i = 0; i < sizeof(size_t); i++) {
+            cbits |= (cbits_word >> (i * 8)) & 0xff;
+        }
+    }
+    while (p < p_end) {
+        cbits |= *p++;
+    }
     if (cbits >= 0x80) {
         p = (const uint8_t *)buf;
-        p_end = p + buf_len;
         kind = UTF8_NON_ASCII;
         len = 0;
         while (p < p_end) {
