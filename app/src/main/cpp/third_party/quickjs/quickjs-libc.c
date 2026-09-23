@@ -137,6 +137,8 @@ typedef struct {
     int64_t timeout;
     int64_t delay;
     JSValue func;
+    int argc;
+    JSValue *argv;
 } JSOSTimer;
 
 typedef struct {
@@ -2442,8 +2444,13 @@ static uint64_t js__hrtime_ms(void)
 
 static void free_timer(JSRuntime *rt, JSOSTimer *th)
 {
+    int i;
     list_del(&th->link);
     JS_FreeValueRT(rt, th->func);
+    for (i = 0; i < th->argc; i++) {
+        JS_FreeValueRT(rt, th->argv[i]);
+    }
+    js_free_rt(rt, th->argv);
     js_free_rt(rt, th);
 }
 
@@ -2475,6 +2482,21 @@ static JSValue js_os_setTimeout(JSContext *ctx, JSValueConst this_val,
     th->timeout = js__hrtime_ms() + delay;
     th->delay = delay;
     th->func = JS_DupValue(ctx, func);
+    if (argc > 2) {
+        int i;
+        th->argc = argc - 2;
+        th->argv = js_mallocz(ctx, sizeof(JSValue) * th->argc);
+        if (!th->argv) {
+            js_free_rt(rt, th);
+            return JS_EXCEPTION;
+        }
+        for (i = 0; i < th->argc; i++) {
+            th->argv[i] = JS_DupValue(ctx, argv[i + 2]);
+        }
+    } else {
+        th->argc = 0;
+        th->argv = NULL;
+    }
     list_add_tail(&th->link, &ts->os_timers);
     return JS_NewInt64(ctx, th->timer_id);
 }
@@ -2541,14 +2563,14 @@ static JSValue js_os_sleepAsync(JSContext *ctx, JSValueConst this_val,
     return promise;
 }
 
-static int call_handler(JSContext *ctx, JSValue func)
+static int call_handler(JSContext *ctx, JSValue func, int argc, JSValueConst *argv)
 {
     int r;
     JSValue ret, func1;
     /* 'func' might be destroyed when calling itself (if it frees the
        handler), so must take extra care */
     func1 = JS_DupValue(ctx, func);
-    ret = JS_Call(ctx, func1, JS_UNDEFINED, 0, NULL);
+    ret = JS_Call(ctx, func1, JS_UNDEFINED, argc, argv);
     JS_FreeValue(ctx, func1);
     r = 0;
     if (JS_IsException(ret))
@@ -2581,11 +2603,21 @@ static int js_os_run_timers(JSRuntime *rt, JSContext *ctx, JSThreadState *ts, in
         } else {
             *min_delay = 0;
             func = JS_DupValueRT(rt, th->func);
-            if (th->repeats)
+            if (th->repeats) {
                 th->timeout = cur_time + th->delay;
-            else
+                r = call_handler(ctx, func, th->argc, (JSValueConst *)th->argv);
+            } else {
+                int argc = th->argc;
+                JSValue *argv = th->argv;
+                th->argc = 0;
+                th->argv = NULL;
                 free_timer(rt, th);
-            r = call_handler(ctx, func);
+                r = call_handler(ctx, func, argc, (JSValueConst *)argv);
+                for (int i = 0; i < argc; i++) {
+                    JS_FreeValue(ctx, argv[i]);
+                }
+                js_free_rt(rt, argv);
+            }
             JS_FreeValueRT(rt, func);
             return r;
         }
@@ -2790,7 +2822,7 @@ static int js_os_poll_internal(JSContext *ctx, int timeout_ms, int flags)
             list_for_each(el, &ts->os_rw_handlers) {
                 rh = list_entry(el, JSOSRWHandler, link);
                 if (rh->fd == 0 && !JS_IsNull(rh->rw_func[0])) {
-                    return call_handler(ctx, rh->rw_func[0]);
+                    return call_handler(ctx, rh->rw_func[0], 0, NULL);
                     /* must stop because the list may have been modified */
                 }
             }
@@ -2853,7 +2885,7 @@ static int js_os_poll_internal(JSContext *ctx, int timeout_ms, int flags)
             mask = (uint64_t)1 << sh->sig_num;
             if (os_pending_signals & mask) {
                 os_pending_signals &= ~mask;
-                return call_handler(ctx, sh->func);
+                return call_handler(ctx, sh->func, 0, NULL);
             }
         }
     }
@@ -2939,12 +2971,12 @@ static int js_os_poll_internal(JSContext *ctx, int timeout_ms, int flags)
             r = (POLLERR|POLLHUP|POLLNVAL|POLLIN) * !JS_IsNull(rh->rw_func[0]);
             w = (POLLERR|POLLHUP|POLLNVAL|POLLOUT) * !JS_IsNull(rh->rw_func[1]);
             if (r & pfd->revents) {
-                ret = call_handler(ctx, rh->rw_func[0]);
+                ret = call_handler(ctx, rh->rw_func[0], 0, NULL);
                 goto done;
                 /* must stop because the list may have been modified */
             }
             if (w & pfd->revents) {
-                ret = call_handler(ctx, rh->rw_func[1]);
+                ret = call_handler(ctx, rh->rw_func[1], 0, NULL);
                 goto done;
                 /* must stop because the list may have been modified */
             }
