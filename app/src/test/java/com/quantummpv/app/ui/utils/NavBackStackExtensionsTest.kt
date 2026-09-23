@@ -21,14 +21,9 @@ class NavBackStackExtensionsTest {
     val id: Int,
   ) : NavKey
 
-  private class TestNavBackStack(
-    initialList: List<TestScreen>,
-  ) : NavBackStack<TestScreen>(),
-    MutableList<TestScreen> by initialList.toMutableList()
-
   @Test
   fun `popSafely returns false and does not mutate when stack is empty`() {
-    val stack = TestNavBackStack(emptyList())
+    val stack = NavBackStack<TestScreen>(emptyList())
 
     val result = stack.popSafely()
 
@@ -38,7 +33,7 @@ class NavBackStackExtensionsTest {
 
   @Test
   fun `popSafely returns false and does not mutate when stack has one element`() {
-    val stack = TestNavBackStack(listOf(TestScreen(1)))
+    val stack = NavBackStack<TestScreen>(listOf(TestScreen(1)))
 
     val result = stack.popSafely()
 
@@ -48,7 +43,7 @@ class NavBackStackExtensionsTest {
 
   @Test
   fun `popSafely returns true and removes last element when stack has multiple elements`() {
-    val stack = TestNavBackStack(listOf(TestScreen(1), TestScreen(2), TestScreen(3)))
+    val stack = NavBackStack<TestScreen>(listOf(TestScreen(1), TestScreen(2), TestScreen(3)))
 
     val result = stack.popSafely()
 
