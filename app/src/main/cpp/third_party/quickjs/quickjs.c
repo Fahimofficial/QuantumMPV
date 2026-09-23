@@ -7780,13 +7780,6 @@ void JS_ComputeMemoryUsage(JSRuntime *rt, JSMemoryUsage *s)
             }
             break;
         case JS_CLASS_GENERATOR:         /* u.generator_data */
-            {
-                if (p->u.generator_data) {
-                    s->memory_used_count++;
-                    s->memory_used_size += sizeof(int) + sizeof(struct JSAsyncFunctionState);
-                }
-            }
-            break;
         case JS_CLASS_UINT8C_ARRAY:      /* u.typed_array / u.array */
         case JS_CLASS_INT8_ARRAY:        /* u.typed_array / u.array */
         case JS_CLASS_UINT8_ARRAY:       /* u.typed_array / u.array */
@@ -7894,7 +7887,6 @@ void JS_ComputeMemoryUsage(JSRuntime *rt, JSMemoryUsage *s)
                                 JSMemoryUsage_helper start_hp = *hp;
                                 compute_value_size(*sp, &tmp_hp);
                                 s->memory_used_count += (tmp_hp.memory_used_count - start_hp.memory_used_count) / ref_count;
-                                s->memory_used_size += (tmp_hp.memory_used_size - start_hp.memory_used_size) / ref_count;
                                 s->js_func_size += (tmp_hp.js_func_size - start_hp.js_func_size) / ref_count;
                                 *hp = tmp_hp; /* accumulate total visited tracking */
                             }
@@ -7915,7 +7907,7 @@ void JS_ComputeMemoryUsage(JSRuntime *rt, JSMemoryUsage *s)
             {
                 if (p->u.async_generator_data) {
                     s->memory_used_count++;
-                    s->memory_used_size += sizeof(void*) + sizeof(int) + sizeof(struct JSAsyncFunctionState) + sizeof(struct list_head);
+                    s->memory_used_size += sizeof(void*) + sizeof(int) + sizeof(JSAsyncFunctionState) + sizeof(struct list_head);
                 }
             }
             break;
