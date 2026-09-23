@@ -10757,11 +10757,11 @@ retry:
                 ret = JS_DefineProperty(ctx, this_obj, prop, val,
                                         JS_UNDEFINED, JS_UNDEFINED,
                                         JS_PROP_HAS_VALUE);
+                goto done;
             } else {
                 set_value(ctx, &pr->u.value, val);
-                ret = 1;
+                return true;
             }
-            goto done;
         }
     } else {
         ret = JS_GetOwnPropertyFlagsInternal(ctx, &desc_flags, p, prop);
