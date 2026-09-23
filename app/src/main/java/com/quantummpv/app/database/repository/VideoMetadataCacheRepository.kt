@@ -23,7 +23,7 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.withContext
 import java.io.File
-import kotlin.math.pow
+import com.quantummpv.app.utils.media.MediaUtils
 
 /**
  * Repository for caching video metadata with parallel processing support
@@ -424,17 +424,9 @@ class VideoMetadataCacheRepository(
       Log.d(
         TAG,
         "Cache maintenance completed in ${duration}ms. " +
-          "Entries: ${stats.totalEntries}, Size: ${formatSize(stats.totalSizeBytes)}",
+          "Entries: ${stats.totalEntries}, Size: ${MediaUtils.formatFileSize(stats.totalSizeBytes)}",
       )
     }
-  }
-
-  private fun formatSize(bytes: Long): String {
-    if (bytes <= 0) return "0 B"
-    val units = arrayOf("B", "KB", "MB", "GB")
-    val digitGroups = (kotlin.math.log10(bytes.toDouble()) / kotlin.math.log10(1024.0)).toInt()
-    val value = bytes / 1024.0.pow(digitGroups.toDouble())
-    return "%.1f %s".format(value, units[digitGroups])
   }
 
   data class CacheStats(
