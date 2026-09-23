@@ -8,6 +8,7 @@
  */
 
 package com.quantummpv.app.repository
+import com.quantummpv.app.utils.media.MediaUtils
 
 import android.content.Context
 import android.net.Uri
@@ -284,7 +285,7 @@ object MediaFileRepository : KoinComponent {
                   duration = durationMs,
                   durationFormatted = formatDuration(durationMs),
                   size = cursor.getLong(sizeColumn),
-                  sizeFormatted = com.quantummpv.app.utils.media.MediaUtils.formatFileSize(cursor.getLong(sizeColumn)),
+                  sizeFormatted = MediaUtils.formatFileSize(cursor.getLong(sizeColumn)),
                   dateModified = cursor.getLong(dateColumn),
                   dateAdded = cursor.getLong(dateColumn),
                   mimeType = FileTypeUtils.getMimeTypeFromExtension(file.extension.lowercase()),
@@ -478,7 +479,7 @@ object MediaFileRepository : KoinComponent {
       duration = duration,
       durationFormatted = formatDuration(duration),
       size = size,
-      sizeFormatted = com.quantummpv.app.utils.media.MediaUtils.formatFileSize(size),
+      sizeFormatted = MediaUtils.formatFileSize(size),
       dateModified = dateModified,
       dateAdded = dateModified,
       mimeType = mimeType,
@@ -538,7 +539,7 @@ object MediaFileRepository : KoinComponent {
       duration = duration,
       durationFormatted = formatDuration(duration),
       size = size,
-      sizeFormatted = com.quantummpv.app.utils.media.MediaUtils.formatFileSize(size),
+      sizeFormatted = MediaUtils.formatFileSize(size),
       dateModified = dateModified,
       dateAdded = dateModified,
       mimeType = mimeType,

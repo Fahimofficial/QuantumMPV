@@ -8,6 +8,7 @@
  */
 
 package com.quantummpv.app.utils.storage
+import com.quantummpv.app.utils.media.MediaUtils
 
 import android.content.Context
 import android.media.MediaMetadataRetriever
@@ -189,7 +190,7 @@ object VideoScanUtils : KoinComponent {
                 duration = duration,
                 durationFormatted = formatDuration(duration),
                 size = size,
-                sizeFormatted = com.quantummpv.app.utils.media.MediaUtils.formatFileSize(size),
+                sizeFormatted = MediaUtils.formatFileSize(size),
                 dateModified = dateModified,
                 dateAdded = dateAdded,
                 mimeType = mimeType,
@@ -275,7 +276,7 @@ object VideoScanUtils : KoinComponent {
                 duration = duration,
                 durationFormatted = formatDuration(duration),
                 size = size,
-                sizeFormatted = com.quantummpv.app.utils.media.MediaUtils.formatFileSize(size),
+                sizeFormatted = MediaUtils.formatFileSize(size),
                 dateModified = cursor.getLong(modifiedColumn),
                 dateAdded = cursor.getLong(addedColumn),
                 mimeType =
@@ -357,7 +358,7 @@ object VideoScanUtils : KoinComponent {
               duration = duration,
               durationFormatted = formatDuration(duration),
               size = resolvedSize,
-              sizeFormatted = com.quantummpv.app.utils.media.MediaUtils.formatFileSize(resolvedSize),
+              sizeFormatted = MediaUtils.formatFileSize(resolvedSize),
               dateModified = dateModified,
               dateAdded = dateModified,
               mimeType = mimeType,

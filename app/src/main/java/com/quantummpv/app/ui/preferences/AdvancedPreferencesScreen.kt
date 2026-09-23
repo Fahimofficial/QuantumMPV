@@ -10,6 +10,7 @@
 @file:Suppress("LocalContextGetResourceValueCall")
 
 package com.quantummpv.app.ui.preferences
+import com.quantummpv.app.utils.media.MediaUtils
 
 import android.content.Intent
 import android.net.Uri
@@ -892,7 +893,7 @@ object AdvancedPreferencesScreen : Screen {
                 modifier = Modifier.settingsSearchTarget(R.string.pref_clear_config_cache_title),
                 title = { Text(text = stringResource(R.string.pref_clear_config_cache_title)) },
                 summary = {
-                  val sizeStr = com.quantummpv.app.utils.media.MediaUtils.formatFileSize(configCacheSize)
+                  val sizeStr = MediaUtils.formatFileSize(configCacheSize)
                   Column {
                     Text(
                       text = stringResource(R.string.pref_config_cache_summary),
@@ -952,7 +953,7 @@ object AdvancedPreferencesScreen : Screen {
                 modifier = Modifier.settingsSearchTarget(R.string.pref_clear_thumbnail_cache_title),
                 title = { Text(text = stringResource(R.string.pref_clear_thumbnail_cache_title)) },
                 summary = {
-                  val sizeStr = com.quantummpv.app.utils.media.MediaUtils.formatFileSize(thumbnailCacheSize)
+                  val sizeStr = MediaUtils.formatFileSize(thumbnailCacheSize)
                   Column {
                     Text(
                       text = stringResource(R.string.pref_thumbnail_cache_summary),
@@ -1013,7 +1014,7 @@ object AdvancedPreferencesScreen : Screen {
                 modifier = Modifier.settingsSearchTarget(R.string.pref_advanced_clear_fonts_cache),
                 title = { Text(text = stringResource(id = R.string.pref_advanced_clear_fonts_cache)) },
                 summary = {
-                  val sizeStr = com.quantummpv.app.utils.media.MediaUtils.formatFileSize(fontsCacheSize)
+                  val sizeStr = MediaUtils.formatFileSize(fontsCacheSize)
                   Text(
                     text = stringResource(R.string.pref_fonts_cache_size, sizeStr, fontsFileCount),
                     color = MaterialTheme.colorScheme.outline,

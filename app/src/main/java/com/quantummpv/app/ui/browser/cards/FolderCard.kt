@@ -8,6 +8,7 @@
  */
 
 package com.quantummpv.app.ui.browser.cards
+import com.quantummpv.app.utils.media.MediaUtils
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.combinedClickable
@@ -519,7 +520,7 @@ fun FolderCard(
 
               if (showTotalSizeChip && folder.totalSize > 0) {
                 Text(
-                  com.quantummpv.app.utils.media.MediaUtils.formatFileSize(folder.totalSize),
+                  MediaUtils.formatFileSize(folder.totalSize),
                   style = MaterialTheme.typography.labelSmall,
                   modifier =
                     Modifier

@@ -8,6 +8,7 @@
  */
 
 package com.quantummpv.app.ui.update
+import com.quantummpv.app.utils.media.MediaUtils
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
@@ -262,7 +263,7 @@ private fun ReleaseMetaRow(
     MetaItem(label = stringResource(R.string.update_release_date), value = formatDate(publishedAt))
     MetaItem(
       label = stringResource(R.string.update_size),
-      value = if (sizeBytes <= 0) stringResource(R.string.update_unknown_size) else com.quantummpv.app.utils.media.MediaUtils.formatFileSize(sizeBytes),
+      value = if (sizeBytes <= 0) stringResource(R.string.update_unknown_size) else MediaUtils.formatFileSize(sizeBytes),
     )
   }
 }

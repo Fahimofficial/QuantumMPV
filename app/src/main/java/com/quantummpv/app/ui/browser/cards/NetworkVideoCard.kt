@@ -8,6 +8,7 @@
  */
 
 package com.quantummpv.app.ui.browser.cards
+import com.quantummpv.app.utils.media.MediaUtils
 
 import android.graphics.Bitmap
 import androidx.compose.foundation.Image
@@ -236,7 +237,7 @@ fun NetworkVideoCard(
         ) {
           if (showSizeChip && file.size > 0) {
             Text(
-              com.quantummpv.app.utils.media.MediaUtils.formatFileSize(file.size),
+              MediaUtils.formatFileSize(file.size),
               style = MaterialTheme.typography.labelSmall,
               modifier =
                 Modifier
@@ -327,7 +328,7 @@ fun NetworkVideoCard(
           ) {
             if (showSizeChip && file.size > 0) {
               Text(
-                com.quantummpv.app.utils.media.MediaUtils.formatFileSize(file.size),
+                MediaUtils.formatFileSize(file.size),
                 style = MaterialTheme.typography.labelSmall,
                 modifier =
                   Modifier

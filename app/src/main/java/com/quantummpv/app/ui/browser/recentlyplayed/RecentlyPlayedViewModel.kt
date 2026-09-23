@@ -8,6 +8,7 @@
  */
 
 package com.quantummpv.app.ui.browser.recentlyplayed
+import com.quantummpv.app.utils.media.MediaUtils
 
 import android.app.Application
 import android.net.Uri
@@ -248,7 +249,7 @@ class RecentlyPlayedViewModel(
         duration = duration,
         durationFormatted = formatDuration(duration),
         size = size,
-        sizeFormatted = com.quantummpv.app.utils.media.MediaUtils.formatFileSize(size),
+        sizeFormatted = MediaUtils.formatFileSize(size),
         dateModified = dateModified,
         dateAdded = dateAdded,
         mimeType = mimeType,
@@ -323,7 +324,7 @@ class RecentlyPlayedViewModel(
       duration = duration,
       durationFormatted = formatDuration(duration),
       size = size,
-      sizeFormatted = com.quantummpv.app.utils.media.MediaUtils.formatFileSize(size),
+      sizeFormatted = MediaUtils.formatFileSize(size),
       dateModified = dateModified,
       dateAdded = dateAdded,
       mimeType = mimeType,
