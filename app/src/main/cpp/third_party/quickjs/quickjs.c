@@ -7780,6 +7780,13 @@ void JS_ComputeMemoryUsage(JSRuntime *rt, JSMemoryUsage *s)
             }
             break;
         case JS_CLASS_GENERATOR:         /* u.generator_data */
+            {
+                if (p->u.generator_data) {
+                    s->memory_used_count++;
+                    s->memory_used_size += sizeof(int) + sizeof(JSAsyncFunctionState);
+                }
+            }
+            break;
         case JS_CLASS_UINT8C_ARRAY:      /* u.typed_array / u.array */
         case JS_CLASS_INT8_ARRAY:        /* u.typed_array / u.array */
         case JS_CLASS_UINT8_ARRAY:       /* u.typed_array / u.array */
@@ -7793,7 +7800,6 @@ void JS_ComputeMemoryUsage(JSRuntime *rt, JSMemoryUsage *s)
         case JS_CLASS_FLOAT32_ARRAY:     /* u.typed_array / u.array */
         case JS_CLASS_FLOAT64_ARRAY:     /* u.typed_array / u.array */
         case JS_CLASS_DATAVIEW:          /* u.typed_array */
-            break;
         case JS_CLASS_MAP:               /* u.map_state */
         case JS_CLASS_SET:               /* u.map_state */
         case JS_CLASS_WEAKMAP:           /* u.map_state */
@@ -7868,12 +7874,9 @@ void JS_ComputeMemoryUsage(JSRuntime *rt, JSMemoryUsage *s)
         case JS_CLASS_ASYNC_FUNCTION_RESOLVE:    /* u.async_function_data */
         case JS_CLASS_ASYNC_FUNCTION_REJECT:     /* u.async_function_data */
             {
-                JSAsyncFunctionData *afd = p->u.async_function_data;
-                if (afd) {
+                if (p->u.async_function_data) {
                     s->memory_used_count++;
-                    s->memory_used_size += sizeof(*afd);
-                    compute_value_size(afd->resolving_funcs[0], hp);
-                    compute_value_size(afd->resolving_funcs[1], hp);
+                    s->memory_used_size += sizeof(void*) + 2*sizeof(JSValue) + sizeof(bool) + sizeof(int);
                 }
             }
             break;
@@ -7887,10 +7890,9 @@ void JS_ComputeMemoryUsage(JSRuntime *rt, JSMemoryUsage *s)
             break;
         case JS_CLASS_ASYNC_GENERATOR:   /* u.async_generator_data */
             {
-                JSAsyncGeneratorData *agd = p->u.async_generator_data;
-                if (agd) {
+                if (p->u.async_generator_data) {
                     s->memory_used_count++;
-                    s->memory_used_size += sizeof(*agd);
+                    s->memory_used_size += sizeof(void*) + 2 * sizeof(int) + sizeof(struct list_head);
                 }
             }
             break;
