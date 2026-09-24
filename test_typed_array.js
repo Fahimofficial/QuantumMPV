@@ -5,14 +5,19 @@ console.log(JSON.stringify(res));
 // Test typed array buffer detach inside callback
 const ta = new Uint8Array(4);
 ta.fill(1);
-const res2 = Object.groupBy(ta, (x, i) => {
-    if (i === 1) {
-        try {
-            // How to detach array buffer in JS?
-            // postMessage or something? QuickJS doesn't have postMessage easily available.
-            // Transferrable.
-        } catch(e) {}
-    }
-    return x;
-});
-console.log(JSON.stringify(res2));
+try {
+    const res2 = Object.groupBy(ta, (x, i) => {
+        if (i === 1) {
+            // detach buffer! (QuickJS extensions)
+            if (typeof Object.detachArrayBuffer === 'function') {
+               Object.detachArrayBuffer(ta.buffer);
+            } else if (typeof globalThis.gc === 'function') {
+                // not sure if quickjs has detach API exposed without explicit test extensions.
+            }
+        }
+        return x;
+    });
+    console.log(JSON.stringify(res2));
+} catch(e) {
+    console.log("caught exception: ", e.message);
+}

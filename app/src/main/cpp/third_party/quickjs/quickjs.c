@@ -41675,28 +41675,28 @@ static JSValue js_object_groupBy(JSContext *ctx, JSValueConst this_val,
 
     if (is_array_iterator && JS_VALUE_GET_TAG(argv[0]) == JS_TAG_OBJECT && JS_VALUE_GET_OBJ(argv[0])->class_id == JS_CLASS_ARRAY) {
         JSObject *p = JS_VALUE_GET_OBJ(argv[0]);
-        for (idx = 0; ; idx++) {
-            uint32_t len;
-            if (js_get_length32(ctx, &len, argv[0]))
-                goto exception_close;
-            if (idx >= len)
-                break;
-            if (!js_get_fast_array_element(ctx, p, idx, &v)) {
-                v = JS_GetPropertyInt64(ctx, argv[0], idx);
-                if (JS_IsException(v))
+            for (idx = 0; ; idx++) {
+                uint32_t len;
+                if (js_get_length32(ctx, &len, argv[0]))
                     goto exception_close;
-            }
-            
-            // Advance internal iterator index to reflect consumption in case
-            // the callback has access to the iterator object.
-            struct JSArrayIteratorData *it = JS_VALUE_GET_OBJ(iter)->u.array_iterator_data;
-            if (it) it->idx = idx + 1;
+                if (idx >= len)
+                    break;
+                if (!js_get_fast_array_element(ctx, p, idx, &v)) {
+                    v = JS_GetPropertyInt64(ctx, argv[0], idx);
+                    if (JS_IsException(v))
+                        goto exception_close;
+                }
+                
+                // Advance internal iterator index to reflect consumption in case
+                // the callback has access to the iterator object.
+                struct JSArrayIteratorData *it = JS_VALUE_GET_OBJ(iter)->u.array_iterator_data;
+                if (it) it->idx = idx + 1;
 
-            args[0] = v;
-            args[1] = js_int64(idx);
-            k = JS_Call(ctx, cb, JS_UNDEFINED, 2, args);
-            if (JS_IsException(k))
-                goto exception_close;
+                args[0] = v;
+                args[1] = js_int64(idx);
+                k = JS_Call(ctx, cb, JS_UNDEFINED, 2, args);
+                if (JS_IsException(k))
+                    goto exception_close;
 
             key = JS_ToPropertyKey(ctx, k);
             JS_FreeValue(ctx, k);
