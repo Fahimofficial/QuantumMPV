@@ -25652,7 +25652,6 @@ static __exception int js_parse_class(JSParseState *s, bool is_class_expr,
                 emit_u16(s, 0);
                 // stack is now: fclosure this
                 if (class_name != JS_ATOM_NULL) {
-                    // TODO(bnoordhuis) pass as argument to init method?
                     emit_op(s, OP_dup);
                     emit_op(s, OP_scope_put_var_init);
                     emit_atom(s, class_name);
@@ -25660,8 +25659,15 @@ static __exception int js_parse_class(JSParseState *s, bool is_class_expr,
                 }
                 emit_op(s, OP_swap);
                 // stack is now: this fclosure
-                emit_op(s, OP_call_method);
-                emit_u16(s, 0);
+                if (class_name != JS_ATOM_NULL) {
+                    emit_op(s, OP_dup2); // -> this fclosure this fclosure
+                    emit_op(s, OP_drop); // -> this fclosure this
+                    emit_op(s, OP_call_method);
+                    emit_u16(s, 1);
+                } else {
+                    emit_op(s, OP_call_method);
+                    emit_u16(s, 0);
+                }
                 // stack is now: returnvalue
                 emit_op(s, OP_drop);
                 // stack is now: <empty>
@@ -37540,6 +37546,9 @@ static __exception int js_parse_function_decl2(JSParseState *s,
         if (add_arg(ctx, fd, name) < 0)
             goto fail;
         fd->defined_arg_count = 1;
+    } else if (func_type == JS_PARSE_FUNC_CLASS_STATIC_INIT) {
+        if (add_arg(ctx, fd, JS_ATOM_NULL) < 0) goto fail;
+        fd->is_strict_mode = true;
     } else if (func_type != JS_PARSE_FUNC_CLASS_STATIC_INIT) {
         if (s->token.val == '(') {
             int skip_bits;
