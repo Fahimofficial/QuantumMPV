@@ -42,6 +42,8 @@ jobs:
 
       - name: Set up Android SDK
         uses: android-actions/setup-android@v4
+        with:
+          cmdline-tools-version: 11479570
 
       - name: Install Android build toolchain
         run: |

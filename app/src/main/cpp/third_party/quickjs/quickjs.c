@@ -41673,7 +41673,7 @@ static JSValue js_object_groupBy(JSContext *ctx, JSValueConst this_val,
         }
     }
 
-    if (is_array_iterator && JS_VALUE_GET_TAG(argv[0]) == JS_TAG_OBJECT) {
+    if (is_array_iterator && JS_VALUE_GET_TAG(argv[0]) == JS_TAG_OBJECT && JS_VALUE_GET_OBJ(argv[0])->class_id == JS_CLASS_ARRAY) {
         JSObject *p = JS_VALUE_GET_OBJ(argv[0]);
         for (idx = 0; ; idx++) {
             uint32_t len;
