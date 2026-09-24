@@ -112,7 +112,7 @@ object PlaybackSession : MPVLib.EventObserver {
       "percent-pos",
     )
 
-  private enum class EndFileReason {
+  internal enum class EndFileReason {
     EOF,
     STOP,
     QUIT,
@@ -1293,39 +1293,31 @@ object PlaybackSession : MPVLib.EventObserver {
               return@withLock true
             }
             if (current.activeGeneration == current.generation) {
-              if (reason == EndFileReason.REDIRECT && loadedGeneration != current.generation) {
-                // Redirects emit END_FILE before mpv starts the resolved target. Preserve LOADING;
-                // the following START_FILE belongs to the same app-level generation.
-                updateState { it.copy(activeGeneration = 0L) }
+              val (phase, error) = PlaybackSessionStateMapper.resolveEndFileState(
+                reason, loadedGeneration, current.generation, current.activeGeneration, PlaybackSessionStateMapper.parseEndFileError(data)
+              )
+
+              if (phase == PlaybackPhase.LOADING) {
+                 updateState { it.copy(activeGeneration = 0L) }
               } else {
-                val failedBeforeReady = loadedGeneration != current.generation
-                val isFailure =
-                  reason == EndFileReason.ERROR ||
-                    (failedBeforeReady && reason !in setOf(EndFileReason.STOP, EndFileReason.QUIT))
-                val error =
+                  val isFailure = phase == PlaybackPhase.ERROR
                   if (isFailure) {
-                    UrlSanitizer.sanitizeExceptionMessage(parseEndFileError(data))
-                      ?: "Playback ended before the media became ready (${reason.name.lowercase()})"
-                  } else {
-                    null
+                    Log.w(
+                      TAG,
+                      "Load generation ${current.generation} failed before FILE_LOADED: $error; " +
+                        "event=${runCatching { data.toJson() }.getOrDefault("unavailable")}",
+                    )
                   }
-                if (isFailure) {
-                  Log.w(
-                    TAG,
-                    "Load generation ${current.generation} failed before FILE_LOADED: $error; " +
-                      "event=${runCatching { data.toJson() }.getOrDefault("unavailable")}",
-                  )
-                }
-                updateState {
-                  it.copy(
-                    phase = if (isFailure) PlaybackPhase.ERROR else PlaybackPhase.IDLE,
-                    activeGeneration = 0L,
-                    paused = true,
-                    error = error,
-                  )
-                }
-                propBoolean.emit("pause", true)
-                clearTimelinePropertiesLocked()
+                  updateState {
+                    it.copy(
+                      phase = phase,
+                      activeGeneration = 0L,
+                      paused = true,
+                      error = error,
+                    )
+                  }
+                  propBoolean.emit("pause", true)
+                  clearTimelinePropertiesLocked()
               }
             }
             true
