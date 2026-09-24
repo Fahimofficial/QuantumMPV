@@ -7908,6 +7908,33 @@ void JS_ComputeMemoryUsage(JSRuntime *rt, JSMemoryUsage *s)
                 if (p->u.async_generator_data) {
                     s->memory_used_count++;
                     s->memory_used_size += sizeof(void*) + sizeof(int) + sizeof(JSAsyncFunctionState) + sizeof(struct list_head);
+                    /* JSAsyncGeneratorData is incomplete here, we must cast or peek by offset if we want to read */
+                    /* However, its layout starts with: */
+                    /* JSObject *generator; */
+                    /* JSAsyncGeneratorStateEnum state; */
+                    /* JSAsyncFunctionState func_state; */
+                    /* JSAsyncGeneratorStateEnum state = *(JSAsyncGeneratorStateEnum*)((char*)p->u.async_generator_data + sizeof(JSObject*)); */
+                    int state = *(int*)((char*)p->u.async_generator_data + sizeof(JSObject*));
+                    if (state != 5 /*JS_ASYNC_GENERATOR_STATE_COMPLETED*/ &&
+                        state != 4 /*JS_ASYNC_GENERATOR_STATE_AWAITING_RETURN*/) {
+                        JSAsyncFunctionState *func_state = (JSAsyncFunctionState*)((char*)p->u.async_generator_data + sizeof(JSObject*) + sizeof(int));
+                        if (func_state->frame.arg_buf) {
+                            s->memory_used_count++;
+                            s->memory_used_size += func_state->frame.arg_count * sizeof(JSValue);
+                            if (func_state->frame.cur_sp) {
+                                JSMemoryUsage_helper tmp_hp = *hp;
+                                JSMemoryUsage_helper start_hp = *hp;
+                                compute_value_size(func_state->frame.cur_func, &tmp_hp);
+                                compute_value_size(func_state->this_val, &tmp_hp);
+                                for (JSValue *sp = func_state->frame.arg_buf; sp < func_state->frame.cur_sp; sp++) {
+                                    compute_value_size(*sp, &tmp_hp);
+                                }
+                                s->memory_used_count += (tmp_hp.memory_used_count - start_hp.memory_used_count);
+                                s->js_func_size += (tmp_hp.js_func_size - start_hp.js_func_size);
+                                *hp = tmp_hp;
+                            }
+                        }
+                    }
                 }
             }
             break;
