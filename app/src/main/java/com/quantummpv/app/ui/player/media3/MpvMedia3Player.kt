@@ -192,18 +192,10 @@ class MpvMedia3Player(
    * Media3 only accepts an empty, an idle, or an ended timeline, and it only accepts a player error
    * in `STATE_IDLE`. ERROR therefore becomes IDLE plus a sanitized [PlaybackException].
    */
-  private fun playbackStateFor(
+  internal fun playbackStateFor(
     state: MpvMedia3PlaybackState,
     hasPlaylist: Boolean,
-  ): Int =
-    when {
-      state == MpvMedia3PlaybackState.ERROR -> Player.STATE_IDLE
-      !hasPlaylist -> if (state == MpvMedia3PlaybackState.ENDED) Player.STATE_ENDED else Player.STATE_IDLE
-      state == MpvMedia3PlaybackState.IDLE -> Player.STATE_IDLE
-      state == MpvMedia3PlaybackState.BUFFERING -> Player.STATE_BUFFERING
-      state == MpvMedia3PlaybackState.READY -> Player.STATE_READY
-      else -> Player.STATE_ENDED
-    }
+  ): Int = Companion.playbackStateFor(state, hasPlaylist)
 
   /**
    * Raw libmpv errors can contain authenticated URLs, cookies, or filesystem paths, so only the
@@ -315,7 +307,7 @@ class MpvMedia3Player(
       coerceAtMost(Long.MAX_VALUE / MICROS_PER_MILLI) * MICROS_PER_MILLI
     }
 
-  private companion object {
+  internal companion object {
     const val MICROS_PER_MILLI = 1_000L
     const val PROPERTY_POSITION = "time-pos"
     const val PROPERTY_DURATION = "duration"
@@ -324,6 +316,19 @@ class MpvMedia3Player(
     const val PROPERTY_TITLE = "media-title"
     const val PROPERTY_ARTIST = "metadata/artist"
     const val PROPERTY_ALBUM = "metadata/album"
+
+    internal fun playbackStateFor(
+      state: MpvMedia3PlaybackState,
+      hasPlaylist: Boolean,
+    ): Int =
+      when {
+        state == MpvMedia3PlaybackState.ERROR -> Player.STATE_IDLE
+        !hasPlaylist -> if (state == MpvMedia3PlaybackState.ENDED) Player.STATE_ENDED else Player.STATE_IDLE
+        state == MpvMedia3PlaybackState.IDLE -> Player.STATE_IDLE
+        state == MpvMedia3PlaybackState.BUFFERING -> Player.STATE_BUFFERING
+        state == MpvMedia3PlaybackState.READY -> Player.STATE_READY
+        else -> Player.STATE_ENDED
+      }
   }
 }
 

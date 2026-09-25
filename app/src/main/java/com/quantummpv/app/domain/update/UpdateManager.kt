@@ -144,57 +144,8 @@ class UpdateManager(
     return downloadApk(asset.downloadUrl, destination)
   }
 
-  private fun selectBestApkAsset(assets: List<Asset>): Asset? {
-    val deviceArch = getDeviceArchitecture()
-    val compatibleAssets =
-      assets.filter { asset ->
-        asset.name.startsWith("QuantumMPV-", ignoreCase = true) &&
-          asset.name.endsWith(".apk", ignoreCase = true) &&
-          asset.name.matchesApkVariant(BuildConfig.UPDATE_APK_VARIANT)
-      }
-
-    // First, try to find architecture-specific APK
-    val archSpecificApk =
-      compatibleAssets.firstOrNull { asset ->
-        asset.name.hasAssetToken(deviceArch)
-      }
-
-    if (archSpecificApk != null) {
-      return archSpecificApk
-    }
-
-    // Fallback to universal APK
-    val universalApk =
-      compatibleAssets.firstOrNull { asset ->
-        asset.name.hasAssetToken("universal")
-      }
-
-    if (universalApk != null) {
-      return universalApk
-    }
-
-    // FongMi and No-Vulkan universal assets use the flavor marker instead of "universal".
-    return compatibleAssets.firstOrNull { asset ->
-      SUPPORTED_ARCHITECTURES.none { architecture -> asset.name.hasAssetToken(architecture) }
-    }
-  }
-
-  private fun String.matchesApkVariant(variant: String): Boolean {
-    val isFongMi = hasAssetToken("fongmi")
-    val isNoVulkan = hasAssetToken("no-vulkan")
-    return when (variant) {
-      "fongmi" -> isFongMi
-      "no-vulkan" -> isNoVulkan
-      "standard" -> !isFongMi && !isNoVulkan
-      else -> false
-    }
-  }
-
-  private fun String.hasAssetToken(token: String): Boolean =
-    Regex(
-      pattern = "(?:^|-)${Regex.escape(token)}(?:-|\\.apk$)",
-      option = RegexOption.IGNORE_CASE,
-    ).containsMatchIn(this)
+  private fun selectBestApkAsset(assets: List<Asset>): Asset? =
+    AssetSelector.selectBestApkAsset(assets, getDeviceArchitecture(), BuildConfig.UPDATE_APK_VARIANT)
 
   private fun getDeviceArchitecture(): String {
     // Get the primary ABI (Application Binary Interface)
@@ -283,4 +234,58 @@ class UpdateManager(
     val PREVIEW_TAG_REGEX = Regex("""(?:preview-)?r(\d+)""", RegexOption.IGNORE_CASE)
     val SUPPORTED_ARCHITECTURES = setOf("arm64-v8a", "armeabi-v7a", "x86", "x86_64")
   }
+}
+
+internal object AssetSelector {
+  fun selectBestApkAsset(
+    assets: List<Asset>,
+    deviceArch: String,
+    currentVariant: String,
+  ): Asset? {
+    val compatibleAssets =
+      assets.filter { asset ->
+        asset.name.startsWith("QuantumMPV-", ignoreCase = true) &&
+          asset.name.endsWith(".apk", ignoreCase = true) &&
+          asset.name.matchesApkVariant(currentVariant)
+      }
+
+    val archSpecificApk =
+      compatibleAssets.firstOrNull { asset ->
+        asset.name.hasAssetToken(deviceArch)
+      }
+
+    if (archSpecificApk != null) {
+      return archSpecificApk
+    }
+
+    val universalApk =
+      compatibleAssets.firstOrNull { asset ->
+        asset.name.hasAssetToken("universal")
+      }
+
+    if (universalApk != null) {
+      return universalApk
+    }
+
+    return compatibleAssets.firstOrNull { asset ->
+      setOf("arm64-v8a", "armeabi-v7a", "x86", "x86_64").none { architecture -> asset.name.hasAssetToken(architecture) }
+    }
+  }
+
+  internal fun String.matchesApkVariant(variant: String): Boolean {
+    val isFongMi = hasAssetToken("fongmi")
+    val isNoVulkan = hasAssetToken("no-vulkan")
+    return when (variant) {
+      "fongmi" -> isFongMi
+      "no-vulkan" -> isNoVulkan
+      "standard" -> !isFongMi && !isNoVulkan
+      else -> false
+    }
+  }
+
+  internal fun String.hasAssetToken(token: String): Boolean =
+    Regex(
+      pattern = "(?:^|-)${Regex.escape(token)}(?:-|\\.apk$)",
+      option = RegexOption.IGNORE_CASE,
+    ).containsMatchIn(this)
 }
