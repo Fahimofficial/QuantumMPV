@@ -43,7 +43,6 @@ seeker = "2.0.1"
 markdownRenderer = "0.45.0"
 kotlinTest = "2.4.10"
 junit = "4.13.2"
-mockk = "1.13.10"
 mediainfo = "v1.0.0-fix"
 googleCast = "22.3.1"
 androidxBiometric = "1.4.0-alpha07"
@@ -83,7 +82,6 @@ seeker = { module = "com.github.abdallahmehiz:seeker", version.ref = "seeker" }
 markdown-renderer-m3 = { module = "com.mikepenz:multiplatform-markdown-renderer-m3", version.ref = "markdownRenderer" }
 kotlin-test = { module = "org.jetbrains.kotlin:kotlin-test", version.ref = "kotlinTest" }
 junit = { module = "junit:junit", version.ref = "junit" }
-mockk = { module = "io.mockk:mockk", version.ref = "mockk" }
 mediainfo-lib = { module = "com.github.marlboro-advance:mediainfoAndroid", version.ref = "mediainfo" }
 
 google-material = { module = "com.google.android.material:material", version.ref = "googleMaterial" }

@@ -83,26 +83,6 @@ typedef sig_t sighandler_t;
 extern char **environ;
 #endif
 
-#if defined(__linux__) || defined(__GLIBC__)
-typedef void (*sighandler_t)(int);
-extern char **environ;
-#endif
-
-#if defined(__linux__) || defined(__GLIBC__)
-typedef void (*sighandler_t)(int);
-extern char **environ;
-#endif
-
-#if defined(__linux__) || defined(__GLIBC__)
-typedef void (*sighandler_t)(int);
-extern char **environ;
-#endif
-
-#if defined(__linux__) || defined(__GLIBC__)
-typedef void (*sighandler_t)(int);
-extern char **environ;
-#endif
-
 #endif /* _WIN32 */
 
 #include "cutils.h"
@@ -116,30 +96,6 @@ extern char **environ;
 
 #ifndef S_IFBLK
 #define S_IFBLK 0
-#endif
-
-#if !defined(_WIN32) && !defined(__wasi__)
-#include <sys/socket.h>
-#include <netinet/in.h>
-#include <arpa/inet.h>
-#endif
-
-#if !defined(_WIN32) && !defined(__wasi__)
-#include <sys/socket.h>
-#include <netinet/in.h>
-#include <arpa/inet.h>
-#endif
-
-#if !defined(_WIN32) && !defined(__wasi__)
-#include <sys/socket.h>
-#include <netinet/in.h>
-#include <arpa/inet.h>
-#endif
-
-#if !defined(_WIN32) && !defined(__wasi__)
-#include <sys/socket.h>
-#include <netinet/in.h>
-#include <arpa/inet.h>
 #endif
 
 #ifndef S_IFIFO
@@ -159,6 +115,7 @@ extern char **environ;
 #endif
 
 /* TODO:
+   - add socket calls
 */
 
 typedef struct {
@@ -180,8 +137,6 @@ typedef struct {
     int64_t timeout;
     int64_t delay;
     JSValue func;
-    int argc;
-    JSValue *argv;
 } JSOSTimer;
 
 typedef struct {
@@ -2053,120 +2008,6 @@ JSModuleDef *js_init_module_std(JSContext *ctx, const char *module_name)
 /**********************************************************/
 /* 'os' object */
 
-
-#if !defined(_WIN32) && !defined(__wasi__)
-static JSValue js_os_socket(JSContext *ctx, JSValueConst this_val,
-                            int argc, JSValueConst *argv)
-{
-    int domain, type, protocol, fd;
-    if (JS_ToInt32(ctx, &domain, argv[0])) return JS_EXCEPTION;
-    if (JS_ToInt32(ctx, &type, argv[1])) return JS_EXCEPTION;
-    if (JS_ToInt32(ctx, &protocol, argv[2])) return JS_EXCEPTION;
-
-    fd = js_get_errno(socket(domain, type, protocol));
-    return JS_NewInt32(ctx, fd);
-}
-#endif
-
-
-#if !defined(_WIN32) && !defined(__wasi__)
-static JSValue js_os_bind(JSContext *ctx, JSValueConst this_val,
-                          int argc, JSValueConst *argv)
-{
-    int fd, port, ret;
-    const char *ip_str;
-    struct sockaddr_in addr;
-
-    if (JS_ToInt32(ctx, &fd, argv[0])) return JS_EXCEPTION;
-    ip_str = JS_ToCString(ctx, argv[1]);
-    if (!ip_str) return JS_EXCEPTION;
-    if (JS_ToInt32(ctx, &port, argv[2])) {
-        JS_FreeCString(ctx, ip_str);
-        return JS_EXCEPTION;
-    }
-    if (port < 0 || port > 65535) {
-        JS_FreeCString(ctx, ip_str);
-        return JS_ThrowRangeError(ctx, "invalid port");
-    }
-
-    memset(&addr, 0, sizeof(addr));
-    addr.sin_family = AF_INET;
-    addr.sin_port = htons(port);
-    if (inet_pton(AF_INET, ip_str, &addr.sin_addr) <= 0) {
-        JS_FreeCString(ctx, ip_str);
-        return JS_ThrowTypeError(ctx, "invalid IP address");
-    }
-    JS_FreeCString(ctx, ip_str);
-
-    ret = js_get_errno(bind(fd, (struct sockaddr *)&addr, sizeof(addr)));
-    return JS_NewInt32(ctx, ret);
-}
-#endif
-
-
-#if !defined(_WIN32) && !defined(__wasi__)
-static JSValue js_os_listen(JSContext *ctx, JSValueConst this_val,
-                            int argc, JSValueConst *argv)
-{
-    int fd, backlog, ret;
-
-    if (JS_ToInt32(ctx, &fd, argv[0])) return JS_EXCEPTION;
-    if (JS_ToInt32(ctx, &backlog, argv[1])) return JS_EXCEPTION;
-
-    ret = js_get_errno(listen(fd, backlog));
-    return JS_NewInt32(ctx, ret);
-}
-#endif
-
-
-#if !defined(_WIN32) && !defined(__wasi__)
-static JSValue js_os_accept(JSContext *ctx, JSValueConst this_val,
-                            int argc, JSValueConst *argv)
-{
-    int fd, ret;
-
-    if (JS_ToInt32(ctx, &fd, argv[0])) return JS_EXCEPTION;
-
-    ret = js_get_errno(accept(fd, NULL, NULL));
-    return JS_NewInt32(ctx, ret);
-}
-#endif
-
-
-#if !defined(_WIN32) && !defined(__wasi__)
-static JSValue js_os_connect(JSContext *ctx, JSValueConst this_val,
-                             int argc, JSValueConst *argv)
-{
-    int fd, port, ret;
-    const char *ip_str;
-    struct sockaddr_in addr;
-
-    if (JS_ToInt32(ctx, &fd, argv[0])) return JS_EXCEPTION;
-    ip_str = JS_ToCString(ctx, argv[1]);
-    if (!ip_str) return JS_EXCEPTION;
-    if (JS_ToInt32(ctx, &port, argv[2])) {
-        JS_FreeCString(ctx, ip_str);
-        return JS_EXCEPTION;
-    }
-    if (port < 0 || port > 65535) {
-        JS_FreeCString(ctx, ip_str);
-        return JS_ThrowRangeError(ctx, "invalid port");
-    }
-
-    memset(&addr, 0, sizeof(addr));
-    addr.sin_family = AF_INET;
-    addr.sin_port = htons(port);
-    if (inet_pton(AF_INET, ip_str, &addr.sin_addr) <= 0) {
-        JS_FreeCString(ctx, ip_str);
-        return JS_ThrowTypeError(ctx, "invalid IP address");
-    }
-    JS_FreeCString(ctx, ip_str);
-
-    ret = js_get_errno(connect(fd, (struct sockaddr *)&addr, sizeof(addr)));
-    return JS_NewInt32(ctx, ret);
-}
-#endif
-
 static JSValue js_os_open(JSContext *ctx, JSValueConst this_val,
                           int argc, JSValueConst *argv)
 {
@@ -2603,12 +2444,6 @@ static void free_timer(JSRuntime *rt, JSOSTimer *th)
 {
     list_del(&th->link);
     JS_FreeValueRT(rt, th->func);
-    if (th->argv) {
-        for (int i = 0; i < th->argc; i++) {
-            JS_FreeValueRT(rt, th->argv[i]);
-        }
-        js_free_rt(rt, th->argv);
-    }
     js_free_rt(rt, th);
 }
 
@@ -2706,14 +2541,14 @@ static JSValue js_os_sleepAsync(JSContext *ctx, JSValueConst this_val,
     return promise;
 }
 
-static int call_handler(JSContext *ctx, JSValue func, int argc, JSValueConst *argv)
+static int call_handler(JSContext *ctx, JSValue func)
 {
     int r;
     JSValue ret, func1;
     /* 'func' might be destroyed when calling itself (if it frees the
        handler), so must take extra care */
     func1 = JS_DupValue(ctx, func);
-    ret = JS_Call(ctx, func1, JS_UNDEFINED, argc, argv);
+    ret = JS_Call(ctx, func1, JS_UNDEFINED, 0, NULL);
     JS_FreeValue(ctx, func1);
     r = 0;
     if (JS_IsException(ret))
@@ -2750,7 +2585,7 @@ static int js_os_run_timers(JSRuntime *rt, JSContext *ctx, JSThreadState *ts, in
                 th->timeout = cur_time + th->delay;
             else
                 free_timer(rt, th);
-            r = call_handler(ctx, func, 0, NULL);
+            r = call_handler(ctx, func);
             JS_FreeValueRT(rt, func);
             return r;
         }
@@ -2955,7 +2790,7 @@ static int js_os_poll_internal(JSContext *ctx, int timeout_ms, int flags)
             list_for_each(el, &ts->os_rw_handlers) {
                 rh = list_entry(el, JSOSRWHandler, link);
                 if (rh->fd == 0 && !JS_IsNull(rh->rw_func[0])) {
-                    return call_handler(ctx, rh->rw_func[0], 0, NULL);
+                    return call_handler(ctx, rh->rw_func[0]);
                     /* must stop because the list may have been modified */
                 }
             }
@@ -3018,7 +2853,7 @@ static int js_os_poll_internal(JSContext *ctx, int timeout_ms, int flags)
             mask = (uint64_t)1 << sh->sig_num;
             if (os_pending_signals & mask) {
                 os_pending_signals &= ~mask;
-                return call_handler(ctx, sh->func, 0, NULL);
+                return call_handler(ctx, sh->func);
             }
         }
     }
@@ -3104,12 +2939,12 @@ static int js_os_poll_internal(JSContext *ctx, int timeout_ms, int flags)
             r = (POLLERR|POLLHUP|POLLNVAL|POLLIN) * !JS_IsNull(rh->rw_func[0]);
             w = (POLLERR|POLLHUP|POLLNVAL|POLLOUT) * !JS_IsNull(rh->rw_func[1]);
             if (r & pfd->revents) {
-                ret = call_handler(ctx, rh->rw_func[0], 0, NULL);
+                ret = call_handler(ctx, rh->rw_func[0]);
                 goto done;
                 /* must stop because the list may have been modified */
             }
             if (w & pfd->revents) {
-                ret = call_handler(ctx, rh->rw_func[1], 0, NULL);
+                ret = call_handler(ctx, rh->rw_func[1]);
                 goto done;
                 /* must stop because the list may have been modified */
             }
@@ -4558,15 +4393,6 @@ void js_std_set_worker_new_context_func(JSContext *(*func)(JSRuntime *rt))
 #define OS_FLAG(x) JS_PROP_INT32_DEF(#x, x, JS_PROP_CONFIGURABLE )
 
 static const JSCFunctionListEntry js_os_funcs[] = {
-#if !defined(_WIN32) && !defined(__wasi__)
-    JS_CFUNC_DEF("socket", 3, js_os_socket ),
-    JS_CFUNC_DEF("bind", 3, js_os_bind ),
-    JS_CFUNC_DEF("listen", 2, js_os_listen ),
-    JS_CFUNC_DEF("accept", 1, js_os_accept ),
-    JS_CFUNC_DEF("connect", 3, js_os_connect ),
-    OS_FLAG(AF_INET),
-    OS_FLAG(SOCK_STREAM),
-#endif
     JS_CFUNC_DEF("open", 2, js_os_open ),
     OS_FLAG(O_RDONLY),
     OS_FLAG(O_WRONLY),

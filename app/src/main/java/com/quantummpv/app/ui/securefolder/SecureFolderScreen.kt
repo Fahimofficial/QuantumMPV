@@ -76,7 +76,6 @@ import com.quantummpv.app.ui.utils.navigateTo
 import com.quantummpv.app.ui.utils.popSafely
 import com.quantummpv.app.utils.media.MediaInfoOps
 import com.quantummpv.app.utils.media.MediaUtils
-import com.quantummpv.app.utils.FormatUtils
 import com.quantummpv.app.utils.sort.SortUtils
 import android.widget.Toast
 import kotlinx.serialization.Serializable
@@ -200,7 +199,7 @@ data object SecureFolderScreen : Screen {
               duration = metadata?.durationMs ?: 0L,
               durationFormatted = metadata?.let { formatDuration(it.durationMs) } ?: "",
               size = entity.fileSize,
-              sizeFormatted = FormatUtils.formatFileSize(entity.fileSize),
+              sizeFormatted = MediaUtils.formatFileSize(entity.fileSize),
               dateModified = entity.dateHidden / 1000,
               dateAdded = entity.dateHidden / 1000,
               mimeType = entity.mimeType,
