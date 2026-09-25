@@ -24,7 +24,7 @@ env:
 jobs:
   validate:
     name: Lint, test, and build debug APK
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 45
 
     steps:

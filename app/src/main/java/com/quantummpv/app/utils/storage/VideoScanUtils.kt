@@ -24,6 +24,13 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import org.koin.core.component.KoinComponent
 import org.koin.core.component.inject
+import com.quantummpv.app.utils.FormatUtils
+import com.quantummpv.app.utils.FormatUtils
+import com.quantummpv.app.utils.FormatUtils
+import com.quantummpv.app.utils.FormatUtils
+import com.quantummpv.app.utils.FormatUtils
+import com.quantummpv.app.utils.FormatUtils
+import com.quantummpv.app.utils.FormatUtils
 import java.io.File
 import java.util.Locale
 import kotlin.math.log10
@@ -189,7 +196,7 @@ object VideoScanUtils : KoinComponent {
                 duration = duration,
                 durationFormatted = formatDuration(duration),
                 size = size,
-                sizeFormatted = formatFileSize(size),
+                sizeFormatted = FormatUtils.FormatUtils.FormatUtils.FormatUtils.FormatUtils.FormatUtils.FormatUtils.formatFileSize(size),
                 dateModified = dateModified,
                 dateAdded = dateAdded,
                 mimeType = mimeType,
@@ -275,7 +282,7 @@ object VideoScanUtils : KoinComponent {
                 duration = duration,
                 durationFormatted = formatDuration(duration),
                 size = size,
-                sizeFormatted = formatFileSize(size),
+                sizeFormatted = FormatUtils.FormatUtils.FormatUtils.FormatUtils.FormatUtils.FormatUtils.FormatUtils.formatFileSize(size),
                 dateModified = cursor.getLong(modifiedColumn),
                 dateAdded = cursor.getLong(addedColumn),
                 mimeType =
@@ -357,7 +364,7 @@ object VideoScanUtils : KoinComponent {
               duration = duration,
               durationFormatted = formatDuration(duration),
               size = resolvedSize,
-              sizeFormatted = formatFileSize(resolvedSize),
+              sizeFormatted = FormatUtils.FormatUtils.FormatUtils.FormatUtils.FormatUtils.FormatUtils.FormatUtils.formatFileSize(resolvedSize),
               dateModified = dateModified,
               dateAdded = dateModified,
               mimeType = mimeType,
@@ -397,17 +404,7 @@ object VideoScanUtils : KoinComponent {
     }
   }
 
-  private fun formatFileSize(bytes: Long): String {
-    if (bytes <= 0) return "0 B"
-    val units = arrayOf("B", "KB", "MB", "GB", "TB")
-    val digitGroups = (log10(bytes.toDouble()) / log10(1024.0)).toInt()
-    return String.format(
-      Locale.getDefault(),
-      "%.1f %s",
-      bytes / 1024.0.pow(digitGroups.toDouble()),
-      units[digitGroups],
-    )
-  }
+
 
   private fun formatResolution(
     width: Int,

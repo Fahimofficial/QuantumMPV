@@ -20,7 +20,7 @@ val activeAbis =
     listOf("arm64-v8a", "armeabi-v7a") + x86Abis
   }
 val universalOnlyDistributions = setOf("noVulkan", "fongmi")
-val releaseVersionCode = 10101
+val releaseVersionCode = 10100
 val versionCodeBandSize = 10_000
 val stableVersionCode = releaseVersionCode * versionCodeBandSize + (versionCodeBandSize - 1)
 val previewVersionCode =
@@ -300,6 +300,8 @@ dependencies {
 
   testImplementation(libs.kotlin.test)
   testImplementation(libs.junit)
+  testImplementation(libs.mockk)
+  testImplementation(libs.mockk)
   androidTestImplementation("androidx.test.ext:junit:1.2.1")
   androidTestImplementation("androidx.test:runner:1.6.2")
   androidTestImplementation("androidx.room:room-testing:2.8.4")

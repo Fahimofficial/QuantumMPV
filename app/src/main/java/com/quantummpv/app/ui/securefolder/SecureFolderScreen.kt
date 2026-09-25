@@ -74,6 +74,13 @@ import com.quantummpv.app.ui.icons.Icons
 import com.quantummpv.app.ui.utils.LocalBackStack
 import com.quantummpv.app.ui.utils.navigateTo
 import com.quantummpv.app.ui.utils.popSafely
+import com.quantummpv.app.utils.FormatUtils
+import com.quantummpv.app.utils.FormatUtils
+import com.quantummpv.app.utils.FormatUtils
+import com.quantummpv.app.utils.FormatUtils
+import com.quantummpv.app.utils.FormatUtils
+import com.quantummpv.app.utils.FormatUtils
+import com.quantummpv.app.utils.FormatUtils
 import com.quantummpv.app.utils.media.MediaInfoOps
 import com.quantummpv.app.utils.media.MediaUtils
 import com.quantummpv.app.utils.sort.SortUtils
@@ -199,7 +206,7 @@ data object SecureFolderScreen : Screen {
               duration = metadata?.durationMs ?: 0L,
               durationFormatted = metadata?.let { formatDuration(it.durationMs) } ?: "",
               size = entity.fileSize,
-              sizeFormatted = MediaUtils.formatFileSize(entity.fileSize),
+              sizeFormatted = FormatUtils.formatFileSize(entity.fileSize),
               dateModified = entity.dateHidden / 1000,
               dateAdded = entity.dateHidden / 1000,
               mimeType = entity.mimeType,

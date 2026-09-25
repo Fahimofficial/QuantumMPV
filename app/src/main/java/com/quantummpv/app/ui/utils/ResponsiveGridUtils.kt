@@ -21,7 +21,7 @@ import kotlin.math.abs
 fun lcm(
   a: Int,
   b: Int,
-): Int = if (a == 0 || b == 0) 0 else abs(a * b) / gcd(a, b)
+): Int = if (a == 0 || b == 0) 0 else abs(a * b) / abs(gcd(a, b))
 
 fun gcd(
   a: Int,
