@@ -74,15 +74,9 @@ import com.quantummpv.app.ui.icons.Icons
 import com.quantummpv.app.ui.utils.LocalBackStack
 import com.quantummpv.app.ui.utils.navigateTo
 import com.quantummpv.app.ui.utils.popSafely
-import com.quantummpv.app.utils.FormatUtils
-import com.quantummpv.app.utils.FormatUtils
-import com.quantummpv.app.utils.FormatUtils
-import com.quantummpv.app.utils.FormatUtils
-import com.quantummpv.app.utils.FormatUtils
-import com.quantummpv.app.utils.FormatUtils
-import com.quantummpv.app.utils.FormatUtils
 import com.quantummpv.app.utils.media.MediaInfoOps
 import com.quantummpv.app.utils.media.MediaUtils
+import com.quantummpv.app.utils.FormatUtils
 import com.quantummpv.app.utils.sort.SortUtils
 import android.widget.Toast
 import kotlinx.serialization.Serializable

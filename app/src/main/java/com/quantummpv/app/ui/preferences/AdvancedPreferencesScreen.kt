@@ -72,13 +72,6 @@ import com.quantummpv.app.ui.utils.navigateTo
 import com.quantummpv.app.ui.utils.LocalShowSettingsBackArrow
 import com.quantummpv.app.ui.utils.popSafely
 import com.quantummpv.app.utils.clipboard.SafeClipboard
-import com.quantummpv.app.utils.FormatUtils
-import com.quantummpv.app.utils.FormatUtils
-import com.quantummpv.app.utils.FormatUtils
-import com.quantummpv.app.utils.FormatUtils
-import com.quantummpv.app.utils.FormatUtils
-import com.quantummpv.app.utils.FormatUtils
-import com.quantummpv.app.utils.FormatUtils
 import com.quantummpv.app.utils.history.RecentlyPlayedOps
 import com.quantummpv.app.utils.media.PlaybackStateEvents
 import kotlinx.coroutines.Dispatchers
@@ -899,7 +892,7 @@ object AdvancedPreferencesScreen : Screen {
                 modifier = Modifier.settingsSearchTarget(R.string.pref_clear_config_cache_title),
                 title = { Text(text = stringResource(R.string.pref_clear_config_cache_title)) },
                 summary = {
-                  val sizeStr = FormatUtils.FormatUtils.FormatUtils.FormatUtils.FormatUtils.FormatUtils.FormatUtils.formatFileSize(configCacheSize)
+                  val sizeStr = formatFileSize(configCacheSize)
                   Column {
                     Text(
                       text = stringResource(R.string.pref_config_cache_summary),
@@ -959,7 +952,7 @@ object AdvancedPreferencesScreen : Screen {
                 modifier = Modifier.settingsSearchTarget(R.string.pref_clear_thumbnail_cache_title),
                 title = { Text(text = stringResource(R.string.pref_clear_thumbnail_cache_title)) },
                 summary = {
-                  val sizeStr = FormatUtils.FormatUtils.FormatUtils.FormatUtils.FormatUtils.FormatUtils.FormatUtils.formatFileSize(thumbnailCacheSize)
+                  val sizeStr = formatFileSize(thumbnailCacheSize)
                   Column {
                     Text(
                       text = stringResource(R.string.pref_thumbnail_cache_summary),
@@ -1020,7 +1013,7 @@ object AdvancedPreferencesScreen : Screen {
                 modifier = Modifier.settingsSearchTarget(R.string.pref_advanced_clear_fonts_cache),
                 title = { Text(text = stringResource(id = R.string.pref_advanced_clear_fonts_cache)) },
                 summary = {
-                  val sizeStr = FormatUtils.FormatUtils.FormatUtils.FormatUtils.FormatUtils.FormatUtils.FormatUtils.formatFileSize(fontsCacheSize)
+                  val sizeStr = formatFileSize(fontsCacheSize)
                   Text(
                     text = stringResource(R.string.pref_fonts_cache_size, sizeStr, fontsFileCount),
                     color = MaterialTheme.colorScheme.outline,
@@ -1122,3 +1115,9 @@ object AdvancedPreferencesScreen : Screen {
 fun getSimplifiedPathFromUri(uri: String): String =
   File(Environment.getExternalStorageDirectory(), Uri.decode(uri).substringAfterLast(":")).canonicalPath
 
+private fun formatFileSize(bytes: Long): String =
+  when {
+    bytes < 1024 -> "$bytes B"
+    bytes < 1024 * 1024 -> "%.1f KB".format(bytes / 1024.0)
+    else -> "%.1f MB".format(bytes / (1024.0 * 1024.0))
+  }

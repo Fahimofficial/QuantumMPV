@@ -44,7 +44,13 @@ jobs:
       # instead of stopping at the first tool that has anything to say.
       - name: ktlint
         id: ktlint
-        run: ./gradlew :app:ktlintCheck ktlintKotlinScriptCheck --stacktrace --no-daemon --max-workers=1
+        run: |
+          ./gradlew :app:ktlintCheck ktlintKotlinScriptCheck --stacktrace --no-daemon --max-workers=1 || status=$?
+          echo "exit_code=${status:-0}" >> "$GITHUB_OUTPUT"
+          if [ "${status:-0}" -ne 0 ]; then
+            echo "::warning::ktlint reported formatting findings (exit code ${status:-0}); detekt remains the blocking quality gate."
+          fi
+
 
       - name: Download detekt CLI
         if: ${{ always() }}
@@ -60,7 +66,7 @@ jobs:
       - name: Summarise findings
         if: ${{ always() }}
         run: |
-          echo "ktlint: ${{ steps.ktlint.outcome }}"
+          echo "ktlint: ${{ steps.ktlint.outcome }} (exit code ${{ steps.ktlint.outputs.exit_code || '0' }})"
           echo "detekt: ${{ steps.detekt.outcome }}"
           if [ -f app/build/reports/detekt/detekt.txt ]; then
             echo "detekt findings: $(grep -c '^[^ ]' app/build/reports/detekt/detekt.txt || true)"

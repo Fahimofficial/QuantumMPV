@@ -37,33 +37,6 @@ interface DownloadItemDao {
   @Update
   suspend fun update(entity: DownloadItemEntity)
 
-  @Update
-  suspend fun updateAll(entities: List<DownloadItemEntity>)
-
-  @Update
-  suspend fun updateAll(entities: List<DownloadItemEntity>)
-
-  @Update
-  suspend fun updateAll(entities: List<DownloadItemEntity>)
-
-  @Update
-  suspend fun updateAll(entities: List<DownloadItemEntity>)
-
-  @Update
-  suspend fun updateAll(entities: List<DownloadItemEntity>)
-
-  @Update
-  suspend fun updateAll(entities: List<DownloadItemEntity>)
-
-  @Update
-  suspend fun updateAll(entities: List<DownloadItemEntity>)
-
-  @Update
-  suspend fun updateAll(entities: List<DownloadItemEntity>)
-
-  @Update
-  suspend fun updateAll(entities: List<DownloadItemEntity>)
-
   @Query("DELETE FROM download_items WHERE id = :id")
   suspend fun delete(id: Long)
 }

@@ -93,8 +93,7 @@ class AppDownloadManager(
           AppDownloadStatus.from(it.status).let { s -> s == AppDownloadStatus.QUEUED || s == AppDownloadStatus.RUNNING }
         }
       if (unfinished.isNotEmpty()) {
-        val updatedEntities = unfinished.map { it.copy(status = AppDownloadStatus.QUEUED.name) }
-        dao.updateAll(updatedEntities)
+        unfinished.forEach { dao.update(it.copy(status = AppDownloadStatus.QUEUED.name)) }
         DirectDownloadService.start(context)
       }
     }

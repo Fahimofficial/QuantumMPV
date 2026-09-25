@@ -19,11 +19,6 @@ import androidx.room.Update
 import com.quantummpv.app.database.entities.PlaylistEntity
 import com.quantummpv.app.database.entities.PlaylistItemEntity
 import com.quantummpv.app.database.entities.PlaylistItemPositionUpdate
-import com.quantummpv.app.database.entities.PlaylistItemPositionUpdate
-import com.quantummpv.app.database.entities.PlaylistItemPositionUpdate
-import com.quantummpv.app.database.entities.PlaylistItemPositionUpdate
-import com.quantummpv.app.database.entities.PlaylistItemPositionUpdate
-import com.quantummpv.app.database.entities.PlaylistItemPositionUpdate
 import kotlinx.coroutines.flow.Flow
 
 @Dao
@@ -147,6 +142,10 @@ interface PlaylistDao {
     itemId: Int,
     newPosition: Int,
   )
+
+  @Transaction
+
+
 
   @Update(entity = PlaylistItemEntity::class)
   suspend fun updateItemPositions(updates: List<PlaylistItemPositionUpdate>)
