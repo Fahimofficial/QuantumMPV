@@ -110,7 +110,6 @@ object PlaybackSession : MPVLib.EventObserver {
       "percent-pos",
     )
 
-  private var desiredVideoOutput: String? = null
 
   private enum class EndFileReason {
     EOF,
@@ -1172,11 +1171,11 @@ object PlaybackSession : MPVLib.EventObserver {
     property: String,
     value: String,
   ) {
-    if (desiredVideoOutput != null && property == "vo" && value != desiredVideoOutput) {
+    if (property == "vo" && value != desiredVideoOutput) {
       if (value != "null" && value.isNotBlank()) {
         desiredVideoOutput = value
       } else {
-        MPVLib.setPropertyString("vo", desiredVideoOutput!!)
+        MPVLib.setPropertyString("vo", desiredVideoOutput)
       }
     }
     propString.emit(property, value)
