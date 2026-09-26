@@ -246,7 +246,7 @@ fun TopRightPlayerControlsLandscape(
       horizontalArrangement = Arrangement.spacedBy(MaterialTheme.spacing.extraSmall),
     ) {
       buttons.forEach { button ->
-        RenderPlayerButton(
+        renderPlayerButton(
           button = button,
           chapters = chapters,
           currentChapter = currentChapter,
@@ -295,7 +295,7 @@ fun BottomRightPlayerControlsLandscape(
       horizontalArrangement = Arrangement.spacedBy(MaterialTheme.spacing.extraSmall),
     ) {
       buttons.forEach { button ->
-        RenderPlayerButton(
+        renderPlayerButton(
           button = button,
           chapters = chapters,
           currentChapter = currentChapter,
@@ -351,7 +351,7 @@ fun BottomLeftPlayerControlsLandscape(
       horizontalArrangement = Arrangement.spacedBy(MaterialTheme.spacing.extraSmall),
     ) {
       buttons.forEach { button ->
-        RenderPlayerButton(
+        renderPlayerButton(
           button = button,
           chapters = chapters,
           currentChapter = currentChapter,

@@ -243,7 +243,7 @@ fun BottomPlayerControlsPortrait(
       verticalAlignment = Alignment.CenterVertically,
     ) {
       buttons.forEach { button ->
-        RenderPlayerButton(
+        renderPlayerButton(
           button = button,
           chapters = chapters,
           currentChapter = currentChapter,

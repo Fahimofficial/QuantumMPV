@@ -2069,7 +2069,7 @@ val activePlayerDrawerButtons =
           panelVisible = isPlayerDrawerShown,
           onPanelVisibilityChanged = setPlayerDrawerShown,
           renderButton = { button ->
-            RenderPlayerButton(
+            renderPlayerButton(
               button = button,
               chapters = chapters,
               currentChapter = currentChapter,
