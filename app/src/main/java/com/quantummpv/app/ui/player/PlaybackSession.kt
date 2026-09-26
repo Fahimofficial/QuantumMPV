@@ -564,6 +564,9 @@ object PlaybackSession : MPVLib.EventObserver {
       .onFailure { error -> Log.e(TAG, "Failed to destroy libmpv", error) }
     releaseActiveNetworkStreamLocked()
     releaseAuxiliaryNetworkStreamsLocked()
+    NetworkStreamingProxy.stopInstance()
+    HlsStreamingProxy.stopInstance()
+    XtreamStreamingProxy.stopInstance()
     observers.clear()
     observedProperties.clear()
     resetAmbientShaderTrackingLocked()

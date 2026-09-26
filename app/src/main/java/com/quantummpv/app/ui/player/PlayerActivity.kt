@@ -5230,19 +5230,33 @@ private suspend fun restorePlaybackPosition(state: PlaybackStateEntity?) {
     // call, so a stale true/false from the previous file never leaks into the next one.
     isSecureFolderLaunch = intent.getStringExtra("launch_source") == "secure_folder"
 
+    // External file managers / SAF multiple selections
+    val isSendMultiple = intent.action == Intent.ACTION_SEND_MULTIPLE
+    val multipleUris = if (isSendMultiple) {
+      if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.TIRAMISU) {
+        intent.getParcelableArrayListExtra(Intent.EXTRA_STREAM, Uri::class.java) ?: emptyList()
+      } else {
+        @Suppress("DEPRECATION")
+        intent.getParcelableArrayListExtra<Uri>(Intent.EXTRA_STREAM) ?: emptyList()
+      }
+    } else emptyList()
+
+    val videoListUris = intent.getStringArrayListExtra("video_list")?.mapNotNull { runCatching { Uri.parse(it) }.getOrNull() } ?: emptyList()
+    
     // Check if this intent has playlist information
     val hasPlaylistExtras =
       intent.hasExtra("playlist_id") ||
-        intent.hasExtra("playlist")
+        intent.hasExtra("playlist") || isSendMultiple || videoListUris.isNotEmpty()
 
     // Load playlist from intent extras first (fast path)
-    val playlistFromIntent =
+    val playlistFromIntent = (
       if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.TIRAMISU) {
         intent.getParcelableArrayListExtra("playlist", Uri::class.java) ?: emptyList()
       } else {
         @Suppress("DEPRECATION")
-        intent.getParcelableArrayListExtra("playlist") ?: emptyList()
+        intent.getParcelableArrayListExtra<Uri>("playlist") ?: emptyList()
       }
+    ) + multipleUris + videoListUris
 
     val preparedPlaybackQueue =
       playlistFromIntent.isEmpty() && restorePreparedPlaybackQueue(intent)
@@ -7014,6 +7028,7 @@ private suspend fun restorePlaybackPosition(state: PlaybackStateEntity?) {
     loadPlaylistItemInternal(
       index = PlaybackSession.queue.value.currentIndex,
       requestAlreadyStarted = true,
+      isAutomaticTransition = true,
     )
   }
 
@@ -7027,6 +7042,7 @@ private suspend fun restorePlaybackPosition(state: PlaybackStateEntity?) {
     loadPlaylistItemInternal(
       index = PlaybackSession.queue.value.currentIndex,
       requestAlreadyStarted = true,
+      isAutomaticTransition = true,
     )
   }
 
@@ -7049,6 +7065,7 @@ private suspend fun restorePlaybackPosition(state: PlaybackStateEntity?) {
     index: Int,
     saveCurrentPlaybackState: Boolean = true,
     requestAlreadyStarted: Boolean = false,
+    isAutomaticTransition: Boolean = false,
   ) {
     if (index < 0 || index >= playlist.size) {
       Log.e(TAG, "Invalid playlist index: $index (playlist size: ${playlist.size})")
