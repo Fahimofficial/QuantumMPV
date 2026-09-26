@@ -16,7 +16,7 @@ The first stable QuantumMPV 1.1.0 release, bringing the current playback, librar
 - **Library Insights**: Added an on-device diagnostics view for history entries, unique items, recent activity, missing local files, and network items without uploading playback data.
 - **Branding refresh**: Applied the QuantumMPV logo and stable app labels across the launcher, fallback assets, landing page, favicon metadata, and repository presentation assets.
 - **Support and credits**: Updated developer support information and expanded project credits and links in the app and project documentation.
-- **Release reliability**: Improved Room migration coverage, structured diagnostics, release APK validation, and CI artifact handling.
+- **Release reliability**: Improved Room migration coverage, structured diagnostics, release APK validation, and CI artifact handling. Made both detekt and ktlint blocking while fixing existing formatting findings.
 
 ### APK variants
 
