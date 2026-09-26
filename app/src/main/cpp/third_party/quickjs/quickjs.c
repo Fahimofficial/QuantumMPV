@@ -47019,6 +47019,7 @@ exception:
     return JS_EXCEPTION;
 }
 
+#ifdef CONFIG_TEST262
 /* only used in test262 */
 JSValue js_string_codePointRange(JSContext *ctx, JSValueConst this_val,
                                  int argc, JSValueConst *argv)
@@ -47045,6 +47046,7 @@ JSValue js_string_codePointRange(JSContext *ctx, JSValueConst this_val,
     }
     return string_buffer_end(b);
 }
+#endif
 
 static JSValue js_string_at(JSContext *ctx, JSValueConst this_val,
                             int argc, JSValueConst *argv)
