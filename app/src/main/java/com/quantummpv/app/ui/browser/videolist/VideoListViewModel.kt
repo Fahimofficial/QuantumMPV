@@ -168,21 +168,23 @@ class VideoListViewModel(
   override fun refresh() {
     Log.d(tag, "Hard refreshing video list for bucket: $bucketId")
 
-    // Set loading state
     _isLoading.value = true
 
-    // Clear cache to force fresh data from filesystem
-    MediaFileRepository.clearCache()
-    FolderViewScanner.clearCache()
-
-    // Trigger media scan before loading to ensure MediaStore is up-to-date
-    triggerMediaScan()
-
-    loadVideos(forceFileSystemCheck = true)
+    viewModelScope.launch(Dispatchers.IO) {
+      MediaFileRepository.clearCache()
+      FolderViewScanner.clearCache()
+      triggerMediaScan()
+      loadVideosInternal(forceFileSystemCheck = true)
+    }
   }
 
   private fun loadVideos(forceFileSystemCheck: Boolean = false) {
     viewModelScope.launch(Dispatchers.IO) {
+      loadVideosInternal(forceFileSystemCheck)
+    }
+  }
+
+  private suspend fun loadVideosInternal(forceFileSystemCheck: Boolean = false) {
       try {
         // First attempt to load videos (basic info from MediaStore)
         var videoList =
@@ -268,7 +270,6 @@ class VideoListViewModel(
         _videosWithPlaybackInfo.value = emptyList()
       } finally {
         _isLoading.value = false
-      }
     }
   }
 

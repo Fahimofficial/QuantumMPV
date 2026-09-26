@@ -219,18 +219,15 @@ class FileSystemBrowserViewModel(
   override fun refresh() {
     Log.d(TAG, "Hard refreshing current directory: ${_currentPath.value}")
 
-    // Set loading state
     _isLoading.value = true
 
-    // Clear all caches to force fresh data from filesystem
-    MediaFileRepository.clearCache()
-    FolderViewScanner.clearCache()
-    TreeViewScanner.clearCache()
-
-    // Trigger media scan to ensure MediaStore is up-to-date
-    triggerMediaScan()
-
-    loadCurrentDirectory(forceFileSystemCheck = true)
+    viewModelScope.launch(Dispatchers.IO) {
+      MediaFileRepository.clearCache()
+      FolderViewScanner.clearCache()
+      TreeViewScanner.clearCache()
+      triggerMediaScan()
+      loadCurrentDirectoryInternal(forceFileSystemCheck = true)
+    }
   }
 
   /**
@@ -422,6 +419,11 @@ class FileSystemBrowserViewModel(
    */
   private fun loadCurrentDirectory(forceFileSystemCheck: Boolean = false) {
     viewModelScope.launch(Dispatchers.IO) {
+      loadCurrentDirectoryInternal(forceFileSystemCheck)
+    }
+  }
+
+  private suspend fun loadCurrentDirectoryInternal(forceFileSystemCheck: Boolean = false) {
       _isLoading.value = true
       _error.value = null
       // Don't reset the flag here - let navigation handle it
@@ -532,7 +534,6 @@ class FileSystemBrowserViewModel(
         Log.e(TAG, "Exception loading directory", e)
       } finally {
         _isLoading.value = false
-      }
     }
   }
 
