@@ -28415,26 +28415,17 @@ static __exception int js_parse_assign_expr2(JSParseState *s, int parse_flags)
             assert(OP_to_propkey2 == fd->byte_code.buf[fd->last_opcode_pos]);
             fd->byte_code.size = fd->last_opcode_pos;
             fd->last_opcode_pos = -1;
-            emit_op(s, OP_swap); // obj key -> key obj
-            emit_op(s, OP_dup);
+            emit_op(s, OP_dup1); // obj key -> obj obj key
+            emit_op(s, OP_swap); // obj obj key -> obj key obj
             emit_op(s, OP_is_undefined_or_null);
             label_next = emit_goto(s, OP_if_true, -1);
-            emit_op(s, OP_swap);
             emit_op(s, OP_to_propkey);
-            emit_op(s, OP_swap);
             emit_label(s, label_next);
-            emit_op(s, OP_swap);
         }
 
         if (js_parse_assign_expr2(s, parse_flags)) {
             JS_FreeAtom(s->ctx, name);
             return -1;
-        }
-
-        if (op == '=' && opcode == OP_get_array_el) {
-            emit_op(s, OP_swap); // obj key val -> obj val key
-            emit_op(s, OP_to_propkey);
-            emit_op(s, OP_swap);
         }
 
         if (op == '=') {
