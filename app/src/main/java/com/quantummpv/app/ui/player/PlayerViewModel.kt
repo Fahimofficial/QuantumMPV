@@ -4218,27 +4218,23 @@ val isBrightnessSliderShown = MutableStateFlow(false)
   // ==================== Playback Control ====================
 
   fun pauseUnpause() {
-    viewModelScope.launch(playbackStateDispatcher) {
-      val wasPaused = PlaybackSession.getPropertyBoolean("pause") ?: PlaybackSession.state.value.paused
-      if (wasPaused) {
-        val focusGranted = withContext(Dispatchers.Main) { host.requestAudioFocus() }
-        if (!focusGranted) return@launch
-        PlaybackSession.setPropertyBoolean("pause", false)
-        syncplayManager.updatePlayerState(precisePosition.value.toDouble(), false, doSeek = false)
-      } else {
-        PlaybackSession.setPropertyBoolean("pause", true)
-        syncplayManager.updatePlayerState(precisePosition.value.toDouble(), true, doSeek = false)
-        withContext(Dispatchers.Main) { host.abandonAudioFocus() }
-      }
+    val wasPaused = PlaybackSession.propBoolean["pause"].value ?: PlaybackSession.state.value.paused
+    if (wasPaused) {
+      val focusGranted = host.requestAudioFocus()
+      if (!focusGranted) return
+      PlaybackSession.commandNode("set", "pause", "no")
+      syncplayManager.updatePlayerState(precisePosition.value.toDouble(), false, doSeek = false)
+    } else {
+      PlaybackSession.commandNode("set", "pause", "yes")
+      syncplayManager.updatePlayerState(precisePosition.value.toDouble(), true, doSeek = false)
+      host.abandonAudioFocus()
     }
   }
 
   fun pause() {
-    viewModelScope.launch(playbackStateDispatcher) {
-      PlaybackSession.setPropertyBoolean("pause", true)
-      syncplayManager.updatePlayerState(precisePosition.value.toDouble(), true, doSeek = false)
-      withContext(Dispatchers.Main) { host.abandonAudioFocus() }
-    }
+    PlaybackSession.commandNode("set", "pause", "yes")
+    syncplayManager.updatePlayerState(precisePosition.value.toDouble(), true, doSeek = false)
+    host.abandonAudioFocus()
   }
 
   fun unpause() {

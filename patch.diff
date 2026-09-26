@@ -1,0 +1,34 @@
+--- app/src/main/java/com/quantummpv/app/ui/player/PlaybackSession.kt
++++ app/src/main/java/com/quantummpv/app/ui/player/PlaybackSession.kt
+@@ -107,6 +107,7 @@
+ 
+   private var playerState = MutableStateFlow<PlaybackState>(PlaybackState.Idle)
+   private var playbackPhase = MutableStateFlow<PlaybackPhase>(PlaybackPhase.IDLE)
++  private var desiredVideoOutput: String? = null
+ 
+   var activeSubtitles = MutableStateFlow<List<TrackInfo>>(emptyList())
+     private set
+@@ -291,6 +292,9 @@
+           // headers may temporarily override it, but must not leak into the next item.
+           defaultUserAgent = MPVLib.getPropertyString("user-agent")
+           postInitOptions()
++          MPVLib.getPropertyString("vo")
++            ?.takeIf { it.isNotBlank() && it != "null" }
++            ?.let { desiredVideoOutput = it }
+ 
+           updateCurrentItem(
+             item = PlaybackQueue.currentItem,
+@@ -467,6 +471,13 @@
+     if (property == "clock-info") return
+ 
+     // Log.v(TAG, "EventProperty: $property = $value")
++    if (desiredVideoOutput != null && property == "vo" && value != desiredVideoOutput) {
++      if (value != "null" && value.isNotBlank()) {
++        desiredVideoOutput = value
++      } else {
++        MPVLib.setPropertyString("vo", desiredVideoOutput!!)
++      }
++    }
+     propString.getOrPut(property) { MutableStateFlow(value) }.value = value
+ 
+     when (property) {

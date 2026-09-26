@@ -1,0 +1,735 @@
+From 570b834b4dba8562db24770b8d44d9eafd0ccf55 Mon Sep 17 00:00:00 2001
+From: Ritesh Pandit <riteshp2001@gmail.com>
+Date: Fri, 18 Sep 2026 14:11:39 +0530
+Subject: [PATCH] fix: guard video startup and make theme backups portable
+
+Guard the startup path reported in issue #685 by retaining the configured renderer while keeping video output disabled until a surface is attached. Reapply the no-surface guard before media loads.
+
+Remove unsupported secondary subtitle font-size writes, avoid removing absent temporary crop filters, skip subtitle text queries without a selected track, and guard missing or invalid wallpaper files.
+
+Save wallpapers as bounded Base64 PNG data in the existing preference and support legacy URI loading. Keep embedded images out of navigation state and filename labels. Stream PNG encoding to reduce temporary allocations.
+
+Embed legacy wallpaper images in settings exports alongside custom theme colors, selection, and wallpaper adjustments. Version the backup format, preserve supplementary Unicode and string-set values, and stage complete XML exports before opening the destination.
+
+Validate imports before committing preferences in one batch. Reject malformed values and invalid wallpapers, preserve cancellation, and count network imports only after insertion. Retain legacy backup import support and exclude device-bound network credentials.
+
+Validation: scoped static source review, editor diagnostics, and git diff --check. No builds, tests, formatters, or device validation were run under the static-only constraint.
+---
+ .../preferences/AppearancePreferences.kt      |   6 +-
+ .../mpvrx/preferences/MpvConfigOverride.kt    |   1 -
+ .../mpvrx/preferences/SettingsManager.kt      | 181 +++++++++++++-----
+ .../com/quantummpv/app/ui/player/MPVView.kt    |   2 +-
+ .../mpvrx/ui/player/PlaybackSession.kt        |  23 +++
+ .../gyrolet/mpvrx/ui/player/PlayerActivity.kt |   2 +-
+ .../mpvrx/ui/player/PlayerViewModel.kt        |   8 +-
+ .../mpvrx/ui/player/SubtitlePositioning.kt    |   2 +-
+ .../panels/SubtitleSettingsTypographyCard.kt  |   5 +-
+ .../AppearancePreferencesScreen.kt            |   4 +-
+ .../ui/preferences/WallpaperEditorScreen.kt   |  11 +-
+ .../gyrolet/mpvrx/ui/theme/AppWallpaper.kt    |  49 +++--
+ 12 files changed, 206 insertions(+), 88 deletions(-)
+
+diff --git a/app/src/main/java/com/quantummpv/app/preferences/AppearancePreferences.kt b/app/src/main/java/com/quantummpv/app/preferences/AppearancePreferences.kt
+index 62c116b3..5de01405 100644
+--- a/app/src/main/java/com/quantummpv/app/preferences/AppearancePreferences.kt
++++ b/app/src/main/java/com/quantummpv/app/preferences/AppearancePreferences.kt
+@@ -47,11 +47,15 @@ import kotlinx.collections.immutable.ImmutableList
+ class AppearancePreferences(
+   preferenceStore: PreferenceStore,
+ ) {
++  companion object {
++    const val CUSTOM_WALLPAPER_URI_KEY = "custom_wallpaper_uri"
++  }
++
+   val darkMode = preferenceStore.getEnum("dark_mode", DarkMode.System)
+   val appTheme = preferenceStore.getEnum("app_theme", AppTheme.Dynamic)
+   val customTheme = preferenceStore.getString("custom_theme", "")
+   val selectedCustomThemeName = preferenceStore.getString("selected_custom_theme_name", "")
+-  val customWallpaperUri = preferenceStore.getString("custom_wallpaper_uri", "")
++  val customWallpaperUri = preferenceStore.getString(CUSTOM_WALLPAPER_URI_KEY, "")
+   val customWallpaperZoom = preferenceStore.getFloat("custom_wallpaper_zoom", 1f)
+   val customWallpaperOffsetX = preferenceStore.getFloat("custom_wallpaper_offset_x", 0f)
+   val customWallpaperOffsetY = preferenceStore.getFloat("custom_wallpaper_offset_y", 0f)
+diff --git a/app/src/main/java/com/quantummpv/app/preferences/MpvConfigOverride.kt b/app/src/main/java/com/quantummpv/app/preferences/MpvConfigOverride.kt
+index e173b71d..e15f396c 100644
+--- a/app/src/main/java/com/quantummpv/app/preferences/MpvConfigOverride.kt
++++ b/app/src/main/java/com/quantummpv/app/preferences/MpvConfigOverride.kt
+@@ -151,7 +151,6 @@ enum class MpvConfigOverride(
+         "secondary-sub-delay",
+         "secondary-sub-speed",
+         "secondary-sub-font",
+-        "secondary-sub-font-size",
+         "secondary-sub-bold",
+         "secondary-sub-italic",
+         "secondary-sub-justify",
+diff --git a/app/src/main/java/com/quantummpv/app/preferences/SettingsManager.kt b/app/src/main/java/com/quantummpv/app/preferences/SettingsManager.kt
+index e2bc5c9b..d05d3242 100644
+--- a/app/src/main/java/com/quantummpv/app/preferences/SettingsManager.kt
++++ b/app/src/main/java/com/quantummpv/app/preferences/SettingsManager.kt
+@@ -10,17 +10,25 @@
+ package com.quantummpv.app.preferences
+ 
+ import android.content.Context
++import android.content.SharedPreferences
+ import android.net.Uri
++import android.util.Base64
+ import android.util.Xml
+ import com.quantummpv.app.BuildConfig
+ import com.quantummpv.app.database.MpvRxDatabase
+ import com.quantummpv.app.domain.network.NetworkConnection
+ import com.quantummpv.app.domain.network.NetworkProtocol
+ import com.quantummpv.app.preferences.preference.PreferenceStore
++import com.quantummpv.app.ui.theme.saveWallpaperCopy
++import kotlinx.coroutines.CancellationException
+ import kotlinx.coroutines.Dispatchers
++import kotlinx.coroutines.currentCoroutineContext
++import kotlinx.coroutines.ensureActive
+ import kotlinx.coroutines.withContext
++import org.json.JSONArray
+ import org.xmlpull.v1.XmlPullParser
+ import org.xmlpull.v1.XmlSerializer
++import java.io.File
+ import java.io.InputStream
+ import java.io.OutputStream
+ import java.text.SimpleDateFormat
+@@ -45,6 +53,11 @@ class SettingsManager(
+     private const val ATTR_VALUE = "value"
+     private const val ATTR_EXPORT_DATE = "exportDate"
+     private const val ATTR_VERSION = "version"
++    private const val ATTR_FORMAT_VERSION = "formatVersion"
++    private const val ATTR_ENCODING = "encoding"
++    private const val FORMAT_VERSION = 2
++    private const val ENCODING_BASE64 = "base64"
++    private const val ENCODING_JSON = "base64-json"
+ 
+     private const val TYPE_STRING = "string"
+     private const val TYPE_INT = "int"
+@@ -57,13 +70,21 @@ class SettingsManager(
+ 
+   suspend fun exportSettings(outputUri: Uri): Result<ExportStats> =
+     withContext(Dispatchers.IO) {
++      var temporaryFile: File? = null
+       try {
+-        context.contentResolver.openOutputStream(outputUri)?.use { outputStream ->
+-          val stats = writeSettingsToXml(outputStream)
++        val snapshot = File.createTempFile("settings_", ".xml", context.cacheDir).also { temporaryFile = it }
++        val stats = snapshot.outputStream().use { writeSettingsToXml(it) }
++        currentCoroutineContext().ensureActive()
++        context.contentResolver.openOutputStream(outputUri, "wt")?.use { outputStream ->
++          snapshot.inputStream().use { it.copyTo(outputStream) }
+           Result.success(stats)
+         } ?: Result.failure(Exception("Failed to open output stream"))
++      } catch (cancelled: CancellationException) {
++        throw cancelled
+       } catch (e: Exception) {
+         Result.failure(e)
++      } finally {
++        temporaryFile?.delete()
+       }
+     }
+ 
+@@ -74,18 +95,26 @@ class SettingsManager(
+           val stats = readSettingsFromXml(inputStream)
+           Result.success(stats)
+         } ?: Result.failure(Exception("Failed to open input stream"))
++      } catch (cancelled: CancellationException) {
++        throw cancelled
+       } catch (e: Exception) {
+         Result.failure(e)
+       }
+     }
+ 
+   private suspend fun writeSettingsToXml(outputStream: OutputStream): ExportStats {
++    val allPreferences: MutableMap<String, Any?> = preferenceStore.getAll().toMutableMap()
++    val wallpaper = allPreferences[AppearancePreferences.CUSTOM_WALLPAPER_URI_KEY] as? String
++    if (!wallpaper.isNullOrBlank()) {
++      allPreferences[AppearancePreferences.CUSTOM_WALLPAPER_URI_KEY] = saveWallpaperCopy(context, wallpaper)
++    }
+     val serializer: XmlSerializer = Xml.newSerializer()
+     serializer.setOutput(outputStream, "UTF-8")
+     serializer.startDocument("UTF-8", true)
+     serializer.setFeature("http://xmlpull.org/v1/doc/features.html#indent-output", true)
+ 
+     serializer.startTag(null, TAG_ROOT)
++    serializer.attribute(null, ATTR_FORMAT_VERSION, FORMAT_VERSION.toString())
+     serializer.attribute(
+       null,
+       ATTR_VERSION,
+@@ -101,8 +130,8 @@ class SettingsManager(
+     val exportedKeys = mutableListOf<String>()
+ 
+     serializer.startTag(null, TAG_PREFERENCES)
+-    val allPreferences = preferenceStore.getAll()
+     for ((key, value) in allPreferences) {
++      currentCoroutineContext().ensureActive()
+       if (key != BrowserPreferences.ONBOARDING_COMPLETED_KEY && value != null) {
+         writePreference(serializer, key, value)
+         exportedCount++
+@@ -134,14 +163,21 @@ class SettingsManager(
+     )
+   }
+ 
+-  private fun sanitizeXmlValue(value: String): String =
+-    value.filter { c ->
+-      c.code == 0x9 ||
+-        c.code == 0xA ||
+-        c.code == 0xD ||
+-        (c.code in 0x20..0xD7FF) ||
+-        (c.code in 0xE000..0xFFFD)
++  private fun sanitizeXmlValue(value: String): String {
++    if (value.all { it in ' '..'~' }) return value
++    return buildString(value.length) {
++      var index = 0
++      while (index < value.length) {
++        val codePoint = Character.codePointAt(value, index)
++        if (codePoint == 0x9 || codePoint == 0xA || codePoint == 0xD ||
++          codePoint in 0x20..0xD7FF || codePoint in 0xE000..0xFFFD || codePoint in 0x10000..0x10FFFF
++        ) {
++          appendCodePoint(codePoint)
++        }
++        index += Character.charCount(codePoint)
++      }
+     }
++  }
+ 
+   private fun writePreference(
+     serializer: XmlSerializer,
+@@ -154,7 +190,12 @@ class SettingsManager(
+     when (value) {
+       is String -> {
+         serializer.attribute(null, ATTR_TYPE, TYPE_STRING)
+-        serializer.attribute(null, ATTR_VALUE, sanitizeXmlValue(value))
++        if (sanitizeXmlValue(value) == value) {
++          serializer.attribute(null, ATTR_VALUE, value)
++        } else {
++          serializer.attribute(null, ATTR_ENCODING, ENCODING_BASE64)
++          serializer.attribute(null, ATTR_VALUE, Base64.encodeToString(value.toByteArray(Charsets.UTF_8), Base64.NO_WRAP))
++        }
+       }
+       is Int -> {
+         serializer.attribute(null, ATTR_TYPE, TYPE_INT)
+@@ -173,14 +214,16 @@ class SettingsManager(
+         serializer.attribute(null, ATTR_VALUE, value.toString())
+       }
+       is Set<*> -> {
+-        @Suppress("UNCHECKED_CAST")
+-        val stringSet = value as? Set<String>
+-        if (stringSet != null) {
+-          serializer.attribute(null, ATTR_TYPE, TYPE_STRING_SET)
+-          val sanitizedSet = stringSet.map { sanitizeXmlValue(it) }
+-          serializer.attribute(null, ATTR_VALUE, sanitizedSet.joinToString(STRING_SET_SEPARATOR))
+-        }
++        require(value.all { it is String }) { "Invalid string set: $key" }
++        serializer.attribute(null, ATTR_TYPE, TYPE_STRING_SET)
++        serializer.attribute(null, ATTR_ENCODING, ENCODING_JSON)
++        serializer.attribute(
++          null,
++          ATTR_VALUE,
++          Base64.encodeToString(JSONArray(value.toList()).toString().toByteArray(Charsets.UTF_8), Base64.NO_WRAP),
++        )
+       }
++      else -> error("Unsupported preference type: $key")
+     }
+ 
+     serializer.endTag(null, TAG_PREFERENCE)
+@@ -211,26 +254,38 @@ class SettingsManager(
+   private suspend fun readSettingsFromXml(inputStream: InputStream): ImportStats {
+     val parser: XmlPullParser = Xml.newPullParser()
+     parser.setFeature(XmlPullParser.FEATURE_PROCESS_NAMESPACES, false)
++    parser.setFeature(XmlPullParser.FEATURE_PROCESS_DOCDECL, false)
+     parser.setInput(inputStream, "UTF-8")
++    parser.nextTag()
++    parser.require(XmlPullParser.START_TAG, null, TAG_ROOT)
++    val formatVersion = parser.getAttributeValue(null, ATTR_FORMAT_VERSION)?.toInt() ?: 1
++    require(formatVersion in 1..FORMAT_VERSION) { "Unsupported settings format: $formatVersion" }
+ 
+     val stats = ImportStats()
+     var eventType = parser.eventType
+-
++    val editor = androidx.preference.PreferenceManager.getDefaultSharedPreferences(context).edit()
++    val parents = ArrayDeque<String>()
+     val networkConnections = mutableListOf<NetworkConnection>()
+ 
+     while (eventType != XmlPullParser.END_DOCUMENT) {
++      currentCoroutineContext().ensureActive()
+       when (eventType) {
+         XmlPullParser.START_TAG -> {
++          parents.addLast(parser.name)
+           when (parser.name) {
+             TAG_ROOT -> {
+               val version = parser.getAttributeValue(null, ATTR_VERSION)
+               stats.version = version ?: "unknown"
+             }
+             TAG_PREFERENCE -> {
+-              if (parser.getAttributeValue(null, ATTR_KEY) != BrowserPreferences.ONBOARDING_COMPLETED_KEY) {
++              if (parents.size == 3 && parents[1] == TAG_PREFERENCES &&
++                parser.getAttributeValue(null, ATTR_KEY) != BrowserPreferences.ONBOARDING_COMPLETED_KEY
++              ) {
+                 try {
+-                  readPreference(parser)
++                  readPreference(parser, editor)
+                   stats.imported++
++                } catch (cancelled: CancellationException) {
++                  throw cancelled
+                 } catch (e: Exception) {
+                   stats.failed++
+                   stats.errors.add("Failed to import preference: ${e.message}")
+@@ -238,61 +293,81 @@ class SettingsManager(
+               }
+             }
+             TAG_NETWORK_CONNECTION -> {
+-              try {
+-                networkConnections.add(readNetworkConnection(parser))
+-                stats.imported++
+-              } catch (e: Exception) {
+-                stats.failed++
+-                stats.errors.add("Failed to import network connection: ${e.message}")
++              if (parents.size == 4 && parents[1] == TAG_DATABASE && parents[2] == TAG_NETWORK_CONNECTIONS) {
++                try {
++                  networkConnections.add(readNetworkConnection(parser))
++                } catch (e: Exception) {
++                  stats.failed++
++                  stats.errors.add("Failed to import network connection: ${e.message}")
++                }
+               }
+             }
+           }
+         }
++        XmlPullParser.END_TAG -> parents.removeLast()
+       }
+       eventType = parser.next()
+     }
+ 
++    currentCoroutineContext().ensureActive()
++    check(stats.failed == 0) { stats.errors.joinToString("\n") }
++    check(editor.commit()) { "Failed to save imported preferences" }
++
+     // Insert all database data
+     try {
+       if (networkConnections.isNotEmpty()) {
+         database.networkConnectionDao().insertAll(networkConnections)
++        stats.imported += networkConnections.size
+       }
++    } catch (cancelled: CancellationException) {
++      throw cancelled
+     } catch (e: Exception) {
+-      stats.failed++
++      stats.failed += networkConnections.size
+       stats.errors.add("Failed to insert database data: ${e.message}")
+     }
+ 
+     return stats
+   }
+ 
+-  private fun readPreference(parser: XmlPullParser) {
+-    val key = parser.getAttributeValue(null, ATTR_KEY) ?: return
+-    val type = parser.getAttributeValue(null, ATTR_TYPE) ?: return
+-    val valueStr = parser.getAttributeValue(null, ATTR_VALUE) ?: return
+-
+-    // Get the SharedPreferences editor from the Android context
+-    val sharedPrefs =
+-      androidx.preference.PreferenceManager.getDefaultSharedPreferences(context)
+-    val editor = sharedPrefs.edit()
++  private suspend fun readPreference(parser: XmlPullParser, editor: SharedPreferences.Editor) {
++    val key = requireNotNull(parser.getAttributeValue(null, ATTR_KEY)) { "Missing preference key" }
++    val type = requireNotNull(parser.getAttributeValue(null, ATTR_TYPE)) { "Missing preference type: $key" }
++    val valueStr = requireNotNull(parser.getAttributeValue(null, ATTR_VALUE)) { "Missing preference value: $key" }
++    val encoding = parser.getAttributeValue(null, ATTR_ENCODING)
+ 
+     when (type) {
+-      TYPE_STRING -> editor.putString(key, valueStr)
+-      TYPE_INT -> editor.putInt(key, valueStr.toIntOrNull() ?: 0)
+-      TYPE_LONG -> editor.putLong(key, valueStr.toLongOrNull() ?: 0L)
+-      TYPE_FLOAT -> editor.putFloat(key, valueStr.toFloatOrNull() ?: 0f)
+-      TYPE_BOOLEAN -> editor.putBoolean(key, valueStr.toBoolean())
++      TYPE_STRING -> {
++        val value = when (encoding) {
++          null -> valueStr
++          ENCODING_BASE64 -> String(Base64.decode(valueStr, Base64.DEFAULT), Charsets.UTF_8)
++          else -> error("Unsupported string encoding: $encoding")
++        }
++        val restored = if (key == AppearancePreferences.CUSTOM_WALLPAPER_URI_KEY && value.isNotBlank()) {
++          saveWallpaperCopy(context, value)
++        } else value
++        editor.putString(key, restored)
++      }
++      TYPE_INT -> editor.putInt(key, valueStr.toInt())
++      TYPE_LONG -> editor.putLong(key, valueStr.toLong())
++      TYPE_FLOAT -> editor.putFloat(key, valueStr.toFloat().also { require(it.isFinite()) { "Invalid float: $key" } })
++      TYPE_BOOLEAN -> editor.putBoolean(key, valueStr.toBooleanStrict())
+       TYPE_STRING_SET -> {
+-        val stringSet =
+-          if (valueStr.isEmpty()) {
+-            emptySet()
+-          } else {
+-            valueStr.split(STRING_SET_SEPARATOR).toSet()
++        val stringSet = when (encoding) {
++          ENCODING_JSON -> {
++            val values = JSONArray(String(Base64.decode(valueStr, Base64.DEFAULT), Charsets.UTF_8))
++            (0 until values.length()).map { index ->
++              val value = values.get(index)
++              require(value is String) { "Invalid string set: $key" }
++              value
++            }.toSet()
+           }
++          null -> if (valueStr.isEmpty()) emptySet() else valueStr.split(STRING_SET_SEPARATOR).toSet()
++          else -> error("Unsupported string-set encoding: $encoding")
++        }
+         editor.putStringSet(key, stringSet)
+       }
++      else -> error("Unsupported preference type: $type")
+     }
+-
+-    editor.apply()
+   }
+ 
+   private fun readNetworkConnection(parser: XmlPullParser): NetworkConnection =
+@@ -304,17 +379,17 @@ class SettingsManager(
+           parser.getAttributeValue(null, "protocol") ?: "SMB",
+         ),
+       host = parser.getAttributeValue(null, "host") ?: "",
+-      port = parser.getAttributeValue(null, "port")?.toIntOrNull() ?: 445,
++      port = parser.getAttributeValue(null, "port")?.toInt() ?: 445,
+       username = parser.getAttributeValue(null, "username") ?: "",
+       // Never restore credentials from settings XML, including legacy exports that contained
+       // plaintext passwords or device-bound encrypted envelopes.
+       password = "",
+       path = parser.getAttributeValue(null, "path") ?: "/",
+-      isAnonymous = parser.getAttributeValue(null, "isAnonymous")?.toBoolean() ?: false,
+-      lastConnected = parser.getAttributeValue(null, "lastConnected")?.toLongOrNull() ?: 0L,
++      isAnonymous = parser.getAttributeValue(null, "isAnonymous")?.toBooleanStrict() ?: false,
++      lastConnected = parser.getAttributeValue(null, "lastConnected")?.toLong() ?: 0L,
+       // Avoid repeated authentication attempts before credentials have been re-entered.
+       autoConnect = false,
+-      useHttps = parser.getAttributeValue(null, "useHttps")?.toBoolean() ?: false,
++      useHttps = parser.getAttributeValue(null, "useHttps")?.toBooleanStrict() ?: false,
+     )
+ 
+   fun getDefaultExportFilename(): String {
+diff --git a/app/src/main/java/com/quantummpv/app/ui/player/MPVView.kt b/app/src/main/java/com/quantummpv/app/ui/player/MPVView.kt
+index a85c9a5c..fd21dd6f 100644
+--- a/app/src/main/java/com/quantummpv/app/ui/player/MPVView.kt
++++ b/app/src/main/java/com/quantummpv/app/ui/player/MPVView.kt
+@@ -565,8 +565,8 @@ class MPVView(
+       }
+     PlaybackSession.setOptionString("blend-subtitles", blendMode)
+ 
++    PlaybackSession.setOptionString("sub-font-size", fontSize)
+     for ((prefix, pos) in listOf("sub-" to subPos.toString(), "secondary-sub-" to secondarySubPos.toString())) {
+-      PlaybackSession.setOptionString("${prefix}font-size", fontSize)
+       PlaybackSession.setOptionString("${prefix}bold", bold)
+       PlaybackSession.setOptionString("${prefix}italic", italic)
+       PlaybackSession.setOptionString("${prefix}justify", justify)
+diff --git a/app/src/main/java/com/quantummpv/app/ui/player/PlaybackSession.kt b/app/src/main/java/com/quantummpv/app/ui/player/PlaybackSession.kt
+index 0e46ee64..8090912c 100644
+--- a/app/src/main/java/com/quantummpv/app/ui/player/PlaybackSession.kt
++++ b/app/src/main/java/com/quantummpv/app/ui/player/PlaybackSession.kt
+@@ -24,6 +24,9 @@ import com.quantummpv.app.domain.network.XtreamPlaybackUri
+ import com.quantummpv.app.preferences.MpvConfigOverridePolicy
+ import `is`.xyz.mpv.MPVLib
+ import `is`.xyz.mpv.MPVNode
++import kotlinx.serialization.json.Json
++import kotlinx.serialization.json.JsonObject
++import kotlinx.serialization.json.JsonPrimitive
+ import kotlinx.coroutines.flow.MutableStateFlow
+ import kotlinx.coroutines.flow.StateFlow
+ import kotlinx.coroutines.flow.asStateFlow
+@@ -288,6 +291,10 @@ object PlaybackSession : MPVLib.EventObserver {
+           // headers may temporarily override it, but must not leak into the next item.
+           defaultUserAgent = MPVLib.getPropertyString("user-agent")
+           postInitOptions()
++          MPVLib.getPropertyString("vo")
++            ?.takeIf { it.isNotBlank() && it != "null" }
++            ?.let { desiredVideoOutput = it }
++          MPVLib.setPropertyString("vo", "null")
+           MPVLib.setOptionString("force-window", "no")
+           MPVLib.setOptionString("idle", "yes")
+           MPVLib.addObserver(this)
+@@ -884,6 +891,11 @@ object PlaybackSession : MPVLib.EventObserver {
+       MPVLib.setPropertyString("http-header-fields", headerFields)
+       MPVLib.setPropertyString("force-media-title", "")
+ 
++      if (!_state.value.surfaceAttached) {
++        MPVLib.setPropertyString("vo", "null")
++        MPVLib.setOptionString("force-window", "no")
++      }
++
+       // Disable the outgoing track only once this replacement request owns the native lock. Doing
+       // it during asynchronous URI preparation can blank playback even when that work is cancelled.
+       MPVLib.setPropertyString("vid", "no")
+@@ -998,6 +1010,17 @@ object PlaybackSession : MPVLib.EventObserver {
+ 
+   fun commandNode(vararg command: String): MPVNode? = withCore(null) { MPVLib.commandNode(*command) }
+ 
++  internal fun removeVideoFilter(label: String) {
++    val removal = arrayOf("vf", "remove", "@$label")
++    if (MpvConfigOverridePolicy.shouldSuppress(removal)) return
++    withCore(Unit) {
++      val filters = MPVLib.getPropertyNode("vf")?.toObject<List<JsonObject>>(Json).orEmpty()
++      if (filters.any { (it["label"] as? JsonPrimitive)?.content == label }) {
++        MPVLib.command(*removal)
++      }
++    }
++  }
++
+   fun observeProperty(
+     property: String,
+     format: Int,
+diff --git a/app/src/main/java/com/quantummpv/app/ui/player/PlayerActivity.kt b/app/src/main/java/com/quantummpv/app/ui/player/PlayerActivity.kt
+index 8a30f57a..df13ff04 100644
+--- a/app/src/main/java/com/quantummpv/app/ui/player/PlayerActivity.kt
++++ b/app/src/main/java/com/quantummpv/app/ui/player/PlayerActivity.kt
+@@ -4718,9 +4718,9 @@ class PlayerActivity :
+ 
+     PlaybackSession.setPropertyString("blend-subtitles", blendMode)
+ 
++    PlaybackSession.setPropertyInt("sub-font-size", fontSize)
+     for (prefix in listOf("sub-", "secondary-sub-")) {
+       PlaybackSession.setPropertyString("${prefix}font", font)
+-      PlaybackSession.setPropertyInt("${prefix}font-size", fontSize)
+       PlaybackSession.setPropertyBoolean("${prefix}bold", bold)
+       PlaybackSession.setPropertyBoolean("${prefix}italic", italic)
+       PlaybackSession.setPropertyString("${prefix}justify", justify)
+diff --git a/app/src/main/java/com/quantummpv/app/ui/player/PlayerViewModel.kt b/app/src/main/java/com/quantummpv/app/ui/player/PlayerViewModel.kt
+index cca4ccd5..79e41073 100644
+--- a/app/src/main/java/com/quantummpv/app/ui/player/PlayerViewModel.kt
++++ b/app/src/main/java/com/quantummpv/app/ui/player/PlayerViewModel.kt
+@@ -5272,7 +5272,7 @@ val isBrightnessSliderShown = MutableStateFlow(false)
+ 
+     var hwdecBackup: String? = null
+     try {
+-      PlaybackSession.command("vf", "remove", "@$AUTO_CROP_FILTER_LABEL")
++      PlaybackSession.removeVideoFilter(AUTO_CROP_FILTER_LABEL)
+       val activeHwdec = PlaybackSession.getPropertyString("hwdec-current").orEmpty()
+       val needsSoftwareFrames =
+         activeHwdec.isNotBlank() &&
+@@ -5316,7 +5316,7 @@ val isBrightnessSliderShown = MutableStateFlow(false)
+       if (!PlaybackSession.isCurrentGeneration(generation)) return AutoCropAnalysisResult.Unavailable
+       return metadata?.toAutoCropResult(sourceWidth, sourceHeight) ?: detectAutoCropFromCurrentFrames(generation)
+     } finally {
+-      PlaybackSession.command("vf", "remove", "@$AUTO_CROP_FILTER_LABEL")
++      PlaybackSession.removeVideoFilter(AUTO_CROP_FILTER_LABEL)
+       val backup = hwdecBackup
+       if (backup != null && PlaybackSession.getPropertyString("hwdec") == "no") {
+         PlaybackSession.setPropertyString("hwdec", backup)
+@@ -5502,7 +5502,7 @@ val isBrightnessSliderShown = MutableStateFlow(false)
+   }
+ 
+   private fun clearAutoCropProperty() {
+-    PlaybackSession.command("vf", "remove", "@$AUTO_CROP_FILTER_LABEL")
++    PlaybackSession.removeVideoFilter(AUTO_CROP_FILTER_LABEL)
+     PlaybackSession.setPropertyString("video-crop", "")
+     autoCropApplied = false
+   }
+@@ -5512,7 +5512,7 @@ val isBrightnessSliderShown = MutableStateFlow(false)
+     autoCropJob = null
+     autoCropReadinessJob?.cancel()
+     autoCropReadinessJob = null
+-    PlaybackSession.command("vf", "remove", "@$AUTO_CROP_FILTER_LABEL")
++    PlaybackSession.removeVideoFilter(AUTO_CROP_FILTER_LABEL)
+   }
+ 
+   private fun refreshStretchAspectAfterCropChange() {
+diff --git a/app/src/main/java/com/quantummpv/app/ui/player/SubtitlePositioning.kt b/app/src/main/java/com/quantummpv/app/ui/player/SubtitlePositioning.kt
+index 77b15c98..8969bdf2 100644
+--- a/app/src/main/java/com/quantummpv/app/ui/player/SubtitlePositioning.kt
++++ b/app/src/main/java/com/quantummpv/app/ui/player/SubtitlePositioning.kt
+@@ -44,7 +44,7 @@ fun getSubtitleHitboxBounds(
+   val lineHeightPx = (fontSize / 720f) * screenHeight * scaleMultiplier * 1.3f
+ 
+   // Estimate how many lines the subtitle actually occupies
+-  val subText = PlaybackSession.getPropertyString("sub-text") ?: ""
++  val subText = if (getTrackSelectionId("sid") > 0) PlaybackSession.getPropertyString("sub-text").orEmpty() else ""
+   val estimatedLines =
+     if (subText.isNotEmpty()) {
+       // Count explicit newlines first
+diff --git a/app/src/main/java/com/quantummpv/app/ui/player/controls/components/panels/SubtitleSettingsTypographyCard.kt b/app/src/main/java/com/quantummpv/app/ui/player/controls/components/panels/SubtitleSettingsTypographyCard.kt
+index 79422fbf..996c19d3 100644
+--- a/app/src/main/java/com/quantummpv/app/ui/player/controls/components/panels/SubtitleSettingsTypographyCard.kt
++++ b/app/src/main/java/com/quantummpv/app/ui/player/controls/components/panels/SubtitleSettingsTypographyCard.kt
+@@ -85,7 +85,7 @@ fun SubtitleSettingsTypographyCard(
+   val italicOptions = setOf("sub-italic", "secondary-sub-italic")
+   val justifyOptions = setOf("sub-ass-justify", "sub-justify", "secondary-sub-justify")
+   val fontOptions = setOf("sub-font", "secondary-sub-font")
+-  val fontSizeOptions = setOf("sub-font-size", "secondary-sub-font-size")
++  val fontSizeOptions = setOf("sub-font-size")
+   val borderStyleOptions = setOf("sub-border-style", "secondary-sub-border-style")
+   val borderSizeOptions =
+     setOf("sub-border-size", "sub-outline-size", "secondary-sub-border-size", "secondary-sub-outline-size")
+@@ -266,7 +266,6 @@ fun SubtitleSettingsTypographyCard(
+         onChange = {
+           preferences.fontSize.set(it)
+           PlaybackSession.setPropertyInt("sub-font-size", it)
+-          PlaybackSession.setPropertyInt("secondary-sub-font-size", it)
+         },
+         enabled = !ownsAny(fontSizeOptions),
+       ) {
+@@ -338,12 +337,12 @@ fun resetTypography(preferences: SubtitlesPreferences) {
+   val shadowOffset = preferences.shadowOffset.deleteAndGet()
+   val borderStyle = preferences.borderStyle.deleteAndGet().value
+ 
++  PlaybackSession.setPropertyInt("sub-font-size", fontSize)
+   for (prefix in listOf("sub-", "secondary-sub-")) {
+     PlaybackSession.setPropertyBoolean("${prefix}bold", bold)
+     PlaybackSession.setPropertyBoolean("${prefix}italic", italic)
+     PlaybackSession.setPropertyString("${prefix}justify", justify)
+     PlaybackSession.setPropertyString("${prefix}font", font)
+-    PlaybackSession.setPropertyInt("${prefix}font-size", fontSize)
+     PlaybackSession.setPropertyInt("${prefix}border-size", borderSize)
+     PlaybackSession.setPropertyInt("${prefix}outline-size", borderSize)
+     PlaybackSession.setPropertyInt("${prefix}shadow-offset", shadowOffset)
+diff --git a/app/src/main/java/com/quantummpv/app/ui/preferences/AppearancePreferencesScreen.kt b/app/src/main/java/com/quantummpv/app/ui/preferences/AppearancePreferencesScreen.kt
+index cf478095..10bb9a16 100644
+--- a/app/src/main/java/com/quantummpv/app/ui/preferences/AppearancePreferencesScreen.kt
++++ b/app/src/main/java/com/quantummpv/app/ui/preferences/AppearancePreferencesScreen.kt
+@@ -329,7 +329,7 @@ object AppearancePreferencesScreen : Screen {
+                     Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                       Text(stringResource(R.string.pref_appearance_custom_wallpaper_title), style = MaterialTheme.typography.titleMedium)
+                       Text(stringResource(R.string.pref_appearance_custom_wallpaper_summary), color = MaterialTheme.colorScheme.outline, style = MaterialTheme.typography.bodySmall)
+-                      if (customWallpaperUri.isNotBlank()) {
++                      if (customWallpaperUri.isNotBlank() && !customWallpaperUri.startsWith("data:", ignoreCase = true)) {
+                         Text(customWallpaperUri.substringAfterLast('/'), style = MaterialTheme.typography.bodySmall, maxLines = 1)
+                       }
+                       Row(
+@@ -349,7 +349,7 @@ object AppearancePreferencesScreen : Screen {
+                         }
+                         if (customWallpaperUri.isNotBlank()) {
+                           OutlinedButton(
+-                            onClick = { backstack.navigateTo(WallpaperEditorScreen(customWallpaperUri)) },
++                            onClick = { backstack.navigateTo(WallpaperEditorScreen()) },
+                             modifier = Modifier.weight(1f),
+                             contentPadding = PaddingValues(horizontal = 8.dp),
+                           ) {
+diff --git a/app/src/main/java/com/quantummpv/app/ui/preferences/WallpaperEditorScreen.kt b/app/src/main/java/com/quantummpv/app/ui/preferences/WallpaperEditorScreen.kt
+index c5a9badf..6a5fdeba 100644
+--- a/app/src/main/java/com/quantummpv/app/ui/preferences/WallpaperEditorScreen.kt
++++ b/app/src/main/java/com/quantummpv/app/ui/preferences/WallpaperEditorScreen.kt
+@@ -77,7 +77,7 @@ import org.koin.compose.koinInject
+ 
+ @Serializable
+ data class WallpaperEditorScreen(
+-  val sourceUri: String,
++  val sourceUri: String = "",
+ ) : Screen {
+   @OptIn(ExperimentalMaterial3Api::class)
+   @Composable
+@@ -85,10 +85,11 @@ data class WallpaperEditorScreen(
+     val context = LocalContext.current
+     val backStack = LocalBackStack.current
+     val preferences = koinInject<AppearancePreferences>()
++    val resolvedSource = remember(sourceUri) { sourceUri.ifBlank { preferences.customWallpaperUri.get() } }
+     val scope = rememberCoroutineScope()
+     var isSaving by remember { mutableStateOf(false) }
+     BackHandler(enabled = isSaving) { }
+-    val isEditingCurrent = sourceUri == preferences.customWallpaperUri.get()
++    val isEditingCurrent = sourceUri.isBlank() || sourceUri == preferences.customWallpaperUri.get()
+     var zoom by rememberSaveable(sourceUri) {
+       mutableStateOf(if (isEditingCurrent) preferences.customWallpaperZoom.get() else 1f)
+     }
+@@ -108,8 +109,8 @@ data class WallpaperEditorScreen(
+       mutableStateOf(if (isEditingCurrent) preferences.customWallpaperAlpha.get() else 1f)
+     }
+     val bitmap =
+-      produceState<Bitmap?>(initialValue = null, sourceUri) {
+-        val loaded = withContext(Dispatchers.IO) { loadWallpaperBitmap(context, sourceUri) }
++      produceState<Bitmap?>(initialValue = null, resolvedSource) {
++        val loaded = withContext(Dispatchers.IO) { loadWallpaperBitmap(context, resolvedSource) }
+         value = loaded
+       }.value
+     DisposableEffect(bitmap) {
+@@ -140,7 +141,7 @@ data class WallpaperEditorScreen(
+                 isSaving = true
+                 scope.launch {
+                   try {
+-                    val savedUri = saveWallpaperCopy(context, sourceUri)
++                    val savedUri = saveWallpaperCopy(context, resolvedSource)
+                     preferences.customWallpaperZoom.set(zoom)
+                     preferences.customWallpaperOffsetX.set(offsetX)
+                     preferences.customWallpaperOffsetY.set(offsetY)
+diff --git a/app/src/main/java/com/quantummpv/app/ui/theme/AppWallpaper.kt b/app/src/main/java/com/quantummpv/app/ui/theme/AppWallpaper.kt
+index 352185ac..65d51877 100644
+--- a/app/src/main/java/com/quantummpv/app/ui/theme/AppWallpaper.kt
++++ b/app/src/main/java/com/quantummpv/app/ui/theme/AppWallpaper.kt
+@@ -173,24 +173,23 @@ suspend fun saveWallpaperCopy(
+   context: android.content.Context,
+   sourceUri: String,
+ ): String = withContext(Dispatchers.IO) {
+-  val directory = java.io.File(context.filesDir, "wallpapers")
+-  check(directory.isDirectory || directory.mkdirs())
+-  val uri = Uri.parse(sourceUri)
+-  val sourceFile = if (uri.scheme.equals("file", ignoreCase = true)) uri.path?.let { java.io.File(it) } else null
+-  if (sourceFile != null && sourceFile.parentFile?.canonicalFile == directory.canonicalFile && sourceFile.isFile) {
+-    return@withContext sourceUri
++  val bitmap = requireNotNull(loadWallpaperBitmap(context, sourceUri)) {
++    context.getString(com.quantummpv.app.R.string.wallpaper_save_failed)
+   }
+-  val destination = java.io.File.createTempFile("wallpaper_", ".image", directory)
+   try {
+-    val input = sourceFile?.inputStream() ?: context.contentResolver.openInputStream(uri)
+-    requireNotNull(input).use { source ->
+-      destination.outputStream().use { output -> source.copyTo(output) }
++    if (sourceUri.startsWith(WALLPAPER_DATA_PREFIX)) return@withContext sourceUri
++    val output = java.io.ByteArrayOutputStream()
++    android.util.Base64OutputStream(output, android.util.Base64.NO_WRAP).use { encodedStream ->
++      check(bitmap.compress(Bitmap.CompressFormat.PNG, 100, encodedStream)) {
++        context.getString(com.quantummpv.app.R.string.wallpaper_save_failed)
++      }
++    }
++    require(output.size() <= MAX_WALLPAPER_ENCODED_LENGTH) {
++      context.getString(com.quantummpv.app.R.string.wallpaper_save_failed)
+     }
+-    check(destination.length() > 0)
+-    Uri.fromFile(destination).toString()
+-  } catch (error: Exception) {
+-    destination.delete()
+-    throw error
++    WALLPAPER_DATA_PREFIX + output.toString(Charsets.US_ASCII.name())
++  } finally {
++    bitmap.recycle()
+   }
+ }
+ 
+@@ -200,8 +199,23 @@ fun loadWallpaperBitmap(
+ ): Bitmap? =
+   runCatching {
+     val uri = Uri.parse(wallpaperUri)
++    if (uri.scheme.equals("file", ignoreCase = true)) {
++      val file = uri.path?.let { java.io.File(it) }?.takeIf { it.isFile && it.canRead() } ?: return@runCatching null
++      if (file.length() == 0L) return@runCatching null
++    }
++    val imageBytes = if (uri.scheme.equals("data", ignoreCase = true)) {
++      val header = wallpaperUri.substringBefore(',')
++      if (!header.startsWith("data:image/", ignoreCase = true) || !header.endsWith(";base64", ignoreCase = true)) {
++        return@runCatching null
++      }
++      val encoded = wallpaperUri.substringAfter(',', "")
++      if (encoded.isEmpty() || encoded.length > MAX_WALLPAPER_ENCODED_LENGTH) return@runCatching null
++      android.util.Base64.decode(encoded, android.util.Base64.DEFAULT)
++    } else null
+     fun decode(options: BitmapFactory.Options): Bitmap? =
+-      if (uri.scheme.equals("file", ignoreCase = true)) {
++      if (imageBytes != null) {
++        BitmapFactory.decodeByteArray(imageBytes, 0, imageBytes.size, options)
++      } else if (uri.scheme.equals("file", ignoreCase = true)) {
+         BitmapFactory.decodeFile(uri.path, options)
+       } else {
+         context.contentResolver.openInputStream(uri)?.use { stream ->
+@@ -211,6 +225,7 @@ fun loadWallpaperBitmap(
+ 
+     val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
+     decode(bounds)
++    if (bounds.outWidth <= 0 || bounds.outHeight <= 0) return@runCatching null
+     var sampleSize = 1
+     while (maxOf(bounds.outWidth, bounds.outHeight) / sampleSize > MAX_WALLPAPER_DIMENSION_PX) {
+       sampleSize *= 2
+@@ -218,5 +233,7 @@ fun loadWallpaperBitmap(
+     decode(BitmapFactory.Options().apply { inSampleSize = sampleSize })
+   }.getOrNull()
+ 
++private const val WALLPAPER_DATA_PREFIX = "data:image/png;base64,"
++private const val MAX_WALLPAPER_ENCODED_LENGTH = 40 * 1024 * 1024
+ private const val MAX_WALLPAPER_DIMENSION_PX = 2560
+ private const val WALLPAPER_RECYCLE_DELAY_MS = 120L
+-- 
+2.25.1
+

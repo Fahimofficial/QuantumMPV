@@ -69,6 +69,8 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 import org.koin.core.component.KoinComponent
 import org.koin.core.component.inject
@@ -272,6 +274,7 @@ class MediaPlaybackService :
   private var lastPaletteThumbnail: Bitmap? = null
   private var lastThumbnailSource: WeakReference<Bitmap>? = null
   private val serviceScope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
+  private val playbackStateMutex = Mutex()
   private var playbackStateSaveJob: Job? = null
   private var favoriteStateJob: Job? = null
   private var favoriteActionJob: Job? = null
@@ -1785,6 +1788,7 @@ class MediaPlaybackService :
   ) {
     if (identifier.isBlank() || capturedSnapshot.mediaIdentifier != identifier) return
 
+    playbackStateMutex.withLock {
     runCatching {
       val oldState = playbackStateRepository.getVideoDataByTitle(identifier)
       val snapshot =
@@ -1802,6 +1806,7 @@ class MediaPlaybackService :
         )
       playbackStateRepository.upsert(playbackState)
       PlaybackStateEvents.notifyChanged(identifier)
+    }
     }.onFailure { error ->
       Log.e(TAG, "Error saving playback state from service", error)
     }
@@ -1853,8 +1858,8 @@ class MediaPlaybackService :
     fallback: Int,
   ): Int =
     runCatching {
-      PlaybackSession.getPropertyDouble(property)?.toInt()
-        ?: PlaybackSession.getPropertyInt(property)
+      PlaybackSession.propDouble[property].value?.toInt()
+        ?: PlaybackSession.propInt[property].value
         ?: fallback
     }.getOrDefault(fallback)
 
@@ -1863,7 +1868,7 @@ class MediaPlaybackService :
     fallback: Double,
   ): Double =
     runCatching {
-      PlaybackSession.getPropertyDouble(property) ?: fallback
+      PlaybackSession.propDouble[property].value ?: fallback
     }.getOrDefault(fallback)
 
   private fun readMpvTrackId(
@@ -1871,7 +1876,7 @@ class MediaPlaybackService :
     fallback: Int,
   ): Int =
     runCatching {
-      when (val value = PlaybackSession.getPropertyString(property)) {
+      when (val value = PlaybackSession.propString[property].value) {
         null -> fallback
         "no" -> -1
         else -> value.toIntOrNull() ?: fallback

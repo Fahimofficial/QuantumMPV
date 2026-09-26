@@ -4919,15 +4919,16 @@ private suspend fun restorePlaybackPosition(state: PlaybackStateEntity?) {
   if (state == null || viewModel.isAudioOnly.value || isCurrentMediaKnownAudio()) return
 
   val resumeMode = playerPreferences.resumePlaybackMode.get()
-  val hasValidSavedPosition = state.lastPosition > 3
+  val isEffectivelyAtEnd = state.timeRemaining in 1..5
+  val hasValidSavedPosition = state.lastPosition > 3 && !isEffectivelyAtEnd
   if (!playerPreferences.savePositionOnQuit.get() || !hasValidSavedPosition) {
-    PlaybackSession.setPropertyInt("time-pos", 0)
+    PlaybackSession.commandNode("set", "time-pos", "0")
     return
   }
 
   when (resumeMode) {
     ResumePlaybackMode.Always -> {
-      PlaybackSession.setPropertyInt("time-pos", state.lastPosition)
+      PlaybackSession.commandNode("set", "time-pos", state.lastPosition.toString())
       if (playerPreferences.showResumeIndicatorOverlay.get()) {
         withContext(Dispatchers.Main) {
           viewModel.playerUpdate.value = PlayerUpdates.ResumedFrom(state.lastPosition)
@@ -4936,14 +4937,14 @@ private suspend fun restorePlaybackPosition(state: PlaybackStateEntity?) {
     }
 
     ResumePlaybackMode.Ask -> {
-      PlaybackSession.setPropertyInt("time-pos", 0)
+      PlaybackSession.commandNode("set", "time-pos", "0")
       withContext(Dispatchers.Main) {
         viewModel.playerUpdate.value = PlayerUpdates.ResumeAvailable(state.lastPosition)
       }
     }
 
     ResumePlaybackMode.Never -> {
-      PlaybackSession.setPropertyInt("time-pos", 0)
+      PlaybackSession.commandNode("set", "time-pos", "0")
       if (playerPreferences.showResumeIndicatorOverlay.get()) {
         withContext(Dispatchers.Main) {
           viewModel.playerUpdate.value = PlayerUpdates.StartedAfresh
