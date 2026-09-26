@@ -6,7 +6,7 @@ These notes are written in plain English and focus on changes that matter in eve
 
 The first stable QuantumMPV 1.1.0 release, bringing the current playback, library, streaming, download, appearance, and branding work together in one public build.
 
-### What's New
+### What's Changed
 
 - **Liquid Glass appearance option**: Added an opt-in appearance switch for translucent glass treatments while keeping the solid, battery-friendly default experience.
 - **Appearance polish**: Refined settings cards, bottom navigation, Home accents, motion behavior, and contrast across light and dark themes.
