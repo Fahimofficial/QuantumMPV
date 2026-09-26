@@ -111,6 +111,8 @@ object PlaybackSession : MPVLib.EventObserver {
       "percent-pos",
     )
 
+  private var desiredVideoOutput: String? = null
+
   private enum class EndFileReason {
     EOF,
     STOP,
@@ -250,6 +252,10 @@ object PlaybackSession : MPVLib.EventObserver {
           // headers may temporarily override it, but must not leak into the next item.
           defaultUserAgent = MPVLib.getPropertyString("user-agent")
           postInitOptions()
+          MPVLib.getPropertyString("vo")
+            ?.takeIf { it.isNotBlank() && it != "null" }
+            ?.let { desiredVideoOutput = it }
+
           MPVLib.setOptionString("force-window", "no")
           MPVLib.setOptionString("idle", "yes")
           MPVLib.addObserver(this)
@@ -1167,6 +1173,13 @@ object PlaybackSession : MPVLib.EventObserver {
     property: String,
     value: String,
   ) {
+    if (desiredVideoOutput != null && property == "vo" && value != desiredVideoOutput) {
+      if (value != "null" && value.isNotBlank()) {
+        desiredVideoOutput = value
+      } else {
+        MPVLib.setPropertyString("vo", desiredVideoOutput!!)
+      }
+    }
     propString.emit(property, value)
     observerSnapshot().forEach { observer -> runCatching { observer.eventProperty(property, value) } }
   }

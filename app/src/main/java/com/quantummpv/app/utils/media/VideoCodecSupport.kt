@@ -26,10 +26,35 @@ data class VideoCodecSupport(
 )
 
 object VideoCodecSupportInspector {
+  private val mpvCodecIdsByMimeType =
+    linkedMapOf(
+      "video/avc" to "h264",
+      "video/hevc" to "hevc",
+      "video/av01" to "av1",
+      "video/x-vnd.on2.vp9" to "vp9",
+      "video/x-vnd.on2.vp8" to "vp8",
+      "video/mpeg2" to "mpeg2video",
+      "video/mp4v-es" to "mpeg4",
+      "video/wvc1" to "vc1",
+      "video/3gpp" to "h263",
+    )
+
   private data class DecoderCapability(
     val isHardware: Boolean,
     val videoCapabilities: MediaCodecInfo.VideoCapabilities?,
   )
+
+  private val hardwareDecoderMimeTypes by lazy(LazyThreadSafetyMode.SYNCHRONIZED) {
+    runCatching {
+      MediaCodecList(MediaCodecList.ALL_CODECS).codecInfos
+        .asSequence()
+        .filterNot { it.isEncoder }
+        .filter(::isHardwareDecoder)
+        .flatMap { it.supportedTypes.asSequence() }
+        .map { it.lowercase() }
+        .toSet()
+    }.getOrDefault(emptySet())
+  }
 
   private val decoderCapabilities by lazy(LazyThreadSafetyMode.SYNCHRONIZED) {
     val capabilities = mutableMapOf<String, MutableList<DecoderCapability>>()
@@ -38,12 +63,7 @@ object VideoCodecSupportInspector {
         .asSequence()
         .filterNot { it.isEncoder }
         .forEach { codecInfo ->
-          val isHardware =
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-              codecInfo.isHardwareAccelerated
-            } else {
-              !isSoftwareDecoder(codecInfo.name)
-            }
+          val isHardware = isHardwareDecoder(codecInfo)
           codecInfo.supportedTypes.forEach { mimeType ->
             val key = mimeType.lowercase()
             val videoCapabilities =
@@ -59,6 +79,11 @@ object VideoCodecSupportInspector {
     }
     capabilities
   }
+
+  fun hardwareDecoderCodecIds(): List<String> =
+    mpvCodecIdsByMimeType.mapNotNull { (mimeType, codecId) ->
+      codecId.takeIf { mimeType in hardwareDecoderMimeTypes }
+    }
 
   fun descriptor(
     format: String,
@@ -137,6 +162,13 @@ object VideoCodecSupportInspector {
       }
     }.getOrDefault(false)
   }
+
+  private fun isHardwareDecoder(codecInfo: MediaCodecInfo): Boolean =
+    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+      codecInfo.isHardwareAccelerated
+    } else {
+      !isSoftwareDecoder(codecInfo.name)
+    }
 
   private fun isSoftwareDecoder(name: String): Boolean {
     val normalized = name.lowercase()

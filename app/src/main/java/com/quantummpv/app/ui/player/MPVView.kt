@@ -37,6 +37,7 @@ import com.quantummpv.app.ui.player.anime4k.selectRuntimeStableAnime4K
 import com.quantummpv.app.ui.player.controls.components.panels.toColorHexString
 import com.quantummpv.app.ui.player.ytdlp.YtdlpManager
 import com.quantummpv.app.utils.device.VulkanCapabilities
+import com.quantummpv.app.utils.media.VideoCodecSupportInspector
 import `is`.xyz.mpv.BaseMPVView
 import `is`.xyz.mpv.KeyMapping
 import `is`.xyz.mpv.MPVLib
@@ -215,11 +216,14 @@ class MPVView(
 
     // Fongmi can map direct MediaCodec frames into Vulkan; other Vulkan builds start with copy mode.
     if (!MpvConfigOverridePolicy.ownsAny(MpvConfigControlledFeatures.HARDWARE_DECODER)) {
+      val hardwareDecoderCodecs = VideoCodecSupportInspector.hardwareDecoderCodecIds()
       PlaybackSession.setOptionString(
         "hwdec",
-        hwdecMode,
+        if (hardwareDecoderCodecs.isEmpty()) "no" else hwdecMode,
       )
-      PlaybackSession.setOptionString("hwdec-codecs", "all")
+      if (hardwareDecoderCodecs.isNotEmpty()) {
+        PlaybackSession.setOptionString("hwdec-codecs", hardwareDecoderCodecs.joinToString(","))
+      }
     }
 
     // These were forced on between the last known-good build (e3b1de8) and the first build
