@@ -185,93 +185,93 @@ class VideoListViewModel(
   }
 
   private suspend fun loadVideosInternal(forceFileSystemCheck: Boolean = false) {
-      try {
-        // First attempt to load videos (basic info from MediaStore)
-        var videoList =
+    try {
+      // First attempt to load videos (basic info from MediaStore)
+      var videoList =
+        MediaFileRepository.getVideosInFolder(
+          getApplication(),
+          bucketId,
+          forceFileSystemCheck = forceFileSystemCheck,
+          includeAudioOverride = if (includeAudio) true else null,
+        )
+      if (includeAudio) {
+        videoList = videoList.filter { it.isAudio }
+      }
+
+      // Enrich with metadata only if chips are enabled
+      if (MetadataRetrieval.isVideoMetadataNeeded(browserPreferences)) {
+        Log.d(tag, "Metadata chips enabled, enriching ${videoList.size} videos")
+        videoList =
+          MetadataRetrieval.enrichVideosIfNeeded(
+            context = getApplication(),
+            videos = videoList,
+            browserPreferences = browserPreferences,
+            metadataCache = metadataCache,
+          )
+      } else {
+        Log.d(tag, "Metadata chips disabled, skipping metadata extraction")
+      }
+
+      // Check if folder became empty after having videos
+      if (previousVideoCount > 0 && videoList.isEmpty()) {
+        _videosWereDeletedOrMoved.value = true
+        Log.d(tag, "Folder became empty (had $previousVideoCount videos before)")
+      } else if (videoList.isNotEmpty()) {
+        // Reset flag if folder now has videos
+        _videosWereDeletedOrMoved.value = false
+      }
+
+      // Update previous count
+      previousVideoCount = videoList.size
+
+      if (videoList.isEmpty()) {
+        Log.d(tag, "No videos found for bucket $bucketId - attempting media rescan")
+        triggerMediaScan()
+        delay(1000)
+        var retryVideoList =
           MediaFileRepository.getVideosInFolder(
             getApplication(),
             bucketId,
-            forceFileSystemCheck = forceFileSystemCheck,
+            forceFileSystemCheck = true,
             includeAudioOverride = if (includeAudio) true else null,
           )
         if (includeAudio) {
-          videoList = videoList.filter { it.isAudio }
+          retryVideoList = retryVideoList.filter { it.isAudio }
         }
 
-        // Enrich with metadata only if chips are enabled
+        // Enrich retry list if needed
         if (MetadataRetrieval.isVideoMetadataNeeded(browserPreferences)) {
-          Log.d(tag, "Metadata chips enabled, enriching ${videoList.size} videos")
-          videoList =
+          retryVideoList =
             MetadataRetrieval.enrichVideosIfNeeded(
               context = getApplication(),
-              videos = videoList,
+              videos = retryVideoList,
               browserPreferences = browserPreferences,
               metadataCache = metadataCache,
             )
-        } else {
-          Log.d(tag, "Metadata chips disabled, skipping metadata extraction")
         }
 
-        // Check if folder became empty after having videos
-        if (previousVideoCount > 0 && videoList.isEmpty()) {
+        // Update count after retry
+        if (previousVideoCount > 0 && retryVideoList.isEmpty()) {
           _videosWereDeletedOrMoved.value = true
-          Log.d(tag, "Folder became empty (had $previousVideoCount videos before)")
-        } else if (videoList.isNotEmpty()) {
-          // Reset flag if folder now has videos
+        } else if (retryVideoList.isNotEmpty()) {
           _videosWereDeletedOrMoved.value = false
         }
+        previousVideoCount = retryVideoList.size
 
-        // Update previous count
-        previousVideoCount = videoList.size
-
-        if (videoList.isEmpty()) {
-          Log.d(tag, "No videos found for bucket $bucketId - attempting media rescan")
-          triggerMediaScan()
-          delay(1000)
-          var retryVideoList =
-            MediaFileRepository.getVideosInFolder(
-              getApplication(),
-              bucketId,
-              forceFileSystemCheck = true,
-              includeAudioOverride = if (includeAudio) true else null,
-            )
-          if (includeAudio) {
-            retryVideoList = retryVideoList.filter { it.isAudio }
-          }
-
-          // Enrich retry list if needed
-          if (MetadataRetrieval.isVideoMetadataNeeded(browserPreferences)) {
-            retryVideoList =
-              MetadataRetrieval.enrichVideosIfNeeded(
-                context = getApplication(),
-                videos = retryVideoList,
-                browserPreferences = browserPreferences,
-                metadataCache = metadataCache,
-              )
-          }
-
-          // Update count after retry
-          if (previousVideoCount > 0 && retryVideoList.isEmpty()) {
-            _videosWereDeletedOrMoved.value = true
-          } else if (retryVideoList.isNotEmpty()) {
-            _videosWereDeletedOrMoved.value = false
-          }
-          previousVideoCount = retryVideoList.size
-
-          _videos.value = retryVideoList
-          loadPlaybackInfo(retryVideoList)
-        } else {
-          _videos.value = videoList
-          loadPlaybackInfo(videoList)
-        }
-      } catch (e: Exception) {
-        Log.e(tag, "Error loading videos for bucket $bucketId", e)
-        _videos.value = emptyList()
-        _videosWithPlaybackInfo.value = emptyList()
-      } finally {
-        _isLoading.value = false
-    }
+        _videos.value = retryVideoList
+        loadPlaybackInfo(retryVideoList)
+      } else {
+        _videos.value = videoList
+        loadPlaybackInfo(videoList)
+      }
+    } catch (e: Exception) {
+      Log.e(tag, "Error loading videos for bucket $bucketId", e)
+      _videos.value = emptyList()
+      _videosWithPlaybackInfo.value = emptyList()
+    } finally {
+      _isLoading.value = false
   }
+}
 
   /**
    * Set flag indicating videos were deleted or moved

@@ -424,118 +424,118 @@ class FileSystemBrowserViewModel(
   }
 
   private suspend fun loadCurrentDirectoryInternal(forceFileSystemCheck: Boolean = false) {
-      _isLoading.value = true
-      _error.value = null
-      // Don't reset the flag here - let navigation handle it
+    _isLoading.value = true
+    _error.value = null
+    // Don't reset the flag here - let navigation handle it
 
-      try {
-        val path = _currentPath.value
+    try {
+      val path = _currentPath.value
 
-        // Special case: Show storage roots at the special marker
-        // Similar to Fossify's StoragePickerDialog logic
-        if (path == STORAGE_ROOTS_MARKER) {
-          Log.d(TAG, "Loading storage roots")
-          _breadcrumbs.value = emptyList()
-          val roots = MediaFileRepository.getStorageRoots(getApplication(), forceFileSystemCheck)
-          _unsortedItems.value = roots
-          _videoFilesWithPlayback.value = emptyMap()
-          _newVideoIds.value = emptySet()
-          _watchedVideoIds.value = emptySet()
-          Log.d(TAG, "Loaded ${roots.size} storage roots")
-        } else {
-          // Update breadcrumbs for real paths
-          // Similar to Fossify's Breadcrumbs.setBreadcrumb()
-          _breadcrumbs.value = MediaFileRepository.getPathComponents(path)
-          Log.d(TAG, "Breadcrumbs updated: ${_breadcrumbs.value.size} components")
-
-          // Get hidden files preference
-          // Scan directory - equivalent to Fossify's getRegularItemsOf()
-          // Always show only videos (showAllFileTypes = false)
-          MediaFileRepository
-            .scanDirectory(
-              getApplication(),
-              path,
-              showAllFileTypes = false,
-              forceFileSystemCheck = forceFileSystemCheck,
-            ).onSuccess { items ->
-              // Get previous count for this path
-              val previousCount = itemCountByPath[path] ?: 0
-
-              // Check if folder became empty after having items
-              if (previousCount > 0 && items.isEmpty()) {
-                _itemsWereDeletedOrMoved.value = true
-                Log.d(TAG, "Folder became empty (had $previousCount items before)")
-              } else if (items.isNotEmpty()) {
-                // Reset flag if folder now has items
-                _itemsWereDeletedOrMoved.value = false
-              }
-
-              // Update count for this path
-              itemCountByPath[path] = items.size
-
-              _unsortedItems.value = items
-
-              val folderCount = items.filterIsInstance<FileSystemItem.Folder>().size
-              val videoCount = items.filterIsInstance<FileSystemItem.VideoFile>().size
-              Log.d(TAG, "Loaded directory: $path with $folderCount folders, $videoCount videos")
-
-              // Enrich videos with metadata if chips are enabled
-              val enrichedItems =
-                if (MetadataRetrieval.isVideoMetadataNeeded(browserPreferences)) {
-                  Log.d(TAG, "Metadata chips enabled, enriching $videoCount videos")
-                  val videoFiles = items.filterIsInstance<FileSystemItem.VideoFile>()
-                  val videos = videoFiles.map { it.video }
-                  val enrichedVideos =
-                    MetadataRetrieval.enrichVideosIfNeeded(
-                      context = getApplication(),
-                      videos = videos,
-                      browserPreferences = browserPreferences,
-                      metadataCache = metadataCache,
-                    )
-
-                  // Replace videos in items with enriched versions
-                  val enrichedVideoMap = enrichedVideos.associateBy { it.id }
-                  items.map { item ->
-                    when (item) {
-                      is FileSystemItem.VideoFile -> {
-                        val enrichedVideo = enrichedVideoMap[item.video.id]
-                        if (enrichedVideo != null) {
-                          item.copy(video = enrichedVideo)
-                        } else {
-                          item
-                        }
-                      }
-                      else -> item
-                    }
-                  }
-                } else {
-                  items
-                }
-
-              _unsortedItems.value = enrichedItems
-
-              // Load playback info and NEW-state data for videos in the current tree view.
-              applyPlaybackState(enrichedItems)
-            }.onFailure { error ->
-              _error.value = error.message
-              _unsortedItems.value = emptyList()
-              _videoFilesWithPlayback.value = emptyMap()
-              _newVideoIds.value = emptySet()
-              _watchedVideoIds.value = emptySet()
-              Log.e(TAG, "Error loading directory: $path", error)
-            }
-        }
-      } catch (e: Exception) {
-        _error.value = e.message
-        _unsortedItems.value = emptyList()
+      // Special case: Show storage roots at the special marker
+      // Similar to Fossify's StoragePickerDialog logic
+      if (path == STORAGE_ROOTS_MARKER) {
+        Log.d(TAG, "Loading storage roots")
+        _breadcrumbs.value = emptyList()
+        val roots = MediaFileRepository.getStorageRoots(getApplication(), forceFileSystemCheck)
+        _unsortedItems.value = roots
         _videoFilesWithPlayback.value = emptyMap()
         _newVideoIds.value = emptySet()
         _watchedVideoIds.value = emptySet()
-        Log.e(TAG, "Exception loading directory", e)
-      } finally {
-        _isLoading.value = false
-    }
+        Log.d(TAG, "Loaded ${roots.size} storage roots")
+      } else {
+        // Update breadcrumbs for real paths
+        // Similar to Fossify's Breadcrumbs.setBreadcrumb()
+        _breadcrumbs.value = MediaFileRepository.getPathComponents(path)
+        Log.d(TAG, "Breadcrumbs updated: ${_breadcrumbs.value.size} components")
+
+        // Get hidden files preference
+        // Scan directory - equivalent to Fossify's getRegularItemsOf()
+        // Always show only videos (showAllFileTypes = false)
+        MediaFileRepository
+          .scanDirectory(
+            getApplication(),
+            path,
+            showAllFileTypes = false,
+            forceFileSystemCheck = forceFileSystemCheck,
+          ).onSuccess { items ->
+            // Get previous count for this path
+            val previousCount = itemCountByPath[path] ?: 0
+
+            // Check if folder became empty after having items
+            if (previousCount > 0 && items.isEmpty()) {
+              _itemsWereDeletedOrMoved.value = true
+              Log.d(TAG, "Folder became empty (had $previousCount items before)")
+            } else if (items.isNotEmpty()) {
+              // Reset flag if folder now has items
+              _itemsWereDeletedOrMoved.value = false
+            }
+
+            // Update count for this path
+            itemCountByPath[path] = items.size
+
+            _unsortedItems.value = items
+
+            val folderCount = items.filterIsInstance<FileSystemItem.Folder>().size
+            val videoCount = items.filterIsInstance<FileSystemItem.VideoFile>().size
+            Log.d(TAG, "Loaded directory: $path with $folderCount folders, $videoCount videos")
+
+            // Enrich videos with metadata if chips are enabled
+            val enrichedItems =
+              if (MetadataRetrieval.isVideoMetadataNeeded(browserPreferences)) {
+                Log.d(TAG, "Metadata chips enabled, enriching $videoCount videos")
+                val videoFiles = items.filterIsInstance<FileSystemItem.VideoFile>()
+                val videos = videoFiles.map { it.video }
+                val enrichedVideos =
+                  MetadataRetrieval.enrichVideosIfNeeded(
+                    context = getApplication(),
+                    videos = videos,
+                    browserPreferences = browserPreferences,
+                    metadataCache = metadataCache,
+                  )
+
+                // Replace videos in items with enriched versions
+                val enrichedVideoMap = enrichedVideos.associateBy { it.id }
+                items.map { item ->
+                  when (item) {
+                    is FileSystemItem.VideoFile -> {
+                      val enrichedVideo = enrichedVideoMap[item.video.id]
+                      if (enrichedVideo != null) {
+                        item.copy(video = enrichedVideo)
+                      } else {
+                        item
+                      }
+                    }
+                    else -> item
+                  }
+                }
+              } else {
+                items
+              }
+
+            _unsortedItems.value = enrichedItems
+
+            // Load playback info and NEW-state data for videos in the current tree view.
+            applyPlaybackState(enrichedItems)
+          }.onFailure { error ->
+            _error.value = error.message
+            _unsortedItems.value = emptyList()
+            _videoFilesWithPlayback.value = emptyMap()
+            _newVideoIds.value = emptySet()
+            _watchedVideoIds.value = emptySet()
+            Log.e(TAG, "Error loading directory: $path", error)
+          }
+      }
+    } catch (e: Exception) {
+      _error.value = e.message
+      _unsortedItems.value = emptyList()
+      _videoFilesWithPlayback.value = emptyMap()
+      _newVideoIds.value = emptySet()
+      _watchedVideoIds.value = emptySet()
+      Log.e(TAG, "Exception loading directory", e)
+    } finally {
+      _isLoading.value = false
   }
+}
 
   /**
    * Load playback progress information for video files

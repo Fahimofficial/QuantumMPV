@@ -186,7 +186,7 @@ class YtdlpDownloadEngine(
     } else {
       "${job.directory}/$sanitizedTitle-${job.id}-%(extractor)s-%(id)s.%(ext)s"
     }
-    
+
     val command = buildCommand(job.url, outputTemplate, job.formatSelector)
 
     val result =
@@ -341,7 +341,7 @@ class YtdlpDownloadEngine(
       if (!file.isFile) return@forEach
       val isNewScheme = file.name.contains(newSchemeMarker)
       val isLegacyScheme = file.name.startsWith("$sanitizedTitle.") && !file.name.contains("-${job.id}-")
-      
+
       if (isNewScheme) {
         // Safe to delete anything matching the unique marker (including temp .f* files, .part, .ytdl, or completed files)
         file.delete()
