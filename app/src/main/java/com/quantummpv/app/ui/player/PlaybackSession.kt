@@ -358,11 +358,11 @@ object PlaybackSession : MPVLib.EventObserver {
    * they must not change video-track selection or disturb the live demuxer/cache.
    */
   private fun detachRendererSurfaceLocked() {
+    attachedSurfaceOwner = null
+    updateState { it.copy(surfaceAttached = false) }
     runCatching { MPVLib.setPropertyString("vo", "null") }
     runCatching { MPVLib.setOptionString("force-window", "no") }
     runCatching { MPVLib.detachSurface() }
-    attachedSurfaceOwner = null
-    updateState { it.copy(surfaceAttached = false) }
   }
 
   fun setVideoOutput(videoOutput: String) {
@@ -1174,7 +1174,7 @@ object PlaybackSession : MPVLib.EventObserver {
     if (property == "vo" && value != desiredVideoOutput) {
       if (value != "null" && value.isNotBlank()) {
         desiredVideoOutput = value
-      } else {
+      } else if (attachedSurfaceOwner != null) {
         MPVLib.setPropertyString("vo", desiredVideoOutput)
       }
     }
