@@ -21,7 +21,7 @@ import kotlin.math.abs
 fun lcm(
   a: Int,
   b: Int,
-): Int = if (a == 0 || b == 0) 0 else abs(a * b) / gcd(a, b)
+): Int = if (a == 0 || b == 0) 0 else abs(a * b) / abs(gcd(a, b))
 
 fun gcd(
   a: Int,
@@ -34,30 +34,20 @@ data class ResponsiveGridSpans(
   val videoSpan: Int,
 )
 
-@Composable
-fun calculateResponsiveGridSpans(
+fun calculateGridSpans(
+  isGridMode: Boolean,
+  manualGridColumnsEnabled: Boolean,
+  folderGridColumnsPref: Int,
+  videoGridColumnsPref: Int,
   maxWidth: Dp,
-  folderMinWidth: Dp = 100.dp,
-  videoMinWidth: Dp = 130.dp,
-  contentHorizontalPadding: Dp = 8.dp,
-  itemSpacing: Dp = 2.dp,
-  isGridMode: Boolean = true,
+  contentHorizontalPadding: Dp,
+  itemSpacing: Dp,
+  folderMinWidth: Dp,
+  videoMinWidth: Dp,
 ): ResponsiveGridSpans {
-  val browserPreferences = koinInject<BrowserPreferences>()
-  val folderGridColumnsPortrait by browserPreferences.folderGridColumnsPortrait.collectAsState()
-  val folderGridColumnsLandscape by browserPreferences.folderGridColumnsLandscape.collectAsState()
-  val videoGridColumnsPortrait by browserPreferences.videoGridColumnsPortrait.collectAsState()
-  val videoGridColumnsLandscape by browserPreferences.videoGridColumnsLandscape.collectAsState()
-  val manualGridColumnsEnabled by browserPreferences.manualGridColumnsEnabled.collectAsState()
-
   if (!isGridMode) {
     return ResponsiveGridSpans(spans = 1, folderSpan = 1, videoSpan = 1)
   }
-
-  val configuration = androidx.compose.ui.platform.LocalConfiguration.current
-  val isLandscape = configuration.orientation == android.content.res.Configuration.ORIENTATION_LANDSCAPE
-  val folderGridColumnsPref = if (isLandscape) folderGridColumnsLandscape else folderGridColumnsPortrait
-  val videoGridColumnsPref = if (isLandscape) videoGridColumnsLandscape else videoGridColumnsPortrait
 
   val maxFolders: Int
   val maxVideos: Int
@@ -76,4 +66,38 @@ fun calculateResponsiveGridSpans(
   val videoSpan = spans / maxVideos
 
   return ResponsiveGridSpans(spans = spans, folderSpan = folderSpan, videoSpan = videoSpan)
+}
+
+@Composable
+fun calculateResponsiveGridSpans(
+  maxWidth: Dp,
+  folderMinWidth: Dp = 100.dp,
+  videoMinWidth: Dp = 130.dp,
+  contentHorizontalPadding: Dp = 8.dp,
+  itemSpacing: Dp = 2.dp,
+  isGridMode: Boolean = true,
+): ResponsiveGridSpans {
+  val browserPreferences = koinInject<BrowserPreferences>()
+  val folderGridColumnsPortrait by browserPreferences.folderGridColumnsPortrait.collectAsState()
+  val folderGridColumnsLandscape by browserPreferences.folderGridColumnsLandscape.collectAsState()
+  val videoGridColumnsPortrait by browserPreferences.videoGridColumnsPortrait.collectAsState()
+  val videoGridColumnsLandscape by browserPreferences.videoGridColumnsLandscape.collectAsState()
+  val manualGridColumnsEnabled by browserPreferences.manualGridColumnsEnabled.collectAsState()
+
+  val configuration = androidx.compose.ui.platform.LocalConfiguration.current
+  val isLandscape = configuration.orientation == android.content.res.Configuration.ORIENTATION_LANDSCAPE
+  val folderGridColumnsPref = if (isLandscape) folderGridColumnsLandscape else folderGridColumnsPortrait
+  val videoGridColumnsPref = if (isLandscape) videoGridColumnsLandscape else videoGridColumnsPortrait
+
+  return calculateGridSpans(
+    isGridMode = isGridMode,
+    manualGridColumnsEnabled = manualGridColumnsEnabled,
+    folderGridColumnsPref = folderGridColumnsPref,
+    videoGridColumnsPref = videoGridColumnsPref,
+    maxWidth = maxWidth,
+    contentHorizontalPadding = contentHorizontalPadding,
+    itemSpacing = itemSpacing,
+    folderMinWidth = folderMinWidth,
+    videoMinWidth = videoMinWidth,
+  )
 }
