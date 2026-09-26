@@ -14,7 +14,6 @@ import android.net.Uri
 import android.util.Log
 import com.quantummpv.app.database.dao.VideoMetadataDao
 import com.quantummpv.app.database.entities.VideoMetadataEntity
-import com.quantummpv.app.utils.FormatUtils
 import com.quantummpv.app.utils.media.MediaInfoOps
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
@@ -425,11 +424,18 @@ class VideoMetadataCacheRepository(
       Log.d(
         TAG,
         "Cache maintenance completed in ${duration}ms. " +
-          "Entries: ${stats.totalEntries}, Size: ${FormatUtils.formatFileSize(stats.totalSizeBytes)}",
+          "Entries: ${stats.totalEntries}, Size: ${formatSize(stats.totalSizeBytes)}",
       )
     }
   }
 
+  private fun formatSize(bytes: Long): String {
+    if (bytes <= 0) return "0 B"
+    val units = arrayOf("B", "KB", "MB", "GB")
+    val digitGroups = (kotlin.math.log10(bytes.toDouble()) / kotlin.math.log10(1024.0)).toInt()
+    val value = bytes / 1024.0.pow(digitGroups.toDouble())
+    return "%.1f %s".format(value, units[digitGroups])
+  }
 
   data class CacheStats(
     val totalEntries: Int,
