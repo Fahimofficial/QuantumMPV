@@ -1,26 +1,25 @@
 package com.quantummpv.app.utils.storage
 
 import android.content.Context
+import android.net.Uri
 import android.util.Log
 import androidx.work.CoroutineWorker
 import androidx.work.WorkerParameters
 import com.quantummpv.app.database.dao.MediaIndexDao
-import android.net.Uri
-import com.quantummpv.app.database.repository.VideoMetadataCacheRepository
 import com.quantummpv.app.database.entities.MediaIndexEntity
+import com.quantummpv.app.database.repository.VideoMetadataCacheRepository
 import com.quantummpv.app.preferences.BrowserPreferences
 import com.quantummpv.app.preferences.FoldersPreferences
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import org.koin.core.component.KoinComponent
 import org.koin.core.component.inject
 import java.io.File
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.withContext
 
 class MediaScannerWorker(
   context: Context,
   params: WorkerParameters,
 ) : CoroutineWorker(context, params), KoinComponent {
-
   private val mediaIndexDao: MediaIndexDao by inject()
   private val foldersPreferences: FoldersPreferences by inject()
   private val browserPreferences: BrowserPreferences by inject()

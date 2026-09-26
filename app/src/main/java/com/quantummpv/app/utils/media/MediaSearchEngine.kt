@@ -7,7 +7,6 @@ package com.quantummpv.app.utils.media
 import android.net.Uri
 import com.quantummpv.app.database.dao.MediaIndexDao
 import com.quantummpv.app.domain.media.model.Video
-import com.quantummpv.app.domain.media.model.VideoFolder
 import com.quantummpv.app.utils.FormatUtils
 import com.quantummpv.app.utils.storage.FileTypeUtils
 import kotlinx.coroutines.flow.first
