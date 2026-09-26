@@ -1,4 +1,10 @@
-/*
+import re
+
+with open("app/src/main/java/com/quantummpv/app/utils/media/MediaSearchEngine.kt", "r") as f:
+    content = f.read()
+
+# Replace MediaSearchEngine entirely
+new_content = """/*
  * SPDX-License-Identifier: AGPL-3.0-or-later
  */
 
@@ -65,3 +71,6 @@ object MediaSearchEngine : KoinComponent {
       .take(limit)
   }
 }
+"""
+with open("app/src/main/java/com/quantummpv/app/utils/media/MediaSearchEngine.kt", "w") as f:
+    f.write(new_content)

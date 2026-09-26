@@ -14,6 +14,8 @@ import android.net.Uri
 import android.os.Environment
 import android.provider.MediaStore
 import android.util.Log
+import com.quantummpv.app.database.dao.MediaIndexDao
+import com.quantummpv.app.database.entities.MediaIndexEntity
 import com.quantummpv.app.database.MpvRxDatabase
 import com.quantummpv.app.domain.browser.FileSystemItem
 import com.quantummpv.app.domain.browser.PathComponent
@@ -39,6 +41,12 @@ import org.koin.core.component.KoinComponent
 import org.koin.core.component.inject
 import java.io.File
 import java.util.Locale
+import androidx.work.OneTimeWorkRequestBuilder
+import androidx.work.WorkManager
+import kotlinx.coroutines.flow.first
+import com.quantummpv.app.database.dao.MediaIndexDao
+import com.quantummpv.app.utils.storage.MediaScannerWorker
+import com.quantummpv.app.database.entities.MediaIndexEntity
 
 /**
  * Unified repository for ALL media file operations
@@ -53,12 +61,53 @@ import java.util.Locale
  * - Storage volume detection
  */
 object MediaFileRepository : KoinComponent {
+  suspend fun searchMedia(query: String): List<Video> = 
+    withContext(Dispatchers.IO) {
+      try {
+        mediaIndexDao.searchMedia("*$query*").first().map { it.toVideo() }
+      } catch (e: Exception) {
+        Log.e(TAG, "Error searching media", e)
+        emptyList()
+      }
+    }
+
+  fun triggerMediaScan(context: Context) {
+    val request = OneTimeWorkRequestBuilder<MediaScannerWorker>().build()
+    WorkManager.getInstance(context).enqueue(request)
+  }
+
+
+  private fun MediaIndexEntity.toVideo(): Video {
+    return Video(
+      id = this.uri.hashCode().toLong(),
+      title = this.displayName.substringBeforeLast("."),
+      displayName = this.displayName,
+      path = this.path,
+      uri = Uri.parse(this.uri),
+      duration = this.durationMs ?: 0L,
+      durationFormatted = FormatUtils.formatDuration(this.durationMs ?: 0L),
+      size = this.size,
+      sizeFormatted = FormatUtils.formatFileSize(this.size),
+      dateModified = this.lastModified,
+      dateAdded = this.lastModified,
+      mimeType = FileTypeUtils.getMimeTypeFromExtension(this.extension),
+      bucketId = this.parentFolder,
+      bucketDisplayName = this.parentFolder.substringAfterLast('/'),
+      width = 0,
+      height = 0,
+      fps = 0f,
+      resolution = "",
+      isAudio = this.mediaType == 1
+    )
+  }
+
   private const val TAG = "MediaFileRepository"
   private val foldersPreferences: FoldersPreferences by inject()
   private val appearancePreferences: AppearancePreferences by inject()
   private val browserPreferences: BrowserPreferences by inject()
   private val playbackStateRepository: PlaybackStateRepository by inject()
   private val database: MpvRxDatabase by inject()
+  private val mediaIndexDao: MediaIndexDao by inject()
 
   private fun currentScanOptions(includeAudioOverride: Boolean? = null): MediaScanOptions =
     MediaScanOptions(
@@ -119,20 +168,17 @@ object MediaFileRepository : KoinComponent {
   ): List<VideoFolder> =
     withContext(Dispatchers.IO) {
       try {
-        val mediaStoreFolders =
-          FolderViewScanner.getAllVideoFolders(
-            context,
-            currentScanOptions(includeAudioOverride),
-            forceFileSystemCheck,
+        triggerMediaScan(context)
+        val folders = mediaIndexDao.getAllFolders().first()
+        folders.map { folderPath ->
+          val folderName = folderPath.substringAfterLast('/')
+          VideoFolder(
+            bucketId = folderPath,
+            name = folderName.ifEmpty { "Root" },
+            path = folderPath,
+            videoCount = 0
           )
-        val indexedFolders =
-          FolderViewScanner.getIndexedNoMediaFolders(
-            currentScanOptions(includeAudioOverride),
-            database.directoryScanDao(),
-          )
-        (mediaStoreFolders + indexedFolders)
-          .distinctBy { it.path.lowercase(Locale.ROOT) }
-          .sortedBy { it.name.lowercase(Locale.getDefault()) }
+        }.sortedBy { it.name.lowercase(Locale.getDefault()) }
       } catch (e: Exception) {
         Log.e(TAG, "Error scanning for video folders", e)
         emptyList()
@@ -354,12 +400,8 @@ object MediaFileRepository : KoinComponent {
   ): List<Video> =
     withContext(Dispatchers.IO) {
       try {
-        VideoScanUtils.getVideosInFolder(
-          context,
-          bucketId,
-          currentScanOptions(includeAudioOverride),
-          forceFileSystemCheck,
-        )
+        val entities = mediaIndexDao.getMediaInFolder(bucketId).first()
+        entities.map { it.toVideo() }
       } catch (e: Exception) {
         Log.e(TAG, "Error getting videos for bucket $bucketId", e)
         emptyList()

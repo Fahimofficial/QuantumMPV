@@ -1738,7 +1738,7 @@ private suspend fun buildSearchIndex(
             includeAudioOverride = if (audioOnly) true else null,
           )
     }
-  SearchManager.engine.buildIndex(folders, videosByFolder)
+  // SearchManager.engine.buildIndex(folders, videosByFolder) is no longer needed with FTS4
 }
 
 private suspend fun searchFoldersAndVideos(
