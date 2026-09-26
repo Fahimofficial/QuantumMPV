@@ -9,7 +9,6 @@
 
 package com.quantummpv.app.ui.browser.playlist
 
-import com.quantummpv.app.ui.utils.NavigationBackHandler as BackHandler
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
@@ -75,6 +74,7 @@ import com.quantummpv.app.ui.utils.navigateTo
 import kotlinx.coroutines.launch
 import kotlinx.serialization.Serializable
 import org.koin.compose.koinInject
+import com.quantummpv.app.ui.utils.NavigationBackHandler as BackHandler
 
 @Serializable
 object PlaylistScreen : Screen {
@@ -161,7 +161,8 @@ object PlaylistScreen : Screen {
     }
 
     // Synchronize NavigationBarState when selection mode changes
-    com.quantummpv.app.ui.browser.NavigationBarSelectionEffect(selectionManager.isInSelectionMode)
+    com.quantummpv.app.ui.browser
+      .NavigationBarSelectionEffect(selectionManager.isInSelectionMode)
 
     // Track scroll for FAB visibility
     val mediaLayoutMode by browserPreferences.mediaLayoutMode.collectAsState()

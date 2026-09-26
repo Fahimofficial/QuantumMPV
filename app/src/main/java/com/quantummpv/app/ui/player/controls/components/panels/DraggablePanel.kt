@@ -7,7 +7,6 @@
  * (at your option) any later version.
  */
 
-@file:Suppress("ktlint:standard:no-wildcard-imports")
 
 package com.quantummpv.app.ui.player.controls.components.panels
 
