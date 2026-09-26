@@ -19,6 +19,7 @@ import com.quantummpv.app.utils.media.MediaLibraryEvents
 import com.quantummpv.app.utils.media.PlaybackStateOps
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.withContext
@@ -47,6 +48,7 @@ class SecureFolderRepository(
     private const val BUFFER_SIZE = 8 * 1024 // 8KB, matches CopyPasteOps
     private const val SECURE_DIR_NAME = "secure_media"
     private const val MAX_FILENAME_ATTEMPTS = 1000
+    private const val FLUSH_CHUNK_SIZE = 50
   }
 
   data class SecureOperationProgress(
@@ -195,55 +197,76 @@ class SecureFolderRepository(
       resetOperation()
       val succeeded = mutableListOf<Long>()
       val failed = mutableListOf<Long>()
+      val dbRowsToDelete = mutableListOf<Long>()
       val totalBytes = entities.sumOf { it.fileSize }.coerceAtLeast(1)
       var bytesDone = 0L
 
-      entities.forEachIndexed { index, entity ->
-        try {
-          checkCancellation()
-          val secureFile = File(entity.secureFilePath)
-          if (!secureFile.exists()) {
-            Log.w(TAG, "Secure file missing, dropping DB row: ${entity.secureFilePath}")
-            dao.deleteById(entity.id)
+      try {
+        entities.forEachIndexed { index, entity ->
+          try {
+            checkCancellation()
+            val secureFile = File(entity.secureFilePath)
+            if (!secureFile.exists()) {
+              Log.w(TAG, "Secure file missing, dropping DB row: ${entity.secureFilePath}")
+              dbRowsToDelete += entity.id
+              failed += entity.id
+              return@forEachIndexed
+            }
+
+            val restoreTarget = resolveRestoreTarget(entity)
+            restoreTarget.parentFile?.let { if (!it.exists()) it.mkdirs() }
+
+            copyWithProgress(secureFile, restoreTarget, entity.fileSize) { fileProgress ->
+              updateProgress(
+                currentFile = entity.fileName,
+                currentFileIndex = index + 1,
+                totalFiles = entities.size,
+                currentFileProgress = fileProgress,
+                bytesProcessed = bytesDone + (entity.fileSize * fileProgress).toLong(),
+                totalBytes = totalBytes,
+              )
+            }
+
+            if (!restoreTarget.exists() || restoreTarget.length() != secureFile.length()) {
+              restoreTarget.delete()
+              throw IOException("Restore verification failed for ${entity.fileName}")
+            }
+
+            // Only clear the secure copy + DB row once the restored file is confirmed on disk.
+            val secureDeleted = secureFile.delete()
+            if (!secureDeleted) {
+              Log.w(TAG, "Restored but couldn't clean up secure copy: ${entity.secureFilePath}")
+              // Not fatal for the user — the file is back. Still drop the DB row so it
+              // doesn't show as hidden anymore; the orphaned secure copy is harmless.
+            }
+            dbRowsToDelete += entity.id
+            if (dbRowsToDelete.size >= FLUSH_CHUNK_SIZE) {
+              val chunk = dbRowsToDelete.toList()
+              withContext(NonCancellable) {
+                dao.deleteByIds(chunk)
+              }
+              dbRowsToDelete.clear()
+            }
+
+            triggerMediaScan(context, restoreTarget.absolutePath)
+            succeeded += entity.id
+          } catch (e: Exception) {
+            if (e is java.util.concurrent.CancellationException || e.message == "Operation cancelled by user") {
+              throw e
+            }
+            Log.e(TAG, "Failed to restore ${entity.fileName}: ${e.message}", e)
             failed += entity.id
-            return@forEachIndexed
+          } finally {
+            bytesDone += entity.fileSize
           }
-
-          val restoreTarget = resolveRestoreTarget(entity)
-          restoreTarget.parentFile?.let { if (!it.exists()) it.mkdirs() }
-
-          copyWithProgress(secureFile, restoreTarget, entity.fileSize) { fileProgress ->
-            updateProgress(
-              currentFile = entity.fileName,
-              currentFileIndex = index + 1,
-              totalFiles = entities.size,
-              currentFileProgress = fileProgress,
-              bytesProcessed = bytesDone + (entity.fileSize * fileProgress).toLong(),
-              totalBytes = totalBytes,
-            )
+        }
+      } finally {
+        if (dbRowsToDelete.isNotEmpty()) {
+          val remaining = dbRowsToDelete.toList()
+          withContext(NonCancellable) {
+            dao.deleteByIds(remaining)
           }
-
-          if (!restoreTarget.exists() || restoreTarget.length() != secureFile.length()) {
-            restoreTarget.delete()
-            throw IOException("Restore verification failed for ${entity.fileName}")
-          }
-
-          // Only clear the secure copy + DB row once the restored file is confirmed on disk.
-          val secureDeleted = secureFile.delete()
-          if (!secureDeleted) {
-            Log.w(TAG, "Restored but couldn't clean up secure copy: ${entity.secureFilePath}")
-            // Not fatal for the user — the file is back. Still drop the DB row so it
-            // doesn't show as hidden anymore; the orphaned secure copy is harmless.
-          }
-          dao.deleteById(entity.id)
-
-          triggerMediaScan(context, restoreTarget.absolutePath)
-          succeeded += entity.id
-        } catch (e: Exception) {
-          Log.e(TAG, "Failed to restore ${entity.fileName}: ${e.message}", e)
-          failed += entity.id
-        } finally {
-          bytesDone += entity.fileSize
+          dbRowsToDelete.clear()
         }
       }
 
@@ -272,34 +295,55 @@ class SecureFolderRepository(
       resetOperation()
       val succeeded = mutableListOf<Long>()
       val failed = mutableListOf<Long>()
+      val dbRowsToDelete = mutableListOf<Long>()
 
-      entities.forEachIndexed { index, entity ->
-        try {
-          checkCancellation()
-          updateProgress(
-            currentFile = entity.fileName,
-            currentFileIndex = index + 1,
-            totalFiles = entities.size,
-            currentFileProgress = 1f,
-            bytesProcessed = 0,
-            totalBytes = 1,
-          )
+      try {
+        entities.forEachIndexed { index, entity ->
+          try {
+            checkCancellation()
+            updateProgress(
+              currentFile = entity.fileName,
+              currentFileIndex = index + 1,
+              totalFiles = entities.size,
+              currentFileProgress = 1f,
+              bytesProcessed = 0,
+              totalBytes = 1,
+            )
 
-          val secureFile = File(entity.secureFilePath)
-          val deleted = !secureFile.exists() || secureFile.delete()
+            val secureFile = File(entity.secureFilePath)
+            val deleted = !secureFile.exists() || secureFile.delete()
 
-          if (deleted) {
-            dao.deleteById(entity.id)
-            succeeded += entity.id
-          } else {
-            // Rollback: keep the DB row so the user can retry instead of losing the entry
-            // for a file that's still sitting on disk.
-            Log.w(TAG, "Failed to delete secure file, keeping DB row: ${entity.secureFilePath}")
+            if (deleted) {
+              dbRowsToDelete += entity.id
+              if (dbRowsToDelete.size >= FLUSH_CHUNK_SIZE) {
+                val chunk = dbRowsToDelete.toList()
+                withContext(NonCancellable) {
+                  dao.deleteByIds(chunk)
+                }
+                dbRowsToDelete.clear()
+              }
+              succeeded += entity.id
+            } else {
+              // Rollback: keep the DB row so the user can retry instead of losing the entry
+              // for a file that's still sitting on disk.
+              Log.w(TAG, "Failed to delete secure file, keeping DB row: ${entity.secureFilePath}")
+              failed += entity.id
+            }
+          } catch (e: Exception) {
+            if (e is java.util.concurrent.CancellationException || e.message == "Operation cancelled by user") {
+              throw e
+            }
+            Log.e(TAG, "Failed to delete ${entity.fileName}: ${e.message}", e)
             failed += entity.id
           }
-        } catch (e: Exception) {
-          Log.e(TAG, "Failed to delete ${entity.fileName}: ${e.message}", e)
-          failed += entity.id
+        }
+      } finally {
+        if (dbRowsToDelete.isNotEmpty()) {
+          val remaining = dbRowsToDelete.toList()
+          withContext(NonCancellable) {
+            dao.deleteByIds(remaining)
+          }
+          dbRowsToDelete.clear()
         }
       }
 
@@ -321,6 +365,33 @@ class SecureFolderRepository(
   fun observeCount() = dao.observeCount()
 
   suspend fun getAll(): List<SecureMediaEntity> = dao.getAll()
+
+  /**
+   * Cleans up any DB rows that point to files that no longer exist in the secure folder.
+   * This is useful if the app was killed while a batch restore/delete operation was in progress.
+   */
+  suspend fun reconcile() =
+    withContext(Dispatchers.IO) {
+      try {
+        val allEntities = dao.getAll()
+        val toDelete = mutableListOf<Long>()
+        for (entity in allEntities) {
+          if (!File(entity.secureFilePath).exists()) {
+            toDelete.add(entity.id)
+          }
+        }
+        if (toDelete.isNotEmpty()) {
+          Log.d(TAG, "Reconciling secure media: removing ${toDelete.size} orphaned db entries")
+          // Delete in chunks to be safe with large DB sizes
+          toDelete.chunked(FLUSH_CHUNK_SIZE).forEach { chunk ->
+            dao.deleteByIds(chunk)
+          }
+          MediaLibraryEvents.notifyChanged()
+        }
+      } catch (e: Exception) {
+        Log.e(TAG, "Failed to reconcile secure media", e)
+      }
+    }
 
   suspend fun getByIds(ids: List<Long>): List<SecureMediaEntity> = dao.getByIds(ids)
 

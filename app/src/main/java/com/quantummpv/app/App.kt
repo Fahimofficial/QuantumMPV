@@ -57,6 +57,7 @@ class App :
   private val networkAutoConnectStarted = AtomicBoolean(false)
   private val metadataMaintenanceStarted = AtomicBoolean(false)
   private val fastThumbnailsStarted = AtomicBoolean(false)
+  private val secureFolderReconciliationStarted = AtomicBoolean(false)
   private var startedActivityCount = 0
 
   companion object {
@@ -146,6 +147,7 @@ class App :
       getKoin().get<com.quantummpv.app.domain.syncplay.SyncplayManager>().onAppForegrounded()
       scheduleFastThumbnailWarmupOnce()
       scheduleMetadataMaintenanceOnce()
+      scheduleSecureFolderReconciliationOnce()
     }
   }
 
@@ -208,6 +210,23 @@ class App :
           )
           insets
         }
+      }
+    }
+  }
+
+  private fun scheduleSecureFolderReconciliationOnce() {
+    if (!secureFolderReconciliationStarted.compareAndSet(false, true)) return
+    applicationScope.launch(Dispatchers.IO) {
+      try {
+        delay(POST_START_MAINTENANCE_DELAY_MS)
+        val secureFolderRepository: com.quantummpv.app.database.repository.SecureFolderRepository = getKoin().get()
+        secureFolderRepository.reconcile()
+      } catch (cancellation: CancellationException) {
+        secureFolderReconciliationStarted.set(false)
+        throw cancellation
+      } catch (error: Exception) {
+        secureFolderReconciliationStarted.set(false)
+        Log.w(TAG, "Deferred secure folder reconciliation failed", error)
       }
     }
   }
