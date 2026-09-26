@@ -28,16 +28,16 @@ class MediaScannerWorker(
 
   override suspend fun doWork(): Result = withContext(Dispatchers.IO) {
     Log.d("MediaScanner", "Starting media scan")
-    
+
     val includeNoMedia = foldersPreferences.includeNoMediaFolders.get()
     val includeAudio = browserPreferences.includeAudioBrowser.get()
-    
+
     // In a real implementation we would iterate through defined roots.
     // For now, we simulate scanning by walking the external storage directory.
     val rootDir = android.os.Environment.getExternalStorageDirectory()
-    
+
     val mediaEntities = mutableListOf<MediaIndexEntity>()
-    
+
     try {
       rootDir.walkTopDown().onEnter { dir ->
         if (!includeNoMedia && File(dir, ".nomedia").exists()) return@onEnter false
@@ -47,7 +47,7 @@ class MediaScannerWorker(
           val ext = file.extension.lowercase()
           val isVideo = ext in VALID_VIDEO_EXTENSIONS
           val isAudio = includeAudio && ext in VALID_AUDIO_EXTENSIONS
-          
+
           if (isVideo || isAudio) {
             val mediaType = if (isVideo) 0 else 1
             val uri = Uri.fromFile(file)
@@ -72,12 +72,12 @@ class MediaScannerWorker(
           }
         }
       }
-      
+
       // Batch upsert to DB
       if (mediaEntities.isNotEmpty()) {
         mediaIndexDao.upsert(mediaEntities)
       }
-      
+
       Log.d("MediaScanner", "Completed media scan. Indexed ${mediaEntities.size} items.")
       Result.success()
     } catch (e: Exception) {

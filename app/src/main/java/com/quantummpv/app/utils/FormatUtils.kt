@@ -5,6 +5,19 @@ import kotlin.math.log10
 import kotlin.math.pow
 
 object FormatUtils {
+  fun formatDuration(durationMs: Long): String {
+    if (durationMs <= 0) return "0s"
+    val seconds = durationMs / 1000
+    val hours = seconds / 3600
+    val minutes = (seconds % 3600) / 60
+    val remainingSeconds = seconds % 60
+    return when {
+      hours > 0 -> String.format(Locale.getDefault(), "%d:%02d:%02d", hours, minutes, remainingSeconds)
+      minutes > 0 -> String.format(Locale.getDefault(), "%d:%02d", minutes, remainingSeconds)
+      else -> "${remainingSeconds}s"
+    }
+  }
+
   fun formatFileSize(
     bytes: Long,
     unknownLabel: String = "0 B",
