@@ -67,15 +67,6 @@ class AppearancePreferences(
   val showQuickPlayFab = preferenceStore.getBoolean("show_quick_play_fab", true)
   val quickPlayFabDirect = preferenceStore.getBoolean("quick_play_fab_direct", false)
 
-  fun resetAppearance() {
-    darkMode.set(DarkMode.System)
-    appTheme.set(AppTheme.Dynamic)
-    amoledMode.set(false)
-    glassBottomNavigation.set(false)
-    useSystemFont.set(false)
-    unlimitedNameLines.set(false)
-  }
-
   val topLeftControls =
     preferenceStore.getString(
       "top_left_controls",

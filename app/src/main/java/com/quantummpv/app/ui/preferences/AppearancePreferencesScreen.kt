@@ -26,7 +26,6 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -100,7 +99,6 @@ object AppearancePreferencesScreen : Screen {
     val appTheme by preferences.appTheme.collectAsState()
     var pendingThumbnailMode by remember { mutableStateOf<ThumbnailMode?>(null) }
     var isThemeSectionExpanded by rememberSaveable { mutableStateOf(true) }
-    var showResetAppearanceDialog by remember { mutableStateOf(false) }
     val storedThumbnailMode by browserPreferences.thumbnailMode.collectAsState()
     val thumbnailQuality by browserPreferences.thumbnailQuality.collectAsState()
     val thumbnailFramePosition by browserPreferences.thumbnailFramePosition.collectAsState()
@@ -156,18 +154,6 @@ object AppearancePreferencesScreen : Screen {
           }
         },
         onCancel = { pendingThumbnailMode = null },
-      )
-    }
-
-    if (showResetAppearanceDialog) {
-      ConfirmDialog(
-        title = stringResource(R.string.pref_appearance_reset_title),
-        subtitle = stringResource(R.string.pref_appearance_reset_summary),
-        onConfirm = {
-          showResetAppearanceDialog = false
-          preferences.resetAppearance()
-        },
-        onCancel = { showResetAppearanceDialog = false },
       )
     }
 
@@ -302,12 +288,6 @@ object AppearancePreferencesScreen : Screen {
                     title = { Text(stringResource(R.string.pref_appearance_glass_navigation_title)) },
                     summary = { Text(stringResource(R.string.pref_appearance_glass_navigation_summary), color = MaterialTheme.colorScheme.outline) },
                   )
-                  TextButton(
-                    onClick = { showResetAppearanceDialog = true },
-                    modifier = Modifier.padding(horizontal = 12.dp),
-                  ) {
-                    Text(stringResource(R.string.pref_appearance_reset_button))
-                  }
 
                   PreferenceDivider()
 
