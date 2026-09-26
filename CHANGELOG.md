@@ -1,7 +1,7 @@
 # Changelog
 
 These notes are written in plain English and focus on what changed for real use.
-## Unreleased
+## 1.1.0
 
 - **Playback classification**: Hardened audio/video selection so an empty or still-loading queue cannot reuse stale audio controls, and unknown media is classified only after the active libmpv session is ready.
 - **Quality gate**: Made detekt blocking while retaining always-run reporting; ktlint remains advisory while existing formatting findings are reduced.
