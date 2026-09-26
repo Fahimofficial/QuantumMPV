@@ -45,6 +45,8 @@ import com.quantummpv.app.domain.network.NetworkConnection
     PlaybackStateEntity::class,
     RecentlyPlayedEntity::class,
     VideoMetadataEntity::class,
+    com.quantummpv.app.database.entities.MediaIndexEntity::class,
+    com.quantummpv.app.database.entities.MediaIndexFtsEntity::class,
     NetworkConnection::class,
     PlaylistEntity::class,
     PlaylistItemEntity::class,
@@ -56,7 +58,7 @@ import com.quantummpv.app.domain.network.NetworkConnection
     NavidromeServerEntity::class,
     YtdlpDownloadJobEntity::class,
   ],
-  version = 23,
+  version = 24,
   exportSchema = true,
 )
 @TypeConverters(NetworkProtocolConverter::class, NetworkStreamEntryTypeConverter::class)
@@ -66,6 +68,7 @@ abstract class MpvRxDatabase : RoomDatabase() {
   abstract fun recentlyPlayedDao(): RecentlyPlayedDao
 
   abstract fun videoMetadataDao(): VideoMetadataDao
+  abstract fun mediaIndexDao(): com.quantummpv.app.database.dao.MediaIndexDao
 
   abstract fun networkConnectionDao(): NetworkConnectionDao
 

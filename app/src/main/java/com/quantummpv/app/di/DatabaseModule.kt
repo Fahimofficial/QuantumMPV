@@ -857,6 +857,16 @@ val MIGRATION_22_23 =
       )
     }
   }
+val MIGRATION_23_24 =
+  object : Migration(23, 24) {
+    override fun migrate(db: SupportSQLiteDatabase) {
+      db.execSQL("CREATE TABLE IF NOT EXISTS `media_index` (`uri` TEXT NOT NULL, `path` TEXT NOT NULL, `parentFolder` TEXT NOT NULL, `displayName` TEXT NOT NULL, `extension` TEXT NOT NULL, `mediaType` INTEGER NOT NULL, `size` INTEGER NOT NULL, `lastModified` INTEGER NOT NULL, `durationMs` INTEGER, `hasThumbnail` INTEGER NOT NULL, PRIMARY KEY(`uri`))")
+      db.execSQL("CREATE INDEX IF NOT EXISTS `index_media_index_parentFolder` ON `media_index` (`parentFolder`)")
+      db.execSQL("CREATE INDEX IF NOT EXISTS `index_media_index_mediaType` ON `media_index` (`mediaType`)")
+      db.execSQL("CREATE VIRTUAL TABLE IF NOT EXISTS `media_index_fts` USING FTS4(`displayName`, `path`, content=`media_index`)")
+    }
+  }
+
 val DatabaseModule =
   module {
     single<Json> {
@@ -895,6 +905,7 @@ val DatabaseModule =
           MIGRATION_19_21,
           MIGRATION_21_22,
           MIGRATION_22_23,
+          MIGRATION_23_24,
         ).build()
     }
 
