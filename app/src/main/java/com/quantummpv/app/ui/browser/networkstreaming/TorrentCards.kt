@@ -9,7 +9,6 @@
 
 package com.quantummpv.app.ui.browser.networkstreaming
 
-import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.animateDpAsState

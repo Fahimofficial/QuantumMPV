@@ -20,7 +20,9 @@ import org.koin.core.component.inject
  * Reapplying the ratio when the actual player root changes size keeps Stretch correct in both
  * orientations without affecting Fit, Crop, or user-defined custom aspect ratios.
  */
-class StretchAwarePlayerLayout @JvmOverloads constructor(
+class StretchAwarePlayerLayout
+  @JvmOverloads
+  constructor(
   context: Context,
   attrs: AttributeSet? = null,
   defStyleAttr: Int = 0,

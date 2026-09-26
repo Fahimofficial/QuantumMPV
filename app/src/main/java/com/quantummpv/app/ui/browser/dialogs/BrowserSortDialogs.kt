@@ -1247,4 +1247,3 @@ fun JellyfinSortDialog(
     showSortOptions = true,
   )
 }
-

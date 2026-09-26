@@ -83,11 +83,16 @@ import com.quantummpv.app.utils.clipboard.SafeClipboard
 import kotlinx.serialization.Serializable
 
 enum class CodecFilter {
-  ALL, HARDWARE, SOFTWARE, VIDEO, AUDIO
+  ALL,
+  HARDWARE,
+  SOFTWARE,
+  VIDEO,
+  AUDIO
 }
 
 enum class CodecMediaType {
-  VIDEO, AUDIO
+  VIDEO,
+  AUDIO
 }
 
 data class CodecCapabilitiesInfo(
@@ -195,8 +200,8 @@ object CodecInspector {
                 val minH = videoCaps.supportedHeights.lower
                 val maxF = videoCaps.supportedFrameRates.upper.toInt()
 
-                maxRes = "${maxW}x${maxH} @ ${maxF}fps"
-                minRes = "${minW}x${minH}"
+                maxRes = "${maxW}x$maxH @ ${maxF}fps"
+                minRes = "${minW}x$minH"
                 maxFps = maxF
                 alignStr = "${videoCaps.widthAlignment}x${videoCaps.heightAlignment}"
 

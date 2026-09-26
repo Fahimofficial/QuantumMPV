@@ -67,17 +67,16 @@ import androidx.compose.ui.platform.ViewCompositionStrategy
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
-import androidx.compose.ui.text.style.TextAlign
-import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.core.view.ViewCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.findViewTreeViewModelStoreOwner
 import com.quantummpv.app.R
-import com.quantummpv.app.ui.icons.Icon as AppIcon
 import com.quantummpv.app.ui.icons.Icons
 import com.quantummpv.app.ui.player.Panels
 import com.quantummpv.app.ui.player.PlaybackSession
@@ -93,6 +92,7 @@ import kotlin.math.floor
 import kotlin.math.min
 import kotlin.math.roundToInt
 import kotlin.math.roundToLong
+import com.quantummpv.app.ui.icons.Icon as AppIcon
 
 private const val MIN_CLIP_SECONDS = 0.05
 
@@ -115,7 +115,9 @@ private data class ClipPanelState(
  * The editor is rendered by the shared player panel system. This overlay contains only UI that must
  * sit directly over the video, and outside crop mode it does not consume input.
  */
-class ClipOverlayView @JvmOverloads constructor(
+class ClipOverlayView
+  @JvmOverloads
+  constructor(
   context: Context,
   attrs: AttributeSet? = null,
 ) : FrameLayout(context, attrs) {

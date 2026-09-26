@@ -14,7 +14,6 @@ package com.quantummpv.app.ui.browser.playlist
 import android.content.Intent
 import android.net.Uri
 import android.widget.Toast
-import com.quantummpv.app.ui.utils.NavigationBackHandler as BackHandler
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -95,6 +94,7 @@ import kotlinx.serialization.Serializable
 import org.koin.compose.koinInject
 import sh.calvin.reorderable.ReorderableItem
 import sh.calvin.reorderable.rememberReorderableLazyListState
+import com.quantummpv.app.ui.utils.NavigationBackHandler as BackHandler
 
 /**
  * Playlist detail screen showing videos in a playlist.

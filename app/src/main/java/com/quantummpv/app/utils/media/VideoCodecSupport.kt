@@ -4,8 +4,8 @@
 
 package com.quantummpv.app.utils.media
 
-import android.media.MediaCodecList
 import android.media.MediaCodecInfo
+import android.media.MediaCodecList
 import android.os.Build
 
 enum class VideoDecodeSupport {

@@ -41,8 +41,8 @@ import com.quantummpv.app.ui.player.controls.components.sheets.PlaybackSpeedShee
 import com.quantummpv.app.ui.player.controls.components.sheets.PlaylistSheet
 import com.quantummpv.app.ui.player.controls.components.sheets.ScopesSheet
 import com.quantummpv.app.ui.player.controls.components.sheets.SubtitlesSheet
-import com.quantummpv.app.ui.player.controls.components.sheets.VideoZoomSheet
 import com.quantummpv.app.ui.player.controls.components.sheets.VideoQualitySheet
+import com.quantummpv.app.ui.player.controls.components.sheets.VideoZoomSheet
 import com.quantummpv.app.ui.player.controls.components.sheets.VisualizerStyleSheet
 import com.quantummpv.app.ui.player.setTrackSelectionId
 import com.quantummpv.app.utils.device.DeviceFormFactor

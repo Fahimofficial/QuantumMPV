@@ -11,7 +11,6 @@ package com.quantummpv.app.repository
 
 import android.util.Log
 import com.quantummpv.app.data.network.ServerUrlUtils
-import com.quantummpv.app.domain.seerr.ApproveRequestBody
 import com.quantummpv.app.domain.seerr.CreateRequestBody
 import com.quantummpv.app.domain.seerr.DiscoverSlider
 import com.quantummpv.app.domain.seerr.Genre
@@ -50,7 +49,6 @@ import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import okhttp3.RequestBody.Companion.toRequestBody
-import java.net.URI
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.TimeUnit
 

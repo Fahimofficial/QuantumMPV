@@ -10,12 +10,12 @@
 package com.quantummpv.app.data.network.client
 
 import android.net.Uri
-import com.quantummpv.app.domain.network.NetworkConnection
-import com.quantummpv.app.domain.network.NetworkFile
-import com.quantummpv.app.domain.network.NetworkPath
 import com.jcraft.jsch.ChannelSftp
 import com.jcraft.jsch.JSch
 import com.jcraft.jsch.Session
+import com.quantummpv.app.domain.network.NetworkConnection
+import com.quantummpv.app.domain.network.NetworkFile
+import com.quantummpv.app.domain.network.NetworkPath
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext

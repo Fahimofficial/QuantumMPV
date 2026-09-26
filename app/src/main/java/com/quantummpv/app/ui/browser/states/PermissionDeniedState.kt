@@ -20,7 +20,6 @@ import android.net.Uri
 import android.os.Build
 import android.os.Environment
 import android.provider.Settings
-import com.quantummpv.app.ui.utils.NavigationBackHandler as BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedContent
@@ -97,6 +96,7 @@ import com.quantummpv.app.ui.theme.AppShapeScale
 import com.quantummpv.app.utils.device.DeviceFormFactor
 import com.quantummpv.app.utils.permission.PermissionUtils
 import org.koin.compose.koinInject
+import com.quantummpv.app.ui.utils.NavigationBackHandler as BackHandler
 
 private fun checkFilePermission(context: Context): Boolean {
   val isPlayStoreBuild = BuildConfig.SCOPED_STORAGE_ONLY

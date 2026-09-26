@@ -34,8 +34,8 @@ import com.quantummpv.app.preferences.PlayerPreferences
 import com.quantummpv.app.preferences.preference.collectAsState
 import com.quantummpv.app.presentation.Screen
 import com.quantummpv.app.ui.player.NavigationAnimStyle
-import kotlin.math.roundToInt
 import org.koin.compose.koinInject
+import kotlin.math.roundToInt
 
 /** The Appearance slider is a duration multiplier: smaller values finish sooner. */
 internal fun navigationDurationMillis(speed: Float, baseMillis: Int = 300): Int =

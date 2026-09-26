@@ -14,16 +14,6 @@ import android.net.Uri
 import android.provider.OpenableColumns
 import com.quantummpv.app.network.awaitResponse
 import com.quantummpv.app.ui.player.resolveLocalPath
-import java.io.BufferedReader
-import java.io.File
-import java.io.FilterInputStream
-import java.io.IOException
-import java.io.InputStream
-import java.io.StringReader
-import java.net.URI
-import java.net.URLDecoder
-import java.nio.charset.StandardCharsets
-import java.util.concurrent.TimeUnit
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.currentCoroutineContext
@@ -34,6 +24,16 @@ import okhttp3.Credentials
 import okhttp3.HttpUrl.Companion.toHttpUrlOrNull
 import okhttp3.OkHttpClient
 import okhttp3.Request
+import java.io.BufferedReader
+import java.io.File
+import java.io.FilterInputStream
+import java.io.IOException
+import java.io.InputStream
+import java.io.StringReader
+import java.net.URI
+import java.net.URLDecoder
+import java.nio.charset.StandardCharsets
+import java.util.concurrent.TimeUnit
 
 data class M3UPlaylistItem(
   val url: String,

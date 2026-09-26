@@ -11,7 +11,6 @@ import com.quantummpv.app.domain.lyrics.SyncedWord
 import java.util.regex.Pattern
 
 object LyricsUtils {
-
   // The fractional component is optional in standard LRC. In particular, many embedded USLT
   // tags contain whole-second timestamps such as `[00:54]`; treating those as plain text leaks
   // the timestamp into the UI and disables the synced-line animations.

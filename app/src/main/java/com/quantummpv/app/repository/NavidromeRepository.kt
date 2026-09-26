@@ -31,7 +31,8 @@ import kotlinx.coroutines.flow.map
 class NavidromeRepository(
   private val dao: NavidromeServerDao,
   private val client: NavidromeClient,
-  private val credentialCipher: NetworkCredentialCipher = NetworkCredentialCipher(AndroidNetworkCredentialKey::getOrCreate),
+  private val credentialCipher: NetworkCredentialCipher =
+  NetworkCredentialCipher(AndroidNetworkCredentialKey::getOrCreate),
 ) {
   val allServers: Flow<List<NavidromeServer>> =
     dao.getAllServers().map { list -> list.map { decryptAndMigrate(it) } }.flowOn(Dispatchers.IO)

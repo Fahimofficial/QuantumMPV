@@ -15,19 +15,18 @@ import android.content.Intent
 import android.content.IntentFilter
 import android.content.pm.ActivityInfo
 import android.graphics.Bitmap
-import android.media.MediaMetadataRetriever
 import android.media.AudioManager
+import android.media.MediaMetadataRetriever
 import android.net.Uri
 import android.os.BatteryManager
 import android.os.Build
 import android.os.SystemClock
-import `is`.xyz.mpv.MPVNode
 import android.provider.OpenableColumns
 import android.provider.Settings
 import android.util.DisplayMetrics
-import android.view.WindowManager
 import android.util.Log
 import android.util.LruCache
+import android.view.WindowManager
 import android.view.inputmethod.InputMethodManager
 import android.webkit.MimeTypeMap
 import android.widget.Toast
@@ -42,19 +41,18 @@ import com.quantummpv.app.domain.autocrop.AutoCropAnalyzer
 import com.quantummpv.app.domain.autocrop.AutoCropEdges
 import com.quantummpv.app.domain.hdr.HdrToysManager
 import com.quantummpv.app.domain.network.NetworkPlaybackUri
-import com.quantummpv.app.domain.torrent.TorrentStreamingState
-import com.quantummpv.app.domain.torrent.formatTorrentSpeed
 import com.quantummpv.app.domain.syncplay.SyncplayFile
 import com.quantummpv.app.domain.syncplay.SyncplayPlaybackState
+import com.quantummpv.app.domain.torrent.TorrentStreamingState
+import com.quantummpv.app.domain.torrent.formatTorrentSpeed
 import com.quantummpv.app.preferences.AdvancedPreferences
 import com.quantummpv.app.preferences.AudioChannels
 import com.quantummpv.app.preferences.AudioPreferences
 import com.quantummpv.app.preferences.DecoderPreferences
 import com.quantummpv.app.preferences.GesturePreferences
-import com.quantummpv.app.preferences.MpvConfigOverride
+import com.quantummpv.app.preferences.IntroSegmentProvider
 import com.quantummpv.app.preferences.MpvConfigControlledFeatures
 import com.quantummpv.app.preferences.MpvConfigOverridePolicy
-import com.quantummpv.app.preferences.IntroSegmentProvider
 import com.quantummpv.app.preferences.PlayerPreferences
 import com.quantummpv.app.preferences.SubtitlesPreferences
 import com.quantummpv.app.repository.IntroDbLookupOutcome
@@ -68,7 +66,6 @@ import com.quantummpv.app.repository.subtitle.OnlineSubtitleOrchestrator
 import com.quantummpv.app.repository.subtitle.OnlineSubtitleSearchMode
 import com.quantummpv.app.repository.subtitle.OnlineSubtitleSearchRequest
 import com.quantummpv.app.repository.wyzie.WyzieSearchRepository
-import com.quantummpv.app.ui.player.ScriptCurlBridge
 import com.quantummpv.app.ui.player.anime4k.Anime4KUiState
 import com.quantummpv.app.ui.player.anime4k.applyAnime4KShaderChain
 import com.quantummpv.app.ui.player.anime4k.applyAnime4KStabilityOptions
@@ -78,9 +75,9 @@ import com.quantummpv.app.ui.player.controls.components.sheets.EQ_MAX_DB
 import com.quantummpv.app.ui.player.controls.components.sheets.EQ_MIN_DB
 import com.quantummpv.app.ui.player.controls.components.sheets.EqualizerPreset
 import com.quantummpv.app.ui.player.controls.components.sheets.EqualizerState
-import com.quantummpv.app.ui.player.ytdlp.YtdlpManager
 import com.quantummpv.app.ui.player.screenshot.ScreenshotSaver
 import com.quantummpv.app.ui.player.screenshot.ScreenshotSettings
+import com.quantummpv.app.ui.player.ytdlp.YtdlpManager
 import com.quantummpv.app.ui.preferences.CustomButton
 import com.quantummpv.app.ui.preferences.CustomButtonScriptLanguage
 import com.quantummpv.app.utils.media.AudioEqualizerManager
@@ -91,7 +88,7 @@ import com.quantummpv.app.utils.media.SubtitleHashUtils
 import com.quantummpv.app.utils.media.fileExtension
 import com.quantummpv.app.utils.media.resolveSubtitleLookupDirectories
 import com.quantummpv.app.utils.storage.FileTypeUtils
-import `is`.xyz.mpv.FastThumbnails
+import `is`.xyz.mpv.MPVNode
 import kotlinx.collections.immutable.persistentListOf
 import kotlinx.collections.immutable.toImmutableList
 import kotlinx.coroutines.CoroutineScope
@@ -129,8 +126,8 @@ import org.koin.core.component.KoinComponent
 import org.koin.core.component.inject
 import java.io.File
 import java.io.FileOutputStream
-import java.security.MessageDigest
 import java.lang.ref.WeakReference
+import java.security.MessageDigest
 import java.util.concurrent.atomic.AtomicLong
 import kotlin.math.abs
 import kotlin.math.roundToInt
@@ -507,6 +504,7 @@ class PlayerViewModel : ViewModel(),
   private var autoCropReadinessJob: Job? = null
   private var autoCropAnalyzedGeneration = -1L
   private var autoCropApplied = false
+
   // Memory-only analysis cache. This is not playback history and does not enable auto-crop.
   private val autoCropResultCache = LruCache<String, AutoCropEdges>(AUTO_CROP_CACHE_CAPACITY)
   private val _autoCropState = MutableStateFlow(AutoCropState.IDLE)
@@ -833,6 +831,7 @@ class PlayerViewModel : ViewModel(),
 
   // Audio player UI state
   val albumArtBounds = MutableStateFlow<android.graphics.Rect?>(null)
+
   // The style and artwork/visualizer display choice are persisted via audioPreferences.
   val showVisualizerInAudioPlayer = MutableStateFlow(audioPreferences.showAudioVisualizer.get())
   val equalizerState = MutableStateFlow(EqualizerState())
@@ -1473,7 +1472,6 @@ val isBrightnessSliderShown = MutableStateFlow(false)
 
   private val _seekState = MutableStateFlow(SeekState())
   val seekState: StateFlow<SeekState> = _seekState.asStateFlow()
-
 
   // Frame navigation
   private val _currentFrame = MutableStateFlow(0)
@@ -4317,7 +4315,6 @@ val isBrightnessSliderShown = MutableStateFlow(false)
     seekBarVisibleForPolling = false
   }
 
-
   fun lockControls() {
     _areControlsLocked.value = true
   }
@@ -6816,7 +6813,6 @@ val isBrightnessSliderShown = MutableStateFlow(false)
     // it, and the service may keep an active session open.
     runCatching { stopRealtimeSubtitles(showToastMessage = false) }
     runCatching { cancelAutoCropAnalysis() }
-
 
     // The metadataCache (Pair<String, String> entries) is small and
     // bounded at 100 entries, so it is not urgent to clear, but clearing

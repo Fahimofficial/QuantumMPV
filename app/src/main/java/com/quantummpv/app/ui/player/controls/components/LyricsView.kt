@@ -4,8 +4,6 @@
 
 package com.quantummpv.app.ui.player.controls.components
 
-import com.quantummpv.app.ui.player.PlaybackSession
-
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.FastOutSlowInEasing
@@ -34,7 +32,6 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.FilterChip
@@ -55,7 +52,6 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.withFrameNanos
-import com.quantummpv.app.preferences.preference.collectAsState
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.BlurredEdgeTreatment
@@ -69,25 +65,25 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.CompositingStrategy
 import androidx.compose.ui.graphics.Shadow
 import androidx.compose.ui.graphics.TransformOrigin
-import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.drawscope.clipRect
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
-import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.TextUnit
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.quantummpv.app.R
-import com.quantummpv.app.data.lyrics.LyricsLanguageOptions
 import com.quantummpv.app.domain.lyrics.LyricsSourceType
-import com.quantummpv.app.domain.lyrics.SyncedLine
 import com.quantummpv.app.domain.lyrics.SyncedWord
 import com.quantummpv.app.preferences.AudioPreferences
 import com.quantummpv.app.preferences.LyricsTranslationDisplayMode
+import com.quantummpv.app.preferences.preference.collectAsState
 import com.quantummpv.app.ui.icons.Icon
 import com.quantummpv.app.ui.icons.Icons
+import com.quantummpv.app.ui.player.PlaybackSession
 import com.quantummpv.app.ui.player.PlayerViewModel
 import com.quantummpv.app.ui.player.controls.components.sheets.LyricsTranslateDialog
 import com.quantummpv.app.ui.theme.fontFamilyForText
@@ -306,7 +302,7 @@ fun LyricsView(
             ) {
               itemsIndexed(
                 items = activeLyrics.synced,
-                key = { index, line -> "${line.time}_${index}" },
+                key = { index, line -> "${line.time}_$index" },
                 contentType = { _, _ -> "lyric_synced_line" },
               ) { index, line ->
                 val isActiveLine = index == state.activeLineIndex

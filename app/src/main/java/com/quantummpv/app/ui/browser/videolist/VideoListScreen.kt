@@ -14,9 +14,7 @@ package com.quantummpv.app.ui.browser.videolist
 import android.content.Intent
 import android.os.Environment
 import android.widget.Toast
-import com.quantummpv.app.ui.utils.NavigationBackHandler as BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
-import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.spring
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -37,8 +35,8 @@ import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
 import androidx.compose.material3.FloatingActionButton
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.PlainTooltip
 import androidx.compose.material3.Scaffold
@@ -64,9 +62,9 @@ import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.stringResource
@@ -82,9 +80,9 @@ import com.quantummpv.app.preferences.AppearancePreferences
 import com.quantummpv.app.preferences.BrowserPreferences
 import com.quantummpv.app.preferences.GesturePreferences
 import com.quantummpv.app.preferences.MediaLayoutMode
-import com.quantummpv.app.preferences.SortOrder
 import com.quantummpv.app.preferences.PlayerPreferences
 import com.quantummpv.app.preferences.SecureFolderPreferences
+import com.quantummpv.app.preferences.SortOrder
 import com.quantummpv.app.preferences.preference.collectAsState
 import com.quantummpv.app.presentation.Screen
 import com.quantummpv.app.presentation.components.pullrefresh.PullRefreshBox
@@ -119,8 +117,8 @@ import com.quantummpv.app.ui.utils.navigateTo
 import com.quantummpv.app.ui.utils.popSafely
 import com.quantummpv.app.utils.history.RecentlyPlayedOps
 import com.quantummpv.app.utils.media.CopyPasteOps
-import com.quantummpv.app.utils.media.MediaUtils
 import com.quantummpv.app.utils.media.MediaSearchEngine
+import com.quantummpv.app.utils.media.MediaUtils
 import com.quantummpv.app.utils.media.OpenDocumentTreeContract
 import com.quantummpv.app.utils.sort.SortUtils
 import kotlinx.coroutines.delay
@@ -132,6 +130,7 @@ import kotlinx.serialization.Serializable
 import org.koin.compose.koinInject
 import java.io.File
 import kotlin.math.roundToInt
+import com.quantummpv.app.ui.utils.NavigationBackHandler as BackHandler
 
 @Serializable
 data class VideoListScreen(
@@ -157,7 +156,7 @@ data class VideoListScreen(
     // ViewModel
     val viewModel: VideoListViewModel =
       viewModel(
-        key = "VideoListViewModel_${bucketId}_${isAudio}",
+        key = "VideoListViewModel_${bucketId}_$isAudio",
         factory = VideoListViewModel.factory(context.applicationContext as android.app.Application, bucketId, isAudio),
       )
     val videos by viewModel.videos.collectAsState()

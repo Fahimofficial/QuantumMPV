@@ -67,10 +67,10 @@ import com.quantummpv.app.ui.browser.navidrome.AddNavidromeServerDialog
 import com.quantummpv.app.ui.browser.navidrome.NavidromeViewModel
 import com.quantummpv.app.ui.icons.Icon
 import com.quantummpv.app.ui.icons.Icons
+import com.quantummpv.app.ui.preferences.components.SwitchPreference
 import com.quantummpv.app.ui.utils.LocalBackStack
 import com.quantummpv.app.ui.utils.LocalShowSettingsBackArrow
 import com.quantummpv.app.ui.utils.popSafely
-import com.quantummpv.app.ui.preferences.components.SwitchPreference
 import kotlinx.serialization.Serializable
 import me.zhanghai.compose.preference.Preference
 import me.zhanghai.compose.preference.ProvidePreferenceLocals
@@ -78,7 +78,6 @@ import org.koin.compose.koinInject
 
 @Serializable
 object MediaServersPreferencesScreen : Screen {
-
   @OptIn(ExperimentalMaterial3Api::class)
   @Composable
   override fun Content() {

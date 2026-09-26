@@ -33,13 +33,13 @@ import androidx.compose.ui.semantics.role
 import androidx.compose.ui.semantics.semantics
 import com.quantummpv.app.preferences.preference.PreferenceStore
 import com.quantummpv.app.preferences.preference.getEnum
-import com.quantummpv.app.ui.theme.AppTheme
-import com.quantummpv.app.ui.theme.DarkMode
-import com.quantummpv.app.ui.theme.spacing
 import com.quantummpv.app.ui.player.controls.components.rememberTvInitialFocusRequester
 import com.quantummpv.app.ui.player.controls.components.tvFocusGroup
 import com.quantummpv.app.ui.player.controls.components.tvFocusHighlight
 import com.quantummpv.app.ui.player.controls.components.tvInitialFocus
+import com.quantummpv.app.ui.theme.AppTheme
+import com.quantummpv.app.ui.theme.DarkMode
+import com.quantummpv.app.ui.theme.spacing
 import kotlinx.collections.immutable.ImmutableList
 
 class AppearancePreferences(

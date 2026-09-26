@@ -22,9 +22,9 @@ import android.media.MediaScannerConnection
 import android.media.metrics.LogSessionId
 import android.net.Uri
 import android.os.Build
-import android.util.Log
 import android.os.Environment
 import android.provider.MediaStore
+import android.util.Log
 import androidx.annotation.OptIn
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.ViewModel
@@ -1612,7 +1612,7 @@ class VideoCompressorViewModel(
           removeAudio = effectiveRemoveAudio,
           warnings = warnings,
           blockingError =
-            "This device cannot decode ${resolvedWidth}x${resolvedHeight}@${resolvedFps.toInt()}fps " +
+            "This device cannot decode ${resolvedWidth}x$resolvedHeight@${resolvedFps.toInt()}fps " +
               "${sourceMime.substringAfter("/").uppercase()} video.",
         )
       }

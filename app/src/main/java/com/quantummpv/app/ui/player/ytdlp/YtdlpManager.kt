@@ -93,8 +93,8 @@ object YtdlpManager {
         HttpUtils.directMediaExtensions
           .flatMap { extension ->
             listOf(
-              "^[^?#]+%.${extension}$",
-              "^[^?#]+%.${extension}[?#]",
+              "^[^?#]+%.$extension$",
+              "^[^?#]+%.$extension[?#]",
             )
           }
     ).joinToString("|")

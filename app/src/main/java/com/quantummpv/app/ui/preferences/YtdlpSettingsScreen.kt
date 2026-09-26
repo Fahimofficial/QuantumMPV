@@ -231,5 +231,4 @@ object YtdlpSettingsScreen : Screen {
       }
     }
   }
-
 }

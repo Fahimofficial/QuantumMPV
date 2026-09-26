@@ -11,8 +11,8 @@ package com.quantummpv.app.ui.update
 
 import android.app.Application
 import android.content.Context
-import android.util.Log
 import android.content.Intent
+import android.util.Log
 import androidx.core.content.FileProvider
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope

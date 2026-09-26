@@ -217,7 +217,7 @@ internal class ParticleFeedbackRenderer(
     GLES30.glBindVertexArray(dummyVao)
     GLES30.glDisable(GLES30.GL_BLEND)
 
-    /* 1. Simulate */
+    // 1. Simulate
     val nextSim = 1 - simSrc
     GLES30.glBindFramebuffer(GLES30.GL_FRAMEBUFFER, simFbo[nextSim])
     GLES30.glViewport(0, 0, Cfg.SIM_SIZE, Cfg.SIM_SIZE)
@@ -239,7 +239,7 @@ internal class ParticleFeedbackRenderer(
     GLES30.glDrawArrays(GLES30.GL_TRIANGLES, 0, 3)
     simSrc = nextSim
 
-    /* 2. Decay + Diffuse Previous Trail */
+    // 2. Decay + Diffuse Previous Trail
     val nextTrail = 1 - trailSrc
     GLES30.glBindFramebuffer(GLES30.GL_FRAMEBUFFER, trailFbo[nextTrail])
     GLES30.glViewport(0, 0, trailWidth, trailHeight)
@@ -252,7 +252,7 @@ internal class ParticleFeedbackRenderer(
     GLES30.glUniform1f(uDecayDiff, Cfg.DIFFUSE)
     GLES30.glDrawArrays(GLES30.GL_TRIANGLES, 0, 3)
 
-    /* 3. Additive Points into Trail FBO */
+    // 3. Additive Points into Trail FBO
     GLES30.glEnable(GLES30.GL_BLEND)
     GLES30.glBlendFunc(GLES30.GL_ONE, GLES30.GL_ONE)
     GLES30.glUseProgram(pPts)
@@ -275,7 +275,7 @@ internal class ParticleFeedbackRenderer(
     GLES30.glDisable(GLES30.GL_BLEND)
     trailSrc = nextTrail
 
-    /* 4. Generate bloom mip levels every other frame. The base trail is still updated every frame. */
+    // 4. Generate bloom mip levels every other frame. The base trail is still updated every frame.
     GLES30.glBindFramebuffer(GLES30.GL_FRAMEBUFFER, 0)
     GLES30.glActiveTexture(GLES30.GL_TEXTURE0)
     GLES30.glBindTexture(GLES30.GL_TEXTURE_2D, trailTex[trailSrc])
@@ -283,7 +283,7 @@ internal class ParticleFeedbackRenderer(
       GLES30.glGenerateMipmap(GLES30.GL_TEXTURE_2D)
     }
 
-    /* 5. Composite Pass to Screen with Dynamic Colors & Theme Adaptation */
+    // 5. Composite Pass to Screen with Dynamic Colors & Theme Adaptation
     val primaryRgb = requestedPalette.primaryRgb()
     val secondaryRgb = requestedPalette.secondaryRgb()
     val bgRgb = requestedPalette.backgroundRgb()

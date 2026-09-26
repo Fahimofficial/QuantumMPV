@@ -24,7 +24,6 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.withContext
 import java.io.File
-import kotlin.math.pow
 
 /**
  * Repository for caching video metadata with parallel processing support
@@ -429,7 +428,6 @@ class VideoMetadataCacheRepository(
       )
     }
   }
-
 
   data class CacheStats(
     val totalEntries: Int,

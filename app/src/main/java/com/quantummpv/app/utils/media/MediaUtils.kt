@@ -28,7 +28,6 @@ import com.quantummpv.app.ui.torrent.TorrentSelectionActivity
 import com.quantummpv.app.utils.storage.FileTypeUtils
 import `is`.xyz.mpv.Utils
 import java.io.File
-import kotlin.math.pow
 
 data class PlaybackSubtitleTrack(
   val url: String,

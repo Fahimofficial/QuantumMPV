@@ -69,6 +69,7 @@ import androidx.documentfile.provider.DocumentFile
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.lifecycleScope
 import androidx.lifecycle.repeatOnLifecycle
+import com.github.k1rakishou.fsaf.FileManager
 import com.quantummpv.app.R
 import com.quantummpv.app.database.entities.PlaybackStateEntity
 import com.quantummpv.app.database.entities.PlaylistEntity
@@ -78,8 +79,8 @@ import com.quantummpv.app.databinding.PlayerLayoutBinding
 import com.quantummpv.app.domain.anime4k.Anime4KManager
 import com.quantummpv.app.domain.network.NetworkPlaybackUri
 import com.quantummpv.app.domain.playbackstate.repository.PlaybackStateRepository
-import com.quantummpv.app.domain.torrent.TorrentStreamRequest
 import com.quantummpv.app.domain.torrent.TorrentStreamException
+import com.quantummpv.app.domain.torrent.TorrentStreamRequest
 import com.quantummpv.app.domain.torrent.TorrentStreamResult
 import com.quantummpv.app.domain.torrent.TorrentStreamingEngine
 import com.quantummpv.app.domain.torrent.canonicalInfoHash
@@ -103,12 +104,12 @@ import com.quantummpv.app.ui.browser.playlist.buildAllVideosPlaylistEntity
 import com.quantummpv.app.ui.browser.playlist.isAllVideosPlaylist
 import com.quantummpv.app.ui.cast.CastMediaSnapshot
 import com.quantummpv.app.ui.cast.CastPlaybackController
-import com.quantummpv.app.ui.player.controls.PlayerControls
 import com.quantummpv.app.ui.player.components.VideoAmbientBackground
 import com.quantummpv.app.ui.player.components.rememberVideoAmbientFrame
+import com.quantummpv.app.ui.player.controls.PlayerControls
+import com.quantummpv.app.ui.player.media3.MpvMedia3SeekDirection
 import com.quantummpv.app.ui.player.media3.MpvMedia3SessionHost
 import com.quantummpv.app.ui.player.media3.MpvMedia3SessionManager
-import com.quantummpv.app.ui.player.media3.MpvMedia3SeekDirection
 import com.quantummpv.app.ui.player.ytdlp.YtdlpManager
 import com.quantummpv.app.ui.theme.MpvrxTheme
 import com.quantummpv.app.ui.torrent.TorrentSelectionActivity
@@ -117,18 +118,16 @@ import com.quantummpv.app.utils.device.VulkanCapabilities
 import com.quantummpv.app.utils.history.RecentlyPlayedOps
 import com.quantummpv.app.utils.media.HttpUtils
 import com.quantummpv.app.utils.media.JellyfinSessionReporter
-import com.quantummpv.app.utils.media.MediaUtils
-import com.quantummpv.app.utils.media.fileExtension
-import com.quantummpv.app.utils.media.resolveSeekMode
 import com.quantummpv.app.utils.media.M3UParseResult
 import com.quantummpv.app.utils.media.M3UParser
+import com.quantummpv.app.utils.media.MediaUtils
 import com.quantummpv.app.utils.media.PlaybackStateEvents
 import com.quantummpv.app.utils.media.SharedUrlExtractor
 import com.quantummpv.app.utils.media.SubtitleOps
+import com.quantummpv.app.utils.media.fileExtension
 import com.quantummpv.app.utils.media.listTreeFilesSafely
 import com.quantummpv.app.utils.media.openPersistedTreeDocument
 import com.quantummpv.app.utils.storage.FileTypeUtils
-import com.github.k1rakishou.fsaf.FileManager
 import `is`.xyz.mpv.MPVLib
 import `is`.xyz.mpv.MPVNode
 import `is`.xyz.mpv.Utils
@@ -137,18 +136,18 @@ import kotlinx.coroutines.DelicateCoroutinesApi
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.drop
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.update
-import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
-import org.koin.android.ext.android.inject
 import okhttp3.OkHttpClient
+import org.koin.android.ext.android.inject
 import java.io.File
 import java.util.concurrent.atomic.AtomicBoolean
 import kotlin.math.abs
@@ -893,7 +892,6 @@ class PlayerActivity :
       this,
       callback,
     )
-
   }
 
   private fun applyPredictiveBackProgress(backEvent: BackEventCompat) {
@@ -1497,7 +1495,6 @@ class PlayerActivity :
         backgroundPlaybackEnabled = playbackWasInitialized && isBackgroundPlaybackEnabled(),
         backgroundPlaybackSessionActive = isBackgroundPlaybackSessionActive,
       )
-
 
     runCatching {
       mediaLoadJob?.cancel()

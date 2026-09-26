@@ -13,7 +13,6 @@ import android.graphics.Bitmap
 import android.graphics.Color
 import kotlin.math.ln
 import kotlin.math.max
-import kotlin.math.min
 
 internal object VideoScopeAnalyzer {
   private const val OUTPUT_WIDTH = 320

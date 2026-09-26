@@ -22,8 +22,8 @@ import com.quantummpv.app.domain.hdr.HdrToysManager
 import com.quantummpv.app.network.AndroidCookieJar
 import com.quantummpv.app.preferences.AdvancedPreferences
 import com.quantummpv.app.preferences.AudioPreferences
-import com.quantummpv.app.preferences.DecoderPreferences
 import com.quantummpv.app.preferences.DEFAULT_SUBTITLE_FONT_FAMILY
+import com.quantummpv.app.preferences.DecoderPreferences
 import com.quantummpv.app.preferences.MpvConfigControlledFeatures
 import com.quantummpv.app.preferences.MpvConfigOverridePolicy
 import com.quantummpv.app.preferences.PlayerPreferences

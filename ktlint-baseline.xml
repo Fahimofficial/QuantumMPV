@@ -1,0 +1,757 @@
+<?xml version="1.0" encoding="utf-8"?>
+<baseline version="1.0">
+    <file name="src/main/java/com/quantummpv/app/MainActivity.kt">
+        <error line="506" column="121" source="standard:max-line-length" />
+        <error line="579" column="121" source="standard:max-line-length" />
+    </file>
+    <file name="src/main/java/com/quantummpv/app/data/lyrics/LyricsTranslationService.kt">
+        <error line="131" column="121" source="standard:max-line-length" />
+        <error line="204" column="121" source="standard:max-line-length" />
+        <error line="294" column="121" source="standard:max-line-length" />
+        <error line="567" column="121" source="standard:max-line-length" />
+    </file>
+    <file name="src/main/java/com/quantummpv/app/data/network/proxy/HlsStreamingProxy.kt">
+        <error line="201" column="121" source="standard:max-line-length" />
+        <error line="243" column="121" source="standard:max-line-length" />
+        <error line="294" column="121" source="standard:max-line-length" />
+        <error line="570" column="121" source="standard:max-line-length" />
+        <error line="602" column="121" source="standard:max-line-length" />
+    </file>
+    <file name="src/main/java/com/quantummpv/app/database/repository/PlaylistRepository.kt">
+        <error line="92" column="121" source="standard:max-line-length" />
+        <error line="206" column="121" source="standard:max-line-length" />
+    </file>
+    <file name="src/main/java/com/quantummpv/app/database/repository/SecureFolderRepository.kt">
+        <error line="410" column="121" source="standard:max-line-length" />
+    </file>
+    <file name="src/main/java/com/quantummpv/app/di/DatabaseModule.kt">
+        <error line="727" column="121" source="standard:max-line-length" />
+        <error line="728" column="121" source="standard:max-line-length" />
+    </file>
+    <file name="src/main/java/com/quantummpv/app/di/DownloadModule.kt">
+        <error line="22" column="121" source="standard:max-line-length" />
+    </file>
+    <file name="src/main/java/com/quantummpv/app/domain/torrent/TorrentMetadata.kt">
+        <error line="1" column="1" source="standard:filename" />
+    </file>
+    <file name="src/main/java/com/quantummpv/app/domain/torrent/TorrentProxyServer.kt">
+        <error line="65" column="121" source="standard:max-line-length" />
+    </file>
+    <file name="src/main/java/com/quantummpv/app/domain/torrent/TorrentStreamModels.kt">
+        <error line="219" column="121" source="standard:max-line-length" />
+    </file>
+    <file name="src/main/java/com/quantummpv/app/preferences/AudioPreferences.kt">
+        <error line="54" column="121" source="standard:max-line-length" />
+    </file>
+    <file name="src/main/java/com/quantummpv/app/presentation/crash/DebugLogsScreen.kt">
+        <error line="396" column="121" source="standard:max-line-length" />
+    </file>
+    <file name="src/main/java/com/quantummpv/app/repository/IntroDbRepository.kt">
+        <error line="349" column="120" source="standard:max-line-length" />
+        <error line="411" column="121" source="standard:max-line-length" />
+    </file>
+    <file name="src/main/java/com/quantummpv/app/repository/JellyfinRepository.kt">
+        <error line="58" column="120" source="standard:max-line-length" />
+        <error line="79" column="121" source="standard:max-line-length" />
+        <error line="86" column="121" source="standard:max-line-length" />
+        <error line="92" column="121" source="standard:max-line-length" />
+        <error line="96" column="121" source="standard:max-line-length" />
+        <error line="98" column="120" source="standard:max-line-length" />
+        <error line="99" column="121" source="standard:max-line-length" />
+        <error line="100" column="121" source="standard:max-line-length" />
+        <error line="101" column="121" source="standard:max-line-length" />
+        <error line="103" column="120" source="standard:max-line-length" />
+        <error line="106" column="121" source="standard:max-line-length" />
+        <error line="108" column="121" source="standard:max-line-length" />
+        <error line="111" column="120" source="standard:max-line-length" />
+        <error line="113" column="120" source="standard:max-line-length" />
+        <error line="114" column="121" source="standard:max-line-length" />
+        <error line="115" column="121" source="standard:max-line-length" />
+        <error line="116" column="121" source="standard:max-line-length" />
+        <error line="117" column="121" source="standard:max-line-length" />
+        <error line="118" column="121" source="standard:max-line-length" />
+        <error line="119" column="121" source="standard:max-line-length" />
+        <error line="120" column="121" source="standard:max-line-length" />
+        <error line="121" column="121" source="standard:max-line-length" />
+        <error line="126" column="121" source="standard:max-line-length" />
+        <error line="136" column="121" source="standard:max-line-length" />
+    </file>
+    <file name="src/main/java/com/quantummpv/app/repository/NavidromeRepository.kt">
+        <error line="54" column="121" source="standard:max-line-length" />
+        <error line="55" column="121" source="standard:max-line-length" />
+        <error line="56" column="121" source="standard:max-line-length" />
+        <error line="57" column="121" source="standard:max-line-length" />
+        <error line="59" column="121" source="standard:max-line-length" />
+        <error line="60" column="121" source="standard:max-line-length" />
+        <error line="64" column="120" source="standard:max-line-length" />
+        <error line="75" column="120" source="standard:max-line-length" />
+        <error line="79" column="121" source="standard:max-line-length" />
+        <error line="80" column="121" source="standard:max-line-length" />
+        <error line="81" column="121" source="standard:max-line-length" />
+        <error line="96" column="121" source="standard:max-line-length" />
+    </file>
+    <file name="src/main/java/com/quantummpv/app/repository/SeerrRepository.kt">
+        <error line="535" column="121" source="standard:max-line-length" />
+        <error line="555" column="121" source="standard:max-line-length" />
+    </file>
+    <file name="src/main/java/com/quantummpv/app/repository/ai/AiService.kt">
+        <error line="91" column="121" source="standard:max-line-length" />
+    </file>
+    <file name="src/main/java/com/quantummpv/app/repository/ai/AnthropicClient.kt">
+        <error line="129" column="121" source="standard:max-line-length" />
+    </file>
+    <file name="src/main/java/com/quantummpv/app/repository/ai/OpenCodeClient.kt">
+        <error line="127" column="121" source="standard:max-line-length" />
+    </file>
+    <file name="src/main/java/com/quantummpv/app/repository/ai/RealtimeAudioChunkExtractor.kt">
+        <error line="90" column="121" source="standard:max-line-length" />
+        <error line="93" column="121" source="standard:max-line-length" />
+        <error line="202" column="120" source="standard:max-line-length" />
+    </file>
+    <file name="src/main/java/com/quantummpv/app/repository/ai/RealtimeSubtitleService.kt">
+        <error line="227" column="121" source="standard:max-line-length" />
+        <error line="228" column="121" source="standard:max-line-length" />
+        <error line="385" column="121" source="standard:max-line-length" />
+    </file>
+    <file name="src/main/java/com/quantummpv/app/repository/ai/SubtitleGenerationService.kt">
+        <error line="230" column="121" source="standard:max-line-length" />
+    </file>
+    <file name="src/main/java/com/quantummpv/app/repository/lyrics/LyricsRepository.kt">
+        <error line="35" column="121" source="standard:max-line-length" />
+        <error line="38" column="121" source="standard:max-line-length" />
+        <error line="39" column="121" source="standard:max-line-length" />
+        <error line="110" column="121" source="standard:max-line-length" />
+    </file>
+    <file name="src/main/java/com/quantummpv/app/repository/subtitlehub/MpvRxSubtitleHubApiSources.kt">
+        <error line="334" column="121" source="standard:max-line-length" />
+        <error line="540" column="121" source="standard:max-line-length" />
+    </file>
+    <file name="src/main/java/com/quantummpv/app/ui/browser/MainScreen.kt">
+        <error line="418" column="121" source="standard:max-line-length" />
+        <error line="547" column="121" source="standard:max-line-length" />
+        <error line="582" column="121" source="standard:max-line-length" />
+    </file>
+    <file name="src/main/java/com/quantummpv/app/ui/browser/cards/FolderCard.kt">
+        <error line="369" column="121" source="standard:max-line-length" />
+    </file>
+    <file name="src/main/java/com/quantummpv/app/ui/browser/cards/VideoCard.kt">
+        <error line="611" column="121" source="standard:max-line-length" />
+    </file>
+    <file name="src/main/java/com/quantummpv/app/ui/browser/dialogs/AddToPlaylistViewModel.kt">
+        <error line="109" column="121" source="standard:max-line-length" />
+        <error line="125" column="121" source="standard:max-line-length" />
+    </file>
+    <file name="src/main/java/com/quantummpv/app/ui/browser/dialogs/DeleteConfirmationDialog.kt">
+        <error line="99" column="121" source="standard:max-line-length" />
+    </file>
+    <file name="src/main/java/com/quantummpv/app/ui/browser/dialogs/SharedServerDialogs.kt">
+        <error line="320" column="121" source="standard:max-line-length" />
+    </file>
+    <file name="src/main/java/com/quantummpv/app/ui/browser/dialogs/SortDialog.kt">
+        <error line="253" column="121" source="standard:max-line-length" />
+        <error line="465" column="121" source="standard:max-line-length" />
+        <error line="500" column="121" source="standard:max-line-length" />
+        <error line="530" column="121" source="standard:max-line-length" />
+    </file>
+    <file name="src/main/java/com/quantummpv/app/ui/browser/dialogs/VideoCompressorOverlay.kt">
+        <error line="1347" column="121" source="standard:max-line-length" />
+    </file>
+    <file name="src/main/java/com/quantummpv/app/ui/browser/dialogs/VideoCompressorViewModel.kt">
+        <error line="1340" column="121" source="standard:max-line-length" />
+        <error line="1444" column="121" source="standard:max-line-length" />
+        <error line="1588" column="121" source="standard:max-line-length" />
+    </file>
+    <file name="src/main/java/com/quantummpv/app/ui/browser/filesystem/FileSystemBrowserScreen.kt">
+        <error line="672" column="121" source="standard:max-line-length" />
+    </file>
+    <file name="src/main/java/com/quantummpv/app/ui/browser/filesystem/FileSystemBrowserViewModel.kt">
+        <error line="60" column="15" source="standard:property-naming" />
+        <error line="73" column="15" source="standard:backing-property-naming" />
+    </file>
+    <file name="src/main/java/com/quantummpv/app/ui/browser/folderlist/FolderListScreen.kt">
+        <error line="245" column="121" source="standard:max-line-length" />
+        <error line="461" column="121" source="standard:max-line-length" />
+        <error line="669" column="121" source="standard:max-line-length" />
+        <error line="760" column="121" source="standard:max-line-length" />
+        <error line="846" column="121" source="standard:max-line-length" />
+        <error line="1254" column="121" source="standard:max-line-length" />
+        <error line="1260" column="121" source="standard:max-line-length" />
+    </file>
+    <file name="src/main/java/com/quantummpv/app/ui/browser/folderlist/FolderListViewModel.kt">
+        <error line="59" column="15" source="standard:backing-property-naming" />
+        <error line="294" column="121" source="standard:max-line-length" />
+    </file>
+    <file name="src/main/java/com/quantummpv/app/ui/browser/jellyfin/AddJellyfinServerDialog.kt">
+        <error line="38" column="121" source="standard:max-line-length" />
+    </file>
+    <file name="src/main/java/com/quantummpv/app/ui/browser/jellyfin/JellyfinCards.kt">
+        <error line="378" column="121" source="standard:max-line-length" />
+        <error line="660" column="121" source="standard:max-line-length" />
+        <error line="844" column="121" source="standard:max-line-length" />
+    </file>
+    <file name="src/main/java/com/quantummpv/app/ui/browser/jellyfin/JellyfinContent.kt">
+        <error line="202" column="121" source="standard:max-line-length" />
+        <error line="203" column="121" source="standard:max-line-length" />
+        <error line="391" column="121" source="standard:max-line-length" />
+        <error line="415" column="121" source="standard:max-line-length" />
+        <error line="693" column="121" source="standard:max-line-length" />
+        <error line="813" column="121" source="standard:max-line-length" />
+        <error line="831" column="121" source="standard:max-line-length" />
+        <error line="864" column="121" source="standard:max-line-length" />
+        <error line="878" column="121" source="standard:max-line-length" />
+        <error line="885" column="121" source="standard:max-line-length" />
+        <error line="915" column="121" source="standard:max-line-length" />
+        <error line="945" column="121" source="standard:max-line-length" />
+        <error line="977" column="121" source="standard:max-line-length" />
+        <error line="1010" column="121" source="standard:max-line-length" />
+        <error line="1081" column="121" source="standard:max-line-length" />
+        <error line="1291" column="121" source="standard:max-line-length" />
+    </file>
+    <file name="src/main/java/com/quantummpv/app/ui/browser/jellyfin/JellyfinDetailSheet.kt">
+        <error line="128" column="120" source="standard:max-line-length" />
+        <error line="157" column="121" source="standard:max-line-length" />
+        <error line="178" column="121" source="standard:max-line-length" />
+        <error line="206" column="121" source="standard:max-line-length" />
+        <error line="739" column="121" source="standard:max-line-length" />
+        <error line="851" column="121" source="standard:max-line-length" />
+        <error line="868" column="121" source="standard:max-line-length" />
+        <error line="890" column="121" source="standard:max-line-length" />
+        <error line="906" column="121" source="standard:max-line-length" />
+        <error line="912" column="121" source="standard:max-line-length" />
+    </file>
+    <file name="src/main/java/com/quantummpv/app/ui/browser/jellyfin/JellyfinMusicView.kt">
+        <error line="79" column="121" source="standard:max-line-length" />
+        <error line="109" column="121" source="standard:max-line-length" />
+        <error line="110" column="121" source="standard:max-line-length" />
+        <error line="122" column="121" source="standard:max-line-length" />
+        <error line="161" column="121" source="standard:max-line-length" />
+        <error line="211" column="121" source="standard:max-line-length" />
+        <error line="224" column="121" source="standard:max-line-length" />
+        <error line="254" column="121" source="standard:max-line-length" />
+        <error line="304" column="121" source="standard:max-line-length" />
+        <error line="334" column="121" source="standard:max-line-length" />
+        <error line="373" column="121" source="standard:max-line-length" />
+        <error line="374" column="121" source="standard:max-line-length" />
+        <error line="388" column="121" source="standard:max-line-length" />
+        <error line="408" column="121" source="standard:max-line-length" />
+        <error line="417" column="121" source="standard:max-line-length" />
+        <error line="435" column="121" source="standard:max-line-length" />
+        <error line="574" column="121" source="standard:max-line-length" />
+    </file>
+    <file name="src/main/java/com/quantummpv/app/ui/browser/jellyfin/JellyfinViewModel.kt">
+        <error line="296" column="121" source="standard:max-line-length" />
+        <error line="344" column="120" source="standard:max-line-length" />
+        <error line="347" column="121" source="standard:max-line-length" />
+        <error line="354" column="121" source="standard:max-line-length" />
+        <error line="373" column="121" source="standard:max-line-length" />
+        <error line="385" column="121" source="standard:max-line-length" />
+        <error line="402" column="121" source="standard:max-line-length" />
+        <error line="455" column="121" source="standard:max-line-length" />
+        <error line="472" column="121" source="standard:max-line-length" />
+        <error line="473" column="121" source="standard:max-line-length" />
+        <error line="474" column="121" source="standard:max-line-length" />
+        <error line="803" column="120" source="standard:max-line-length" />
+        <error line="849" column="120" source="standard:max-line-length" />
+        <error line="1466" column="121" source="standard:max-line-length" />
+        <error line="1498" column="120" source="standard:max-line-length" />
+        <error line="1598" column="121" source="standard:max-line-length" />
+        <error line="1599" column="121" source="standard:max-line-length" />
+        <error line="1621" column="120" source="standard:max-line-length" />
+        <error line="1629" column="121" source="standard:max-line-length" />
+        <error line="1744" column="121" source="standard:max-line-length" />
+        <error line="1745" column="121" source="standard:max-line-length" />
+        <error line="1980" column="121" source="standard:max-line-length" />
+    </file>
+    <file name="src/main/java/com/quantummpv/app/ui/browser/jellyfin/seerr/SeerrConnectionDialog.kt">
+        <error line="183" column="121" source="standard:max-line-length" />
+        <error line="288" column="121" source="standard:max-line-length" />
+    </file>
+    <file name="src/main/java/com/quantummpv/app/ui/browser/jellyfin/seerr/SeerrContent.kt">
+        <error line="200" column="121" source="standard:max-line-length" />
+        <error line="453" column="121" source="standard:max-line-length" />
+        <error line="458" column="121" source="standard:max-line-length" />
+    </file>
+    <file name="src/main/java/com/quantummpv/app/ui/browser/jellyfin/seerr/SeerrDetailSheet.kt">
+        <error line="132" column="121" source="standard:max-line-length" />
+        <error line="390" column="120" source="standard:max-line-length" />
+        <error line="587" column="121" source="standard:max-line-length" />
+    </file>
+    <file name="src/main/java/com/quantummpv/app/ui/browser/jellyfin/seerr/SeerrViewModel.kt">
+        <error line="271" column="121" source="standard:max-line-length" />
+        <error line="433" column="121" source="standard:max-line-length" />
+        <error line="531" column="121" source="standard:max-line-length" />
+        <error line="533" column="121" source="standard:max-line-length" />
+        <error line="568" column="121" source="standard:max-line-length" />
+        <error line="570" column="121" source="standard:max-line-length" />
+    </file>
+    <file name="src/main/java/com/quantummpv/app/ui/browser/medialibrary/MediaLibraryContent.kt">
+        <error line="144" column="121" source="standard:max-line-length" />
+        <error line="359" column="120" source="standard:max-line-length" />
+        <error line="544" column="121" source="standard:max-line-length" />
+        <error line="735" column="121" source="standard:max-line-length" />
+    </file>
+    <file name="src/main/java/com/quantummpv/app/ui/browser/music/MusicLibraryContent.kt">
+        <error line="423" column="120" source="standard:max-line-length" />
+        <error line="449" column="121" source="standard:max-line-length" />
+        <error line="460" column="121" source="standard:max-line-length" />
+        <error line="516" column="121" source="standard:max-line-length" />
+        <error line="522" column="121" source="standard:max-line-length" />
+        <error line="539" column="121" source="standard:max-line-length" />
+        <error line="785" column="121" source="standard:max-line-length" />
+        <error line="818" column="121" source="standard:max-line-length" />
+        <error line="840" column="121" source="standard:max-line-length" />
+        <error line="1063" column="121" source="standard:max-line-length" />
+        <error line="1067" column="121" source="standard:max-line-length" />
+        <error line="1068" column="121" source="standard:max-line-length" />
+        <error line="1103" column="121" source="standard:max-line-length" />
+        <error line="1187" column="121" source="standard:max-line-length" />
+        <error line="1191" column="121" source="standard:max-line-length" />
+        <error line="1192" column="121" source="standard:max-line-length" />
+        <error line="1260" column="121" source="standard:max-line-length" />
+        <error line="1261" column="121" source="standard:max-line-length" />
+        <error line="1323" column="121" source="standard:max-line-length" />
+        <error line="1325" column="121" source="standard:max-line-length" />
+        <error line="1342" column="121" source="standard:max-line-length" />
+        <error line="1683" column="121" source="standard:max-line-length" />
+        <error line="1792" column="121" source="standard:max-line-length" />
+        <error line="2017" column="121" source="standard:max-line-length" />
+        <error line="2238" column="17" source="standard:property-naming" />
+        <error line="2340" column="121" source="standard:max-line-length" />
+    </file>
+    <file name="src/main/java/com/quantummpv/app/ui/browser/music/MusicLibraryViewModel.kt">
+        <error line="56" column="121" source="standard:max-line-length" />
+        <error line="63" column="15" source="standard:backing-property-naming" />
+        <error line="427" column="121" source="standard:max-line-length" />
+    </file>
+    <file name="src/main/java/com/quantummpv/app/ui/browser/music/SharedMusicComponents.kt">
+        <error line="197" column="121" source="standard:max-line-length" />
+        <error line="373" column="121" source="standard:max-line-length" />
+    </file>
+    <file name="src/main/java/com/quantummpv/app/ui/browser/navidrome/AddNavidromeServerDialog.kt">
+        <error line="44" column="121" source="standard:max-line-length" />
+    </file>
+    <file name="src/main/java/com/quantummpv/app/ui/browser/navidrome/NavidromeContent.kt">
+        <error line="140" column="121" source="standard:max-line-length" />
+        <error line="219" column="121" source="standard:max-line-length" />
+    </file>
+    <file name="src/main/java/com/quantummpv/app/ui/browser/navidrome/NavidromeDetailSheet.kt">
+        <error line="111" column="121" source="standard:max-line-length" />
+        <error line="113" column="121" source="standard:max-line-length" />
+        <error line="164" column="121" source="standard:max-line-length" />
+        <error line="218" column="121" source="standard:max-line-length" />
+        <error line="220" column="121" source="standard:max-line-length" />
+    </file>
+    <file name="src/main/java/com/quantummpv/app/ui/browser/navidrome/NavidromeMusicView.kt">
+        <error line="130" column="121" source="standard:max-line-length" />
+        <error line="156" column="121" source="standard:max-line-length" />
+        <error line="206" column="121" source="standard:max-line-length" />
+        <error line="223" column="121" source="standard:max-line-length" />
+        <error line="258" column="121" source="standard:max-line-length" />
+        <error line="276" column="121" source="standard:max-line-length" />
+        <error line="316" column="121" source="standard:max-line-length" />
+        <error line="325" column="121" source="standard:max-line-length" />
+        <error line="333" column="121" source="standard:max-line-length" />
+        <error line="341" column="121" source="standard:max-line-length" />
+        <error line="399" column="121" source="standard:max-line-length" />
+    </file>
+    <file name="src/main/java/com/quantummpv/app/ui/browser/navidrome/NavidromeViewModel.kt">
+        <error line="171" column="121" source="standard:max-line-length" />
+        <error line="172" column="121" source="standard:max-line-length" />
+        <error line="173" column="121" source="standard:max-line-length" />
+        <error line="193" column="121" source="standard:max-line-length" />
+        <error line="247" column="121" source="standard:max-line-length" />
+        <error line="256" column="121" source="standard:max-line-length" />
+        <error line="308" column="121" source="standard:max-line-length" />
+        <error line="363" column="120" source="standard:max-line-length" />
+        <error line="396" column="120" source="standard:max-line-length" />
+        <error line="423" column="121" source="standard:max-line-length" />
+        <error line="424" column="121" source="standard:max-line-length" />
+        <error line="438" column="121" source="standard:max-line-length" />
+        <error line="439" column="121" source="standard:max-line-length" />
+    </file>
+    <file name="src/main/java/com/quantummpv/app/ui/browser/networkstreaming/NetworkBrowserViewModel.kt">
+        <error line="284" column="120" source="standard:max-line-length" />
+        <error line="317" column="121" source="standard:max-line-length" />
+        <error line="392" column="121" source="standard:max-line-length" />
+    </file>
+    <file name="src/main/java/com/quantummpv/app/ui/browser/networkstreaming/NetworkStreamingScreen.kt">
+        <error line="296" column="121" source="standard:max-line-length" />
+        <error line="481" column="121" source="standard:max-line-length" />
+        <error line="534" column="121" source="standard:max-line-length" />
+        <error line="921" column="121" source="standard:max-line-length" />
+        <error line="934" column="121" source="standard:max-line-length" />
+    </file>
+    <file name="src/main/java/com/quantummpv/app/ui/browser/networkstreaming/NetworkStreamingViewModel.kt">
+        <error line="306" column="121" source="standard:max-line-length" />
+        <error line="356" column="121" source="standard:max-line-length" />
+        <error line="413" column="121" source="standard:max-line-length" />
+        <error line="605" column="120" source="standard:max-line-length" />
+    </file>
+    <file name="src/main/java/com/quantummpv/app/ui/browser/networkstreaming/TorrentCards.kt">
+        <error line="366" column="121" source="standard:max-line-length" />
+    </file>
+    <file name="src/main/java/com/quantummpv/app/ui/browser/networkstreaming/TorrentDetailSheet.kt">
+        <error line="541" column="121" source="standard:max-line-length" />
+        <error line="548" column="121" source="standard:max-line-length" />
+        <error line="620" column="121" source="standard:max-line-length" />
+        <error line="631" column="121" source="standard:max-line-length" />
+        <error line="660" column="121" source="standard:max-line-length" />
+    </file>
+    <file name="src/main/java/com/quantummpv/app/ui/browser/playlist/PlaylistAddVideosScreen.kt">
+        <error line="161" column="121" source="standard:max-line-length" />
+        <error line="212" column="121" source="standard:max-line-length" />
+        <error line="223" column="121" source="standard:max-line-length" />
+        <error line="245" column="121" source="standard:max-line-length" />
+    </file>
+    <file name="src/main/java/com/quantummpv/app/ui/browser/playlist/PlaylistDetailScreen.kt">
+        <error line="1052" column="121" source="standard:max-line-length" />
+    </file>
+    <file name="src/main/java/com/quantummpv/app/ui/browser/recentlyplayed/RecentlyPlayedScreen.kt">
+        <error line="273" column="121" source="standard:max-line-length" />
+        <error line="332" column="121" source="standard:max-line-length" />
+    </file>
+    <file name="src/main/java/com/quantummpv/app/ui/browser/sheets/PlayLinkSheet.kt">
+        <error line="247" column="121" source="standard:max-line-length" />
+        <error line="250" column="121" source="standard:max-line-length" />
+        <error line="254" column="121" source="standard:max-line-length" />
+    </file>
+    <file name="src/main/java/com/quantummpv/app/ui/browser/states/PermissionDeniedState.kt">
+        <error line="193" column="121" source="standard:max-line-length" />
+        <error line="209" column="121" source="standard:max-line-length" />
+    </file>
+    <file name="src/main/java/com/quantummpv/app/ui/browser/videolist/VideoListScreen.kt">
+        <error line="556" column="121" source="standard:max-line-length" />
+        <error line="573" column="121" source="standard:max-line-length" />
+        <error line="574" column="121" source="standard:max-line-length" />
+        <error line="583" column="121" source="standard:max-line-length" />
+        <error line="595" column="121" source="standard:max-line-length" />
+        <error line="596" column="121" source="standard:max-line-length" />
+        <error line="603" column="121" source="standard:max-line-length" />
+        <error line="608" column="121" source="standard:max-line-length" />
+    </file>
+    <file name="src/main/java/com/quantummpv/app/ui/browser/videolist/VideoListViewModel.kt">
+        <error line="101" column="121" source="standard:max-line-length" />
+    </file>
+    <file name="src/main/java/com/quantummpv/app/ui/components/ThemedSegmentedButtonColors.kt">
+        <error line="38" column="121" source="standard:max-line-length" />
+    </file>
+    <file name="src/main/java/com/quantummpv/app/ui/icons/Icons.kt">
+        <error line="11" column="1" source="standard:no-wildcard-imports" />
+    </file>
+    <file name="src/main/java/com/quantummpv/app/ui/lua/LuaScriptsUi.kt">
+        <error line="155" column="121" source="standard:max-line-length" />
+    </file>
+    <file name="src/main/java/com/quantummpv/app/ui/mediainfo/MediaInfoActivity.kt">
+        <error line="475" column="121" source="standard:max-line-length" />
+    </file>
+    <file name="src/main/java/com/quantummpv/app/ui/player/MediaPlaybackService.kt">
+        <error line="1102" column="121" source="standard:max-line-length" />
+    </file>
+    <file name="src/main/java/com/quantummpv/app/ui/player/PlaybackSession.kt">
+        <error line="870" column="121" source="standard:max-line-length" />
+        <error line="1073" column="121" source="standard:max-line-length" />
+    </file>
+    <file name="src/main/java/com/quantummpv/app/ui/player/PlayerActivity.kt">
+        <error line="647" column="121" source="standard:max-line-length" />
+        <error line="1603" column="121" source="standard:max-line-length" />
+        <error line="2539" column="121" source="standard:max-line-length" />
+        <error line="4349" column="121" source="standard:max-line-length" />
+        <error line="5033" column="121" source="standard:max-line-length" />
+        <error line="5221" column="121" source="standard:max-line-length" />
+        <error line="6341" column="3" source="standard:no-consecutive-comments" />
+        <error line="7245" column="121" source="standard:max-line-length" />
+    </file>
+    <file name="src/main/java/com/quantummpv/app/ui/player/PlayerNodes.kt">
+        <error line="89" column="121" source="standard:max-line-length" />
+        <error line="90" column="121" source="standard:max-line-length" />
+        <error line="95" column="121" source="standard:max-line-length" />
+    </file>
+    <file name="src/main/java/com/quantummpv/app/ui/player/PlayerUtils.kt">
+        <error line="48" column="1" source="standard:no-consecutive-comments" />
+    </file>
+    <file name="src/main/java/com/quantummpv/app/ui/player/PlayerViewModel.kt">
+        <error line="552" column="15" source="standard:backing-property-naming" />
+        <error line="555" column="15" source="standard:backing-property-naming" />
+        <error line="851" column="121" source="standard:max-line-length" />
+        <error line="952" column="121" source="standard:max-line-length" />
+        <error line="1024" column="121" source="standard:max-line-length" />
+        <error line="1052" column="120" source="standard:max-line-length" />
+        <error line="1067" column="121" source="standard:max-line-length" />
+        <error line="1128" column="121" source="standard:max-line-length" />
+        <error line="1251" column="121" source="standard:max-line-length" />
+        <error line="1361" column="120" source="standard:max-line-length" />
+        <error line="1426" column="121" source="standard:max-line-length" />
+        <error line="1427" column="121" source="standard:max-line-length" />
+        <error line="1569" column="15" source="standard:backing-property-naming" />
+        <error line="1570" column="15" source="standard:backing-property-naming" />
+        <error line="2017" column="121" source="standard:max-line-length" />
+        <error line="3053" column="121" source="standard:max-line-length" />
+        <error line="3061" column="121" source="standard:max-line-length" />
+        <error line="3069" column="121" source="standard:max-line-length" />
+        <error line="3088" column="121" source="standard:max-line-length" />
+        <error line="3094" column="121" source="standard:max-line-length" />
+        <error line="3103" column="121" source="standard:max-line-length" />
+        <error line="3256" column="121" source="standard:max-line-length" />
+        <error line="4633" column="121" source="standard:max-line-length" />
+        <error line="4651" column="121" source="standard:max-line-length" />
+        <error line="4683" column="121" source="standard:max-line-length" />
+        <error line="4959" column="121" source="standard:max-line-length" />
+    </file>
+    <file name="src/main/java/com/quantummpv/app/ui/player/anime4k/Anime4KPlayback.kt">
+        <error line="99" column="121" source="standard:max-line-length" />
+    </file>
+    <file name="src/main/java/com/quantummpv/app/ui/player/controls/AudioPlayerControls.kt">
+        <error line="248" column="121" source="standard:max-line-length" />
+        <error line="270" column="121" source="standard:max-line-length" />
+        <error line="525" column="121" source="standard:max-line-length" />
+        <error line="653" column="121" source="standard:max-line-length" />
+        <error line="682" column="121" source="standard:max-line-length" />
+        <error line="902" column="121" source="standard:max-line-length" />
+        <error line="924" column="121" source="standard:max-line-length" />
+        <error line="1006" column="120" source="standard:max-line-length" />
+        <error line="1007" column="121" source="standard:max-line-length" />
+        <error line="1026" column="121" source="standard:max-line-length" />
+        <error line="1281" column="121" source="standard:max-line-length" />
+        <error line="1304" column="121" source="standard:max-line-length" />
+        <error line="1318" column="121" source="standard:max-line-length" />
+        <error line="1567" column="121" source="standard:max-line-length" />
+        <error line="1575" column="121" source="standard:max-line-length" />
+        <error line="1753" column="121" source="standard:max-line-length" />
+        <error line="1786" column="121" source="standard:max-line-length" />
+        <error line="1803" column="121" source="standard:max-line-length" />
+        <error line="1834" column="121" source="standard:max-line-length" />
+        <error line="1867" column="121" source="standard:max-line-length" />
+        <error line="1877" column="121" source="standard:max-line-length" />
+        <error line="1894" column="121" source="standard:max-line-length" />
+        <error line="1937" column="121" source="standard:max-line-length" />
+        <error line="1938" column="121" source="standard:max-line-length" />
+        <error line="1952" column="121" source="standard:max-line-length" />
+        <error line="1953" column="121" source="standard:max-line-length" />
+        <error line="2318" column="121" source="standard:max-line-length" />
+    </file>
+    <file name="src/main/java/com/quantummpv/app/ui/player/controls/GestureHandler.kt">
+        <error line="552" column="121" source="standard:max-line-length" />
+        <error line="583" column="121" source="standard:max-line-length" />
+        <error line="737" column="121" source="standard:max-line-length" />
+        <error line="1094" column="121" source="standard:max-line-length" />
+        <error line="1121" column="120" source="standard:max-line-length" />
+    </file>
+    <file name="src/main/java/com/quantummpv/app/ui/player/controls/PlayerControlDrawer.kt">
+        <error line="406" column="19" source="standard:property-naming" />
+        <error line="407" column="19" source="standard:property-naming" />
+        <error line="408" column="19" source="standard:property-naming" />
+    </file>
+    <file name="src/main/java/com/quantummpv/app/ui/player/controls/PlayerControls.kt">
+        <error line="2532" column="121" source="standard:max-line-length" />
+    </file>
+    <file name="src/main/java/com/quantummpv/app/ui/player/controls/PlayerSheets.kt">
+        <error line="265" column="121" source="standard:max-line-length" />
+    </file>
+    <file name="src/main/java/com/quantummpv/app/ui/player/controls/components/AudioWavySeekBar.kt">
+        <error line="109" column="121" source="standard:max-line-length" />
+        <error line="110" column="121" source="standard:max-line-length" />
+        <error line="111" column="121" source="standard:max-line-length" />
+        <error line="112" column="121" source="standard:max-line-length" />
+    </file>
+    <file name="src/main/java/com/quantummpv/app/ui/player/controls/components/LyricsView.kt">
+        <error line="221" column="121" source="standard:max-line-length" />
+        <error line="225" column="121" source="standard:max-line-length" />
+        <error line="450" column="121" source="standard:max-line-length" />
+        <error line="550" column="121" source="standard:max-line-length" />
+        <error line="564" column="121" source="standard:max-line-length" />
+    </file>
+    <file name="src/main/java/com/quantummpv/app/ui/player/controls/components/Seekbar.kt">
+        <error line="843" column="121" source="standard:max-line-length" />
+        <error line="848" column="121" source="standard:max-line-length" />
+        <error line="871" column="121" source="standard:max-line-length" />
+        <error line="1081" column="121" source="standard:max-line-length" />
+        <error line="1432" column="121" source="standard:max-line-length" />
+    </file>
+    <file name="src/main/java/com/quantummpv/app/ui/player/controls/components/VerticalSliders.kt">
+        <error line="15" column="1" source="standard:no-wildcard-imports" />
+    </file>
+    <file name="src/main/java/com/quantummpv/app/ui/player/controls/components/panels/YtdlpPanel.kt">
+        <error line="14" column="1" source="standard:no-wildcard-imports" />
+        <error line="16" column="1" source="standard:no-wildcard-imports" />
+        <error line="17" column="1" source="standard:no-wildcard-imports" />
+    </file>
+    <file name="src/main/java/com/quantummpv/app/ui/player/controls/components/sheets/AmbientSheet.kt">
+        <error line="85" column="121" source="standard:max-line-length" />
+        <error line="91" column="121" source="standard:max-line-length" />
+        <error line="97" column="121" source="standard:max-line-length" />
+    </file>
+    <file name="src/main/java/com/quantummpv/app/ui/player/controls/components/sheets/LyricsSheet.kt">
+        <error line="160" column="121" source="standard:max-line-length" />
+        <error line="278" column="121" source="standard:max-line-length" />
+    </file>
+    <file name="src/main/java/com/quantummpv/app/ui/player/controls/components/sheets/LyricsTranslateDialog.kt">
+        <error line="123" column="121" source="standard:max-line-length" />
+        <error line="140" column="121" source="standard:max-line-length" />
+    </file>
+    <file name="src/main/java/com/quantummpv/app/ui/player/controls/components/sheets/OnlineSubtitleSearchSheet.kt">
+        <error line="19" column="1" source="standard:no-wildcard-imports" />
+        <error line="25" column="1" source="standard:no-wildcard-imports" />
+        <error line="26" column="1" source="standard:no-wildcard-imports" />
+        <error line="393" column="121" source="standard:max-line-length" />
+    </file>
+    <file name="src/main/java/com/quantummpv/app/ui/player/controls/components/sheets/TrackSheetRows.kt">
+        <error line="93" column="121" source="standard:max-line-length" />
+    </file>
+    <file name="src/main/java/com/quantummpv/app/ui/player/controls/components/sheets/VideoQualitySheet.kt">
+        <error line="13" column="1" source="standard:no-wildcard-imports" />
+    </file>
+    <file name="src/main/java/com/quantummpv/app/ui/player/scopes/AudioWaveformDecoder.kt">
+        <error line="106" column="121" source="standard:max-line-length" />
+    </file>
+    <file name="src/main/java/com/quantummpv/app/ui/player/screenshot/ScreenshotSaver.kt">
+        <error line="132" column="121" source="standard:max-line-length" />
+    </file>
+    <file name="src/main/java/com/quantummpv/app/ui/player/visualizer/ParticleFeedbackRenderer.kt">
+        <error line="399" column="121" source="standard:max-line-length" />
+        <error line="417" column="121" source="standard:max-line-length" />
+        <error line="444" column="121" source="standard:max-line-length" />
+    </file>
+    <file name="src/main/java/com/quantummpv/app/ui/player/ytdlp/YtdlpInstallationStatus.kt">
+        <error line="13" column="1" source="standard:no-wildcard-imports" />
+        <error line="15" column="1" source="standard:no-wildcard-imports" />
+    </file>
+    <file name="src/main/java/com/quantummpv/app/ui/player/ytdlp/YtdlpManager.kt">
+        <error line="35" column="1" source="standard:no-wildcard-imports" />
+    </file>
+    <file name="src/main/java/com/quantummpv/app/ui/preferences/AboutScreen.kt">
+        <error line="716" column="121" source="standard:max-line-length" />
+    </file>
+    <file name="src/main/java/com/quantummpv/app/ui/preferences/AiIntegrationScreen.kt">
+        <error line="422" column="121" source="standard:max-line-length" />
+        <error line="1520" column="121" source="standard:max-line-length" />
+        <error line="1521" column="121" source="standard:max-line-length" />
+    </file>
+    <file name="src/main/java/com/quantummpv/app/ui/preferences/AppearancePreferencesScreen.kt">
+        <error line="232" column="121" source="standard:max-line-length" />
+        <error line="289" column="121" source="standard:max-line-length" />
+    </file>
+    <file name="src/main/java/com/quantummpv/app/ui/preferences/AudioPreferencesScreen.kt">
+        <error line="246" column="121" source="standard:max-line-length" />
+        <error line="650" column="121" source="standard:max-line-length" />
+        <error line="720" column="121" source="standard:max-line-length" />
+        <error line="737" column="121" source="standard:max-line-length" />
+    </file>
+    <file name="src/main/java/com/quantummpv/app/ui/preferences/CodecCapabilitiesScreen.kt">
+        <error line="584" column="121" source="standard:max-line-length" />
+        <error line="585" column="121" source="standard:max-line-length" />
+    </file>
+    <file name="src/main/java/com/quantummpv/app/ui/preferences/CustomButtonScreen.kt">
+        <error line="250" column="9" source="standard:property-naming" />
+    </file>
+    <file name="src/main/java/com/quantummpv/app/ui/preferences/GesturePreferencesScreen.kt">
+        <error line="175" column="121" source="standard:max-line-length" />
+        <error line="412" column="121" source="standard:max-line-length" />
+    </file>
+    <file name="src/main/java/com/quantummpv/app/ui/preferences/MediaServersPreferencesScreen.kt">
+        <error line="241" column="121" source="standard:max-line-length" />
+        <error line="551" column="121" source="standard:max-line-length" />
+    </file>
+    <file name="src/main/java/com/quantummpv/app/ui/preferences/SearchablePreference.kt">
+        <error line="1143" column="121" source="standard:max-line-length" />
+        <error line="1280" column="121" source="standard:max-line-length" />
+        <error line="1282" column="121" source="standard:max-line-length" />
+        <error line="1313" column="121" source="standard:max-line-length" />
+        <error line="1321" column="121" source="standard:max-line-length" />
+        <error line="1328" column="121" source="standard:max-line-length" />
+        <error line="1336" column="121" source="standard:max-line-length" />
+        <error line="1337" column="121" source="standard:max-line-length" />
+        <error line="1345" column="121" source="standard:max-line-length" />
+        <error line="1371" column="121" source="standard:max-line-length" />
+        <error line="1395" column="121" source="standard:max-line-length" />
+        <error line="1402" column="121" source="standard:max-line-length" />
+        <error line="1403" column="121" source="standard:max-line-length" />
+        <error line="1404" column="121" source="standard:max-line-length" />
+        <error line="1405" column="121" source="standard:max-line-length" />
+        <error line="1411" column="121" source="standard:max-line-length" />
+        <error line="1419" column="121" source="standard:max-line-length" />
+        <error line="1420" column="121" source="standard:max-line-length" />
+        <error line="1421" column="121" source="standard:max-line-length" />
+        <error line="1422" column="121" source="standard:max-line-length" />
+        <error line="1423" column="121" source="standard:max-line-length" />
+        <error line="1439" column="121" source="standard:max-line-length" />
+        <error line="1445" column="121" source="standard:max-line-length" />
+        <error line="1456" column="121" source="standard:max-line-length" />
+        <error line="1463" column="121" source="standard:max-line-length" />
+        <error line="1512" column="121" source="standard:max-line-length" />
+        <error line="1531" column="121" source="standard:max-line-length" />
+        <error line="1539" column="121" source="standard:max-line-length" />
+        <error line="1547" column="121" source="standard:max-line-length" />
+        <error line="1548" column="121" source="standard:max-line-length" />
+        <error line="1549" column="121" source="standard:max-line-length" />
+        <error line="1550" column="121" source="standard:max-line-length" />
+        <error line="1551" column="121" source="standard:max-line-length" />
+        <error line="1552" column="121" source="standard:max-line-length" />
+        <error line="1553" column="121" source="standard:max-line-length" />
+        <error line="1554" column="121" source="standard:max-line-length" />
+        <error line="1561" column="121" source="standard:max-line-length" />
+        <error line="1567" column="121" source="standard:max-line-length" />
+        <error line="1708" column="121" source="standard:max-line-length" />
+        <error line="1715" column="121" source="standard:max-line-length" />
+    </file>
+    <file name="src/main/java/com/quantummpv/app/ui/preferences/SettingsSearchNavigation.kt">
+        <error line="64" column="121" source="standard:max-line-length" />
+        <error line="80" column="121" source="standard:max-line-length" />
+    </file>
+    <file name="src/main/java/com/quantummpv/app/ui/preferences/SubtitlesPreferencesScreen.kt">
+        <error line="697" column="121" source="standard:max-line-length" />
+        <error line="698" column="121" source="standard:max-line-length" />
+        <error line="990" column="121" source="standard:max-line-length" />
+    </file>
+    <file name="src/main/java/com/quantummpv/app/ui/preferences/YtdlpSettingsScreen.kt">
+        <error line="13" column="1" source="standard:no-wildcard-imports" />
+        <error line="17" column="1" source="standard:no-wildcard-imports" />
+        <error line="18" column="1" source="standard:no-wildcard-imports" />
+    </file>
+    <file name="src/main/java/com/quantummpv/app/ui/securefolder/SecureFolderGateScreen.kt">
+        <error line="138" column="121" source="standard:max-line-length" />
+        <error line="139" column="121" source="standard:max-line-length" />
+        <error line="167" column="121" source="standard:max-line-length" />
+    </file>
+    <file name="src/main/java/com/quantummpv/app/ui/securefolder/SecureFolderViewModel.kt">
+        <error line="82" column="121" source="standard:max-line-length" />
+        <error line="240" column="121" source="standard:max-line-length" />
+        <error line="242" column="121" source="standard:max-line-length" />
+        <error line="246" column="121" source="standard:max-line-length" />
+        <error line="250" column="121" source="standard:max-line-length" />
+        <error line="272" column="121" source="standard:max-line-length" />
+        <error line="274" column="121" source="standard:max-line-length" />
+        <error line="278" column="121" source="standard:max-line-length" />
+        <error line="282" column="121" source="standard:max-line-length" />
+    </file>
+    <file name="src/main/java/com/quantummpv/app/ui/theme/AppTheme.kt">
+        <error line="565" column="19" source="standard:property-naming" />
+    </file>
+    <file name="src/main/java/com/quantummpv/app/ui/theme/Theme.kt">
+        <error line="371" column="121" source="standard:max-line-length" />
+    </file>
+    <file name="src/main/java/com/quantummpv/app/ui/theme/Type.kt">
+        <error line="76" column="19" source="standard:property-naming" />
+    </file>
+    <file name="src/main/java/com/quantummpv/app/ui/utils/NavigationPager.kt">
+        <error line="105" column="121" source="standard:max-line-length" />
+    </file>
+    <file name="src/main/java/com/quantummpv/app/utils/media/EmbeddedLyricsExtractor.kt">
+        <error line="139" column="121" source="standard:max-line-length" />
+        <error line="219" column="121" source="standard:max-line-length" />
+    </file>
+    <file name="src/main/java/com/quantummpv/app/utils/media/HttpUtils.kt">
+        <error line="106" column="121" source="standard:max-line-length" />
+    </file>
+    <file name="src/main/java/com/quantummpv/app/utils/media/MediaInfoParser.kt">
+        <error line="838" column="121" source="standard:max-line-length" />
+        <error line="843" column="121" source="standard:max-line-length" />
+        <error line="864" column="121" source="standard:max-line-length" />
+        <error line="900" column="121" source="standard:max-line-length" />
+    </file>
+    <file name="src/main/java/com/quantummpv/app/utils/storage/FolderViewScanner.kt">
+        <error line="296" column="120" source="standard:max-line-length" />
+    </file>
+    <file name="src/main/java/com/quantummpv/app/utils/storage/VideoScanUtils.kt">
+        <error line="510" column="121" source="standard:max-line-length" />
+    </file>
+</baseline>

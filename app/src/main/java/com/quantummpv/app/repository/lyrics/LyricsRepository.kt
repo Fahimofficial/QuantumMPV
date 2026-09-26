@@ -243,7 +243,6 @@ class LyricsRepository(
         trySearch(q = rawFirstClean)?.let { return@withContext it }
         trySearch(track = rawFirstClean)?.let { return@withContext it }
       }
-
     } catch (cancellation: CancellationException) {
       throw cancellation
     } catch (e: Exception) {

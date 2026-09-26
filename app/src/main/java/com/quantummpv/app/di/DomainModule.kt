@@ -97,4 +97,3 @@ val domainModule =
     single { TorrentStreamingEngine(androidContext()) }
     single { com.quantummpv.app.repository.SeerrRepository(get(), get(), get()) }
   }
-

@@ -7,7 +7,6 @@
  * (at your option) any later version.
  */
 
-
 package com.quantummpv.app.ui.player.controls.components.panels
 
 import android.content.res.Configuration

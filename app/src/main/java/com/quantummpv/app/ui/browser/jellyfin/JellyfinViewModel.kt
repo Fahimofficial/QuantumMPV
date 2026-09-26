@@ -109,7 +109,6 @@ data class JellyfinUiState(
   val authError: String? = null,
   val searchQuery: String = "",
   val searchCategory: JellyfinSearchCategory = JellyfinSearchCategory.ALL,
-
   // Jellyfin Music Tab State (AFinity style)
   val musicActiveTab: JellyfinMusicTab = JellyfinMusicTab.HOME,
   val musicViewMode: MusicViewMode = MusicViewMode.GRID,
@@ -125,7 +124,6 @@ data class JellyfinUiState(
   val musicTracks: List<JellyfinItem> = emptyList(),
   val musicGenres: List<JellyfinItem> = emptyList(),
   val isMusicLoading: Boolean = false,
-
   // Detail Sheet State
   val detailItem: JellyfinItem? = null,
   val detailSeasons: List<JellyfinItem> = emptyList(),
@@ -2088,4 +2086,3 @@ class JellyfinViewModel(
       }
   }
 }
-

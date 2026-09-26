@@ -12,7 +12,6 @@ package com.quantummpv.app.data.network
 import java.net.URI
 
 object ServerUrlUtils {
-
   private val IPV4_REGEX = Regex("""^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$""")
 
   /**

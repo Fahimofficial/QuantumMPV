@@ -59,7 +59,6 @@ import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
-import com.quantummpv.app.ui.components.IconSwitch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
@@ -89,6 +88,7 @@ import androidx.compose.ui.window.DialogProperties
 import com.quantummpv.app.R
 import com.quantummpv.app.preferences.PlayerPreferences
 import com.quantummpv.app.presentation.Screen
+import com.quantummpv.app.ui.components.IconSwitch
 import com.quantummpv.app.ui.editor.MpvHelpScreen
 import com.quantummpv.app.ui.editor.MpvScriptEditor
 import com.quantummpv.app.ui.icons.Icon

@@ -97,6 +97,7 @@ class MediaPlaybackService :
     private const val PROGRESS_NOTIFICATION_UPDATE_INTERVAL_MS = 2000L
     private const val MEDIA_NOTIFICATION_UPDATE_INTERVAL_MS = 1000L
     private const val MILLIS_PER_SECOND = 1000L
+
     // Published session artwork is downscaled and re-encoded to stay within Media3's expectations.
     private const val ARTWORK_MAX_DIMENSION = 512
     private const val ARTWORK_JPEG_QUALITY = 85

@@ -39,8 +39,6 @@ import org.koin.core.component.KoinComponent
 import org.koin.core.component.inject
 import java.io.File
 import java.util.Locale
-import kotlin.math.log10
-import kotlin.math.pow
 
 /**
  * Unified repository for ALL media file operations

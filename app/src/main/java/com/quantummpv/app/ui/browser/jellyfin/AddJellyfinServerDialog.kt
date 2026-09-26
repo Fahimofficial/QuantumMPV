@@ -34,7 +34,8 @@ fun AddJellyfinServerDialog(
   errorMessage: String?,
   initialServer: JellyfinServer? = null,
   onDismiss: () -> Unit,
-  onConnect: (serverUrl: String, serverName: String, authMode: JellyfinAuthMode, username: String, password: String, token: String) -> Unit,
+  onConnect:
+  (serverUrl: String, serverName: String, authMode: JellyfinAuthMode, username: String, password: String, token: String) -> Unit,
 ) {
   if (!isOpen) return
 

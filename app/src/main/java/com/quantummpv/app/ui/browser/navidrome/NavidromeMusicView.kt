@@ -9,37 +9,25 @@
 
 package com.quantummpv.app.ui.browser.navidrome
 
-import android.content.res.Configuration
 import android.text.format.DateUtils
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
-import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.aspectRatio
-import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.lazy.items
-import com.quantummpv.app.ui.utils.NavigationPager
 import androidx.compose.foundation.pager.PagerState
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
-import com.quantummpv.app.preferences.preference.collectAsState
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -50,6 +38,7 @@ import com.quantummpv.app.domain.navidrome.NavidromePlaylist
 import com.quantummpv.app.domain.navidrome.NavidromeServer
 import com.quantummpv.app.domain.navidrome.NavidromeSong
 import com.quantummpv.app.preferences.BrowserPreferences
+import com.quantummpv.app.preferences.preference.collectAsState
 import com.quantummpv.app.repository.NavidromeRepository
 import com.quantummpv.app.ui.browser.music.MusicSortField
 import com.quantummpv.app.ui.browser.music.MusicSortOrder
@@ -60,6 +49,7 @@ import com.quantummpv.app.ui.browser.music.SharedMusicGridCard
 import com.quantummpv.app.ui.browser.music.SharedMusicTrackListItem
 import com.quantummpv.app.ui.icons.Icons
 import com.quantummpv.app.ui.player.PlaybackSession
+import com.quantummpv.app.ui.utils.NavigationPager
 import org.koin.compose.koinInject
 
 @Composable

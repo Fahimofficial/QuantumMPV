@@ -14,9 +14,9 @@ package com.quantummpv.app.ui.preferences
 import android.content.Intent
 import android.net.Uri
 import android.widget.Toast
-import androidx.annotation.StringRes
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.annotation.StringRes
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -46,7 +46,6 @@ import androidx.compose.material3.TextField
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.collectAsState as collectFlowAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -64,6 +63,7 @@ import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import com.github.k1rakishou.fsaf.FileManager
 import com.quantummpv.app.R
 import com.quantummpv.app.preferences.SubtitlesPreferences
 import com.quantummpv.app.preferences.preference.collectAsState
@@ -87,7 +87,6 @@ import com.quantummpv.app.ui.utils.popSafely
 import com.quantummpv.app.utils.media.copyFontsFromDirectory
 import com.quantummpv.app.utils.media.loadCustomFontEntries
 import com.quantummpv.app.utils.media.resolveSubtitleStorageDirectory
-import com.github.k1rakishou.fsaf.FileManager
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -98,6 +97,7 @@ import me.zhanghai.compose.preference.ProvidePreferenceLocals
 import me.zhanghai.compose.preference.TextFieldPreference
 import org.koin.compose.koinInject
 import java.io.File
+import androidx.compose.runtime.collectAsState as collectFlowAsState
 
 @Serializable
 object SubtitlesPreferencesScreen : Screen {

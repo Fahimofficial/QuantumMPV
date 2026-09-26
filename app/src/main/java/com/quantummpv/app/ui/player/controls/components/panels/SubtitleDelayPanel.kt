@@ -9,8 +9,6 @@
 
 package com.quantummpv.app.ui.player.controls.components.panels
 
-import com.quantummpv.app.ui.player.PlaybackSession
-
 import androidx.compose.animation.animateContentSize
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -43,6 +41,7 @@ import com.quantummpv.app.preferences.SubtitlesPreferences
 import com.quantummpv.app.presentation.components.OutlinedNumericChooser
 import com.quantummpv.app.ui.icons.Icon
 import com.quantummpv.app.ui.icons.Icons
+import com.quantummpv.app.ui.player.PlaybackSession
 import com.quantummpv.app.ui.theme.spacing
 import com.quantummpv.app.ui.utils.currentMpvConfigOverrideOptions
 import kotlinx.coroutines.delay

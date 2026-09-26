@@ -9,14 +9,6 @@
 
 package com.quantummpv.app.ui.player.controls
 
-import com.quantummpv.app.ui.player.DeclaredPlaybackMediaKind
-import com.quantummpv.app.ui.player.PlaybackPhase
-import com.quantummpv.app.ui.player.PlaybackSession
-import com.quantummpv.app.ui.player.declaredMediaKind
-import com.quantummpv.app.domain.torrent.TorrentStreamingState
-import com.quantummpv.app.domain.torrent.formatTorrentBytes
-import com.quantummpv.app.domain.torrent.formatTorrentSpeed
-
 import android.content.res.Configuration.ORIENTATION_PORTRAIT
 import android.os.Debug
 import androidx.activity.compose.LocalActivity
@@ -76,8 +68,6 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
-import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableFloatStateOf
@@ -94,10 +84,10 @@ import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.Shadow
 import androidx.compose.ui.graphics.StrokeJoin
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.layout.onSizeChanged
@@ -118,7 +108,11 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.ui.zIndex
 import androidx.constraintlayout.compose.ConstraintLayout
 import androidx.constraintlayout.compose.Dimension
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.quantummpv.app.R
+import com.quantummpv.app.domain.torrent.TorrentStreamingState
+import com.quantummpv.app.domain.torrent.formatTorrentBytes
+import com.quantummpv.app.domain.torrent.formatTorrentSpeed
 import com.quantummpv.app.preferences.AdvancedPreferences
 import com.quantummpv.app.preferences.AiPreferences
 import com.quantummpv.app.preferences.AppearancePreferences
@@ -133,8 +127,11 @@ import com.quantummpv.app.preferences.preference.minusAssign
 import com.quantummpv.app.preferences.preference.plusAssign
 import com.quantummpv.app.ui.icons.Icon
 import com.quantummpv.app.ui.icons.Icons
+import com.quantummpv.app.ui.player.DeclaredPlaybackMediaKind
 import com.quantummpv.app.ui.player.Decoder.Companion.getDecoderFromValue
 import com.quantummpv.app.ui.player.Panels
+import com.quantummpv.app.ui.player.PlaybackPhase
+import com.quantummpv.app.ui.player.PlaybackSession
 import com.quantummpv.app.ui.player.PlayerActivity
 import com.quantummpv.app.ui.player.PlayerUpdates
 import com.quantummpv.app.ui.player.PlayerViewModel
@@ -162,14 +159,14 @@ import com.quantummpv.app.ui.player.controls.components.playerButtonContainerCol
 import com.quantummpv.app.ui.player.controls.components.playerButtonContentColor
 import com.quantummpv.app.ui.player.controls.components.rememberBufferingState
 import com.quantummpv.app.ui.player.controls.components.rememberTvInitialFocusRequester
+import com.quantummpv.app.ui.player.controls.components.sheets.toFixed
 import com.quantummpv.app.ui.player.controls.components.tvFocusHighlight
 import com.quantummpv.app.ui.player.controls.components.tvInitialFocus
-import com.quantummpv.app.ui.player.controls.components.sheets.toFixed
+import com.quantummpv.app.ui.player.declaredMediaKind
 import com.quantummpv.app.ui.theme.controlColor
-import com.quantummpv.app.utils.device.DeviceFormFactor
 import com.quantummpv.app.ui.theme.playerRippleConfiguration
 import com.quantummpv.app.ui.theme.spacing
-import dev.vivvvek.seeker.Segment
+import com.quantummpv.app.utils.device.DeviceFormFactor
 import kotlinx.collections.immutable.persistentListOf
 import kotlinx.collections.immutable.toImmutableList
 import kotlinx.coroutines.Dispatchers
@@ -1693,7 +1690,7 @@ is PlayerUpdates.FrameInfo -> {
             val position by PlaybackSession.propInt["time-pos"].collectAsStateWithLifecycle()
             val precisePosition by viewModel.precisePosition.collectAsStateWithLifecycle()
             val invertDuration by playerPreferences.invertDuration.collectAsState()
-            val remaining  by PlaybackSession.propFloat["playtime-remaining"].collectAsState()
+            val remaining by PlaybackSession.propFloat["playtime-remaining"].collectAsState()
             val seekbarStyle by appearancePreferences.seekbarStyle.collectAsState()
             val useWavySeekbar by playerPreferences.useWavySeekbar.collectAsState()
             val displayedSeekbarPosition = precisePosition
@@ -2022,7 +2019,6 @@ is PlayerUpdates.FrameInfo -> {
       viewModel = viewModel,
       onDismissRequest = { onOpenPanel(Panels.None) },
     )
-
 
 val activePlayerDrawerButtons =
       remember(

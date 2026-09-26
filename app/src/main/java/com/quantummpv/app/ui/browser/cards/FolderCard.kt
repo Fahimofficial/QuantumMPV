@@ -60,7 +60,6 @@ import com.quantummpv.app.utils.FormatUtils
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import org.koin.compose.koinInject
-import kotlin.math.pow
 
 @Composable
 fun FolderCard(

@@ -20,15 +20,13 @@ import android.provider.MediaStore
 import android.util.Log
 import com.quantummpv.app.database.repository.VideoMetadataCacheRepository
 import com.quantummpv.app.domain.media.model.Video
+import com.quantummpv.app.utils.FormatUtils
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import org.koin.core.component.KoinComponent
 import org.koin.core.component.inject
-import com.quantummpv.app.utils.FormatUtils
 import java.io.File
 import java.util.Locale
-import kotlin.math.log10
-import kotlin.math.pow
 
 /**
  * Video Scanning Utilities

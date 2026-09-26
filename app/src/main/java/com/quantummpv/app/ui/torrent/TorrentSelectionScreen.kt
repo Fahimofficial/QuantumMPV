@@ -29,7 +29,6 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -56,9 +55,9 @@ import com.quantummpv.app.R
 import com.quantummpv.app.domain.torrent.TorrentFileItem
 import com.quantummpv.app.domain.torrent.formatTorrentBytes
 import com.quantummpv.app.presentation.components.RemoteImage
-import com.quantummpv.app.utils.media.MediaInfoParser
 import com.quantummpv.app.ui.icons.Icon
 import com.quantummpv.app.ui.icons.Icons
+import com.quantummpv.app.utils.media.MediaInfoParser
 
 private const val VIEWED_TORRENT_FILES_PREFS = "torrent_viewed_files"
 

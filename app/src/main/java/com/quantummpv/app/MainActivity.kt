@@ -9,23 +9,30 @@
 
 package com.quantummpv.app
 
+import android.app.Activity
 import android.content.Intent
 import android.content.pm.ActivityInfo
 import android.content.res.Configuration
 import android.os.Build
 import android.os.Bundle
 import android.util.Log
-import android.app.Activity
+import android.view.SurfaceHolder
+import android.view.SurfaceView
 import androidx.activity.ComponentActivity
 import androidx.activity.SystemBarStyle
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatActivity
-import androidx.lifecycle.Lifecycle
+import androidx.compose.foundation.background
 import androidx.compose.foundation.isSystemInDarkTheme
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.navigationBars
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -35,24 +42,23 @@ import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.viewinterop.AndroidView
+import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation3.runtime.NavBackStack
 import androidx.navigation3.runtime.rememberNavBackStack
-import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.WindowInsets
-import androidx.compose.foundation.layout.navigationBars
-import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.windowInsetsPadding
-import androidx.compose.ui.Alignment
-import androidx.compose.ui.unit.dp
 import com.quantummpv.app.preferences.AppearancePreferences
 import com.quantummpv.app.preferences.PlayerPreferences
 import com.quantummpv.app.preferences.preference.collectAsState
@@ -60,32 +66,26 @@ import com.quantummpv.app.presentation.Screen
 import com.quantummpv.app.ui.browser.MainScreen
 import com.quantummpv.app.ui.browser.NavigationBarState
 import com.quantummpv.app.ui.browser.components.MiniPlayer
-import com.quantummpv.app.ui.theme.DarkMode
-import com.quantummpv.app.ui.theme.MpvrxTheme
-import com.quantummpv.app.ui.theme.rememberThemeTransitionState
-import android.view.SurfaceHolder
-import android.view.SurfaceView
-import androidx.compose.foundation.background
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.setValue
-import androidx.compose.ui.viewinterop.AndroidView
 import com.quantummpv.app.ui.player.MPVPipHelper
+import com.quantummpv.app.ui.player.MediaPlaybackService
 import com.quantummpv.app.ui.player.PlaybackPhase
 import com.quantummpv.app.ui.player.PlaybackSession
 import com.quantummpv.app.ui.player.PlayerActivity
-import com.quantummpv.app.ui.player.MediaPlaybackService
 import com.quantummpv.app.ui.player.TrackNode
 import com.quantummpv.app.ui.player.toObject
+import com.quantummpv.app.ui.theme.DarkMode
+import com.quantummpv.app.ui.theme.MpvrxTheme
+import com.quantummpv.app.ui.theme.rememberThemeTransitionState
+import com.quantummpv.app.ui.update.UpdateSheet
+import com.quantummpv.app.ui.update.UpdateViewModel
 import com.quantummpv.app.ui.utils.LocalBackStack
 import com.quantummpv.app.ui.utils.ScreenNavDisplay
 import com.quantummpv.app.ui.utils.popSafely
-import com.quantummpv.app.utils.device.VulkanCapabilities
 import com.quantummpv.app.utils.device.DeviceFormFactor
+import com.quantummpv.app.utils.device.VulkanCapabilities
 import com.quantummpv.app.utils.media.fileExtension
 import com.quantummpv.app.utils.permission.PermissionUtils
 import com.quantummpv.app.utils.storage.FileTypeUtils
-import com.quantummpv.app.ui.update.UpdateSheet
-import com.quantummpv.app.ui.update.UpdateViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.first
 import kotlinx.serialization.json.Json
@@ -443,8 +443,6 @@ class MainActivity : AppCompatActivity() {
       Log.e("MainActivity", "Error during onDestroy", e)
     }
   }
-
-
 
   private fun resolveIsDarkMode(
     darkMode: DarkMode,

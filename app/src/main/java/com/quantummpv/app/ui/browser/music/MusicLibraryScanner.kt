@@ -14,7 +14,6 @@ import kotlinx.coroutines.withContext
 import java.io.File
 
 object MusicLibraryScanner {
-
   private const val TAG = "MusicLibraryScanner"
   private val ALBUM_ART_BASE_URI = Uri.parse("content://media/external/audio/albumart")
 

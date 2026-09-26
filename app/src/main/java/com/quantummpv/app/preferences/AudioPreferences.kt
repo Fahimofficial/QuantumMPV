@@ -24,6 +24,7 @@ class AudioPreferences(
   val audioChannels = preferenceStore.getEnum("audio_channels", AudioChannels.AutoSafe)
   val volumeBoostCap = preferenceStore.getInt("audio_volume_boost_cap", 30)
   val backgroundPlayback = preferenceStore.getBoolean("automatic_background_playback", false)
+
   /** Audio-player-only background playback; video retains [backgroundPlayback]. */
   val audioBackgroundPlayback = preferenceStore.getBoolean("audio_player_background_playback", false)
   val volumeNormalization = preferenceStore.getBoolean("audio_volume_normalization", false)
@@ -84,7 +85,6 @@ enum class AudioVisualizerStyle(
   Particle(R.string.pref_audio_visualizer_style_particle),
 }
 
-
 enum class AudioChannels(
   @StringRes val title: Int,
   val property: String,
@@ -92,6 +92,7 @@ enum class AudioChannels(
 ) {
   /** Let mpv prefer the source layout when the output device reports that it is supported. */
   Auto(R.string.pref_audio_channels_auto, "audio-channels", "auto"),
+
   /** Use the system-preferred layout and safely fall back to stereo. This is mpv's default. */
   AutoSafe(R.string.pref_audio_channels_auto_safe, "audio-channels", "auto-safe"),
   Mono(R.string.pref_audio_channels_mono, "audio-channels", "mono"),

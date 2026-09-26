@@ -208,7 +208,6 @@ internal class BlobRenderer(
         GlUtils.readAssetText(context, "shaders/visualizer/blob/composite_fragment.glsl"),
       )
 
-
     cacheUniformLocations()
     createMesh()
     createQuad()

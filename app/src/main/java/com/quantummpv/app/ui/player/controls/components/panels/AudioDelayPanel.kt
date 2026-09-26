@@ -7,10 +7,7 @@
  * (at your option) any later version.
  */
 
-
 package com.quantummpv.app.ui.player.controls.components.panels
-
-import com.quantummpv.app.ui.player.PlaybackSession
 
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Row
@@ -34,6 +31,7 @@ import com.quantummpv.app.R
 import com.quantummpv.app.preferences.AudioPreferences
 import com.quantummpv.app.ui.icons.Icon
 import com.quantummpv.app.ui.icons.Icons
+import com.quantummpv.app.ui.player.PlaybackSession
 import com.quantummpv.app.ui.theme.spacing
 import org.koin.compose.koinInject
 import kotlin.math.roundToInt

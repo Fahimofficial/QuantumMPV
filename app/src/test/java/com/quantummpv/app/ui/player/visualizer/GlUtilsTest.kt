@@ -12,8 +12,7 @@ import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
 
 class GlUtilsTest {
-
-    @Before
+  @Before
     fun setUp() {
         mockkStatic(GLES20::class)
         mockkStatic(GLES30::class)

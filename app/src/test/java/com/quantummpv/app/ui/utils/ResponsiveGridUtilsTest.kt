@@ -5,7 +5,6 @@ import org.junit.Assert.assertEquals
 import org.junit.Test
 
 class ResponsiveGridUtilsTest {
-
   @Test
   fun testLcmAndGcd() {
     assertEquals(12, lcm(4, 6))
@@ -50,7 +49,7 @@ class ResponsiveGridUtilsTest {
     // LCM(4, 6) = 12
     assertEquals(12, result.spans)
     assertEquals(3, result.folderSpan) // 12 / 4
-    assertEquals(2, result.videoSpan)  // 12 / 6
+    assertEquals(2, result.videoSpan) // 12 / 6
   }
 
   @Test
@@ -71,7 +70,7 @@ class ResponsiveGridUtilsTest {
     // LCM(1, 1) = 1
     assertEquals(1, result.spans)
     assertEquals(1, result.folderSpan) // 1 / 1
-    assertEquals(1, result.videoSpan)  // 1 / 1
+    assertEquals(1, result.videoSpan) // 1 / 1
   }
 
   @Test
@@ -95,7 +94,7 @@ class ResponsiveGridUtilsTest {
     // LCM(3, 3) = 3
     assertEquals(3, result.spans)
     assertEquals(1, result.folderSpan) // 3 / 3
-    assertEquals(1, result.videoSpan)  // 3 / 3
+    assertEquals(1, result.videoSpan) // 3 / 3
   }
 
   @Test
@@ -119,7 +118,7 @@ class ResponsiveGridUtilsTest {
     // LCM(4, 3) = 12
     assertEquals(12, result.spans)
     assertEquals(3, result.folderSpan) // 12 / 4
-    assertEquals(4, result.videoSpan)  // 12 / 3
+    assertEquals(4, result.videoSpan) // 12 / 3
   }
 
   @Test
@@ -142,6 +141,6 @@ class ResponsiveGridUtilsTest {
     // LCM(1, 1) = 1
     assertEquals(1, result.spans)
     assertEquals(1, result.folderSpan) // 1 / 1
-    assertEquals(1, result.videoSpan)  // 1 / 1
+    assertEquals(1, result.videoSpan) // 1 / 1
   }
 }

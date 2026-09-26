@@ -7,3 +7,11 @@ plugins {
   alias(libs.plugins.room) apply false
   alias(libs.plugins.ktlint) apply false
 }
+
+allprojects {
+  pluginManager.withPlugin("org.jlleitschuh.gradle.ktlint") {
+    extensions.configure<org.jlleitschuh.gradle.ktlint.KtlintExtension> {
+      baseline.set(file("${rootProject.projectDir}/ktlint-baseline.xml"))
+    }
+  }
+}

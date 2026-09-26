@@ -9,8 +9,6 @@
 
 package com.quantummpv.app.ui.player.screenshot
 
-import com.quantummpv.app.ui.player.PlaybackSession
-
 import android.content.ContentValues
 import android.content.Context
 import android.graphics.Bitmap
@@ -21,6 +19,7 @@ import android.os.Build
 import android.os.Environment
 import android.provider.MediaStore
 import com.quantummpv.app.preferences.PlayerPreferences
+import com.quantummpv.app.ui.player.PlaybackSession
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.withContext

@@ -29,7 +29,8 @@ import kotlinx.coroutines.flow.map
 class JellyfinRepository(
   private val dao: JellyfinServerDao,
   private val client: JellyfinClient,
-  private val credentialCipher: NetworkCredentialCipher = NetworkCredentialCipher(AndroidNetworkCredentialKey::getOrCreate),
+  private val credentialCipher: NetworkCredentialCipher =
+  NetworkCredentialCipher(AndroidNetworkCredentialKey::getOrCreate),
 ) {
   val allServers: Flow<List<JellyfinServer>> =
     dao.getAllServers().map { list -> list.map { decryptAndMigrate(it) } }.flowOn(Dispatchers.IO)

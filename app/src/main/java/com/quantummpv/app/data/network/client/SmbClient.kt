@@ -10,9 +10,6 @@
 package com.quantummpv.app.data.network.client
 
 import android.net.Uri
-import com.quantummpv.app.domain.network.NetworkConnection
-import com.quantummpv.app.domain.network.NetworkFile
-import com.quantummpv.app.domain.network.NetworkPath
 import com.hierynomus.msdtyp.AccessMask
 import com.hierynomus.msfscc.fileinformation.FileIdBothDirectoryInformation
 import com.hierynomus.mssmb2.SMB2CreateDisposition
@@ -24,6 +21,9 @@ import com.hierynomus.smbj.connection.Connection
 import com.hierynomus.smbj.session.Session
 import com.hierynomus.smbj.share.DiskShare
 import com.hierynomus.smbj.transport.tcp.async.AsyncDirectTcpTransportFactory
+import com.quantummpv.app.domain.network.NetworkConnection
+import com.quantummpv.app.domain.network.NetworkFile
+import com.quantummpv.app.domain.network.NetworkPath
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.TimeoutCancellationException

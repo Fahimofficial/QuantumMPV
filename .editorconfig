@@ -10,5 +10,31 @@ max_line_length = 120
 tab_width = 2
 ij_kotlin_allow_trailing_comma = true
 ij_kotlin_allow_trailing_comma_on_call_site = true
-ktlint_function_naming_ignore_composable = true
-ij_kotlin_function_naming_ignore_composable = true
+
+ktlint_function_naming_ignore_when_annotated_with = Composable
+
+# Disable overzealous new ktlint 1.0 rules to match existing project style
+ktlint_standard_indent = disabled
+ktlint_standard_argument-list-wrapping = disabled
+ktlint_standard_multiline-expression-wrapping = disabled
+ktlint_standard_chain-method-continuation = disabled
+ktlint_standard_function-signature = disabled
+ktlint_standard_binary-expression-wrapping = disabled
+ktlint_standard_trailing-comma-on-call-site = disabled
+ktlint_standard_function-literal = disabled
+ktlint_standard_if-else-wrapping = disabled
+ktlint_standard_parameter-list-wrapping = disabled
+ktlint_standard_wrapping = disabled
+ktlint_standard_multiline-if-else = disabled
+ktlint_standard_condition-wrapping = disabled
+ktlint_standard_class-signature = disabled
+ktlint_standard_statement-wrapping = disabled
+ktlint_standard_blank-line-before-declaration = disabled
+ktlint_standard_if-else-bracing = disabled
+ktlint_standard_string-template-indent = disabled
+ktlint_standard_try-catch-finally-spacing = disabled
+ktlint_standard_trailing-comma-on-declaration-site = disabled
+ktlint_standard_function-expression-body = disabled
+ktlint_standard_final-newline = disabled
+ktlint_standard_property-wrapping = disabled
+ktlint_standard_spacing-between-declarations-with-annotations = disabled

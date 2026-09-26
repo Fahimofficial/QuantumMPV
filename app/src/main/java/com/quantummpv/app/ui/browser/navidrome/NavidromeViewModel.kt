@@ -18,8 +18,8 @@ import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
 import com.quantummpv.app.data.navidrome.NavidromeClient
-import com.quantummpv.app.data.network.ServerUrlUtils
 import com.quantummpv.app.data.navidrome.NavidromeSearchResult
+import com.quantummpv.app.data.network.ServerUrlUtils
 import com.quantummpv.app.domain.navidrome.NavidromeAlbum
 import com.quantummpv.app.domain.navidrome.NavidromeArtist
 import com.quantummpv.app.domain.navidrome.NavidromeAuthMode
@@ -27,9 +27,13 @@ import com.quantummpv.app.domain.navidrome.NavidromeMusicTab
 import com.quantummpv.app.domain.navidrome.NavidromePlaylist
 import com.quantummpv.app.domain.navidrome.NavidromeServer
 import com.quantummpv.app.domain.navidrome.NavidromeSong
+import com.quantummpv.app.preferences.BrowserPreferences
 import com.quantummpv.app.preferences.MediaServerPreferences
 import com.quantummpv.app.preferences.MusicSourceProvider
 import com.quantummpv.app.repository.NavidromeRepository
+import com.quantummpv.app.ui.browser.music.MusicSortField
+import com.quantummpv.app.ui.browser.music.MusicSortOrder
+import com.quantummpv.app.ui.browser.music.MusicViewMode
 import com.quantummpv.app.utils.media.MediaUtils
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
@@ -40,10 +44,6 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.firstOrNull
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
-import com.quantummpv.app.preferences.BrowserPreferences
-import com.quantummpv.app.ui.browser.music.MusicSortField
-import com.quantummpv.app.ui.browser.music.MusicSortOrder
-import com.quantummpv.app.ui.browser.music.MusicViewMode
 import kotlinx.coroutines.withContext
 import org.koin.core.component.KoinComponent
 import org.koin.core.component.inject

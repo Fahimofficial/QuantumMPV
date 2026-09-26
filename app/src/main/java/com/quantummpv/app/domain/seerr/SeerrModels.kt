@@ -215,7 +215,7 @@ data class MediaDetails(
 
   fun getDirector(): String? =
     credits?.crew?.firstOrNull { it.job == "Director" }?.name
- 
+
   fun getMediaStatus(): MediaStatus? {
     val standardStatus = mediaInfo?.status
     val status4k = mediaInfo?.status4k

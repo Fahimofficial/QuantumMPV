@@ -53,8 +53,8 @@ import com.quantummpv.app.R
 import com.quantummpv.app.domain.anime4k.Anime4KManager
 import com.quantummpv.app.preferences.AdvancedPreferences
 import com.quantummpv.app.preferences.DecoderPreferences
-import com.quantummpv.app.preferences.MpvConfigOverride
 import com.quantummpv.app.preferences.MpvConfigControlledFeatures
+import com.quantummpv.app.preferences.MpvConfigOverride
 import com.quantummpv.app.preferences.preference.collectAsState
 import com.quantummpv.app.presentation.Screen
 import com.quantummpv.app.ui.icons.Icon

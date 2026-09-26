@@ -109,5 +109,4 @@ class OpenRouterSpeechClient(
         Result.failure(error)
       }
     }
-
 }

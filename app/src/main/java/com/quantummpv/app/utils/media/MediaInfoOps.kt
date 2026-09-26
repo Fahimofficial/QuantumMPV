@@ -38,7 +38,7 @@ object MediaInfoOps {
         return "${file.absolutePath}|${file.length()}|${file.lastModified()}"
       }
     }
-    return "${uri}|$fileName"
+    return "$uri|$fileName"
   }
 
   /**

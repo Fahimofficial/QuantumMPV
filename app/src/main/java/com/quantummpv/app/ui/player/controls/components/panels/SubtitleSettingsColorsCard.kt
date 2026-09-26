@@ -9,8 +9,6 @@
 
 package com.quantummpv.app.ui.player.controls.components.panels
 
-import com.quantummpv.app.ui.player.PlaybackSession
-
 import androidx.annotation.StringRes
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
@@ -54,6 +52,7 @@ import com.quantummpv.app.presentation.components.ExpandableCard
 import com.quantummpv.app.presentation.components.TintedSliderItem
 import com.quantummpv.app.ui.icons.Icon
 import com.quantummpv.app.ui.icons.Icons
+import com.quantummpv.app.ui.player.PlaybackSession
 import com.quantummpv.app.ui.player.PlayerViewModel
 import com.quantummpv.app.ui.player.applySubtitleLayout
 import com.quantummpv.app.ui.player.controls.CARDS_MAX_WIDTH

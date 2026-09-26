@@ -25,10 +25,10 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.mediarouter.app.MediaRouteButton
+import com.google.android.gms.cast.framework.CastButtonFactory
 import com.quantummpv.app.preferences.PlayerButton
 import com.quantummpv.app.ui.icons.Icon
 import com.quantummpv.app.ui.theme.controlColor
-import com.google.android.gms.cast.framework.CastButtonFactory
 import androidx.compose.ui.graphics.Color as ComposeColor
 
 /** Uses the SDK button for Cast behavior while keeping the app's rounded symbol visible. */

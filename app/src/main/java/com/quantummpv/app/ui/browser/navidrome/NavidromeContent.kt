@@ -9,7 +9,6 @@
 
 package com.quantummpv.app.ui.browser.navidrome
 
-import com.quantummpv.app.ui.utils.NavigationBackHandler as BackHandler
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -29,7 +28,6 @@ import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
-import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -68,24 +66,23 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.quantummpv.app.R
 import com.quantummpv.app.domain.navidrome.NavidromeMusicTab
-import com.quantummpv.app.domain.navidrome.NavidromeServer
 import com.quantummpv.app.preferences.MediaServerPreferences
 import com.quantummpv.app.preferences.MusicSourceProvider
 import com.quantummpv.app.preferences.preference.collectAsState
 import com.quantummpv.app.repository.JellyfinRepository
 import com.quantummpv.app.repository.NavidromeRepository
+import com.quantummpv.app.ui.browser.LocalNavigationBarHeight
 import com.quantummpv.app.ui.browser.components.BrowserTopBar
-import com.quantummpv.app.ui.browser.music.SharedMusicGridCard
+import com.quantummpv.app.ui.browser.dialogs.MusicSortDialog
+import com.quantummpv.app.ui.browser.music.MusicSortField
 import com.quantummpv.app.ui.browser.music.SharedMusicTrackListItem
 import com.quantummpv.app.ui.icons.Icon
 import com.quantummpv.app.ui.icons.Icons
 import com.quantummpv.app.ui.utils.LocalBackStack
 import com.quantummpv.app.ui.utils.navigateTo
 import com.quantummpv.app.ui.utils.rememberTabNavigation
-import com.quantummpv.app.ui.browser.dialogs.MusicSortDialog
-import com.quantummpv.app.ui.browser.music.MusicSortField
-import com.quantummpv.app.ui.browser.LocalNavigationBarHeight
 import org.koin.compose.koinInject
+import com.quantummpv.app.ui.utils.NavigationBackHandler as BackHandler
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable

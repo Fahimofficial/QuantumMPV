@@ -40,7 +40,8 @@ fun AddNavidromeServerDialog(
   errorMessage: String?,
   initialServer: NavidromeServer? = null,
   onDismiss: () -> Unit,
-  onConnect: (serverUrl: String, serverName: String, authMode: NavidromeAuthMode, username: String, password: String, token: String) -> Unit,
+  onConnect:
+  (serverUrl: String, serverName: String, authMode: NavidromeAuthMode, username: String, password: String, token: String) -> Unit,
 ) {
   if (!isOpen) return
 

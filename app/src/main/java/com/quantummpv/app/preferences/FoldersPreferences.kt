@@ -28,6 +28,7 @@ class FoldersPreferences(
 
   // Set of folder paths that should be hidden from the video folder list
   val blacklistedFolders = preferenceStore.getStringSet("blacklisted_folders", emptySet())
+
   // Set of folder paths that should be hidden from the audio/music library
   val blacklistedAudioFolders = preferenceStore.getStringSet("blacklisted_audio_folders", emptySet())
   val pinnedFolders = preferenceStore.getStringSet("pinned_folders", emptySet())

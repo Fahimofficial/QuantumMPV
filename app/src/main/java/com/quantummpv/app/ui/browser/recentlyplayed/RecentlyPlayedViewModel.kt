@@ -23,8 +23,8 @@ import com.quantummpv.app.database.repository.PlaylistRepository
 import com.quantummpv.app.database.repository.VideoMetadataCacheRepository
 import com.quantummpv.app.domain.media.model.Video
 import com.quantummpv.app.domain.recentlyplayed.repository.RecentlyPlayedRepository
-import com.quantummpv.app.utils.permission.PermissionUtils
 import com.quantummpv.app.utils.FormatUtils
+import com.quantummpv.app.utils.permission.PermissionUtils
 import com.quantummpv.app.utils.storage.FileTypeUtils
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -34,7 +34,6 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import org.koin.java.KoinJavaComponent.inject
 import java.io.File
-import kotlin.math.pow
 
 class RecentlyPlayedViewModel(
   application: Application,
