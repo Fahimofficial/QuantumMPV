@@ -133,6 +133,7 @@ object AudiobookLibraryScreen : Screen {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     val haptics = rememberAppHaptics()
+    val playbackState by PlaybackSession.state.collectAsStateWithLifecycle()
     val playbackFailedMessage = stringResource(R.string.audiobook_play_failed)
 
     val browserPreferences = koinInject<BrowserPreferences>()
@@ -702,7 +703,7 @@ object AudiobookLibraryScreen : Screen {
           model.setFinished(book.book.id, !book.book.finished)
           detailsId = null
         },
-        toggleFinishedEnabled = PlaybackSession.state.value.currentItem?.audiobook?.bookId != book.book.id,
+        toggleFinishedEnabled = playbackState.currentItem?.audiobook?.bookId != book.book.id,
         extraActions = {
           TextButton(onClick = { editing = book.book; detailsId = null }) { Text(stringResource(R.string.audiobook_edit)) }
           TextButton(onClick = { removeId = book.book.id; detailsId = null }) {
