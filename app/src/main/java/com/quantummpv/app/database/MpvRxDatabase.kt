@@ -57,8 +57,11 @@ import com.quantummpv.app.domain.network.NetworkConnection
     DownloadItemEntity::class,
     NavidromeServerEntity::class,
     YtdlpDownloadJobEntity::class,
+    com.quantummpv.app.database.entities.AudiobookEntity::class,
+    com.quantummpv.app.database.entities.AudiobookshelfServerEntity::class,
+    com.quantummpv.app.database.entities.PlaybackBookmarkEntity::class,
   ],
-  version = 24,
+  version = 25,
   exportSchema = true,
 )
 @TypeConverters(NetworkProtocolConverter::class, NetworkStreamEntryTypeConverter::class)
@@ -86,4 +89,7 @@ abstract class MpvRxDatabase : RoomDatabase() {
 
   abstract fun navidromeServerDao(): NavidromeServerDao
   abstract fun ytdlpDownloadJobDao(): YtdlpDownloadJobDao
+  abstract fun audiobookDao(): com.quantummpv.app.database.dao.AudiobookDao
+  abstract fun audiobookshelfServerDao(): com.quantummpv.app.database.dao.AudiobookshelfServerDao
+  abstract fun playbackBookmarkDao(): com.quantummpv.app.database.dao.PlaybackBookmarkDao
 }

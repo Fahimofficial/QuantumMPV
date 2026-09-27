@@ -47,6 +47,8 @@ junit = "4.13.2"
 mockk = "1.13.10"
 robolectric = "4.14.1"
 mediainfo = "v1.0.0-fix"
+crashx = "7.0.1"
+kmpVibrate = "1.1.0"
 googleCast = "22.3.1"
 androidxBiometric = "1.4.0-alpha07"
 leakcanary = "2.14"
@@ -130,6 +132,8 @@ jsoup = { module = "org.jsoup:jsoup", version.ref = "jsoup" }
 reorderable = { module = "sh.calvin.reorderable:reorderable", version.ref = "reorderable" }
 androidx-biometric = { module = "androidx.biometric:biometric", version.ref = "androidxBiometric" }
 leakcanary-android = { module = "com.squareup.leakcanary:leakcanary-android", version.ref = "leakcanary" }
+crashx = { module = "io.github.tutorialsandroid:crashx", version.ref = "crashx" }
+kmp-vibrate = { module = "io.github.jmseb3:vibrate", version.ref = "kmpVibrate" }
 libtorrent4j = { module = "org.libtorrent4j:libtorrent4j", version.ref = "libtorrent4j" }
 libtorrent4j-android-arm64 = { module = "org.libtorrent4j:libtorrent4j-android-arm64", version.ref = "libtorrent4j" }
 libtorrent4j-android-arm = { module = "org.libtorrent4j:libtorrent4j-android-arm", version.ref = "libtorrent4j" }
