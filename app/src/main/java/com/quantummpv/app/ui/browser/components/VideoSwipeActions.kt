@@ -166,7 +166,7 @@ internal fun rememberVideoSwipeActions(
                     haptics.confirm()
                     currentOnChanged()
                   }
-                  val message = context.getString(R.string.video_swipe_delete_result, deleted, failed)
+                  val message = context.resources.getString(R.string.video_swipe_delete_result, deleted, failed)
                   Toast.makeText(context, message, Toast.LENGTH_SHORT).show()
                 } catch (cancelled: CancellationException) {
                   throw cancelled
