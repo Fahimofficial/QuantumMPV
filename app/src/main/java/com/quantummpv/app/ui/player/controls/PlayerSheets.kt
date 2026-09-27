@@ -32,6 +32,7 @@ import com.quantummpv.app.ui.player.controls.components.MpvConfigOwnedSheet
 import com.quantummpv.app.ui.player.controls.components.sheets.AmbientSheet
 import com.quantummpv.app.ui.player.controls.components.sheets.AspectRatioSheet
 import com.quantummpv.app.ui.player.controls.components.sheets.AudioTracksSheet
+import com.quantummpv.app.ui.player.controls.components.sheets.AudiobookSheet
 import com.quantummpv.app.ui.player.controls.components.sheets.ChaptersSheet
 import com.quantummpv.app.ui.player.controls.components.sheets.DecodersSheet
 import com.quantummpv.app.ui.player.controls.components.sheets.FrameNavigationSheet
@@ -110,6 +111,13 @@ fun PlayerSheets(
 
   when (sheetShown) {
     Sheets.None -> {}
+    Sheets.AudiobookRewind, Sheets.AudiobookSleepTimer -> {
+      AudiobookSheet(
+        sheet = sheetShown,
+        onChapterEnd = {},
+        onDismiss = onDismissRequest,
+      )
+    }
     Sheets.SubtitleTracks -> {
       val subtitlesPicker =
         rememberLauncherForActivityResult(

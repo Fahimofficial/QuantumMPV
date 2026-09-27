@@ -89,7 +89,7 @@ fun MoreSheet(
 
   PlayerSheet(
     onDismissRequest,
-    modifier,
+    modifier = modifier,
   ) {
     Column(
       modifier =
