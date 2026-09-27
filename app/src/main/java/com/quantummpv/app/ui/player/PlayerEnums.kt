@@ -147,6 +147,8 @@ enum class Sheets {
   VisualizerStyle,
   Lyrics,
   Scopes,
+  AudiobookRewind,
+  AudiobookSleepTimer,
 }
 
 enum class Panels {

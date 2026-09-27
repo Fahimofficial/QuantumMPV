@@ -97,7 +97,6 @@ fun AspectRatioSheet(
           Modifier.clickable(enabled = autoCropControlEnabled) {
             onAutoCropChanged(!autoCropEnabled)
           },
-        colors = ListItemDefaults.colors(containerColor = Color.Transparent),
       )
 
       val autoCropSummary =

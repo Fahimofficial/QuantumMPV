@@ -264,6 +264,23 @@ class PlayerViewModel : ViewModel(),
     _playlistItems
       .asStateFlow()
 
+  private val _postProcessingPreset = MutableStateFlow(PostProcessingPreset.None)
+  val postProcessingPreset: StateFlow<PostProcessingPreset> = _postProcessingPreset.asStateFlow()
+  private val _postProcessingParams = MutableStateFlow(PostProcessingParams())
+  val postProcessingParams: StateFlow<PostProcessingParams> = _postProcessingParams.asStateFlow()
+
+  fun setPostProcessingPreset(preset: PostProcessingPreset) {
+    _postProcessingPreset.value = preset
+  }
+
+  fun updatePostProcessingParams(params: PostProcessingParams) {
+    _postProcessingParams.value = params
+  }
+
+  fun resetPostProcessingParams() {
+    _postProcessingParams.value = PostProcessingParams()
+  }
+
   private val _onlineSubtitleSearchResults = MutableStateFlow<List<OnlineSubtitle>>(emptyList())
   val onlineSubtitleSearchResults: StateFlow<List<OnlineSubtitle>> = _onlineSubtitleSearchResults.asStateFlow()
 

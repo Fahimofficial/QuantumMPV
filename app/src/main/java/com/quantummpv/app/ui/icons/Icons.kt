@@ -286,6 +286,7 @@ object Icons {
     val BlurOff get() = Shared.BlurOff
     val BlurOn get() = Shared.BlurOn
     val Bookmarks get() = Shared.Bookmarks
+    val MenuBook get() = Shared.Bookmarks
     val BorderColor get() = Shared.BorderColor
     val BorderStyle get() = Shared.BorderStyle
     val BrandFamily get() = Shared.BrandFamily

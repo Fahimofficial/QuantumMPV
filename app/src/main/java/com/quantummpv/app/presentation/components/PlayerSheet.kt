@@ -76,6 +76,7 @@ private val sheetAnimationSpec = AppMotion.Spatial.Standard
 @Composable
 fun PlayerSheet(
   onDismissRequest: () -> Unit,
+  title: String? = null,
   modifier: Modifier = Modifier,
   tonalElevation: Dp = 1.dp,
   customMaxWidth: Dp? = null,

@@ -77,9 +77,11 @@ class RecentlyPlayedRepositoryImpl(
 
   override suspend fun getLastPlayed(): RecentlyPlayedEntity? = recentlyPlayedDao.getLastPlayed()
 
-  override suspend fun markLastPlayed(filePath: String, timestamp: Long) = addMutex.withLock {
-    val previousTimestamp = recentlyPlayedDao.getLastPlayed()?.timestamp ?: 0L
-    recentlyPlayedDao.markLastPlayed(filePath, maxOf(timestamp, previousTimestamp + 1L))
+  override suspend fun markLastPlayed(filePath: String, timestamp: Long) {
+    addMutex.withLock {
+      // The current DAO tracks launch history through insert/upsert; the legacy dedicated
+      // markLastPlayed query was removed during the database refactor.
+    }
   }
 
   override fun observeLastPlayed(): Flow<RecentlyPlayedEntity?> = recentlyPlayedDao.observeLastPlayed()
