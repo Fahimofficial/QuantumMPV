@@ -30,8 +30,9 @@ import androidx.compose.ui.layout.layout
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.Constraints
 import androidx.compose.ui.unit.dp
-import com.quantummpv.app.ui.player.controls.components.tvFocusHighlight
 import com.quantummpv.app.ui.theme.spacing
+import com.quantummpv.app.ui.player.controls.components.tvFocusHighlight
+import com.quantummpv.app.ui.utils.rememberAdjustmentHaptics
 import kotlin.math.roundToInt
 
 @Composable
@@ -44,6 +45,7 @@ fun SliderItem(
   modifier: Modifier = Modifier,
   min: Int = 0,
   enabled: Boolean = true,
+  hapticLandmarks: List<Int> = emptyList(),
   icon: @Composable () -> Unit = {},
 ) {
   val haptics = rememberAdjustmentHaptics(
@@ -87,7 +89,7 @@ fun SliderItem(
           val newValue = it.roundToInt()
           if (newValue != value) {
             onChange(newValue)
-            haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+            haptics.move(value.toFloat(), newValue.toFloat())
           }
         },
         modifier =
@@ -113,6 +115,7 @@ fun SliderItem(
   steps: Int = 0,
   min: Float = 0f,
   enabled: Boolean = true,
+  hapticLandmarks: List<Float> = emptyList(),
   icon: @Composable () -> Unit = {},
 ) {
   val haptics = rememberAdjustmentHaptics(min, max, steps, hapticLandmarks)
@@ -154,7 +157,7 @@ fun SliderItem(
           val newValue = it
           if (newValue != value) {
             onChange(newValue)
-            haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+            haptics.move(value, newValue)
           }
         },
         modifier =

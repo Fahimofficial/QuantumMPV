@@ -39,7 +39,6 @@ object PlaybackStateOps {
       videos.forEach { video ->
         currentCoroutineContext().ensureActive()
         persistWatched(video, watched)
-        database.playlistDao().clearResumePositionForFile(video.path)
       }
     } finally {
       PlaybackStateEvents.notifyChanged(videos.singleOrNull()?.let { PlaybackIdentity.forLocalPath(it.path) }.orEmpty())
@@ -69,7 +68,6 @@ object PlaybackStateOps {
         val identifier = PlaybackIdentity.forLocalPath(video.path)
         videoPlaybackIdentifiers(video).filterNot { it == identifier }.forEach { repository.deleteByTitle(it) }
         RecentlyPlayedOps.removeVideoHistory(video)
-        database.playlistDao().clearPlayHistoryForFile(video.path)
       }
     } finally {
       PlaybackStateEvents.notifyChanged("")
@@ -87,7 +85,6 @@ object PlaybackStateOps {
         } else {
           repository.upsert(existing.copy(newLabelOverride = false))
         }
-        database.playlistDao().markFileLastPlayed(video.path, System.currentTimeMillis())
       }
     } finally {
       PlaybackStateEvents.notifyChanged("")
