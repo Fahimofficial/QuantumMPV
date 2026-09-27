@@ -19,6 +19,13 @@ on:
           - fongmi
           - no_vulkan
 
+env:
+  GRADLE_OPTS: >-
+    -Dorg.gradle.daemon=false
+    -Dorg.gradle.parallel=false
+    -Dorg.gradle.workers.max=1
+    -Dkotlin.daemon.jvm.options=-Xmx4g
+
 permissions:
   contents: read
 
@@ -61,23 +68,25 @@ jobs:
       - name: Install Android build toolchain
         run: |
           yes | sdkmanager --licenses >/dev/null || true
-          sdkmanager --install "platforms;android-37.0" "build-tools;37.0.0" "cmake;3.22.1" "ndk;27.3.13750724"
+          sdkmanager --install "platforms;android-37" "build-tools;37.0.0" "cmake;3.22.1" "ndk;27.3.13750724"
 
       - name: Make Gradle wrapper executable
         run: chmod +x ./gradlew
+      - name: Validate Gradle wrapper
+        uses: gradle/actions/wrapper-validation@v6
 
       - name: Build selected release APKs
         shell: bash
         run: |
           set -euo pipefail
           if [[ "$SELECTED_FLAVOR" == "all" || "$SELECTED_FLAVOR" == "dual" || "$SELECTED_FLAVOR" == "standard" ]]; then
-            ./gradlew assembleStandardRelease --stacktrace --no-daemon --max-workers=2
+            ./gradlew assembleStandardRelease --stacktrace --no-daemon --max-workers=1
           fi
           if [[ "$SELECTED_FLAVOR" == "all" || "$SELECTED_FLAVOR" == "dual" || "$SELECTED_FLAVOR" == "fongmi" ]]; then
-            ./gradlew assembleFongmiRelease --stacktrace --no-daemon --max-workers=2
+            ./gradlew assembleFongmiRelease --stacktrace --no-daemon --max-workers=1
           fi
           if [[ "$SELECTED_FLAVOR" == "all" || "$SELECTED_FLAVOR" == "no_vulkan" ]]; then
-            ./gradlew assembleNoVulkanRelease --stacktrace --no-daemon --max-workers=2
+            ./gradlew assembleNoVulkanRelease --stacktrace --no-daemon --max-workers=1
           fi
 
       - name: Verify expected unsigned flavor outputs

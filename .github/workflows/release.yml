@@ -11,6 +11,13 @@ on:
         required: true
         type: string
 
+env:
+  GRADLE_OPTS: >-
+    -Dorg.gradle.daemon=false
+    -Dorg.gradle.parallel=false
+    -Dorg.gradle.workers.max=1
+    -Dkotlin.daemon.jvm.options=-Xmx4g
+
 permissions:
   contents: write
 
@@ -39,9 +46,9 @@ jobs:
         run: |
           set -euo pipefail
           yes | sdkmanager --licenses >/dev/null || true
-          sdkmanager --install "platforms;android-37.0" "build-tools;37.0.0" "cmake;3.22.1" "ndk;27.3.13750724"
+          sdkmanager --install "platforms;android-37" "build-tools;37.0.0" "cmake;3.22.1" "ndk;27.3.13750724"
           test -x "$ANDROID_HOME/build-tools/37.0.0/apksigner"
-          test -d "$ANDROID_HOME/platforms/android-37.0"
+          test -d "$ANDROID_HOME/platforms/android-37"
           test -d "$ANDROID_HOME/ndk/27.3.13750724"
 
       - name: Resolve and validate release tag
@@ -73,14 +80,16 @@ jobs:
 
       - name: Make Gradle wrapper executable
         run: chmod +x ./gradlew
+      - name: Validate Gradle wrapper
+        uses: gradle/actions/wrapper-validation@v6
 
       - name: Build selected release APKs
         shell: bash
         run: |
           set -euo pipefail
-          ./gradlew assembleStandardRelease --stacktrace --no-daemon --max-workers=2
-          ./gradlew assembleFongmiRelease --stacktrace --no-daemon --max-workers=2
-          ./gradlew assembleNoVulkanRelease --stacktrace --no-daemon --max-workers=2
+          ./gradlew assembleStandardRelease --stacktrace --no-daemon --max-workers=1
+          ./gradlew assembleFongmiRelease --stacktrace --no-daemon --max-workers=1
+          ./gradlew assembleNoVulkanRelease --stacktrace --no-daemon --max-workers=1
 
       - name: Sign and verify release APKs
         shell: bash

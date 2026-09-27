@@ -56,6 +56,7 @@ data class PlaybackItem(
   val durationSeconds: Int? = null,
   /** File index inside a multi-file torrent; lets a series episode restart its stream. */
   val torrentFileIndex: Int? = null,
+  val audiobook: AudiobookPlaybackInfo? = null,
 ) {
   /** True while this torrent episode still points at its magnet/torrent source instead of a live stream URL. */
   fun requiresTorrentResolution(): Boolean = torrentFileIndex != null && playableUri == originalUri
@@ -119,6 +120,8 @@ internal fun PlaybackItem.declaredMediaKind(): DeclaredPlaybackMediaKind {
   }
   return DeclaredPlaybackMediaKind.UNKNOWN
 }
+
+data class AudiobookPlaybackInfo(val bookId: Long, val trackId: Long)
 
 internal fun PlaybackItem.isDefinitelyAudioOnly(): Boolean =
   declaredMediaKind() == DeclaredPlaybackMediaKind.AUDIO

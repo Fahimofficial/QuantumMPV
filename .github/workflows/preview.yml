@@ -5,6 +5,13 @@ on:
     - cron: '*/30 * * * *'
   workflow_dispatch:
 
+env:
+  GRADLE_OPTS: >-
+    -Dorg.gradle.daemon=false
+    -Dorg.gradle.parallel=false
+    -Dorg.gradle.workers.max=1
+    -Dkotlin.daemon.jvm.options=-Xmx4g
+
 permissions:
   contents: read
   pages: write
@@ -129,9 +136,9 @@ jobs:
         run: |
           set -euo pipefail
           yes | sdkmanager --licenses >/dev/null || true
-          sdkmanager --install "platforms;android-37.0" "build-tools;37.0.0" "cmake;3.22.1" "ndk;27.3.13750724"
+          sdkmanager --install "platforms;android-37" "build-tools;37.0.0" "cmake;3.22.1" "ndk;27.3.13750724"
           test -x "$ANDROID_HOME/build-tools/37.0.0/apksigner"
-          test -d "$ANDROID_HOME/platforms/android-37.0"
+          test -d "$ANDROID_HOME/platforms/android-37"
           test -d "$ANDROID_HOME/ndk/27.3.13750724"
 
       - name: Make Gradle wrapper executable
@@ -143,10 +150,10 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          ./gradlew assembleStandardPreview --stacktrace --no-daemon --max-workers=2
+          ./gradlew assembleStandardPreview --stacktrace --no-daemon --max-workers=1
           if [[ "$SELECTED_FLAVOR" == "all" ]]; then
-            ./gradlew assembleFongmiPreview --stacktrace --no-daemon --max-workers=2
-            ./gradlew assembleNoVulkanPreview --stacktrace --no-daemon --max-workers=2
+            ./gradlew assembleFongmiPreview --stacktrace --no-daemon --max-workers=1
+            ./gradlew assembleNoVulkanPreview --stacktrace --no-daemon --max-workers=1
           fi
 
       - name: Sign and verify preview APKs
