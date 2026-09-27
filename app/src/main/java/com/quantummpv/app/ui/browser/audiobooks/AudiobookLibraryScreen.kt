@@ -133,6 +133,7 @@ object AudiobookLibraryScreen : Screen {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     val haptics = rememberAppHaptics()
+    val playbackFailedMessage = stringResource(R.string.audiobook_play_failed)
 
     val browserPreferences = koinInject<BrowserPreferences>()
     val mediaServerPreferences = koinInject<MediaServerPreferences>()
@@ -228,7 +229,7 @@ object AudiobookLibraryScreen : Screen {
         } catch (cancelled: CancellationException) {
           throw cancelled
         } catch (failure: Exception) {
-          playbackError = context.getString(R.string.audiobook_play_failed)
+          playbackError = playbackFailedMessage
         } finally {
           opening = false
         }
@@ -245,7 +246,7 @@ object AudiobookLibraryScreen : Screen {
         } catch (cancelled: CancellationException) {
           throw cancelled
         } catch (failure: Exception) {
-          playbackError = context.getString(R.string.audiobook_play_failed)
+          playbackError = playbackFailedMessage
         } finally {
           opening = false
         }
