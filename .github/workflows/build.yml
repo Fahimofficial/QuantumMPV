@@ -19,13 +19,6 @@ on:
           - fongmi
           - no_vulkan
 
-env:
-  GRADLE_OPTS: >-
-    -Dorg.gradle.daemon=false
-    -Dorg.gradle.parallel=false
-    -Dorg.gradle.workers.max=1
-    -Dkotlin.daemon.jvm.options=-Xmx4g
-
 permissions:
   contents: read
 
@@ -34,6 +27,11 @@ concurrency:
   cancel-in-progress: true
 
 env:
+  GRADLE_OPTS: >-
+    -Dorg.gradle.daemon=false
+    -Dorg.gradle.parallel=false
+    -Dorg.gradle.workers.max=1
+    -Dkotlin.daemon.jvm.options=-Xmx4g
   SELECTED_FLAVOR: ${{ inputs.build_flavor || 'standard' }}
 
 jobs:
