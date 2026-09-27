@@ -2,6 +2,21 @@
 
 These notes are written in plain English and focus on changes that matter in everyday use.
 
+## 1.2.0-preview.1
+
+This preview brings the latest media-library, download, playback, and build reliability work together for testing before the next stable release.
+
+### What's New
+
+- **Unified media library**: Added a Room-backed media index with SQLite full-text search and a WorkManager-powered filesystem scan.
+- **More reliable playback**: Improved external playlist handling, network lifecycle cleanup, pause latency, and video-output safeguards.
+- **Safer downloads**: Made yt-dlp output names collision-safe and kept temporary download files isolated during cleanup.
+- **Build reliability**: Restored shared duration formatting, completed the media scanner dependencies, and verified the Android CI, release build, static-analysis, and preview pipelines.
+
+### APK variants
+
+Preview packages use the same variant layout as the stable release: Standard Universal and architecture-specific APKs, FongMi Universal, and Non-Vulkan Universal.
+
 ## 1.1.0
 
 The first stable QuantumMPV 1.1.0 release, bringing the current playback, library, streaming, download, appearance, and branding work together in one public build.
