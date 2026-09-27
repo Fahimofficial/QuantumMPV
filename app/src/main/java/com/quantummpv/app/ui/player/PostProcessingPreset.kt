@@ -25,12 +25,12 @@ enum class PostProcessingPreset(
   Natural(R.string.pp_preset_natural, R.string.pp_desc_natural),
   Vivid(R.string.pp_preset_vivid, R.string.pp_desc_vivid),
   Anime(R.string.pp_preset_anime, R.string.pp_desc_anime),
-  Clean(R.string.pp_preset_clean, R.string.pp_desc_clean),                   // Eden: Clean.fxp
+  Clean(R.string.pp_preset_clean, R.string.pp_desc_clean), // Eden: Clean.fxp
   CelShaded(R.string.pp_preset_cel_shaded, R.string.pp_desc_cel_shaded),
   Cartoon(R.string.pp_preset_cartoon, R.string.pp_desc_cartoon),
-  Cinematic(R.string.pp_preset_cinematic, R.string.pp_desc_cinematic),       // Eden: Cinematic.fxp
-  Dreamy(R.string.pp_preset_dreamy, R.string.pp_desc_dreamy),                // Eden: Dreamy.fxp
-  Retro(R.string.pp_preset_retro, R.string.pp_desc_retro),                   // Eden: Retro.fxp
+  Cinematic(R.string.pp_preset_cinematic, R.string.pp_desc_cinematic), // Eden: Cinematic.fxp
+  Dreamy(R.string.pp_preset_dreamy, R.string.pp_desc_dreamy), // Eden: Dreamy.fxp
+  Retro(R.string.pp_preset_retro, R.string.pp_desc_retro), // Eden: Retro.fxp
   Bloom(R.string.pp_preset_bloom, R.string.pp_desc_bloom),
   Scanlines(R.string.pp_preset_scanlines, R.string.pp_desc_scanlines),
   WhiteBalance(R.string.pp_preset_white_balance, R.string.pp_desc_white_balance),
@@ -43,37 +43,37 @@ enum class PostProcessingPreset(
  */
 fun PostProcessingPreset.buildShaders(p: PostProcessingParams): List<String> =
   when (this) {
-    PostProcessingPreset.None        -> emptyList()
+    PostProcessingPreset.None -> emptyList()
 
-    PostProcessingPreset.Natural     -> listOf(
+    PostProcessingPreset.Natural -> listOf(
       NaturalColorsShaderBuilder.build(p),
     )
 
-    PostProcessingPreset.Vivid       -> listOf(
+    PostProcessingPreset.Vivid -> listOf(
       NaturalColorsShaderBuilder.build(p),
       LevelsShaderBuilder.build(p),
     )
 
-    PostProcessingPreset.Anime       -> listOf(
+    PostProcessingPreset.Anime -> listOf(
       DenoiseShaderBuilder.build(p),
       SharpenShaderBuilder.build(p),
     )
 
-    PostProcessingPreset.Clean       -> listOf( // Eden: Clean.fxp
+    PostProcessingPreset.Clean -> listOf( // Eden: Clean.fxp
       DenoiseShaderBuilder.build(p),
       DebandShaderBuilder.build(p),
       SharpenShaderBuilder.build(p),
     )
 
-    PostProcessingPreset.CelShaded   -> listOf(
+    PostProcessingPreset.CelShaded -> listOf(
       CelShadingShaderBuilder.build(p),
     )
 
-    PostProcessingPreset.Cartoon     -> listOf(
+    PostProcessingPreset.Cartoon -> listOf(
       CartoonSoftShaderBuilder.build(p),
     )
 
-    PostProcessingPreset.Cinematic   -> listOf( // Eden: Cinematic.fxp
+    PostProcessingPreset.Cinematic -> listOf( // Eden: Cinematic.fxp
       BloomShaderBuilder.build(p),
       FilmicCurveShaderBuilder.build(p),
       SplitToningShaderBuilder.build(p),
@@ -81,22 +81,22 @@ fun PostProcessingPreset.buildShaders(p: PostProcessingParams): List<String> =
       VignetteShaderBuilder.build(p),
     )
 
-    PostProcessingPreset.Dreamy      -> listOf( // Eden: Dreamy.fxp
+    PostProcessingPreset.Dreamy -> listOf( // Eden: Dreamy.fxp
       BlurShaderBuilder.build(p),
       BloomShaderBuilder.build(p),
     )
 
-    PostProcessingPreset.Retro       -> listOf( // Eden: Retro.fxp
+    PostProcessingPreset.Retro -> listOf( // Eden: Retro.fxp
       ChromaticAberrationShaderBuilder.build(p),
       CRTShaderBuilder.build(p),
       VignetteShaderBuilder.build(p),
     )
 
-    PostProcessingPreset.Bloom       -> listOf(
+    PostProcessingPreset.Bloom -> listOf(
       BloomShaderBuilder.build(p),
     )
 
-    PostProcessingPreset.Scanlines   -> listOf(
+    PostProcessingPreset.Scanlines -> listOf(
       ScanlinesShaderBuilder.build(p),
     )
 
@@ -104,7 +104,7 @@ fun PostProcessingPreset.buildShaders(p: PostProcessingParams): List<String> =
       WhiteBalanceShaderBuilder.build(p),
     )
 
-    PostProcessingPreset.Film        -> listOf(
+    PostProcessingPreset.Film -> listOf(
       FilmGrainShaderBuilder.build(p),
       VignetteShaderBuilder.build(p),
     )

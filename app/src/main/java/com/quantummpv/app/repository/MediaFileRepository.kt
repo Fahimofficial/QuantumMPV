@@ -37,10 +37,7 @@ import com.quantummpv.app.utils.storage.StorageVolumeUtils
 import com.quantummpv.app.utils.storage.TreeViewScanner
 import com.quantummpv.app.utils.storage.VideoScanUtils
 import com.quantummpv.app.utils.storage.mediaPathKey
-import androidx.work.OneTimeWorkRequestBuilder
-import androidx.work.WorkManager
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.withContext
@@ -48,7 +45,6 @@ import org.koin.core.component.KoinComponent
 import org.koin.core.component.inject
 import java.io.File
 import java.util.Locale
-import com.quantummpv.app.utils.storage.MediaScannerWorker
 
 /**
  * Unified repository for ALL media file operations

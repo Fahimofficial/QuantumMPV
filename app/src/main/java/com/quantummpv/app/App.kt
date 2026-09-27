@@ -21,6 +21,7 @@ import android.util.Log
 import android.view.View
 import androidx.core.view.ViewCompat
 import androidx.core.view.WindowInsetsCompat
+import com.developer.crashx.config.CrashConfig
 import com.quantummpv.app.database.repository.VideoMetadataCacheRepository
 import com.quantummpv.app.di.DatabaseModule
 import com.quantummpv.app.di.FileManagerModule
@@ -29,9 +30,7 @@ import com.quantummpv.app.preferences.AudioPreferences
 import com.quantummpv.app.preferences.DecoderPreferences
 import com.quantummpv.app.preferences.PlayerPreferences
 import com.quantummpv.app.presentation.crash.CrashActivity
-import com.developer.crashx.config.CrashConfig
 import com.quantummpv.app.presentation.crash.CrashReportStore
-import com.quantummpv.app.presentation.crash.GlobalExceptionHandler
 import com.quantummpv.app.repository.NetworkRepository
 import com.quantummpv.app.ui.player.PlaybackPerformanceTrace
 import com.quantummpv.app.ui.player.PlaybackPhase
@@ -124,7 +123,7 @@ class App :
     registerActivityLifecycleCallbacks(this)
     PlaybackSession.addObserver(PlaybackPerformanceTrace)
     startPlaybackPerformanceTracing()
-    
+
     startIdleMpvCoreReaper()
 
     applicationScope.launch {
@@ -373,39 +372,7 @@ class App :
     }
   }
 
-  private fun     val processName = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
-      Application.getProcessName()
-    } else {
-      getSystemService(ActivityManager::class.java).runningAppProcesses?.firstOrNull { it.pid == android.os.Process.myPid() }?.processName
-    }
-    if (processName == "$packageName:crash" || processName == "$packageName:crashx_error") {
-      org.koin.core.context.startKoin {
-        androidContext(this@App)
-        modules(PreferencesModule)
-      }
-      return
-    }
-
-    CrashConfig.Builder.create()
-      .enabled(true)
-      .errorActivity(CrashActivity::class.java)
-      .restartActivity(MainActivity::class.java)
-      .backgroundMode(CrashConfig.BACKGROUND_MODE_SHOW_CUSTOM)
-      .minTimeBetweenCrashesMs(5_000)
-      .maxStackTraceSize(96 * 1024)
-      .trackActivities(true)
-      .maxActivityLogEntries(32)
-      .showErrorDetails(true)
-      .showReportButton(true)
-      .showCloseButton(true)
-      .logErrorOnRestart(false)
-      .includeStackTrace(true)
-      .includeBuildDate(false)
-      .crashIdPrefix("MPVRX")
-      .apply()
-    CrashReportStore.install(this)
-
-    configureDebugStrictMode() {
+  private fun configureDebugStrictMode() {
     if (!BuildConfig.DEBUG) return
 
     StrictMode.setThreadPolicy(

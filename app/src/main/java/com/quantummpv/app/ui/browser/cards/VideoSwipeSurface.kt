@@ -58,7 +58,6 @@ import com.quantummpv.app.ui.icons.Icons
 import com.quantummpv.app.ui.theme.AppMotion
 import com.quantummpv.app.ui.utils.rememberAppHaptics
 import com.quantummpv.app.utils.device.DeviceFormFactor
-import kotlinx.coroutines.flow.collect
 import org.koin.compose.koinInject
 import kotlin.math.abs
 

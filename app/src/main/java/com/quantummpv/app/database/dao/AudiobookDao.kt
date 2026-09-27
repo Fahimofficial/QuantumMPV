@@ -117,5 +117,4 @@ abstract class AudiobookDao {
 
   @Query("SELECT * FROM audiobook_tracks")
   abstract suspend fun getAllTracks(): List<AudiobookTrackEntity>
-
 }

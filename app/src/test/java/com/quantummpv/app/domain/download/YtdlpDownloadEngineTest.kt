@@ -41,8 +41,8 @@ class YtdlpDownloadEngineTest {
 
         val legacyPrefix = "$sanitizedTitle."
         val hasLegacyPart = directory.listFiles()?.any {
-            it.isFile && it.name.startsWith(legacyPrefix) && !it.name.contains("-$jobId-") 
-                && (it.name.endsWith(".part") || it.name.endsWith(".ytdl"))
+            it.isFile && it.name.startsWith(legacyPrefix) && !it.name.contains("-$jobId-") &&
+                (it.name.endsWith(".part") || it.name.endsWith(".ytdl"))
         } == true
 
         assertTrue(hasLegacyPart)

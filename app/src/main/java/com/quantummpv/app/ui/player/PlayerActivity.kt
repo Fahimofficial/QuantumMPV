@@ -479,8 +479,6 @@ class PlayerActivity :
    */
   private var serviceBound = false
 
-  // ==================== Media3 session ====================
-
   /**
    * The Media3 session that exposes this Activity's libmpv playback to Android while the Activity
    * owns the session.
@@ -6345,15 +6343,6 @@ private suspend fun restorePlaybackPosition(state: PlaybackStateEntity?) {
     }
     return super.onKeyUp(keyCode, event)
   }
-
-  // ==================== System UI Management ====================
-
-  /**
-   * Restores system UI to normal state (shows status and navigation bars).
-   * Called when finishing the activity to return to normal Android UI.
-   */
-
-  // ==================== Media3 session ====================
 
   /**
    * The Activity side of the Media3 boundary.

@@ -12,6 +12,7 @@ package com.quantummpv.app.utils.history
 import android.annotation.SuppressLint
 import android.net.Uri
 import com.quantummpv.app.database.entities.RecentlyPlayedEntity
+import com.quantummpv.app.domain.media.model.Video
 import com.quantummpv.app.domain.recentlyplayed.repository.RecentlyPlayedRepository
 import com.quantummpv.app.preferences.AdvancedPreferences
 import kotlinx.coroutines.Dispatchers

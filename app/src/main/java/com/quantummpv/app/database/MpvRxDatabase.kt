@@ -58,6 +58,8 @@ import com.quantummpv.app.domain.network.NetworkConnection
     NavidromeServerEntity::class,
     YtdlpDownloadJobEntity::class,
     com.quantummpv.app.database.entities.AudiobookEntity::class,
+    com.quantummpv.app.database.entities.AudiobookTrackEntity::class,
+    com.quantummpv.app.database.entities.AudiobookChapterEntity::class,
     com.quantummpv.app.database.entities.AudiobookshelfServerEntity::class,
     com.quantummpv.app.database.entities.PlaybackBookmarkEntity::class,
   ],

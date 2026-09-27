@@ -14,16 +14,16 @@ import com.quantummpv.app.database.entities.AudiobookTrackEntity
 import com.quantummpv.app.utils.media.openPersistedTreeDocument
 import com.quantummpv.app.utils.sort.SortUtils
 import com.quantummpv.app.utils.storage.FileTypeUtils
-import java.io.File
-import java.io.IOException
-import java.security.MessageDigest
-import javax.xml.parsers.DocumentBuilderFactory
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.withContext
 import org.json.JSONObject
 import org.w3c.dom.Element
+import java.io.File
+import java.io.IOException
+import java.security.MessageDigest
+import javax.xml.parsers.DocumentBuilderFactory
 
 internal class AudiobookImporter(private val context: Context, private val dao: AudiobookDao) {
   private data class Source(val document: DocumentFile, val path: String)

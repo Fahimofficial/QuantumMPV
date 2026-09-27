@@ -8,7 +8,6 @@ import android.os.SystemClock
 import android.util.AtomicFile
 import android.util.Log
 import com.quantummpv.app.BuildConfig
-import com.developer.crashx.CrashActivity as CrashX
 import org.json.JSONObject
 import java.io.BufferedWriter
 import java.io.File
@@ -18,6 +17,7 @@ import java.util.IdentityHashMap
 import java.util.Locale
 import java.util.UUID
 import java.util.concurrent.atomic.AtomicBoolean
+import com.developer.crashx.CrashActivity as CrashX
 
 internal object CrashReportStore {
   private const val TAG = "CrashReportStore"

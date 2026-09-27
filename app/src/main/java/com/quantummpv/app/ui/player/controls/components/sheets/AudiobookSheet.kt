@@ -2,7 +2,6 @@ package com.quantummpv.app.ui.player.controls.components.sheets
 
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.selection.selectable
@@ -20,8 +19,8 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.quantummpv.app.R
 import com.quantummpv.app.presentation.components.PlayerSheet
 import com.quantummpv.app.ui.player.AudiobookPlayback
-import com.quantummpv.app.ui.player.PlaybackSession
 import com.quantummpv.app.ui.player.PlaybackPhase
+import com.quantummpv.app.ui.player.PlaybackSession
 import com.quantummpv.app.ui.player.Sheets
 import com.quantummpv.app.ui.utils.rememberAppHaptics
 

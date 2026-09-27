@@ -38,15 +38,30 @@ import com.quantummpv.app.ui.player.controls.components.tvFocusGroup
 import com.quantummpv.app.ui.player.controls.components.tvFocusHighlight
 import com.quantummpv.app.ui.player.controls.components.tvInitialFocus
 import com.quantummpv.app.ui.theme.AppTheme
+import com.quantummpv.app.ui.theme.CustomThemeDefinition
 import com.quantummpv.app.ui.theme.DarkMode
+import com.quantummpv.app.ui.theme.WallpaperScaleMode
 import com.quantummpv.app.ui.theme.spacing
 import kotlinx.collections.immutable.ImmutableList
 
 class AppearancePreferences(
   preferenceStore: PreferenceStore,
 ) {
+    companion object {
+    const val CUSTOM_WALLPAPER_URI_KEY = "custom_wallpaper_uri"
+  }
+
   val darkMode = preferenceStore.getEnum("dark_mode", DarkMode.System)
   val appTheme = preferenceStore.getEnum("app_theme", AppTheme.Dynamic)
+  val customTheme = preferenceStore.getString("custom_theme", "")
+  val selectedCustomThemeName = preferenceStore.getString("selected_custom_theme_name", "")
+  val customWallpaperUri = preferenceStore.getString(CUSTOM_WALLPAPER_URI_KEY, "")
+  val customWallpaperZoom = preferenceStore.getFloat("custom_wallpaper_zoom", 1f)
+  val customWallpaperOffsetX = preferenceStore.getFloat("custom_wallpaper_offset_x", 0f)
+  val customWallpaperOffsetY = preferenceStore.getFloat("custom_wallpaper_offset_y", 0f)
+  val customWallpaperScaleMode = preferenceStore.getEnum("custom_wallpaper_scale_mode", WallpaperScaleMode.Fit)
+  val customWallpaperBlur = preferenceStore.getFloat("custom_wallpaper_blur", 0f)
+  val customWallpaperAlpha = preferenceStore.getFloat("custom_wallpaper_alpha", 1f)
   val amoledMode = preferenceStore.getBoolean("amoled_mode", false)
   val glassBottomNavigation = preferenceStore.getBoolean("glass_bottom_navigation", false)
   val useSystemFont = preferenceStore.getBoolean("use_system_font", false)
@@ -103,6 +118,12 @@ class AppearancePreferences(
     preferenceStore.getBoolean("clip_button_migration_complete", false)
 
   init {
+        if (selectedCustomThemeName.get().isBlank()) {
+      CustomThemeDefinition.parse(customTheme.get())?.let { legacyTheme ->
+        selectedCustomThemeName.set(legacyTheme.name)
+      }
+    }
+
     if (!castButtonMigrationComplete.get()) {
       val landscapeButtons =
         listOf(

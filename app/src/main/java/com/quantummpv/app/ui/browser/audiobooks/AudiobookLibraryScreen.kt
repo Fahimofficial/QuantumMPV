@@ -18,7 +18,6 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
-import com.quantummpv.app.domain.thumbnail.EmbeddedArtworkResolver
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
@@ -40,7 +39,6 @@ import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
@@ -62,8 +60,8 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
-import androidx.compose.material3.TooltipBox
 import androidx.compose.material3.TooltipAnchorPosition
+import androidx.compose.material3.TooltipBox
 import androidx.compose.material3.TooltipDefaults
 import androidx.compose.material3.rememberTooltipState
 import androidx.compose.runtime.Composable
@@ -92,7 +90,7 @@ import com.quantummpv.app.R
 import com.quantummpv.app.database.entities.Audiobook
 import com.quantummpv.app.database.entities.AudiobookEntity
 import com.quantummpv.app.domain.audiobookshelf.AudiobookshelfBook
-import com.quantummpv.app.domain.audiobookshelf.AudiobookshelfLibrary
+import com.quantummpv.app.domain.thumbnail.EmbeddedArtworkResolver
 import com.quantummpv.app.preferences.AudiobookSortType
 import com.quantummpv.app.preferences.AudiobookSourceProvider
 import com.quantummpv.app.preferences.BrowserPreferences
