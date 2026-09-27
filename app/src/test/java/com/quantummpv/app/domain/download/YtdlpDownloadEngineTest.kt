@@ -6,6 +6,7 @@ import org.junit.Assert.assertNotEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import java.io.File
+import java.nio.file.Files
 
 class YtdlpDownloadEngineTest {
   private fun job(id: Int, title: String = "Video", url: String = "https://example.test/video"): YtdlpDownloadEngine.Job =
@@ -54,7 +55,7 @@ class YtdlpDownloadEngineTest {
 
   @Test
   fun `legacy part never changes a new job to title-only output`() {
-    val directory = createTempDir(prefix = "legacy-part-")
+    val directory = Files.createTempDirectory("legacy-part-").toFile()
     try {
       File(directory, "Video.mp4.part").createNewFile()
       val current = job(30, title = "Video").copy(directory = directory.absolutePath)
@@ -71,7 +72,7 @@ class YtdlpDownloadEngineTest {
 
   @Test
   fun `legacy ytdl never changes a new job to title-only output`() {
-    val directory = createTempDir(prefix = "legacy-ytdl-")
+    val directory = Files.createTempDirectory("legacy-ytdl-").toFile()
     try {
       File(directory, "Video.mp4.ytdl").createNewFile()
       val current = job(31, title = "Video").copy(directory = directory.absolutePath)
@@ -85,7 +86,7 @@ class YtdlpDownloadEngineTest {
 
   @Test
   fun `output discovery cannot return another jobs output`() {
-    val directory = createTempDir(prefix = "discovery-")
+    val directory = Files.createTempDirectory("discovery-").toFile()
     try {
       val current = job(40, title = "Shared").copy(directory = directory.absolutePath)
       val other = File(directory, "Shared-41-youtube-other.mp4").apply { createNewFile() }
@@ -104,7 +105,7 @@ class YtdlpDownloadEngineTest {
 
   @Test
   fun `cleanup candidates contain only the current job prefix`() {
-    val directory = createTempDir(prefix = "cleanup-")
+    val directory = Files.createTempDirectory("cleanup-").toFile()
     try {
       val current = job(50, title = "Shared").copy(directory = directory.absolutePath)
       val ownPart = File(directory, "Shared-50-youtube-own.mp4.part").apply { createNewFile() }
