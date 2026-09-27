@@ -7,8 +7,7 @@ import org.robolectric.RobolectricTestRunner
 
 @RunWith(RobolectricTestRunner::class)
 class NetworkProxyLifecycleTest {
-
-    @Test
+  @Test
     fun `test proxy lifecycle stops cleanly`() {
         val proxy = NetworkStreamingProxy.getInstance()
         assertNotNull(proxy)

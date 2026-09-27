@@ -110,7 +110,6 @@ object PlaybackSession : MPVLib.EventObserver {
       "percent-pos",
     )
 
-
   private enum class EndFileReason {
     EOF,
     STOP,

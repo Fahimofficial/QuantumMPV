@@ -4,7 +4,6 @@ import androidx.room.Dao
 import androidx.room.Insert
 import androidx.room.OnConflictStrategy
 import androidx.room.Query
-import androidx.room.Transaction
 import com.quantummpv.app.database.entities.MediaIndexEntity
 import kotlinx.coroutines.flow.Flow
 
@@ -29,7 +28,7 @@ interface MediaIndexDao {
 
   @Query("DELETE FROM media_index WHERE uri = :uri")
   suspend fun deleteByUri(uri: String)
-  
+
   @Query("DELETE FROM media_index WHERE parentFolder = :folderPath")
   suspend fun deleteByFolder(folderPath: String)
 

@@ -10,8 +10,7 @@ import org.robolectric.RobolectricTestRunner
 
 @RunWith(RobolectricTestRunner::class)
 class PlayerIntegrationTest {
-
-    @Test
+  @Test
     fun `test external playlist parses multiple URIs from EXTRA_STREAM`() {
         val intent = Intent(Intent.ACTION_SEND_MULTIPLE).apply {
             val uris = arrayListOf(Uri.parse("content://media/1"), Uri.parse("content://media/2"))
@@ -19,7 +18,7 @@ class PlayerIntegrationTest {
         }
         val isSendMultiple = intent.action == Intent.ACTION_SEND_MULTIPLE
         assertTrue(isSendMultiple)
-        
+
         val parsed = intent.getParcelableArrayListExtra<Uri>(Intent.EXTRA_STREAM)
         assertEquals(2, parsed?.size)
         assertEquals("content://media/1", parsed?.get(0).toString())
@@ -30,7 +29,9 @@ class PlayerIntegrationTest {
         val intent = Intent().apply {
             putStringArrayListExtra("video_list", arrayListOf("http://test/1.mp4", "http://test/2.mp4"))
         }
-        val parsed = intent.getStringArrayListExtra("video_list")?.mapNotNull { runCatching { Uri.parse(it) }.getOrNull() } ?: emptyList()
+        val parsed =
+            intent.getStringArrayListExtra("video_list")?.mapNotNull { runCatching { Uri.parse(it) }.getOrNull() }
+                ?: emptyList()
         assertEquals(2, parsed.size)
     }
 

@@ -5242,7 +5242,7 @@ private suspend fun restorePlaybackPosition(state: PlaybackStateEntity?) {
     } else emptyList()
 
     val videoListUris = intent.getStringArrayListExtra("video_list")?.mapNotNull { runCatching { Uri.parse(it) }.getOrNull() } ?: emptyList()
-    
+
     // Check if this intent has playlist information
     val hasPlaylistExtras =
       intent.hasExtra("playlist_id") ||

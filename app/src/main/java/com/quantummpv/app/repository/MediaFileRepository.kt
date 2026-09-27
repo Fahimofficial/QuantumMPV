@@ -14,9 +14,11 @@ import android.net.Uri
 import android.os.Environment
 import android.provider.MediaStore
 import android.util.Log
+import androidx.work.OneTimeWorkRequestBuilder
+import androidx.work.WorkManager
+import com.quantummpv.app.database.MpvRxDatabase
 import com.quantummpv.app.database.dao.MediaIndexDao
 import com.quantummpv.app.database.entities.MediaIndexEntity
-import com.quantummpv.app.database.MpvRxDatabase
 import com.quantummpv.app.domain.browser.FileSystemItem
 import com.quantummpv.app.domain.browser.PathComponent
 import com.quantummpv.app.domain.media.model.Video
@@ -30,6 +32,7 @@ import com.quantummpv.app.utils.media.MediaInfoOps
 import com.quantummpv.app.utils.storage.FileTypeUtils
 import com.quantummpv.app.utils.storage.FolderViewScanner
 import com.quantummpv.app.utils.storage.MediaScanOptions
+import com.quantummpv.app.utils.storage.MediaScannerWorker
 import com.quantummpv.app.utils.storage.StorageVolumeUtils
 import com.quantummpv.app.utils.storage.TreeViewScanner
 import com.quantummpv.app.utils.storage.VideoScanUtils
@@ -39,6 +42,7 @@ import androidx.work.WorkManager
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.withContext
 import org.koin.core.component.KoinComponent
 import org.koin.core.component.inject
@@ -59,7 +63,7 @@ import com.quantummpv.app.utils.storage.MediaScannerWorker
  * - Storage volume detection
  */
 object MediaFileRepository : KoinComponent {
-  suspend fun searchMedia(query: String): List<Video> = 
+  suspend fun searchMedia(query: String): List<Video> =
     withContext(Dispatchers.IO) {
       try {
         mediaIndexDao.searchMedia("*$query*").first().map { it.toVideo() }
@@ -73,7 +77,6 @@ object MediaFileRepository : KoinComponent {
     val request = OneTimeWorkRequestBuilder<MediaScannerWorker>().build()
     WorkManager.getInstance(context).enqueue(request)
   }
-
 
   private fun MediaIndexEntity.toVideo(): Video {
     return Video(
