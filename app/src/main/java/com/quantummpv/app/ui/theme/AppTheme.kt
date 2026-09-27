@@ -18,6 +18,149 @@ import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.graphics.toArgb
 import com.quantummpv.app.R
 import com.quantummpv.app.ui.player.visualizer.VisualizerPalette
+import android.util.Base64
+import java.nio.charset.StandardCharsets
+
+data class CustomThemeDefinition(
+  val name: String,
+  val primaryLight: Color,
+  val primaryDark: Color,
+  val secondaryLight: Color,
+  val secondaryDark: Color,
+  val tertiaryLight: Color,
+  val tertiaryDark: Color,
+  val backgroundLight: Color,
+  val backgroundDark: Color,
+) {
+  fun serialize(): String =
+    listOf(
+      name,
+      primaryLight.toHex(),
+      primaryDark.toHex(),
+      secondaryLight.toHex(),
+      secondaryDark.toHex(),
+      tertiaryLight.toHex(),
+      tertiaryDark.toHex(),
+      backgroundLight.toHex(),
+      backgroundDark.toHex(),
+    )
+      .joinToString("|")
+
+  fun lightColorScheme(): ColorScheme {
+    val primaryContainer = primaryLight.copy(alpha = 0.20f).compositeOver(backgroundLight)
+    val secondaryContainer = secondaryLight.copy(alpha = 0.20f).compositeOver(backgroundLight)
+    val tertiaryContainer = tertiaryLight.copy(alpha = 0.20f).compositeOver(backgroundLight)
+    val surfaceVariant = primaryLight.copy(alpha = 0.10f).compositeOver(backgroundLight)
+    return lightColorScheme(
+      primary = primaryLight,
+      onPrimary = primaryLight.accessibleContentColor(),
+      primaryContainer = primaryContainer,
+      onPrimaryContainer = primaryContainer.accessibleContentColor(),
+      secondary = secondaryLight,
+      onSecondary = secondaryLight.accessibleContentColor(),
+      secondaryContainer = secondaryContainer,
+      onSecondaryContainer = secondaryContainer.accessibleContentColor(),
+      tertiary = tertiaryLight,
+      onTertiary = tertiaryLight.accessibleContentColor(),
+      tertiaryContainer = tertiaryContainer,
+      onTertiaryContainer = tertiaryContainer.accessibleContentColor(),
+      background = backgroundLight,
+      surface = backgroundLight,
+      onBackground = backgroundLight.accessibleContentColor(),
+      onSurface = backgroundLight.accessibleContentColor(),
+      surfaceVariant = surfaceVariant,
+      onSurfaceVariant = surfaceVariant.accessibleContentColor(),
+      outline = secondaryLight.copy(alpha = 0.62f),
+      outlineVariant = primaryLight.copy(alpha = 0.24f).compositeOver(backgroundLight),
+      surfaceContainerLowest = backgroundLight,
+      surfaceContainerLow = primaryLight.copy(alpha = 0.03f).compositeOver(backgroundLight),
+      surfaceContainer = primaryLight.copy(alpha = 0.05f).compositeOver(backgroundLight),
+      surfaceContainerHigh = primaryLight.copy(alpha = 0.08f).compositeOver(backgroundLight),
+      surfaceContainerHighest = primaryLight.copy(alpha = 0.11f).compositeOver(backgroundLight),
+    )
+  }
+
+  fun darkColorScheme(): ColorScheme {
+    val primaryContainer = primaryDark.copy(alpha = 0.24f).compositeOver(backgroundDark)
+    val secondaryContainer = secondaryDark.copy(alpha = 0.24f).compositeOver(backgroundDark)
+    val tertiaryContainer = tertiaryDark.copy(alpha = 0.24f).compositeOver(backgroundDark)
+    val surfaceVariant = primaryDark.copy(alpha = 0.16f).compositeOver(backgroundDark)
+    return darkColorScheme(
+      primary = primaryDark,
+      onPrimary = primaryDark.accessibleContentColor(),
+      primaryContainer = primaryContainer,
+      onPrimaryContainer = primaryContainer.accessibleContentColor(),
+      secondary = secondaryDark,
+      onSecondary = secondaryDark.accessibleContentColor(),
+      secondaryContainer = secondaryContainer,
+      onSecondaryContainer = secondaryContainer.accessibleContentColor(),
+      tertiary = tertiaryDark,
+      onTertiary = tertiaryDark.accessibleContentColor(),
+      tertiaryContainer = tertiaryContainer,
+      onTertiaryContainer = tertiaryContainer.accessibleContentColor(),
+      background = backgroundDark,
+      surface = backgroundDark,
+      onBackground = backgroundDark.accessibleContentColor(),
+      onSurface = backgroundDark.accessibleContentColor(),
+      surfaceVariant = surfaceVariant,
+      onSurfaceVariant = surfaceVariant.accessibleContentColor(),
+      outline = secondaryDark.copy(alpha = 0.58f),
+      outlineVariant = primaryDark.copy(alpha = 0.22f).compositeOver(backgroundDark),
+      surfaceContainerLowest = backgroundDark,
+      surfaceContainerLow = primaryDark.copy(alpha = 0.06f).compositeOver(backgroundDark),
+      surfaceContainer = primaryDark.copy(alpha = 0.08f).compositeOver(backgroundDark),
+      surfaceContainerHigh = primaryDark.copy(alpha = 0.12f).compositeOver(backgroundDark),
+      surfaceContainerHighest = primaryDark.copy(alpha = 0.16f).compositeOver(backgroundDark),
+    )
+  }
+
+  companion object {
+    fun parse(serialized: String): CustomThemeDefinition? {
+      val parts = serialized.split('|')
+      if ((parts.size != 5 && parts.size != 9) || parts[0].isBlank()) return null
+      return runCatching {
+        val primaryLight = Color(android.graphics.Color.parseColor(parts[1]))
+        val primaryDark = Color(android.graphics.Color.parseColor(parts[2]))
+        CustomThemeDefinition(
+          name = parts[0],
+          primaryLight = primaryLight,
+          primaryDark = primaryDark,
+          secondaryLight = if (parts.size == 9) Color(android.graphics.Color.parseColor(parts[3])) else primaryLight,
+          secondaryDark = if (parts.size == 9) Color(android.graphics.Color.parseColor(parts[4])) else primaryDark,
+          tertiaryLight = if (parts.size == 9) Color(android.graphics.Color.parseColor(parts[5])) else primaryLight,
+          tertiaryDark = if (parts.size == 9) Color(android.graphics.Color.parseColor(parts[6])) else primaryDark,
+          backgroundLight = Color(android.graphics.Color.parseColor(parts[if (parts.size == 9) 7 else 3])),
+          backgroundDark = Color(android.graphics.Color.parseColor(parts[if (parts.size == 9) 8 else 4])),
+        )
+      }.getOrNull()
+    }
+
+    fun parseCollection(serialized: String): List<CustomThemeDefinition> {
+      if (serialized.isBlank()) return emptyList()
+      val decoded =
+        serialized
+          .split(',')
+          .mapNotNull { record ->
+            runCatching {
+              val bytes = Base64.decode(record, Base64.NO_WRAP or Base64.URL_SAFE)
+              parse(String(bytes, StandardCharsets.UTF_8))
+            }.getOrNull()
+          }
+      return decoded.takeIf(List<CustomThemeDefinition>::isNotEmpty)
+        ?: listOfNotNull(parse(serialized))
+    }
+
+    fun serializeCollection(themes: List<CustomThemeDefinition>): String =
+      themes.joinToString(",") { theme ->
+        Base64.encodeToString(
+          theme.serialize().toByteArray(StandardCharsets.UTF_8),
+          Base64.NO_WRAP or Base64.URL_SAFE,
+        )
+      }
+  }
+}
+
+private fun Color.toHex(): String = "#%08X".format(toArgb())
 
 /**
  * App themes inspired by Aniyomi design
@@ -562,7 +705,7 @@ enum class AppTheme(
 }
 
 // Extension functions for color manipulation
-private const val MinimumTextContrast = 4.5f
+private const val MINIMUM_TEXT_CONTRAST = 4.5f
 
 private fun Color.accessibleContentColor(): Color {
   val blackContrast = contrastRatio(Color.Black)
@@ -574,7 +717,7 @@ private fun Color.withMinimumContrastAgainst(background: Color): Color =
   withMinimumContrastAgainst(listOf(background))
 
 private fun Color.withMinimumContrastAgainst(backgrounds: List<Color>): Color {
-  if (backgrounds.minOf { background -> contrastRatio(background) } >= MinimumTextContrast) return this
+  if (backgrounds.minOf { background -> contrastRatio(background) } >= MINIMUM_TEXT_CONTRAST) return this
 
   val blackContrast = backgrounds.minOf { background -> Color.Black.contrastRatio(background) }
   val whiteContrast = backgrounds.minOf { background -> Color.White.contrastRatio(background) }
@@ -584,7 +727,7 @@ private fun Color.withMinimumContrastAgainst(backgrounds: List<Color>): Color {
   repeat(12) {
     val fraction = (insufficientFraction + sufficientFraction) / 2f
     val candidate = blendToward(target, fraction)
-    if (backgrounds.minOf { background -> candidate.contrastRatio(background) } >= MinimumTextContrast) {
+    if (backgrounds.minOf { background -> candidate.contrastRatio(background) } >= MINIMUM_TEXT_CONTRAST) {
       sufficientFraction = fraction
     } else {
       insufficientFraction = fraction

@@ -12,7 +12,6 @@ package com.quantummpv.app.ui.preferences.components
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -26,6 +25,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.ColorScheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -39,18 +39,19 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.boundsInWindow
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.selected
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.quantummpv.app.ui.player.controls.components.tvFocusHighlight
-import com.quantummpv.app.ui.theme.AppTheme
+import com.quantummpv.app.ui.icons.Icon
+import com.quantummpv.app.ui.icons.Icons
 import com.quantummpv.app.utils.device.DeviceFormFactor
 
 /**
@@ -59,17 +60,16 @@ import com.quantummpv.app.utils.device.DeviceFormFactor
  */
 @Composable
 fun ThemePreviewCard(
-  theme: AppTheme,
+  label: String,
+  colorScheme: ColorScheme,
   isSelected: Boolean,
-  isDarkMode: Boolean,
   onClick: (Offset) -> Unit,
   modifier: Modifier = Modifier,
+  actionOverlay: (@Composable () -> Unit)? = null,
+  enabled: Boolean = true,
 ) {
-  var cardOrigin by remember { mutableStateOf(Offset.Zero) }
   var cardCenter by remember { mutableStateOf(Offset.Zero) }
   val isTelevision = DeviceFormFactor.isTelevision(LocalContext.current)
-  val colorScheme = if (isDarkMode) theme.getDarkColorScheme() else theme.getLightColorScheme()
-
   // Use the current MaterialTheme primary for selection to ensure visibility
   val selectionColor = MaterialTheme.colorScheme.primary
 
@@ -83,21 +83,19 @@ fun ThemePreviewCard(
     modifier =
       modifier
         .width(100.dp)
+        .semantics { selected = isSelected }
         .onGloballyPositioned {
           val bounds = it.boundsInWindow()
-          cardOrigin = bounds.topLeft
           cardCenter = bounds.center
         }.then(
-          if (isTelevision) {
+          if (!enabled) {
+            Modifier
+          } else if (isTelevision) {
             Modifier
               .tvFocusHighlight(RoundedCornerShape(12.dp), focusedScale = 1.05f)
               .clickable { onClick(cardCenter) }
           } else {
-            Modifier.pointerInput(Unit) {
-              detectTapGestures { localPosition ->
-                onClick(cardOrigin + localPosition)
-              }
-            }
+            Modifier.clickable { onClick(cardCenter) }
           },
         ),
     horizontalAlignment = Alignment.CenterHorizontally,
@@ -208,13 +206,39 @@ fun ThemePreviewCard(
           )
         }
       }
+      actionOverlay?.let { overlay ->
+        Box(modifier = Modifier.align(Alignment.TopEnd).padding(4.dp)) {
+          overlay()
+        }
+      }
+      if (isSelected) {
+        Box(
+          modifier =
+            Modifier
+              .align(Alignment.TopStart)
+              .padding(5.dp)
+              .size(24.dp)
+              .shadow(3.dp, CircleShape)
+              .clip(CircleShape)
+              .background(Color.White)
+              .border(1.dp, Color.Black.copy(alpha = 0.45f), CircleShape),
+          contentAlignment = Alignment.Center,
+        ) {
+          Icon(
+            imageVector = Icons.RoundedFilled.Check,
+            contentDescription = null,
+            modifier = Modifier.size(16.dp),
+            tint = Color.Black,
+          )
+        }
+      }
     }
 
     Spacer(modifier = Modifier.height(6.dp))
 
     // Theme name
     Text(
-      text = stringResource(theme.titleRes),
+      text = label,
       style = MaterialTheme.typography.bodySmall,
       fontSize = 11.sp,
       fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,

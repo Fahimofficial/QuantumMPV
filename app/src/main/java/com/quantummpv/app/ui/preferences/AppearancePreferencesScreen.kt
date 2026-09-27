@@ -10,11 +10,14 @@
 package com.quantummpv.app.ui.preferences
 
 import android.widget.Toast
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -22,6 +25,9 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.Button
+import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
@@ -40,6 +46,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.quantummpv.app.R
 import com.quantummpv.app.domain.thumbnail.ThumbnailRepository
@@ -62,9 +69,11 @@ import com.quantummpv.app.ui.player.VideoOpenAnimation
 import com.quantummpv.app.ui.preferences.components.SwitchPreference
 import com.quantummpv.app.ui.preferences.components.ThemePicker
 import com.quantummpv.app.ui.theme.DarkMode
+import com.quantummpv.app.ui.theme.CustomThemeDefinition
 import com.quantummpv.app.ui.theme.LocalThemeTransitionState
 import com.quantummpv.app.ui.utils.LocalBackStack
 import com.quantummpv.app.ui.utils.LocalShowSettingsBackArrow
+import com.quantummpv.app.ui.utils.navigateTo
 import com.quantummpv.app.ui.utils.popSafely
 import kotlinx.collections.immutable.persistentListOf
 import kotlinx.collections.immutable.toImmutableList
@@ -97,6 +106,9 @@ object AppearancePreferencesScreen : Screen {
 
     val darkMode by preferences.darkMode.collectAsState()
     val appTheme by preferences.appTheme.collectAsState()
+    val customTheme by preferences.customTheme.collectAsState()
+    val selectedCustomThemeName by preferences.selectedCustomThemeName.collectAsState()
+    val customWallpaperUri by preferences.customWallpaperUri.collectAsState()
     var pendingThumbnailMode by remember { mutableStateOf<ThumbnailMode?>(null) }
     var isThemeSectionExpanded by rememberSaveable { mutableStateOf(true) }
     val storedThumbnailMode by browserPreferences.thumbnailMode.collectAsState()
@@ -105,9 +117,23 @@ object AppearancePreferencesScreen : Screen {
     val dualPaneForTablet by browserPreferences.dualPaneForTablet.collectAsState()
     val treeFlattenDepth by browserPreferences.treeFlattenDepth.collectAsState()
     val thumbnailCacheClearedMessage = stringResource(R.string.pref_thumbnail_cache_cleared)
-    val glassBottomNavigation by preferences.glassBottomNavigation.collectAsState()
 
     val thumbnailMode = storedThumbnailMode
+    val customThemes = remember(customTheme) { CustomThemeDefinition.parseCollection(customTheme) }
+    val selectedCustomTheme = customThemes.firstOrNull { it.name == selectedCustomThemeName }
+
+    val wallpaperPicker =
+      rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
+        if (uri != null) {
+          runCatching {
+            context.contentResolver.takePersistableUriPermission(
+              uri,
+              android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION,
+            )
+          }
+          backstack.navigateTo(WallpaperEditorScreen(uri.toString()))
+        }
+      }
 
     // Determine if we're in dark mode for theme preview
     val isDarkMode =
@@ -221,9 +247,7 @@ object AppearancePreferencesScreen : Screen {
                     fontWeight = FontWeight.SemiBold,
                   )
                   Text(
-                    text = "${stringResource(
-                      darkMode.titleRes,
-                    )} · ${stringResource(appTheme.titleRes)}",
+                    text = "${stringResource(darkMode.titleRes)} · ${selectedCustomTheme?.name ?: stringResource(appTheme.titleRes)}",
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.outline,
                   )
@@ -265,29 +289,98 @@ object AppearancePreferencesScreen : Screen {
                   PreferenceDivider()
 
                   val amoledMode by preferences.amoledMode.collectAsState()
+                  val glassBottomNavigation by preferences.glassBottomNavigation.collectAsState()
                   ThemePicker(
                     currentTheme = appTheme,
+                    customThemes = customThemes,
+                    selectedCustomThemeName = selectedCustomThemeName,
                     isDarkMode = isDarkMode,
                     onThemeSelected = { theme, position ->
-                      if (theme != appTheme && themeTransition?.isAnimating != true) {
+                      if ((theme != appTheme || selectedCustomThemeName.isNotBlank()) && themeTransition?.isAnimating != true) {
                         themeTransition?.startTransition(position)
                         scope.launch {
                           delay(50)
                           preferences.appTheme.set(theme)
+                          preferences.selectedCustomThemeName.set("")
                         }
                       }
+                    },
+                    onAddCustomTheme = { backstack.navigateTo(CustomThemeEditorScreen()) },
+                    onCustomThemeSelected = { theme, position ->
+                      if (theme.name != selectedCustomThemeName && themeTransition?.isAnimating != true) {
+                        themeTransition?.startTransition(position)
+                        scope.launch {
+                          delay(50)
+                          preferences.selectedCustomThemeName.set(theme.name)
+                        }
+                      }
+                    },
+                    onEditCustomTheme = { name -> backstack.navigateTo(CustomThemeEditorScreen(name)) },
+                    onDeleteCustomTheme = { name ->
+                      val remainingThemes = customThemes.filterNot { it.name == name }
+                      preferences.customTheme.set(CustomThemeDefinition.serializeCollection(remainingThemes))
+                      if (selectedCustomThemeName == name) preferences.selectedCustomThemeName.set("")
                     },
                     modifier = Modifier.padding(vertical = 8.dp),
                   )
 
                   PreferenceDivider()
-                  SwitchPreference(
-                    modifier = Modifier.settingsSearchTarget(R.string.pref_appearance_glass_navigation_title),
-                    value = glassBottomNavigation,
-                    onValueChange = preferences.glassBottomNavigation::set,
-                    title = { Text(stringResource(R.string.pref_appearance_glass_navigation_title)) },
-                    summary = { Text(stringResource(R.string.pref_appearance_glass_navigation_summary), color = MaterialTheme.colorScheme.outline) },
-                  )
+
+                  PreferenceCard {
+                    Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                      Text(stringResource(R.string.pref_appearance_custom_wallpaper_title), style = MaterialTheme.typography.titleMedium)
+                      Text(stringResource(R.string.pref_appearance_custom_wallpaper_summary), color = MaterialTheme.colorScheme.outline, style = MaterialTheme.typography.bodySmall)
+                      if (customWallpaperUri.isNotBlank() && !customWallpaperUri.startsWith("data:", ignoreCase = true)) {
+                        Text(customWallpaperUri.substringAfterLast('/'), style = MaterialTheme.typography.bodySmall, maxLines = 1)
+                      }
+                      Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                      ) {
+                        Button(
+                          onClick = { wallpaperPicker.launch(arrayOf("image/*")) },
+                          modifier = Modifier.weight(1f),
+                          contentPadding = PaddingValues(horizontal = 8.dp),
+                        ) {
+                          Text(
+                            stringResource(if (customWallpaperUri.isBlank()) R.string.pref_appearance_custom_wallpaper_choose else R.string.pref_appearance_custom_wallpaper_replace_action),
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                          )
+                        }
+                        if (customWallpaperUri.isNotBlank()) {
+                          OutlinedButton(
+                            onClick = { backstack.navigateTo(WallpaperEditorScreen()) },
+                            modifier = Modifier.weight(1f),
+                            contentPadding = PaddingValues(horizontal = 8.dp),
+                          ) {
+                            Text(
+                              stringResource(R.string.pref_appearance_custom_wallpaper_adjust),
+                              maxLines = 1,
+                              overflow = TextOverflow.Ellipsis,
+                            )
+                          }
+                          TextButton(
+                            onClick = {
+                              preferences.customWallpaperUri.set("")
+                              preferences.customWallpaperZoom.set(1f)
+                              preferences.customWallpaperOffsetX.set(0f)
+                              preferences.customWallpaperOffsetY.set(0f)
+                              preferences.customWallpaperScaleMode.set(com.quantummpv.app.ui.theme.WallpaperScaleMode.Fit)
+                            },
+                            modifier = Modifier.weight(1f),
+                            contentPadding = PaddingValues(horizontal = 8.dp),
+                          ) {
+                            Text(
+                              stringResource(R.string.pref_appearance_custom_wallpaper_clear_action),
+                              maxLines = 1,
+                              overflow = TextOverflow.Ellipsis,
+                            )
+                          }
+                        }
+                      }
+                    }
+                  }
 
                   PreferenceDivider()
 
@@ -915,7 +1008,7 @@ object AppearancePreferencesScreen : Screen {
                 title = { Text(stringResource(R.string.pref_anim_screen_nav_style_title)) },
                 summary = {
                   Text(
-                    "${appNavStyle.displayName}\n${stringResource(R.string.pref_anim_screen_nav_style_summary)}",
+                    appNavStyle.displayName,
                     color = MaterialTheme.colorScheme.outline,
                   )
                 },

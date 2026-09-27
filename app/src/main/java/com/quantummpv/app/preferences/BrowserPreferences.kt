@@ -12,24 +12,40 @@ package com.quantummpv.app.preferences
 import com.quantummpv.app.preferences.preference.Preference
 import com.quantummpv.app.preferences.preference.PreferenceStore
 import com.quantummpv.app.preferences.preference.getEnum
-import com.quantummpv.app.ui.browser.music.MusicSortField
-import com.quantummpv.app.ui.browser.music.MusicSortOrder
-import com.quantummpv.app.ui.browser.music.MusicViewMode
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 
+import com.quantummpv.app.ui.browser.music.MusicSortField
+import com.quantummpv.app.ui.browser.music.MusicSortOrder
+import com.quantummpv.app.ui.browser.music.MusicViewMode
+
 /**
  * Preferences for the video browser (folder and video lists)
  */
+enum class VideoSwipeAction {
+  None,
+  ToggleWatched,
+  AddToPlaylist,
+  PlayNext,
+  AddToQueue,
+  Delete,
+  MarkNew,
+  LastPlayed,
+  Finished,
+  ClearHistory,
+}
+
 class BrowserPreferences(
   preferenceStore: PreferenceStore,
   context: android.content.Context,
 ) {
   companion object {
     internal const val ONBOARDING_COMPLETED_KEY = "onboarding_completed"
+    internal const val DEFAULT_VIDEO_SWIPE_ZONE_PERCENT = 25
+    internal val VIDEO_SWIPE_ZONE_RANGE = 1..50
   }
 
   // Folder sorting preferences
@@ -39,11 +55,20 @@ class BrowserPreferences(
   // Video sorting preferences
   val videoSortType = preferenceStore.getEnum("video_sort_type", VideoSortType.Title)
   val videoSortOrder = preferenceStore.getEnum("video_sort_order", SortOrder.Ascending)
+  val videoSwipeRight = preferenceStore.getEnum("video_swipe_right", VideoSwipeAction.ToggleWatched)
+  val videoSwipeLeft = preferenceStore.getEnum("video_swipe_left", VideoSwipeAction.AddToPlaylist)
+  val videoSwipeRightZonePercent = preferenceStore.getInt("video_swipe_right_zone_percent", DEFAULT_VIDEO_SWIPE_ZONE_PERCENT)
+  val videoSwipeLeftZonePercent = preferenceStore.getInt("video_swipe_left_zone_percent", DEFAULT_VIDEO_SWIPE_ZONE_PERCENT)
 
   // Music view mode and sorting preferences
   val musicViewMode = preferenceStore.getEnum("music_view_mode", MusicViewMode.GRID)
   val musicSortField = preferenceStore.getEnum("music_sort_field", MusicSortField.TITLE)
   val musicSortOrder = preferenceStore.getEnum("music_sort_order", MusicSortOrder.ASCENDING)
+
+  // Audiobook view mode and sorting preferences
+  val audiobookSortType = preferenceStore.getEnum("audiobook_sort_type", AudiobookSortType.Title)
+  val audiobookSortOrder = preferenceStore.getEnum("audiobook_sort_order", SortOrder.Ascending)
+  val audiobookLayoutMode = preferenceStore.getEnum("audiobook_layout_mode", MediaLayoutMode.LIST)
 
   // Network sorting preferences
   val networkSortType = preferenceStore.getEnum("network_sort_type", NetworkSortType.Title)
@@ -203,6 +228,30 @@ enum class NetworkSortType {
         Title -> "Title"
         Date -> "Date"
         Size -> "Size"
+      }
+}
+
+/**
+ * Audiobook sorting options
+ */
+enum class AudiobookSortType {
+  Title,
+  Author,
+  Duration,
+  Progress,
+  LastPlayed,
+  DateAdded,
+  ;
+
+  val displayName: String
+    get() =
+      when (this) {
+        Title -> "Title"
+        Author -> "Author"
+        Duration -> "Duration"
+        Progress -> "Progress"
+        LastPlayed -> "Recent"
+        DateAdded -> "Date Added"
       }
 }
 
