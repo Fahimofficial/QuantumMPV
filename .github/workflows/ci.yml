@@ -19,7 +19,8 @@ env:
     -Dorg.gradle.daemon=false
     -Dorg.gradle.parallel=false
     -Dorg.gradle.workers.max=1
-    -Dkotlin.daemon.jvm.options=-Xmx4g
+    -Dorg.gradle.jvmargs=-Xmx4g -XX:+HeapDumpOnOutOfMemoryError
+    -Dkotlin.daemon.jvm.options=-Xmx2g
 
 jobs:
   validate:
