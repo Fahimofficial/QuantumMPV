@@ -175,17 +175,10 @@ class YtdlpDownloadEngine(
       return
     }
 
-    val sanitizedTitle = DownloadLocations.sanitizeName(job.title).takeIf { it.isNotBlank() } ?: "download"
-    val legacyPrefix = "$sanitizedTitle."
-    val hasLegacyPart = File(job.directory).listFiles()?.any {
-      it.isFile && it.name.startsWith(legacyPrefix) && !it.name.contains("-${job.id}-") && (it.name.endsWith(".part") || it.name.endsWith(".ytdl"))
-    } == true
-
-    val outputTemplate = if (hasLegacyPart) {
-      "${job.directory}/$sanitizedTitle.%(ext)s"
-    } else {
-      "${job.directory}/$sanitizedTitle-${job.id}-%(extractor)s-%(id)s.%(ext)s"
-    }
+    // Legacy title-only temporary files are intentionally not reused here: they cannot be
+    // associated safely with this job. Current and restored jobs always keep their persistent
+    // job-specific identity, so yt-dlp can resume only files that belong unambiguously to them.
+    val outputTemplate = outputTemplate(job)
 
     val command = buildCommand(job.url, outputTemplate, job.formatSelector)
 
@@ -315,43 +308,18 @@ class YtdlpDownloadEngine(
   }
 
   private fun findNewestOutput(job: Job): String? {
-    if (job.outputFile != null && File(job.outputFile).exists()) {
-      return job.outputFile
+    if (job.outputFile != null) {
+      val persisted = File(job.outputFile)
+      if (persisted.exists() && persisted.parentFile?.canonicalPath == File(job.directory).canonicalPath && isJobFile(job, persisted.name)) {
+        return persisted.absolutePath
+      }
     }
 
-    val sanitizedTitle = DownloadLocations.sanitizeName(job.title).takeIf { it.isNotBlank() } ?: "download"
-    val newSchemeMarker = "-${job.id}-"
-
-    return File(job.directory)
-      .listFiles()
-      ?.filter { file ->
-        file.isFile &&
-          !file.name.endsWith(".part") &&
-          !file.name.endsWith(".ytdl") &&
-          (file.name.contains(newSchemeMarker) || (file.name.startsWith("$sanitizedTitle.") && !file.name.contains("-${job.id}-")))
-      }
-      ?.maxByOrNull { it.lastModified() }
-      ?.absolutePath
+    return findNewestOutput(job, File(job.directory).listFiles()?.toList().orEmpty())?.absolutePath
   }
 
   private fun cleanupFiles(job: Job) {
-    val sanitizedTitle = DownloadLocations.sanitizeName(job.title).takeIf { it.isNotBlank() } ?: "download"
-    val newSchemeMarker = "-${job.id}-"
-    File(job.directory).listFiles()?.forEach { file ->
-      if (!file.isFile) return@forEach
-      val isNewScheme = file.name.contains(newSchemeMarker)
-      val isLegacyScheme = file.name.startsWith("$sanitizedTitle.") && !file.name.contains("-${job.id}-")
-
-      if (isNewScheme) {
-        // Safe to delete anything matching the unique marker (including temp .f* files, .part, .ytdl, or completed files)
-        file.delete()
-      } else if (isLegacyScheme) {
-        // For legacy, only delete .part or .ytdl to avoid deleting other completed jobs with same title
-        if (file.name.endsWith(".part") || file.name.endsWith(".ytdl")) {
-          file.delete()
-        }
-      }
-    }
+    filesToCleanup(job, File(job.directory).listFiles()?.toList().orEmpty()).forEach(File::delete)
   }
 
   private fun currentJob(id: Int): Job? = _jobs.value.firstOrNull { it.id == id }
@@ -399,6 +367,30 @@ class YtdlpDownloadEngine(
     private val PROGRESS_REGEX = Regex("""\[download]\s+([0-9.]+)%(.*)""")
     private val DESTINATION_REGEX = Regex("""\[download] Destination: (.+)""")
     private val ALREADY_DOWNLOADED_REGEX = Regex("""\[download] (.+) has already been downloaded""")
+
+    /** Stable prefix shared by every output and temporary file owned by [job]. */
+    fun jobFilePrefix(job: Job): String {
+      val sanitizedTitle = DownloadLocations.sanitizeName(job.title).takeIf { it.isNotBlank() } ?: "download"
+      return "$sanitizedTitle-${job.id}-"
+    }
+
+    fun outputTemplate(job: Job): String =
+      "${job.directory}/${jobFilePrefix(job)}%(extractor)s-%(id)s.%(ext)s"
+
+    fun isJobFile(job: Job, fileName: String): Boolean = fileName.startsWith(jobFilePrefix(job))
+
+    fun findNewestOutput(job: Job, files: List<File>): File? =
+      files
+        .filter { file ->
+          file.isFile &&
+            !file.name.endsWith(".part") &&
+            !file.name.endsWith(".ytdl") &&
+            isJobFile(job, file.name)
+        }
+        .maxByOrNull { it.lastModified() }
+
+    fun filesToCleanup(job: Job, files: List<File>): List<File> =
+      files.filter { it.isFile && isJobFile(job, it.name) }
 
     fun parseProgressLine(line: String): Pair<Float, String>? {
       val match = PROGRESS_REGEX.find(line.trim()) ?: return null

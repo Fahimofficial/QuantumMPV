@@ -2,97 +2,151 @@ package com.quantummpv.app.domain.download
 
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNotEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
-import org.junit.runner.RunWith
-import org.robolectric.RobolectricTestRunner
 import java.io.File
 
-@RunWith(RobolectricTestRunner::class)
 class YtdlpDownloadEngineTest {
+  private fun job(id: Int, title: String = "Video", url: String = "https://example.test/video"): YtdlpDownloadEngine.Job =
+    YtdlpDownloadEngine.Job(
+      id = id,
+      url = url,
+      title = title,
+      directory = "/tmp/quantummpv-test",
+    )
+
   @Test
-    fun `test filename sanitization`() {
-        val sanitized = DownloadLocations.sanitizeName("Funny / Video : ? * < > | \\ \"")
-        assertFalse(sanitized.contains("/"))
-        assertFalse(sanitized.contains("\\"))
-        assertFalse(sanitized.contains(":"))
+  fun `sanitization removes unsafe path characters`() {
+    val sanitized = DownloadLocations.sanitizeName("Funny / Video : ? * < > | \\ \"")
+    assertFalse(sanitized.contains("/"))
+    assertFalse(sanitized.contains("\\"))
+    assertFalse(sanitized.contains(":"))
+  }
+
+  @Test
+  fun `same title jobs have different persistent prefixes`() {
+    val first = YtdlpDownloadEngine.jobFilePrefix(job(42))
+    val second = YtdlpDownloadEngine.jobFilePrefix(job(43))
+
+    assertEquals("Video-42-", first)
+    assertNotEquals(first, second)
+    assertTrue(YtdlpDownloadEngine.outputTemplate(job(42)).contains("Video-42-%(extractor)s-%(id)s"))
+  }
+
+  @Test
+  fun `same url jobs remain isolated by persistent id`() {
+    val first = job(10, url = "https://example.test/same")
+    val second = job(11, url = "https://example.test/same")
+
+    assertNotEquals(YtdlpDownloadEngine.jobFilePrefix(first), YtdlpDownloadEngine.jobFilePrefix(second))
+    assertTrue(YtdlpDownloadEngine.isJobFile(first, "Video-10-youtube-abc.mp4"))
+    assertFalse(YtdlpDownloadEngine.isJobFile(first, "Video-11-youtube-abc.mp4"))
+  }
+
+  @Test
+  fun `same title with different urls remains isolated`() {
+    val first = job(20, url = "https://example.test/one")
+    val second = job(21, url = "https://example.test/two")
+
+    assertNotEquals(YtdlpDownloadEngine.outputTemplate(first), YtdlpDownloadEngine.outputTemplate(second))
+  }
+
+  @Test
+  fun `legacy part never changes a new job to title-only output`() {
+    val directory = createTempDir(prefix = "legacy-part-")
+    try {
+      File(directory, "Video.mp4.part").createNewFile()
+      val current = job(30, title = "Video").copy(directory = directory.absolutePath)
+
+      assertEquals(
+        "${directory.absolutePath}/Video-30-%(extractor)s-%(id)s.%(ext)s",
+        YtdlpDownloadEngine.outputTemplate(current),
+      )
+      assertFalse(YtdlpDownloadEngine.isJobFile(current, "Video.mp4.part"))
+    } finally {
+      directory.deleteRecursively()
     }
+  }
 
-    @Test
-    fun `test output-template generation isolates jobs`() {
-        val jobId = 42
-        val title = "Video"
-        val sanitizedTitle = DownloadLocations.sanitizeName(title).takeIf { it.isNotBlank() } ?: "download"
-        val outputTemplate = "$sanitizedTitle-$jobId-%(extractor)s-%(id)s.%(ext)s"
-        assertEquals("Video-42-%(extractor)s-%(id)s.%(ext)s", outputTemplate)
+  @Test
+  fun `legacy ytdl never changes a new job to title-only output`() {
+    val directory = createTempDir(prefix = "legacy-ytdl-")
+    try {
+      File(directory, "Video.mp4.ytdl").createNewFile()
+      val current = job(31, title = "Video").copy(directory = directory.absolutePath)
+
+      assertTrue(YtdlpDownloadEngine.outputTemplate(current).contains("Video-31-"))
+      assertFalse(YtdlpDownloadEngine.isJobFile(current, "Video.mp4.ytdl"))
+    } finally {
+      directory.deleteRecursively()
     }
+  }
 
-    @Test
-    fun `test legacy part file compatibility`() {
-        val jobId = 42
-        val title = "LegacyVideo"
-        val sanitizedTitle = DownloadLocations.sanitizeName(title)
-        val directory = File(System.getProperty("java.io.tmpdir"), "test_legacy")
-        directory.mkdirs()
+  @Test
+  fun `output discovery cannot return another jobs output`() {
+    val directory = createTempDir(prefix = "discovery-")
+    try {
+      val current = job(40, title = "Shared").copy(directory = directory.absolutePath)
+      val other = File(directory, "Shared-41-youtube-other.mp4").apply { createNewFile() }
+      val own = File(directory, "Shared-40-youtube-own.mp4").apply {
+        createNewFile()
+        setLastModified(System.currentTimeMillis() + 1_000)
+      }
+      File(directory, "Shared.mp4.part").createNewFile()
 
-        // Create a legacy .part file
-        val legacyPart = File(directory, "$sanitizedTitle.mp4.part")
-        legacyPart.createNewFile()
-
-        val legacyPrefix = "$sanitizedTitle."
-        val hasLegacyPart = directory.listFiles()?.any {
-            it.isFile && it.name.startsWith(legacyPrefix) && !it.name.contains("-$jobId-") &&
-                (it.name.endsWith(".part") || it.name.endsWith(".ytdl"))
-        } == true
-
-        assertTrue(hasLegacyPart)
-
-        legacyPart.delete()
-        directory.delete()
+      assertEquals(own, YtdlpDownloadEngine.findNewestOutput(current, directory.listFiles()!!.toList()))
+      assertFalse(YtdlpDownloadEngine.isJobFile(current, other.name))
+    } finally {
+      directory.deleteRecursively()
     }
+  }
 
-    @Test
-    fun `test cleanup isolation prevents deleting other jobs files`() {
-        val jobId1 = 1
-        val jobId2 = 2
-        val title = "SharedTitle"
-        val directory = File(System.getProperty("java.io.tmpdir"), "test_cleanup")
-        directory.mkdirs()
+  @Test
+  fun `cleanup candidates contain only the current job prefix`() {
+    val directory = createTempDir(prefix = "cleanup-")
+    try {
+      val current = job(50, title = "Shared").copy(directory = directory.absolutePath)
+      val ownPart = File(directory, "Shared-50-youtube-own.mp4.part").apply { createNewFile() }
+      val ownYtdl = File(directory, "Shared-50-youtube-own.mp4.ytdl").apply { createNewFile() }
+      val other = File(directory, "Shared-51-youtube-other.mp4").apply { createNewFile() }
+      val legacy = File(directory, "Shared.mp4.part").apply { createNewFile() }
 
-        val file1 = File(directory, "$title-$jobId1-youtube-123.mp4")
-        val file2 = File(directory, "$title-$jobId2-youtube-456.mp4")
-        val legacyFile = File(directory, "$title.mp4")
-        val legacyPart = File(directory, "$title.mp4.part")
-
-        file1.createNewFile()
-        file2.createNewFile()
-        legacyFile.createNewFile()
-        legacyPart.createNewFile()
-
-        // Simulate cleanup for job 1
-        val sanitizedTitle = DownloadLocations.sanitizeName(title)
-        val newSchemeMarker = "-$jobId1-"
-        directory.listFiles()?.forEach { file ->
-            if (!file.isFile) return@forEach
-            val isNewScheme = file.name.contains(newSchemeMarker)
-            val isLegacyScheme = file.name.startsWith("$sanitizedTitle.") && !file.name.contains("-$jobId1-")
-
-            if (isNewScheme) {
-                file.delete()
-            } else if (isLegacyScheme) {
-                if (file.name.endsWith(".part") || file.name.endsWith(".ytdl")) {
-                    file.delete()
-                }
-            }
-        }
-
-        assertFalse(file1.exists()) // Job 1 file should be deleted
-        assertTrue(file2.exists()) // Job 2 file should NOT be deleted
-        assertTrue(legacyFile.exists()) // Legacy completed file should NOT be deleted
-        assertFalse(legacyPart.exists()) // Legacy part file should be deleted
-
-        file2.delete()
-        legacyFile.delete()
-        directory.delete()
+      val cleanup = YtdlpDownloadEngine.filesToCleanup(current, directory.listFiles()!!.toList())
+      assertTrue(cleanup.contains(ownPart))
+      assertTrue(cleanup.contains(ownYtdl))
+      assertFalse(cleanup.contains(other))
+      assertFalse(cleanup.contains(legacy))
+    } finally {
+      directory.deleteRecursively()
     }
+  }
+
+  @Test
+  fun `retry and restored jobs preserve output identity`() {
+    val original = job(60, title = "Retry me")
+    val retry = original.copy(state = YtdlpDownloadEngine.JobState.QUEUED)
+    val restored = original.copy(state = YtdlpDownloadEngine.JobState.RUNNING)
+
+    assertEquals(YtdlpDownloadEngine.jobFilePrefix(original), YtdlpDownloadEngine.jobFilePrefix(retry))
+    assertEquals(YtdlpDownloadEngine.outputTemplate(original), YtdlpDownloadEngine.outputTemplate(restored))
+  }
+
+  @Test
+  fun `unknown extractor and media ids still remain job scoped`() {
+    val current = job(70, title = "Video")
+
+    assertTrue(YtdlpDownloadEngine.isJobFile(current, "Video-70---.mp4"))
+    assertFalse(YtdlpDownloadEngine.isJobFile(current, "Video-7-youtube-0.mp4"))
+    assertFalse(YtdlpDownloadEngine.isJobFile(current, "Video-700-youtube-0.mp4"))
+  }
+
+  @Test
+  fun `empty and long unsafe titles produce stable scoped prefixes`() {
+    val empty = job(80, title = "///")
+    val long = job(81, title = "a".repeat(500))
+
+    assertEquals("download-80-", YtdlpDownloadEngine.jobFilePrefix(empty))
+    assertTrue(YtdlpDownloadEngine.jobFilePrefix(long).endsWith("-81-"))
+  }
 }
